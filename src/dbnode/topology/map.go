@@ -21,20 +21,21 @@
 package topology
 
 import (
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
 	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
 type staticMap struct {
-	shardSet            sharding.ShardSet
-	hostShardSets       []HostShardSet
-	hostShardSetsByID   map[string]HostShardSet
-	orderedHosts        []Host
-	hostsByShard        [][]Host
-	orderedHostsByShard [][]orderedHost
-	replicas            int
-	majority            int
+	shardSet                 sharding.ShardSet
+	hostShardSets            []HostShardSet
+	hostShardSetsByID        map[string]HostShardSet
+	orderedHosts             []Host
+	hostsByShard             [][]Host
+	orderedShardHostsByShard [][]orderedShardHost
+	replicas                 int
+	majority                 int
 }
 
 // NewStaticMap creates a new static topology map
@@ -42,35 +43,40 @@ func NewStaticMap(opts StaticOptions) Map {
 	totalShards := len(opts.ShardSet().AllIDs())
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{
-		shardSet:            opts.ShardSet(),
-		hostShardSets:       hostShardSets,
-		hostShardSetsByID:   make(map[string]HostShardSet),
-		orderedHosts:        make([]Host, 0, len(hostShardSets)),
-		hostsByShard:        make([][]Host, totalShards),
-		orderedHostsByShard: make([][]orderedHost, totalShards),
-		replicas:            opts.Replicas(),
-		majority:            Majority(opts.Replicas()),
+		shardSet:                 opts.ShardSet(),
+		hostShardSets:            hostShardSets,
+		hostShardSetsByID:        make(map[string]HostShardSet),
+		orderedHosts:             make([]Host, 0, len(hostShardSets)),
+		hostsByShard:             make([][]Host, totalShards),
+		orderedShardHostsByShard: make([][]orderedShardHost, totalShards),
+		replicas:                 opts.Replicas(),
+		majority:                 Majority(opts.Replicas()),
 	}
 
 	for idx, hostShardSet := range hostShardSets {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
-		for _, shard := range hostShardSet.ShardSet().AllIDs() {
-			topoMap.hostsByShard[shard] = append(topoMap.hostsByShard[shard], host)
-			topoMap.orderedHostsByShard[shard] = append(topoMap.orderedHostsByShard[shard], orderedHost{
-				idx:  idx,
-				host: host,
-			})
+		for _, shard := range hostShardSet.ShardSet().All() {
+			id := shard.ID()
+			topoMap.hostsByShard[id] = append(topoMap.hostsByShard[id], host)
+			elem := orderedShardHost{
+				idx:   idx,
+				shard: shard,
+				host:  host,
+			}
+			topoMap.orderedShardHostsByShard[id] =
+				append(topoMap.orderedShardHostsByShard[id], elem)
 		}
 	}
 
 	return &topoMap
 }
 
-type orderedHost struct {
-	idx  int
-	host Host
+type orderedShardHost struct {
+	idx   int
+	shard shard.Shard
+	host  Host
 }
 
 func (t *staticMap) Hosts() []Host {
@@ -114,12 +120,12 @@ func (t *staticMap) RouteShard(shard uint32) ([]Host, error) {
 }
 
 func (t *staticMap) RouteShardForEach(shard uint32, forEachFn RouteForEachFn) error {
-	if int(shard) >= len(t.orderedHostsByShard) {
+	if int(shard) >= len(t.orderedShardHostsByShard) {
 		return errUnownedShard
 	}
-	orderedHosts := t.orderedHostsByShard[shard]
-	for i := range orderedHosts {
-		forEachFn(orderedHosts[i].idx, orderedHosts[i].host)
+	orderedShardHosts := t.orderedShardHostsByShard[shard]
+	for _, elem := range orderedShardHosts {
+		forEachFn(elem.idx, elem.shard, elem.host)
 	}
 	return nil
 }

@@ -46,6 +46,9 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
+	// AggregateTiles is the operation name for the tchannelthrift AggregateTiles path.
+	AggregateTiles = "tchannelthrift/node.service.AggregateTiles"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
@@ -63,6 +66,9 @@ const (
 
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
+
+	// DBAggregateTiles is the operation name for the db AggregateTiles path.
+	DBAggregateTiles = "storage.db.AggregateTiles"
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
