@@ -1,4 +1,4 @@
-{{ $glossaryBundle := site.GetPage "page" "glossary" }}
+{{ $glossaryBundle := site.GetPage "page" "docs/glossary" }}
 {{- if $glossaryBundle -}}
   {{ $pages := $glossaryBundle.Resources.ByType "page" }}
   {{- range site.Params.language_alternatives -}}
