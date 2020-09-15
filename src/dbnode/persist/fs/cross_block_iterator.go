@@ -50,29 +50,29 @@ func (c *crossBlockIterator) Next() bool {
 		return false
 	}
 
-	// NB: if no values remain in current iterator,
-	if c.idx < 0 || !c.current.Next() {
-		// NB: clear previous.
-		if c.idx >= 0 {
-			if c.current.Err() != nil {
-				c.exhausted = true
-				return false
-			}
-		}
+	if c.idx >= 0 && c.current.Next() {
+		return true
+	}
 
-		c.idx++
-		if c.idx >= len(c.records) {
+	// NB: clear previous.
+	if c.idx >= 0 {
+		if c.current.Err() != nil {
 			c.exhausted = true
 			return false
 		}
-
-		c.byteReader.Reset(c.records[c.idx].Data)
-		c.current.Reset(c.byteReader, nil)
-		// NB: rerun using the next record.
-		return c.Next()
 	}
 
-	return true
+	c.idx++
+	if c.idx >= len(c.records) {
+		c.exhausted = true
+		return false
+	}
+
+	c.byteReader.Reset(c.records[c.idx].Data)
+	c.current.Reset(c.byteReader, nil)
+
+	// NB: rerun using the next record.
+	return c.Next()
 }
 
 func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
