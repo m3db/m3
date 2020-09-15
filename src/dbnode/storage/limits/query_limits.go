@@ -78,7 +78,7 @@ func NewQueryLimits(
 		return nil, err
 	}
 	docsLimit := newLookbackLimit(instrumentOpts, docsLimitOpts, "docs-matched")
-	bytesReadLimit := newLookbackLimit(instrumentOpts, bytesReadLimitOpts, "bytes-read")
+	bytesReadLimit := newLookbackLimit(instrumentOpts, bytesReadLimitOpts, "disk-bytes-read")
 	return &queryLimits{
 		docsLimit:      docsLimit,
 		bytesReadLimit: bytesReadLimit,
