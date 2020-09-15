@@ -410,6 +410,7 @@ func TestConfiguration(t *testing.T) {
     writeTimestampOffset: null
     fetchSeriesBlocksBatchConcurrency: null
     fetchSeriesBlocksBatchSize: null
+    writeShardsInitializing: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
