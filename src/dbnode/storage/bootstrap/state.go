@@ -79,9 +79,6 @@ func (r *State) InfoFilesForShard(ns namespace.Metadata, shard uint32) []fs.Read
 	return infoFileResults
 }
 
-// TODO(nate): Make this threadsafe? If so, we'll need to clone the map
-// before returning, provide an update method, and incorporate locking.
-//
 // ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
 // is returned if the info files have already been read.
 func (r *State) ReadInfoFiles() InfoFilesByNamespace {
