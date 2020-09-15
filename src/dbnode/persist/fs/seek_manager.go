@@ -467,7 +467,7 @@ func (m *seekerManager) markBorrowedSeekerAsReturned(seekers *seekersAndBloom, s
 //   4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
 //      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
 //      running the UpdateOpenlease() function that all inactive seekers have been returned and closed at
-//      which point the function will return sucessfully.
+//      which point the function will return successfully.
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,

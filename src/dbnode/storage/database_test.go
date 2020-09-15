@@ -57,7 +57,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,9 +68,9 @@ var (
 	defaultTestNs1ID         = ident.StringID("testns1")
 	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+		SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+		SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
@@ -1286,4 +1286,52 @@ func TestDatabaseIsOverloaded(t *testing.T) {
 
 	mockCL.EXPECT().QueueLength().Return(int64(90))
 	require.Equal(t, true, d.IsOverloaded())
+}
+
+func TestDatabaseAggregateTiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm         = d.opts.PersistManager()
+		start      = time.Now().Truncate(time.Hour)
+	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, true)
+	require.Error(t, err)
+
+	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
+	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts, pm).Return(int64(4), nil)
+
+	processedBlockCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), processedBlockCount)
+}
+
+func TestNewAggregateTilesOptions(t *testing.T) {
+	start := time.Now().Truncate(time.Hour)
+
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, false)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, false)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, false)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, false)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, false)
+	assert.NoError(t, err)
 }

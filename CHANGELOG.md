@@ -1,5 +1,16 @@
 # Changelog
 
+# 0.15.13
+
+## Bug Fixes
+
+- **M3DB**: Fix case insensitive regexp modifiers (?i) implementation for metrics selector ([#2564](https://github.com/m3db/m3/pull/2564))
+
+## Misc
+
+- **M3DB**: Expose stream batch client options to config ([#2576](https://github.com/m3db/m3/pull/2576))
+- **M3Query**: Metrics visibility and ability to limit number of encoders per block ([#2516](https://github.com/m3db/m3/pull/2516))
+
 # 0.15.12
 
 ## Bug Fixes
