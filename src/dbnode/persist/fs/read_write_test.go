@@ -75,6 +75,20 @@ func (e testEntry) Tags() ident.Tags {
 	return tags
 }
 
+type testEntries []testEntry
+
+func (e testEntries) Less(i, j int) bool {
+	return e[i].id < e[j].id
+}
+
+func (e testEntries) Len() int {
+	return len(e)
+}
+
+func (e testEntries) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
+}
+
 func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
 	writer, err := NewWriter(testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix).
@@ -158,20 +172,42 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
-// readTestData will test reading back the data matches what was written,
+func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)
+
+	sortedEntries := append(make(testEntries, 0, len(entries)), entries...)
+	sort.Sort(sortedEntries)
+
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, sortedEntries, true)
+}
+
+// readTestDataWithStreamingOpt will test reading back the data matches what was written,
 // note that this test also tests reuse of the reader since it first reads
 // all the data then closes it, reopens and reads through again but just
 // reading the metadata the second time.
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
-func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+func readTestDataWithStreamingOpt(
+	t *testing.T,
+	r DataFileSetReader,
+	shard uint32,
+	timestamp time.Time,
+	entries []testEntry,
+	streamingEnabled bool,
+) {
 	for _, underTest := range readTestTypes {
+		if underTest == readTestTypeMetadata && streamingEnabled {
+			// ATM there is no streaming support for metadata.
+			continue
+		}
+
 		rOpenOpts := DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
-				Shard:      0,
+				Shard:      shard,
 				BlockStart: timestamp,
 			},
+			StreamingEnabled: streamingEnabled,
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -195,7 +231,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 		for i := 0; i < r.Entries(); i++ {
 			switch underTest {
 			case readTestTypeData:
-				id, tags, data, checksum, err := r.Read()
+				id, tags, data, checksum, err := readData(t, r)
 				require.NoError(t, err)
 
 				data.IncRef()
@@ -220,6 +256,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				tags.Close()
 				data.DecRef()
 				data.Finalize()
+
 			case readTestTypeMetadata:
 				id, tags, length, checksum, err := r.ReadMetadata()
 				require.NoError(t, err)
@@ -527,6 +564,23 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
+}
+
+func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
+	if reader.StreamingEnabled() {
+		id, encodedTags, data, checksum, err := reader.StreamingRead()
+		var tags = ident.EmptyTagIterator
+		if len(encodedTags) > 0 {
+			tagsDecoder := testTagDecoderPool.Get()
+			tagsDecoder.Reset(checkedBytes(encodedTags))
+			require.NoError(t, tagsDecoder.Err())
+			tags = tagsDecoder
+		}
+
+		return id, tags, checked.NewBytes(data, nil), checksum, err
+	}
+
+	return reader.Read()
 }
 
 func checkedBytes(b []byte) checked.Bytes {

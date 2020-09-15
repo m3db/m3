@@ -802,6 +802,92 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 	}, nil
 }
 
+// exponentialMovingAverage takes a series of values and a window size and produces
+// an exponential moving average utilizing the following formula:
+// 		ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+// The `constant` is calculated as:
+// 		constant = 2 / (windowSize + 1)
+// the first period EMA uses a simple moving average for its value.
+func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+	if len(input.Values) == 0 {
+		return nil, nil
+	}
+
+	windowSize, err := parseWindowSize(windowSizeValue, input)
+	if err != nil {
+		return nil, err
+	}
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, windowSize.deltaValue, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-windowSize.deltaValue), ctx.StartTime
+	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
+		bootstrapList, err := combineBootstrapWithOriginal(ctx,
+			bootstrapStartTime, bootstrapEndTime,
+			bootstrapped, singlePathSpec(original))
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+
+		results := make([]*ts.Series, 0, original.Len())
+		for i, bootstrap := range bootstrapList.Values {
+			series := original.Values[i]
+			stepSize := series.MillisPerStep()
+			windowPoints := windowSize.windowSizeFunc(stepSize)
+			if windowPoints == 0 {
+				err := errors.NewInvalidParamsError(fmt.Errorf(
+					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
+					windowSizeValue, stepSize))
+				return ts.NewSeriesList(), err
+			}
+			emaConstant := 2.0 / (float64(windowPoints) + 1.0)
+
+			numSteps := series.Len()
+			offset := bootstrap.Len() - numSteps
+			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstWindow, err := bootstrap.Slice(0, offset)
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
+
+			// the first value is just a regular moving average
+			ema := firstWindow.SafeAvg()
+			if math.IsNaN(ema) {
+				ema = 0
+			}
+			vals.SetValueAt(0, ema)
+			for i := 1; i < numSteps; i++ {
+				curr := bootstrap.ValueAt(i + offset)
+				if !math.IsNaN(curr) {
+					// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+					ema = emaConstant * curr + (1 - emaConstant) * ema
+					vals.SetValueAt(i, ema)
+				} else {
+					vals.SetValueAt(i, math.NaN())
+				}
+
+			}
+
+			name := fmt.Sprintf("exponentialMovingAverage(%s,%s)", series.Name(), windowSize.stringValue)
+			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+			results = append(results, newSeries)
+		}
+
+		original.Values = results
+		return original, nil
+	}
+
+	return &binaryContextShifter{
+		ContextShiftFunc:  contextShiftingFn,
+		BinaryTransformer: transformerFn,
+	}, nil
+}
+
 // totalFunc takes an index and returns a total value for that index
 type totalFunc func(int) float64
 
@@ -1691,16 +1777,70 @@ func changed(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, err
 	})
 }
 
-// movingMedian takes one metric or a wildcard seriesList followed by a a quoted string
-// with a length of time like '1hour' or '5min'. Graphs the median of the preceding
-// datapoints for each point on the graph. All previous datapoints are set to None at
-// the beginning of the graph.
-func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*binaryContextShifter, error) {
-	interval, err := common.ParseInterval(windowSize)
+// windowPointsLength calculates the number of window points in a interval
+func windowPointsLength(series *ts.Series, interval time.Duration) int {
+	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
+}
+
+type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int)
+
+// movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
+func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+	nans := common.SafeSort(window)
+
+	if nans < windowPoints {
+		index := (windowPoints - nans) / 2
+		median := window[nans+index]
+		vals.SetValueAt(i, median)
+	}
+}
+
+// movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
+func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+	sum, nans := common.SafeSum(window)
+
+	if nans < windowPoints {
+		vals.SetValueAt(i, sum)
+	}
+}
+
+// movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
+func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+	max, nans := common.SafeMax(window)
+
+	if nans < windowPoints {
+		vals.SetValueAt(i, max)
+	}
+}
+
+// movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
+func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+	min, nans := common.SafeMin(window)
+
+	if nans < windowPoints {
+		vals.SetValueAt(i, min)
+	}
+}
+
+
+
+func newMovingBinaryTransform(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSizeValue genericInterface,
+	movingFunctionName string,
+	impl movingImplementationFn,
+) (*binaryContextShifter, error) {
+	if len(input.Values) == 0 {
+		return nil, nil
+	}
+
+	windowSize, err := parseWindowSize(windowSizeValue, input)
 	if err != nil {
 		return nil, err
 	}
 
+	interval := windowSize.deltaValue
 	if interval <= 0 {
 		return nil, common.ErrInvalidIntervalFormat
 	}
@@ -1713,63 +1853,87 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	}
 
 	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
-	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-		bootstrapList, err := combineBootstrapWithOriginal(ctx,
-			bootstrapStartTime, bootstrapEndTime,
-			bootstrapped, singlePathSpec(original))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-
-		results := make([]*ts.Series, 0, original.Len())
-		for i, bootstrap := range bootstrapList.Values {
-			series := original.Values[i]
-			windowPoints := int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
-			if windowPoints <= 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
-					"non positive window points, windowSize=%s, stepSize=%d",
-					windowSize, series.MillisPerStep()))
-				return ts.NewSeriesList(), err
-			}
-			window := make([]float64, windowPoints)
-			util.Memset(window, math.NaN())
-			numSteps := series.Len()
-			offset := bootstrap.Len() - numSteps
-			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			for i := 0; i < numSteps; i++ {
-				for j := i + offset - windowPoints; j < i+offset; j++ {
-					if j < 0 || j >= bootstrap.Len() {
-						continue
-					}
-
-					idx := j - i - offset + windowPoints
-					if idx < 0 || idx > len(window)-1 {
-						continue
-					}
-
-					window[idx] = bootstrap.ValueAt(j)
-				}
-				nans := common.SafeSort(window)
-				if nans < windowPoints {
-					index := (windowPoints - nans) / 2
-					median := window[nans+index]
-					vals.SetValueAt(i, median)
-				}
-			}
-			name := fmt.Sprintf("movingMedian(%s,%q)", series.Name(), windowSize)
-			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-			results = append(results, newSeries)
-		}
-
-		original.Values = results
-		return original, nil
-	}
-
 	return &binaryContextShifter{
 		ContextShiftFunc:  contextShiftingFn,
-		BinaryTransformer: transformerFn,
+		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
+			bootstrapList, err := combineBootstrapWithOriginal(ctx,
+				bootstrapStartTime, bootstrapEndTime,
+				bootstrapped, singlePathSpec(original))
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
+
+			results := make([]*ts.Series, 0, original.Len())
+			maxWindowPoints := 0
+			for i, _ := range bootstrapList.Values {
+				series := original.Values[i]
+				windowPoints := windowPointsLength(series, interval)
+				if windowPoints <= 0 {
+					err := errors.NewInvalidParamsError(fmt.Errorf(
+						"non positive window points, windowSize=%s, stepSize=%d",
+						windowSize.stringValue, series.MillisPerStep()))
+					return ts.NewSeriesList(), err
+				}
+				if windowPoints > maxWindowPoints {
+					maxWindowPoints = windowPoints
+				}
+			}
+
+			windowPoints := make([]float64, maxWindowPoints)
+			for i, bootstrap := range bootstrapList.Values {
+				series := original.Values[i]
+				currWindowPoints := windowPointsLength(series, interval)
+				window := windowPoints[:currWindowPoints]
+				util.Memset(window, math.NaN())
+				numSteps := series.Len()
+				offset := bootstrap.Len() - numSteps
+				vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+				for i := 0; i < numSteps; i++ {
+					for j := i + offset - currWindowPoints; j < i+offset; j++ {
+						if j < 0 || j >= bootstrap.Len() {
+							continue
+						}
+
+						idx := j - i - offset + currWindowPoints
+						if idx < 0 || idx > len(window)-1 {
+							continue
+						}
+
+						window[idx] = bootstrap.ValueAt(j)
+					}
+					impl(window, vals, currWindowPoints, i)
+				}
+				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
+				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+				results = append(results, newSeries)
+			}
+
+			original.Values = results
+			return original, nil
+		},
 	}, nil
 }
+
+// movingMedian calculates the moving median of a metric (or metrics) over a time interval.
+func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", movingMedianHelper)
+}
+
+// movingSum calculates the moving sum of a metric (or metrics) over a time interval.
+func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", movingSumHelper)
+}
+
+// movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
+func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", movingMaxHelper)
+}
+
+// movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
+func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
+}
+
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
@@ -1990,6 +2154,7 @@ func init() {
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(exclude)
+	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
@@ -2029,6 +2194,9 @@ func init() {
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage)
 	MustRegisterFunction(movingMedian)
+	MustRegisterFunction(movingSum)
+	MustRegisterFunction(movingMax)
+	MustRegisterFunction(movingMin)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
@@ -2093,6 +2261,7 @@ func init() {
 
 	// alias functions - in alpha ordering
 	MustRegisterAliasedFunction("abs", absolute)
+	MustRegisterAliasedFunction("aliasByTags", aliasByNode)
 	MustRegisterAliasedFunction("avg", averageSeries)
 	MustRegisterAliasedFunction("log", logarithm)
 	MustRegisterAliasedFunction("max", maxSeries)

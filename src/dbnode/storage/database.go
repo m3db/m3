@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -114,6 +115,8 @@ type db struct {
 	log     *zap.Logger
 
 	writeBatchPool *writes.WriteBatchPool
+
+	queryLimits limits.QueryLimits
 }
 
 type databaseMetrics struct {
@@ -186,6 +189,7 @@ func NewDatabase(
 		metrics:                newDatabaseMetrics(scope),
 		log:                    logger,
 		writeBatchPool:         opts.WriteBatchPool(),
+		queryLimits:            opts.IndexOptions().QueryLimits(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -826,6 +830,12 @@ func (d *db) QueryIDs(
 	}
 	defer sp.Finish()
 
+	// Check if exceeding query limits at very beginning of
+	// query path to abandon as early as possible.
+	if err := d.queryLimits.AnyExceeded(); err != nil {
+		return index.QueryResult{}, err
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -1086,6 +1096,41 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
+func (d *db) AggregateTiles(
+	ctx context.Context,
+	sourceNsID,
+	targetNsID ident.ID,
+	opts AggregateTilesOptions,
+) (int64, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("sourceNamespace", sourceNsID.String()),
+			opentracinglog.String("targetNamespace", targetNsID.String()),
+			xopentracing.Time("start", opts.Start),
+			xopentracing.Time("end", opts.End),
+			xopentracing.Duration("step", opts.Step),
+		)
+	}
+	defer sp.Finish()
+
+	sourceNs, err := d.namespaceFor(sourceNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return 0, err
+	}
+
+	targetNs, err := d.namespaceFor(targetNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return 0, err
+	}
+
+	// TODO: Create and use a dedicated persist manager
+	pm := d.opts.PersistManager()
+	return targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+}
+
 func (d *db) nextIndex() uint64 {
 	// Start with index at "1" so that a default "uniqueIndex"
 	// with "0" is invalid (AddUint64 will return the new value).
@@ -1128,4 +1173,26 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
+}
+
+// NewAggregateTilesOptions creates new AggregateTilesOptions.
+func NewAggregateTilesOptions(
+	start, end time.Time,
+	step time.Duration,
+	handleCounterResets bool,
+) (AggregateTilesOptions, error) {
+	if !end.After(start) {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
+	}
+
+	if step <= 0 {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
+	}
+
+	return AggregateTilesOptions{
+		Start: start,
+		End: end,
+		Step: step,
+		HandleCounterResets: handleCounterResets,
+	}, nil
 }

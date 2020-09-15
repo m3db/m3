@@ -71,6 +71,53 @@ func SafeSort(input []float64) int {
 	return nans
 }
 
+// SafeSum returns the sum of the input slice the number of NaNs in the input.
+func SafeSum(input []float64) (float64, int) {
+	nans := 0
+	sum := 0.0
+	for _, v := range input {
+		if !math.IsNaN(v) {
+			sum += v
+		} else {
+			nans += 1
+		}
+	}
+	return sum, nans
+}
+
+// SafeMax returns the maximum value of the input slice the number of NaNs in the input.
+func SafeMax(input []float64) (float64, int) {
+	nans := 0
+	max := -math.MaxFloat64
+	for _, v := range input {
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
+		if v > max {
+			max = v
+		}
+	}
+	return max, nans
+}
+
+// SafeMin returns the minimum value of the input slice the number of NaNs in the input.
+func SafeMin(input []float64) (float64, int) {
+	nans := 0
+	min := math.MaxFloat64
+	for _, v := range input {
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
+		if v < min {
+			min = v
+		}
+	}
+	return min, nans
+}
+
+
 // GetPercentile computes the percentile cut off for an array of floats
 func GetPercentile(input []float64, percentile float64, interpolate bool) float64 {
 	nans := SafeSort(input)
