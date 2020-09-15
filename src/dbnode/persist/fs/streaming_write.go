@@ -138,7 +138,7 @@ func (w *streamingWriter) Write(
 		return err
 	}
 	w.data[0] = segment.Head
-	w.data[1] = segment.Tail
+	w.data[1] = segment.Tail // FIXME we fail to finalize the tail (does not get finalized automatically because FinalizeTail flag not set)
 	checksum := segment.CalculateChecksum()
 	entry, err := w.writeData(w.data, checksum)
 	if err != nil {
