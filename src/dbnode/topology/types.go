@@ -134,7 +134,7 @@ type Map interface {
 }
 
 // RouteForEachFn is a function to execute for each routed to host
-type RouteForEachFn func(idx int, host Host)
+type RouteForEachFn func(idx int, shard shard.Shard, host Host)
 
 // StaticConfiguration is used for standing up M3DB with a static topology
 type StaticConfiguration struct {
