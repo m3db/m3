@@ -22,11 +22,11 @@ package native
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/query/block"
 	"math"
 	"strings"
 
 	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
