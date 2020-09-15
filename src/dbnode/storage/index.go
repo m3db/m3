@@ -87,6 +87,9 @@ const (
 	nsIndexReportStatsInterval          = 10 * time.Second
 
 	defaultFlushDocsBatchSize = 8192
+
+	// Use -1 for default unset snapshot versions.
+	defaultSnapshotVersion = -1
 )
 
 var (
@@ -101,7 +104,7 @@ type snapshotState struct {
 
 func newSnapshotState() snapshotState {
 	return snapshotState{
-		statesByTime: make(map[xtime.UnixNano]fileOpState),
+		statesByTime: make(map[xtime.UnixNano]index.BlockState),
 	}
 }
 
@@ -867,7 +870,15 @@ func (i *nsIndex) Bootstrap(
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		// TODO(bodu): Record snapshot version loaded into mem.
+		for volumeType, results := range blockResults.Iter() {
+			switch volumeType {
+			case idxpersist.SnapshotColdIndexVolumeType, idxpersist.SnapshotWarmIndexVolumeType:
+				// Only set if the volume index in the results is set.
+				if results.VolumeIndex() >= 0 {
+					i.setSnapshotStateVersionLoaded(blockStart, results.VolumeIndex())
+				}
+			}
+		}
 	}
 
 	return multiErr.FinalError()
@@ -1000,6 +1011,9 @@ func (i *nsIndex) WarmFlush(
 				zap.Time("blockStart", block.StartTime()),
 			)
 		}
+
+		// NB(bodu): We should reset any snapshot loaded version to default after a successful warm flush.
+		i.setSnapshotStateVersionLoaded(block.StartTime(), defaultSnapshotVersion)
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
@@ -1025,6 +1039,8 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 		multiErr := xerrors.NewMultiError()
 		for _, block := range flushable {
 			multiErr = multiErr.Add(block.EvictColdMutableSegments())
+			// NB(bodu): We should reset any snapshot loaded version to default after a successful cold flush.
+			i.setSnapshotStateVersionLoaded(block.StartTime(), defaultSnapshotVersion)
 		}
 		return multiErr.FinalError()
 	}, nil
@@ -1180,9 +1196,18 @@ func (i *nsIndex) flushBlock(
 		return nil, err
 	}
 
+	closed = true
+	immutableSegments, err := preparedPersist.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	// NB(bodu): After a successful warm block flush, we must write an empty snapshot to disk.
 	// If the DB node crashes before next snapshot is written to disk and we bootstrap the warm snapshot
 	// into the now "sealed" block those warm bootstrapped segments will never get evicted from memory.
+	// Since we are doing this after a successful flush, there is a small window where we can crash and
+	// run into the above case. However, we'd rather deal w/ a one time extra mem than long bootstrap times
+	// if we write an empty snapshot to disk and the node crashes before a successful warm flush.
 	prepareOpts := persist.IndexPrepareSnapshotOptions{
 		IndexPrepareOptions: persist.IndexPrepareOptions{
 			NamespaceMetadata: i.nsMetadata,
@@ -1201,9 +1226,10 @@ func (i *nsIndex) flushBlock(
 		return nil, err
 	}
 
-	closed = true
-	// Now return the immutable segments
-	return preparedPersist.Close()
+	// Update the flushed snapshot version after a successful snapshot flush.
+	i.setSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
+
+	return immutableSegments, nil
 }
 
 func (i *nsIndex) flushBlockSegment(
@@ -1362,7 +1388,9 @@ func (i *nsIndex) Snapshot(
 		}
 	}
 	_, err = prepared.Close()
-	// TODO(bodu): Record snapshot version flushed to disk.
+	if err == nil {
+		i.setSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
+	}
 	return err
 }
 
@@ -2220,20 +2248,21 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	return nil
 }
 
-func (i *nsIndex) BlockStatesSnapshotWithRLock() index.BlockStateSnapshot {
+func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
 	i.RLock()
-	defer i.RUnlock()
 	bootstrapped := i.state.bootstrapState != Bootstrapped
 	if !bootstrapped {
 		// Needs to be bootstrapped.
+		i.RUnlock()
 		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 	}
+	i.RUnlock()
 
 	i.snapshotState.RLock()
 	defer i.snapshotState.RUnlock()
 	if !i.snapshotState.initialized {
 		// Also needs to have the snapshot states initialized.
-		return index.NewBlockStateSnapshot(false, seriei.BootstrappedBlockStateSnapshot{})
+		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 	}
 
 	snapshot := make(map[xtime.UnixNano]index.BlockState, len(i.snapshotState.statesByTime))
@@ -2241,7 +2270,7 @@ func (i *nsIndex) BlockStatesSnapshotWithRLock() index.BlockStateSnapshot {
 		snapshot[time] = state
 	}
 
-	return index.NewBlockStateSnapshot(true, seriei.BootstrappedBlockStateSnapshot{
+	return index.NewBlockStateSnapshot(true, index.BootstrappedBlockStateSnapshot{
 		Snapshot: snapshot,
 	})
 }
@@ -2274,18 +2303,31 @@ func (i *nsIndex) initializeSnapshotStates() {
 func (i *nsIndex) setSnapshotStateVersionFlushed(blockStart time.Time, version int) {
 	s.snapshotState.Lock()
 	defer s.snapshotState.Unlock()
-	state := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state := s.ensureSnapshotStateWithLock(blockStart)
 	state.SnapshotVersionFlushed = version
 	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
-
 }
 
 func (i *nsIndex) setSnapshotStateVersionLoaded(blockStart time.Time, version int) {
 	s.snapshotState.Lock()
 	defer s.snapshotState.Unlock()
-	state := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state := s.ensureSnapshotStateWithLock(blockStart)
 	state.SnapshotVersionLoaded = version
 	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+}
+
+// ensureSnapshotStateWithLock gets snapshot state given a block start and ensures that it exists.
+func (i *nsIndex) ensureSnapshotStateWithLock(blockStart time.Time) index.BlockState {
+	state, ok := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		state = index.BlockState{
+			// Default unset values for snapshot version is -1.
+			SnapshotVersionFlushed: defaultSnapshotVersion,
+			SnapshotVersionLoaded:  defaultSnapshotVersion,
+		}
+		s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	}
+	return state
 }
 
 func (i *nsIndex) Close() error {

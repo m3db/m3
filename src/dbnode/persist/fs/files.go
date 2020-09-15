@@ -924,7 +924,7 @@ func SortedSnapshotMetadataFiles(opts Options) (
 	[]SnapshotMetadata, []SnapshotMetadataErrorWithPaths, error) {
 	var (
 		prefix           = opts.FilePathPrefix()
-		snapshotsDirPath = SnapshotDirPath(prefix)
+		snapshotsDirPath = SnapshotsDirPath(prefix)
 	)
 
 	// Glob for metadata files directly instead of their checkpoint files.
@@ -1401,11 +1401,6 @@ func IndexDataDirPath(prefix string) string {
 	return path.Join(prefix, indexDirName, dataDirName)
 }
 
-// SnapshotDirPath returns the path to the snapshot directory belong to a db
-func SnapshotDirPath(prefix string) string {
-	return path.Join(prefix, snapshotDirName)
-}
-
 // NamespaceDataDirPath returns the path to the data directory for a given namespace.
 func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
@@ -1423,12 +1418,17 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 
 // NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
-	return path.Join(prefix, snapshotIndexDirName, namespace.String())
+	return path.Join(IndexSnapshotsDirPath(prefix), namespace.String())
 }
 
 // SnapshotsDirPath returns the path to the snapshots directory.
 func SnapshotsDirPath(prefix string) string {
 	return path.Join(prefix, snapshotDirName)
+}
+
+// IndexSnapshotsDirPath returns the path to the index snapshots directory.
+func IndexSnapshotsDirPath(prefix string) string {
+	return path.Join(prefix, snapshotIndexDirName)
 }
 
 // ShardDataDirPath returns the path to the data directory for a given shard.

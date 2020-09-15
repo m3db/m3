@@ -61,8 +61,6 @@ const (
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (
 	iter commitlog.Iterator, corruptFiles []commitlog.ErrorWithPath, err error)
-type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
-type indexSnapshotFilesFn func(filePathPrefix string, namespace ident.ID) (fs.FileSetFilesSlice, error)
 type newDataReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error)
 type readIndexSegmentsFn func(opts fs.ReadIndexSegmentsOptions) ([]segment.Segment, error)
 
@@ -75,8 +73,8 @@ type commitLogSource struct {
 	inspection fs.Inspection
 
 	newIteratorFn        newIteratorFn
-	snapshotFilesFn      snapshotFilesFn
-	indexSnapshotFilesFn indexSnapshotFilesFn
+	snapshotFilesFn      fs.SnapshotFilesFn
+	indexSnapshotFilesFn fs.IndexSnapshotFilesFn
 	newDataReaderFn      newDataReaderFn
 	readIndexSegmentsFn  readIndexSegmentsFn
 	readIndexInfoFilesFn fs.ReadIndexInfoFilesFn

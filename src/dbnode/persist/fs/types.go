@@ -727,3 +727,16 @@ type ReadIndexInfoFilesFn func(
 	readerBufferSize int,
 	fileSetType persist.FileSetType,
 ) []ReadIndexInfoFileResult
+
+// SnapshotFilesFn reads in snapshot files given a namespace and shard.
+type SnapshotFilesFn func(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+) (fs.FileSetFilesSlice, error)
+
+// IndexSnapshotFilesFn reads in index snapshot files given a namespace.
+type IndexSnapshotFilesFn func(
+	filePathPrefix string,
+	namespace ident.ID,
+) (fs.FileSetFilesSlice, error)

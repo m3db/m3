@@ -200,8 +200,9 @@ type PreparedIndexFlushPersist struct {
 
 // PreparedIndexSnapshotPersist is an object that wraps holds a persist function and a closer.
 type PreparedIndexSnapshotPersist struct {
-	Persist IndexSnapshotFn
-	Close   IndexCloser
+	Persist     IndexSnapshotFn
+	Close       IndexCloser
+	VolumeIndex int
 }
 
 // Manager manages the internals of persisting data onto storage layer.
