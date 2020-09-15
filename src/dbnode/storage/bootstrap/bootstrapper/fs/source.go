@@ -123,22 +123,25 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
+	state bootstrap.State,
+	_ bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardTimeRanges)
+	return s.availability(md, shardTimeRanges, state)
 }
 
 func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
+	state bootstrap.State,
+	_ bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardTimeRanges)
+	return s.availability(md, shardTimeRanges, state)
 }
 
 func (s *fileSystemSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	state bootstrap.State,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
 	defer span.Finish()
@@ -154,12 +157,10 @@ func (s *fileSystemSource) Read(
 	}
 	builder := result.NewIndexBuilder(segBuilder)
 
-	// Preload info file results so they can be used to bootstrap data filesets and data migrations
-	infoFilesByNamespace := s.loadInfoFiles(namespaces)
-
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
 	// having to re-read migrated info files.
+	infoFilesByNamespace := state.ReadInfoFiles()
 	s.runMigrations(ctx, infoFilesByNamespace)
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
@@ -177,7 +178,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, infoFilesByNamespace)
+			namespace.DataRunOptions.RunOptions, builder, span, state)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -207,7 +208,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, infoFilesByNamespace)
+			namespace.IndexRunOptions.RunOptions, builder, span, state)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -229,7 +230,7 @@ func (s *fileSystemSource) Read(
 	return results, nil
 }
 
-func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespace fs.InfoFilesByNamespace) {
+func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespace bootstrap.InfoFilesByNamespace) {
 	// Only one migration for now, so just short circuit entirely if not enabled
 	if s.opts.MigrationOptions().TargetMigrationVersion() != migration.MigrationVersion_1_1 {
 		return
@@ -263,28 +264,26 @@ func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespa
 func (s *fileSystemSource) availability(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	state bootstrap.State,
 ) (result.ShardTimeRanges, error) {
 	result := result.NewShardTimeRangesFromSize(shardTimeRanges.Len())
 	for shard, ranges := range shardTimeRanges.Iter() {
-		result.Set(shard, s.shardAvailability(md.ID(), shard, ranges))
+		result.Set(shard, s.shardAvailability(md, shard, ranges, state))
 	}
 	return result, nil
 }
 
 func (s *fileSystemSource) shardAvailability(
-	namespace ident.ID,
+	md namespace.Metadata,
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
+	state bootstrap.State,
 ) xtime.Ranges {
 	if targetRangesForShard.IsEmpty() {
 		return xtime.NewRanges()
 	}
-
-	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
-		persist.FileSetFlushType)
-
-	return s.shardAvailabilityWithInfoFiles(namespace, shard, targetRangesForShard, readInfoFilesResults)
+	readInfoFileResults := state.InfoFilesForShard(md, shard)
+	return s.shardAvailabilityWithInfoFiles(md.ID(), shard, targetRangesForShard, readInfoFileResults)
 }
 
 func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
@@ -735,7 +734,7 @@ func (s *fileSystemSource) read(
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
 	span opentracing.Span,
-	infoFilesByNamespace fs.InfoFilesByNamespace,
+	state bootstrap.State,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -760,7 +759,7 @@ func (s *fileSystemSource) read(
 		if seriesCachePolicy != series.CacheAll {
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have.
-			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges, infoFilesByNamespace), nil
+			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges, state), nil
 		}
 	}
 
@@ -820,6 +819,7 @@ func (s *fileSystemSource) read(
 		Logger:                    s.log,
 		Span:                      span,
 		NowFn:                     s.nowFn,
+		State:                     state,
 	})
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh, builder)
@@ -838,7 +838,7 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	infoFilesByNamespace fs.InfoFilesByNamespace,
+	state bootstrap.State,
 ) *runResult {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
@@ -846,7 +846,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 		if ranges.IsEmpty() {
 			continue
 		}
-		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, infoFilesByNamespace[md][shard])
+		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, state.InfoFilesForShard(md, shard))
 		remaining := ranges.Clone()
 		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
@@ -965,27 +965,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	return res, nil
-}
-
-func (s *fileSystemSource) loadInfoFiles(
-	namespaces bootstrap.Namespaces,
-) fs.InfoFilesByNamespace {
-	infoFilesByNamespace := make(fs.InfoFilesByNamespace)
-
-	for _, elem := range namespaces.Namespaces.Iter() {
-		namespace := elem.Value()
-		shardTimeRanges := namespace.DataRunOptions.ShardTimeRanges
-		result := make(fs.InfoFileResultsPerShard, shardTimeRanges.Len())
-		for shard := range shardTimeRanges.Iter() {
-			result[shard] = fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-				namespace.Metadata.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
-				persist.FileSetFlushType)
-		}
-
-		infoFilesByNamespace[namespace.Metadata] = result
-	}
-
-	return infoFilesByNamespace
 }
 
 type runResult struct {
