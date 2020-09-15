@@ -28,6 +28,8 @@ import (
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 // Options controls namespace behavior
@@ -103,6 +105,12 @@ type Options interface {
 
 	// RuntimeOptions returns the RuntimeOptions.
 	RuntimeOptions() RuntimeOptions
+
+	// SetExtendedOptions sets the ExtendedOptions.
+	SetExtendedOptions(value ExtendedOptions) Options
+
+	// ExtendedOptions returns the dynamically typed ExtendedOptions (requires type check on access).
+	ExtendedOptions() ExtendedOptions
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -285,3 +293,12 @@ type NamespaceWatch interface {
 
 // NamespaceUpdater is a namespace updater function.
 type NamespaceUpdater func(Map) error
+
+// ExtendedOptions is the type for dynamically typed options.
+type ExtendedOptions interface {
+	// ToProto converts ExtendedOptions to the corresponding protobuf message.
+	ToProto() (msg proto.Message, typeUrlPrefix string)
+
+	// Validate validates the ExtendedOptions.
+	Validate() error
+}

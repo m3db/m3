@@ -241,6 +241,19 @@ func (h *UpdateHandler) Update(
 		}
 	}
 
+	// Update extended options.
+	if newExtendedOpts := updateReq.Options.ExtendedOptions; newExtendedOpts != nil {
+		extendedOptions, err := namespace.ToExtendedOptions(newExtendedOpts)
+		if err != nil {
+			return emptyReg, nil, fmt.Errorf("error converting extended options: %w", err)
+		}
+		opts := ns.Options().SetExtendedOptions(extendedOptions)
+		ns, err = namespace.NewMetadata(ns.ID(), opts)
+		if err != nil {
+			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+		}
+	}
+
 	// Update the namespace in case an update occurred.
 	newMetadata[updateReq.Name] = ns
 
@@ -254,7 +267,11 @@ func (h *UpdateHandler) Update(
 		return emptyReg, nil, err
 	}
 
-	protoRegistry := namespace.ToProto(nsMap)
+	protoRegistry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return emptyReg, nil, fmt.Errorf("error constructing namespace protobuf: %w", err)
+	}
+
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return emptyReg, nil, fmt.Errorf("failed to update namespace: %w", err)

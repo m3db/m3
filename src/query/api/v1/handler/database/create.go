@@ -449,9 +449,14 @@ func defaultedNamespaceAddRequest(
 		return nil, errInvalidDBType
 	}
 
+	optsProto, err := dbnamespace.OptionsToProto(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &admin.NamespaceAddRequest{
 		Name:    r.NamespaceName,
-		Options: dbnamespace.OptionsToProto(opts),
+		Options: optsProto,
 	}, nil
 }
 

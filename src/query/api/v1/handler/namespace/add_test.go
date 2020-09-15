@@ -134,6 +134,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
+						"extendedOptions":   nil,
 					},
 				},
 			},

@@ -172,7 +172,8 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
@@ -335,7 +336,8 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
@@ -374,6 +376,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
+
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -450,7 +453,8 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
@@ -571,7 +575,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
@@ -822,7 +827,8 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
@@ -966,7 +972,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}

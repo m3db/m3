@@ -22,6 +22,10 @@ package namespace
 
 import (
 	"errors"
+	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"strings"
+	"sync"
 	"time"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -35,6 +39,8 @@ import (
 var (
 	errRetentionNil = errors.New("retention options must be set")
 	errNamespaceNil = errors.New("namespace options must be set")
+
+	dynamicExtendedOptionsConverters = sync.Map{}
 )
 
 // FromNanos converts nanoseconds to a namespace-compatible duration.
@@ -101,6 +107,49 @@ func ToRuntimeOptions(
 	return runtimeOpts, nil
 }
 
+// ExtendedOptsConverter is function for converting from protobuf message to ExtendedOptions.
+type ExtendedOptsConverter func(proto.Message) (ExtendedOptions, error)
+
+// RegisterExtendedOptionsConverter registers conversion function from protobuf message to ExtendedOptions.
+func RegisterExtendedOptionsConverter(typeUrlPrefix string, pb proto.Message, converter ExtendedOptsConverter) {
+	name := proto.MessageName(pb)
+	if !strings.HasSuffix(typeUrlPrefix, "/") {
+		typeUrlPrefix += "/"
+	}
+	dynamicExtendedOptionsConverters.Store(typeUrlPrefix + name, converter)
+}
+
+// ToExtendedOptions converts protobuf message to ExtendedOptions.
+func ToExtendedOptions(
+	opts *protobuftypes.Any,
+) (ExtendedOptions, error) {
+	var extendedOpts ExtendedOptions
+	if opts == nil {
+		return extendedOpts, nil
+	}
+
+	converter, ok := dynamicExtendedOptionsConverters.Load(opts.TypeUrl)
+	if !ok {
+		return nil, fmt.Errorf("dynamic ExtendedOptions converter not registered for protobuf type %s", opts.TypeUrl)
+	}
+
+	var extendedOptsProto protobuftypes.DynamicAny
+	if err := protobuftypes.UnmarshalAny(opts, &extendedOptsProto); err != nil {
+		return nil, err
+	}
+
+	extendedOpts, err := converter.(ExtendedOptsConverter)(extendedOptsProto.Message)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = extendedOpts.Validate(); err != nil {
+		return nil, err
+	}
+
+	return extendedOpts, nil
+}
+
 // ToMetadata converts nsproto.Options to Metadata
 func ToMetadata(
 	id string,
@@ -130,6 +179,11 @@ func ToMetadata(
 		return nil, err
 	}
 
+	extendedOpts, err := ToExtendedOptions(opts.ExtendedOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	mopts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
@@ -141,7 +195,8 @@ func ToMetadata(
 		SetRetentionOptions(ropts).
 		SetIndexOptions(iopts).
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
-		SetRuntimeOptions(runtimeOpts)
+		SetRuntimeOptions(runtimeOpts).
+		SetExtendedOptions(extendedOpts)
 
 	if err := mopts.Validate(); err != nil {
 		return nil, err
@@ -151,16 +206,20 @@ func ToMetadata(
 }
 
 // ToProto converts Map to nsproto.Registry
-func ToProto(m Map) *nsproto.Registry {
+func ToProto(m Map) (*nsproto.Registry, error) {
 	reg := nsproto.Registry{
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
 
 	for _, md := range m.Metadatas() {
-		reg.Namespaces[md.ID().String()] = OptionsToProto(md.Options())
+		protoMsg, err := OptionsToProto(md.Options())
+		if err != nil {
+			return nil, err
+		}
+		reg.Namespaces[md.ID().String()] = protoMsg
 	}
 
-	return &reg
+	return &reg, nil
 }
 
 // FromProto converts nsproto.Registry -> Map
@@ -177,11 +236,16 @@ func FromProto(protoRegistry nsproto.Registry) (Map, error) {
 }
 
 // OptionsToProto converts Options -> nsproto.NamespaceOptions
-func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
+func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
+	extendedOpts, err := toExtendedOptions(opts.ExtendedOptions())
+	if err != nil {
+		return nil, err
+	}
+
 	ropts := opts.RetentionOptions()
 	iopts := opts.IndexOptions()
 
-	return &nsproto.NamespaceOptions{
+	nsOpts := &nsproto.NamespaceOptions{
 		BootstrapEnabled:  opts.BootstrapEnabled(),
 		FlushEnabled:      opts.FlushEnabled(),
 		CleanupEnabled:    opts.CleanupEnabled(),
@@ -204,7 +268,10 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		},
 		ColdWritesEnabled: opts.ColdWritesEnabled(),
 		RuntimeOptions:    toRuntimeOptions(opts.RuntimeOptions()),
+		ExtendedOptions:   extendedOpts,
 	}
+
+	return nsOpts, nil
 }
 
 // toRuntimeOptions returns the corresponding RuntimeOptions proto.
@@ -230,4 +297,26 @@ func toRuntimeOptions(opts RuntimeOptions) *nsproto.NamespaceRuntimeOptions {
 		WriteIndexingPerCPUConcurrency: writeIndexingPerCPUConcurrency,
 		FlushIndexingPerCPUConcurrency: flushIndexingPerCPUConcurrency,
 	}
+}
+
+// toExtendedOptions returns the corresponding ExtendedOptions proto.
+func toExtendedOptions(opts ExtendedOptions) (*protobuftypes.Any, error) {
+	if opts == nil {
+		return nil, nil
+	}
+
+	protoMsg, typeUrlPrefix := opts.ToProto()
+	serialized, err := proto.Marshal(protoMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	if !strings.HasSuffix(typeUrlPrefix, "/") {
+		typeUrlPrefix += "/"
+	}
+
+	return &protobuftypes.Any{
+		TypeUrl: typeUrlPrefix + proto.MessageName(protoMsg),
+		Value:   serialized,
+	}, nil
 }

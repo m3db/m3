@@ -21,19 +21,25 @@
 package namespace_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 
+	"github.com/gogo/protobuf/proto"
+	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testSchemaOptions = namespace.GenTestSchemaOptions("mainpkg/main.proto", "testdata")
+
+	testTypeUrlPrefix = "testm3db.io/"
 
 	toNanos = func(mins int64) int64 {
 		return int64(time.Duration(mins) * time.Minute / time.Nanosecond)
@@ -53,6 +59,8 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
+	validExtendedOpts = newTestExtendedOptionsProto("foo")
+
 	validNamespaceOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -62,6 +70,7 @@ var (
 			RepairEnabled:     true,
 			RetentionOptions:  &validRetentionOpts,
 			SchemaOptions:     testSchemaOptions,
+			ExtendedOptions:   validExtendedOpts,
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -102,6 +111,43 @@ var (
 		},
 	}
 )
+
+type testExtendedOptions struct {
+	value string
+}
+
+func newTestExtendedOptionsProto(s string) *protobuftypes.Any {
+	strMsg := &protobuftypes.StringValue{Value: s}
+	serializedMsg, _ := proto.Marshal(strMsg)
+
+	return &protobuftypes.Any{
+		TypeUrl: testTypeUrlPrefix + proto.MessageName(strMsg),
+		Value:   serializedMsg,
+	}
+}
+
+func (o *testExtendedOptions) ToProto() (proto.Message, string) {
+	return &protobuftypes.StringValue{Value: o.value}, testTypeUrlPrefix
+}
+
+func (o *testExtendedOptions) Validate() error {
+	if o.value == "invalid" {
+		return errors.New("invalid ExtendedOptions")
+	}
+	return nil
+}
+
+func convertProtobufStringValue(message proto.Message) (namespace.ExtendedOptions, error) {
+	strVal := message.(*protobuftypes.StringValue)
+	if strVal.Value == "error" {
+		return nil, errors.New("error in converter")
+	}
+	return &testExtendedOptions{strVal.Value}, nil
+}
+
+func init() {
+	namespace.RegisterExtendedOptionsConverter(testTypeUrlPrefix, &protobuftypes.StringValue{}, convertProtobufStringValue)
+}
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
@@ -179,7 +225,8 @@ func TestToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 2)
 
 	// NB(prateek): expected/observed are inverted here
@@ -219,7 +266,8 @@ func TestSchemaToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
@@ -244,7 +292,8 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md})
 	require.NoError(t, err)
 
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 	require.Equal(t,
 		!namespace.NewOptions().SnapshotEnabled(),
@@ -271,6 +320,32 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
+func TestInvalidExtendedOptions(t *testing.T) {
+	invalidExtendedOptsBadValue := &protobuftypes.Any{
+		TypeUrl: testTypeUrlPrefix + proto.MessageName(&protobuftypes.StringValue{Value: "foo"}),
+		Value:   []byte{1, 2, 3},
+	}
+	_, err := namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
+	assert.Error(t, err)
+
+	msg := &protobuftypes.Int32Value{}
+	serializedMsg, _ := proto.Marshal(msg)
+	invalidExtendedOptsNoConverterForType := &protobuftypes.Any{
+		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
+		Value:   serializedMsg,
+	}
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
+	assert.Equal(t, errors.New("dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value"), err)
+
+	invalidExtendedOptsConverterFailure := newTestExtendedOptionsProto("error")
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
+	assert.Equal(t, errors.New("error in converter"), err)
+
+	invalidExtendedOpts := newTestExtendedOptionsProto("invalid")
+	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
+	assert.Equal(t, errors.New("invalid ExtendedOptions"), err)
+}
+
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
@@ -286,6 +361,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaHistory()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
+	assertEqualExtendedOpts(t, expected.ExtendedOptions, opts.ExtendedOptions())
 }
 
 func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, observed retention.Options) {
@@ -296,4 +372,20 @@ func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, obse
 	require.Equal(t, expected.BlockDataExpiry, observed.BlockDataExpiry())
 	require.Equal(t, expected.BlockDataExpiryAfterNotAccessPeriodNanos,
 		observed.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
+}
+
+func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, observed namespace.ExtendedOptions) {
+	if expectedProto == nil {
+		assert.Nil(t, observed)
+		return
+	}
+
+	var stringValue = &protobuftypes.StringValue{}
+	err := protobuftypes.UnmarshalAny(expectedProto, stringValue)
+	require.NoError(t, err)
+
+	expected, err := convertProtobufStringValue(stringValue)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, observed)
 }

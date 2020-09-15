@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package namespace;
 
+import "google/protobuf/any.proto";
 import "google/protobuf/wrappers.proto";
 import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
 
@@ -32,6 +33,7 @@ message NamespaceOptions {
     SchemaOptions schemaOptions            = 9;
     bool coldWritesEnabled                 = 10;
     NamespaceRuntimeOptions runtimeOptions = 11;
+    google.protobuf.Any    extendedOptions = 12;
 }
 
 message Registry {

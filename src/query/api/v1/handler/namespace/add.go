@@ -157,7 +157,11 @@ func (h *AddHandler) Add(
 		return emptyReg, err
 	}
 
-	protoRegistry := namespace.ToProto(nsMap)
+	protoRegistry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return emptyReg, fmt.Errorf("error constructing namespace protobuf: %v", err)
+	}
+
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return emptyReg, fmt.Errorf("failed to add namespace: %v", err)

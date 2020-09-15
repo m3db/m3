@@ -154,7 +154,11 @@ func (h *DeleteHandler) Delete(id string, opts handleroptions.ServiceOptions) er
 		return fmt.Errorf("failed to delete namespace: %v", err)
 	}
 
-	protoRegistry := namespace.ToProto(nsMap)
+	protoRegistry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return fmt.Errorf("failed to delete namespace: %v", err)
+	}
+
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return fmt.Errorf("failed to delete namespace: %v", err)

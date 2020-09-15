@@ -76,7 +76,8 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	require.NoError(t, err)
 	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta})
 	require.NoError(t, err)
-	currentReg := namespace.ToProto(currentMap)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
 
 	protoFile := "mainpkg/test.proto"
 	protoMsg := "mainpkg.TestMessage"
@@ -131,7 +132,8 @@ func TestAdminService_ResetSchema(t *testing.T) {
 	require.NoError(t, err)
 	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta})
 	require.NoError(t, err)
-	currentReg := namespace.ToProto(currentMap)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
 
 	expectedMeta, err := namespace.NewMetadata(ident.StringID("ns1"),
 		namespace.NewOptions())
@@ -166,10 +168,14 @@ func TestAdminService_Crud(t *testing.T) {
 	require.NotNil(t, as)
 
 	expectedOpt := namespace.NewOptions()
-	require.NoError(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
-	require.Error(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
-	require.NoError(t, as.Set("ns1", namespace.OptionsToProto(expectedOpt)))
-	require.Error(t, as.Set("ns2", namespace.OptionsToProto(expectedOpt)))
+
+	optProto, err := namespace.OptionsToProto(expectedOpt)
+	require.NoError(t, err)
+
+	require.NoError(t, as.Add("ns1", optProto))
+	require.Error(t, as.Add("ns1", optProto))
+	require.NoError(t, as.Set("ns1", optProto))
+	require.Error(t, as.Set("ns2", optProto))
 
 	nsOpt, err := as.Get("ns1")
 	require.NoError(t, err)

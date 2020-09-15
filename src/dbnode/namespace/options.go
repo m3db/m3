@@ -68,6 +68,7 @@ type options struct {
 	indexOpts         IndexOptions
 	schemaHis         SchemaHistory
 	runtimeOpts       RuntimeOptions
+	extendedOpts      ExtendedOptions
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -96,6 +97,13 @@ func (o *options) Validate() error {
 	if err := o.retentionOpts.Validate(); err != nil {
 		return err
 	}
+
+	if o.extendedOpts != nil {
+		if err := o.extendedOpts.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if !o.indexOpts.Enabled() {
 		return nil
 	}
@@ -242,4 +250,14 @@ func (o *options) SetRuntimeOptions(value RuntimeOptions) Options {
 
 func (o *options) RuntimeOptions() RuntimeOptions {
 	return o.runtimeOpts
+}
+
+func (o *options) SetExtendedOptions(value ExtendedOptions) Options {
+	opts := *o
+	opts.extendedOpts = value
+	return &opts
+}
+
+func (o *options) ExtendedOptions() ExtendedOptions {
+	return o.extendedOpts
 }
