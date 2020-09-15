@@ -124,8 +124,8 @@ type DataReaderOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
-	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
-	OrderedByIndex bool
+	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
+	StreamingEnabled bool
 	// NB(bodu): This option can inform the reader to optimize for reading
 	// only metadata by not sorting index entries. Setting this option will
 	// throw an error if a regular `Read()` is attempted.
@@ -142,11 +142,17 @@ type DataFileSetReader interface {
 	// Status returns the status of the reader
 	Status() DataFileSetReaderStatus
 
-	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// Read returns the next id, tags, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
 	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+
+	// StreamingRead returns the next unpooled id, encodedTags, data, checksum values ordered by id,
+	// or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
+	StreamingRead() (id ident.BytesID, encodedTags []byte, data []byte, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -179,9 +185,8 @@ type DataFileSetReader interface {
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
 
-	// OrderedByIndex returns true if the reader reads the data in the order of index.
-	// If false, the reader reads the data in the same order as it is stored in the data file.
-	OrderedByIndex() bool
+	// StreamingEnabled returns true if the reader is opened in streaming mode
+	StreamingEnabled() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -633,7 +638,7 @@ type Segments interface {
 
 // BlockRecord wraps together M3TSZ data bytes with their checksum.
 type BlockRecord struct {
-	Data         checked.Bytes
+	Data         []byte
 	DataChecksum uint32
 }
 
@@ -648,12 +653,18 @@ type CrossBlockReader interface {
 	// Err returns the last error encountered (if any).
 	Err() error
 
-	// Current returns distinct series id and tags, plus a slice with data and checksums from all blocks corresponding
-	// to that series (in temporal order).
-	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
-	// them so they can be returned to their respective pools. Also, []BlockRecord slice and underlying data
-	// is being invalidated on each call to Next().
-	Current() (ident.ID, ident.TagIterator, []BlockRecord)
+	// Current returns distinct series id and encodedTags, plus a slice with data and checksums from all
+	// blocks corresponding to that series (in temporal order).
+	// id, encodedTags, records slice and underlying data are being invalidated on each call to Next().
+	Current() (id ident.BytesID, encodedTags []byte, records []BlockRecord)
+}
+
+// CrossBlockIterator iterates across BlockRecords.
+type CrossBlockIterator interface {
+	encoding.Iterator
+
+	// Reset resets the iterator to the given block records.
+	Reset(records []BlockRecord)
 }
 
 // InfoFileResultsPerShard maps shards to info files.
