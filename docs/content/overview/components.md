@@ -13,7 +13,7 @@ M3DB is a distributed time series database that provides scalable storage and a 
 
 ## M3 Query
 
-M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](/query_engine/).
+M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](/m3query/).
 
 ## M3 Aggregator
 
