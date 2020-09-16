@@ -19,7 +19,7 @@ Both `M3` and `etcd` are complex distributed systems, and trying to operate both
 
 Instead, we recommend running an external `etcd` cluster that is isolated from the `M3` stack so that performing operations like node adds, removes, and replaces are easier.
 
-While M3 relies on `etcd` to provide strong consistency, the perations we use it for are all low-throughput so you should be able to operate a very low maintenance `etcd` cluster. [A 3-node setup for high availability](https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/faq.md#what-is-failure-tolerance) should be more than sufficient for most workloads.
+While M3 relies on `etcd` to provide strong consistency, the operations we use it for are all low-throughput so you should be able to operate a very low maintenance `etcd` cluster. [A 3-node setup for high availability](https://github.com/etcd-io/etcd/blob/v3.3.11/Documentation/faq.md#what-is-failure-tolerance) should be more than sufficient for most workloads.
 
 ## Configuring an External etcd Cluster
 

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -33,11 +34,13 @@ import (
 	"go.uber.org/zap"
 )
 
-type mediatorState int
+type (
+	mediatorState int
+)
 
 const (
-	fileOpCheckInterval = time.Second
-	tickCheckInterval   = 5 * time.Second
+	fileOpCheckInterval              = time.Second
+	fileSystemProcessesCheckInterval = 100 * time.Millisecond
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -73,6 +76,7 @@ type mediator struct {
 	database database
 	databaseBootstrapManager
 	databaseFileSystemManager
+	databaseColdFlushManager
 	databaseTickManager
 	databaseRepairer
 
@@ -83,6 +87,7 @@ type mediator struct {
 	state               mediatorState
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
+	tickInterval        time.Duration
 }
 
 // TODO(r): Consider renaming "databaseMediator" to "databaseCoordinator"
@@ -102,14 +107,24 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		state:               mediatorNotOpen,
 		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
 		closedCh:            make(chan struct{}),
+		tickInterval:        opts.MediatorTickInterval(),
 	}
 
 	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
 
+	// NB(bodu): Cold flush needs its own persist manager now
+	// that its running in its own thread.
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
+	pm, err := fs.NewPersistManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	cfm := newColdFlushManager(database, pm, opts)
+	d.databaseColdFlushManager = cfm
+
 	d.databaseRepairer = newNoopDatabaseRepairer()
 	if opts.RepairEnabled() {
-		var err error
 		d.databaseRepairer, err = newDatabaseRepairer(database, opts)
 		if err != nil {
 			return nil, err
@@ -129,28 +144,40 @@ func (m *mediator) Open() error {
 	}
 	m.state = mediatorOpen
 	go m.reportLoop()
-	go m.ongoingFilesystemProcesses()
+	go m.ongoingFileSystemProcesses()
+	go m.ongoingColdFlushProcesses()
 	go m.ongoingTick()
 	m.databaseRepairer.Start()
 	return nil
 }
 
-func (m *mediator) DisableFileOps() {
+func (m *mediator) DisableFileOpsAndWait() {
 	status := m.databaseFileSystemManager.Disable()
 	for status == fileOpInProgress {
 		m.sleepFn(fileOpCheckInterval)
 		status = m.databaseFileSystemManager.Status()
 	}
+	// Even though the cold flush runs separately, its still
+	// considered a fs process.
+	status = m.databaseColdFlushManager.Disable()
+	for status == fileOpInProgress {
+		m.sleepFn(fileOpCheckInterval)
+		status = m.databaseColdFlushManager.Status()
+	}
 }
 
 func (m *mediator) EnableFileOps() {
 	m.databaseFileSystemManager.Enable()
+	// Even though the cold flush runs separately, its still
+	// considered a fs process.
+	m.databaseColdFlushManager.Enable()
 }
 
 func (m *mediator) Report() {
 	m.databaseBootstrapManager.Report()
 	m.databaseRepairer.Report()
 	m.databaseFileSystemManager.Report()
+	m.databaseColdFlushManager.Report()
 }
 
 func (m *mediator) Close() error {
@@ -168,7 +195,7 @@ func (m *mediator) Close() error {
 	return nil
 }
 
-// The mediator mediates the relationship between ticks and flushes(warm and cold)/snapshots/cleanups.
+// The mediator mediates the relationship between ticks and warm flushes/snapshots.
 //
 // For example, the requirements to perform a flush are:
 // 		1) currentTime > blockStart.Add(blockSize).Add(bufferPast)
@@ -182,22 +209,41 @@ func (m *mediator) Close() error {
 // is potentially still on disk (if it hasn't been cleaned up yet).
 //
 // See comment over mediatorTimeBarrier for more details on how this is implemented.
-func (m *mediator) ongoingFilesystemProcesses() {
-	log := m.opts.InstrumentOptions().Logger()
+func (m *mediator) ongoingFileSystemProcesses() {
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
-			m.sleepFn(tickCheckInterval)
-			// See comment over mediatorTimeBarrier for an explanation of this logic.
-			mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-			if err != nil {
-				log.Error("error within ongoingFilesystemProcesses waiting for next mediatorTime", zap.Error(err))
-				continue
+			m.sleepFn(m.tickInterval)
+
+			// Check if the mediator is already closed.
+			if !m.isOpen() {
+				return
 			}
 
-			m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+			m.runFileSystemProcesses()
+		}
+	}
+}
+
+// The mediator mediates the relationship between ticks and cold flushes/cleanup the same way it does for warm flushes/snapshots.
+// We want to begin each cold/warm flush with an in sync view of time as a tick.
+// NB(bodu): Cold flushes and cleanup have been separated out into it's own thread to avoid blocking snapshots.
+func (m *mediator) ongoingColdFlushProcesses() {
+	for {
+		select {
+		case <-m.closedCh:
+			return
+		default:
+			m.sleepFn(m.tickInterval)
+
+			// Check if the mediator is already closed.
+			if !m.isOpen() {
+				return
+			}
+
+			m.runColdFlushProcesses()
 		}
 	}
 }
@@ -212,22 +258,52 @@ func (m *mediator) ongoingTick() {
 		case <-m.closedCh:
 			return
 		default:
-			m.sleepFn(tickCheckInterval)
+			m.sleepFn(m.tickInterval)
+
+			// Check if the mediator is already closed.
+			if !m.isOpen() {
+				return
+			}
 
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			newMediatorTime, err := m.mediatorTimeBarrier.maybeRelease()
 			if err != nil {
-				log.Error(
-					"ongoing tick was unable to release time barrier", zap.Error(err))
+				log.Error("ongoing tick was unable to release time barrier", zap.Error(err))
 				continue
 			}
 			mediatorTime = newMediatorTime
 
-			if err := m.Tick(force, mediatorTime); err != nil {
+			// NB(bodu): We may still hit a db closed error here since the db does not wait upon
+			// completion of ticks.
+			if err := m.Tick(force, mediatorTime); err != nil && err != errDatabaseIsClosed {
 				log.Error("error within tick", zap.Error(err))
 			}
 		}
 	}
+}
+
+func (m *mediator) runFileSystemProcesses() {
+	// See comment over mediatorTimeBarrier for an explanation of this logic.
+	log := m.opts.InstrumentOptions().Logger()
+	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
+	if err != nil {
+		log.Error("error within ongoingFileSystemProcesses waiting for next mediatorTime", zap.Error(err))
+		return
+	}
+
+	m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+}
+
+func (m *mediator) runColdFlushProcesses() {
+	// See comment over mediatorTimeBarrier for an explanation of this logic.
+	log := m.opts.InstrumentOptions().Logger()
+	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
+	if err != nil {
+		log.Error("error within ongoingColdFlushProcesses waiting for next mediatorTime", zap.Error(err))
+		return
+	}
+
+	m.databaseColdFlushManager.Run(mediatorTime)
 }
 
 func (m *mediator) reportLoop() {
@@ -243,6 +319,12 @@ func (m *mediator) reportLoop() {
 			return
 		}
 	}
+}
+
+func (m *mediator) isOpen() bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m.state == mediatorOpen
 }
 
 // mediatorTimeBarrier is used to prevent the tick process and the filesystem processes from ever running
@@ -262,42 +344,65 @@ func (m *mediator) reportLoop() {
 // This means that once a run of filesystem processes completes it will always have to wait until the currently
 // executing tick completes before performing the next run, but in practice this should not be much of an issue.
 //
-//  ____________       ___________
-// | Flush (t0) |     | Tick (t0) |
-// |            |     |           |
+// Additionally, an independent cold flush process complicates this a bit more in that we have more than one filesystem
+// process waiting on the mediator barrier. The invariant here is that both warm and cold flushes always start on a tick
+// with a consistent view of time as the tick it is on. They don't necessarily need to start on the same tick. See the
+// diagram below for an example case.
+//
+//  ____________       ___________          _________________
+// | Flush (t0) |     | Tick (t0) |        | Cold Flush (t0) |
+// |            |     |           |        |                 |
+// |            |     |___________|        |                 |
+// |            |      ___________         |                 |
+// |            |     | Tick (t0) |        |                 |
+// |            |     |           |        |                 |
+// |            |     |___________|        |                 |
+// |            |      ___________         |                 |
+// |____________|     | Tick (t0) |        |                 |
+//  barrier.wait()    |           |        |                 |
+//                    |___________|        |                 |
+//                    mediatorTime = t1    |                 |
+//                    barrier.release()    |                 |
+//  ____________       ___________         |                 |
+// | Flush (t1) |     | Tick (t1) |        |_________________|
+// |            |     |           |         barrier.wait()
 // |            |     |___________|
-// |            |      ___________
-// |            |     | Tick (t0) |
-// |            |     |           |
-// |            |     |___________|
-// |            |      ___________
-// |____________|     | Tick (t0) |
-//  barrier.wait()    |           |
-//                    |___________|
-//                    mediatorTime = t1
-//                    barrier.release()
-// -------------------------------------
-//  ____________       ___________
-// | Flush (t1) |     | Tick (t1) |
-// |            |     |           |
-// |            |     |___________|
-// |            |      ___________
-// |            |     | Tick (t1) |
-// |            |     |           |
-// |            |     |___________|
-// |            |      ___________
-// |____________|     | Tick (t1) |
-//  barrier.wait()    |           |
-//                    |___________|
-//                    barrier.release()
-// ------------------------------------
+// |            |      mediatorTime = t2
+// |            |      barrier.release()
+// |            |       ___________         _________________
+// |            |      | Tick (t2) |       | Cold Flush (t2) |
+// |____________|      |           |       |                 |
+//  barrier.wait()     |___________|       |                 |
+//                     mediatorTime = t3   |                 |
+//                     barrier.release()   |                 |
+//   ____________       ___________        |                 |
+//  | Flush (t3) |     | Tick (t3) |       |                 |
+//  |            |     |           |       |                 |
+//  |            |     |___________|       |                 |
+//  |            |      ___________        |                 |
+//  |            |     | Tick (t3) |       |                 |
+//  |            |     |           |       |                 |
+//  |            |     |___________|       |                 |
+//  |            |      ___________        |                 |
+//  |____________|     | Tick (t3) |       |_________________|
+//   barrier.wait()    |           |        barrier.wait()
+//                     |___________|
+//                     mediatorTime = t4
+//                     barrier.release()
+//   ____________       ___________         _________________
+//  | Flush (t4) |     | Tick (t4) |       | Cold Flush (t4) |
+//  |            |     |           |       |                 |
+// ------------------------------------------------------------
 type mediatorTimeBarrier struct {
 	sync.Mutex
-	mediatorTime       time.Time
-	nowFn              func() time.Time
-	iOpts              instrument.Options
-	fsProcessesWaiting bool
-	releaseCh          chan time.Time
+	// Both mediatorTime and numFsProcessesWaiting are protected
+	// by the mutex.
+	mediatorTime          time.Time
+	numFsProcessesWaiting int
+
+	nowFn     func() time.Time
+	iOpts     instrument.Options
+	releaseCh chan time.Time
 }
 
 // initialMediatorTime should only be used to obtain the initial time for
@@ -311,28 +416,24 @@ func (b *mediatorTimeBarrier) initialMediatorTime() time.Time {
 
 func (b *mediatorTimeBarrier) fsProcessesWait() (time.Time, error) {
 	b.Lock()
-	if b.fsProcessesWaiting {
-		b.Unlock()
-		return time.Time{}, errMediatorTimeBarrierAlreadyWaiting
-	}
-	b.fsProcessesWaiting = true
+	b.numFsProcessesWaiting++
 	b.Unlock()
 
 	t := <-b.releaseCh
 
 	b.Lock()
-	b.fsProcessesWaiting = false
+	b.numFsProcessesWaiting--
 	b.Unlock()
 	return t, nil
 }
 
 func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	b.Lock()
-	hasWaiter := b.fsProcessesWaiting
+	numWaiters := b.numFsProcessesWaiting
 	mediatorTime := b.mediatorTime
 	b.Unlock()
 
-	if !hasWaiter {
+	if numWaiters == 0 {
 		// If there isn't a waiter yet then the filesystem processes may still
 		// be ongoing in which case we don't want to release the barrier / update
 		// the current time yet. Allow the tick to run again with the same time
@@ -353,7 +454,9 @@ func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	}
 
 	b.mediatorTime = newMediatorTime
-	b.releaseCh <- b.mediatorTime
+	for i := 0; i < numWaiters; i++ {
+		b.releaseCh <- b.mediatorTime
+	}
 	return b.mediatorTime, nil
 }
 

@@ -255,7 +255,7 @@ func (ms *m3nschAgent) MaxQPS() int64 {
 // nolint: unparam
 func (ms *m3nschAgent) newMethodMetrics(method string) instrument.MethodMetrics {
 	subScope := ms.opts.InstrumentOptions().MetricsScope().SubScope("agent")
-	return instrument.NewMethodMetrics(subScope, method, ms.opts.InstrumentOptions().MetricsSamplingRate())
+	return instrument.NewMethodMetrics(subScope, method, ms.opts.InstrumentOptions().TimerOptions())
 }
 
 func (ms *m3nschAgent) tickPeriodWithLock() time.Duration {

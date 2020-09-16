@@ -136,6 +136,21 @@ func (mr *MockEncoderMockRecorder) LastEncoded() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastEncoded", reflect.TypeOf((*MockEncoder)(nil).LastEncoded))
 }
 
+// LastAnnotation mocks base method
+func (m *MockEncoder) LastAnnotation() (ts.Annotation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LastAnnotation")
+	ret0, _ := ret[0].(ts.Annotation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LastAnnotation indicates an expected call of LastAnnotation
+func (mr *MockEncoderMockRecorder) LastAnnotation() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastAnnotation", reflect.TypeOf((*MockEncoder)(nil).LastAnnotation))
+}
+
 // Len mocks base method
 func (m *MockEncoder) Len() int {
 	m.ctrl.T.Helper()
@@ -254,7 +269,7 @@ func (mr *MockOptionsMockRecorder) DefaultTimeUnit() *gomock.Call {
 }
 
 // SetTimeEncodingSchemes mocks base method
-func (m *MockOptions) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options {
+func (m *MockOptions) SetTimeEncodingSchemes(value map[time0.Unit]TimeEncodingScheme) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTimeEncodingSchemes", value)
 	ret0, _ := ret[0].(Options)
@@ -820,6 +835,237 @@ func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Readers", reflect.TypeOf((*MockMultiReaderIterator)(nil).Readers))
 }
 
+// Schema mocks base method
+func (m *MockMultiReaderIterator) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockMultiReaderIteratorMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockMultiReaderIterator)(nil).Schema))
+}
+
+// MockSeriesIteratorAccumulator is a mock of SeriesIteratorAccumulator interface
+type MockSeriesIteratorAccumulator struct {
+	ctrl     *gomock.Controller
+	recorder *MockSeriesIteratorAccumulatorMockRecorder
+}
+
+// MockSeriesIteratorAccumulatorMockRecorder is the mock recorder for MockSeriesIteratorAccumulator
+type MockSeriesIteratorAccumulatorMockRecorder struct {
+	mock *MockSeriesIteratorAccumulator
+}
+
+// NewMockSeriesIteratorAccumulator creates a new mock instance
+func NewMockSeriesIteratorAccumulator(ctrl *gomock.Controller) *MockSeriesIteratorAccumulator {
+	mock := &MockSeriesIteratorAccumulator{ctrl: ctrl}
+	mock.recorder = &MockSeriesIteratorAccumulatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSeriesIteratorAccumulator) EXPECT() *MockSeriesIteratorAccumulatorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockSeriesIteratorAccumulator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Next))
+}
+
+// Current mocks base method
+func (m *MockSeriesIteratorAccumulator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].(ts.Datapoint)
+	ret1, _ := ret[1].(time0.Unit)
+	ret2, _ := ret[2].(ts.Annotation)
+	return ret0, ret1, ret2
+}
+
+// Current indicates an expected call of Current
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockSeriesIteratorAccumulator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Err))
+}
+
+// Close mocks base method
+func (m *MockSeriesIteratorAccumulator) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Close))
+}
+
+// ID mocks base method
+func (m *MockSeriesIteratorAccumulator) ID() ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+// ID indicates an expected call of ID
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).ID))
+}
+
+// Namespace mocks base method
+func (m *MockSeriesIteratorAccumulator) Namespace() ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Namespace")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+// Namespace indicates an expected call of Namespace
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Namespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Namespace))
+}
+
+// Start mocks base method
+func (m *MockSeriesIteratorAccumulator) Start() time.Time {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Start")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+// Start indicates an expected call of Start
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Start))
+}
+
+// End mocks base method
+func (m *MockSeriesIteratorAccumulator) End() time.Time {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "End")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+// End indicates an expected call of End
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) End() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "End", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).End))
+}
+
+// Reset mocks base method
+func (m *MockSeriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Reset", opts)
+}
+
+// Reset indicates an expected call of Reset
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Reset(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Reset), opts)
+}
+
+// SetIterateEqualTimestampStrategy mocks base method
+func (m *MockSeriesIteratorAccumulator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetIterateEqualTimestampStrategy", strategy)
+}
+
+// SetIterateEqualTimestampStrategy indicates an expected call of SetIterateEqualTimestampStrategy
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) SetIterateEqualTimestampStrategy(strategy interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).SetIterateEqualTimestampStrategy), strategy)
+}
+
+// Stats mocks base method
+func (m *MockSeriesIteratorAccumulator) Stats() (SeriesIteratorStats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stats")
+	ret0, _ := ret[0].(SeriesIteratorStats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Stats indicates an expected call of Stats
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Stats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Stats))
+}
+
+// Replicas mocks base method
+func (m *MockSeriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Replicas")
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Replicas indicates an expected call of Replicas
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Replicas() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Replicas))
+}
+
+// Tags mocks base method
+func (m *MockSeriesIteratorAccumulator) Tags() ident.TagIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tags")
+	ret0, _ := ret[0].(ident.TagIterator)
+	return ret0
+}
+
+// Tags indicates an expected call of Tags
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Tags() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Tags))
+}
+
+// Add mocks base method
+func (m *MockSeriesIteratorAccumulator) Add(it SeriesIterator) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Add", it)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Add indicates an expected call of Add
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) Add(it interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Add), it)
+}
+
 // MockSeriesIterator is a mock of SeriesIterator interface
 type MockSeriesIterator struct {
 	ctrl     *gomock.Controller
@@ -927,20 +1173,6 @@ func (mr *MockSeriesIteratorMockRecorder) Namespace() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockSeriesIterator)(nil).Namespace))
 }
 
-// Tags mocks base method
-func (m *MockSeriesIterator) Tags() ident.TagIterator {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tags")
-	ret0, _ := ret[0].(ident.TagIterator)
-	return ret0
-}
-
-// Tags indicates an expected call of Tags
-func (mr *MockSeriesIteratorMockRecorder) Tags() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockSeriesIterator)(nil).Tags))
-}
-
 // Start mocks base method
 func (m *MockSeriesIterator) Start() time.Time {
 	m.ctrl.T.Helper()
@@ -993,20 +1225,6 @@ func (mr *MockSeriesIteratorMockRecorder) SetIterateEqualTimestampStrategy(strat
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIterator)(nil).SetIterateEqualTimestampStrategy), strategy)
 }
 
-// Replicas mocks base method
-func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Replicas")
-	ret0, _ := ret[0].([]MultiReaderIterator)
-	return ret0
-}
-
-// Replicas indicates an expected call of Replicas
-func (mr *MockSeriesIteratorMockRecorder) Replicas() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIterator)(nil).Replicas))
-}
-
 // Stats mocks base method
 func (m *MockSeriesIterator) Stats() (SeriesIteratorStats, error) {
 	m.ctrl.T.Helper()
@@ -1020,6 +1238,73 @@ func (m *MockSeriesIterator) Stats() (SeriesIteratorStats, error) {
 func (mr *MockSeriesIteratorMockRecorder) Stats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockSeriesIterator)(nil).Stats))
+}
+
+// Replicas mocks base method
+func (m *MockSeriesIterator) Replicas() ([]MultiReaderIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Replicas")
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Replicas indicates an expected call of Replicas
+func (mr *MockSeriesIteratorMockRecorder) Replicas() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIterator)(nil).Replicas))
+}
+
+// Tags mocks base method
+func (m *MockSeriesIterator) Tags() ident.TagIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Tags")
+	ret0, _ := ret[0].(ident.TagIterator)
+	return ret0
+}
+
+// Tags indicates an expected call of Tags
+func (mr *MockSeriesIteratorMockRecorder) Tags() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockSeriesIterator)(nil).Tags))
+}
+
+// MockSeriesIteratorConsolidator is a mock of SeriesIteratorConsolidator interface
+type MockSeriesIteratorConsolidator struct {
+	ctrl     *gomock.Controller
+	recorder *MockSeriesIteratorConsolidatorMockRecorder
+}
+
+// MockSeriesIteratorConsolidatorMockRecorder is the mock recorder for MockSeriesIteratorConsolidator
+type MockSeriesIteratorConsolidatorMockRecorder struct {
+	mock *MockSeriesIteratorConsolidator
+}
+
+// NewMockSeriesIteratorConsolidator creates a new mock instance
+func NewMockSeriesIteratorConsolidator(ctrl *gomock.Controller) *MockSeriesIteratorConsolidator {
+	mock := &MockSeriesIteratorConsolidator{ctrl: ctrl}
+	mock.recorder = &MockSeriesIteratorConsolidatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSeriesIteratorConsolidator) EXPECT() *MockSeriesIteratorConsolidatorMockRecorder {
+	return m.recorder
+}
+
+// ConsolidateReplicas mocks base method
+func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsolidateReplicas", replicas)
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConsolidateReplicas indicates an expected call of ConsolidateReplicas
+func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(replicas interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), replicas)
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
@@ -1292,7 +1577,7 @@ func (mr *MockIStreamMockRecorder) ReadByte() *gomock.Call {
 }
 
 // ReadBits mocks base method
-func (m *MockIStream) ReadBits(numBits int) (uint64, error) {
+func (m *MockIStream) ReadBits(numBits uint) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1307,7 +1592,7 @@ func (mr *MockIStreamMockRecorder) ReadBits(numBits interface{}) *gomock.Call {
 }
 
 // PeekBits mocks base method
-func (m *MockIStream) PeekBits(numBits int) (uint64, error) {
+func (m *MockIStream) PeekBits(numBits uint) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeekBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1322,10 +1607,10 @@ func (mr *MockIStreamMockRecorder) PeekBits(numBits interface{}) *gomock.Call {
 }
 
 // RemainingBitsInCurrentByte mocks base method
-func (m *MockIStream) RemainingBitsInCurrentByte() int {
+func (m *MockIStream) RemainingBitsInCurrentByte() uint {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemainingBitsInCurrentByte")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(uint)
 	return ret0
 }
 
@@ -1487,19 +1772,19 @@ func (mr *MockOStreamMockRecorder) Discard() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockOStream)(nil).Discard))
 }
 
-// Rawbytes mocks base method
-func (m *MockOStream) Rawbytes() ([]byte, int) {
+// RawBytes mocks base method
+func (m *MockOStream) RawBytes() ([]byte, int) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rawbytes")
+	ret := m.ctrl.Call(m, "RawBytes")
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(int)
 	return ret0, ret1
 }
 
-// Rawbytes indicates an expected call of Rawbytes
-func (mr *MockOStreamMockRecorder) Rawbytes() *gomock.Call {
+// RawBytes indicates an expected call of RawBytes
+func (mr *MockOStreamMockRecorder) RawBytes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rawbytes", reflect.TypeOf((*MockOStream)(nil).Rawbytes))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RawBytes", reflect.TypeOf((*MockOStream)(nil).RawBytes))
 }
 
 // CheckedBytes mocks base method

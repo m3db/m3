@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
@@ -30,11 +31,12 @@ import (
 type Counter struct {
 	Options
 
-	sum   int64
-	sumSq int64
-	count int64
-	max   int64
-	min   int64
+	lastAt time.Time
+	sum    int64
+	sumSq  int64
+	count  int64
+	max    int64
+	min    int64
 }
 
 // NewCounter creates a new counter.
@@ -47,7 +49,16 @@ func NewCounter(opts Options) Counter {
 }
 
 // Update updates the counter value.
-func (c *Counter) Update(value int64) {
+func (c *Counter) Update(timestamp time.Time, value int64) {
+	if c.lastAt.IsZero() || timestamp.After(c.lastAt) {
+		// NB(r): Only set the last value if this value arrives
+		// after the wall clock timestamp of previous values, not
+		// the arrival time (i.e. order received).
+		c.lastAt = timestamp
+	} else {
+		c.Options.Metrics.Counter.IncValuesOutOfOrder()
+	}
+
 	c.sum += value
 
 	c.count++
@@ -62,6 +73,9 @@ func (c *Counter) Update(value int64) {
 		c.sumSq += value * value
 	}
 }
+
+// LastAt returns the time of the last value received.
+func (c *Counter) LastAt() time.Time { return c.lastAt }
 
 // Count returns the number of values received.
 func (c *Counter) Count() int64 { return c.count }

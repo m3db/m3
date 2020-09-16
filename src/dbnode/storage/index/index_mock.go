@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -99,13 +100,28 @@ func (mr *MockBaseResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockBaseResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockBaseResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -177,13 +193,28 @@ func (mr *MockQueryResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockQueryResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockQueryResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -342,13 +373,28 @@ func (mr *MockAggregateResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAggregateResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockAggregateResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -396,11 +442,12 @@ func (mr *MockAggregateResultsMockRecorder) AggregateResultsOptions() *gomock.Ca
 }
 
 // AddFields mocks base method
-func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) int {
+func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddFields", batch)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(int)
+	return ret0, ret1
 }
 
 // AddFields indicates an expected call of AddFields
@@ -715,17 +762,17 @@ func (mr *MockBlockMockRecorder) Aggregate(ctx, cancellable, opts, results, logF
 }
 
 // AddResults mocks base method
-func (m *MockBlock) AddResults(results result.IndexBlock) error {
+func (m *MockBlock) AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddResults", results)
+	ret := m.ctrl.Call(m, "AddResults", resultsByVolumeType)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddResults indicates an expected call of AddResults
-func (mr *MockBlockMockRecorder) AddResults(results interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) AddResults(resultsByVolumeType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), results)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), resultsByVolumeType)
 }
 
 // Tick mocks base method
@@ -813,6 +860,61 @@ func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
 }
 
+// NeedsColdMutableSegmentsEvicted mocks base method
+func (m *MockBlock) NeedsColdMutableSegmentsEvicted() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsColdMutableSegmentsEvicted")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsColdMutableSegmentsEvicted indicates an expected call of NeedsColdMutableSegmentsEvicted
+func (mr *MockBlockMockRecorder) NeedsColdMutableSegmentsEvicted() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsColdMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsColdMutableSegmentsEvicted))
+}
+
+// EvictColdMutableSegments mocks base method
+func (m *MockBlock) EvictColdMutableSegments() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EvictColdMutableSegments")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EvictColdMutableSegments indicates an expected call of EvictColdMutableSegments
+func (mr *MockBlockMockRecorder) EvictColdMutableSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictColdMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictColdMutableSegments))
+}
+
+// RotateColdMutableSegments mocks base method
+func (m *MockBlock) RotateColdMutableSegments() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RotateColdMutableSegments")
+}
+
+// RotateColdMutableSegments indicates an expected call of RotateColdMutableSegments
+func (mr *MockBlockMockRecorder) RotateColdMutableSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateColdMutableSegments", reflect.TypeOf((*MockBlock)(nil).RotateColdMutableSegments))
+}
+
+// MemorySegmentsData mocks base method
+func (m *MockBlock) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MemorySegmentsData", ctx)
+	ret0, _ := ret[0].([]fst.SegmentData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MemorySegmentsData indicates an expected call of MemorySegmentsData
+func (mr *MockBlockMockRecorder) MemorySegmentsData(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemorySegmentsData", reflect.TypeOf((*MockBlock)(nil).MemorySegmentsData), ctx)
+}
+
 // Close mocks base method
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()
@@ -860,6 +962,18 @@ func (m *MockBlockStatsReporter) ReportSegmentStats(stats BlockSegmentStats) {
 func (mr *MockBlockStatsReporterMockRecorder) ReportSegmentStats(stats interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportSegmentStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportSegmentStats), stats)
+}
+
+// ReportIndexingStats mocks base method
+func (m *MockBlockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ReportIndexingStats", stats)
+}
+
+// ReportIndexingStats indicates an expected call of ReportIndexingStats
+func (mr *MockBlockStatsReporterMockRecorder) ReportIndexingStats(stats interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportIndexingStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportIndexingStats), stats)
 }
 
 // MockfieldsAndTermsIterator is a mock of fieldsAndTermsIterator interface
@@ -943,17 +1057,17 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error {
+func (m *MockfieldsAndTermsIterator) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", seg, opts)
+	ret := m.ctrl.Call(m, "Reset", reader, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(seg, opts interface{}) *gomock.Call {
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), seg, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
 }
 
 // MockOptions is a mock of Options interface
@@ -1551,4 +1665,32 @@ func (m *MockOptions) MmapReporter() mmap.Reporter {
 func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// SetQueryLimits mocks base method
+func (m *MockOptions) SetQueryLimits(value limits.QueryLimits) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetQueryLimits", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetQueryLimits indicates an expected call of SetQueryLimits
+func (mr *MockOptionsMockRecorder) SetQueryLimits(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryLimits", reflect.TypeOf((*MockOptions)(nil).SetQueryLimits), value)
+}
+
+// QueryLimits mocks base method
+func (m *MockOptions) QueryLimits() limits.QueryLimits {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryLimits")
+	ret0, _ := ret[0].(limits.QueryLimits)
+	return ret0
+}
+
+// QueryLimits indicates an expected call of QueryLimits
+func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }

@@ -30,8 +30,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -65,7 +68,8 @@ func newSeriesTestOptions() Options {
 		SetEncoderPool(encoderPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool).
 		SetBufferBucketPool(bufferBucketPool).
-		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool).
+		SetRuntimeOptionsManager(m3dbruntime.NewOptionsManager())
 	opts = opts.
 		SetRetentionOptions(opts.
 			RetentionOptions().
@@ -92,7 +96,7 @@ func TestSeriesEmpty(t *testing.T) {
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
 	ctx := context.NewContext()
-	wasWritten, err := series.Write(ctx, v.Timestamp, v.Value,
+	wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value,
 		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
@@ -189,7 +193,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	for i, v := range data {
 		curr = v.Timestamp
 		ctx := context.NewContext()
-		wasWritten, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
+		wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			require.True(t, wasWritten)
@@ -514,7 +518,6 @@ func TestSeriesFlush(t *testing.T) {
 		AnyTimes()
 
 	series := NewDatabaseSeries(DatabaseSeriesOptions{
-		ID:             ident.StringID("foo"),
 		BlockRetriever: blockRetriever,
 		Options:        opts,
 	}).(*dbSeries)
@@ -523,12 +526,12 @@ func TestSeriesFlush(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
-	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil, WriteOptions{})
+	series.buffer.Write(ctx, testID, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
-		persistFn := func(_ ident.ID, _ ident.Tags, _ ts.Segment, _ uint32) error {
+		persistFn := func(_ persist.Metadata, _ ts.Segment, _ uint32) error {
 			return input
 		}
 		ctx := context.NewContext()
@@ -1148,10 +1151,13 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		expected   []ts.Datapoint
 	)
 
+	metadata, err := convert.FromSeriesIDAndTags(id, tags)
+	require.NoError(t, err)
+
 	series := NewDatabaseSeries(DatabaseSeriesOptions{
-		ID:      id,
-		Tags:    tags,
-		Options: opts,
+		ID:       id,
+		Metadata: metadata,
+		Options:  opts,
 	}).(*dbSeries)
 
 	for iter := 0; iter < numBlocks; iter++ {
@@ -1159,10 +1165,10 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
+			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
-			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
+			expected = append(expected, ts.Datapoint{Timestamp: start, TimestampNanos: xtime.ToUnixNano(start), Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}
@@ -1171,7 +1177,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
+			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			start = start.Add(10 * time.Second)
@@ -1191,8 +1197,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		ID:             id,
 		Namespace:      nsID,
 		Tags:           ident.NewTagsIterator(tags),
-		StartInclusive: qStart,
-		EndExclusive:   qEnd,
+		StartInclusive: xtime.ToUnixNano(qStart),
+		EndExclusive:   xtime.ToUnixNano(qEnd),
 		Replicas:       []encoding.MultiReaderIterator{multiIt},
 	}, nil)
 	defer it.Close()
@@ -1252,15 +1258,15 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute),
+	wasWritten, _, err := series.Write(ctx, curr.Add(-3*time.Minute),
 		1, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute),
+	wasWritten, _, err = series.Write(ctx, curr.Add(-2*time.Minute),
 		2, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute),
+	wasWritten, _, err = series.Write(ctx, curr.Add(-1*time.Minute),
 		3, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)

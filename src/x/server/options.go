@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -31,9 +32,9 @@ const (
 	// By default keepAlives are enabled for TCP connections.
 	defaultTCPConnectionKeepAlive = true
 
-	// By default the keep alive period is not set and the actual keep alive
-	// period is determined by the OS and the platform.
-	defaultTCPConnectionKeepAlivePeriod = 0
+	// By default the keep alive period is fairly short for fast
+	// breaking of stale connections.
+	defaultTCPConnectionKeepAlivePeriod = 10 * time.Second
 )
 
 // Options provide a set of server options
@@ -64,6 +65,12 @@ type Options interface {
 
 	// TCPConnectionKeepAlivePeriod returns the keep alive period for tcp connections.
 	TCPConnectionKeepAlivePeriod() time.Duration
+
+	// SetListenerOptions sets the listener options for the server.
+	SetListenerOptions(value xnet.ListenerOptions) Options
+
+	// ListenerOptions sets the listener options for the server.
+	ListenerOptions() xnet.ListenerOptions
 }
 
 type options struct {
@@ -71,6 +78,7 @@ type options struct {
 	retryOpts                    retry.Options
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
+	listenerOpts                 xnet.ListenerOptions
 }
 
 // NewOptions creates a new set of server options
@@ -80,6 +88,7 @@ func NewOptions() Options {
 		retryOpts:                    retry.NewOptions(),
 		tcpConnectionKeepAlive:       defaultTCPConnectionKeepAlive,
 		tcpConnectionKeepAlivePeriod: defaultTCPConnectionKeepAlivePeriod,
+		listenerOpts:                 xnet.NewListenerOptions(),
 	}
 }
 
@@ -121,4 +130,14 @@ func (o *options) SetTCPConnectionKeepAlivePeriod(value time.Duration) Options {
 
 func (o *options) TCPConnectionKeepAlivePeriod() time.Duration {
 	return o.tcpConnectionKeepAlivePeriod
+}
+
+func (o *options) SetListenerOptions(value xnet.ListenerOptions) Options {
+	opts := *o
+	opts.listenerOpts = value
+	return &opts
+}
+
+func (o *options) ListenerOptions() xnet.ListenerOptions {
+	return o.listenerOpts
 }

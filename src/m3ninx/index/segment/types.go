@@ -57,10 +57,21 @@ type Segment interface {
 	ContainsField(field []byte) (bool, error)
 
 	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
+	Reader() (Reader, error)
 
 	// Close closes the segment and releases any internal resources.
 	Close() error
+}
+
+// Reader extends index reader interface to allow for reading
+// of fields and terms.
+type Reader interface {
+	index.Reader
+	FieldsIterable
+	TermsIterable
+
+	// ContainsField returns a bool indicating if the Segment contains the provided field.
+	ContainsField(field []byte) (bool, error)
 }
 
 // FieldsIterable can iterate over segment fields, it is not by default
@@ -70,6 +81,15 @@ type FieldsIterable interface {
 	// by name, it is not valid for reading after mutating the
 	// builder by inserting more documents.
 	Fields() (FieldsIterator, error)
+}
+
+// FieldsPostingsListIterable can iterate over segment fields/postings lists, it is not by default
+// concurrency safe.
+type FieldsPostingsListIterable interface {
+	// Fields returns an iterator over the list of known fields, in order
+	// by name, it is not valid for reading after mutating the
+	// builder by inserting more documents.
+	FieldsPostingsList() (FieldsPostingsListIterator, error)
 }
 
 // TermsIterable can iterate over segment terms, it is not by default
@@ -97,30 +117,37 @@ type OrderedBytesIterator interface {
 	Close() error
 }
 
+// FieldsPostingsListIterator iterates over all known fields.
+type FieldsPostingsListIterator interface {
+	Iterator
+
+	// Current returns the current field and associated postings list.
+	// NB: the field returned is only valid until the subsequent call to Next().
+	Current() ([]byte, postings.List)
+}
+
 // FieldsIterator iterates over all known fields.
 type FieldsIterator interface {
-	// Next returns a bool indicating if there are any more elements.
-	Next() bool
+	Iterator
 
-	// Current returns the current element.
-	// NB: the element returned is only valid until the subsequent call to Next().
+	// Current returns the current field.
+	// NB: the field returned is only valid until the subsequent call to Next().
 	Current() []byte
-
-	// Err returns any errors encountered during iteration.
-	Err() error
-
-	// Close releases any resources held by the iterator.
-	Close() error
 }
 
 // TermsIterator iterates over all known terms for the provided field.
 type TermsIterator interface {
-	// Next returns a bool indicating if there are any more elements.
-	Next() bool
+	Iterator
 
 	// Current returns the current element.
 	// NB: the element returned is only valid until the subsequent call to Next().
 	Current() (term []byte, postings postings.List)
+}
+
+// Iterator holds common iterator methods.
+type Iterator interface {
+	// Next returns a bool indicating if there are any more elements.
+	Next() bool
 
 	// Err returns any errors encountered during iteration.
 	Err() error
@@ -134,8 +161,10 @@ type MutableSegment interface {
 	Segment
 	DocumentsBuilder
 
-	// Offset returns the postings offset.
-	Offset() postings.ID
+	// Fields returns an iterator over the list of known fields, in order
+	// by name, it is not valid for reading after mutating the
+	// builder by inserting more documents.
+	Fields() (FieldsIterator, error)
 
 	// Seal marks the Mutable Segment immutable.
 	Seal() error
@@ -153,11 +182,11 @@ type ImmutableSegment interface {
 
 // Builder is a builder that can be used to construct segments.
 type Builder interface {
-	FieldsIterable
+	FieldsPostingsListIterable
 	TermsIterable
 
 	// Reset resets the builder for reuse.
-	Reset(offset postings.ID)
+	Reset()
 
 	// Docs returns the current docs slice, this is not safe to modify
 	// and is invalidated on a call to reset.
@@ -167,10 +196,23 @@ type Builder interface {
 	AllDocs() (index.IDDocIterator, error)
 }
 
-// DocumentsBuilder is a builder is written documents to.
+// DocumentsBuilder is a builder that has documents written to it.
 type DocumentsBuilder interface {
 	Builder
 	index.Writer
+
+	// SetIndexConcurrency sets the concurrency used for building the segment.
+	SetIndexConcurrency(value int)
+
+	// IndexConcurrency returns the concurrency used for building the segment.
+	IndexConcurrency() int
+}
+
+// CloseableDocumentsBuilder is a builder that has documents written to it and has freeable resources.
+type CloseableDocumentsBuilder interface {
+	DocumentsBuilder
+
+	Close() error
 }
 
 // SegmentsBuilder is a builder that is built from segments.

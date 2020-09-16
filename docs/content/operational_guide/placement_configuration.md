@@ -117,7 +117,7 @@ curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
             "endpoint": "<NODE_3_HOST_NAME>:<NODE_3_PORT>",
             "hostname": "<NODE_3_HOST_NAME>",
             "port": <NODE_3_PORT>
-        },
+        }
     ]
 }'
 ```

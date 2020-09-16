@@ -30,9 +30,9 @@ import (
 
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/metrics/metric/id"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -191,10 +191,12 @@ func newTestReportHandler(ctrl *gomock.Controller) testReportHandler {
 	reporter := reporter.NewMockReporter(ctrl)
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), poolOpts)
+		serialize.NewTagEncoderOptions(),
+		poolOpts)
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), poolOpts)
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		poolOpts)
 	tagDecoderPool.Init()
 	instrumentOpts := instrument.NewOptions()
 

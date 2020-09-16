@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -50,7 +51,7 @@ type Engine interface {
 		opts *QueryOptions,
 		fetchOpts *storage.FetchOptions,
 		params models.RequestParams,
-	) (Result, error)
+	) (block.Block, error)
 
 	// Options returns the currently configured options.
 	Options() EngineOptions

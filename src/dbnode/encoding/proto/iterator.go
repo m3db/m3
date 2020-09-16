@@ -224,7 +224,8 @@ func (it *iterator) Next() bool {
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	var (
 		dp = ts.Datapoint{
-			Timestamp: it.tsIterator.PrevTime,
+			Timestamp:      it.tsIterator.PrevTime.ToTime(),
+			TimestampNanos: it.tsIterator.PrevTime,
 		}
 		unit = it.tsIterator.TimeUnit
 	)
@@ -335,7 +336,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
-		fieldTypeBits, err := it.stream.ReadBits(numBitsToEncodeCustomType)
+		fieldTypeBits, err := it.stream.ReadBits(uint(numBitsToEncodeCustomType))
 		if err != nil {
 			return err
 		}
@@ -545,7 +546,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
-			numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize))
+			uint(numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize)))
 		if err != nil {
 			return fmt.Errorf(
 				"%s error trying to read bytes dict idx: %v",
@@ -860,7 +861,7 @@ func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
 	return dict[0]
 }
 
-func (it *iterator) readBits(numBits int) (uint64, error) {
+func (it *iterator) readBits(numBits uint) (uint64, error) {
 	res, err := it.stream.ReadBits(numBits)
 	if err != nil {
 		return 0, err

@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,11 +51,15 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		blockSize = ropts.BlockSize()
 	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
+		SetRetentionOptions(ropts).
+		SetColdWritesEnabled(true))
 	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().
+		SetRetentionOptions(ropts).
+		SetColdWritesEnabled(true))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	if setTestOpts != nil {
@@ -64,22 +68,29 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 		ns2 = opts.Namespaces()[1]
 	}
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
 	log.Info("generating data")
 	var (
-		now        = setup.getNowFn().Truncate(blockSize)
-		seriesMaps = generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
+		now        = setup.NowFn()().Truncate(blockSize)
+		seriesMaps = generateSeriesMaps(
+			100,
+			updateInputConfig,
+			now.Add(-4*blockSize),
+			now.Add(-3*blockSize),
+			now.Add(-2*blockSize),
+			now.Add(-blockSize),
+		)
 	)
 	log.Info("writing data")
 
@@ -98,7 +109,7 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 	)
 
 	writeSnapshotsWithPredicate(
-		t, setup, commitLogOpts, seriesMaps, 0,ns1, nil, pred, snapshotInterval)
+		t, setup, commitLogOpts, seriesMaps, 0, ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {
@@ -120,27 +131,27 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Verify in-memory data match what we expect - all writes from seriesMaps
 	// should be present
-	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
+	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-4*blockSize), now)
 	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
 
 	// Verify in-memory data match what we expect - no writes should be present
 	// because we didn't issue any writes for this namespaces
 	emptySeriesMaps := make(generate.SeriesBlocksByStart)
-	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
+	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-4*blockSize), now)
 	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
 	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
 

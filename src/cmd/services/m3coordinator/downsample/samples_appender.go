@@ -41,6 +41,9 @@ type samplesAppender struct {
 	stagedMetadatas metadata.StagedMetadatas
 }
 
+// Ensure samplesAppender implements SamplesAppender.
+var _ SamplesAppender = (*samplesAppender)(nil)
+
 func (a samplesAppender) AppendCounterSample(value int64) error {
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
@@ -95,28 +98,21 @@ func (a *samplesAppender) AppendGaugeTimedSample(t time.Time, value float64) err
 	})
 }
 
+func (a *samplesAppender) AppendTimerTimedSample(t time.Time, value float64) error {
+	return a.appendTimedSample(aggregated.Metric{
+		Type:      metric.TimerType,
+		ID:        a.unownedID,
+		TimeNanos: t.UnixNano(),
+		Value:     value,
+	})
+}
+
 func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
-	var multiErr xerrors.MultiError
-	for _, meta := range a.stagedMetadatas {
-		for _, pipeline := range meta.Pipelines {
-			for _, policy := range pipeline.StoragePolicies {
-				metadata := metadata.TimedMetadata{
-					AggregationID: pipeline.AggregationID,
-					StoragePolicy: policy,
-				}
-
-				if a.clientRemote != nil {
-					// Remote client write instead of local aggregation.
-					multiErr = multiErr.Add(a.clientRemote.WriteTimed(sample, metadata))
-					continue
-				}
-
-				// Add timed to local aggregator.
-				multiErr = multiErr.Add(a.agg.AddTimed(sample, metadata))
-			}
-		}
+	if a.clientRemote != nil {
+		return a.clientRemote.WriteTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 	}
-	return multiErr.LastError()
+
+	return a.agg.AddTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.
@@ -169,6 +165,14 @@ func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeTimedSample(t, value))
+	}
+	return multiErr.LastError()
+}
+
+func (a *multiSamplesAppender) AppendTimerTimedSample(t time.Time, value float64) error {
+	var multiErr xerrors.MultiError
+	for _, appender := range a.appenders {
+		multiErr = multiErr.Add(appender.AppendTimerTimedSample(t, value))
 	}
 	return multiErr.LastError()
 }

@@ -36,8 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
+	promql "github.com/prometheus/prometheus/promql/parser"
 )
 
 // NewSelectorFromVector creates a new fetchop.
@@ -62,14 +63,15 @@ func NewSelectorFromMatrix(
 	n *promql.MatrixSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
+	vectorSelector := n.VectorSelector.(*promql.VectorSelector)
+	matchers, err := LabelMatchersToModelMatcher(vectorSelector.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return functions.FetchOp{
-		Name:     n.Name,
-		Offset:   n.Offset,
+		Name:     vectorSelector.Name,
+		Offset:   vectorSelector.Offset,
 		Matchers: matchers,
 		Range:    n.Range,
 	}, nil
@@ -113,29 +115,30 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 
 func getAggOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemSum:
+	case promql.SUM:
 		return aggregation.SumType
-	case promql.ItemMin:
+	case promql.MIN:
 		return aggregation.MinType
-	case promql.ItemMax:
+	case promql.MAX:
 		return aggregation.MaxType
-	case promql.ItemAvg:
+	case promql.AVG:
 		return aggregation.AverageType
-	case promql.ItemStddev:
+	case promql.STDDEV:
 		return aggregation.StandardDeviationType
-	case promql.ItemStdvar:
+	case promql.STDVAR:
 		return aggregation.StandardVarianceType
-	case promql.ItemCount:
+	case promql.COUNT:
 		return aggregation.CountType
 
-	case promql.ItemTopK:
+	case promql.TOPK:
 		return aggregation.TopKType
-	case promql.ItemBottomK:
+	case promql.BOTTOMK:
 		return aggregation.BottomKType
-	case promql.ItemQuantile:
+	case promql.QUANTILE:
 		return aggregation.QuantileType
-	case promql.ItemCountValues:
+	case promql.COUNT_VALUES:
 		return aggregation.CountValuesType
+
 	default:
 		return common.UnknownOpType
 	}
@@ -183,6 +186,7 @@ func NewFunctionExpr(
 	argValues []interface{},
 	stringValues []string,
 	hasArgValue bool,
+	inner string,
 	tagOptions models.TagOptions,
 ) (parser.Params, bool, error) {
 	var (
@@ -272,37 +276,37 @@ func NewFunctionExpr(
 
 func getBinaryOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemLAND:
+	case promql.LAND:
 		return binary.AndType
-	case promql.ItemLOR:
+	case promql.LOR:
 		return binary.OrType
-	case promql.ItemLUnless:
+	case promql.LUNLESS:
 		return binary.UnlessType
 
-	case promql.ItemADD:
+	case promql.ADD:
 		return binary.PlusType
-	case promql.ItemSUB:
+	case promql.SUB:
 		return binary.MinusType
-	case promql.ItemMUL:
+	case promql.MUL:
 		return binary.MultiplyType
-	case promql.ItemDIV:
+	case promql.DIV:
 		return binary.DivType
-	case promql.ItemPOW:
+	case promql.POW:
 		return binary.ExpType
-	case promql.ItemMOD:
+	case promql.MOD:
 		return binary.ModType
 
-	case promql.ItemEQL:
+	case promql.EQL:
 		return binary.EqType
-	case promql.ItemNEQ:
+	case promql.NEQ:
 		return binary.NotEqType
-	case promql.ItemGTR:
+	case promql.GTR:
 		return binary.GreaterType
-	case promql.ItemLSS:
+	case promql.LSS:
 		return binary.LesserType
-	case promql.ItemGTE:
+	case promql.GTE:
 		return binary.GreaterEqType
-	case promql.ItemLTE:
+	case promql.LTE:
 		return binary.LesserEqType
 
 	default:
@@ -313,9 +317,9 @@ func getBinaryOpType(opType promql.ItemType) string {
 // getUnaryOpType returns the M3 unary op type based on the Prom op type.
 func getUnaryOpType(opType promql.ItemType) (string, error) {
 	switch opType {
-	case promql.ItemADD:
+	case promql.ADD:
 		return binary.PlusType, nil
-	case promql.ItemSUB:
+	case promql.SUB:
 		return binary.MinusType, nil
 	default:
 		return "", fmt.Errorf(
@@ -325,7 +329,54 @@ func getUnaryOpType(opType promql.ItemType) (string, error) {
 	}
 }
 
-const promDefaultName = "__name__"
+const (
+	anchorStart = byte('^')
+	anchorEnd   = byte('$')
+	escapeChar  = byte('\\')
+	startGroup  = byte('[')
+	endGroup    = byte(']')
+)
+
+func sanitizeRegex(value []byte) []byte {
+	lIndex := 0
+	rIndex := len(value)
+	escape := false
+	inGroup := false
+	for i, b := range value {
+		if escape {
+			escape = false
+			continue
+		}
+
+		if inGroup {
+			switch b {
+			case escapeChar:
+				escape = true
+			case endGroup:
+				inGroup = false
+			}
+
+			continue
+		}
+
+		switch b {
+		case anchorStart:
+			lIndex = i + 1
+		case anchorEnd:
+			rIndex = i
+		case escapeChar:
+			escape = true
+		case startGroup:
+			inGroup = true
+		}
+	}
+
+	if lIndex > rIndex {
+		return []byte{}
+	}
+
+	return value[lIndex:rIndex]
+}
 
 // LabelMatchersToModelMatcher parses promql matchers to model matchers.
 func LabelMatchersToModelMatcher(
@@ -334,13 +385,14 @@ func LabelMatchersToModelMatcher(
 ) (models.Matchers, error) {
 	matchers := make(models.Matchers, 0, len(lMatchers))
 	for _, m := range lMatchers {
+		// here.
 		matchType, err := promTypeToM3(m.Type)
 		if err != nil {
 			return nil, err
 		}
 
 		var name []byte
-		if m.Name == promDefaultName {
+		if m.Name == model.MetricNameLabel {
 			name = tagOpts.MetricName()
 		} else {
 			name = []byte(m.Name)
@@ -357,6 +409,13 @@ func LabelMatchersToModelMatcher(
 			} else if matchType == models.MatchEqual {
 				matchType = models.MatchNotField
 			}
+		}
+
+		if matchType == models.MatchRegexp || matchType == models.MatchNotRegexp {
+			// NB: special case here since tags such as `{foo=~"$bar"}` are valid in
+			// prometheus regex patterns, but invalid with m3 index queries. Simplify
+			// these matchers here.
+			value = sanitizeRegex(value)
 		}
 
 		match, err := models.NewMatcher(matchType, name, value)

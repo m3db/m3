@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -127,7 +129,7 @@ func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
 }
 
 func TestNamespaceIndexNewBlockFn(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -143,13 +145,16 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	index, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	index, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -171,7 +176,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 }
 
 func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -184,17 +189,20 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		return nil, fmt.Errorf("randomerr")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	_, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.Error(t, err)
 }
 
 func TestNamespaceIndexWrite(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -211,13 +219,16 @@ func TestNamespaceIndexWrite(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -251,7 +262,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -279,6 +290,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -290,7 +302,9 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -327,7 +341,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -356,6 +370,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -367,15 +382,23 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -384,7 +407,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 }
 
 func TestNamespaceIndexTickExpire(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -407,6 +430,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -415,7 +439,9 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	nowLock.Lock()
@@ -432,7 +458,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 }
 
 func TestNamespaceIndexTick(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -456,6 +482,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -464,7 +491,9 @@ func TestNamespaceIndexTick(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -518,7 +547,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockQuery(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -552,6 +581,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -563,7 +593,9 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -573,58 +605,249 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
 	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
-	// only queries as much as is needed (wrt to time)
-	ctx := context.NewContext()
-	q := defaultQuery
-	qOpts := index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   now.Add(time.Minute),
+	for _, test := range []struct {
+		name              string
+		requireExhaustive bool
+	}{
+		{"allow non-exhaustive", false},
+		{"require exhaustive", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// only queries as much as is needed (wrt to time)
+			ctx := context.NewContext()
+			q := defaultQuery
+			qOpts := index.QueryOptions{
+				StartInclusive: t0,
+				EndExclusive:   now.Add(time.Minute),
+			}
+
+			// create initial span from a mock tracer and get ctx
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err := idx.Query(ctx, q, qOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// queries multiple blocks if needed
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t2.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err = idx.Query(ctx, q, qOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// stops querying once a block returns non-exhaustive
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t0.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+			result, err = idx.Query(ctx, q, qOpts)
+			if test.requireExhaustive {
+				require.Error(t, err)
+				require.False(t, xerrors.IsRetryableError(err))
+			} else {
+				require.NoError(t, err)
+				require.False(t, result.Exhaustive)
+			}
+
+			sp.Finish()
+			spans := mtr.FinishedSpans()
+			require.Len(t, spans, 11)
+		})
 	}
+}
 
-	// create initial span from a mock tracer and get ctx
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+func TestLimits(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
 
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.Query(ctx, q, qOpts)
+	retention := 2 * time.Hour
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	t0 := now.Truncate(blockSize)
+	t0Nanos := xtime.ToUnixNano(t0)
+	t1 := t0.Add(1 * blockSize)
+	var nowLock sync.Mutex
+	nowFn := func() time.Time {
+		nowLock.Lock()
+		defer nowLock.Unlock()
+		return now
+	}
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil).AnyTimes()
+	b0.EXPECT().StartTime().Return(t0).AnyTimes()
+	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
+		io index.Options,
+	) (index.Block, error) {
+		if ts.Equal(t0) {
+			return b0, nil
+		}
+		panic("should never get here")
+	}
+	md := testNamespaceMetadata(blockSize, retention)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
-	// queries multiple blocks if needed
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t2.Add(time.Minute),
-	}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.Query(ctx, q, qOpts)
-	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
-	// stops querying once a block returns non-exhaustive
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t0.Add(time.Minute),
+	seg1 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	bootstrapResults := result.IndexResults{
+		t0Nanos: t0Results,
 	}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
-	_, err = idx.Query(ctx, q, qOpts)
-	require.NoError(t, err)
 
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 11)
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
+
+	for _, test := range []struct {
+		name              string
+		seriesLimit       int
+		docsLimit         int
+		requireExhaustive bool
+		expectedErr       string
+	}{
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+		},
+		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// only queries as much as is needed (wrt to time)
+			ctx := context.NewContext()
+			q := defaultQuery
+			qOpts := index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t1.Add(time.Minute),
+				SeriesLimit:       test.seriesLimit,
+				DocsLimit:         test.docsLimit,
+				RequireExhaustive: test.requireExhaustive,
+			}
+
+			// create initial span from a mock tracer and get ctx
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context,
+					cancellable interface{},
+					query interface{},
+					opts interface{},
+					results index.BaseResults,
+					logFields interface{}) (bool, error) {
+					results.AddDocuments([]doc.Document{
+						// Results in size=1 and docs=2.
+						doc.Document{ID: []byte("A")},
+						doc.Document{ID: []byte("A")},
+					})
+					return false, nil
+				})
+
+			result, err := idx.Query(ctx, q, qOpts)
+			require.False(t, result.Exhaustive)
+			if test.requireExhaustive {
+				require.Error(t, err)
+				require.Equal(t, test.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -658,6 +881,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -675,7 +899,9 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	stubResult := index.NewQueryResults(ident.StringID("ns"), index.QueryResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -689,9 +915,15 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -715,7 +947,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	query := idx.NewTermQuery([]byte("a"), []byte("b"))
@@ -750,6 +982,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -761,7 +994,9 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -771,64 +1006,91 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
 	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
-	// only queries as much as is needed (wrt to time)
-	ctx := context.NewContext()
+	for _, test := range []struct {
+		name              string
+		requireExhaustive bool
+	}{
+		{"allow non-exhaustive", false},
+		{"require exhaustive", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// only queries as much as is needed (wrt to time)
+			ctx := context.NewContext()
 
-	// create initial span from a mock tracer and get ctx
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+			// create initial span from a mock tracer and get ctx
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	q := index.Query{
-		Query: query,
+			q := index.Query{
+				Query: query,
+			}
+			qOpts := index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      now.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			aggOpts := index.AggregationOptions{QueryOptions: qOpts}
+
+			b0.EXPECT().Aggregate(gomock.Any(), gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err := idx.AggregateQuery(ctx, q, aggOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// queries multiple blocks if needed
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t2.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+			b0.EXPECT().Aggregate(gomock.Any(), gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			b1.EXPECT().Aggregate(gomock.Any(), gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err = idx.AggregateQuery(ctx, q, aggOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// stops querying once a block returns non-exhaustive
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t0.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			b0.EXPECT().Aggregate(gomock.Any(), gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+			result, err = idx.AggregateQuery(ctx, q, aggOpts)
+			if test.requireExhaustive {
+				require.Error(t, err)
+				require.False(t, xerrors.IsRetryableError(err))
+			} else {
+				require.NoError(t, err)
+				require.False(t, result.Exhaustive)
+			}
+
+			sp.Finish()
+			spans := mtr.FinishedSpans()
+			require.Len(t, spans, 11)
+		})
 	}
-	qOpts := index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   now.Add(time.Minute),
-	}
-	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
-
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	// queries multiple blocks if needed
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t2.Add(time.Minute),
-	}
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	// stops querying once a block returns non-exhaustive
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t0.Add(time.Minute),
-	}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 11)
 }
 
 func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -863,6 +1125,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -877,10 +1140,13 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	iopts := opts.IndexOptions()
 	mockPool := index.NewMockAggregateResultsPool(ctrl)
 	iopts = iopts.SetAggregateResultsPool(mockPool)
-	stubResult := index.NewAggregateResults(ident.StringID("ns"), index.AggregateResultsOptions{}, iopts)
+	stubResult := index.NewAggregateResults(ident.StringID("ns"),
+		index.AggregateResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -894,9 +1160,15 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -916,7 +1188,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
-		b0.EXPECT().Query(ctx, gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
+		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
@@ -925,7 +1197,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	queries := []idx.Query{idx.NewAllQuery(), idx.NewFieldQuery([]byte("field"))}
@@ -960,6 +1232,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -971,7 +1244,9 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -981,9 +1256,15 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, false), result.NewSegment(seg3, false)},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -999,33 +1280,53 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	}
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
-	for _, query := range queries {
-		q := index.Query{
-			Query: query,
-		}
-		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-		_, err = idx.AggregateQuery(ctx, q, aggOpts)
-		require.NoError(t, err)
+	for _, test := range []struct {
+		name              string
+		requireExhaustive bool
+	}{
+		{"allow non-exhaustive", false},
+		{"require exhaustive", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, query := range queries {
+				q := index.Query{
+					Query: query,
+				}
+				b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+				result, err := idx.AggregateQuery(ctx, q, aggOpts)
+				require.NoError(t, err)
+				require.True(t, result.Exhaustive)
 
-		// queries multiple blocks if needed
-		qOpts = index.QueryOptions{
-			StartInclusive: t0,
-			EndExclusive:   t2.Add(time.Minute),
-		}
-		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-		b1.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-		_, err = idx.AggregateQuery(ctx, q, aggOpts)
-		require.NoError(t, err)
+				// queries multiple blocks if needed
+				qOpts = index.QueryOptions{
+					StartInclusive:    t0,
+					EndExclusive:      t2.Add(time.Minute),
+					RequireExhaustive: test.requireExhaustive,
+				}
+				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+				b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+				b1.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+				result, err = idx.AggregateQuery(ctx, q, aggOpts)
+				require.NoError(t, err)
+				require.True(t, result.Exhaustive)
 
-		// stops querying once a block returns non-exhaustive
-		qOpts = index.QueryOptions{
-			StartInclusive: t0,
-			EndExclusive:   t0.Add(time.Minute),
-		}
-		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
-		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-		_, err = idx.AggregateQuery(ctx, q, aggOpts)
-		require.NoError(t, err)
+				// stops querying once a block returns non-exhaustive
+				qOpts = index.QueryOptions{
+					StartInclusive:    t0,
+					EndExclusive:      t0.Add(time.Minute),
+					RequireExhaustive: test.requireExhaustive,
+				}
+				b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+				aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+				result, err = idx.AggregateQuery(ctx, q, aggOpts)
+				if test.requireExhaustive {
+					require.Error(t, err)
+					require.False(t, xerrors.IsRetryableError(err))
+				} else {
+					require.NoError(t, err)
+					require.False(t, result.Exhaustive)
+				}
+			}
+		})
 	}
 }

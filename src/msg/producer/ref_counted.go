@@ -31,24 +31,24 @@ type OnFinalizeFn func(rm *RefCountedMessage)
 
 // RefCountedMessage is a reference counted message.
 type RefCountedMessage struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	Message
 
 	size         uint64
 	onFinalizeFn OnFinalizeFn
 
-	refCount            *atomic.Int32
-	isDroppedOrConsumed *atomic.Bool
+	// RefCountedMessage must not be copied by value due to RWMutex,
+	// safe to store values here and not just pointers
+	refCount            atomic.Int32
+	isDroppedOrConsumed atomic.Bool
 }
 
 // NewRefCountedMessage creates RefCountedMessage.
 func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
 	return &RefCountedMessage{
-		Message:             m,
-		refCount:            atomic.NewInt32(0),
-		size:                uint64(m.Size()),
-		onFinalizeFn:        fn,
-		isDroppedOrConsumed: atomic.NewBool(false),
+		Message:      m,
+		size:         uint64(m.Size()),
+		onFinalizeFn: fn,
 	}
 }
 
@@ -76,12 +76,17 @@ func (rm *RefCountedMessage) DecRef() {
 
 // IncReads increments the reads count.
 func (rm *RefCountedMessage) IncReads() {
-	rm.RLock()
+	rm.mu.RLock()
 }
 
 // DecReads decrements the reads count.
 func (rm *RefCountedMessage) DecReads() {
-	rm.RUnlock()
+	rm.mu.RUnlock()
+}
+
+// NumRef returns the number of references remaining.
+func (rm *RefCountedMessage) NumRef() int32 {
+	return rm.refCount.Load()
 }
 
 // Size returns the size of the message.
@@ -102,13 +107,13 @@ func (rm *RefCountedMessage) IsDroppedOrConsumed() bool {
 func (rm *RefCountedMessage) finalize(r FinalizeReason) bool {
 	// NB: This lock prevents the message from being finalized when its still
 	// being read.
-	rm.Lock()
+	rm.mu.Lock()
 	if rm.isDroppedOrConsumed.Load() {
-		rm.Unlock()
+		rm.mu.Unlock()
 		return false
 	}
 	rm.isDroppedOrConsumed.Store(true)
-	rm.Unlock()
+	rm.mu.Unlock()
 	if rm.onFinalizeFn != nil {
 		rm.onFinalizeFn(rm)
 	}

@@ -263,7 +263,7 @@ func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.Schema
 func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
-	timeUnit := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
+	timeUnit := initialTimeUnit(xtime.ToUnixNano(start), enc.opts.DefaultTimeUnit())
 	enc.tsEncoderState = NewTimestampEncoder(start, timeUnit, enc.opts)
 
 	enc.floatEnc = FloatEncoderAndIterator{}
@@ -302,7 +302,10 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
 
-	result := ts.Datapoint{Timestamp: enc.tsEncoderState.PrevTime}
+	result := ts.Datapoint{
+		Timestamp:      enc.tsEncoderState.PrevTime,
+		TimestampNanos: xtime.ToUnixNano(enc.tsEncoderState.PrevTime),
+	}
 	if enc.isFloat {
 		result.Value = math.Float64frombits(enc.floatEnc.PrevFloatBits)
 	} else {
@@ -311,10 +314,19 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
+// LastAnnotation returns the last encoded annotation.
+func (enc *encoder) LastAnnotation() (ts.Annotation, error) {
+	if enc.numEncoded == 0 {
+		return nil, errNoEncodedDatapoints
+	}
+
+	return enc.tsEncoderState.PrevAnnotation, nil
+}
+
 // Len returns the length of the final data stream that would be generated
 // by a call to Stream().
 func (enc *encoder) Len() int {
-	raw, pos := enc.os.Rawbytes()
+	raw, pos := enc.os.RawBytes()
 	if len(raw) == 0 {
 		return 0
 	}
@@ -376,7 +388,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
-	rawBuffer, pos := enc.os.Rawbytes()
+	rawBuffer, pos := enc.os.RawBytes()
 	lastByte := rawBuffer[length-1]
 
 	// Take ref up to last byte.
@@ -402,7 +414,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegment(head, tail, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }
 
 func (enc *encoder) segmentTakeOwnership() ts.Segment {
@@ -412,7 +424,7 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	}
 
 	// We need a multibyte tail since the tail isn't set correctly midstream.
-	rawBuffer, pos := enc.os.Rawbytes()
+	rawBuffer, pos := enc.os.RawBytes()
 	lastByte := rawBuffer[length-1]
 
 	// Take ref from the ostream.
@@ -430,5 +442,5 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegment(head, tail, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }

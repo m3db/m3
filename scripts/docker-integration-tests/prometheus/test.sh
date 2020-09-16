@@ -9,8 +9,7 @@ COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/pro
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
 PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
 JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
-METRIC_NAME_TEST_TOO_OLD=foo
-METRIC_NAME_TEST_RESTRICT_WRITE=bar
+METRIC_NAME_TEST_RESTRICT_WRITE=bar_metric
 export REVISION
 
 echo "Pull containers required for test"
@@ -21,7 +20,14 @@ echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
+TEST_SUCCESS=false
+
 function defer {
+  if [[ "$TEST_SUCCESS" != "true" ]]; then
+    echo "Test failure, printing docker-compose logs"
+    docker-compose -f ${COMPOSE_FILE} logs
+  fi
+
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
@@ -60,14 +66,26 @@ function prometheus_remote_write {
   local expect_status_err=$7
   local metrics_type=$8
   local metrics_storage_policy=$9
+  local map_tags_header=${10}
+  
+  local optional_tags=""
+  for i in $(seq 0 10); do
+    local optional_tag_name=$(eval "echo \$TAG_NAME_$i")
+    local optional_tag_value=$(eval "echo \$TAG_VALUE_$i")
+    if [[ "$optional_tag_name" != "" ]] || [[ "$optional_tag_value" != "" ]]; then
+      optional_tags="$optional_tags -t ${optional_tag_name}:${optional_tag_value}"
+    fi
+  done
 
-  network=$(docker network ls --format '{{.ID}}' | tail -n 1)
+  network_name="prometheus"
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://coordinator01:7201/api/v1/prom/remote/write \
-    -t __name__:${metric_name}                            \
+    -t __name__:${metric_name} ${optional_tags}           \
     -h "M3-Metrics-Type: ${metrics_type}"                 \
     -h "M3-Storage-Policy: ${metrics_storage_policy}"     \
+    -h "M3-Map-Tags-JSON: ${map_tags_header}"          \
     -d ${datapoint_timestamp},${datapoint_value} | grep -v promremotecli_log) || true)
   success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
   status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)
@@ -83,13 +101,47 @@ function prometheus_remote_write {
   return 0
 }
 
+function test_prometheus_remote_write_empty_label_name_returns_400_status_code {
+  echo "Test write empty name for a label returns HTTP 400"
+  now=$(date +"%s")
+  TAG_NAME_0="non_empty_name" TAG_VALUE_0="foo" \
+    TAG_NAME_1="" TAG_VALUE_1="bar" \
+    prometheus_remote_write \
+    "foo_metric" $now 42 \
+    false "Expected request to fail" \
+    400 "Expected request to return status code 400"
+}
+
+function test_prometheus_remote_write_empty_label_value_returns_400_status_code {
+  echo "Test write empty value for a label returns HTTP 400"
+  now=$(date +"%s")
+  TAG_NAME_0="foo" TAG_VALUE_0="bar" \
+    TAG_NAME_1="non_empty_name" TAG_VALUE_1="" \
+    prometheus_remote_write \
+    "foo_metric" $now 42 \
+    false "Expected request to fail" \
+    400 "Expected request to return status code 400"
+}
+
+function test_prometheus_remote_write_duplicate_label_returns_400_status_code {
+  echo "Test write with duplicate labels returns HTTP 400"
+  now=$(date +"%s")
+  hour_ago=$(( now - 3600 ))
+  TAG_NAME_0="dupe_name" TAG_VALUE_0="foo" \
+    TAG_NAME_1="non_dupe_name" TAG_VALUE_1="bar" \
+    TAG_NAME_2="dupe_name" TAG_VALUE_2="baz" \
+    prometheus_remote_write \
+    "foo_metric" $now 42 \
+    false "Expected request to fail" \
+    400 "Expected request to return status code 400"
+}
+
 function test_prometheus_remote_write_too_old_returns_400_status_code {
-  # Test writing too far into the past returns an HTTP 400 status code
   echo "Test write into the past returns HTTP 400"
   now=$(date +"%s")
   hour_ago=$(( now - 3600 ))
   prometheus_remote_write \
-    $METRIC_NAME_TEST_TOO_OLD $hour_ago 3.142 \
+    "foo_metric" $hour_ago 3.142 \
     false "Expected request to fail" \
     400 "Expected request to return status code 400"
 }
@@ -102,7 +154,7 @@ function test_prometheus_remote_write_restrict_metrics_type {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200" \
     unaggregated
-  
+
   echo "Test write with aggregated metrics type works as expected"
   prometheus_remote_write \
     $METRIC_NAME_TEST_RESTRICT_WRITE now 84.84 \
@@ -111,18 +163,63 @@ function test_prometheus_remote_write_restrict_metrics_type {
     aggregated 15s:10h
 }
 
+function test_prometheus_remote_write_map_tags {
+  echo "Test map tags header works as expected"
+  prometheus_remote_write \
+    $METRIC_NAME_TEST_RESTRICT_WRITE now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200" \
+    unaggregated "" '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
+
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" \
+    metrics_type="unaggregated" jq_path=".data.result[0].metric.globaltag" expected_value="somevalue" \
+    retry_with_backoff prometheus_query_native
+}
+
 function test_query_limits_applied {
-  # Test the default series limit applied when directly querying 
+  # Test the default series limit applied when directly querying
   # coordinator (limit set to 100 in m3coordinator.yml)
+  # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
-  # Test the default series limit applied when directly querying 
-  # coordinator (limit set by header)
-  echo "Test query limit with coordinator limit header"
+  # Test the series limit applied when directly querying
+  # coordinator (series limit set by header)
+  echo "Test query series limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+  
+  echo "Test query series limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
+
+  echo "Test query series limit with require-exhaustive headers true (below limit therefore no error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
+  
+  echo "Test query series limit with require-exhaustive headers true (above limit therefore error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "query exceeded limit") ]]'
+
+  # Test the default docs limit applied when directly querying
+  # coordinator (docs limit set by header)
+  echo "Test query docs limit with coordinator limit header"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+
+  echo "Test query docs limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+
+  echo "Test query docs limit with require-exhaustive headers true (below limit therefore no error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
+  
+  echo "Test query docs limit with require-exhaustive headers true (above limit therefore error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "query exceeded limit") ]]'
 }
 
 function prometheus_query_native {
@@ -142,7 +239,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | head -1)
   test "$result" = "$expected_value"
   return $?
 }
@@ -155,7 +252,7 @@ function test_query_restrict_metrics_type {
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
-  
+
   # Test restricting to unaggregated metrics
   echo "Test query restrict to unaggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
@@ -181,13 +278,71 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_restrict_tags {
+  # Test the default restrict tags is applied when directly querying
+  # coordinator (restrict tags set to hide any restricted_metrics_type="hidden"
+  # in m3coordinator.yml)
+
+  # First write some hidden metrics.
+  echo "Test write with unaggregated metrics type works as expected"
+  TAG_NAME_0="restricted_metrics_type" TAG_VALUE_0="hidden" \
+    TAG_NAME_1="foo_tag" TAG_VALUE_1="foo_tag_value" \
+    prometheus_remote_write \
+    some_hidden_metric now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  # Check that we can see them with zero restrictions applied as an 
+  # override (we do this check first so that when we test that they 
+  # don't appear by default we know that the metrics are already visible).
+  echo "Test restrict by tags with header override to remove restrict works"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 1 ]]'
+
+  # Now test that the defaults will hide the metrics altogether.
+  echo "Test restrict by tags with coordinator defaults"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
+}
+
+function test_series {
+  # Test series search with start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with no start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with min/max start time using the Prometheus Go
+  # min/max formatted timestamps, which is sent as part of a Prometheus
+  # remote query.
+  # minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
+  # maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
+  # minTimeFormatted = minTime.Format(time.RFC3339Nano)
+  # maxTimeFormatted = maxTime.Format(time.RFC3339Nano)
+  # Which:
+  # minTimeFormatted="-292273086-05-16T16:47:06Z"
+  # maxTimeFormatted="292277025-08-18T07:12:54.999999999Z"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
+}
+
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
+test_prometheus_remote_write_empty_label_name_returns_400_status_code
+test_prometheus_remote_write_empty_label_value_returns_400_status_code
+test_prometheus_remote_write_duplicate_label_returns_400_status_code
 test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_restrict_tags
+test_prometheus_remote_write_map_tags
+test_series
 
 echo "Running function correctness tests"
 test_correctness
+
+TEST_SUCCESS=true

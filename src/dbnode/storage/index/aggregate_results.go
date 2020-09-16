@@ -31,13 +31,18 @@ import (
 
 const missingDocumentFields = "invalid document fields: empty %s"
 
+// NB: emptyValues is an AggregateValues with no values, used for tracking
+// terms only rather than terms and values.
+var emptyValues = AggregateValues{hasValues: false}
+
 type aggregatedResults struct {
 	sync.RWMutex
 
 	nsID          ident.ID
 	aggregateOpts AggregateResultsOptions
 
-	resultsMap *AggregateResultsMap
+	resultsMap     *AggregateResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -90,26 +95,30 @@ func (r *aggregatedResults) Reset(
 
 	// reset all keys in the map next
 	r.resultsMap.Reset()
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
 	r.Unlock()
 }
 
-func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
+func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, err
+	return size, docsCount, err
 }
 
 func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 	return r.aggregateOpts
 }
 
-func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
+func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
+	valueInsertions := 0
 	for _, entry := range batch {
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
@@ -135,6 +144,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
 					NoCopyKey:     true,
 					NoFinalizeKey: false,
 				})
+				valueInsertions++
 			} else {
 				// because we already have a entry for this term, we release the ident back to
 				// the underlying pool.
@@ -143,8 +153,10 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
 		}
 	}
 	size := r.resultsMap.Len()
+	docsCount := r.totalDocsCount + valueInsertions
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size
+	return size, docsCount
 }
 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
@@ -214,7 +226,7 @@ func (r *aggregatedResults) addTermWithLock(
 
 	// Set results map to an empty AggregateValues since we only care about
 	// existence of the term in the map, rather than its set of values.
-	r.resultsMap.Set(termID, r.valuesPool.Get())
+	r.resultsMap.Set(termID, emptyValues)
 	return nil
 }
 
@@ -292,6 +304,13 @@ func (r *aggregatedResults) Size() int {
 	l := r.resultsMap.Len()
 	r.RUnlock()
 	return l
+}
+
+func (r *aggregatedResults) TotalDocsCount() int {
+	r.RLock()
+	count := r.totalDocsCount
+	r.RUnlock()
+	return count
 }
 
 func (r *aggregatedResults) Finalize() {

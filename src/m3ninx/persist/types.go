@@ -73,6 +73,8 @@ type IndexFileSetReader interface {
 	// The IndexSegmentFileSet will only be valid before it's closed,
 	// after that calls to Read or Bytes on it will have unexpected results.
 	ReadSegmentFileSet() (IndexSegmentFileSet, error)
+
+	IndexVolumeType() IndexVolumeType
 }
 
 // IndexSegmentFileSet is an index segment file set.
@@ -95,6 +97,15 @@ type IndexSegmentFile interface {
 	// Mmap will be valid until the segment file is closed.
 	Mmap() (mmap.Descriptor, error)
 }
+
+// IndexVolumeType is the type of an index volume.
+type IndexVolumeType string
+
+const (
+	// DefaultIndexVolumeType is a default IndexVolumeType.
+	// This is the type if not otherwise specified.
+	DefaultIndexVolumeType IndexVolumeType = "default"
+)
 
 // IndexSegmentType is the type of an index file set.
 type IndexSegmentType string

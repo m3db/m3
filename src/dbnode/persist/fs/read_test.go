@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/checked"
@@ -90,7 +91,8 @@ func init() {
 	})
 	testBytesPool.Init()
 	testTagDecoderPool = serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
 	testTagDecoderPool.Init()
 }
 
@@ -142,7 +144,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, _, _, _, err = r.Read()
-	assert.Error(t, err)
+	assert.Equal(t, io.EOF, err)
 
 	assert.NoError(t, r.Close())
 }
@@ -167,10 +169,13 @@ func TestReadDataError(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	err = w.Open(writerOpts)
 	require.NoError(t, err)
-	require.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	require.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	require.NoError(t, w.Close())
@@ -220,12 +225,15 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	assert.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -303,14 +311,17 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		BlockSize: testBlockSize,
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
-			Shard:      uint32(shard),
+			Shard:      shard,
 			BlockStart: start,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	assert.NoError(t, w.Open(writerOpts))
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	assert.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
@@ -339,11 +350,11 @@ func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       []byte{0x1},
-			indexFileSuffix:      []byte{0x2},
-			dataFileSuffix:       []byte{0x3},
-			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: []byte{0x12, 0x0, 0x7a, 0x0},
+			infoFileSuffix:       {0x1},
+			indexFileSuffix:      {0x2},
+			dataFileSuffix:       {0x3},
+			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			checkpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -352,11 +363,11 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       []byte{0xa},
-			indexFileSuffix:      []byte{0x2},
-			dataFileSuffix:       []byte{0x3},
-			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: []byte{0x13, 0x0, 0x7a, 0x0},
+			infoFileSuffix:       {0xa},
+			indexFileSuffix:      {0x2},
+			dataFileSuffix:       {0x3},
+			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			checkpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -377,8 +388,8 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 		t,
 		map[string][]byte{
 			infoFileSuffix:       b,
-			indexFileSuffix:      []byte{0xa},
-			dataFileSuffix:       []byte{0x3},
+			indexFileSuffix:      {0xa},
+			dataFileSuffix:       {0x3},
 			digestFileSuffix:     digestOfDigest,
 			checkpointFileSuffix: buf,
 		},
@@ -400,10 +411,13 @@ func TestReadValidate(t *testing.T) {
 			BlockStart: start,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	assert.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())

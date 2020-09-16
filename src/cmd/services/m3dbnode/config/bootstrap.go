@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
@@ -58,6 +59,9 @@ type BootstrapConfiguration struct {
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
 
+	// Peers bootstrapper configuration.
+	Peers *BootstrapPeersConfiguration `yaml:"peers"`
+
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
@@ -67,16 +71,49 @@ type BootstrapConfiguration struct {
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+
+	// Migration configuration specifies what version, if any, existing data filesets should be migrated to
+	// if necessary.
+	Migration *BootstrapMigrationConfiguration `yaml:"migration"`
 }
 
 func (c BootstrapFilesystemConfiguration) numCPUs() int {
 	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
 }
 
+func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfiguration {
+	if cfg := c.Migration; cfg != nil {
+		return *cfg
+	}
+	return BootstrapMigrationConfiguration{}
+}
+
 func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
 	return BootstrapFilesystemConfiguration{
 		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
+		Migration:           &BootstrapMigrationConfiguration{},
 	}
+}
+
+// BootstrapMigrationConfiguration specifies configuration for data migrations during bootstrapping.
+type BootstrapMigrationConfiguration struct {
+	// TargetMigrationVersion indicates that we should attempt to upgrade filesets to
+	// what’s expected of the specified version.
+	TargetMigrationVersion migration.MigrationVersion `yaml:"targetMigrationVersion"`
+
+	// Concurrency sets the number of concurrent workers performing migrations.
+	Concurrency int `yaml:"concurrency"`
+}
+
+// NewOptions generates migration.Options from the configuration.
+func (m BootstrapMigrationConfiguration) NewOptions() migration.Options {
+	opts := migration.NewOptions().SetTargetMigrationVersion(m.TargetMigrationVersion)
+
+	if m.Concurrency > 0 {
+		opts = opts.SetConcurrency(m.Concurrency)
+	}
+
+	return opts
 }
 
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
@@ -93,6 +130,25 @@ type BootstrapCommitlogConfiguration struct {
 func newDefaultBootstrapCommitlogConfiguration() BootstrapCommitlogConfiguration {
 	return BootstrapCommitlogConfiguration{
 		ReturnUnfulfilledForCorruptCommitLogFiles: commitlog.DefaultReturnUnfulfilledForCorruptCommitLogFiles,
+	}
+}
+
+// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
+type BootstrapPeersConfiguration struct {
+	// StreamShardConcurrency controls how many shards in parallel to stream
+	// for in memory data being streamed between peers (most recent block).
+	// Defaults to: numCPU.
+	StreamShardConcurrency int `yaml:"streamShardConcurrency"`
+	// StreamPersistShardConcurrency controls how many shards in parallel to stream
+	// for historical data being streamed between peers (historical blocks).
+	// Defaults to: numCPU / 2.
+	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
+}
+
+func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
+	return BootstrapPeersConfiguration{
+		StreamShardConcurrency:        peers.DefaultShardConcurrency,
+		StreamPersistShardConcurrency: peers.DefaultShardPersistenceConcurrency,
 	}
 }
 
@@ -159,9 +215,10 @@ func (bsc BootstrapConfiguration) New(
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetIdentifierPool(opts.IdentifierPool())
+				SetIdentifierPool(opts.IdentifierPool()).
+				SetMigrationOptions(fsCfg.migration().NewOptions()).
+				SetStorageOptions(opts)
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
 				return nil, err
 			}
@@ -188,6 +245,7 @@ func (bsc BootstrapConfiguration) New(
 				return nil, err
 			}
 		case peers.PeersBootstrapperName:
+			pCfg := bsc.peersConfig()
 			pOpts := peers.NewOptions().
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
@@ -195,9 +253,10 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetContextPool(opts.ContextPool())
+				SetContextPool(opts.ContextPool()).
+				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
+				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency)
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}
@@ -239,6 +298,13 @@ func (bsc BootstrapConfiguration) commitlogConfig() BootstrapCommitlogConfigurat
 		return *cfg
 	}
 	return newDefaultBootstrapCommitlogConfiguration()
+}
+
+func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
+	if cfg := bsc.Peers; cfg != nil {
+		return *cfg
+	}
+	return newDefaultBootstrapPeersConfiguration()
 }
 
 type bootstrapConfigurationValidator struct {

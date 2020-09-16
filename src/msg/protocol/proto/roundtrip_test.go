@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"bufio"
 	"bytes"
 	"net"
 	"testing"
@@ -36,8 +37,10 @@ func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	require.Equal(t, 4, len(enc.buffer))
 	require.Equal(t, 4, cap(enc.buffer))
 	require.Empty(t, enc.Bytes())
+
 	r := bytes.NewReader(nil)
-	dec := NewDecoder(r, NewOptions()).(*decoder)
+	buf := bufio.NewReader(r)
+	dec := NewDecoder(buf, NewOptions(), 10).(*decoder)
 	require.Equal(t, 4, len(dec.buffer))
 	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -69,7 +72,8 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	require.Equal(t, 8, cap(enc.buffer))
 
 	r := bytes.NewReader(nil)
-	dec := NewDecoder(r, NewOptions().SetBytesPool(p)).(*decoder)
+	buf := bufio.NewReader(r)
+	dec := NewDecoder(buf, NewOptions().SetBytesPool(p), 10).(*decoder)
 	require.Equal(t, 8, len(dec.buffer))
 	require.Equal(t, 8, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -94,7 +98,8 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 
 func TestResetReader(t *testing.T) {
 	enc := NewEncoder(nil)
-	dec := NewDecoder(bytes.NewReader(nil), nil)
+	r := bytes.NewReader(nil)
+	dec := NewDecoder(r, nil, 10)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -143,16 +148,29 @@ func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
 	require.NoError(t, err)
 
 	decodeMsg := msgpb.Message{}
-	opts := NewOptions().SetMaxMessageSize(4)
-	dec := NewDecoder(bytes.NewReader(enc.Bytes()), opts)
+	opts := NewOptions().SetMaxMessageSize(8)
+	buf := bufio.NewReader(bytes.NewReader(enc.Bytes()))
+	dec := NewDecoder(buf, opts, 10)
+
+	// NB(r): We need to make sure does not grow the buffer
+	// if over max size, so going to take size of buffer, make
+	// sure its sizeEncodingLength so we can measure if it increases at all.
+	require.Equal(t, sizeEncodingLength, cap(dec.(*decoder).buffer))
+
 	err = dec.Decode(&decodeMsg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "larger than maximum supported size")
+
+	// Make sure did not grow buffer before returning error.
+	require.Equal(t, sizeEncodingLength, cap(dec.(*decoder).buffer))
 }
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
+	r := bytes.NewReader(nil)
+	buf := bufio.NewReader(r)
+
 	enc := NewEncoder(nil)
-	dec := NewDecoder(nil, nil)
+	dec := NewDecoder(buf, nil, 10)
 
 	clientConn, serverConn := net.Pipe()
 	dec.ResetReader(serverConn)

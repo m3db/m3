@@ -31,8 +31,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -85,11 +89,14 @@ type DataFileSetWriter interface {
 
 	// Write will write the id and data pair and returns an error on a write error. Callers
 	// must not call this method with a given ID more than once.
-	Write(id ident.ID, tags ident.Tags, data checked.Bytes, checksum uint32) error
+	Write(metadata persist.Metadata, data checked.Bytes, checksum uint32) error
 
 	// WriteAll will write the id and all byte slices and returns an error on a write error.
 	// Callers must not call this method with a given ID more than once.
-	WriteAll(id ident.ID, tags ident.Tags, data []checked.Bytes, checksum uint32) error
+	WriteAll(metadata persist.Metadata, data []checked.Bytes, checksum uint32) error
+
+	// DeferClose returns a DataCloser that defers writing of a checkpoint file.
+	DeferClose() (persist.DataCloser, error)
 }
 
 // SnapshotMetadataFileWriter writes out snapshot metadata files.
@@ -114,8 +121,16 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
+	// Identifier allows to identify a FileSetFile.
 	Identifier  FileSetFileIdentifier
+	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
+	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
+	StreamingEnabled bool
+	// NB(bodu): This option can inform the reader to optimize for reading
+	// only metadata by not sorting index entries. Setting this option will
+	// throw an error if a regular `Read()` is attempted.
+	OptimizedReadMetadataOnly bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -128,11 +143,17 @@ type DataFileSetReader interface {
 	// Status returns the status of the reader
 	Status() DataFileSetReaderStatus
 
-	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// Read returns the next id, tags, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
 	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+
+	// StreamingRead returns the next unpooled id, encodedTags, data, checksum values ordered by id,
+	// or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
+	StreamingRead() (id ident.BytesID, encodedTags []byte, data []byte, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -164,6 +185,9 @@ type DataFileSetReader interface {
 
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
+
+	// StreamingEnabled returns true if the reader is opened in streaming mode
+	StreamingEnabled() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -238,11 +262,17 @@ type DataFileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
+
+	// AssignShardSet assigns current per ns shardset.
+	AssignShardSet(shardSet sharding.ShardSet)
 
 	// Borrow returns an open seeker for a given shard, block start time, and
 	// volume.
@@ -263,7 +293,10 @@ type DataBlockRetriever interface {
 	block.DatabaseBlockRetriever
 
 	// Open the block retriever to retrieve from a namespace
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 }
 
 // RetrievableDataBlockSegmentReader is a retrievable block reader
@@ -283,7 +316,8 @@ type IndexWriterOpenOptions struct {
 	FileSetType persist.FileSetType
 	Shards      map[uint32]struct{}
 	// Only used when writing snapshot files
-	Snapshot IndexWriterSnapshotOptions
+	Snapshot        IndexWriterSnapshotOptions
+	IndexVolumeType idxpersist.IndexVolumeType
 }
 
 // IndexFileSetWriter is a index file set writer.
@@ -461,17 +495,37 @@ type Options interface {
 	// TagDecoderPool returns the tag decoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetFStOptions sets the fst options.
+	// SetFSTOptions sets the fst options.
 	SetFSTOptions(value fst.Options) Options
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
+	// SetFStWriterOptions sets the fst writer options.
+	SetFSTWriterOptions(value fst.WriterOptions) Options
+
+	// FSTWriterOptions returns the fst writer options.
+	FSTWriterOptions() fst.WriterOptions
+
 	// SetMmapReporter sets the mmap reporter.
-	SetMmapReporter(mmapReporter mmap.Reporter) Options
+	SetMmapReporter(value mmap.Reporter) Options
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetIndexReaderAutovalidateIndexSegments sets the index reader to
+	// autovalidate index segments data integrity on file open.
+	SetIndexReaderAutovalidateIndexSegments(value bool) Options
+
+	// IndexReaderAutovalidateIndexSegments returns the index reader to
+	// autovalidate index segments data integrity on file open.
+	IndexReaderAutovalidateIndexSegments() bool
+
+	// SetEncodingOptions sets the encoder options used by the encoder.
+	SetEncodingOptions(value msgpack.LegacyEncodingOptions) Options
+
+	// EncodingOptions returns the encoder options used by the encoder.
+	EncodingOptions() msgpack.LegacyEncodingOptions
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
@@ -508,11 +562,17 @@ type BlockRetrieverOptions interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetQueryLimits sets query limits.
+	SetQueryLimits(value limits.QueryLimits) BlockRetrieverOptions
+
+	// QueryLimits returns the query limits.
+	QueryLimits() limits.QueryLimits
 }
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error
+type ForEachRemainingFn func(seriesMetadata doc.Document, data block.FetchBlockResult) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {
@@ -544,6 +604,20 @@ type Merger interface {
 		nextVolumeIndex int,
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+	) (persist.DataCloser, error)
+
+	// MergeAndCleanup merges the specified fileset file with a merge target and removes the previous version of the
+	// fileset. This should only be called within the bootstrapper. Any other file deletions outside of the bootstrapper
+	// should be handled by the CleanupManager.
+	MergeAndCleanup(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+		isBootstrapped bool,
 	) error
 }
 
@@ -556,5 +630,52 @@ type NewMergerFn func(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
+	filePathPrefix string,
 	nsOpts namespace.Options,
 ) Merger
+
+// Segments represents on index segments on disk for an index volume.
+type Segments interface {
+	ShardTimeRanges() result.ShardTimeRanges
+	VolumeType() idxpersist.IndexVolumeType
+	VolumeIndex() int
+	AbsoluteFilePaths() []string
+	BlockStart() time.Time
+}
+
+// BlockRecord wraps together M3TSZ data bytes with their checksum.
+type BlockRecord struct {
+	Data         []byte
+	DataChecksum uint32
+}
+
+// CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
+// ordered by series id first, and block start time next.
+type CrossBlockReader interface {
+	io.Closer
+
+	// Next advances to the next data record and returns true, or returns false if no more data exists.
+	Next() bool
+
+	// Err returns the last error encountered (if any).
+	Err() error
+
+	// Current returns distinct series id and encodedTags, plus a slice with data and checksums from all
+	// blocks corresponding to that series (in temporal order).
+	// id, encodedTags, records slice and underlying data are being invalidated on each call to Next().
+	Current() (id ident.BytesID, encodedTags []byte, records []BlockRecord)
+}
+
+// CrossBlockIterator iterates across BlockRecords.
+type CrossBlockIterator interface {
+	encoding.Iterator
+
+	// Reset resets the iterator to the given block records.
+	Reset(records []BlockRecord)
+}
+
+// InfoFileResultsPerShard maps shards to info files.
+type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard

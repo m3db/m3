@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -122,7 +124,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 
 	w.AddConsumerWriter(cw)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm1 := producer.NewMockMessage(ctrl)
@@ -205,7 +207,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 
 	w.AddConsumerWriter(cw)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm1 := producer.NewMockMessage(ctrl)
@@ -272,7 +274,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 	a := newAckRouter(1)
 	a.Register(200, w)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -332,7 +334,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 	a := newAckRouter(1)
 	a.Register(200, w)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -387,7 +389,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 	opts := testOptions()
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -431,7 +433,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	w.Init()
 	defer w.Close()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -479,7 +481,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 }
 
 func TestMessageWriterCutoverCutoff(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	w := newMessageWriter(200, testMessagePool(testOptions()), nil, testMessageWriterMetrics()).(*messageWriterImpl)
@@ -504,7 +506,7 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 }
 
 func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := testOptions().SetMessageRetryOptions(
@@ -547,7 +549,7 @@ func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
 }
 
 func TestMessageWriterRetryIterateBatchFullScan(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retryBatchSize := 2
@@ -611,7 +613,7 @@ func TestMessageWriterRetryIterateBatchFullScan(t *testing.T) {
 }
 
 func TestMessageWriterRetryIterateBatchFullScanWithMessageTTL(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retryBatchSize := 2
@@ -672,7 +674,7 @@ func TestMessageWriterRetryIterateBatchFullScanWithMessageTTL(t *testing.T) {
 }
 
 func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retryBatchSize := 100
@@ -774,7 +776,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	opts := testOptions()
 	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -793,7 +795,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 }
 
 func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := testOptions().SetMessageQueueScanBatchSize(1)
@@ -833,7 +835,7 @@ func testMessagePool(opts Options) messagePool {
 }
 
 func testMessageWriterMetrics() messageWriterMetrics {
-	return newMessageWriterMetrics(tally.NoopScope, 1)
+	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{})
 }
 
 func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriterImpl) {

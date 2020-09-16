@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 )
@@ -386,10 +387,10 @@ func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Cal
 }
 
 // Reader mocks base method
-func (m *MockSegment) Reader() (index.Reader, error) {
+func (m *MockSegment) Reader() (segment.Reader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
-	ret0, _ := ret[0].(index.Reader)
+	ret0, _ := ret[0].(segment.Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -398,6 +399,21 @@ func (m *MockSegment) Reader() (index.Reader, error) {
 func (mr *MockSegmentMockRecorder) Reader() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockSegment)(nil).Reader))
+}
+
+// SegmentData mocks base method
+func (m *MockSegment) SegmentData(arg0 context.Context) (SegmentData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentData", arg0)
+	ret0, _ := ret[0].(SegmentData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SegmentData indicates an expected call of SegmentData
+func (mr *MockSegmentMockRecorder) SegmentData(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentData", reflect.TypeOf((*MockSegment)(nil).SegmentData), arg0)
 }
 
 // Size mocks base method

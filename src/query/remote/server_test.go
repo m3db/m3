@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
@@ -52,7 +53,8 @@ import (
 
 var (
 	errRead      = errors.New("read error")
-	poolsWrapper = pools.NewPoolsWrapper(pools.BuildIteratorPools())
+	poolsWrapper = pools.NewPoolsWrapper(
+		pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 )
 
 type mockStorageOptions struct {
@@ -74,14 +76,14 @@ func newMockStorage(
 			ctx context.Context,
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
-		) (m3.SeriesFetchResult, m3.Cleanup, error) {
+		) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 			var cleanup = func() error { return nil }
 			if opts.cleanup != nil {
 				cleanup = opts.cleanup
 			}
 
 			if opts.err != nil {
-				return m3.SeriesFetchResult{
+				return consolidators.SeriesFetchResult{
 					Metadata: block.NewResultMetadata(),
 				}, cleanup, opts.err
 			}
@@ -100,10 +102,13 @@ func newMockStorage(
 				)
 			}
 
-			return m3.SeriesFetchResult{
-				SeriesIterators: iters,
-				Metadata:        block.NewResultMetadata(),
-			}, cleanup, nil
+			res, err := consolidators.NewSeriesFetchResult(
+				iters,
+				nil,
+				block.NewResultMetadata(),
+			)
+
+			return res, cleanup, err
 		}).
 		AnyTimes()
 	return store
@@ -431,7 +436,7 @@ func TestBatchedSearch(t *testing.T) {
 	for _, size := range sizes {
 		var (
 			msg     = fmt.Sprintf("batch size: %d", size)
-			tags    = make([]m3.MultiTagResult, 0, size)
+			tags    = make([]consolidators.MultiTagResult, 0, size)
 			names   = make([]string, 0, size)
 			cleaned = false
 		)
@@ -444,7 +449,7 @@ func TestBatchedSearch(t *testing.T) {
 
 		for i := 0; i < size; i++ {
 			name := fmt.Sprintf("%s_%d", seriesID, i)
-			tag := m3.MultiTagResult{
+			tag := consolidators.MultiTagResult{
 				ID: ident.StringID(name),
 				Iter: ident.NewTagsIterator(ident.NewTags(
 					ident.Tag{
@@ -459,7 +464,7 @@ func TestBatchedSearch(t *testing.T) {
 		}
 
 		store := m3.NewMockStorage(ctrl)
-		tagResult := m3.TagResult{
+		tagResult := consolidators.TagResult{
 			Tags:     tags,
 			Metadata: block.NewResultMetadata(),
 		}
@@ -502,12 +507,12 @@ func TestBatchedCompleteTags(t *testing.T) {
 		for _, size := range sizes {
 			var (
 				msg  = fmt.Sprintf("batch size: %d, name only: %t", size, nameOnly)
-				tags = make([]storage.CompletedTag, 0, size)
+				tags = make([]consolidators.CompletedTag, 0, size)
 			)
 
 			for i := 0; i < size; i++ {
 				name := fmt.Sprintf("%s_%d", seriesID, i)
-				tag := storage.CompletedTag{
+				tag := consolidators.CompletedTag{
 					Name: []byte(name),
 				}
 
@@ -519,7 +524,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 			}
 
 			store := m3.NewMockStorage(ctrl)
-			expected := &storage.CompleteTagsResult{
+			expected := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
 				Metadata: block.ResultMetadata{

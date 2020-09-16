@@ -43,7 +43,7 @@ function prometheus_remote_write {
   local label2_value=${label2_value:-label2}
 
   network_name="coordinator_config_rules"
-  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ')
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://coordinator01:7201/api/v1/prom/remote/write \
@@ -83,7 +83,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | jq -s last)
   test "$result" = "$expected_value"
   return $?
 }

@@ -28,7 +28,7 @@ import (
 
 func TestPath(t *testing.T) {
 	p := Path("foo")
-	assert.Equal(t, "https://m3db.github.io/m3/foo", p)
+	assert.Equal(t, "https://docs.m3db.io/foo", p)
 }
 
 func TestParseRepoPathURL(t *testing.T) {

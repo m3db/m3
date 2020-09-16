@@ -36,6 +36,7 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -131,10 +132,10 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 42
+	fetchOpts.SeriesLimit = 42
 	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
 		RestrictByType: &storage.RestrictByType{
-			MetricsType:   storage.AggregatedMetricsType,
+			MetricsType:   storagemetadata.AggregatedMetricsType,
 			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
 		},
 	}
@@ -172,10 +173,10 @@ func TestEncodeFetchMessage(t *testing.T) {
 func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 42
+	fetchOpts.SeriesLimit = 42
 	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
 		RestrictByType: &storage.RestrictByType{
-			MetricsType:   storage.AggregatedMetricsType,
+			MetricsType:   storagemetadata.AggregatedMetricsType,
 			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
 		},
 	}
@@ -190,7 +191,7 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	revertedOpts, err := decodeFetchOptions(gq.GetOptions())
 	require.NoError(t, err)
 	require.NotNil(t, revertedOpts)
-	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
+	require.Equal(t, fetchOpts.SeriesLimit, revertedOpts.SeriesLimit)
 	require.Equal(t, fetchOpts.RestrictQueryOptions.
 		RestrictByType.MetricsType,
 		revertedOpts.RestrictQueryOptions.RestrictByType.MetricsType)
@@ -251,7 +252,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 			},
 			expected: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.UnaggregatedMetricsType,
+					MetricsType: storagemetadata.UnaggregatedMetricsType,
 				},
 			},
 		},
@@ -283,7 +284,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 			},
 			expected: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.AggregatedMetricsType,
+					MetricsType: storagemetadata.AggregatedMetricsType,
 					StoragePolicy: policy.NewStoragePolicy(time.Minute,
 						xtime.Second, 24*time.Hour),
 				},
@@ -407,7 +408,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 		{
 			value: storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.UnaggregatedMetricsType,
+					MetricsType: storagemetadata.UnaggregatedMetricsType,
 				},
 				RestrictByTag: &storage.RestrictByTag{
 					Restrict: []models.Matcher{
@@ -433,7 +434,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 		{
 			value: storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.AggregatedMetricsType,
+					MetricsType: storagemetadata.AggregatedMetricsType,
 					StoragePolicy: policy.NewStoragePolicy(time.Minute,
 						xtime.Second, 24*time.Hour),
 				},
@@ -472,7 +473,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 		{
 			value: storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.MetricsType(uint(math.MaxUint16)),
+					MetricsType: storagemetadata.MetricsType(uint(math.MaxUint16)),
 				},
 			},
 			errContains: "unknown metrics type:",
@@ -480,7 +481,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 		{
 			value: storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
-					MetricsType: storage.UnaggregatedMetricsType,
+					MetricsType: storagemetadata.UnaggregatedMetricsType,
 					StoragePolicy: policy.NewStoragePolicy(time.Minute,
 						xtime.Second, 24*time.Hour),
 				},

@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -73,14 +75,13 @@ func TestNamespaceAddHandler(t *testing.T) {
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-        {
-            "name": "testNamespace",
-            "options": {}
-        }
-    `
+	jsonInput := xjson.Map{
+		"name":    "testNamespace",
+		"options": xjson.Map{},
+	}
 
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	addHandler.ServeHTTP(svcDefaults, w, req)
@@ -105,7 +106,43 @@ func TestNamespaceAddHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+
+	expected := xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"registry": xjson.Map{
+				"namespaces": xjson.Map{
+					"testNamespace": xjson.Map{
+						"bootstrapEnabled":  true,
+						"flushEnabled":      true,
+						"writesToCommitLog": true,
+						"cleanupEnabled":    true,
+						"repairEnabled":     true,
+						"retentionOptions": xjson.Map{
+							"retentionPeriodNanos":                     "172800000000000",
+							"blockSizeNanos":                           "7200000000000",
+							"bufferFutureNanos":                        "600000000000",
+							"bufferPastNanos":                          "600000000000",
+							"blockDataExpiry":                          true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos":               "0",
+						},
+						"snapshotEnabled": true,
+						"indexOptions": xjson.Map{
+							"enabled":        true,
+							"blockSizeNanos": "7200000000000",
+						},
+						"runtimeOptions":    nil,
+						"schemaOptions":     nil,
+						"coldWritesEnabled": false,
+					},
+				},
+			},
+		})
+
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual,
+		xtest.Diff(expected, actual))
 }
 
 func TestNamespaceAddHandler_Conflict(t *testing.T) {

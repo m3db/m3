@@ -51,12 +51,14 @@ type replicatedSession struct {
 	log                  *zap.Logger
 	metrics              replicatedSessionMetrics
 	outCh                chan error
+	writeTimestampOffset time.Duration
 }
 
 type replicatedSessionMetrics struct {
 	replicateExecuted    tally.Counter
 	replicateNotExecuted tally.Counter
 	replicateError       tally.Counter
+	replicateSuccess     tally.Counter
 }
 
 func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
@@ -64,6 +66,7 @@ func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
 		replicateExecuted:    scope.Counter("replicate.executed"),
 		replicateNotExecuted: scope.Counter("replicate.not-executed"),
 		replicateError:       scope.Counter("replicate.error"),
+		replicateSuccess:     scope.Counter("replicate.success"),
 	}
 }
 
@@ -90,6 +93,7 @@ func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicat
 		scope:                scope,
 		log:                  opts.InstrumentOptions().Logger(),
 		metrics:              newReplicatedSessionMetrics(scope),
+		writeTimestampOffset: opts.WriteTimestampOffset(),
 	}
 
 	// Apply options
@@ -166,6 +170,8 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
 					s.log.Error("could not replicate write", zap.Error(err))
+				} else {
+					s.metrics.replicateSuccess.Inc(1)
 				}
 				if s.outCh != nil {
 					s.outCh <- err
@@ -189,7 +195,7 @@ func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value floa
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
-		t:          t,
+		t:          t.Add(-s.writeTimestampOffset),
 		value:      value,
 		unit:       unit,
 		annotation: annotation,
@@ -201,7 +207,7 @@ func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
-		t:          t,
+		t:          t.Add(-s.writeTimestampOffset),
 		value:      value,
 		unit:       unit,
 		annotation: annotation,

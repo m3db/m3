@@ -34,6 +34,7 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -164,7 +165,7 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	fanoutOpts := options.FanoutOptions
 	result := &rpc.FetchOptions{
-		Limit:             int64(options.Limit),
+		Limit:             int64(options.SeriesLimit),
 		IncludeResolution: options.IncludeResolution,
 	}
 
@@ -215,9 +216,9 @@ func encodeRestrictQueryOptionsByType(
 
 	result := &rpcpb.RestrictQueryType{}
 	switch o.MetricsType {
-	case storage.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
-	case storage.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
 
 		storagePolicyProto, err := o.StoragePolicy.Proto()
@@ -391,9 +392,9 @@ func decodeRestrictQueryOptionsByType(
 	result := &storage.RestrictByType{}
 	switch p.GetMetricsType() {
 	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
-		result.MetricsType = storage.UnaggregatedMetricsType
+		result.MetricsType = storagemetadata.UnaggregatedMetricsType
 	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
-		result.MetricsType = storage.AggregatedMetricsType
+		result.MetricsType = storagemetadata.AggregatedMetricsType
 	}
 
 	if p.GetMetricsStoragePolicy() != nil {
@@ -462,7 +463,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 		return result, nil
 	}
 
-	result.Limit = int(rpcFetchOptions.Limit)
+	result.SeriesLimit = int(rpcFetchOptions.Limit)
 	result.IncludeResolution = rpcFetchOptions.GetIncludeResolution()
 	unagg, err := decodeFanoutOption(rpcFetchOptions.GetUnaggregated())
 	if err != nil {

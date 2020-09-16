@@ -52,6 +52,9 @@ type termsDictionary interface {
 	// Fields returns the known fields.
 	Fields() sgmt.FieldsIterator
 
+	// Fields returns the known fields.
+	FieldsPostingsList() sgmt.FieldsPostingsListIterator
+
 	// Terms returns the known terms values for the given field.
 	Terms(field []byte) sgmt.TermsIterator
 
@@ -66,12 +69,10 @@ type termsDictionary interface {
 // mode so we can't mock this interface if its private. Once mockgen supports mocking
 // private interfaces which contain embedded interfaces we can make this interface private.
 type ReadableSegment interface {
-	// matchTerm returns the postings list of documents which match the given term exactly.
+	Fields() (sgmt.FieldsIterator, error)
+	ContainsField(field []byte) (bool, error)
+	Terms(field []byte) (sgmt.TermsIterator, error)
 	matchTerm(field, term []byte) (postings.List, error)
-
-	// matchRegexp returns the postings list of documents which match the given regular expression.
 	matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error)
-
-	// getDoc returns the document associated with the given ID.
 	getDoc(id postings.ID) (doc.Document, error)
 }

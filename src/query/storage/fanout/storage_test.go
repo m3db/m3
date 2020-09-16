@@ -36,12 +36,15 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -77,6 +80,23 @@ type fetchResponse struct {
 	err    error
 }
 
+func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
+	pools := encoding.NewMockIteratorPools(ctrl)
+
+	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
+	mutablePool.EXPECT().
+		Get(gomock.Any()).
+		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
+			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
+		}).
+		AnyTimes()
+	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
+
+	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
+
+	return pools
+}
+
 func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) storage.Storage {
 	if len(response) == 0 {
 		response = []*fetchResponse{{err: fmt.Errorf("unable to get response")}}
@@ -85,7 +105,7 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	ctrl := xtest.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
-
+	pools := newTestIteratorPools(ctrl)
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(response[0].result, client.FetchResponseMetadata{Exhaustive: true}, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -95,16 +115,16 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
-		Return(nil, nil).AnyTimes()
+		Return(pools, nil).AnyTimes()
 	session2.EXPECT().IteratorPools().
-		Return(nil, nil).AnyTimes()
+		Return(pools, nil).AnyTimes()
 
 	stores := []storage.Storage{
 		store1, store2,
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -132,7 +152,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		store1, store2,
 	}
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -190,25 +210,33 @@ func TestFanoutWriteError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("write error"))
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
-	err := store.Write(context.TODO(), &storage.WriteQuery{
+
+	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
+		Tags:       models.MustMakeTags("foo", "bar"),
+		Unit:       xtime.Second,
 	})
-	assert.Error(t, err)
+	require.NoError(t, err)
+
+	assert.Error(t, store.Write(context.TODO(), writeQuery))
 }
 
 func TestFanoutWriteSuccess(t *testing.T) {
 	store := setupFanoutWrite(t, true, nil)
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
-	err := store.Write(context.TODO(), &storage.WriteQuery{
+
+	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
+		Tags:       models.MustMakeTags("foo", "bar"),
+		Unit:       xtime.Second,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	assert.NoError(t, store.Write(context.TODO(), writeQuery))
 }
 
 func TestCompleteTagsError(t *testing.T) {
@@ -283,7 +311,8 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore, dupeStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -305,10 +334,10 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	okStore := storage.NewMockStorage(ctrl)
 	okStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.CompleteTagsResult{
+			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
-				CompletedTags: []storage.CompletedTag{
-					storage.CompletedTag{
+				CompletedTags: []consolidators.CompletedTag{
+					consolidators.CompletedTag{
 						Name: []byte("ok"),
 					},
 				},
@@ -319,10 +348,10 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	warnStore := storage.NewMockStorage(ctrl)
 	warnStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.CompleteTagsResult{
+			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
-				CompletedTags: []storage.CompletedTag{
-					storage.CompletedTag{
+				CompletedTags: []consolidators.CompletedTag{
+					consolidators.CompletedTag{
 						Name: []byte("warn"),
 					},
 				},
@@ -333,7 +362,8 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	q := &storage.CompleteTagsQuery{CompleteNameOnly: true}
 	result, err := store.CompleteTags(context.TODO(), q, opts)
@@ -373,7 +403,8 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchBlocks(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -433,7 +464,8 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)

@@ -97,7 +97,9 @@ func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duratio
 		}
 
 		data.IncRef()
-		if err := writer.Write(id, tags, data, checksum); err != nil {
+		metadata := persist.NewMetadataFromIDAndTags(id, tags,
+			persist.MetadataOptions{})
+		if err := writer.Write(metadata, data, checksum); err != nil {
 			return fmt.Errorf("unexpected error while writing data: %v", err)
 		}
 		data.DecRef()

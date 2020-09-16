@@ -304,7 +304,6 @@ func newFixedStepValues(
 	startTime time.Time,
 ) *fixedResolutionValues {
 	values := make([]float64, numSteps)
-	// Faster way to initialize an array instead of a loop
 	util.Memset(values, initialValue)
 	return &fixedResolutionValues{
 		resolution: resolution,

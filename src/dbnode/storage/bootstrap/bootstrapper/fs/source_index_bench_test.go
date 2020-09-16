@@ -105,7 +105,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 			namespaceDataDirPath, shards)
 
 		// Clear the shard time ranges and add new ones.
-		times.shardTimeRanges = make(result.ShardTimeRanges)
+		times.shardTimeRanges = result.NewShardTimeRanges()
 		times.start = time.Unix(0, math.MaxInt64)
 		times.end = time.Unix(0, 0)
 		for _, shard := range shards {
@@ -114,7 +114,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 				max     = time.Unix(0, 0)
 				ranges  = xtime.NewRanges()
 				entries = fs.ReadInfoFiles(dir, testNamespace, shard,
-					0, msgpack.NewDecodingOptions())
+					0, msgpack.NewDecodingOptions(), persist.FileSetFlushType)
 			)
 			for _, entry := range entries {
 				if entry.Err != nil {
@@ -132,7 +132,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 					max = end
 				}
 
-				ranges = ranges.AddRange(xtime.Range{Start: start, End: end})
+				ranges.AddRange(xtime.Range{Start: start, End: end})
 
 				// Override the block size if different.
 				namespaceOpts := testNamespaceMetadata.Options()
@@ -157,7 +157,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 				continue // Nothing to bootstrap for shard.
 			}
 
-			times.shardTimeRanges[shard] = ranges
+			times.shardTimeRanges.Set(shard, ranges)
 
 			if min.Before(times.start) {
 				times.start = min

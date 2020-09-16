@@ -27,6 +27,7 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 
 	"github.com/stretchr/testify/require"
@@ -79,9 +80,12 @@ var (
 func TestBuilderFields(t *testing.T) {
 	builder, err := NewBuilderFromDocuments(testOptions)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
 
 	for i := 0; i < 10; i++ {
-		builder.Reset(0)
+		builder.Reset()
 
 		knownsFields := map[string]struct{}{}
 		for _, d := range testDocuments {
@@ -92,7 +96,7 @@ func TestBuilderFields(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		fieldsIter, err := builder.Fields()
+		fieldsIter, err := builder.FieldsPostingsList()
 		require.NoError(t, err)
 
 		fields := toSlice(t, fieldsIter)
@@ -106,9 +110,12 @@ func TestBuilderFields(t *testing.T) {
 func TestBuilderTerms(t *testing.T) {
 	builder, err := NewBuilderFromDocuments(testOptions)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
 
 	for i := 0; i < 10; i++ {
-		builder.Reset(0)
+		builder.Reset()
 
 		knownsFields := map[string]map[string]struct{}{}
 		for _, d := range testDocuments {
@@ -136,10 +143,28 @@ func TestBuilderTerms(t *testing.T) {
 	}
 }
 
-func toSlice(t *testing.T, iter segment.OrderedBytesIterator) [][]byte {
+// Test that calling Insert(...) API returns correct concrete errors
+// instead of partial batch error type.
+func TestBuilderInsertDuplicateReturnsErrDuplicateID(t *testing.T) {
+	builder, err := NewBuilderFromDocuments(testOptions)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
+
+	_, err = builder.Insert(testDocuments[2])
+	require.NoError(t, err)
+
+	_, err = builder.Insert(testDocuments[2])
+	require.Error(t, err)
+	require.Equal(t, index.ErrDuplicateID, err)
+}
+
+func toSlice(t *testing.T, iter segment.FieldsPostingsListIterator) [][]byte {
 	elems := [][]byte{}
 	for iter.Next() {
-		elems = append(elems, iter.Current())
+		b, _ := iter.Current()
+		elems = append(elems, b)
 	}
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -175,10 +200,10 @@ func toTermPostings(t *testing.T, iter segment.TermsIterator) termPostings {
 // nolint: unused
 func printBuilder(t *testing.T, b segment.Builder) {
 	fmt.Printf("print builder %x\n", unsafe.Pointer(b.(*builder)))
-	fieldsIter, err := b.Fields()
+	fieldsIter, err := b.FieldsPostingsList()
 	require.NoError(t, err)
 	for fieldsIter.Next() {
-		curr := fieldsIter.Current()
+		curr, _ := fieldsIter.Current()
 		fmt.Printf("builder field: %v\n", string(curr))
 		termsIter, err := b.Terms(curr)
 		require.NoError(t, err)

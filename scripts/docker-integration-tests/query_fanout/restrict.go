@@ -47,8 +47,8 @@ func main() {
 
 	requireTrue(ts > 0, "no timestamp supplied")
 	name = fmt.Sprintf("foo_%d", ts)
-	instant := fmt.Sprintf("http://0.0.0.0:7201/api/v1/query?query=%s", name)
-	rnge := fmt.Sprintf("http://0.0.0.0:7201/api/v1/query_range?query=%s"+
+	instant := fmt.Sprintf("http://0.0.0.0:7201/m3query/api/v1/query?query=%s", name)
+	rnge := fmt.Sprintf("http://0.0.0.0:7201/m3query/api/v1/query_range?query=%s"+
 		"&start=%d&end=%d&step=100", name, ts/100*100, (ts/100+1)*100)
 
 	for _, url := range []string{instant, rnge} {

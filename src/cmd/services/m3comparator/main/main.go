@@ -22,8 +22,10 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/query/models"
@@ -35,25 +37,58 @@ import (
 	"go.uber.org/zap"
 )
 
-func main() {
-	var (
-		iterPools   = pools.BuildIteratorPools()
-		poolWrapper = pools.NewPoolsWrapper(iterPools)
+var (
+	iterPools = pools.BuildIteratorPools(
+		pools.BuildIteratorPoolsOptions{})
+	poolWrapper = pools.NewPoolsWrapper(iterPools)
 
-		iOpts  = instrument.NewOptions()
-		logger = iOpts.Logger()
+	iOpts      = instrument.NewOptions()
+	logger     = iOpts.Logger()
+	tagOptions = models.NewTagOptions()
 
-		encoderPoolOpts = pool.NewObjectPoolOptions()
-		encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
-	)
+	encoderPoolOpts = pool.NewObjectPoolOptions()
+	encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
+
+	checkedBytesPool pool.CheckedBytesPool
+	encodingOpts     encoding.Options
+)
+
+func init() {
+	buckets := []pool.Bucket{{Capacity: 10, Count: 10}}
+	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	}
+
+	checkedBytesPool = pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
+	checkedBytesPool.Init()
+
+	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Now(), nil, true, encoding.NewOptions())
+		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
 	})
+}
 
-	querier := &querier{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
+func main() {
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
+	}
+
+	seriesLoader := newHTTPSeriesLoadHandler(opts)
+
+	querier, err := newQuerier(
+		opts,
+		seriesLoader,
+		time.Hour*12,
+		time.Second*15,
+		5,
+	)
+	if err != nil {
+		logger.Error("could not create querier", zap.Error(err))
+		return
 	}
 
 	server := remote.NewGRPCServer(
@@ -70,6 +105,13 @@ func main() {
 		logger.Error("listener error", zap.Error(err))
 		return
 	}
+
+	loaderAddr := "0.0.0.0:9001"
+	go func() {
+		if err := http.ListenAndServe(loaderAddr, seriesLoader); err != nil {
+			logger.Error("series load handler failed", zap.Error(err))
+		}
+	}()
 
 	if err := server.Serve(listener); err != nil {
 		logger.Error("serve error", zap.Error(err))

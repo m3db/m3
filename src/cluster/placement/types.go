@@ -92,6 +92,12 @@ type Instance interface {
 	// SetPort sets the port of the instance.
 	SetPort(value uint32) Instance
 
+	// Metadata returns the metadata of the instance.
+	Metadata() InstanceMetadata
+
+	// SetMetadata sets the metadata of the instance.
+	SetMetadata(value InstanceMetadata) Instance
+
 	// Proto returns the proto representation for the Instance.
 	Proto() (*placementpb.Instance, error)
 
@@ -106,6 +112,11 @@ type Instance interface {
 
 	// Clone returns a clone of the Instance.
 	Clone() Instance
+}
+
+// InstanceMetadata represents the metadata for a single Instance in the placement.
+type InstanceMetadata struct {
+	DebugPort uint32
 }
 
 // Placement describes how instances are placed.
@@ -503,7 +514,30 @@ type Storage interface {
 // all write or update operations will persist the generated placement before returning success.
 type Service interface {
 	Storage
+	operations
+}
 
+// Operator is a purely in-memory version of Service; it applies placement related operations to
+// a local copy of a placement without persisting anything to backing storage. This can be useful
+// to apply multiple placement operations in a row before persisting them, e.g.:
+//
+// func DoMultipleOps(opts placement.Options, store placement.Storage) {
+//    curPlacement := store.Placement()
+//    op := placement.NewOperator(curPlacement, opts)
+//    op.ReplaceInstances(...)
+//    op.MarkAllShardsAvailable()
+//    store.CheckAndSet(op.Placement())
+// }
+type Operator interface {
+	operations
+
+	Placement() Placement
+}
+
+// operations are the methods shared by Service and Operator. This type is private because it's
+// not intended to be implemented directly; Operator and Service are the correct ways to access
+// these methods.
+type operations interface {
 	// BuildInitialPlacement initialize a placement.
 	BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error)
 

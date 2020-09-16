@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -134,7 +136,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 		SetWriteWorkerPool(writePool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
-	storage, err := NewStorage(clusters, opts, instrument.NewOptions())
+	storage, err := NewStorage(clusters, opts, instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	return storage
 }
@@ -159,28 +161,32 @@ func newFetchReq() *storage.FetchQuery {
 	}
 }
 
-func newWriteQuery() *storage.WriteQuery {
+func newWriteQuery(t *testing.T) *storage.WriteQuery {
 	tags := models.EmptyTags().AddTags([]models.Tag{
 		{Name: []byte("foo"), Value: []byte("bar")},
 		{Name: []byte("biz"), Value: []byte("baz")},
 	})
 
-	datapoints := ts.Datapoints{{
-		Timestamp: time.Now(),
-		Value:     1.0,
-	},
-		{
-			Timestamp: time.Now().Add(-10 * time.Second),
-			Value:     2.0,
-		}}
-	return &storage.WriteQuery{
-		Tags:       tags,
-		Unit:       xtime.Millisecond,
-		Datapoints: datapoints,
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
+	q, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: tags,
+		Unit: xtime.Millisecond,
+		Datapoints: ts.Datapoints{
+			{
+				Timestamp: time.Now(),
+				Value:     1.0,
+			},
+			{
+				Timestamp: time.Now().Add(-10 * time.Second),
+				Value:     2.0,
+			},
 		},
-	}
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+		},
+	})
+	require.NoError(t, err)
+
+	return q
 }
 
 func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
@@ -203,7 +209,7 @@ func TestLocalWriteSuccess(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store := setupLocalWrite(t, ctrl)
-	writeQuery := newWriteQuery()
+	writeQuery := newWriteQuery(t)
 	err := store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
 	assert.NoError(t, store.Close())
@@ -213,14 +219,20 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
+
+	opts := newWriteQuery(t).Options()
+
 	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   1234,
 		Resolution:  5678,
 	}
-	err := store.Write(context.TODO(), writeQuery)
+
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
+	err = store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "no configured cluster namespace"),
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
@@ -230,13 +242,19 @@ func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
+
+	opts := newWriteQuery(t).Options()
+
 	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.MetricsType(math.MaxUint64),
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.MetricsType(math.MaxUint64),
 		Retention:   30 * 24 * time.Hour,
 	}
-	err := store.Write(context.TODO(), writeQuery)
+
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
+	err = store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "invalid write request"),
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
@@ -247,18 +265,23 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
 
-	writeQuery := newWriteQuery()
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts := newWriteQuery(t).Options()
+
+	// Use unsupported retention/resolution
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
 	}
 
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
 	session := sessions.aggregated1MonthRetention1MinuteResolution
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints))
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints()))
 
-	err := store.Write(context.TODO(), writeQuery)
+	err = store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
 	assert.NoError(t, store.Close())
 }
@@ -266,6 +289,7 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 func TestLocalRead(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
 	store, sessions := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 
@@ -292,7 +316,8 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(nil, nil).AnyTimes()
+	session.EXPECT().IteratorPools().
+		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
@@ -304,7 +329,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
-	opts.Limit = 100
+	opts.SeriesLimit = 100
 	return opts
 }
 
@@ -685,7 +710,7 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 3, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("aba"),
 			Values: [][]byte{[]byte("quz")},
@@ -744,7 +769,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 1, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("name"),
 			Values: [][]byte{[]byte("value")},
@@ -764,11 +789,12 @@ func TestInvalidBlockTypes(t *testing.T) {
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 
+	query := &storage.FetchQuery{}
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeDecodedBlock}
-	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
 	assert.Error(t, err)
 
 	fetchOpts.BlockType = models.TypeMultiBlock
-	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
 	assert.Error(t, err)
 }

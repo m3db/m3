@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -168,24 +169,11 @@ type readNamespaceResult struct {
 // TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
 // number of commitlogs / snapshots that we need to read.
 func (s *commitLogSource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
-	timeRangesEmpty := true
-	for _, elem := range namespaces.Namespaces.Iter() {
-		namespace := elem.Value()
-		dataRangesNotEmpty := !namespace.DataRunOptions.ShardTimeRanges.IsEmpty()
-
-		indexEnabled := namespace.Metadata.Options().IndexOptions().Enabled()
-		indexRangesNotEmpty := indexEnabled && !namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
-		if dataRangesNotEmpty || indexRangesNotEmpty {
-			timeRangesEmpty = false
-			break
-		}
-	}
-	if timeRangesEmpty {
-		// Return empty result with no unfulfilled ranges.
-		return bootstrap.NewNamespaceResults(namespaces), nil
-	}
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
+	defer span.Finish()
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
@@ -202,16 +190,20 @@ func (s *commitLogSource) Read(
 
 	startSnapshotsRead := s.nowFn()
 	s.log.Info("read snapshots start")
+	span.LogEvent("read_snapshots_start")
+
 	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
 
 		// NB(r): Combine all shard time ranges across data and index
 		// so we can do in one go.
-		shardTimeRanges := result.ShardTimeRanges{}
-		shardTimeRanges.AddRanges(ns.DataRunOptions.ShardTimeRanges)
+		shardTimeRanges := result.NewShardTimeRanges()
+		// NB(bodu): Use TargetShardTimeRanges which covers the entire original target shard range
+		// since the commitlog bootstrapper should run for the entire bootstrappable range per shard.
+		shardTimeRanges.AddRanges(ns.DataRunOptions.TargetShardTimeRanges)
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			shardTimeRanges.AddRanges(ns.IndexRunOptions.ShardTimeRanges)
+			shardTimeRanges.AddRanges(ns.IndexRunOptions.TargetShardTimeRanges)
 		}
 
 		namespaceResults[ns.Metadata.ID().String()] = &readNamespaceResult{
@@ -240,7 +232,7 @@ func (s *commitLogSource) Read(
 
 		// Start by reading any available snapshot files.
 		blockSize := ns.Metadata.Options().RetentionOptions().BlockSize()
-		for shard, tr := range shardTimeRanges {
+		for shard, tr := range shardTimeRanges.Iter() {
 			err := s.bootstrapShardSnapshots(
 				ns.Metadata, accumulator, shard, tr, blockSize,
 				mostRecentCompleteSnapshotByBlockShard)
@@ -252,6 +244,7 @@ func (s *commitLogSource) Read(
 
 	s.log.Info("read snapshots done",
 		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
+	span.LogEvent("read_snapshots_done")
 
 	// Setup the series accumulator pipeline.
 	var (
@@ -294,17 +287,19 @@ func (s *commitLogSource) Read(
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
+	span.LogEvent("read_commitlogs_start")
 	defer func() {
 		datapointsRead := 0
 		for _, worker := range workers {
 			datapointsRead += worker.datapointsRead
 		}
-		s.log.Info("read finished",
-			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
+		s.log.Info("read commit logs done",
+			zap.Duration("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
 			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
 			zap.Int("datapointsSkippedShardNoLongerOwned", datapointsSkippedShardNoLongerOwned))
+		span.LogEvent("read_commitlogs_done")
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -425,21 +420,6 @@ func (s *commitLogSource) Read(
 				// Resolve the series in the accumulator.
 				accumulator := ns.accumulator
 
-				// NB(r): Make sure that only series.EncodedTags are used and not
-				// series.Tags (we explicitly ask for references to be returned and to
-				// avoid decoding the tags if we don't have to).
-				if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
-					msg := "commit log reader expects encoded tags"
-					instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
-					instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
-						l.Error(msg,
-							zap.Int("decodedTags", decodedTags),
-							zap.Int("encodedTags", len(entry.Series.EncodedTags)))
-					})
-					err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
-					return bootstrap.NamespaceResults{}, err
-				}
-
 				var tagIter ident.TagIterator
 				if len(entry.Series.EncodedTags) > 0 {
 					tagDecoderCheckedBytes.Reset(entry.Series.EncodedTags)
@@ -495,8 +475,8 @@ func (s *commitLogSource) Read(
 		// NB(r): This can occur when a topology change happens then we
 		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
-		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
-		if !bootstrapping {
+		_, ok = seriesEntry.namespace.dataAndIndexShardRanges.Get(shard)
+		if !ok {
 			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
@@ -576,7 +556,7 @@ func (s *commitLogSource) snapshotFilesByShard(
 	shardsTimeRanges result.ShardTimeRanges,
 ) (map[uint32]fs.FileSetFilesSlice, error) {
 	snapshotFilesByShard := map[uint32]fs.FileSetFilesSlice{}
-	for shard := range shardsTimeRanges {
+	for shard := range shardsTimeRanges.Iter() {
 		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, nsID, shard)
 		if err != nil {
 			return nil, err
@@ -604,7 +584,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	)
 
 	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
-		for shard := range shardsTimeRanges {
+		for shard := range shardsTimeRanges.Iter() {
 			// Anonymous func for easier clean up using defer.
 			func() {
 				var (
@@ -656,7 +636,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart),
 							zap.Uint32("shard", mostRecentSnapshot.ID.Shard),
 							zap.Int("index", mostRecentSnapshot.ID.VolumeIndex),
-							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilePaths),
 							zap.Error(err),
 						).
 						Error("error resolving snapshot time for snapshot file")
@@ -682,6 +662,30 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	blockSize time.Duration,
 	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) error {
+	// NB(bodu): We use info files on disk to check if a snapshot should be loaded in as cold or warm.
+	// We do this instead of cross refing blockstarts and current time to handle the case of bootstrapping a
+	// once warm block start after a node has been shut down for a long time. We consider all block starts we
+	// haven't flushed data for yet a warm block start.
+	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
+	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
+	for _, result := range readInfoFilesResults {
+		if err := result.Err.Error(); err != nil {
+			// If we couldn't read the info files then keep going to be consistent
+			// with the way the db shard updates its flush states in UpdateFlushStates().
+			s.log.Error("unable to read info files in commit log bootstrap",
+				zap.Uint32("shard", shard),
+				zap.Stringer("namespace", ns.ID()),
+				zap.String("filepath", result.Err.Filepath()),
+				zap.Error(err))
+			continue
+		}
+		info := result.Info
+		at := xtime.FromNanoseconds(info.BlockStart)
+		shardBlockStartsOnDisk[xtime.ToUnixNano(at)] = struct{}{}
+	}
+
 	rangeIter := shardTimeRanges.Iter()
 	for rangeIter.Next() {
 		var (
@@ -714,9 +718,13 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				continue
 			}
 
+			writeType := series.WarmWrite
+			if _, ok := shardBlockStartsOnDisk[xtime.ToUnixNano(blockStart)]; ok {
+				writeType = series.ColdWrite
+			}
 			if err := s.bootstrapShardBlockSnapshot(
 				ns, accumulator, shard, blockStart, blockSize,
-				mostRecentCompleteSnapshotForShardBlock); err != nil {
+				mostRecentCompleteSnapshotForShardBlock, writeType); err != nil {
 				return err
 			}
 		}
@@ -732,6 +740,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	blockStart time.Time,
 	blockSize time.Duration,
 	mostRecentCompleteSnapshot fs.FileSetFile,
+	writeType series.WriteType,
 ) error {
 	var (
 		bOpts      = s.opts.ResultOptions()
@@ -787,16 +796,17 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, ts.FinalizeHead), nsCtx)
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
 
-		// Resetting the block will trigger a checksum calculation, so use that instead
-		// of calculating it twice.
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
 		checksum, err := dbBlock.Checksum()
 		if err != nil {
 			return err
 		}
 		if checksum != expectedChecksum {
-			return fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+			return fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
 		}
 
 		// NB(r): No parallelization required to checkout the series.
@@ -810,7 +820,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// Load into series.
-		if err := ref.Series.LoadBlock(dbBlock, series.WarmWrite); err != nil {
+		if err := ref.Series.LoadBlock(dbBlock, writeType); err != nil {
 			return err
 		}
 
@@ -893,17 +903,11 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		)
 		worker.datapointsRead++
 
-		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
+		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
-				SchemaDesc: namespace.namespaceContext.Schema,
-				// NB(r): Make sure this is the series we originally
-				// checked out for writing too (which should be guaranteed
-				// by the fact during shard tick we do not expire any
-				// series unless they are bootstrapped).
-				MatchUniqueIndex:      true,
-				MatchUniqueIndexValue: entry.UniqueIndex,
-				BootstrapWrite:        true,
-				SkipOutOfRetention:    true,
+				SchemaDesc:         namespace.namespaceContext.Schema,
+				BootstrapWrite:     true,
+				SkipOutOfRetention: true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very
@@ -929,7 +933,7 @@ func (s *commitLogSource) logAccumulateOutcome(
 		errs += worker.numErrors
 	}
 	if errs > 0 {
-		s.log.Error("error bootstrapping from commit log", zap.Int("accmulateErrors", errs))
+		s.log.Error("error bootstrapping from commit log", zap.Int("accumulateErrors", errs))
 	}
 	if err := iter.Err(); err != nil {
 		s.log.Error("error reading commit log", zap.Error(err))
@@ -991,10 +995,10 @@ func (s *commitLogSource) availability(
 ) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
-		availableShardTimeRanges = result.ShardTimeRanges{}
+		availableShardTimeRanges = result.NewShardTimeRanges()
 	)
 
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		hostShardStates, ok := topoState.ShardStates[shardID]
 		if !ok {
@@ -1035,11 +1039,13 @@ func (s *commitLogSource) availability(
 			// to distinguish between "unfulfilled" data and "corrupt" data, then
 			// modify this to only say the commit log bootstrapper can fullfil
 			// "unfulfilled" data, but not corrupt data.
-			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		case shard.Unknown:
 			fallthrough
 		default:
-			return result.ShardTimeRanges{}, fmt.Errorf("unknown shard state: %v", originShardState)
+			return result.NewShardTimeRanges(), fmt.Errorf("unknown shard state: %v", originShardState)
 		}
 	}
 

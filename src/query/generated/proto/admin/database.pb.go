@@ -37,6 +37,7 @@
 		DatabaseCreateResponse
 		NamespaceGetResponse
 		NamespaceAddRequest
+		NamespaceUpdateRequest
 		NamespaceSchemaAddRequest
 		NamespaceSchemaAddResponse
 		NamespaceSchemaResetRequest
@@ -50,6 +51,7 @@
 		TopicGetResponse
 		TopicInitRequest
 		TopicAddRequest
+		TopicUpdateRequest
 */
 package admin
 

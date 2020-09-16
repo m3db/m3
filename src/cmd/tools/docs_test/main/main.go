@@ -23,7 +23,6 @@ package main
 
 import (
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -32,26 +31,40 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/x/docs"
 
-	"github.com/russross/blackfriday"
+	"github.com/pborman/getopt"
+	"gopkg.in/russross/blackfriday.v2"
 )
 
 func main() {
-	var (
-		docsDirArg = flag.String("docsdir", "docs", "The documents directory to test")
-	)
-	flag.Parse()
+	// Default link excludes.
+	linkExcludes := []string{
+		// Youtube has some problematic public rate limits.
+		"youtu.be",
+		"youtube.com",
+	}
 
-	if *docsDirArg == "" {
-		flag.Usage()
-		os.Exit(1)
+	var (
+		docsDirArg   = getopt.StringLong("docsdir", 'd', "docs", "The documents directory to test")
+		linkSleepArg = getopt.DurationLong("linksleep", 's', time.Second, "Amount to sleep between checking links to avoid 429 rate limits from github")
+	)
+	getopt.ListVarLong(&linkExcludes, "linkexcludes", 'e', "Exclude strings to check links against due to rate limiting/flakiness")
+	getopt.Parse()
+	if len(*docsDirArg) == 0 {
+		getopt.Usage()
+		return
 	}
 
 	docsDir := *docsDirArg
+	linkSleep := *linkSleepArg
 
-	repoPathsValidated := 0
+	var (
+		excluded           []string
+		repoPathsValidated int
+	)
 	resultErr := filepath.Walk(docsDir, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("failed to walk path=%s: %v", filePath, err)
@@ -76,37 +89,50 @@ func main() {
 			switch node.Type {
 			case blackfriday.Link:
 				link := node.LinkData
-				url := strings.TrimSpace(string(link.Destination))
+				linkURL := strings.TrimSpace(string(link.Destination))
 
 				resolvedPath := ""
-				if parse, ok := docs.ParseRepoPathURL(url); ok {
+				if parse, ok := docs.ParseRepoPathURL(linkURL); ok {
 					// Internal relative local repo path
 					resolvedPath = parse.RepoPath
-				} else if isHTTPOrHTTPS(url) {
+				} else if isHTTPOrHTTPS(linkURL) {
 					// External link
-					resolvedPath = url
+					resolvedPath = linkURL
 				} else {
 					// Otherwise should be a direct relative link
 					// (not repo URL prefixed)
-					if v := strings.Index(url, "#"); v != -1 {
+					if v := strings.Index(linkURL, "#"); v != -1 {
 						// Remove links to subsections of docs
-						url = url[:v]
+						linkURL = linkURL[:v]
 					}
-					if len(url) > 0 && url[0] == '/' {
+					if len(linkURL) > 0 && linkURL[0] == '/' {
 						// This is an absolute link to within the docs directory
-						resolvedPath = path.Join(docsDir, url[1:])
+						resolvedPath = path.Join(docsDir, linkURL[1:])
 					} else {
 						// We assume this is a relative path from the current doc
-						resolvedPath = path.Join(path.Dir(filePath), url)
+						resolvedPath = path.Join(path.Dir(filePath), linkURL)
 					}
 				}
 
 				checked := checkedLink{
 					document:     filePath,
-					url:          url,
+					url:          linkURL,
 					resolvedPath: resolvedPath,
 				}
 				if isHTTPOrHTTPS(resolvedPath) {
+					excludeCheck := false
+					for _, str := range linkExcludes {
+						if strings.Contains(resolvedPath, str) {
+							excludeCheck = true
+							break
+						}
+					}
+					if excludeCheck {
+						// Exclude this link and walk to next.
+						excluded = append(excluded, resolvedPath)
+						return blackfriday.GoToNext
+					}
+
 					// Check external link using HEAD request
 					client := &http.Client{
 						Transport: &http.Transport{
@@ -126,6 +152,8 @@ func main() {
 					if err != nil {
 						return abort(checkedLinkError(checked, err))
 					}
+					// Sleep to avoid rate limits.
+					time.Sleep(linkSleep)
 				} else {
 					// Check relative path
 					if _, err := os.Stat(resolvedPath); err != nil {
@@ -145,7 +173,12 @@ func main() {
 		log.Fatalf("failed validation: %v", resultErr)
 	}
 
-	log.Printf("validated docs (repoPathsValidated=%d)\n", repoPathsValidated)
+	log.Printf("validated docs (repoPathsValidated=%d, excluded=%d)\n",
+		repoPathsValidated, len(excluded))
+
+	for _, linkURL := range excluded {
+		log.Printf("excluded: %s\n", linkURL)
+	}
 }
 
 func isHTTPOrHTTPS(url string) bool {

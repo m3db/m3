@@ -28,10 +28,14 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -41,13 +45,24 @@ var (
 	}
 )
 
+// IterValue is the value returned by the iterator.
+type IterValue struct {
+	Tags       models.Tags
+	Datapoints ts.Datapoints
+	Attributes ts.SeriesAttributes
+	Unit       xtime.Unit
+	Metadata   ts.Metadata
+	Annotation []byte
+}
+
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte)
+	Current() IterValue
 	Reset() error
 	Error() error
+	SetCurrentMetadata(ts.Metadata)
 }
 
 // DownsamplerAndWriter is the interface for the downsamplerAndWriter which
@@ -88,12 +103,18 @@ type WriteOptions struct {
 	WriteOverride      bool
 }
 
+type downsamplerAndWriterMetrics struct {
+	dropped tally.Counter
+}
+
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
 // as well as in unaggregated form to storage.
 type downsamplerAndWriter struct {
 	store       storage.Storage
 	downsampler downsample.Downsampler
 	workerPool  xsync.PooledWorkerPool
+
+	metrics downsamplerAndWriterMetrics
 }
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
@@ -101,11 +122,16 @@ func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
+	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
+		metrics: downsamplerAndWriterMetrics{
+			dropped: scope.Counter("metrics_dropped"),
+		},
 	}
 }
 
@@ -117,15 +143,22 @@ func (d *downsamplerAndWriter) Write(
 	annotation []byte,
 	overrides WriteOptions,
 ) error {
-	multiErr := xerrors.NewMultiError()
+	var (
+		multiErr         = xerrors.NewMultiError()
+		dropUnaggregated bool
+	)
+
 	if d.shouldDownsample(overrides) {
-		err := d.writeToDownsampler(tags, datapoints, unit, overrides)
+		var err error
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 
-	if d.shouldWrite(overrides) {
+	if dropUnaggregated {
+		d.metrics.dropped.Inc(1)
+	} else if d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -195,12 +228,14 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
-) error {
-	// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
-	// resources. If we can pool this properly we can get a nice speedup.
+) (bool, error) {
+	if err := tags.Validate(); err != nil {
+		return false, err
+	}
+
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	defer appender.Finalize()
@@ -234,19 +269,19 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 		}
 	}
 
-	samplesAppender, err := appender.SamplesAppender(appenderOpts)
+	result, err := appender.SamplesAppender(appenderOpts)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, dp := range datapoints {
-		err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		if err != nil {
-			return err
+			return result.IsDropPolicyApplied, err
 		}
 	}
 
-	return nil
+	return result.IsDropPolicyApplied, nil
 }
 
 func (d *downsamplerAndWriter) writeToStorage(
@@ -259,7 +294,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		return d.store.Write(ctx, &storage.WriteQuery{
+		return d.writeWithOptions(ctx, storage.WriteQueryOptions{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
@@ -279,7 +314,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.store.Write(ctx, &storage.WriteQuery{
+			err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
@@ -299,6 +334,17 @@ func (d *downsamplerAndWriter) writeToStorage(
 	return multiErr.FinalError()
 }
 
+func (d *downsamplerAndWriter) writeWithOptions(
+	ctx context.Context,
+	opts storage.WriteQueryOptions,
+) error {
+	writeQuery, err := storage.NewWriteQuery(opts)
+	if err != nil {
+		return err
+	}
+	return d.store.Write(ctx, writeQuery)
+}
+
 func (d *downsamplerAndWriter) WriteBatch(
 	ctx context.Context,
 	iter DownsampleAndWriteIter,
@@ -315,7 +361,24 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 	)
 
-	if d.shouldWrite(overrides) {
+	if d.shouldDownsample(overrides) {
+		if errs := d.writeAggregatedBatch(iter, overrides); !errs.Empty() {
+			// Iterate and add through all the error to the multi error. It is
+			// ok not to use the addError method here as we are running single
+			// threaded at this point.
+			for _, err := range errs.Errors() {
+				multiErr = multiErr.Add(err)
+			}
+		}
+	}
+
+	// Reset the iter to write the unaggregated data.
+	resetErr := iter.Reset()
+	if resetErr != nil {
+		addError(resetErr)
+	}
+
+	if d.shouldWrite(overrides) && resetErr == nil {
 		// Write unaggregated. Spin up all the background goroutines that make
 		// network requests before we do the synchronous work of writing to the
 		// downsampler.
@@ -325,16 +388,20 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 
 		for iter.Next() {
-			tags, datapoints, unit, annotation := iter.Current()
+			value := iter.Current()
+			if value.Metadata.DropUnaggregated {
+				d.metrics.dropped.Inc(1)
+				continue
+			}
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
-					err := d.store.Write(ctx, &storage.WriteQuery{
-						Tags:       tags,
-						Datapoints: datapoints,
-						Unit:       unit,
-						Annotation: annotation,
+					err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
+						Tags:       value.Tags,
+						Datapoints: value.Datapoints,
+						Unit:       value.Unit,
+						Annotation: value.Annotation,
 						Attributes: storageAttributesFromPolicy(p),
 					})
 					if err != nil {
@@ -343,19 +410,6 @@ func (d *downsamplerAndWriter) WriteBatch(
 					wg.Done()
 				})
 			}
-		}
-	}
-
-	// Iter does not need to be synchronized because even though we use it to spawn
-	// many goroutines above, the iteration is always synchronous.
-	resetErr := iter.Reset()
-	if resetErr != nil {
-		addError(resetErr)
-	}
-
-	if d.shouldDownsample(overrides) && resetErr == nil {
-		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
-			addError(err)
 		}
 	}
 
@@ -370,22 +424,46 @@ func (d *downsamplerAndWriter) WriteBatch(
 func (d *downsamplerAndWriter) writeAggregatedBatch(
 	iter DownsampleAndWriteIter,
 	overrides WriteOptions,
-) error {
+) xerrors.MultiError {
+	var multiErr xerrors.MultiError
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
-		return err
+		return multiErr.Add(err)
 	}
 
 	defer appender.Finalize()
 
 	for iter.Next() {
-		appender.Reset()
-		tags, datapoints, _, _ := iter.Current()
-		for _, tag := range tags.Tags {
+		appender.NextMetric()
+
+		value := iter.Current()
+		if err := value.Tags.Validate(); err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		var opts downsample.SampleAppenderOptions
+		if value.Tags.Opts.IDSchemeType() == models.TypeGraphite {
+			// NB(r): This is gross, but if this is a graphite metric then
+			// we are going to set a special tag that means the downsampler
+			// will write a graphite ID. This should really be plumbed
+			// through the downsampler in general, but right now the aggregator
+			// does not allow context to be attached to a metric so when it calls
+			// back the context is lost currently.
+			// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
+			// all places worth fixing this hack. There is at least one
+			// other path where flows back to the coordinator from the aggregator
+			// and this tag is interpreted, eventually need to handle more cleanly.
+			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
+				downsample.GraphiteIDSchemeTagValue)
+		}
+
+		opts := downsample.SampleAppenderOptions{
+			MetricType: value.Attributes.Type,
+		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
 				Override: true,
@@ -395,20 +473,34 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			}
 		}
 
-		samplesAppender, err := appender.SamplesAppender(opts)
+		result, err := appender.SamplesAppender(opts)
 		if err != nil {
-			return err
+			multiErr = multiErr.Add(err)
+			continue
 		}
 
-		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		if result.IsDropPolicyApplied {
+			iter.SetCurrentMetadata(ts.Metadata{DropUnaggregated: true})
+		}
+
+		for _, dp := range value.Datapoints {
+			switch value.Attributes.Type {
+			case ts.MetricTypeGauge:
+				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+			case ts.MetricTypeCounter:
+				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+			case ts.MetricTypeTimer:
+				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+			}
 			if err != nil {
-				return err
+				// If we see an error break out so we can try processing the
+				// next datapoint.
+				multiErr = multiErr.Add(err)
 			}
 		}
 	}
 
-	return iter.Error()
+	return multiErr.Add(iter.Error())
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
@@ -417,14 +509,14 @@ func (d *downsamplerAndWriter) Storage() storage.Storage {
 
 func storageAttributesFromPolicy(
 	p policy.StoragePolicy,
-) storage.Attributes {
-	attributes := storage.Attributes{
-		MetricsType: storage.UnaggregatedMetricsType,
+) storagemetadata.Attributes {
+	attributes := storagemetadata.Attributes{
+		MetricsType: storagemetadata.UnaggregatedMetricsType,
 	}
 	if p != unaggregatedStoragePolicy {
-		attributes = storage.Attributes{
+		attributes = storagemetadata.Attributes{
 			// Assume all overridden storage policies are for aggregated namespaces.
-			MetricsType: storage.AggregatedMetricsType,
+			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  p.Resolution().Window,
 			Retention:   p.Retention().Duration(),
 		}

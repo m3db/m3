@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -52,7 +54,7 @@ var tests = []struct {
 	{
 		"non-exhaustive",
 		block.ResultMetadata{Exhaustive: false},
-		handleroptions.LimitHeaderSeriesLimitApplied,
+		headers.LimitHeaderSeriesLimitApplied,
 	},
 	{
 		"warnings",
@@ -75,9 +77,9 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
+	storeResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("qux")}},
 			{Name: b("baz")},
 			{Name: b("foo")},
@@ -86,8 +88,8 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 		Metadata: meta,
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb)
@@ -109,7 +111,7 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 		`{"key":"baz","values":[]},{"key":"foo","values":[]}]}`
 	require.Equal(t, ex, string(r))
 
-	actual := w.Header().Get(handleroptions.LimitHeader)
+	actual := w.Header().Get(headers.LimitHeader)
 	assert.Equal(t, header, actual)
 }
 
@@ -146,9 +148,9 @@ func TestMultiCompleteTags(t *testing.T) {
 	store := storage.NewMockStorage(ctrl)
 	fooMeta := block.NewResultMetadata()
 	fooMeta.Exhaustive = false
-	fooResult := &storage.CompleteTagsResult{
+	fooResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("zulu"), b("quail")}},
 			{Name: b("foo"), Values: [][]byte{b("quail")}},
 		},
@@ -158,17 +160,17 @@ func TestMultiCompleteTags(t *testing.T) {
 
 	barMeta := block.NewResultMetadata()
 	barMeta.AddWarning("abc", "def")
-	barResult := &storage.CompleteTagsResult{
+	barResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("qux")}},
 		},
 
 		Metadata: barMeta,
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb)
@@ -194,6 +196,6 @@ func TestMultiCompleteTags(t *testing.T) {
 		`{"key":"foo","values":["quail"]}]}`
 	require.Equal(t, ex, string(r))
 
-	actual := w.Header().Get(handleroptions.LimitHeader)
+	actual := w.Header().Get(headers.LimitHeader)
 	assert.Equal(t, "max_fetch_series_limit_applied,abc_def", actual)
 }

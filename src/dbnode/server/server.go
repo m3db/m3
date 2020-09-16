@@ -59,14 +59,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -134,6 +137,12 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// CustomOptions are custom options to apply to the session.
+	CustomOptions []client.CustomAdminOption
+
+	// StorageOptions are options to apply to the database storage options.
+	StorageOptions StorageOptions
 }
 
 // Run runs the server programmatically given a filename for the
@@ -273,7 +282,7 @@ func Run(runOpts RunOptions) {
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -311,12 +320,18 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	// By default use histogram timers for timers that
+	// are constructed allowing for type to be picked
+	// by the caller using instrument.NewTimer(...).
+	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
+	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+
 	var (
 		opts  = storage.NewOptions()
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTimerOptions(timerOpts).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
@@ -391,6 +406,24 @@ func Run(runOpts RunOptions) {
 	}
 	defer stopReporting()
 
+	// Setup query stats tracking.
+	docsLimit := limits.DefaultLookbackLimitOptions()
+	bytesReadLimit := limits.DefaultLookbackLimitOptions()
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
+		docsLimit.Limit = limitConfig.Value
+		docsLimit.Lookback = limitConfig.Lookback
+	}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskBytesRead; limitConfig != nil {
+		bytesReadLimit.Limit = limitConfig.Value
+		bytesReadLimit.Lookback = limitConfig.Lookback
+	}
+	queryLimits, err := limits.NewQueryLimits(docsLimit, bytesReadLimit, iopts)
+	if err != nil {
+		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
+	}
+	queryLimits.Start()
+	defer queryLimits.Stop()
+
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
@@ -403,7 +436,8 @@ func Run(runOpts RunOptions) {
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		}).
-		SetMmapReporter(mmapReporter)
+		SetMmapReporter(mmapReporter).
+		SetQueryLimits(queryLimits)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -429,7 +463,7 @@ func Run(runOpts RunOptions) {
 			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		poolOptions(
 			policy.TagDecoderPool,
 			scope.SubScope("tag-decoder-pool")))
@@ -517,18 +551,19 @@ func Run(runOpts RunOptions) {
 			SetBytesPool(opts.BytesPool()).
 			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
-			SetBlockLeaseManager(blockLeaseManager)
+			SetBlockLeaseManager(blockLeaseManager).
+			SetQueryLimits(queryLimits)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+			func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 				retriever, err := fs.NewBlockRetriever(retrieverOpts, fsopts)
 				if err != nil {
 					return nil, err
 				}
-				if err := retriever.Open(md); err != nil {
+				if err := retriever.Open(md, shardSet); err != nil {
 					return nil, err
 				}
 				return retriever, nil
@@ -550,9 +585,10 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:   iopts,
-			HashingSeed:      cfg.Hashing.Seed,
-			NewDirectoryMode: newDirectoryMode,
+			InstrumentOpts:         iopts,
+			HashingSeed:            cfg.Hashing.Seed,
+			NewDirectoryMode:       newDirectoryMode,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -561,8 +597,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HostID:         hostID,
+			InstrumentOpts:         iopts,
+			HostID:                 hostID,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
@@ -604,8 +641,13 @@ func Run(runOpts RunOptions) {
 		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
 		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
 	}
+	tchanOpts := ttnode.NewOptions(tchannelOpts).
+		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
+		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		cfg.ListenAddress, contextPool, tchanOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
 			zap.String("address", cfg.ListenAddress), zap.Error(err))
@@ -699,8 +741,10 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
+		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+		syncCfg.KVStore, logger, runOpts.CustomOptions)
+
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -734,8 +778,9 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, tchannelOpts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+				clientCfg, iopts, tchannelOpts, topologyInitializer,
+				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -771,6 +816,10 @@ func Run(runOpts RunOptions) {
 			SetRepairOptions(repairOpts)
 	} else {
 		opts = opts.SetRepairEnabled(false)
+	}
+
+	if runOpts.StorageOptions.OnColdFlush != nil {
+		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -889,6 +938,8 @@ func Run(runOpts RunOptions) {
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
+			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 	}()
 
 	// Wait for process interrupt.
@@ -999,6 +1050,62 @@ func kvWatchNewSeriesLimitPerShard(
 			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
 			if err != nil {
 				logger.Warn("unable to set cluster new series insert limit", zap.Error(err))
+				continue
+			}
+		}
+	}()
+}
+
+func kvWatchEncodersPerBlockLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	defaultEncodersPerBlockLimit int,
+) {
+	var initEncoderLimit int
+
+	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
+	if err == nil {
+		protoValue := &commonpb.Int64Proto{}
+		err = value.Unmarshal(protoValue)
+		if err == nil {
+			initEncoderLimit = int(protoValue.Value)
+		}
+	}
+
+	if err != nil {
+		if err != kv.ErrNotFound {
+			logger.Warn("error resolving encoder per block limit", zap.Error(err))
+		}
+		initEncoderLimit = defaultEncodersPerBlockLimit
+	}
+
+	err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, initEncoderLimit)
+	if err != nil {
+		logger.Warn("unable to set encoder per block limit", zap.Error(err))
+	}
+
+	watch, err := store.Watch(kvconfig.EncodersPerBlockLimitKey)
+	if err != nil {
+		logger.Error("could not watch encoder per block limit", zap.Error(err))
+		return
+	}
+
+	go func() {
+		protoValue := &commonpb.Int64Proto{}
+		for range watch.C() {
+			value := defaultEncodersPerBlockLimit
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
+					continue
+				}
+				value = int(protoValue.Value)
+			}
+
+			err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warn("unable to set encoder per block limit", zap.Error(err))
 				continue
 			}
 		}
@@ -1162,6 +1269,21 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 	nodeLimit := int(math.Ceil(
 		float64(clusterLimit) / float64(numPlacedShards)))
 	return nodeLimit
+}
+
+func setEncodersPerBlockLimitOnChange(
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	encoderLimit int,
+) error {
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetEncodersPerBlockLimit(encoderLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 // this function will block for at most waitTimeout to try to get an initial value
@@ -1347,7 +1469,7 @@ func withEncodingAndPoolingOptions(
 				InstrumentOptions().
 				SetMetricsScope(scope.SubScope("write-batch-pool")))
 
-	writeBatchPool := ts.NewWriteBatchPool(
+	writeBatchPool := writes.NewWriteBatchPool(
 		writeBatchPoolOpts,
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
@@ -1499,6 +1621,8 @@ func withEncodingAndPoolingOptions(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
+	aggregateQueryValuesPool := index.NewAggregateValuesPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-values-pool")))
 
 	// Set value transformation options.
 	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
@@ -1529,6 +1653,7 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetAggregateValuesPool(aggregateQueryValuesPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
 		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
@@ -1541,6 +1666,11 @@ func withEncodingAndPoolingOptions(
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
 		return index.NewAggregateResults(nil, index.AggregateResultsOptions{}, indexOpts)
+	})
+	aggregateQueryValuesPool.Init(func() index.AggregateValues {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewAggregateValues(indexOpts)
 	})
 
 	return opts.SetIndexOptions(indexOpts)
@@ -1557,6 +1687,7 @@ func newAdminClient(
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
 	logger *zap.Logger,
+	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
 	if config.EnvironmentConfig != nil {
 		// If the user has provided an override for the dynamic client configuration
@@ -1564,12 +1695,8 @@ func newAdminClient(
 		topologyInitializer = nil
 	}
 
-	m3dbClient, err := config.NewAdminClient(
-		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
-			TopologyInitializer: topologyInitializer,
-		},
+	// NB: append custom options coming from run options to existing options.
+	options := []client.CustomAdminOption{
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetChannelOptions(tchannelOpts).(client.AdminOptions)
 		},
@@ -1591,6 +1718,16 @@ func newAdminClient(
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
 		},
+	}
+
+	options = append(options, custom...)
+	m3dbClient, err := config.NewAdminClient(
+		client.ConfigurationParameters{
+			InstrumentOptions: iopts.
+				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			TopologyInitializer: topologyInitializer,
+		},
+		options...,
 	)
 	if err != nil {
 		return nil, err

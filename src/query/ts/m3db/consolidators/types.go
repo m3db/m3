@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -58,7 +58,7 @@ func TakeLast(values []ts.Datapoint) float64 {
 	return math.NaN()
 }
 
-const initLength = 10
+const initLength = BufferSteps
 
 // Set NaN to a variable makes tests easier.
 var nan = math.NaN()

@@ -43,9 +43,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -255,10 +256,10 @@ func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // BatchWriter mocks base method
-func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(ts.BatchWriter)
+	ret0, _ := ret[0].(writes.BatchWriter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -270,7 +271,7 @@ func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -284,7 +285,7 @@ func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -487,6 +488,21 @@ func (mr *MockDatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockDatabase)(nil).FlushState), namespace, shardID, blockStart)
 }
 
+// AggregateTiles mocks base method
+func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
+}
+
 // Mockdatabase is a mock of database interface
 type Mockdatabase struct {
 	ctrl     *gomock.Controller
@@ -650,10 +666,10 @@ func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // BatchWriter mocks base method
-func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(ts.BatchWriter)
+	ret0, _ := ret[0].(writes.BatchWriter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -665,7 +681,7 @@ func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -679,7 +695,7 @@ func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -882,19 +898,34 @@ func (mr *MockdatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*Mockdatabase)(nil).FlushState), namespace, shardID, blockStart)
 }
 
-// GetOwnedNamespaces mocks base method
-func (m *Mockdatabase) GetOwnedNamespaces() ([]databaseNamespace, error) {
+// AggregateTiles mocks base method
+func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOwnedNamespaces")
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
+}
+
+// OwnedNamespaces mocks base method
+func (m *Mockdatabase) OwnedNamespaces() ([]databaseNamespace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OwnedNamespaces")
 	ret0, _ := ret[0].([]databaseNamespace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetOwnedNamespaces indicates an expected call of GetOwnedNamespaces
-func (mr *MockdatabaseMockRecorder) GetOwnedNamespaces() *gomock.Call {
+// OwnedNamespaces indicates an expected call of OwnedNamespaces
+func (mr *MockdatabaseMockRecorder) OwnedNamespaces() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).GetOwnedNamespaces))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).OwnedNamespaces))
 }
 
 // UpdateOwnedNamespaces mocks base method
@@ -1018,6 +1049,35 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
+// Index mocks base method
+func (m *MockNamespace) Index() (NamespaceIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Index")
+	ret0, _ := ret[0].(NamespaceIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Index indicates an expected call of Index
+func (mr *MockNamespaceMockRecorder) Index() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockNamespace)(nil).Index))
+}
+
+// StorageOptions mocks base method
+func (m *MockNamespace) StorageOptions() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StorageOptions")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// StorageOptions indicates an expected call of StorageOptions
+func (mr *MockNamespaceMockRecorder) StorageOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockNamespace)(nil).StorageOptions))
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1125,6 +1185,35 @@ func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
 }
 
+// Index mocks base method
+func (m *MockdatabaseNamespace) Index() (NamespaceIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Index")
+	ret0, _ := ret[0].(NamespaceIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Index indicates an expected call of Index
+func (mr *MockdatabaseNamespaceMockRecorder) Index() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockdatabaseNamespace)(nil).Index))
+}
+
+// StorageOptions mocks base method
+func (m *MockdatabaseNamespace) StorageOptions() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StorageOptions")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// StorageOptions indicates an expected call of StorageOptions
+func (mr *MockdatabaseNamespaceMockRecorder) StorageOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockdatabaseNamespace)(nil).StorageOptions))
+}
+
 // Close mocks base method
 func (m *MockdatabaseNamespace) Close() error {
 	m.ctrl.T.Helper()
@@ -1151,33 +1240,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) AssignShardSet(shardSet interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockdatabaseNamespace)(nil).AssignShardSet), shardSet)
 }
 
-// GetOwnedShards mocks base method
-func (m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
+// OwnedShards mocks base method
+func (m *MockdatabaseNamespace) OwnedShards() []databaseShard {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOwnedShards")
+	ret := m.ctrl.Call(m, "OwnedShards")
 	ret0, _ := ret[0].([]databaseShard)
 	return ret0
 }
 
-// GetOwnedShards indicates an expected call of GetOwnedShards
-func (mr *MockdatabaseNamespaceMockRecorder) GetOwnedShards() *gomock.Call {
+// OwnedShards indicates an expected call of OwnedShards
+func (mr *MockdatabaseNamespaceMockRecorder) OwnedShards() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetOwnedShards))
-}
-
-// GetIndex mocks base method
-func (m *MockdatabaseNamespace) GetIndex() (namespaceIndex, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIndex")
-	ret0, _ := ret[0].(namespaceIndex)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetIndex indicates an expected call of GetIndex
-func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetIndex))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).OwnedShards))
 }
 
 // Tick mocks base method
@@ -1195,13 +1269,12 @@ func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, startTime interface{}) *gom
 }
 
 // Write mocks base method
-func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, bool, error) {
+func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(ts.Series)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
@@ -1211,13 +1284,12 @@ func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, un
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, bool, error) {
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(ts.Series)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
@@ -1303,32 +1375,32 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID,
 }
 
 // PrepareBootstrap mocks base method
-func (m *MockdatabaseNamespace) PrepareBootstrap() ([]databaseShard, error) {
+func (m *MockdatabaseNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap")
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
 	ret0, _ := ret[0].([]databaseShard)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap() *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap), ctx)
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseNamespace) Bootstrap(bootstrapResult bootstrap.NamespaceResult) error {
+func (m *MockdatabaseNamespace) Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResult)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, bootstrapResult)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(bootstrapResult interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(ctx, bootstrapResult interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), bootstrapResult)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), ctx, bootstrapResult)
 }
 
 // WarmFlush mocks base method
@@ -1474,6 +1546,51 @@ func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, 
 func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), shardID, id, tags)
+}
+
+// WritePendingIndexInserts mocks base method
+func (m *MockdatabaseNamespace) WritePendingIndexInserts(pending []writes.PendingIndexInsert) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePendingIndexInserts", pending)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePendingIndexInserts indicates an expected call of WritePendingIndexInserts
+func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePendingIndexInserts", reflect.TypeOf((*MockdatabaseNamespace)(nil).WritePendingIndexInserts), pending)
+}
+
+// AggregateTiles mocks base method
+func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions, pm persist.Manager) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts, pm)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts, pm interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts, pm)
+}
+
+// readableShardAt mocks base method
+func (m *MockdatabaseNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "readableShardAt", shardID)
+	ret0, _ := ret[0].(databaseShard)
+	ret1, _ := ret[1].(namespace.Context)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// readableShardAt indicates an expected call of readableShardAt
+func (mr *MockdatabaseNamespaceMockRecorder) readableShardAt(shardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "readableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).readableShardAt), shardID)
 }
 
 // MockShard is a mock of Shard interface
@@ -1676,13 +1793,12 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
-	ret0, _ := ret[0].(ts.Series)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
@@ -1692,13 +1808,12 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (ts.Series, bool, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation, wOpts)
-	ret0, _ := ret[0].(ts.Series)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(SeriesWrite)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
@@ -1738,10 +1853,10 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx inte
 }
 
 // FetchBlocksForColdFlush mocks base method
-func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
-	ret0, _ := ret[0].([]xio.BlockReader)
+	ret0, _ := ret[0].(block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1769,31 +1884,31 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, 
 }
 
 // PrepareBootstrap mocks base method
-func (m *MockdatabaseShard) PrepareBootstrap() error {
+func (m *MockdatabaseShard) PrepareBootstrap(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap")
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap() *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap), ctx)
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseShard) Bootstrap() error {
+func (m *MockdatabaseShard) Bootstrap(ctx context.Context, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, nsCtx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseShardMockRecorder) Bootstrap() *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx, nsCtx)
 }
 
 // UpdateFlushStates mocks base method
@@ -1837,25 +1952,27 @@ func (mr *MockdatabaseShardMockRecorder) WarmFlush(blockStart, flush, nsCtx inte
 }
 
 // ColdFlush mocks base method
-func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources coldFlushReuseableResources, nsCtx namespace.Context) error {
+func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources coldFlushReuseableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) (ShardColdFlush, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ColdFlush", flush, resources, nsCtx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "ColdFlush", flush, resources, nsCtx, onFlush)
+	ret0, _ := ret[0].(ShardColdFlush)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ColdFlush indicates an expected call of ColdFlush
-func (mr *MockdatabaseShardMockRecorder) ColdFlush(flush, resources, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) ColdFlush(flush, resources, nsCtx, onFlush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).ColdFlush), flush, resources, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockdatabaseShard)(nil).ColdFlush), flush, resources, nsCtx, onFlush)
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) error {
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush, nsCtx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ShardSnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Snapshot indicates an expected call of Snapshot
@@ -1922,22 +2039,6 @@ func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, nsMeta, tr, repairer)
 }
 
-// TagsFromSeriesID mocks base method
-func (m *MockdatabaseShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TagsFromSeriesID", seriesID)
-	ret0, _ := ret[0].(ident.Tags)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// TagsFromSeriesID indicates an expected call of TagsFromSeriesID
-func (mr *MockdatabaseShardMockRecorder) TagsFromSeriesID(seriesID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagsFromSeriesID", reflect.TypeOf((*MockdatabaseShard)(nil).TagsFromSeriesID), seriesID)
-}
-
 // SeriesReadWriteRef mocks base method
 func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator, opts ShardSeriesReadWriteRefOptions) (SeriesReadWriteRef, error) {
 	m.ctrl.T.Helper()
@@ -1953,43 +2054,126 @@ func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags, opts inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags, opts)
 }
 
-// MocknamespaceIndex is a mock of namespaceIndex interface
-type MocknamespaceIndex struct {
+// DocRef mocks base method
+func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DocRef", id)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DocRef indicates an expected call of DocRef
+func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseShard)(nil).DocRef), id)
+}
+
+// AggregateTiles mocks base method
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceBlockStart time.Time, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts)
+}
+
+// latestVolume mocks base method
+func (m *MockdatabaseShard) latestVolume(blockStart time.Time) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "latestVolume", blockStart)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// latestVolume indicates an expected call of latestVolume
+func (mr *MockdatabaseShardMockRecorder) latestVolume(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "latestVolume", reflect.TypeOf((*MockdatabaseShard)(nil).latestVolume), blockStart)
+}
+
+// MockShardColdFlush is a mock of ShardColdFlush interface
+type MockShardColdFlush struct {
 	ctrl     *gomock.Controller
-	recorder *MocknamespaceIndexMockRecorder
+	recorder *MockShardColdFlushMockRecorder
 }
 
-// MocknamespaceIndexMockRecorder is the mock recorder for MocknamespaceIndex
-type MocknamespaceIndexMockRecorder struct {
-	mock *MocknamespaceIndex
+// MockShardColdFlushMockRecorder is the mock recorder for MockShardColdFlush
+type MockShardColdFlushMockRecorder struct {
+	mock *MockShardColdFlush
 }
 
-// NewMocknamespaceIndex creates a new mock instance
-func NewMocknamespaceIndex(ctrl *gomock.Controller) *MocknamespaceIndex {
-	mock := &MocknamespaceIndex{ctrl: ctrl}
-	mock.recorder = &MocknamespaceIndexMockRecorder{mock}
+// NewMockShardColdFlush creates a new mock instance
+func NewMockShardColdFlush(ctrl *gomock.Controller) *MockShardColdFlush {
+	mock := &MockShardColdFlush{ctrl: ctrl}
+	mock.recorder = &MockShardColdFlushMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
+func (m *MockShardColdFlush) EXPECT() *MockShardColdFlushMockRecorder {
+	return m.recorder
+}
+
+// Done mocks base method
+func (m *MockShardColdFlush) Done() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockShardColdFlushMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockShardColdFlush)(nil).Done))
+}
+
+// MockNamespaceIndex is a mock of NamespaceIndex interface
+type MockNamespaceIndex struct {
+	ctrl     *gomock.Controller
+	recorder *MockNamespaceIndexMockRecorder
+}
+
+// MockNamespaceIndexMockRecorder is the mock recorder for MockNamespaceIndex
+type MockNamespaceIndexMockRecorder struct {
+	mock *MockNamespaceIndex
+}
+
+// NewMockNamespaceIndex creates a new mock instance
+func NewMockNamespaceIndex(ctrl *gomock.Controller) *MockNamespaceIndex {
+	mock := &MockNamespaceIndex{ctrl: ctrl}
+	mock.recorder = &MockNamespaceIndexMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockNamespaceIndex) EXPECT() *MockNamespaceIndexMockRecorder {
 	return m.recorder
 }
 
 // AssignShardSet mocks base method
-func (m *MocknamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
+func (m *MockNamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
 // AssignShardSet indicates an expected call of AssignShardSet
-func (mr *MocknamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MocknamespaceIndex)(nil).AssignShardSet), shardSet)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockNamespaceIndex)(nil).AssignShardSet), shardSet)
 }
 
 // BlockStartForWriteTime mocks base method
-func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+func (m *MockNamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
 	ret0, _ := ret[0].(time0.UnixNano)
@@ -1997,13 +2181,28 @@ func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.U
 }
 
 // BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
-func (mr *MocknamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MocknamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
+}
+
+// BlockForBlockStart mocks base method
+func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockForBlockStart", blockStart)
+	ret0, _ := ret[0].(index.Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BlockForBlockStart indicates an expected call of BlockForBlockStart
+func (mr *MockNamespaceIndexMockRecorder) BlockForBlockStart(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockForBlockStart", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockForBlockStart), blockStart)
 }
 
 // WriteBatch mocks base method
-func (m *MocknamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
+func (m *MockNamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", batch)
 	ret0, _ := ret[0].(error)
@@ -2011,13 +2210,27 @@ func (m *MocknamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MocknamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MocknamespaceIndex)(nil).WriteBatch), batch)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockNamespaceIndex)(nil).WriteBatch), batch)
+}
+
+// WritePending mocks base method
+func (m *MockNamespaceIndex) WritePending(pending []writes.PendingIndexInsert) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePending", pending)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePending indicates an expected call of WritePending
+func (mr *MockNamespaceIndexMockRecorder) WritePending(pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePending", reflect.TypeOf((*MockNamespaceIndex)(nil).WritePending), pending)
 }
 
 // Query mocks base method
-func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
+func (m *MockNamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", ctx, query, opts)
 	ret0, _ := ret[0].(index.QueryResult)
@@ -2026,13 +2239,13 @@ func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts 
 }
 
 // Query indicates an expected call of Query
-func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), ctx, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockNamespaceIndex)(nil).Query), ctx, query, opts)
 }
 
 // AggregateQuery mocks base method
-func (m *MocknamespaceIndex) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
+func (m *MockNamespaceIndex) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateQuery", ctx, query, opts)
 	ret0, _ := ret[0].(index.AggregateQueryResult)
@@ -2041,13 +2254,13 @@ func (m *MocknamespaceIndex) AggregateQuery(ctx context.Context, query index.Que
 }
 
 // AggregateQuery indicates an expected call of AggregateQuery
-func (mr *MocknamespaceIndexMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) AggregateQuery(ctx, query, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MocknamespaceIndex)(nil).AggregateQuery), ctx, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).AggregateQuery), ctx, query, opts)
 }
 
 // Bootstrap mocks base method
-func (m *MocknamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) error {
+func (m *MockNamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResults)
 	ret0, _ := ret[0].(error)
@@ -2055,13 +2268,13 @@ func (m *MocknamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) err
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MocknamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), bootstrapResults)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
 // BootstrapsDone mocks base method
-func (m *MocknamespaceIndex) BootstrapsDone() uint {
+func (m *MockNamespaceIndex) BootstrapsDone() uint {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapsDone")
 	ret0, _ := ret[0].(uint)
@@ -2069,13 +2282,13 @@ func (m *MocknamespaceIndex) BootstrapsDone() uint {
 }
 
 // BootstrapsDone indicates an expected call of BootstrapsDone
-func (mr *MocknamespaceIndexMockRecorder) BootstrapsDone() *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) BootstrapsDone() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapsDone", reflect.TypeOf((*MocknamespaceIndex)(nil).BootstrapsDone))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapsDone", reflect.TypeOf((*MockNamespaceIndex)(nil).BootstrapsDone))
 }
 
 // CleanupExpiredFileSets mocks base method
-func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
+func (m *MockNamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
 	ret0, _ := ret[0].(error)
@@ -2083,13 +2296,27 @@ func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
 }
 
 // CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
-func (mr *MocknamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MocknamespaceIndex)(nil).CleanupExpiredFileSets), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupExpiredFileSets), t)
+}
+
+// CleanupDuplicateFileSets mocks base method
+func (m *MockNamespaceIndex) CleanupDuplicateFileSets() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupDuplicateFileSets")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupDuplicateFileSets indicates an expected call of CleanupDuplicateFileSets
+func (mr *MockNamespaceIndexMockRecorder) CleanupDuplicateFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDuplicateFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupDuplicateFileSets))
 }
 
 // Tick mocks base method
-func (m *MocknamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
+func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, startTime)
 	ret0, _ := ret[0].(namespaceIndexTickResult)
@@ -2098,27 +2325,56 @@ func (m *MocknamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (n
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MocknamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c, startTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockNamespaceIndex)(nil).Tick), c, startTime)
 }
 
-// Flush mocks base method
-func (m *MocknamespaceIndex) Flush(flush persist.IndexFlush, shards []databaseShard) error {
+// WarmFlush mocks base method
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", flush, shards)
+	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Flush indicates an expected call of Flush
-func (mr *MocknamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomock.Call {
+// WarmFlush indicates an expected call of WarmFlush
+func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MocknamespaceIndex)(nil).Flush), flush, shards)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+}
+
+// ColdFlush mocks base method
+func (m *MockNamespaceIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlush", shards)
+	ret0, _ := ret[0].(OnColdFlushDone)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ColdFlush indicates an expected call of ColdFlush
+func (mr *MockNamespaceIndexMockRecorder) ColdFlush(shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).ColdFlush), shards)
+}
+
+// DebugMemorySegments mocks base method
+func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugMemorySegments", opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DebugMemorySegments indicates an expected call of DebugMemorySegments
+func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
 }
 
 // Close mocks base method
-func (m *MocknamespaceIndex) Close() error {
+func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
@@ -2126,9 +2382,9 @@ func (m *MocknamespaceIndex) Close() error {
 }
 
 // Close indicates an expected call of Close
-func (mr *MocknamespaceIndexMockRecorder) Close() *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocknamespaceIndex)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceIndex)(nil).Close))
 }
 
 // MocknamespaceIndexInsertQueue is a mock of namespaceIndexInsertQueue interface
@@ -2197,6 +2453,21 @@ func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(batch interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), batch)
 }
 
+// InsertPending mocks base method
+func (m *MocknamespaceIndexInsertQueue) InsertPending(pending []writes.PendingIndexInsert) (*sync.WaitGroup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPending", pending)
+	ret0, _ := ret[0].(*sync.WaitGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPending indicates an expected call of InsertPending
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertPending(pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPending", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertPending), pending)
+}
+
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
 type MockdatabaseBootstrapManager struct {
 	ctrl     *gomock.Controller
@@ -2235,10 +2506,10 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Cal
 }
 
 // LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2314,10 +2585,10 @@ func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime interface{}) *go
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2363,18 +2634,32 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 	return m.recorder
 }
 
-// Cleanup mocks base method
-func (m *MockdatabaseCleanupManager) Cleanup(t time.Time) error {
+// WarmFlushCleanup mocks base method
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
+func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+}
+
+// ColdFlushCleanup mocks base method
+func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t, isBootstrapped)
 }
 
 // Report mocks base method
@@ -2410,20 +2695,6 @@ func NewMockdatabaseFileSystemManager(ctrl *gomock.Controller) *MockdatabaseFile
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerMockRecorder {
 	return m.recorder
-}
-
-// Cleanup mocks base method
-func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t)
 }
 
 // Flush mocks base method
@@ -2509,10 +2780,10 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2521,6 +2792,125 @@ func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time.
 func (mr *MockdatabaseFileSystemManagerMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).LastSuccessfulSnapshotStartTime))
+}
+
+// MockdatabaseColdFlushManager is a mock of databaseColdFlushManager interface
+type MockdatabaseColdFlushManager struct {
+	ctrl     *gomock.Controller
+	recorder *MockdatabaseColdFlushManagerMockRecorder
+}
+
+// MockdatabaseColdFlushManagerMockRecorder is the mock recorder for MockdatabaseColdFlushManager
+type MockdatabaseColdFlushManagerMockRecorder struct {
+	mock *MockdatabaseColdFlushManager
+}
+
+// NewMockdatabaseColdFlushManager creates a new mock instance
+func NewMockdatabaseColdFlushManager(ctrl *gomock.Controller) *MockdatabaseColdFlushManager {
+	mock := &MockdatabaseColdFlushManager{ctrl: ctrl}
+	mock.recorder = &MockdatabaseColdFlushManagerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMockRecorder {
+	return m.recorder
+}
+
+// WarmFlushCleanup mocks base method
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
+func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+}
+
+// ColdFlushCleanup mocks base method
+func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t, isBootstrapped)
+}
+
+// Report mocks base method
+func (m *MockdatabaseColdFlushManager) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Report))
+}
+
+// Disable mocks base method
+func (m *MockdatabaseColdFlushManager) Disable() fileOpStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Disable")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+// Disable indicates an expected call of Disable
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Disable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disable", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Disable))
+}
+
+// Enable mocks base method
+func (m *MockdatabaseColdFlushManager) Enable() fileOpStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Enable")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+// Enable indicates an expected call of Enable
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Enable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enable", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Enable))
+}
+
+// Status mocks base method
+func (m *MockdatabaseColdFlushManager) Status() fileOpStatus {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Status")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+// Status indicates an expected call of Status
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Status))
+}
+
+// Run mocks base method
+func (m *MockdatabaseColdFlushManager) Run(t time.Time) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Run", t)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Run indicates an expected call of Run
+func (mr *MockdatabaseColdFlushManagerMockRecorder) Run(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Run), t)
 }
 
 // MockdatabaseShardRepairer is a mock of databaseShardRepairer interface
@@ -2737,10 +3127,10 @@ func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
 }
 
 // LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time.Time, bool) {
+func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2766,16 +3156,16 @@ func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
 }
 
-// DisableFileOps mocks base method
-func (m *MockdatabaseMediator) DisableFileOps() {
+// DisableFileOpsAndWait mocks base method
+func (m *MockdatabaseMediator) DisableFileOpsAndWait() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DisableFileOps")
+	m.ctrl.Call(m, "DisableFileOpsAndWait")
 }
 
-// DisableFileOps indicates an expected call of DisableFileOps
-func (mr *MockdatabaseMediatorMockRecorder) DisableFileOps() *gomock.Call {
+// DisableFileOpsAndWait indicates an expected call of DisableFileOpsAndWait
+func (mr *MockdatabaseMediatorMockRecorder) DisableFileOpsAndWait() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOps))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOpsAndWait", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOpsAndWait))
 }
 
 // EnableFileOps mocks base method
@@ -2845,10 +3235,10 @@ func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2857,6 +3247,95 @@ func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time.Time, boo
 func (mr *MockdatabaseMediatorMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastSuccessfulSnapshotStartTime))
+}
+
+// MockOnColdFlush is a mock of OnColdFlush interface
+type MockOnColdFlush struct {
+	ctrl     *gomock.Controller
+	recorder *MockOnColdFlushMockRecorder
+}
+
+// MockOnColdFlushMockRecorder is the mock recorder for MockOnColdFlush
+type MockOnColdFlushMockRecorder struct {
+	mock *MockOnColdFlush
+}
+
+// NewMockOnColdFlush creates a new mock instance
+func NewMockOnColdFlush(ctrl *gomock.Controller) *MockOnColdFlush {
+	mock := &MockOnColdFlush{ctrl: ctrl}
+	mock.recorder = &MockOnColdFlushMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockOnColdFlush) EXPECT() *MockOnColdFlushMockRecorder {
+	return m.recorder
+}
+
+// ColdFlushNamespace mocks base method
+func (m *MockOnColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushNamespace", ns)
+	ret0, _ := ret[0].(OnColdFlushNamespace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ColdFlushNamespace indicates an expected call of ColdFlushNamespace
+func (mr *MockOnColdFlushMockRecorder) ColdFlushNamespace(ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushNamespace", reflect.TypeOf((*MockOnColdFlush)(nil).ColdFlushNamespace), ns)
+}
+
+// MockOnColdFlushNamespace is a mock of OnColdFlushNamespace interface
+type MockOnColdFlushNamespace struct {
+	ctrl     *gomock.Controller
+	recorder *MockOnColdFlushNamespaceMockRecorder
+}
+
+// MockOnColdFlushNamespaceMockRecorder is the mock recorder for MockOnColdFlushNamespace
+type MockOnColdFlushNamespaceMockRecorder struct {
+	mock *MockOnColdFlushNamespace
+}
+
+// NewMockOnColdFlushNamespace creates a new mock instance
+func NewMockOnColdFlushNamespace(ctrl *gomock.Controller) *MockOnColdFlushNamespace {
+	mock := &MockOnColdFlushNamespace{ctrl: ctrl}
+	mock.recorder = &MockOnColdFlushNamespaceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockOnColdFlushNamespace) EXPECT() *MockOnColdFlushNamespaceMockRecorder {
+	return m.recorder
+}
+
+// OnFlushNewSeries mocks base method
+func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSeriesEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// OnFlushNewSeries indicates an expected call of OnFlushNewSeries
+func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
+}
+
+// Done mocks base method
+func (m *MockOnColdFlushNamespace) Done() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockOnColdFlushNamespaceMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).Done))
 }
 
 // MockOptions is a mock of Options interface
@@ -3723,7 +4202,7 @@ func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
 }
 
 // SetWriteBatchPool mocks base method
-func (m *MockOptions) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+func (m *MockOptions) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
 	ret0, _ := ret[0].(Options)
@@ -3737,10 +4216,10 @@ func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.
 }
 
 // WriteBatchPool mocks base method
-func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
+func (m *MockOptions) WriteBatchPool() *writes.WriteBatchPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatchPool")
-	ret0, _ := ret[0].(*ts.WriteBatchPool)
+	ret0, _ := ret[0].(*writes.WriteBatchPool)
 	return ret0
 }
 
@@ -3918,6 +4397,34 @@ func (mr *MockOptionsMockRecorder) BlockLeaseManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).BlockLeaseManager))
 }
 
+// SetOnColdFlush mocks base method
+func (m *MockOptions) SetOnColdFlush(value OnColdFlush) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetOnColdFlush", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetOnColdFlush indicates an expected call of SetOnColdFlush
+func (mr *MockOptionsMockRecorder) SetOnColdFlush(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOnColdFlush", reflect.TypeOf((*MockOptions)(nil).SetOnColdFlush), value)
+}
+
+// OnColdFlush mocks base method
+func (m *MockOptions) OnColdFlush() OnColdFlush {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OnColdFlush")
+	ret0, _ := ret[0].(OnColdFlush)
+	return ret0
+}
+
+// OnColdFlush indicates an expected call of OnColdFlush
+func (mr *MockOptionsMockRecorder) OnColdFlush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnColdFlush", reflect.TypeOf((*MockOptions)(nil).OnColdFlush))
+}
+
 // SetMemoryTracker mocks base method
 func (m *MockOptions) SetMemoryTracker(memTracker MemoryTracker) Options {
 	m.ctrl.T.Helper()
@@ -3972,6 +4479,90 @@ func (m *MockOptions) MmapReporter() mmap.Reporter {
 func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// SetDoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
+}
+
+// DoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceRuntimeOptionsManagerRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry indicates an expected call of SetNamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) SetNamespaceRuntimeOptionsManagerRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).SetNamespaceRuntimeOptionsManagerRegistry), value)
+}
+
+// NamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceRuntimeOptionsManagerRegistry")
+	ret0, _ := ret[0].(namespace.RuntimeOptionsManagerRegistry)
+	return ret0
+}
+
+// NamespaceRuntimeOptionsManagerRegistry indicates an expected call of NamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) NamespaceRuntimeOptionsManagerRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).NamespaceRuntimeOptionsManagerRegistry))
+}
+
+// SetMediatorTickInterval mocks base method
+func (m *MockOptions) SetMediatorTickInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMediatorTickInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMediatorTickInterval indicates an expected call of SetMediatorTickInterval
+func (mr *MockOptionsMockRecorder) SetMediatorTickInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).SetMediatorTickInterval), value)
+}
+
+// MediatorTickInterval mocks base method
+func (m *MockOptions) MediatorTickInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MediatorTickInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// MediatorTickInterval indicates an expected call of MediatorTickInterval
+func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

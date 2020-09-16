@@ -128,16 +128,10 @@ func TestCounterResetSetData(t *testing.T) {
 	// Reset element with a pipeline containing a derivative transformation.
 	expectedParsedPipeline := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
-			},
-		}),
+		Transformations: []transformation.Op{
+			mustNewOp(t, transformation.Absolute),
+			mustNewOp(t, transformation.PerSecond),
+		},
 		HasRollup: true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo.bar"),
@@ -155,10 +149,10 @@ func TestCounterResetSetData(t *testing.T) {
 	}
 	err = ce.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
-	require.Equal(t, expectedParsedPipeline, ce.parsedPipeline)
+	requirePipelinesMatch(t, expectedParsedPipeline, ce.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(ce.lastConsumedValues))
 	for i := 0; i < len(ce.lastConsumedValues); i++ {
-		require.True(t, math.IsNaN(ce.lastConsumedValues[i]))
+		require.True(t, math.IsNaN(ce.lastConsumedValues[i].Value))
 	}
 }
 
@@ -169,18 +163,18 @@ func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCounterResetSetDataInvalidPipeline(t *testing.T) {
+func TestCounterResetSetDataNoRollup(t *testing.T) {
 	opts := NewOptions()
 	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 
-	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
+	pipelineNoRollup := applied.NewPipeline([]applied.OpUnion{
 		{
 			Type:           pipeline.TransformationOpType,
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0, NoPrefixNoSuffix)
-	require.Error(t, err)
+	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, pipelineNoRollup, 0, NoPrefixNoSuffix)
+	require.NoError(t, err)
 }
 
 func TestCounterElemAddUnion(t *testing.T) {
@@ -535,7 +529,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Equal(t, time.Unix(220, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{123.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 123.0, e.lastConsumedValues[0].Value)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -559,7 +554,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, time.Unix(240, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{589.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 589.0, e.lastConsumedValues[0].Value)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -683,16 +679,10 @@ func TestTimerResetSetData(t *testing.T) {
 	// Reset element with a pipeline containing a derivative transformation.
 	expectedParsedPipeline := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
-			},
-		}),
+		Transformations: []transformation.Op{
+			mustNewOp(t, transformation.Absolute),
+			mustNewOp(t, transformation.PerSecond),
+		},
 		HasRollup: true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo.bar"),
@@ -710,10 +700,10 @@ func TestTimerResetSetData(t *testing.T) {
 	}
 	err = te.ResetSetData(testBatchTimerID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
-	require.Equal(t, expectedParsedPipeline, te.parsedPipeline)
+	requirePipelinesMatch(t, expectedParsedPipeline, te.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(te.lastConsumedValues))
 	for i := 0; i < len(te.lastConsumedValues); i++ {
-		require.True(t, math.IsNaN(te.lastConsumedValues[i]))
+		require.True(t, math.IsNaN(te.lastConsumedValues[i].Value))
 	}
 }
 
@@ -724,18 +714,18 @@ func TestTimerResetSetDataInvalidAggregationType(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestTimerResetSetDataInvalidPipeline(t *testing.T) {
+func TestTimerResetSetDataNoRollup(t *testing.T) {
 	opts := NewOptions()
 	te := MustNewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 
-	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
+	pipelineNoRollup := applied.NewPipeline([]applied.OpUnion{
 		{
 			Type:           pipeline.TransformationOpType,
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0, NoPrefixNoSuffix)
-	require.Error(t, err)
+	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, pipelineNoRollup, 0, NoPrefixNoSuffix)
+	require.NoError(t, err)
 }
 
 func TestTimerElemAddUnion(t *testing.T) {
@@ -1033,7 +1023,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Equal(t, time.Unix(220, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{123.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 123.0, e.lastConsumedValues[0].Value)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1057,7 +1048,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, time.Unix(240, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{589.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 589.0, e.lastConsumedValues[0].Value)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1186,16 +1178,10 @@ func TestGaugeResetSetData(t *testing.T) {
 	// Reset element with a pipeline containing a derivative transformation.
 	expectedParsedPipeline := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
-			},
-		}),
+		Transformations: []transformation.Op{
+			mustNewOp(t, transformation.Absolute),
+			mustNewOp(t, transformation.PerSecond),
+		},
 		HasRollup: true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo.bar"),
@@ -1213,10 +1199,10 @@ func TestGaugeResetSetData(t *testing.T) {
 	}
 	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
-	require.Equal(t, expectedParsedPipeline, ge.parsedPipeline)
+	requirePipelinesMatch(t, expectedParsedPipeline, ge.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(ge.lastConsumedValues))
 	for i := 0; i < len(ge.lastConsumedValues); i++ {
-		require.True(t, math.IsNaN(ge.lastConsumedValues[i]))
+		require.True(t, math.IsNaN(ge.lastConsumedValues[i].Value))
 	}
 }
 
@@ -1576,7 +1562,8 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Equal(t, time.Unix(220, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{123.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 123.0, e.lastConsumedValues[0].Value)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1600,7 +1587,8 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, time.Unix(240, 0).UnixNano(), e.lastConsumedAtNanos)
-	require.Equal(t, []float64{589.0}, e.lastConsumedValues)
+	require.Equal(t, 1, len(e.lastConsumedValues))
+	require.Equal(t, 589.0, e.lastConsumedValues[0].Value)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1804,7 +1792,7 @@ func testCounterElem(
 	e := MustNewCounterElem(testCounterID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		counter := &lockedCounterAggregation{aggregation: newCounterAggregation(raggregation.NewCounter(e.aggOpts))}
-		counter.aggregation.Update(counterVals[i])
+		counter.aggregation.Update(time.Unix(0, aligned), counterVals[i])
 		e.values = append(e.values, timedCounter{
 			startAtNanos: aligned,
 			lockedAgg:    counter,
@@ -1824,7 +1812,7 @@ func testTimerElem(
 	for i, aligned := range alignedstartAtNanos {
 		newTimer := raggregation.NewTimer(opts.AggregationTypesOptions().Quantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := &lockedTimerAggregation{aggregation: newTimerAggregation(newTimer)}
-		timer.aggregation.AddBatch(timerBatches[i])
+		timer.aggregation.AddBatch(time.Now(), timerBatches[i])
 		e.values = append(e.values, timedTimer{
 			startAtNanos: aligned,
 			lockedAgg:    timer,
@@ -1843,7 +1831,7 @@ func testGaugeElem(
 	e := MustNewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts))}
-		gauge.aggregation.Update(gaugeVals[i])
+		gauge.aggregation.Update(time.Unix(0, aligned), gaugeVals[i])
 		e.values = append(e.values, timedGauge{
 			startAtNanos: aligned,
 			lockedAgg:    gauge,

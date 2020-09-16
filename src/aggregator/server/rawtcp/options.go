@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/server"
 )
 
@@ -79,6 +80,12 @@ type Options interface {
 
 	// ErrorLogLimitPerSecond returns the error log limit per second.
 	ErrorLogLimitPerSecond() int64
+
+	// SetRWOptions sets RW options.
+	SetRWOptions(value xio.Options) Options
+
+	// RWOptions returns the RW options.
+	RWOptions() xio.Options
 }
 
 type options struct {
@@ -89,6 +96,7 @@ type options struct {
 	protobufItOpts       protobuf.UnaggregatedOptions
 	readBufferSize       int
 	errLogLimitPerSecond int64
+	rwOpts               xio.Options
 }
 
 // NewOptions creates a new set of server options.
@@ -101,6 +109,7 @@ func NewOptions() Options {
 		protobufItOpts:       protobuf.NewUnaggregatedOptions(),
 		readBufferSize:       defaultReadBufferSize,
 		errLogLimitPerSecond: defaultErrorLogLimitPerSecond,
+		rwOpts:               xio.NewOptions(),
 	}
 }
 
@@ -172,4 +181,14 @@ func (o *options) SetErrorLogLimitPerSecond(value int64) Options {
 
 func (o *options) ErrorLogLimitPerSecond() int64 {
 	return o.errLogLimitPerSecond
+}
+
+func (o *options) SetRWOptions(value xio.Options) Options {
+	opts := *o
+	opts.rwOpts = value
+	return &opts
+}
+
+func (o *options) RWOptions() xio.Options {
+	return o.rwOpts
 }

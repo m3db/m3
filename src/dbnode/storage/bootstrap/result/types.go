@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -53,25 +54,54 @@ type IndexBootstrapResult interface {
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
 
 	// Add adds an index block result.
-	Add(block IndexBlock, unfulfilled ShardTimeRanges)
+	Add(blocks IndexBlockByVolumeType, unfulfilled ShardTimeRanges)
 
 	// NumSeries returns the total number of series across all segments.
 	NumSeries() int
 }
 
 // IndexResults is a set of index blocks indexed by block start.
-type IndexResults map[xtime.UnixNano]IndexBlock
+type IndexResults map[xtime.UnixNano]IndexBlockByVolumeType
 
 // IndexBuilder wraps a index segment builder w/ batching.
 type IndexBuilder struct {
 	builder segment.DocumentsBuilder
 }
 
-// IndexBlock contains the bootstrap data structures for an index block.
-type IndexBlock struct {
+// IndexBlockByVolumeType contains the bootstrap data structures for an index block by volume type.
+type IndexBlockByVolumeType struct {
 	blockStart time.Time
-	segments   []segment.Segment
-	fulfilled  ShardTimeRanges
+	data       map[persist.IndexVolumeType]IndexBlock
+}
+
+// IndexBlock is an index block for a index volume type.
+type IndexBlock struct {
+	segments  []Segment
+	fulfilled ShardTimeRanges
+}
+
+// Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.
+type Segment struct {
+	segment   segment.Segment
+	persisted bool
+}
+
+// NewSegment returns an index segment w/ persistence metadata.
+func NewSegment(segment segment.Segment, persisted bool) Segment {
+	return Segment{
+		segment:   segment,
+		persisted: persisted,
+	}
+}
+
+// IsPersisted returns whether or not the underlying segment was persisted to disk.
+func (s Segment) IsPersisted() bool {
+	return s.persisted
+}
+
+// Segment returns a segment.
+func (s Segment) Segment() segment.Segment {
+	return s.segment
 }
 
 // DocumentsBuilderAllocator allocates a new DocumentsBuilder type when
@@ -123,7 +153,63 @@ type DatabaseSeriesBlocks struct {
 type ShardResults map[uint32]ShardResult
 
 // ShardTimeRanges is a map of shards to time ranges.
-type ShardTimeRanges map[uint32]xtime.Ranges
+type ShardTimeRanges interface {
+	// Get time ranges for a shard.
+	Get(shard uint32) (xtime.Ranges, bool)
+
+	// Set time ranges for a shard.
+	Set(shard uint32, ranges xtime.Ranges) ShardTimeRanges
+
+	// GetOrAdd gets or adds time ranges for a shard.
+	GetOrAdd(shard uint32) xtime.Ranges
+
+	// AddRanges adds other shard time ranges to the current shard time ranges.
+	AddRanges(ranges ShardTimeRanges)
+
+	// Iter returns the underlying map.
+	Iter() map[uint32]xtime.Ranges
+
+	Copy() ShardTimeRanges
+
+	// IsSuperset returns whether the current shard time ranges are a
+	// superset of the other shard time ranges.
+	IsSuperset(other ShardTimeRanges) bool
+
+	// Equal returns whether two shard time ranges are equal.
+	Equal(other ShardTimeRanges) bool
+
+	// ToUnfulfilledDataResult will return a result that is comprised of wholly
+	// unfufilled time ranges from the set of shard time ranges.
+	ToUnfulfilledDataResult() DataBootstrapResult
+
+	// ToUnfulfilledIndexResult will return a result that is comprised of wholly
+	// unfufilled time ranges from the set of shard time ranges.
+	ToUnfulfilledIndexResult() IndexBootstrapResult
+
+	// Subtract will subtract another range from the current range.
+	Subtract(other ShardTimeRanges)
+
+	// MinMax will return the very minimum time as a start and the
+	// maximum time as an end in the ranges.
+	MinMax() (time.Time, time.Time)
+
+	// MinMaxRange returns the min and max times, and the duration for this range.
+	MinMaxRange() (time.Time, time.Time, time.Duration)
+
+	// String returns a description of the time ranges
+	String() string
+
+	// SummaryString returns a summary description of the time ranges
+	SummaryString() string
+
+	// IsEmpty returns whether the shard time ranges is empty or not.
+	IsEmpty() bool
+
+	// Len returns the number of shards
+	Len() int
+}
+
+type shardTimeRanges map[uint32]xtime.Ranges
 
 // Options represents the options for bootstrap results.
 type Options interface {

@@ -27,23 +27,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber/tchannel-go"
 )
 
 var (
 	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
 	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
-)
-
-// TODO(bodu): Could make these configurable at some point.
-const (
-	idleCheckInterval = 5 * time.Minute
-	maxIdleTime       = 5 * time.Minute
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -54,7 +46,7 @@ type ClustersStaticConfiguration []ClusterStaticConfiguration
 type NewClientFromConfig func(
 	cfg client.Configuration,
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error)
 
 // ClusterStaticConfiguration is a static cluster configuration.
@@ -66,12 +58,12 @@ type ClusterStaticConfiguration struct {
 
 func (c ClusterStaticConfiguration) newClient(
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error) {
 	if c.NewClientFromConfig != nil {
 		return c.NewClientFromConfig(c.Client, params, custom...)
 	}
-	return c.Client.NewClient(params, custom...)
+	return c.Client.NewAdminClient(params, custom...)
 }
 
 // ClusterStaticNamespaceConfiguration describes the namespaces in a
@@ -82,7 +74,7 @@ type ClusterStaticNamespaceConfiguration struct {
 
 	// Type is the type of values stored by the namespace, current
 	// supported values are "unaggregated" or "aggregated".
-	Type storage.MetricsType `yaml:"type"`
+	Type storagemetadata.MetricsType `yaml:"type"`
 
 	// Retention is the length of which values are stored by the namespace.
 	Retention time.Duration `yaml:"retention" validate:"nonzero"`
@@ -98,11 +90,11 @@ type ClusterStaticNamespaceConfiguration struct {
 	//
 	// Deprecated: Use "Type" field when specifying config instead, it is
 	// invalid to use both.
-	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
+	StorageMetricsType storagemetadata.MetricsType `yaml:"storageMetricsType"`
 }
 
-func (c ClusterStaticNamespaceConfiguration) metricsType() (storage.MetricsType, error) {
-	unset := storage.MetricsType(0)
+func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
+	unset := storagemetadata.MetricsType(0)
 	if c.Type != unset && c.StorageMetricsType != unset {
 		// Don't allow both to not be default
 		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
@@ -119,7 +111,7 @@ func (c ClusterStaticNamespaceConfiguration) metricsType() (storage.MetricsType,
 	}
 
 	// Both are unset
-	return storage.DefaultMetricsType, nil
+	return storagemetadata.DefaultMetricsType, nil
 }
 
 func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
@@ -130,7 +122,7 @@ func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
 	if err != nil {
 		return ClusterNamespaceDownsampleOptions{}, err
 	}
-	if nsType != storage.AggregatedMetricsType {
+	if nsType != storagemetadata.AggregatedMetricsType {
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if c.Downsample == nil {
@@ -170,8 +162,9 @@ type clusterConnectResult struct {
 // ClustersStaticConfigurationOptions are options to use when
 // constructing clusters from config.
 type ClustersStaticConfigurationOptions struct {
-	AsyncSessions   bool
-	ProvidedSession client.Session
+	AsyncSessions      bool
+	ProvidedSession    client.Session
+	CustomAdminOptions []client.CustomAdminOption
 }
 
 // NewClusters instantiates a new Clusters instance.
@@ -195,16 +188,9 @@ func (c ClustersStaticConfiguration) NewClusters(
 
 		if opts.ProvidedSession == nil {
 			// NB(r): Only create client session if not already provided.
-			result, err = clusterCfg.newClient(
-				client.ConfigurationParameters{
-					InstrumentOptions: instrumentOpts,
-				},
-				func(opts client.Options) client.Options {
-					return opts.SetChannelOptions(&tchannel.ChannelOptions{
-						IdleCheckInterval: idleCheckInterval,
-						MaxIdleTime:       maxIdleTime,
-					})
-				})
+			result, err = clusterCfg.newClient(client.ConfigurationParameters{
+				InstrumentOptions: instrumentOpts,
+			}, opts.CustomAdminOptions...)
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +207,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			}
 
 			switch nsType {
-			case storage.UnaggregatedMetricsType:
+			case storagemetadata.UnaggregatedMetricsType:
 				numUnaggregatedClusterNamespaces++
 				if numUnaggregatedClusterNamespaces > 1 {
 					return nil, fmt.Errorf("only one unaggregated cluster namespace  "+
@@ -231,7 +217,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 				unaggregatedClusterNamespaceCfg.client = result
 				unaggregatedClusterNamespaceCfg.namespace = n
 
-			case storage.AggregatedMetricsType:
+			case storagemetadata.AggregatedMetricsType:
 				numAggregatedClusterNamespaces++
 
 				aggregatedClusterNamespacesCfg.namespaces =
