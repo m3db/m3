@@ -839,6 +839,7 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
+// BackgroundProcess is the interface for background processes that are being run by the database.
 type BackgroundProcess interface {
 	// Start starts BackgroundProcess.
 	Start()
