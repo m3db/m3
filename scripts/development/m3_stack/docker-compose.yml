@@ -12,7 +12,6 @@ services:
       - "./schema.proto:/etc/m3dbnode/schema.proto"
     environment:
       - M3DB_HOST_ID=m3db_seed
-      - RAW_NAMESPACE=default
     expose:
       - "9002"
       - "9003"

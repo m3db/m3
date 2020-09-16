@@ -2666,7 +2666,7 @@ func (s *dbShard) AggregateTiles(
 	blockReaders []fs.DataFileSetReader,
 	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
-	targetSchemaDesc namespace.SchemaDescr,
+	targetSchemaDescr namespace.SchemaDescr,
 ) (int64, error) {
 	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
@@ -2733,7 +2733,7 @@ func (s *dbShard) AggregateTiles(
 
 	encoder := s.opts.EncoderPool().Get()
 	defer encoder.Close()
-	encoder.SetSchema(targetSchemaDesc)
+	encoder.SetSchema(targetSchemaDescr)
 
 	latestTargetVolume, err := s.LatestVolume(opts.Start)
 	nextVersion := latestTargetVolume + 1
@@ -2771,7 +2771,7 @@ func (s *dbShard) AggregateTiles(
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
 		prevFrameLastValue := math.NaN()
-		encoder.Reset(opts.Start, 0, targetSchemaDesc)
+		encoder.Reset(opts.Start, 0, targetSchemaDescr)
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
 			unit, singleUnit := frame.Units().SingleValue()

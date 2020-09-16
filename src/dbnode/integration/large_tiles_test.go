@@ -24,7 +24,6 @@ package integration
 
 import (
 	"io"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -299,7 +298,6 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 			SetColdWritesEnabled(true)
 	)
 
-	os.Setenv("RAW_NAMESPACE", testNamespaces[0].String())
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)

@@ -391,7 +391,6 @@ func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) 
 			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
 			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
 	}
-
 	data := r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size]
 
 	// NB(r): _must_ check the checksum against known checksum as the data

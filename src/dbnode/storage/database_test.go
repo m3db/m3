@@ -1305,7 +1305,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, true)
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())

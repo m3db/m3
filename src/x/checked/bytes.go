@@ -20,8 +20,6 @@
 
 package checked
 
-import "go.uber.org/atomic"
-
 var (
 	defaultBytesOptions = NewBytesOptions()
 )
@@ -54,17 +52,13 @@ type Bytes interface {
 
 	// Reset will reset the reference referred to by the bytes.
 	Reset(v []byte)
-
-	Finalized() bool
-	SetFinalized(f bool)
 }
 
 type bytesRef struct {
 	RefCount
 
-	opts      BytesOptions
-	value     []byte
-	finalized atomic.Bool
+	opts  BytesOptions
+	value []byte
 }
 
 // NewBytes returns a new checked byte slice.
@@ -135,15 +129,6 @@ func (b *bytesRef) OnFinalize() {
 		finalizer.FinalizeBytes(b)
 	}
 }
-
-func (b *bytesRef) Finalized() bool {
-	return b.finalized.Load()
-}
-
-func (b *bytesRef) SetFinalized(f bool) {
-	b.finalized.Store(f)
-}
-
 
 type bytesOptions struct {
 	finalizer BytesFinalizer

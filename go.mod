@@ -52,7 +52,6 @@ require (
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
-	github.com/m3db/bloom v3.0.1+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
 	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
