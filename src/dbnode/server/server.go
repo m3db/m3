@@ -417,7 +417,7 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
-	queryLimits, err := limits.NewQueryLimits(iopts, docsLimit, bytesReadLimit)
+	queryLimits, err := limits.NewQueryLimits(docsLimit, bytesReadLimit, iopts)
 	if err != nil {
 		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
 	}

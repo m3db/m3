@@ -57,20 +57,3 @@ func (q *noOpQueryLimits) Start() {
 func (q *noOpLookbackLimit) Inc(int) error {
 	return nil
 }
-
-func (q *noOpLookbackLimit) Exceeded() error {
-	return nil
-}
-
-func (q *noOpLookbackLimit) Stop() {
-}
-
-func (q *noOpLookbackLimit) Start() {
-}
-
-func (q *noOpLookbackLimit) current() int64 {
-	return 0
-}
-
-func (q *noOpLookbackLimit) reset() {
-}
