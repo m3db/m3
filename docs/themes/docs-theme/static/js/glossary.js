@@ -176,7 +176,6 @@ $( document ).ready(function() {
 
   initClickFunctions();
   activeTags = urlParamLib.initParams();
-  console.log(activeTags);
   // initActiveTags();
 
 });
