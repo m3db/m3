@@ -23,7 +23,6 @@ package namespace
 import (
 	"errors"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/gogo/protobuf/proto"
 	protobuftypes "github.com/gogo/protobuf/types"
 )
 
