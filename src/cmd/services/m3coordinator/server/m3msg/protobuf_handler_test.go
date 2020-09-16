@@ -127,6 +127,73 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 	require.Equal(t, m2.StoragePolicy, payload.sp)
 }
 
+func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	w := &mockWriter{m: make(map[string]payload)}
+	hOpts := Options{
+		WriteFn:           w.write,
+		InstrumentOptions: instrument.NewOptions(),
+		BlockholePolicies: []policy.StoragePolicy{validStoragePolicy},
+	}
+	opts := consumer.NewOptions().
+		SetAckBufferSize(1).
+		SetConnectionWriteBufferSize(1)
+
+	s := server.NewServer(
+		"a",
+		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		server.NewOptions(),
+	)
+	s.Serve(l)
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	m1 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte(testID),
+			TimeNanos: 1000,
+			Value:     1,
+			Type:      metric.GaugeType,
+		},
+		StoragePolicy: validStoragePolicy,
+	}
+
+	encoder := protobuf.NewAggregatedEncoder(nil)
+	require.NoError(t, encoder.Encode(m1, 2000))
+	enc := proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+
+	var a msgpb.Ack
+	dec := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 0, w.ingested())
+
+	m2 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte{},
+			TimeNanos: 0,
+			Value:     0,
+			Type:      metric.UnknownType,
+		},
+		StoragePolicy: validStoragePolicy,
+	}
+	require.NoError(t, encoder.Encode(m2, 3000))
+	enc = proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 0, w.ingested())
+}
+
 type mockWriter struct {
 	sync.Mutex
 

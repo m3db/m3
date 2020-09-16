@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -38,11 +39,13 @@ type Options struct {
 	InstrumentOptions          instrument.Options
 	WriteFn                    WriteFn
 	ProtobufDecoderPoolOptions pool.ObjectPoolOptions
+	BlockholePolicies          []policy.StoragePolicy
 }
 
 type handlerMetrics struct {
 	messageReadError             tally.Counter
 	metricAccepted               tally.Counter
+	droppedMetricBlackholePolicy tally.Counter
 	droppedMetricDecodeError     tally.Counter
 	droppedMetricDecodeMalformed tally.Counter
 }
@@ -54,6 +57,9 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		metricAccepted:   messageScope.Counter("accepted"),
 		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
 			"reason": "decode-error",
+		}).Counter("dropped"),
+		droppedMetricBlackholePolicy: messageScope.Tagged(map[string]string{
+			"reason": "blackhole-policy",
 		}).Counter("dropped"),
 		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
 			"reason": "decode-malformed",
@@ -68,18 +74,28 @@ type pbHandler struct {
 	wg      *sync.WaitGroup
 	logger  *zap.Logger
 	m       handlerMetrics
+
+	// Set of policies for which when we see a metric we drop it on the floor.
+	blackholePolicies map[policy.StoragePolicy]struct{}
 }
 
 func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 	p := protobuf.NewAggregatedDecoderPool(opts.ProtobufDecoderPoolOptions)
 	p.Init()
+
+	blackholePolicies := make(map[policy.StoragePolicy]struct{}, len(opts.BlockholePolicies))
+	for _, sp := range opts.BlockholePolicies {
+		blackholePolicies[sp] = struct{}{}
+	}
+
 	return &pbHandler{
-		ctx:     context.Background(),
-		writeFn: opts.WriteFn,
-		pool:    p,
-		wg:      &sync.WaitGroup{},
-		logger:  opts.InstrumentOptions.Logger(),
-		m:       newHandlerMetrics(opts.InstrumentOptions.MetricsScope()),
+		ctx:               context.Background(),
+		writeFn:           opts.WriteFn,
+		pool:              p,
+		wg:                &sync.WaitGroup{},
+		logger:            opts.InstrumentOptions.Logger(),
+		m:                 newHandlerMetrics(opts.InstrumentOptions.MetricsScope()),
+		blackholePolicies: blackholePolicies,
 	}
 }
 
@@ -96,10 +112,20 @@ func (h *pbHandler) Process(msg consumer.Message) {
 		h.m.droppedMetricDecodeMalformed.Inc(1)
 		return
 	}
+
 	h.m.metricAccepted.Inc(1)
 
 	h.wg.Add(1)
 	r := NewProtobufCallback(msg, dec, h.wg)
+
+	// If storage policy is blackholed, ack the message immediately and don't
+	// bother passing down the write path.
+	if _, ok := h.blackholePolicies[sp]; ok {
+		h.m.droppedMetricBlackholePolicy.Inc(1)
+		r.Callback(OnSuccess)
+		return
+	}
+
 	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
 
