@@ -19,7 +19,7 @@ http://localhost:7201/api/v1/query?query=count(http_requests)&time=1590147165
 
 But you can switch between the two in the following ways:
 
-- Changing default query engine in config file (see `defaultEngine` parameter in [Configuration](annotated_config.md))
+- Changing default query engine in config file (see `defaultEngine` parameter in [Configuration](annotated_config))
 - Passing HTTP header `M3-Engine`:
 
     ```curl -H "M3-Engine: m3query" "http://localhost:7201/api/v1/query?query=count(http_requests)&time=1590147165"```

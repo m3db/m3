@@ -69,7 +69,7 @@ config:
                   - http://external_etcd3:2379
 ```
 
-**Note**: `M3DB` placements and namespaces are stored in `etcd` so if you want to switch to an external `etcd` cluster you'll need to recreate all your placements and namespaces. You can do this manually or use `etcdctl`'s [Mirror Maker](https://github.com/etcd-io/etcd/blob/v3.3.11/etcdctl/doc/mirror_maker.md) functionality.
+**Note**: `M3DB` placements and namespaces are stored in `etcd` so if you want to switch to an external `etcd` cluster you'll need to recreate all your placements and namespaces. You can do this manually or use `etcdctl`'s [Mirror Maker](https://github.com/etcd-io/etcd/blob/v3.3.11/etcdctl/doc/mirror_maker) functionality.
 
 ### M3Coordinator
 
@@ -79,7 +79,7 @@ config:
 
 ### Embedded etcd
 
-If you're running `M3DB seed nodes` with embedded `etcd` (which we do not recommend for production workloads) and need to perform a node add/replace/remove then follow our [placement configuration guide](./placement_configuration.md) and pay special attention to follow the special instructions for `seed nodes`.
+If you're running `M3DB seed nodes` with embedded `etcd` (which we do not recommend for production workloads) and need to perform a node add/replace/remove then follow our [placement configuration guide](./placement_configuration) and pay special attention to follow the special instructions for `seed nodes`.
 
 ### External etcd
 

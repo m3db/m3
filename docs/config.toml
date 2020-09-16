@@ -80,7 +80,7 @@ offlineSearch = false
   # Order sections in menu by "weight" or "title". Default to "weight"
   ordersectionsby = "weight"
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
-  themeVariant = ""
+  themeVariant = "blue"
   twitter = "m3db_io"
 
 # TODO: Do not like doing this really
@@ -110,9 +110,6 @@ name = "<i class='fab fa-fw fa-github'></i> GitHub"
 identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
-
-[permalinks]
-posts = "/:sections/:slug.md"
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]

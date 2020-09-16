@@ -26,7 +26,7 @@ Include code from elsewhere.
 {{< /tab >}}
 {{< /tabs >}}
 
-{{< glossary_tooltip text="test" term_id="test" >}}
+{{< glossary_tooltip text="m3" term_id="m3" >}}
 
 ```go {hl_lines=[2]}
 func GetTitleFunc(style string) func(s string) string {

@@ -56,7 +56,7 @@ M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
 
 ### Kernel
 
-Ensure you review our [recommended kernel configuration](../operational_guide/kernel_configuration.md) before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
+Ensure you review our [recommended kernel configuration](../operational_guide/kernel_configuration) before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
 
 ## Config files
 
@@ -107,8 +107,8 @@ m3dbnode -f <config-name.yml>
 
 The recommended way to create a namespace and initialize a topology is to use the `/api/v1/database/create` api. Below is an example.
 
-**Note:** In order to create a more custom setup, please refer to the [namespace configuration](../operational_guide/namespace_configuration.md) and 
-[placement configuration](../operational_guide/placement_configuration.md) guides, though this is discouraged.
+**Note:** In order to create a more custom setup, please refer to the [namespace configuration](../operational_guide/namespace_configuration) and 
+[placement configuration](../operational_guide/placement_configuration) guides, though this is discouraged.
 
 ```shell
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
@@ -167,11 +167,11 @@ If you need to setup multiple namespaces, you can run the above `/api/v1/databas
 
 ### Replication factor (RF)
 
-Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones.md) for more specifics.
+Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones) for more specifics.
 
 ### Shards
 
-See [placement configuration](../operational_guide/placement_configuration.md) to determine the appropriate number of shards to specify.
+See [placement configuration](../operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
 
 ## Test it out
 
@@ -216,4 +216,4 @@ curl -sS -X POST http://localhost:9003/query -d '{
 
 ## Integrations
 
-[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus).

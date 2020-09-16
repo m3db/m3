@@ -5,11 +5,11 @@ weight: 4
 ---
 
 
-m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus.md), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](http://m3db.github.io/m3/query_engine/architecture/blocks/). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
+m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](http://m3db.github.io/m3/query_engine/architecture/blocks/). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
 
 ## Configuration
 
-Before setting up m3query, make sure that you have at least [one M3DB node running](single_node.md). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
+Before setting up m3query, make sure that you have at least [one M3DB node running](single_node). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
 
 ### Running
 
@@ -24,11 +24,11 @@ Or you can run it with Docker using the Docker file located at `$GOPATH/src/gith
 
 ### Namespaces
 
-All namespaces that you wish to query from must be configured when [setting up M3DB](single_node.md). If you wish to add or change an existing namespace, please follow the namespace operational guide [here](../operational_guide/namespace_configuration.md).
+All namespaces that you wish to query from must be configured when [setting up M3DB](single_node). If you wish to add or change an existing namespace, please follow the namespace operational guide [here](../operational_guide/namespace_configuration).
 
 ### etcd
 
-The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an [external etcd](../operational_guide/etcd.md) cluster.
+The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an [external etcd](../operational_guide/etcd) cluster.
 
 <!-- TODO: link to etcd operational guide -->
 

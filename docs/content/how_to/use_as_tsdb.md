@@ -6,13 +6,13 @@ title: Using M3DB as a general purpose time series database
 
 ## Overview
 
-M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](../integrations/prometheus.md) and [Graphite](../integrations/graphite.md). M3DB can also be used as a general purpose distributed time series database by itself.
+M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](../integrations/prometheus) and [Graphite](../integrations/graphite). M3DB can also be used as a general purpose distributed time series database by itself.
 
 ## Data Model
 
 ### IDs and Tags
 
-M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](../operational_guide/namespace_configuration.md).
+M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](../operational_guide/namespace_configuration).
 
 Each namespace can also be configured with its own schema (see "Schema Modeling" section below).
 
@@ -62,7 +62,7 @@ message VehicleLocation {
 }
 ```
 
-While M3DB strives to support the entire [proto3 language spec](https://developers.google.com/protocol-buffers/docs/proto3), only [the following features are currently supported](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding.md):
+While M3DB strives to support the entire [proto3 language spec](https://developers.google.com/protocol-buffers/docs/proto3), only [the following features are currently supported](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding):
 
 1.  [Scalar values](https://developers.google.com/protocol-buffers/docs/proto3#scalar)
 2.  Nested messages
@@ -108,13 +108,13 @@ message VehicleLocation {
 
 While the latter schema is valid, the attributes field will not be compressed; users should weigh the tradeoffs between more expressive schema and better compression for each use case.
 
-For more details on the compression scheme and its limitations, review [the documentation for M3DB's compressed Protobuf encoding](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding.md).
+For more details on the compression scheme and its limitations, review [the documentation for M3DB's compressed Protobuf encoding](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding).
 
 ### Getting Started
 
 #### M3DB setup
 
-For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](./cluster_hard_way.md) or [using Kubernetes](./kubernetes.md). However, this tutorial will walk you through configuring a single node setup locally for development.
+For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](./cluster_hard_way) or [using Kubernetes](./kubernetes). However, this tutorial will walk you through configuring a single node setup locally for development.
 
 First, run the following command to pull the latest M3DB image:
 
