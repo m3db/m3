@@ -85,7 +85,9 @@ func deployNamespace(t *testing.T) (kv.Store, kvadmin.NamespaceMetadataAdminServ
 
 	_, err = as.Get("ns1")
 	if err == kvadmin.ErrNamespaceNotFound {
-		require.NoError(t, as.Add("ns1", namespace.OptionsToProto(namespace.NewOptions())))
+		optsProto, err := namespace.OptionsToProto(namespace.NewOptions())
+		require.NoError(t, err)
+		require.NoError(t, as.Add("ns1", optsProto))
 	}
 
 	protoFile := "mainpkg/test.proto"
