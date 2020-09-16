@@ -195,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -273,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -331,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -789,7 +789,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	s.bootstrapState = Bootstrapping
 
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
 
@@ -824,21 +824,20 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	snapshotted := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
 		i := i
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
-		series.EXPECT().
+		entry := series.NewMockDatabaseSeries(ctrl)
+		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
+		entry.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
+		entry.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				snapshotted[i] = struct{}{}
 			}).
-			Return(nil)
-		s.list.PushBack(lookup.NewEntry(series, 0))
+			Return(series.SnapshotResult{}, nil)
+		s.list.PushBack(lookup.NewEntry(entry, 0))
 	}
 
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
-
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, len(snapshotted), 2)
 	for i := 0; i < 2; i++ {
 		_, ok := snapshotted[i]
@@ -1840,13 +1839,13 @@ func getMockReader(
 			BlockStart:  blockStart,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType:   persist.FileSetFlushType,
-		StreamingMode: true,
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(openOpts).Return(nil)
-	reader.EXPECT().StreamingMode().Return(true)
+	reader.EXPECT().StreamingEnabled().Return(true)
 	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
 	reader.EXPECT().Close()
 

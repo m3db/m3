@@ -550,8 +550,8 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
-			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
+			opentracinglog.String("sourceNamespace", req.SourceNamespace),
+			opentracinglog.String("targetNamespace", req.TargetNamespace),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
 			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
 			opentracinglog.String("step", req.Step),
@@ -573,28 +573,28 @@ func (s *service) aggregateTiles(
 	db storage.Database,
 	req *rpc.AggregateTilesRequest,
 ) (int64, error) {
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-	step, stepErr := time.ParseDuration(req.Step)
-	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
-		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
-		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
+	start, err := convert.ToTime(req.RangeStart, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	end, err := convert.ToTime(req.RangeEnd, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	step, err := time.ParseDuration(req.Step)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	opts, err := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
 	}
 
-	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
-	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
 
 	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
-		s.logger.Error("error calling large tiles aggregation",
-			zap.String("sourceNameSpace", req.SourceNameSpace),
-			zap.String("targetNameSpace", req.TargetNameSpace),
-			zap.Int64("rangeStart", req.RangeStart),
-			zap.Int64("rangeEnd", req.RangeEnd),
-			zap.String("rangeType", req.RangeType.String()),
-			zap.String("step", req.Step),
-		)
 		return processedBlockCount, convert.ToRPCError(err)
 	}
 
@@ -743,12 +743,16 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
 	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
-	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		s.fetchReadResults(ctx, response, nsID, encodedDataResults)
+		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return nil, err
+		}
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
@@ -786,7 +790,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		ctx.RegisterFinalizer(enc)
 		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return tterrors.NewInternalError(err)
 		}
 
@@ -803,7 +806,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
-			elem.Err = convert.ToRPCError(err)
+			return convert.ToRPCError(err)
 		} else {
 			encodedDataResults[idx] = encoded
 		}
@@ -811,11 +814,12 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	return nil
 }
 
-func (s *service) fetchReadResults(ctx context.Context,
+func (s *service) fetchReadResults(
+	ctx context.Context,
 	response *rpc.FetchTaggedResult_,
 	nsID ident.ID,
 	encodedDataResults [][][]xio.BlockReader,
-) {
+) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
 	if sampled {
 		sp.LogFields(
@@ -825,19 +829,15 @@ func (s *service) fetchReadResults(ctx context.Context,
 	}
 	defer sp.Finish()
 
-	for idx, elem := range response.Elements {
-		if elem.Err != nil {
-			continue
-		}
-
+	for idx := range response.Elements {
 		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
 		if rpcErr != nil {
-			elem.Err = rpcErr
-			continue
+			return rpcErr
 		}
 
 		response.Elements[idx].Segments = segments
 	}
+	return nil
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {

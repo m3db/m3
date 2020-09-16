@@ -120,10 +120,12 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
+	// Identifier allows to identify a FileSetFile.
 	Identifier  FileSetFileIdentifier
+	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
-	// StreamingMode enables using streaming methods, such as DataFileSetReader.StreamingRead.
-	StreamingMode bool
+	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
+	StreamingEnabled bool
 	// NB(bodu): This option can inform the reader to optimize for reading
 	// only metadata by not sorting index entries. Setting this option will
 	// throw an error if a regular `Read()` is attempted.
@@ -148,7 +150,7 @@ type DataFileSetReader interface {
 
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum values ordered by id,
 	// or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingMode is enabled.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
 	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
 	StreamingRead() (id ident.BytesID, encodedTags []byte, data []byte, checksum uint32, err error)
 
@@ -183,8 +185,8 @@ type DataFileSetReader interface {
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
 
-	// StreamingMode returns true if the reader is opened in streaming mode.
-	StreamingMode() bool
+	// StreamingEnabled returns true if the reader is opened in streaming mode
+	StreamingEnabled() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -664,3 +666,9 @@ type CrossBlockIterator interface {
 	// Reset resets the iterator to the given block records.
 	Reset(records []BlockRecord)
 }
+
+// InfoFileResultsPerShard maps shards to info files.
+type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard

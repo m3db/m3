@@ -151,25 +151,26 @@ type databaseNamespaceIndexStatsLastTick struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap           instrument.MethodMetrics
-	flushWarmData       instrument.MethodMetrics
-	flushColdData       instrument.MethodMetrics
-	flushIndex          instrument.MethodMetrics
-	writeAggData        instrument.MethodMetrics
-	snapshot            instrument.MethodMetrics
-	write               instrument.MethodMetrics
-	writeTagged         instrument.MethodMetrics
-	read                instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
-	queryIDs            instrument.MethodMetrics
-	aggregateQuery      instrument.MethodMetrics
-	unfulfilled         tally.Counter
-	bootstrapStart      tally.Counter
-	bootstrapEnd        tally.Counter
-	shards              databaseNamespaceShardMetrics
-	tick                databaseNamespaceTickMetrics
-	status              databaseNamespaceStatusMetrics
+	bootstrap             instrument.MethodMetrics
+	flushWarmData         instrument.MethodMetrics
+	flushColdData         instrument.MethodMetrics
+	flushIndex            instrument.MethodMetrics
+	snapshot              instrument.MethodMetrics
+	write                 instrument.MethodMetrics
+	writeTagged           instrument.MethodMetrics
+	aggregateTiles        instrument.MethodMetrics
+	read                  instrument.MethodMetrics
+	fetchBlocks           instrument.MethodMetrics
+	fetchBlocksMetadata   instrument.MethodMetrics
+	queryIDs              instrument.MethodMetrics
+	aggregateQuery        instrument.MethodMetrics
+	unfulfilled           tally.Counter
+	bootstrapStart        tally.Counter
+	bootstrapEnd          tally.Counter
+	snapshotSeriesPersist tally.Counter
+	shards                databaseNamespaceShardMetrics
+	tick                  databaseNamespaceTickMetrics
+	status                databaseNamespaceStatusMetrics
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -233,23 +234,26 @@ func newDatabaseNamespaceMetrics(
 	indexTickScope := tickScope.SubScope("index")
 	statusScope := scope.SubScope("status")
 	indexStatusScope := statusScope.SubScope("index")
+	bootstrapScope := scope.SubScope("bootstrap")
+	snapshotScope := scope.SubScope("snapshot")
 	return databaseNamespaceMetrics{
-		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
-		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
-		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
-		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
-		writeAggData:        instrument.NewMethodMetrics(scope, "writeAggData", opts),
-		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
-		write:               instrument.NewMethodMetrics(scope, "write", opts),
-		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		read:                instrument.NewMethodMetrics(scope, "read", opts),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
-		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
-		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
-		bootstrapStart:      scope.Counter("bootstrap.start"),
-		bootstrapEnd:        scope.Counter("bootstrap.end"),
+		bootstrap:             instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:         instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:         instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:            instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:              instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:                 instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:           instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		aggregateTiles:        instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
+		read:                  instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
+		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
+		bootstrapStart:        bootstrapScope.Counter("start"),
+		bootstrapEnd:          bootstrapScope.Counter("end"),
+		snapshotSeriesPersist: snapshotScope.Counter("series-persist"),
 		shards: databaseNamespaceShardMetrics{
 			add:         shardsScope.Counter("add"),
 			close:       shardsScope.Counter("close"),
@@ -1299,16 +1303,22 @@ func (n *dbNamespace) Snapshot(
 		return nil
 	}
 
-	multiErr := xerrors.NewMultiError()
-	shards := n.OwnedShards()
-	for _, shard := range shards {
-		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
+	var (
+		seriesPersist int
+		multiErr      xerrors.MultiError
+	)
+	for _, shard := range n.OwnedShards() {
+		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			// Continue with remaining shards
 		}
+
+		seriesPersist += result.SeriesPersist
 	}
+
+	n.metrics.snapshotSeriesPersist.Inc(int64(seriesPersist))
 
 	res := multiErr.FinalError()
 	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
@@ -1602,7 +1612,7 @@ func (n *dbNamespace) AggregateTiles(
 ) (int64, error) {
 	callStart := n.nowFn()
 	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts)
-	n.metrics.writeAggData.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedBlockCount, err
 }
@@ -1665,6 +1675,7 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)

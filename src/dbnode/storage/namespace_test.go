@@ -561,7 +561,10 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
-func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
+func testSnapshotWithShardSnapshotErrs(
+	t *testing.T,
+	shardMethodResults []snapshotTestCase,
+) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -588,7 +591,9 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, gomock.Any(), gomock.Any()).Return(tc.shardSnapshotErr)
+			shard.EXPECT().
+				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
+				Return(ShardSnapshotResult{}, tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
@@ -1315,27 +1320,6 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
-// FIXME: this appears to be testing functionality from another branch; re-enable when available
-func testNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
-	var (
-		sourceNsID = ident.StringID("source")
-		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
-		start      = time.Now().Truncate(time.Hour)
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
-	)
-
-	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
-	defer sourceCloser()
-
-	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
-	defer targetCloser()
-	targetNs.bootstrapState = Bootstrapped
-
-	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
-	require.Equal(t, errColdWritesDisabled, err.Error())
-}
-
 func TestNamespaceAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1364,15 +1348,6 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
 	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
-	var wOpts namespace.SchemaDescr
-	// FIXME: this appears to be testing functionality from another branch; re-enable when available
-	/*
-		wOpts = series.WriteOptions{
-			TruncateType: targetNs.opts.TruncateType(),
-			SchemaDesc:   targetNs.Schema(),
-		}
-	*/
-
 	sourceShard0 := NewMockdatabaseShard(ctrl)
 	sourceShard1 := NewMockdatabaseShard(ctrl)
 	sourceNs.shards[0] = sourceShard0
@@ -1400,21 +1375,11 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, wOpts).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, wOpts).Return(int64(2), nil)
-
-	// FIXME: this appears to be testing functionality from another branch; re-enable when available
-	// shardColdFlush0 := NewMockShardColdFlush(ctrl)
-	// shardColdFlush0.EXPECT().Done().Return(nil)
-	// shardColdFlush1 := NewMockShardColdFlush(ctrl)
-	// shardColdFlush1.EXPECT().Done().Return(nil)
-	// nsCtx := targetNs.nsContextWithRLock()
-	// onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
-	// require.NoError(t, err)
-	// targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
-	// targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
 
 	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedBlockCount)
 }

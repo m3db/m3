@@ -1879,6 +1879,96 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestServiceFetchTaggedReturnOnFirstErr(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID := "metrics"
+
+	id := "foo"
+	s := []struct {
+		t time.Time
+		v float64
+	}{
+		{start.Add(10 * time.Second), 1.0},
+		{start.Add(20 * time.Second), 2.0},
+	}
+	enc := testStorageOpts.EncoderPool().Get()
+	enc.Reset(start, 0, nil)
+	for _, v := range s {
+		dp := ts.Datapoint{
+			Timestamp: v.t,
+			Value:     v.v,
+		}
+		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+	}
+
+	stream, _ := enc.Stream(ctx)
+	mockDB.EXPECT().
+		ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+		Return([][]xio.BlockReader{{
+			xio.BlockReader{
+				SegmentReader: stream,
+			},
+		}}, fmt.Errorf("random err")) // Return error that should trigger failure of the entire call
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
+		ident.StringTag("foo", "bar"),
+		ident.StringTag("baz", "dxk"),
+	)))
+
+	mockDB.EXPECT().QueryIDs(
+		gomock.Any(),
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+			SeriesLimit:    10,
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		RangeStart: startNanos,
+		RangeEnd:   endNanos,
+		FetchData:  true,
+		Limit:      &limit,
+	})
+	require.Error(t, err)
+}
+
 func TestServiceAggregate(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -3038,7 +3128,8 @@ func TestServiceAggregateTiles(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	step := "10m"
-	stepDuration, _ := time.ParseDuration(step)
+	stepDuration, err := time.ParseDuration(step)
+	require.NoError(t, err)
 
 	sourceNsID := "source"
 	targetNsID := "target"
@@ -3051,8 +3142,8 @@ func TestServiceAggregateTiles(t *testing.T) {
 	).Return(int64(4), nil)
 
 	result, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{
-		SourceNameSpace: sourceNsID,
-		TargetNameSpace: targetNsID,
+		SourceNamespace: sourceNsID,
+		TargetNamespace: targetNsID,
 		RangeStart:      start.Unix(),
 		RangeEnd:        end.Unix(),
 		Step:            step,

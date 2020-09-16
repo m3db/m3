@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/stretchr/testify/require"
 )
@@ -76,19 +75,19 @@ func TestMemSegmentMerge(t *testing.T) {
 	rest := docs[1:]
 
 	opts := NewOptions()
-	m1, err := NewSegment(postings.ID(0), opts)
+	m1, err := NewSegment(opts)
 	require.NoError(t, err)
 	_, err = m1.Insert(d)
 	require.NoError(t, err)
 
-	m2, err := NewSegment(postings.ID(0), opts)
+	m2, err := NewSegment(opts)
 	require.NoError(t, err)
 	for _, d := range rest {
 		_, err = m2.Insert(d)
 		require.NoError(t, err)
 	}
 
-	m3, err := NewSegment(postings.ID(0), opts)
+	m3, err := NewSegment(opts)
 	require.NoError(t, err)
 
 	require.NoError(t, Merge(m3, m1, m2))

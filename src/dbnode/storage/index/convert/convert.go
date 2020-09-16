@@ -27,6 +27,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -211,7 +212,13 @@ func TagsFromTagsIter(
 			idRef = true
 		} else {
 			if idPool != nil {
-				tag.Name = idPool.Clone(curr.Name)
+				// NB(r): Fast path for if a graphite tag name to save
+				// a lot of space is to reuse a preallocated tag name.
+				if idx, ok := graphite.TagIndex(nameBytes); ok {
+					tag.Name = graphite.TagNameID(idx)
+				} else {
+					tag.Name = idPool.Clone(curr.Name)
+				}
 			} else {
 				copiedBytes := append([]byte(nil), curr.Name.Bytes()...)
 				tag.Name = ident.BytesID(copiedBytes)

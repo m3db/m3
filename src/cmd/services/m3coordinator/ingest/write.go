@@ -229,6 +229,10 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) (bool, error) {
+	if err := tags.Validate(); err != nil {
+		return false, err
+	}
+
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
 		return false, err
@@ -433,11 +437,33 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		appender.NextMetric()
 
 		value := iter.Current()
+		if err := value.Tags.Validate(); err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
 		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
-		var opts downsample.SampleAppenderOptions
+		if value.Tags.Opts.IDSchemeType() == models.TypeGraphite {
+			// NB(r): This is gross, but if this is a graphite metric then
+			// we are going to set a special tag that means the downsampler
+			// will write a graphite ID. This should really be plumbed
+			// through the downsampler in general, but right now the aggregator
+			// does not allow context to be attached to a metric so when it calls
+			// back the context is lost currently.
+			// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
+			// all places worth fixing this hack. There is at least one
+			// other path where flows back to the coordinator from the aggregator
+			// and this tag is interpreted, eventually need to handle more cleanly.
+			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
+				downsample.GraphiteIDSchemeTagValue)
+		}
+
+		opts := downsample.SampleAppenderOptions{
+			MetricType: value.Attributes.Type,
+		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
 				Override: true,

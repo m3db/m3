@@ -106,6 +106,17 @@ type Configuration struct {
 
 	// WriteTimestampOffset offsets all writes by specified duration into the past.
 	WriteTimestampOffset *time.Duration `yaml:"writeTimestampOffset"`
+
+	// FetchSeriesBlocksBatchConcurrency sets the number of batches of blocks to retrieve
+	// in parallel from a remote peer. Defaults to NumCPU / 2.
+	FetchSeriesBlocksBatchConcurrency *int `yaml:"fetchSeriesBlocksBatchConcurrency"`
+
+	// FetchSeriesBlocksBatchSize sets the number of blocks to retrieve in a single batch
+	// from the remote peer. Defaults to 4096.
+	FetchSeriesBlocksBatchSize *int `yaml:"fetchSeriesBlocksBatchSize"`
+
+	// WriteShardsInitializing sets whether or not to write to nodes that are initializing.
+	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -411,14 +422,27 @@ func (c Configuration) NewAdminClient(
 		v = v.SetSchemaRegistry(schemaRegistry)
 	}
 
-	// Apply programtic custom options last
-	opts := v.(AdminOptions)
-	for _, opt := range custom {
-		opts = opt(opts)
+	if c.WriteShardsInitializing != nil {
+		v = v.SetWriteShardsInitializing(*c.WriteShardsInitializing)
 	}
+
+	// Cast to admin options to apply admin config options.
+	opts := v.(AdminOptions)
 
 	if c.WriteTimestampOffset != nil {
 		opts = opts.SetWriteTimestampOffset(*c.WriteTimestampOffset)
+	}
+
+	if c.FetchSeriesBlocksBatchConcurrency != nil {
+		opts = opts.SetFetchSeriesBlocksBatchConcurrency(*c.FetchSeriesBlocksBatchConcurrency)
+	}
+	if c.FetchSeriesBlocksBatchSize != nil {
+		opts = opts.SetFetchSeriesBlocksBatchSize(*c.FetchSeriesBlocksBatchSize)
+	}
+
+	// Apply programmatic custom options last.
+	for _, opt := range custom {
+		opts = opt(opts)
 	}
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)

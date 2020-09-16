@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/bloom"
+	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -181,7 +181,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 	readTestDataWithStreamingOpt(t, r, shard, timestamp, sortedEntries, true)
 }
 
-// readTestData will test reading back the data matches what was written,
+// readTestDataWithStreamingOpt will test reading back the data matches what was written,
 // note that this test also tests reuse of the reader since it first reads
 // all the data then closes it, reopens and reads through again but just
 // reading the metadata the second time.
@@ -193,10 +193,10 @@ func readTestDataWithStreamingOpt(
 	shard uint32,
 	timestamp time.Time,
 	entries []testEntry,
-	streamingMode bool,
+	streamingEnabled bool,
 ) {
 	for _, underTest := range readTestTypes {
-		if underTest == readTestTypeMetadata && streamingMode {
+		if underTest == readTestTypeMetadata && streamingEnabled {
 			// ATM there is no streaming support for metadata.
 			continue
 		}
@@ -207,7 +207,7 @@ func readTestDataWithStreamingOpt(
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
-			StreamingMode: streamingMode,
+			StreamingEnabled: streamingEnabled,
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -567,7 +567,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 }
 
 func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
-	if reader.StreamingMode() {
+	if reader.StreamingEnabled() {
 		id, encodedTags, data, checksum, err := reader.StreamingRead()
 		var tags = ident.EmptyTagIterator
 		if len(encodedTags) > 0 {

@@ -137,15 +137,15 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("validating aggregated data")
 	expectedDps := []ts.Datapoint{
-		ts.Datapoint{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(290 * time.Minute), Value: 71.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(350 * time.Minute), Value: 77.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(410 * time.Minute), Value: 83.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(470 * time.Minute), Value: 89.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(530 * time.Minute), Value: 95.1},
-		ts.Datapoint{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
+		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
+		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
+		{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
+		{Timestamp: dpTimeStart.Add(290 * time.Minute), Value: 71.1},
+		{Timestamp: dpTimeStart.Add(350 * time.Minute), Value: 77.1},
+		{Timestamp: dpTimeStart.Add(410 * time.Minute), Value: 83.1},
+		{Timestamp: dpTimeStart.Add(470 * time.Minute), Value: 89.1},
+		{Timestamp: dpTimeStart.Add(530 * time.Minute), Value: 95.1},
+		{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
 
 	fetchAndValidate(t, session, trgNs.ID(),
@@ -154,7 +154,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		expectedDps)
 
 	expectedDps = []ts.Datapoint{
-		ts.Datapoint{Timestamp: dpTimeStart, Value: 15},
+		{Timestamp: dpTimeStart, Value: 15},
 	}
 	fetchAndValidate(t, session, trgNs.ID(),
 		ident.StringID("aab"),
@@ -163,7 +163,7 @@ func TestReadAggregateWrite(t *testing.T) {
 }
 
 var (
-	iterationCount      = 20
+	iterationCount      = 10
 	testSeriesCount     = 5000
 	testDataPointsCount = int(blockSizeT.Hours()) * 100
 )

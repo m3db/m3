@@ -26,7 +26,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/bloom"
+	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/checked"

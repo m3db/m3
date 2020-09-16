@@ -27,19 +27,14 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
 	errReaderNotOrderedByIndex     = errors.New("crossBlockReader can only use DataFileSetReaders ordered by index")
 	errUnorderedDataFileSetReaders = errors.New("dataFileSetReaders are not ordered by time")
-
-	_ heap.Interface = (*minHeap)(nil)
 )
 
 type crossBlockReader struct {
@@ -62,7 +57,7 @@ type crossBlockReader struct {
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		if !dataFileSetReader.StreamingMode() {
+		if !dataFileSetReader.StreamingEnabled() {
 			return nil, errReaderNotOrderedByIndex
 		}
 		currentStart := dataFileSetReader.Range().Start
@@ -200,6 +195,8 @@ type minHeapEntry struct {
 	checksum               uint32
 }
 
+var _ heap.Interface = (*minHeap)(nil)
+
 type minHeap []minHeapEntry
 
 func (h minHeap) Len() int {
@@ -229,72 +226,4 @@ func (h *minHeap) Pop() interface{} {
 	old[n-1] = minHeapEntry{}
 	*h = old[0 : n-1]
 	return x
-}
-
-//TODO: extract crossBlockIterator to a separate file
-type crossBlockIterator struct {
-	idx        int
-	exhausted  bool
-	current    encoding.ReaderIterator
-	byteReader *bytes.Reader
-	records    []BlockRecord
-}
-
-// NewCrossBlockIterator creates a new CrossBlockIterator.
-func NewCrossBlockIterator(pool encoding.ReaderIteratorPool) CrossBlockIterator {
-	return &crossBlockIterator{
-		idx:        -1,
-		current:    pool.Get(),
-		byteReader: bytes.NewReader(nil),
-	}
-}
-
-func (c *crossBlockIterator) Next() bool {
-	if c.exhausted {
-		return false
-	}
-
-	// NB: if no values remain in current iterator,
-	if c.idx < 0 || !c.current.Next() {
-		// NB: clear previous.
-		if c.idx >= 0 {
-			if c.current.Err() != nil {
-				c.exhausted = true
-				return false
-			}
-		}
-
-		c.idx++
-		if c.idx >= len(c.records) {
-			c.exhausted = true
-			return false
-		}
-
-		c.byteReader.Reset(c.records[c.idx].Data)
-		c.current.Reset(c.byteReader, nil)
-		// NB: rerun using the next record.
-		return c.Next()
-	}
-
-	return true
-}
-
-func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return c.current.Current()
-}
-
-func (c *crossBlockIterator) Reset(records []BlockRecord) {
-	c.idx = -1
-	c.records = records
-	c.exhausted = false
-	c.byteReader.Reset(nil)
-}
-
-func (c *crossBlockIterator) Close() {
-	c.Reset(nil)
-	c.current.Close()
-}
-
-func (c *crossBlockIterator) Err() error {
-	return c.current.Err()
 }

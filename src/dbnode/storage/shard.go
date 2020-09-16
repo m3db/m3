@@ -214,10 +214,19 @@ type dbShardMetrics struct {
 	insertAsyncIndexErrors              tally.Counter
 	largeTilesWrites                    tally.Counter
 	largeTilesWriteErrors               tally.Counter
+	snapshotTotalLatency                tally.Timer
+	snapshotCheckNeedsSnapshotLatency   tally.Timer
+	snapshotPrepareLatency              tally.Timer
+	snapshotMergeByBucketLatency        tally.Timer
+	snapshotMergeAcrossBucketsLatency   tally.Timer
+	snapshotChecksumLatency             tally.Timer
+	snapshotPersistLatency              tally.Timer
+	snapshotCloseLatency                tally.Timer
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 	const insertErrorName = "insert-async.errors"
+	snapshotScope := scope.SubScope("snapshot")
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -246,7 +255,15 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "large-tiles",
 			"suberror_type": "write-error",
 		}).Counter(insertErrorName),
-		largeTilesWrites: scope.Counter("large-tiles-writes"),
+		largeTilesWrites:                  scope.Counter("large-tiles-writes"),
+		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
+		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
+		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
+		snapshotMergeByBucketLatency:      snapshotScope.Timer("merge-by-bucket-latency"),
+		snapshotMergeAcrossBucketsLatency: snapshotScope.Timer("merge-across-buckets-latency"),
+		snapshotChecksumLatency:           snapshotScope.Timer("checksum-latency"),
+		snapshotPersistLatency:            snapshotScope.Timer("persist-latency"),
+		snapshotCloseLatency:              snapshotScope.Timer("close-latency"),
 	}
 }
 
@@ -2378,17 +2395,23 @@ func (s *dbShard) Snapshot(
 	snapshotTime time.Time,
 	snapshotPreparer persist.SnapshotPreparer,
 	nsCtx namespace.Context,
-) error {
+) (ShardSnapshotResult, error) {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
 		s.RUnlock()
-		return errShardNotBootstrappedToSnapshot
+		return ShardSnapshotResult{}, errShardNotBootstrappedToSnapshot
 	}
 
 	s.RUnlock()
 
+	// Record per-shard snapshot latency, not many shards so safe
+	// to use a timer.
+	totalTimer := s.metrics.snapshotTotalLatency.Start()
+	defer totalTimer.Stop()
+
 	var needsSnapshot bool
+	checkNeedsSnapshotTimer := s.metrics.snapshotCheckNeedsSnapshotLatency.Start()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
 			needsSnapshot = true
@@ -2396,6 +2419,8 @@ func (s *dbShard) Snapshot(
 		}
 		return true
 	})
+	checkNeedsSnapshotTimer.Stop()
+
 	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
 	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
 	// snapshotting work after a bootstrap since this cached state gets cleared.
@@ -2405,10 +2430,8 @@ func (s *dbShard) Snapshot(
 	s.flushState.RUnlock()
 
 	if !needsSnapshot && emptySnapshotOnDisk {
-		return nil
+		return ShardSnapshotResult{}, nil
 	}
-
-	var multiErr xerrors.MultiError
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -2424,20 +2447,25 @@ func (s *dbShard) Snapshot(
 			SnapshotTime: snapshotTime,
 		},
 	}
+	prepareTimer := s.metrics.snapshotPrepareLatency.Start()
 	prepared, err := snapshotPreparer.PrepareData(prepareOpts)
-	// Add the err so the defer will capture it
-	multiErr = multiErr.Add(err)
+	prepareTimer.Stop()
 	if err != nil {
-		return err
+		return ShardSnapshotResult{}, err
 	}
 
-	snapshotCtx := s.contextPool.Get()
+	var (
+		snapshotCtx = s.contextPool.Get()
+		persist     int
+		stats       series.SnapshotResultStats
+		multiErr    xerrors.MultiError
+	)
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
 		snapshotCtx.Reset()
-		err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
+		result, err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
 		snapshotCtx.BlockingCloseReset()
 
 		if err != nil {
@@ -2447,15 +2475,29 @@ func (s *dbShard) Snapshot(
 			return false
 		}
 
+		if result.Persist {
+			persist++
+		}
+
+		// Add snapshot result to cumulative result.
+		stats.Add(result.Stats)
 		return true
 	})
 
-	if err := prepared.Close(); err != nil {
-		multiErr = multiErr.Add(err)
+	// Emit cumulative snapshot result timings.
+	if multiErr.NumErrors() == 0 {
+		s.metrics.snapshotMergeByBucketLatency.Record(stats.TimeMergeByBucket)
+		s.metrics.snapshotMergeAcrossBucketsLatency.Record(stats.TimeMergeAcrossBuckets)
+		s.metrics.snapshotChecksumLatency.Record(stats.TimeChecksum)
+		s.metrics.snapshotPersistLatency.Record(stats.TimePersist)
 	}
 
+	closeTimer := s.metrics.snapshotCloseLatency.Start()
+	multiErr = multiErr.Add(prepared.Close())
+	closeTimer.Stop()
+
 	if err := multiErr.FinalError(); err != nil {
-		return err
+		return ShardSnapshotResult{}, err
 	}
 
 	// Only update cached snapshot state if we successfully flushed data to disk.
@@ -2471,7 +2513,9 @@ func (s *dbShard) Snapshot(
 	}
 	s.flushState.Unlock()
 
-	return nil
+	return ShardSnapshotResult{
+		SeriesPersist: persist,
+	}, nil
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
@@ -2641,8 +2685,8 @@ func (s *dbShard) AggregateTiles(
 				BlockStart:  sourceBlockVolume.blockStart,
 				VolumeIndex: sourceBlockVolume.latestVolume,
 			},
-			FileSetType:   persist.FileSetFlushType,
-			StreamingMode: true,
+			FileSetType:      persist.FileSetFlushType,
+			StreamingEnabled: true,
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {

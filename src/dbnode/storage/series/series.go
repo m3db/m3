@@ -619,14 +619,14 @@ func (s *dbSeries) Snapshot(
 	blockStart time.Time,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
-) error {
+) (SnapshotResult, error) {
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	err := s.buffer.Snapshot(ctx, blockStart,
+	result, err := s.buffer.Snapshot(ctx, blockStart,
 		persist.NewMetadata(s.metadata), persistFn, nsCtx)
 	s.Unlock()
-	return err
+	return result, err
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {

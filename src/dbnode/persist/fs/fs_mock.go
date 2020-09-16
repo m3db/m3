@@ -309,18 +309,18 @@ func (mr *MockDataFileSetReaderMockRecorder) Status() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockDataFileSetReader)(nil).Status))
 }
 
-// StreamingMode mocks base method
-func (m *MockDataFileSetReader) StreamingMode() bool {
+// StreamingEnabled mocks base method
+func (m *MockDataFileSetReader) StreamingEnabled() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamingMode")
+	ret := m.ctrl.Call(m, "StreamingEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// StreamingMode indicates an expected call of StreamingMode
-func (mr *MockDataFileSetReaderMockRecorder) StreamingMode() *gomock.Call {
+// StreamingEnabled indicates an expected call of StreamingEnabled
+func (mr *MockDataFileSetReaderMockRecorder) StreamingEnabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingMode", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingMode))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingEnabled", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingEnabled))
 }
 
 // StreamingRead mocks base method

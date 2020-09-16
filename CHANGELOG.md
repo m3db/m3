@@ -1,5 +1,47 @@
 # Changelog
 
+# 0.15.14
+
+## Features
+
+- **M3Query**: Add movingSum, movingMax, movingMin Graphite functions ([#2570](https://github.com/m3db/m3/pull/2570))
+- **M3Query**: Add aliasByTags Graphite function ([#2626](https://github.com/m3db/m3/pull/2626))
+- **M3Query**: Add exponentialMovingAverage Graphite function ([#2622](https://github.com/m3db/m3/pull/2622))
+- **M3Query**: Add timeSlice Graphite function ([#2581](https://github.com/m3db/m3/pull/2581))
+- **M3Query**: Add delay Graphite function ([#2567](https://github.com/m3db/m3/pull/2567))
+- **M3Query**: Add aggregateWithWildcards Graphite function ([#2582](https://github.com/m3db/m3/pull/2582))
+- **M3Query**: Add groupByNodes Graphite function ([#2579](https://github.com/m3db/m3/pull/2579))
+- **M3Coordinator**: Allow using the placement set API for creating new placements as well as upserting existing placements ([#2625](https://github.com/m3db/m3/pull/2625))
+- **M3DB**: Add bootstrap time migration config which supports seamless backwards and forwards compatible fileset upgrades ([#2521](https://github.com/m3db/m3/pull/2521))
+
+# 0.15.13
+
+## Bug Fixes
+
+- **M3DB**: Fix case insensitive regexp modifiers (?i) implementation for metrics selector ([#2564](https://github.com/m3db/m3/pull/2564))
+
+## Misc
+
+- **M3DB**: Expose stream batch client options to config ([#2576](https://github.com/m3db/m3/pull/2576))
+- **M3Query**: Metrics visibility and ability to limit number of encoders per block ([#2516](https://github.com/m3db/m3/pull/2516))
+
+# 0.15.12
+
+## Bug Fixes
+
+- **M3Query**: Fix to Graphite movingMedian and movingAverage functions that could skip data in certain cases or cause an out of bounds error after recovery ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Coordinator**: Fix a Graphite carbon ingest tag lifecycle bug that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
+
+# 0.15.11
+
+## Features
+
+- **M3Coordinator**: Support for remapping rules and provide tags that are auto-appended to metrics when aggregations are applied ([#2414](https://github.com/m3db/m3/pull/2414))
+
+## Bug Fixes
+
+- **M3DB**: Extend lifetime of compactable index segments for aggregate queries ([#2550](https://github.com/m3db/m3/pull/2550))
+
 # 0.15.10
 
 ## Features
@@ -12,7 +54,7 @@
 
 ## Documentation
 
-- **All** - Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
+- **All**: Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
 
 # 0.15.9
 

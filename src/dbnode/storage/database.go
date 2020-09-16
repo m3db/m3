@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -827,12 +826,6 @@ func (d *db) QueryIDs(
 	}
 	defer sp.Finish()
 
-	rawNamespace := os.Getenv("RAW_NAMESPACE")
-	if len(rawNamespace) > 0 && namespace.String() != rawNamespace {
-		opts.ComputedNamespaceID = namespace
-		namespace = ident.StringID(rawNamespace)
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -981,10 +974,10 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
-	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
+	lastBootstrapCompletionTimeNano, ok := d.mediator.LastBootstrapCompletionTime()
 	if !ok {
 		d.log.Debug("not bootstrapped and durable because: no last bootstrap completion time",
-			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime))
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTimeNano.ToTime()))
 
 		return false
 	}
@@ -992,14 +985,15 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
 		d.log.Debug("not bootstrapped and durable because: no last snapshot start time",
-			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTimeNano.ToTime()),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime.ToTime()),
 		)
 		return false
 	}
 
 	var (
-		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTime)
+		lastBootstrapCompletionTime            = lastBootstrapCompletionTimeNano.ToTime()
+		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTimeNano)
 		hasBootstrappedSinceReceivingNewShards = lastBootstrapCompletionTime.After(d.lastReceivedNewShards) ||
 			lastBootstrapCompletionTime.Equal(d.lastReceivedNewShards)
 		isBootstrappedAndDurable = hasSnapshottedPostBootstrap &&
@@ -1010,7 +1004,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		d.log.Debug(
 			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards",
 			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime.ToTime()),
 			zap.Time("lastReceivedNewShards", d.lastReceivedNewShards),
 		)
 		return false
@@ -1101,8 +1095,8 @@ func (d *db) AggregateTiles(
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("sourceNameSpace", sourceNsID.String()),
-			opentracinglog.String("targetNameSpace", targetNsID.String()),
+			opentracinglog.String("sourceNamespace", sourceNsID.String()),
+			opentracinglog.String("targetNamespace", targetNsID.String()),
 			xopentracing.Time("start", opts.Start),
 			xopentracing.Time("end", opts.End),
 			xopentracing.Duration("step", opts.Step),
@@ -1177,6 +1171,7 @@ func (m metadatas) String() (string, error) {
 	return buf.String(), nil
 }
 
+// NewAggregateTilesOptions creates new AggregateTilesOptions.
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
@@ -1190,5 +1185,10 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	return AggregateTilesOptions{Start: start, End: end, Step: step, HandleCounterResets: handleCounterResets}, nil
+	return AggregateTilesOptions{
+		Start: start,
+		End: end,
+		Step: step,
+		HandleCounterResets: handleCounterResets,
+	}, nil
 }

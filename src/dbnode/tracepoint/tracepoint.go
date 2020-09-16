@@ -118,6 +118,9 @@ const (
 	// BootstrapperPeersSourceRead is the operation for the peers Read path.
 	BootstrapperPeersSourceRead = "bootstrapper.peers.peersSource.Read"
 
-	// BootstrapperFilesystemSourceRead is the operation for the peers Read path.
+	// BootstrapperFilesystemSourceRead is the operation for the filesystem Read path.
 	BootstrapperFilesystemSourceRead = "bootstrapper.fs.filesystemSource.Read"
+
+	// BootstrapperFilesystemSourceMigrator is the operation for filesystem migrator path.
+	BootstrapperFilesystemSourceMigrator = "bootstrapper.fs.filesystemSource.Migrator"
 )
