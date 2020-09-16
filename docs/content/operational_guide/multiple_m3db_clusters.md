@@ -1,6 +1,8 @@
-## Write to multiple M3DB clusters via m3coordinator
-
-### Overview:
+---
+title: "Write to multiple M3DB clusters via m3coordinator"
+weight: 2
+draft: true
+---
 
 Default M3 architecture has the m3coordinator writing to and aggregating metrics from a single M3DB cluster. To map a single coordinator to more than one M3DB cluster, follow the below instructions. 
 

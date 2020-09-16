@@ -1,4 +1,7 @@
-# Roadmap
+---
+title: "Roadmap"
+weight: 4
+---
 
 This roadmap is open for suggestions and currently just a small snapshot of what is coming up.
 

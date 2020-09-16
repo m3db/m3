@@ -1,4 +1,8 @@
-# Media
+---
+title: "Media"
+weight: 3
+---
+
 
 ## Blogs
 
