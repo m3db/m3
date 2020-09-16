@@ -73,6 +73,13 @@ func (r *Resolution) FromProto(pb *policypb.Resolution) error {
 	return nil
 }
 
+// StripPrecision returns a copy of the resolution without its precision.
+func (r Resolution) StripPrecision() Resolution {
+	return Resolution{
+		Window: r.Window,
+	}
+}
+
 // String is the string representation of a resolution.
 func (r Resolution) String() string {
 	_, maxUnit := xtime.MaxUnitForDuration(r.Window)

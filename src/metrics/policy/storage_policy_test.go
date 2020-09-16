@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/test/testmarshal"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -573,4 +574,12 @@ func TestStoragePoliciesByRetentionAscResolutionAsc(t *testing.T) {
 		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
 	}
 	require.Equal(t, expected, inputs)
+}
+
+func TestStoragePolicyStripPrecision(t *testing.T) {
+	strSp := MustParseStoragePolicy("1m:1d")
+	preciseSp := NewStoragePolicy(time.Minute, xtime.Hour, 24*time.Hour)
+	assert.False(t, strSp == preciseSp)
+	assert.True(t, strSp.StripPrecision() == preciseSp.StripPrecision())
+	assert.True(t, strSp.Equivalent(preciseSp))
 }

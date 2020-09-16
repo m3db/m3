@@ -96,6 +96,9 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 	if len(opts.BlockholePolicies) > 0 {
 		policyNames := make([]string, len(opts.BlockholePolicies))
 		for i, sp := range opts.BlockholePolicies {
+			// We only match incoming policies by their stripped resoluton (no
+			// precision) and retention.
+			sp := sp.StripPrecision()
 			h.blackholePolicies[sp] = struct{}{}
 			policyNames[i] = sp.String()
 		}
@@ -127,7 +130,7 @@ func (h *pbHandler) Process(msg consumer.Message) {
 
 	// If storage policy is blackholed, ack the message immediately and don't
 	// bother passing down the write path.
-	if _, ok := h.blackholePolicies[sp]; ok {
+	if _, ok := h.blackholePolicies[sp.StripPrecision()]; ok {
 		h.m.droppedMetricBlackholePolicy.Inc(1)
 		r.Callback(OnSuccess)
 		return

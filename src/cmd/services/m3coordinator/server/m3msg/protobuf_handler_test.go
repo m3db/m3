@@ -26,6 +26,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -36,13 +37,19 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testID             = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
-	validStoragePolicy = policy.MustParseStoragePolicy("1m:40d")
+	testID = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
+
+	// baseStoragePolicy represents what we typically define in config for SP.
+	// precisionStoragePolicy is the same retention/resolution, but includes the
+	// precision (which is often included with incoming writes).
+	baseStoragePolicy      = policy.MustParseStoragePolicy("1m:40d")
+	precisionStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Second, 40*24*time.Hour)
 )
 
 func TestM3MsgServerWithProtobufHandler(t *testing.T) {
@@ -74,7 +81,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 			Value:     1,
 			Type:      metric.GaugeType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
@@ -98,7 +105,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 			Value:     0,
 			Type:      metric.UnknownType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 	require.NoError(t, encoder.Encode(m2, 3000))
 	enc = proto.NewEncoder(opts.EncoderOptions())
@@ -135,7 +142,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	hOpts := Options{
 		WriteFn:           w.write,
 		InstrumentOptions: instrument.NewOptions(),
-		BlockholePolicies: []policy.StoragePolicy{validStoragePolicy},
+		BlockholePolicies: []policy.StoragePolicy{baseStoragePolicy},
 	}
 	opts := consumer.NewOptions().
 		SetAckBufferSize(1).
@@ -157,7 +164,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 			Value:     1,
 			Type:      metric.GaugeType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
@@ -181,7 +188,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 			Value:     0,
 			Type:      metric.UnknownType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 	require.NoError(t, encoder.Encode(m2, 3000))
 	enc = proto.NewEncoder(opts.EncoderOptions())
