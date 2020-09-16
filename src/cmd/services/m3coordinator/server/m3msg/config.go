@@ -84,6 +84,7 @@ func (c handlerConfiguration) newHandler(
 			}),
 		),
 		ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
+		BlockholePolicies:          c.BlackholePolicies,
 	})
 	return consumer.NewMessageHandler(p, cOpts), nil
 }
