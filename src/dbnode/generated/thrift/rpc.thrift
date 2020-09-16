@@ -57,6 +57,7 @@ service Node {
 	FetchTaggedResult              fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	IndexChecksumResult            indexChecksum(1: IndexChecksumRequest req) throws (1: Error err)
+	FetchMismatchResult            fetchMismatches(1: FetchMismatchRequest req) throws (1: Error err)
 	void                           writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void                           writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void                           writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
@@ -442,6 +443,20 @@ struct IndexChecksumRequest {
 struct IndexChecksumResult {
 	1: optional list<i64> checksums
 	2: optional binary    marker
+}
+
+struct FetchMismatchRequest {
+	1: required IndexChecksumRequest query
+	2: required IndexChecksumResult  checksumBatch
+}
+
+struct FetchMismatchResult {
+	1: optional list<FetchMismatch> mismatches
+}
+
+struct FetchMismatch {
+	1: required i64               checksum
+	2: optional FetchTaggedResult fetchResult
 }
 
 // Query wrapper types for simple non-optimized query use

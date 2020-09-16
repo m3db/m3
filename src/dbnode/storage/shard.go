@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -1179,6 +1180,46 @@ func (s *dbShard) IndexChecksum(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
 	return reader.IndexChecksum(ctx, start, useID, nsCtx)
+}
+
+func (s *dbShard) FetchMismatch(
+	ctx context.Context,
+	id ident.ID,
+	buffer wide.IndexChecksumBlockBuffer,
+	start time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	s.RLock()
+	// NB: safe to lookup the entry in the cache, but not to add it, since
+	// this path represents operations that are likely to affect the entire
+	// set of series within this shard.
+	entry, _, err := s.lookupEntryWithLock(id)
+	if entry != nil {
+		// NB(r): Ensure readers have consistent view of this series, do
+		// not expire the series while being read from.
+		entry.IncrementReaderWriterCount()
+		defer entry.DecrementReaderWriterCount()
+	}
+	s.RUnlock()
+
+	if err == errShardEntryNotFound {
+		switch s.opts.SeriesCachePolicy() {
+		case series.CacheAll:
+			// No-op, would be in memory if cached
+			return nil, nil
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	if entry != nil {
+		return entry.Series.FetchMismatch(ctx, buffer, start, nsCtx)
+	}
+
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+	return reader.FetchMismatch(ctx, buffer, start, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

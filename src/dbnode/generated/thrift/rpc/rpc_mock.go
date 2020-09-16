@@ -360,6 +360,21 @@ func (mr *MockTChanNodeMockRecorder) FetchBlocksRaw(ctx, req interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksRaw", reflect.TypeOf((*MockTChanNode)(nil).FetchBlocksRaw), ctx, req)
 }
 
+// FetchMismatches mocks base method
+func (m *MockTChanNode) FetchMismatches(ctx thrift.Context, req *FetchMismatchRequest) (*FetchMismatchResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchMismatches", ctx, req)
+	ret0, _ := ret[0].(*FetchMismatchResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchMismatches indicates an expected call of FetchMismatches
+func (mr *MockTChanNodeMockRecorder) FetchMismatches(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchMismatches", reflect.TypeOf((*MockTChanNode)(nil).FetchMismatches), ctx, req)
+}
+
 // FetchTagged mocks base method
 func (m *MockTChanNode) FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error) {
 	m.ctrl.T.Helper()

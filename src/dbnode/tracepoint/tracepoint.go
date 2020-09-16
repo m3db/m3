@@ -49,6 +49,9 @@ const (
 	// IndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
 	IndexChecksum = "tchannelthrift/node.service.IndexChecksum"
 
+	// FetchMismatches is the operation name for the tchannelthrift FetchMismatches path.
+	FetchMismatches = "tchannelthrift/node.service.FetchMismatches"
+
 	// IndexChecksumSingleResult is the operation name for the tchannelthrift IndexChecksumSingleResult path.
 	IndexChecksumSingleResult = "tchannelthrift/node.service.IndexChecksumSingleResult"
 
@@ -57,6 +60,9 @@ const (
 
 	// DBQueryIDsIndexChecksum is the operation name for the db QueryIDs IndexChecksum path.
 	DBQueryIDsIndexChecksum = "storage.db.QueryIDsIndexChecksum"
+
+	// DBQueryIDsFetchMismatch is the operation name for the db QueryIDsFetchMismatch path.
+	DBQueryIDsFetchMismatch = "storage.db.QueryIDsFetchMismatch"
 
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
@@ -82,6 +88,9 @@ const (
 	// NSIndexChecksumQuery is the operation name for the dbNamespace QueryIDs path when fetching index checksums.
 	NSIndexChecksumQuery = "storage.nsIndex.IndexChecksum"
 
+	// NSFetchMismatchQuery is the operation name for the dbNamespace QueryIDs path when fetching mismatches.
+	NSFetchMismatchQuery = "storage.nsIndex.FetchMismatch"
+	
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
 
@@ -90,6 +99,9 @@ const (
 
 	// NSIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
 	NSIndexChecksum = "storage.dbNamespace.IndexChecksum"
+
+	// NSFetchMismatch is the operation name for the tchannelthrift FetchMismatch path.
+	NSFetchMismatch = "storage.dbNamespace.FetchMismatch"
 
 	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
 	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
@@ -120,6 +132,9 @@ const (
 
 	// IndexChecksumQuery is the operation name for the IndexChecksum query path.
 	IndexChecksumQuery = "storage/index.block.IndexChecksum"
+
+	// FetchMismatchQuery is the operation name for the FetchMismatch query path.
+	FetchMismatchQuery = "storage/index.block.FetchMismatch"
 
 	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
 	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"

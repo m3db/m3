@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -93,6 +94,15 @@ type DatabaseSeries interface {
 		useID bool,
 		nsCtx namespace.Context,
 	) (ident.IndexChecksum, error)
+
+	// FetchMismatch retrieves read mismatch segments for an ID, given a
+	// checksum block buffer.
+	FetchMismatch(
+		ctx context.Context,
+		buffer wide.IndexChecksumBlockBuffer,
+		start time.Time,
+		nsCtx namespace.Context,
+	) ([]wide.ReadMismatch, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(

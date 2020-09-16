@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -881,6 +882,23 @@ func (n *dbNamespace) IndexChecksum(
 		return ident.IndexChecksum{}, err
 	}
 	res, err := shard.IndexChecksum(ctx, id, useID, start, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) FetchMismatch(
+	ctx context.Context,
+	id ident.ID,
+	buffer wide.IndexChecksumBlockBuffer,
+	start time.Time,
+) ([]wide.ReadMismatch, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return nil, err
+	}
+	res, err := shard.FetchMismatch(ctx, id, buffer, start, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

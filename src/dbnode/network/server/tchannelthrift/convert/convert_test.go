@@ -243,9 +243,9 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 func TestConvertIndexChecksumRequest(t *testing.T) {
 	ns := ident.StringID("abc")
 	opts := index.QueryOptions{
-		StartInclusive:     time.Now().Add(-900 * time.Hour),
-		BatchSize:          10,
-		IndexChecksumQuery: true,
+		StartInclusive: time.Now().Add(-900 * time.Hour),
+		BatchSize:      10,
+		QueryType:      index.IndexChecksum,
 	}
 	var batch int64 = 10
 	requestSkeleton := &rpc.IndexChecksumRequest{

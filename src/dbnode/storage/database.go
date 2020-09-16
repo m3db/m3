@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -915,6 +916,32 @@ func (d *db) IndexChecksum(
 	}
 
 	return n.IndexChecksum(ctx, id, useID, start)
+}
+
+func (d *db) FetchMismatch(
+	ctx context.Context,
+	namespace ident.ID,
+	id ident.ID,
+	buffer wide.IndexChecksumBlockBuffer,
+	start time.Time,
+) ([]wide.ReadMismatch, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+		)
+	}
+	defer sp.Finish()
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	return n.FetchMismatch(ctx, id, buffer, start)
 }
 
 func (d *db) FetchBlocks(

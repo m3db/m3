@@ -3200,9 +3200,9 @@ func TestServiceIndexChecksum(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		index.NewQueryMatcher(qry),
 		index.QueryOptions{
-			StartInclusive:     start,
-			IndexChecksumQuery: true,
-			BatchSize:          batchSize,
+			StartInclusive: start,
+			QueryType:      index.IndexChecksum,
+			BatchSize:      batchSize,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -3344,9 +3344,9 @@ func TestServiceIndexChecksumErrs(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		index.NewQueryMatcher(qry),
 		index.QueryOptions{
-			StartInclusive:     start,
-			IndexChecksumQuery: true,
-			BatchSize:          1024,
+			StartInclusive: start,
+			QueryType:      index.IndexChecksum,
+			BatchSize:      1024,
 		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 
 	require.NoError(t, err)

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -252,6 +253,17 @@ func (r Reader) indexChecksum(
 	}
 
 	return streamedBlock, nil
+}
+
+// FetchMismatch retrieves read mismatch segments for an ID, given a
+// checksum block buffer.
+func (r Reader) FetchMismatch(
+	ctx context.Context,
+	buffer wide.IndexChecksumBlockBuffer,
+	start time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	return nil, errors.New("not implemented")
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

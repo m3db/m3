@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -106,6 +107,7 @@ type serviceMetrics struct {
 	fetch                   instrument.MethodMetrics
 	fetchTagged             instrument.MethodMetrics
 	indexChecksum           instrument.MethodMetrics
+	fetchMismatched         instrument.MethodMetrics
 	aggregate               instrument.MethodMetrics
 	write                   instrument.MethodMetrics
 	writeTagged             instrument.MethodMetrics
@@ -127,6 +129,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
 		indexChecksum:           instrument.NewMethodMetrics(scope, "indexChecksum", opts),
+		fetchMismatched:         instrument.NewMethodMetrics(scope, "fetchMismatched", opts),
 		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
 		write:                   instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
@@ -747,9 +750,8 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
 			return convert.ToRPCError(err)
-		} else {
-			encodedDataResults[idx] = encoded
 		}
+		encodedDataResults[idx] = encoded
 	}
 	return nil
 }
@@ -950,6 +952,7 @@ func (s *service) indexHashSingle(ctx context.Context,
 	for _, entry := range results.Map().Iter() {
 		orderedIDs = append(orderedIDs, entry.Key())
 	}
+
 	// Sort counters for comparison purposes.
 	sort.Slice(orderedIDs, func(i, j int) bool {
 		return bytes.Compare(orderedIDs[i].Bytes(), orderedIDs[j].Bytes()) == -1
@@ -973,6 +976,68 @@ func (s *service) indexHashSingle(ctx context.Context,
 		}
 	}
 	return nil
+}
+
+func (s *service) FetchMismatches(tctx thrift.Context, req *rpc.FetchMismatchRequest) (*rpc.FetchMismatchResult_, error) {
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexChecksum)
+	if sampled {
+		query := req.Query
+		sp.LogFields(
+			opentracinglog.String("query", string(query.Query)),
+			opentracinglog.String("namespace", string(query.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, query.BlockStart)),
+			opentracinglog.Int("batch_length", len(req.ChecksumBatch.Checksums)),
+			opentracinglog.String("marker", string(req.ChecksumBatch.Marker)),
+		)
+	}
+
+	result, err := s.fetchMismatches(ctx, db, req)
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) fetchMismatches(
+	ctx context.Context,
+	db storage.Database,
+	req *rpc.FetchMismatchRequest,
+) (*rpc.FetchMismatchResult_, error) {
+	callStart := s.nowFn()
+	buffer := wide.NewIndexChecksumBlockBuffer()
+	ns, query, opts, err := convert.FromFetchMismatchRequest(req, buffer, s.pools)
+	if err != nil {
+		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
+	if err != nil {
+		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	results := queryResult.Results
+	response := &rpc.IndexChecksumResult_{
+		Checksums: make([]int64, 0, s.opts.BatchSize()),
+	}
+
+	// TODO: this should open a stream.
+	if err := s.indexHashSingle(ctx, db, response, results, opts); err != nil {
+		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+		return nil, err
+	}
+
+	s.metrics.fetchMismatched.ReportSuccess(s.nowFn().Sub(callStart))
+	return nil, nil
 }
 
 func (s *service) encodeTags(

@@ -63,7 +63,7 @@ const (
 	InsertAsync
 )
 
-// AggregationType specifies what granularity to aggregate upto.
+// AggregationType specifies aggregate query granularity.
 type AggregationType uint8
 
 const (
@@ -78,9 +78,23 @@ type Query struct {
 	idx.Query
 }
 
+// QueryType specifies the given query.
+type QueryType uint8
+
+const (
+	// FetchQuery identifies a standard query.
+	FetchQuery QueryType = iota
+	// IndexChecksum identifies a wide IndexChecksum query.
+	IndexChecksum
+	// FetchMismatch identifies a wide FetchMismatch query.
+	FetchMismatch
+)
+
 // QueryOptions enables users to specify constraints and
 // preferences on query execution.
 type QueryOptions struct {
+	// QueryType determines the type of query.
+	QueryType QueryType
 	// StartInclusive is the start time for the query.
 	StartInclusive time.Time
 	// EndExclusive	is the exclusive end for the query.
@@ -93,22 +107,10 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
-	// IndexChecksumQuery causes this query to return only matching IDs and a
-	// corresponding checksum.
-	IndexChecksumQuery bool
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
-	// MismatchOptions are fetch mismatch options.
-	MismatchOptions *MismatchOptions
-}
-
-// MismatchOptions are options specific to mismatch queries.
-type MismatchOptions struct {
-	// ChecksumCh is a streaming channel for the index checksum blocks to input
-	// into mismatch queries.
-	ChecksumCh chan<- ident.IndexChecksumBlock
-	// OutCh is the streaming output channel.
-	OutCh <-chan wide.ReadMismatch
+	// ChecksumBlockBuffer streams incoming IndexChecksumBlocks.
+	ChecksumBlockBuffer wide.IndexChecksumBlockBuffer
 }
 
 // IterationOptions enables users to specify iteration preferences.

@@ -24,6 +24,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 )
 
+const invalid = ""
+
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
 func (o QueryOptions) SeriesLimitExceeded(size int) bool {
@@ -38,7 +40,7 @@ func (o QueryOptions) DocsLimitExceeded(size int) bool {
 
 // LimitsExceeded returns whether a given size exceeds the given limits.
 func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
-	if o.IndexChecksumQuery {
+	if o.QueryType != FetchQuery {
 		return false
 	}
 
@@ -49,29 +51,57 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) tracepoint(idxHash, query string) string {
-	if o.IndexChecksumQuery {
-		return idxHash
-	}
-
-	return query
-}
-
 func (o QueryOptions) queryTracepoint() string {
-	return o.tracepoint(tracepoint.IndexChecksumQuery, tracepoint.BlockQuery)
+	switch o.QueryType {
+	case FetchQuery:
+		return tracepoint.BlockQuery
+	case IndexChecksum:
+		return tracepoint.IndexChecksumQuery
+	case FetchMismatch:
+		return tracepoint.FetchMismatchQuery
+	default:
+		return invalid
+	}
 }
 
 // NSTracepoint yields the appropriate tracepoint for namespace tchannelthrift path.
 func (o QueryOptions) NSTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexChecksum, tracepoint.NSQueryIDs)
+	switch o.QueryType {
+	case FetchQuery:
+		return tracepoint.NSQueryIDs
+	case IndexChecksum:
+		return tracepoint.NSIndexChecksum
+	case FetchMismatch:
+		return tracepoint.NSFetchMismatch
+	default:
+		return invalid
+	}
 }
 
 // DBTracepoint yields the appropriate tracepoint for database tchannelthrift path.
 func (o QueryOptions) DBTracepoint() string {
-	return o.tracepoint(tracepoint.DBQueryIDsIndexChecksum, tracepoint.DBQueryIDs)
+	switch o.QueryType {
+	case FetchQuery:
+		return tracepoint.DBQueryIDs
+	case IndexChecksum:
+		return tracepoint.DBQueryIDsIndexChecksum
+	case FetchMismatch:
+		return tracepoint.DBQueryIDsFetchMismatch
+	default:
+		return invalid
+	}
 }
 
 // NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.
 func (o QueryOptions) NSIdxTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexChecksumQuery, tracepoint.NSIdxQuery)
+	switch o.QueryType {
+	case FetchQuery:
+		return tracepoint.NSIdxQuery
+	case IndexChecksum:
+		return tracepoint.NSIndexChecksumQuery
+	case FetchMismatch:
+		return tracepoint.NSFetchMismatchQuery
+	default:
+		return invalid
+	}
 }

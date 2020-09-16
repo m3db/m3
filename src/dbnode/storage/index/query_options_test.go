@@ -28,9 +28,9 @@ import (
 
 func TestQueryOptions(t *testing.T) {
 	opts := QueryOptions{
-		DocsLimit:          10,
-		SeriesLimit:        20,
-		IndexChecksumQuery: false,
+		DocsLimit:   10,
+		SeriesLimit: 20,
+		QueryType:   FetchQuery,
 	}
 
 	assert.False(t, opts.SeriesLimitExceeded(19))
@@ -55,7 +55,7 @@ func TestQueryOptions(t *testing.T) {
 
 func TestIndexChecksumQueryOptions(t *testing.T) {
 	opts := QueryOptions{
-		IndexChecksumQuery: true,
+		QueryType: IndexChecksum,
 	}
 
 	assert.False(t, opts.SeriesLimitExceeded(19))
@@ -76,4 +76,29 @@ func TestIndexChecksumQueryOptions(t *testing.T) {
 	assert.Equal(t, "storage.dbNamespace.IndexChecksum", opts.NSTracepoint())
 	assert.Equal(t, "storage.db.QueryIDsIndexChecksum", opts.DBTracepoint())
 	assert.Equal(t, "storage.nsIndex.IndexChecksum", opts.NSIdxTracepoint())
+}
+
+func TestFetchMismatchQueryOptions(t *testing.T) {
+	opts := QueryOptions{
+		QueryType: FetchMismatch,
+	}
+
+	assert.False(t, opts.SeriesLimitExceeded(19))
+	assert.False(t, opts.SeriesLimitExceeded(20))
+
+	assert.False(t, opts.DocsLimitExceeded(9))
+	assert.False(t, opts.DocsLimitExceeded(10))
+
+	assert.False(t, opts.LimitsExceeded(19, 10))
+	assert.False(t, opts.LimitsExceeded(20, 9))
+	assert.False(t, opts.LimitsExceeded(19, 9))
+
+	assert.True(t, opts.exhaustive(19, 10))
+	assert.True(t, opts.exhaustive(20, 9))
+	assert.True(t, opts.exhaustive(19, 9))
+
+	assert.Equal(t, "storage/index.block.FetchMismatch", opts.queryTracepoint())
+	assert.Equal(t, "storage.dbNamespace.FetchMismatch", opts.NSTracepoint())
+	assert.Equal(t, "storage.db.QueryIDsFetchMismatch", opts.DBTracepoint())
+	assert.Equal(t, "storage.nsIndex.FetchMismatch", opts.NSIdxTracepoint())
 }
