@@ -719,6 +719,7 @@ func TestConfiguration(t *testing.T) {
       meta_event_reporting_enabled: false
   limits:
     maxRecentlyQueriedSeriesBlocks: null
+    maxRecentlyQueriedSeriesDiskBytesRead: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0

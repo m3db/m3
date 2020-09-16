@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -79,9 +80,11 @@ const (
 type blockRetriever struct {
 	sync.RWMutex
 
-	opts   BlockRetrieverOptions
-	fsOpts Options
-	logger *zap.Logger
+	opts           BlockRetrieverOptions
+	fsOpts         Options
+	logger         *zap.Logger
+	queryLimits    limits.QueryLimits
+	bytesReadLimit limits.LookbackLimit
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -113,6 +116,8 @@ func NewBlockRetriever(
 		opts:           opts,
 		fsOpts:         fsOpts,
 		logger:         fsOpts.InstrumentOptions().Logger(),
+		queryLimits:    opts.QueryLimits(),
+		bytesReadLimit: opts.QueryLimits().BytesReadLimit(),
 		newSeekerMgrFn: NewSeekerManager,
 		reqPool:        opts.RetrieveRequestPool(),
 		bytesPool:      opts.BytesPool(),
@@ -288,6 +293,13 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		for _, req := range reqs {
+			req.onError(err)
+		}
+		return
+	}
+
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -299,10 +311,22 @@ func (r *blockRetriever) fetchBatch(
 
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
+	var limitErr error
 	for _, req := range reqs {
+		if limitErr != nil {
+			req.onError(limitErr)
+			continue
+		}
+
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
+			continue
+		}
+
+		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
+			req.onError(err)
+			limitErr = err
 			continue
 		}
 
