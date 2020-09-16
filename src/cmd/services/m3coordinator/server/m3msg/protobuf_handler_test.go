@@ -200,6 +200,27 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 1, w.ingested())
+
+	// Ensure a metric with base policy (equivalent but default precision) is
+	// still ignored.
+	m3 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte(testID),
+			TimeNanos: 1000,
+			Value:     1,
+			Type:      metric.GaugeType,
+		},
+		StoragePolicy: baseStoragePolicy,
+	}
+	require.NoError(t, encoder.Encode(m3, 3000))
+	enc = proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 1, w.ingested())
 }
 
 type mockWriter struct {
