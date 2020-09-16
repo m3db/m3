@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/stats"
@@ -97,6 +98,17 @@ type QueryOptions struct {
 	IndexChecksumQuery bool
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
+	// MismatchOptions are fetch mismatch options.
+	MismatchOptions *MismatchOptions
+}
+
+// MismatchOptions are options specific to mismatch queries.
+type MismatchOptions struct {
+	// ChecksumCh is a streaming channel for the index checksum blocks to input
+	// into mismatch queries.
+	ChecksumCh chan<- ident.IndexChecksumBlock
+	// OutCh is the streaming output channel.
+	OutCh <-chan wide.ReadMismatch
 }
 
 // IterationOptions enables users to specify iteration preferences.
