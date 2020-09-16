@@ -28,7 +28,7 @@ import (
 type QueryLimits interface {
 	// DocsLimit limits queries by a global concurrent count of index docs matched.
 	DocsLimit() LookbackLimit
-	// DocsLimit limits queries by a global concurrent count of bytes read from disk.
+	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
 
 	// AnyExceeded returns an error if any of the query limits are exceeded.
