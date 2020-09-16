@@ -83,20 +83,27 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 	p := protobuf.NewAggregatedDecoderPool(opts.ProtobufDecoderPoolOptions)
 	p.Init()
 
-	blackholePolicies := make(map[policy.StoragePolicy]struct{}, len(opts.BlockholePolicies))
-	for _, sp := range opts.BlockholePolicies {
-		blackholePolicies[sp] = struct{}{}
-	}
-
-	return &pbHandler{
+	h := &pbHandler{
 		ctx:               context.Background(),
 		writeFn:           opts.WriteFn,
 		pool:              p,
 		wg:                &sync.WaitGroup{},
 		logger:            opts.InstrumentOptions.Logger(),
 		m:                 newHandlerMetrics(opts.InstrumentOptions.MetricsScope()),
-		blackholePolicies: blackholePolicies,
+		blackholePolicies: make(map[policy.StoragePolicy]struct{}, len(opts.BlockholePolicies)),
 	}
+
+	if len(opts.BlockholePolicies) > 0 {
+		policyNames := make([]string, len(opts.BlockholePolicies))
+		for i, sp := range opts.BlockholePolicies {
+			h.blackholePolicies[sp] = struct{}{}
+			policyNames[i] = sp.String()
+		}
+
+		h.logger.Info("m3msg handler blackholing metrics for configured policies", zap.Strings("policyNames", policyNames))
+	}
+
+	return h
 }
 
 func (h *pbHandler) Process(msg consumer.Message) {
