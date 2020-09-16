@@ -59,6 +59,10 @@ const testAddJSON = `
 			"indexOptions": {
 				"enabled": true,
 				"blockSizeNanos": 7200000000000
+			},
+			"extendedOptions": {
+				"@type": "testm3.io/google.protobuf.StringValue",
+				"value": "foo"
 			}
 		}
 }
@@ -134,7 +138,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   nil,
+						"extendedOptions":   testExtendedOptionsJson("foo"),
 					},
 				},
 			},
