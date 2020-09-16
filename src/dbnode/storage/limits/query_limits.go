@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 )
@@ -67,9 +68,9 @@ func DefaultLookbackLimitOptions() LookbackLimitOptions {
 
 // NewQueryLimits returns a new query limits manager.
 func NewQueryLimits(
-	instrumentOpts instrument.Options,
 	docsLimitOpts LookbackLimitOptions,
 	bytesReadLimitOpts LookbackLimitOptions,
+	instrumentOpts instrument.Options,
 ) (QueryLimits, error) {
 	if err := docsLimitOpts.validate(); err != nil {
 		return nil, err
@@ -133,10 +134,7 @@ func (q *queryLimits) AnyExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
-	if err := q.bytesReadLimit.exceeded(); err != nil {
-		return err
-	}
-	return nil
+	return q.bytesReadLimit.exceeded()
 }
 
 // Inc increments the current value and returns an error if above the limit.
