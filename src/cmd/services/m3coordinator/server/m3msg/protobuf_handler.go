@@ -94,9 +94,9 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 	}
 
 	if len(opts.BlockholePolicies) > 0 {
-		policyNames := make([]string, len(opts.BlockholePolicies))
-		for i, sp := range h.blackholePolicies {
-			policyNames[i] = sp.String()
+		policyNames := make([]string, 0, len(opts.BlockholePolicies))
+		for _, sp := range h.blackholePolicies {
+			policyNames = append(policyNames, sp.String())
 		}
 		h.logger.Info("m3msg handler blackholing metrics for configured policies", zap.Strings("policyNames", policyNames))
 	}

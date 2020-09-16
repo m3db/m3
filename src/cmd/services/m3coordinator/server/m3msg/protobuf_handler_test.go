@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	testID = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
+	testID = "stats.foo1.gauges.m3+some-name+dc=foo1,env=production,service=foo,type=gauge"
 
 	// baseStoragePolicy represents what we typically define in config for SP.
 	// precisionStoragePolicy is the same retention/resolution, but includes the
@@ -181,7 +181,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 0, w.ingested())
 
-	// Ensure a metric with a difference policy still gets ingested.
+	// Ensure a metric with a different policy still gets ingested.
 	m2 := aggregated.MetricWithStoragePolicy{
 		Metric: aggregated.Metric{
 			ID:        []byte{},
