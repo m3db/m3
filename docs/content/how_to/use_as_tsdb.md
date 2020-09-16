@@ -6,13 +6,13 @@ title: Using M3DB as a general purpose time series database
 
 ## Overview
 
-M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](../integrations/prometheus) and [Graphite](../integrations/graphite). M3DB can also be used as a general purpose distributed time series database by itself.
+M3 has native integrations that make it particularly easy to use it as a metrics storage for [Prometheus](/integrations/prometheus) and [Graphite](/integrations/graphite). M3DB can also be used as a general purpose distributed time series database by itself.
 
 ## Data Model
 
 ### IDs and Tags
 
-M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](../operational_guide/namespace_configuration).
+M3DB's data model allows multiple namespaces, each of which can be [configured and tuned independently](/operational_guide/namespace_configuration).
 
 Each namespace can also be configured with its own schema (see "Schema Modeling" section below).
 

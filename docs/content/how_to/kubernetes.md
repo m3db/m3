@@ -279,7 +279,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement -d '{
 
 ### Prometheus
 
-As mentioned in our integrations [guide](../integrations/prometheus), M3DB can be used as a [remote read/write
+As mentioned in our integrations [guide](/integrations/prometheus), M3DB can be used as a [remote read/write
 endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E) for Prometheus.
 
 If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:
@@ -311,4 +311,4 @@ certain nodes. Specifically:
     choose.
 2.  Via `nodeAffinity` the pods prefer to run on nodes with the label `m3db.io/dedicated-m3db="true"`.
 
-[kernel]: ../operational_guide/kernel_configuration.md
+[kernel]: /operational_guide/kernel_configuration

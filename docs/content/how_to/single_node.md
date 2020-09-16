@@ -21,9 +21,9 @@ docker pull quay.io/m3db/m3dbnode:latest
 docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3dbnode:latest
 ```
 
-**Note:** For the single node case, we use this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is grouped by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](cluster_hard_way).
+**Note:** For the single node case, we use this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is grouped by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](/how_to/cluster_hard_way).
 
-Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided `namespaceName` must match the namespace in the `local` section of the `M3Coordinator` YAML configuration, and if you choose to [add any additional namespaces](../operational_guide/namespace_configuration) you'll need to add them to the `local` section of `M3Coordinator`'s YAML config as well.
+Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided `namespaceName` must match the namespace in the `local` section of the `M3Coordinator` YAML configuration, and if you choose to [add any additional namespaces](/operational_guide/namespace_configuration) you'll need to add them to the `local` section of `M3Coordinator`'s YAML config as well.
 
 <!-- TODO: Retention actually different -->
 
@@ -35,7 +35,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-**Note**: The `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](../operational_guide/placement) and [namespaces](../operational_guide/namespace_configuration). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now it's enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
+**Note**: The `api/v1/database/create` endpoint is abstraction over two concepts in M3DB called [placements](/operational_guide/placement) and [namespaces](/operational_guide/namespace_configuration). If a placement doesn't exist, it will create one based on the `type` argument, otherwise if the placement already exists, it just creates the specified namespace. For now it's enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.
 
 Placement initialization may take a minute or two and you can check on the status of this by running the following:
 
@@ -92,7 +92,7 @@ curl -sS -X POST http://localhost:9003/writetagged -d '{
 
 **Note:** In the above example we include the tag `__name__`. This is because `__name__` is a
 reserved tag in Prometheus and will make querying the metric much easier. For example, if you have
-[M3Query](query) setup as a Prometheus datasource in Grafana, you can then query for the metric
+[M3Query](/how_to/query) setup as a Prometheus datasource in Grafana, you can then query for the metric
 using the following PromQL query:
 
 ```shell
@@ -144,4 +144,4 @@ curl -sS -X POST http://localhost:9003/query -d '{
 }
 ```
 
-Now that you've got the M3 stack up and running, take a look at the rest of our documentation to see how you can integrate with [Prometheus](../integrations/prometheus) and [Graphite](../integrations/graphite)
+Now that you've got the M3 stack up and running, take a look at the rest of our documentation to see how you can integrate with [Prometheus](/integrations/prometheus) and [Graphite](/integrations/graphite)
