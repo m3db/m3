@@ -48,7 +48,6 @@ type IndexFileSetWriter interface {
 // IndexSegmentFileSetWriter is an index segment file set writer.
 type IndexSegmentFileSetWriter interface {
 	SegmentType() IndexSegmentType
-	SegmentState() IndexSegmentState
 	MajorVersion() int
 	MinorVersion() int
 	SegmentMetadata() []byte
@@ -69,6 +68,9 @@ type MutableSegmentFileSetWriter interface {
 // out fst.SegmentData.
 type FSTSegmentDataFileSetWriter interface {
 	IndexSegmentFileSetWriter
+
+	// SegmentState is only required when writing index snapshots to disk.
+	SegmentState() fst.IndexSegmentState
 
 	Reset(fst.SegmentData) error
 }
@@ -127,16 +129,6 @@ type IndexSegmentType string
 const (
 	// FSTIndexSegmentType is a FST IndexSegmentType.
 	FSTIndexSegmentType IndexSegmentType = "fst"
-)
-
-// IndexSegmentState is the state of an index segment.
-type IndexSegmentState int
-
-const (
-	// CompactableIndexSegmentState is a still compactable index segment.
-	CompactableIndexSegmentState IndexSegmentState = iota
-	// FrozenIndexSegmentState is a no longer compactable frozen index segment.
-	FrozenIndexSegmentState
 )
 
 // IndexSegmentFileType is the type of a file in an index file set.

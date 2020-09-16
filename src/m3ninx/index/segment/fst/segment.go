@@ -33,7 +33,6 @@ import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
-	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -58,11 +57,21 @@ var (
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
 )
 
+// IndexSegmentState is the state of an index segment.
+type IndexSegmentState int
+
+const (
+	// CompactableIndexSegmentState is a still compactable index segment.
+	CompactableIndexSegmentState IndexSegmentState = iota
+	// FrozenIndexSegmentState is a no longer compactable frozen index segment.
+	FrozenIndexSegmentState
+)
+
 // SegmentData represent the collection of required parameters to construct a Segment.
 type SegmentData struct {
 	Version  Version
 	Metadata []byte
-	State    persist.IndexSegmentState
+	State    IndexSegmentState
 
 	DocsData      mmap.Descriptor
 	DocsIdxData   mmap.Descriptor
@@ -203,10 +212,10 @@ func (r *fsSegment) Freeze() {
 	if r.closed {
 		return
 	}
-	r.data.State = persist.FrozenIndexSegmentState
+	r.data.State = FrozenIndexSegmentState
 }
 
-func (r *fsSegment) State() persist.IndexSegmentState {
+func (r *fsSegment) State() IndexSegmentState {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {

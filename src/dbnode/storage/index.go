@@ -875,7 +875,7 @@ func (i *nsIndex) Bootstrap(
 			case idxpersist.SnapshotColdIndexVolumeType, idxpersist.SnapshotWarmIndexVolumeType:
 				// Only set if the volume index in the results is set.
 				if results.VolumeIndex() >= 0 {
-					i.setSnapshotStateVersionLoaded(blockStart, results.VolumeIndex())
+					i.setSnapshotStateVersionLoaded(blockStart.ToTime(), results.VolumeIndex())
 				}
 			}
 		}
@@ -1227,7 +1227,7 @@ func (i *nsIndex) flushBlock(
 	}
 
 	// Update the flushed snapshot version after a successful snapshot flush.
-	i.setSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
+	i.setSnapshotStateVersionFlushed(indexBlock.StartTime(), prepared.VolumeIndex)
 
 	return immutableSegments, nil
 }
@@ -2249,14 +2249,14 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 }
 
 func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
-	i.RLock()
+	i.state.RLock()
 	bootstrapped := i.state.bootstrapState != Bootstrapped
 	if !bootstrapped {
 		// Needs to be bootstrapped.
-		i.RUnlock()
+		i.state.RUnlock()
 		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 	}
-	i.RUnlock()
+	i.state.RUnlock()
 
 	i.snapshotState.RLock()
 	defer i.snapshotState.RUnlock()
@@ -2288,6 +2288,7 @@ func (i *nsIndex) initializeSnapshotStates() {
 		i.snapshotState.initialized = true
 		i.snapshotState.Unlock()
 	}()
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(
 		fsOpts.FilePathPrefix(),
 		i.nsMetadata.ID(),
@@ -2301,31 +2302,31 @@ func (i *nsIndex) initializeSnapshotStates() {
 }
 
 func (i *nsIndex) setSnapshotStateVersionFlushed(blockStart time.Time, version int) {
-	s.snapshotState.Lock()
-	defer s.snapshotState.Unlock()
-	state := s.ensureSnapshotStateWithLock(blockStart)
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
+	state := i.ensureSnapshotStateWithLock(blockStart)
 	state.SnapshotVersionFlushed = version
-	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 }
 
 func (i *nsIndex) setSnapshotStateVersionLoaded(blockStart time.Time, version int) {
-	s.snapshotState.Lock()
-	defer s.snapshotState.Unlock()
-	state := s.ensureSnapshotStateWithLock(blockStart)
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
+	state := i.ensureSnapshotStateWithLock(blockStart)
 	state.SnapshotVersionLoaded = version
-	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 }
 
 // ensureSnapshotStateWithLock gets snapshot state given a block start and ensures that it exists.
 func (i *nsIndex) ensureSnapshotStateWithLock(blockStart time.Time) index.BlockState {
-	state, ok := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state, ok := i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		state = index.BlockState{
 			// Default unset values for snapshot version is -1.
 			SnapshotVersionFlushed: defaultSnapshotVersion,
 			SnapshotVersionLoaded:  defaultSnapshotVersion,
 		}
-		s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+		i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	}
 	return state
 }

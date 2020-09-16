@@ -400,7 +400,7 @@ func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareSnapshot
 	// provide persistManager hooks into PreparedIndexSnapshotPersist object
 	prepared.Persist = pm.persistIndexSnapshot
 	prepared.Close = pm.closeIndex
-	prepraed.VolumeIndex = volumeIndex
+	prepared.VolumeIndex = volumeIndex
 
 	return prepared, nil
 }

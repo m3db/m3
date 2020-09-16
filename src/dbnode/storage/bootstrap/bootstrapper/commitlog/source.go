@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -1078,10 +1077,10 @@ func (s *commitLogSource) bootstrapIndexBlockSnapshot(
 	if err != nil {
 		return err
 	}
-	snapshottedSegments := make([]segment.Segment, 0, len(segments))
+	snapshottedSegments := make([]result.Segment, 0, len(segments))
 	for _, segment := range segments {
 		// Snapshotted segments have not been persisted to disk yet.
-		snapshottedSegments = append(snapshottedSegments, bootstrapper.NewSegment(segment, false))
+		snapshottedSegments = append(snapshottedSegments, result.NewSegment(segment, false))
 	}
 	indexBlockByVolumeType := result.NewIndexBlockByVolumeType(blockStart)
 	indexBlockByVolumeType.SetBlock(indexVolumeType, result.NewIndexBlock(snapshottedSegments, nil))

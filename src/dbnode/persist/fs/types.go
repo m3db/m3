@@ -733,10 +733,10 @@ type SnapshotFilesFn func(
 	filePathPrefix string,
 	namespace ident.ID,
 	shard uint32,
-) (fs.FileSetFilesSlice, error)
+) (FileSetFilesSlice, error)
 
 // IndexSnapshotFilesFn reads in index snapshot files given a namespace.
 type IndexSnapshotFilesFn func(
 	filePathPrefix string,
 	namespace ident.ID,
-) (fs.FileSetFilesSlice, error)
+) (FileSetFilesSlice, error)

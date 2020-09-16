@@ -2643,6 +2643,20 @@ func (mr *MockNamespaceIndexMockRecorder) Snapshot(shards, blockStart, snapshotT
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).Snapshot), shards, blockStart, snapshotTime, snapshotPersist, infoFiles)
 }
 
+// BlockStatesSnapshot mocks base method
+func (m *MockNamespaceIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
+	ret0, _ := ret[0].(index.BlockStateSnapshot)
+	return ret0
+}
+
+// BlockStatesSnapshot indicates an expected call of BlockStatesSnapshot
+func (mr *MockNamespaceIndexMockRecorder) BlockStatesSnapshot() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStatesSnapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStatesSnapshot))
+}
+
 // Close mocks base method
 func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()

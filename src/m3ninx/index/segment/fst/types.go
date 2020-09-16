@@ -61,6 +61,12 @@ type Segment interface {
 	// Note: Must close context when done with the data
 	// so that can resources can be free'd safely.
 	SegmentData(ctx context.Context) (SegmentData, error)
+
+	// Freeze is used to freeze an fst seg. This op is done when the
+	// fst seg has reached a terminal state in the compaction process.
+	Freeze()
+	// State returns the state of the underlying fst seg (either compactable or frozen).
+	State() IndexSegmentState
 }
 
 // Writer writes out a FST segment from the provided elements.

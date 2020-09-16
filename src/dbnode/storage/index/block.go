@@ -843,23 +843,23 @@ func (b *block) AddResults(
 		return errUnableToBootstrapBlockClosed
 	}
 
-	// First check fulfilled is correct
-	min, max := results.Fulfilled().MinMax()
-	if min.Before(b.blockStart) || max.After(b.blockEnd) {
-		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
-		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
-			results.Fulfilled().SummaryString(), blockRange.String())
-	}
-
 	multiErr := xerrors.NewMultiError()
 	for volumeType, results := range resultsByVolumeType.Iter() {
+		// First check fulfilled is correct
+		min, max := results.Fulfilled().MinMax()
+		if min.Before(b.blockStart) || max.After(b.blockEnd) {
+			blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
+			return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+				results.Fulfilled().SummaryString(), blockRange.String())
+		}
+
 		switch volumeType {
 		case idxpersist.SnapshotColdIndexVolumeType:
 			// NB(bodu): There is always at least 1 cold mutable segment.
 			coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
-			coldBlock.addSnapshottedSegments(results.Segments())
+			coldBlock.addOnDiskSegments(results.Segments())
 		case idxpersist.SnapshotWarmIndexVolumeType:
-			b.mutableSegments.addSnapshottedSegments(results.Segments())
+			b.mutableSegments.addOnDiskSegments(results.Segments())
 		default:
 			multiErr = multiErr.Add(b.addResults(volumeType, results))
 		}

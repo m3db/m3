@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -345,9 +346,8 @@ func (m *mutableSegments) Close() {
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
 	m.optsListener.Close()
-	// TODO(bodu): F/u on what cleanup on disk segments require.
 	for _, seg := range m.onDiskSegments {
-		if err := seg.Close(); err != nil {
+		if err := seg.Segment().Close(); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 				l.Error("error closing on disk index segment", zap.Error(err))
 			})
@@ -355,14 +355,14 @@ func (m *mutableSegments) Close() {
 	}
 }
 
-func (m *mutableSegments) addOnDiskSegments(segments []segment.Segment) error {
+func (m *mutableSegments) addOnDiskSegments(segments []result.Segment) error {
 	m.Lock()
 	defer m.Unlock()
 	if m.state == mutableSegmentsStateClosed {
 		return errMutableSegmentsAlreadyClosed
 	}
-	for _, segment := range segments {
-		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(segment, m.opts))
+	for _, s := range segments {
+		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(s.Segment(), m.opts))
 	}
 	return nil
 }
@@ -479,8 +479,10 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 
 	// Freeze terminal segments.
 	for _, seg := range plan.UnusedSegments {
-		if seg.State() != idxpersist.FrozenIndexSegmentState {
-			seg.Freeze()
+		if fstSeg, ok := seg.Segment.(fst.Segment); ok {
+			if fstSeg.State() != fst.FrozenIndexSegmentState {
+				fstSeg.Freeze()
+			}
 		}
 	}
 

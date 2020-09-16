@@ -374,7 +374,7 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
 // TODO(bodu): Make this read in index snapshot state and perform cleanup of index snapshot files.
 func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseNamespace) error {
-	logger := m.opts.InstrumentOptions().Logger().With(
+	m.logger.With(
 		zap.String("comment",
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
@@ -452,7 +452,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
-					logger.With(
+					m.logger.With(
 						zap.Error(err),
 						zap.Strings("files", snapshot.AbsoluteFilePaths),
 					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
@@ -479,7 +479,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		logger.With(
+		m.logger.With(
 			zap.Error(errorWithPath.Error),
 			zap.String("metadataFilePath", errorWithPath.MetadataFilePath),
 			zap.String("checkpointFilePath", errorWithPath.CheckpointFilePath),
@@ -513,9 +513,7 @@ func (m *cleanupManager) cleanupCommitlogs(
 		return err
 	}
 
-	var (
-		filesToDelete = []string{}
-	)
+	var filesToDelete = []string{}
 
 	// Delete all commitlog files prior to the one captured by the most recent snapshot.
 	for _, file := range files {
@@ -543,15 +541,14 @@ func (m *cleanupManager) cleanupCommitlogs(
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
-		logger.With(
+		m.logger.With(
 			zap.Error(errorWithPath),
 			zap.String("path", errorWithPath.Path()),
 		).Warn("corrupt commitlog file during cleanup, marking file for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
-	multiErr = multiErr.Add(m.deleteFilesFn(filesToDelete))
-	return multiErr.FinalError()
+	return m.deleteFilesFn(filesToDelete)
 }
 
 func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) error {
@@ -573,6 +570,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 			continue
 		}
 		// Get index snapshot files and cross-ref block states.
+		fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
 		snapshots, err := m.indexSnapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID())
 		for _, snapshot := range snapshots {
 			_, _, err := snapshot.SnapshotTimeAndID()
@@ -582,7 +580,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 				// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 				// retained.
 				m.metrics.corruptSnapshotFile.Inc(1)
-				logger.With(
+				m.logger.With(
 					zap.Error(err),
 					zap.Strings("files", snapshot.AbsoluteFilePaths),
 				).Warn("corrupt index snapshot file during cleanup, marking files for deletion")
@@ -590,7 +588,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 				continue
 			}
 
-			blockState, ok := blockStates[xtime.ToUnixNano(snapshot.ID.BlockStart)]
+			blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]
 			if !ok {
 				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(), func(l *zap.Logger) {
 					l.Error("found snapshot file with no corresponding block state",

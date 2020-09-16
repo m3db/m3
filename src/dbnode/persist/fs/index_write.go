@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
@@ -78,7 +79,7 @@ type indexWriter struct {
 
 type writtenIndexSegment struct {
 	segmentType  idxpersist.IndexSegmentType
-	segmentState idxpersist.IndexSegmentState
+	segmentState fst.IndexSegmentState
 	majorVersion int
 	minorVersion int
 	metadata     []byte
@@ -167,10 +168,14 @@ func (w *indexWriter) WriteSegmentFileSet(
 
 	seg := writtenIndexSegment{
 		segmentType:  segType,
-		segmentState: segmentFileSet.SegmentState(),
 		majorVersion: segmentFileSet.MajorVersion(),
 		minorVersion: segmentFileSet.MinorVersion(),
 		metadata:     segmentFileSet.SegmentMetadata(),
+	}
+	// We only store index segment state for snapshotted segments.
+	fstSegmentDataFileSetWriter, ok := segmentFileSet.(idxpersist.FSTSegmentDataFileSetWriter)
+	if ok {
+		seg.segmentState = fstSegmentDataFileSetWriter.SegmentState()
 	}
 
 	files := segmentFileSet.Files()
