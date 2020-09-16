@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
@@ -67,6 +68,7 @@ func (c Configuration) NewServer(
 type handlerConfiguration struct {
 	// ProtobufDecoderPool configs the protobuf decoder pool.
 	ProtobufDecoderPool pool.ObjectPoolConfiguration `yaml:"protobufDecoderPool"`
+	BlackholePolicies   []policy.StoragePolicy       `yaml:"blackholePolicies"`
 }
 
 func (c handlerConfiguration) newHandler(
