@@ -27,9 +27,9 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/ory/dockertest"
 
 	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/ory/dockertest"
 	"go.uber.org/zap"
 )
 

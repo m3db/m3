@@ -112,11 +112,12 @@ func TestNamespaceAddHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
-						"bootstrapEnabled":  true,
-						"flushEnabled":      true,
-						"writesToCommitLog": true,
-						"cleanupEnabled":    true,
-						"repairEnabled":     true,
+						"bootstrapEnabled":      true,
+						"cacheBlocksOnRetrieve": true,
+						"flushEnabled":          true,
+						"writesToCommitLog":     true,
+						"cleanupEnabled":        true,
+						"repairEnabled":         true,
 						"retentionOptions": xjson.Map{
 							"retentionPeriodNanos":                     "172800000000000",
 							"blockSizeNanos":                           "7200000000000",

@@ -341,6 +341,8 @@ func (r *blockRetriever) fetchBatch(
 
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
+	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
+
 	// Seek and execute all requests
 	for _, req := range reqs {
 		var (
@@ -366,8 +368,6 @@ func (r *blockRetriever) fetchBatch(
 		if data != nil {
 			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 		}
-
-		blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
 		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil && req.foundAndHasNoError()

@@ -679,16 +679,24 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 // TestBlockRetrieverDoesNotInvokeOnRetrieveWithGlobalFlag verifies that the block retriever
 // does not invoke the OnRetrieve block if the global CacheBlocksOnRetrieve is not enabled.
 func TestBlockRetrieverDoesNotInvokeOnRetrieveWithGlobalFlag(t *testing.T) {
-	testBlockRetrieverDoesNotInvokeOnRetrieve(t, false, true)
+	testBlockRetrieverOnRetrieve(t, false, true)
 }
 
 // TestBlockRetrieverDoesNotInvokeOnRetrieveWithNamespacesFlag verifies that the block retriever
 // does not invoke the OnRetrieve block if the namespace-specific CacheBlocksOnRetrieve is not enabled.
 func TestBlockRetrieverDoesNotInvokeOnRetrieveWithNamespaceFlag(t *testing.T) {
-	testBlockRetrieverDoesNotInvokeOnRetrieve(t, true, false)
+	testBlockRetrieverOnRetrieve(t, true, false)
 }
 
-func testBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
+func TestBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T) {
+	testBlockRetrieverOnRetrieve(t, false, false)
+}
+
+func TestBlockRetrieverDoesInvokeOnRetrieve(t *testing.T) {
+	testBlockRetrieverOnRetrieve(t, true, true)
+}
+
+func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	// Make sure reader/writer are looking at the same test directory.
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
@@ -741,6 +749,7 @@ func testBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T, globalFlag bool, ns
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	onRetrieveCalled := false
 	retrieveFn := block.OnRetrieveBlockFn(func(
 		id ident.ID,
 		tagsIter ident.TagIterator,
@@ -748,11 +757,20 @@ func testBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T, globalFlag bool, ns
 		segment ts.Segment,
 		nsCtx namespace.Context,
 	) {
-		require.Fail(t, "should not be called")
+		onRetrieveCalled = true
 	})
 
-	_, err = retriever.Stream(ctx, shard,
+	segmentReader, err := retriever.Stream(ctx, shard,
 		ident.StringID("foo"), blockStart, retrieveFn, nsCtx)
+
+	_, err = segmentReader.Segment()
+	require.NoError(t, err)
+
+	if globalFlag && nsFlag {
+		require.True(t, onRetrieveCalled)
+	} else {
+		require.False(t, onRetrieveCalled)
+	}
 
 	require.NoError(t, err)
 }
