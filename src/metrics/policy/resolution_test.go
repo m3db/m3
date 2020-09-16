@@ -208,25 +208,3 @@ func TestParseResolutionNoPrecisionErrors(t *testing.T) {
 		require.Error(t, err)
 	}
 }
-
-func TestResolutionStripPrecision(t *testing.T) {
-	inputs := []Resolution{
-		{Window: time.Second, Precision: xtime.Second},
-		{Window: 10 * time.Second, Precision: xtime.Second},
-		{Window: time.Minute, Precision: xtime.Minute},
-		{Window: 5 * time.Minute, Precision: xtime.Minute},
-		{Window: 10 * time.Minute, Precision: xtime.Minute},
-	}
-
-	expected := []Resolution{
-		{Window: time.Second},
-		{Window: 10 * time.Second},
-		{Window: time.Minute},
-		{Window: 5 * time.Minute},
-		{Window: 10 * time.Minute},
-	}
-
-	for i, input := range inputs {
-		require.Equal(t, expected[i], input.StripPrecision())
-	}
-}

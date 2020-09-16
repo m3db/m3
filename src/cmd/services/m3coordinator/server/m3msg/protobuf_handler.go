@@ -76,7 +76,7 @@ type pbHandler struct {
 	m       handlerMetrics
 
 	// Set of policies for which when we see a metric we drop it on the floor.
-	blackholePolicies map[policy.StoragePolicy]struct{}
+	blackholePolicies []policy.StoragePolicy
 }
 
 func newProtobufProcessor(opts Options) consumer.MessageProcessor {
@@ -90,19 +90,11 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 		wg:                &sync.WaitGroup{},
 		logger:            opts.InstrumentOptions.Logger(),
 		m:                 newHandlerMetrics(opts.InstrumentOptions.MetricsScope()),
-		blackholePolicies: make(map[policy.StoragePolicy]struct{}, len(opts.BlockholePolicies)),
+		blackholePolicies: opts.BlockholePolicies,
 	}
 
 	if len(opts.BlockholePolicies) > 0 {
 		policyNames := make([]string, len(opts.BlockholePolicies))
-		for i, sp := range opts.BlockholePolicies {
-			// We only match incoming policies by their stripped resoluton (no
-			// precision) and retention.
-			sp := sp.StripPrecision()
-			h.blackholePolicies[sp] = struct{}{}
-			policyNames[i] = sp.String()
-		}
-
 		h.logger.Info("m3msg handler blackholing metrics for configured policies", zap.Strings("policyNames", policyNames))
 	}
 
@@ -130,10 +122,12 @@ func (h *pbHandler) Process(msg consumer.Message) {
 
 	// If storage policy is blackholed, ack the message immediately and don't
 	// bother passing down the write path.
-	if _, ok := h.blackholePolicies[sp.StripPrecision()]; ok {
-		h.m.droppedMetricBlackholePolicy.Inc(1)
-		r.Callback(OnSuccess)
-		return
+	for _, blackholeSp := range h.blackholePolicies {
+		if sp.Equivalent(blackholeSp) {
+			h.m.droppedMetricBlackholePolicy.Inc(1)
+			r.Callback(OnSuccess)
+			return
+		}
 	}
 
 	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)

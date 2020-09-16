@@ -77,17 +77,8 @@ func NewStoragePolicyFromProto(pb *policypb.StoragePolicy) (StoragePolicy, error
 // retention width and resolution. The resolution precision is ignored
 // for equivalency (hence why the method is not named Equal).
 func (p StoragePolicy) Equivalent(other StoragePolicy) bool {
-	return p.StripPrecision() == other.StripPrecision()
-}
-
-// StripPrecision returns the storage policy with its resolution's precision
-// stripped. This allows comparing two stripped StoragePolicies with `==`,
-// similar to Equivalent, but useful when a StoragePolicy is a key in a map.
-func (p StoragePolicy) StripPrecision() StoragePolicy {
-	return StoragePolicy{
-		resolution: p.resolution.StripPrecision(),
-		retention:  p.retention,
-	}
+	return p.resolution.Window == other.resolution.Window &&
+		p.retention == other.retention
 }
 
 // String is the string representation of a storage policy.
