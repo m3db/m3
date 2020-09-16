@@ -142,8 +142,8 @@ func main() {
 					BlockStart:  time.Unix(0, *optBlockstart),
 					VolumeIndex: int(*volume),
 				},
-				FileSetType:   fileSetType,
-				StreamingMode: true,
+				FileSetType:      fileSetType,
+				StreamingEnabled: true,
 			}
 
 			err = reader.Open(openOpts)
