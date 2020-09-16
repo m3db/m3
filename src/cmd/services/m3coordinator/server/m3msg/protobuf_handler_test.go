@@ -181,6 +181,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 0, w.ingested())
 
+	// Ensure a metric with a difference policy still gets ingested.
 	m2 := aggregated.MetricWithStoragePolicy{
 		Metric: aggregated.Metric{
 			ID:        []byte{},
@@ -188,7 +189,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 			Value:     0,
 			Type:      metric.UnknownType,
 		},
-		StoragePolicy: precisionStoragePolicy,
+		StoragePolicy: policy.MustParseStoragePolicy("5m:180d"),
 	}
 	require.NoError(t, encoder.Encode(m2, 3000))
 	enc = proto.NewEncoder(opts.EncoderOptions())
@@ -198,7 +199,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	_, err = conn.Write(enc.Bytes())
 	require.NoError(t, err)
 	require.NoError(t, dec.Decode(&a))
-	require.Equal(t, 0, w.ingested())
+	require.Equal(t, 1, w.ingested())
 }
 
 type mockWriter struct {
