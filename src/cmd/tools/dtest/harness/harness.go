@@ -568,5 +568,11 @@ func defaultNamespaceProtoValue() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return namespace.ToProto(nsMap), nil
+
+	registry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return registry, nil
 }

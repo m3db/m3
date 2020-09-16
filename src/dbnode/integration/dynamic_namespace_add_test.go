@@ -68,7 +68,11 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	protoKey := func(nses ...namespace.Metadata) proto.Message {
 		nsMap, err := namespace.NewMap(nses)
 		require.NoError(t, err)
-		return namespace.ToProto(nsMap)
+
+		registry, err := namespace.ToProto(nsMap)
+		require.NoError(t, err)
+
+		return registry
 	}
 
 	// dynamic namespace registry options

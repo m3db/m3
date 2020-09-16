@@ -140,7 +140,13 @@ func newNamespaceWithIndexProtoValue(id string, indexEnabled bool) (proto.Messag
 	if err != nil {
 		return nil, err
 	}
-	return namespace.ToProto(nsMap), nil
+
+	registry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return registry, nil
 }
 
 // waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map
