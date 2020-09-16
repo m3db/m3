@@ -436,7 +436,6 @@ textarea:focus, input[type="email"]:focus, input[type="number"]:focus, input[typ
     border-bottom: 4px solid #F0F2F4;
 }
 #chapter p {
-    text-align: center;
     font-size: 1.2rem;
 }
 #footer {
