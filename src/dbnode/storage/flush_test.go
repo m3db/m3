@@ -32,6 +32,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -374,12 +377,29 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil, nil)
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+
+	testBlockSize := 2 * time.Hour
+	blockStart := time.Now().Truncate(testBlockSize)
+	testBlockStarts := []time.Time{
+		blockStart,
+		blockStart.Add(-testBlockSize),
+	}
+	ns.EXPECT().FlushIndex(gomock.Any()).Return(testBlockStarts, nil)
+	ns.EXPECT().Metadata().Return(nil).Times(len(testBlockStarts))
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().SetSnapshotStateVersionFlushed(gomock.Any(), gomock.Any()).AnyTimes()
+	ns.EXPECT().Index().Return(idx, nil)
 
 	var (
-		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)
-		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
-		mockPersistManager  = persist.NewMockManager(ctrl)
+		mockFlushPersist              = persist.NewMockFlushPreparer(ctrl)
+		mockSnapshotPersist           = persist.NewMockSnapshotPreparer(ctrl)
+		mockPersistManager            = persist.NewMockManager(ctrl)
+		preparedSnapshotPersistClosed int
 	)
 
 	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
@@ -392,6 +412,30 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
 	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
+	prepared := persist.PreparedIndexSnapshotPersist{
+		Persist: func(fst.SegmentData) error { return nil },
+		Close: func() ([]segment.Segment, error) {
+			preparedSnapshotPersistClosed++
+			return nil, nil
+		},
+	}
+	now := time.Unix(0, 0)
+	for _, blockStart := range testBlockStarts {
+		prepareOpts := xtest.CmpMatcher(persist.IndexPrepareSnapshotOptions{
+			IndexPrepareOptions: persist.IndexPrepareOptions{
+				NamespaceMetadata: nil,
+				Shards: map[uint32]struct{}{
+					0: struct{}{},
+				},
+				BlockStart:      blockStart,
+				FileSetType:     persist.FileSetSnapshotType,
+				IndexVolumeType: idxpersist.SnapshotWarmIndexVolumeType,
+			},
+			SnapshotTime: now,
+		})
+		mockSnapshotPersist.EXPECT().PrepareIndexSnapshot(prepareOpts).Return(prepared, nil)
+	}
+
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
@@ -403,8 +447,8 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	fm := newFlushManager(db, cl, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
-	now := time.Unix(0, 0)
 	require.NoError(t, fm.Flush(now))
+	require.Equal(t, len(testBlockStarts), preparedSnapshotPersistClosed)
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {

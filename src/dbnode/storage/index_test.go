@@ -525,20 +525,17 @@ func verifyFlushForShards(
 	shards []uint32,
 ) {
 	var (
-		mockFlush                  = persist.NewMockIndexFlush(ctrl)
-		snapshotPreparer           = persist.NewMockSnapshotPreparer(ctrl)
-		shardMap                   = make(map[uint32]struct{})
-		now                        = time.Now()
-		warmBlockStart             = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
-		mockShards                 []*MockdatabaseShard
-		dbShards                   []databaseShard
-		numBlocks                  int
-		persistClosedTimes         int
-		persistCalledTimes         int
-		snapshotPersistClosedTimes int
-		snapshotPersistCalledTimes int
-		actualDocs                 = make([]doc.Document, 0)
-		expectedDocs               = make([]doc.Document, 0)
+		mockFlush          = persist.NewMockIndexFlush(ctrl)
+		shardMap           = make(map[uint32]struct{})
+		now                = time.Now()
+		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
+		mockShards         []*MockdatabaseShard
+		dbShards           []databaseShard
+		numBlocks          int
+		persistClosedTimes int
+		persistCalledTimes int
+		actualDocs         = make([]doc.Document, 0)
+		expectedDocs       = make([]doc.Document, 0)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
@@ -584,28 +581,6 @@ func verifyFlushForShards(
 			Shards:            map[uint32]struct{}{0: {}},
 			IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 		})).Return(preparedPersist, nil)
-
-		prepared := persist.PreparedIndexSnapshotPersist{
-			Persist: func(fst.SegmentData) error {
-				snapshotPersistCalledTimes++
-				return nil
-			},
-			Close: func() ([]segment.Segment, error) {
-				snapshotPersistClosedTimes++
-				return nil, nil
-			},
-		}
-		prepareOpts := xtest.CmpMatcher(persist.IndexPrepareSnapshotOptions{
-			IndexPrepareOptions: persist.IndexPrepareOptions{
-				NamespaceMetadata: idx.nsMetadata,
-				Shards:            shardMap,
-				BlockStart:        blockStart,
-				FileSetType:       persist.FileSetSnapshotType,
-				IndexVolumeType:   idxpersist.SnapshotWarmIndexVolumeType,
-			},
-			SnapshotTime: now,
-		})
-		snapshotPreparer.EXPECT().PrepareIndexSnapshot(prepareOpts).Return(prepared, nil)
 
 		results := block.NewMockFetchBlocksMetadataResults(ctrl)
 
@@ -656,8 +631,6 @@ func verifyFlushForShards(
 	require.NoError(t, err)
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
-	require.Equal(t, numBlocks, snapshotPersistClosedTimes)
-	require.Equal(t, numBlocks, snapshotPersistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)
 }
 
