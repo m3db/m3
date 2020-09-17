@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -550,6 +551,12 @@ type BlockRetrieverOptions interface {
 	// FetchConcurrency returns the fetch concurrency.
 	FetchConcurrency() int
 
+	// SetCacheBlocksOnRetrieve sets whether to cache blocks after retrieval at a global level.
+	SetCacheBlocksOnRetrieve(value bool) BlockRetrieverOptions
+
+	// CacheBlocksOnRetrieve returns whether to cache blocks after retrieval at a global level.
+	CacheBlocksOnRetrieve() bool
+
 	// SetIdentifierPool sets the identifierPool.
 	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 
@@ -561,6 +568,12 @@ type BlockRetrieverOptions interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetQueryLimits sets query limits.
+	SetQueryLimits(value limits.QueryLimits) BlockRetrieverOptions
+
+	// QueryLimits returns the query limits.
+	QueryLimits() limits.QueryLimits
 }
 
 // ForEachRemainingFn is the function that is run on each of the remaining
