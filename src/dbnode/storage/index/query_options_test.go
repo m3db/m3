@@ -22,6 +22,7 @@ package index
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -54,8 +55,10 @@ func TestQueryOptions(t *testing.T) {
 }
 
 func TestIndexChecksumQueryOptions(t *testing.T) {
+	now := time.Now()
 	opts := QueryOptions{
-		QueryType: IndexChecksum,
+		QueryType:      IndexChecksum,
+		StartInclusive: now,
 	}
 
 	assert.False(t, opts.SeriesLimitExceeded(19))
@@ -76,6 +79,13 @@ func TestIndexChecksumQueryOptions(t *testing.T) {
 	assert.Equal(t, "storage.dbNamespace.IndexChecksum", opts.NSTracepoint())
 	assert.Equal(t, "storage.db.QueryIDsIndexChecksum", opts.DBTracepoint())
 	assert.Equal(t, "storage.nsIndex.IndexChecksum", opts.NSIdxTracepoint())
+
+	blockSize := time.Hour * 2
+	assert.Equal(t, now, opts.StartInclusive)
+	assert.Equal(t, time.Time{}, opts.EndExclusive)
+	opts.SnapToNearestDataBlock(blockSize)
+	assert.Equal(t, now.Truncate(blockSize), opts.StartInclusive)
+	assert.Equal(t, now.Truncate(blockSize).Add(blockSize), opts.EndExclusive)
 }
 
 func TestFetchMismatchQueryOptions(t *testing.T) {

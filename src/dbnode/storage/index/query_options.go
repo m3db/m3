@@ -21,25 +21,34 @@
 package index
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 )
 
 const invalid = ""
 
+// SnapToNearestDataBlock will snap query options to the closest block, given
+// the data block size.
+func (o *QueryOptions) SnapToNearestDataBlock(blockSize time.Duration) {
+	o.StartInclusive = o.StartInclusive.Truncate(blockSize)
+	o.EndExclusive = o.StartInclusive.Add(blockSize)
+}
+
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
-func (o QueryOptions) SeriesLimitExceeded(size int) bool {
+func (o *QueryOptions) SeriesLimitExceeded(size int) bool {
 	return o.SeriesLimit > 0 && size >= o.SeriesLimit
 }
 
 // DocsLimitExceeded returns whether a given size exceeds the
 // docs limit the query options imposes, if it is enabled.
-func (o QueryOptions) DocsLimitExceeded(size int) bool {
+func (o *QueryOptions) DocsLimitExceeded(size int) bool {
 	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
 // LimitsExceeded returns whether a given size exceeds the given limits.
-func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
+func (o *QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	if o.QueryType != FetchQuery {
 		return false
 	}
@@ -47,11 +56,11 @@ func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	return o.SeriesLimitExceeded(seriesCount) || o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
+func (o *QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) queryTracepoint() string {
+func (o *QueryOptions) queryTracepoint() string {
 	switch o.QueryType {
 	case FetchQuery:
 		return tracepoint.BlockQuery
@@ -65,7 +74,7 @@ func (o QueryOptions) queryTracepoint() string {
 }
 
 // NSTracepoint yields the appropriate tracepoint for namespace tchannelthrift path.
-func (o QueryOptions) NSTracepoint() string {
+func (o *QueryOptions) NSTracepoint() string {
 	switch o.QueryType {
 	case FetchQuery:
 		return tracepoint.NSQueryIDs
@@ -79,7 +88,7 @@ func (o QueryOptions) NSTracepoint() string {
 }
 
 // DBTracepoint yields the appropriate tracepoint for database tchannelthrift path.
-func (o QueryOptions) DBTracepoint() string {
+func (o *QueryOptions) DBTracepoint() string {
 	switch o.QueryType {
 	case FetchQuery:
 		return tracepoint.DBQueryIDs
@@ -93,7 +102,7 @@ func (o QueryOptions) DBTracepoint() string {
 }
 
 // NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.
-func (o QueryOptions) NSIdxTracepoint() string {
+func (o *QueryOptions) NSIdxTracepoint() string {
 	switch o.QueryType {
 	case FetchQuery:
 		return tracepoint.NSIdxQuery

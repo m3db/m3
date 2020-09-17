@@ -978,7 +978,7 @@ func (s *service) indexHashSingle(ctx context.Context,
 	return nil
 }
 
-func (s *service) FetchMismatches(tctx thrift.Context, req *rpc.FetchMismatchRequest) (*rpc.FetchMismatchResult_, error) {
+func (s *service) FetchMismatch(tctx thrift.Context, req *rpc.FetchMismatchRequest) (*rpc.FetchMismatchResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -997,7 +997,7 @@ func (s *service) FetchMismatches(tctx thrift.Context, req *rpc.FetchMismatchReq
 		)
 	}
 
-	result, err := s.fetchMismatches(ctx, db, req)
+	result, err := s.fetchMismatch(ctx, db, req)
 	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -1006,7 +1006,7 @@ func (s *service) FetchMismatches(tctx thrift.Context, req *rpc.FetchMismatchReq
 	return result, err
 }
 
-func (s *service) fetchMismatches(
+func (s *service) fetchMismatch(
 	ctx context.Context,
 	db storage.Database,
 	req *rpc.FetchMismatchRequest,

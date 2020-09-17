@@ -14532,7 +14532,7 @@ type Node interface {
 	IndexChecksum(req *IndexChecksumRequest) (r *IndexChecksumResult_, err error)
 	// Parameters:
 	//  - Req
-	FetchMismatches(req *FetchMismatchRequest) (r *FetchMismatchResult_, err error)
+	FetchMismatch(req *FetchMismatchRequest) (r *FetchMismatchResult_, err error)
 	// Parameters:
 	//  - Req
 	WriteBatchRaw(req *WriteBatchRawRequest) (err error)
@@ -15577,24 +15577,24 @@ func (p *NodeClient) recvIndexChecksum() (value *IndexChecksumResult_, err error
 
 // Parameters:
 //  - Req
-func (p *NodeClient) FetchMismatches(req *FetchMismatchRequest) (r *FetchMismatchResult_, err error) {
-	if err = p.sendFetchMismatches(req); err != nil {
+func (p *NodeClient) FetchMismatch(req *FetchMismatchRequest) (r *FetchMismatchResult_, err error) {
+	if err = p.sendFetchMismatch(req); err != nil {
 		return
 	}
-	return p.recvFetchMismatches()
+	return p.recvFetchMismatch()
 }
 
-func (p *NodeClient) sendFetchMismatches(req *FetchMismatchRequest) (err error) {
+func (p *NodeClient) sendFetchMismatch(req *FetchMismatchRequest) (err error) {
 	oprot := p.OutputProtocol
 	if oprot == nil {
 		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
 		p.OutputProtocol = oprot
 	}
 	p.SeqId++
-	if err = oprot.WriteMessageBegin("fetchMismatches", thrift.CALL, p.SeqId); err != nil {
+	if err = oprot.WriteMessageBegin("fetchMismatch", thrift.CALL, p.SeqId); err != nil {
 		return
 	}
-	args := NodeFetchMismatchesArgs{
+	args := NodeFetchMismatchArgs{
 		Req: req,
 	}
 	if err = args.Write(oprot); err != nil {
@@ -15606,7 +15606,7 @@ func (p *NodeClient) sendFetchMismatches(req *FetchMismatchRequest) (err error) 
 	return oprot.Flush()
 }
 
-func (p *NodeClient) recvFetchMismatches() (value *FetchMismatchResult_, err error) {
+func (p *NodeClient) recvFetchMismatch() (value *FetchMismatchResult_, err error) {
 	iprot := p.InputProtocol
 	if iprot == nil {
 		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
@@ -15616,12 +15616,12 @@ func (p *NodeClient) recvFetchMismatches() (value *FetchMismatchResult_, err err
 	if err != nil {
 		return
 	}
-	if method != "fetchMismatches" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "fetchMismatches failed: wrong method name")
+	if method != "fetchMismatch" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "fetchMismatch failed: wrong method name")
 		return
 	}
 	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "fetchMismatches failed: out of sequence response")
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "fetchMismatch failed: out of sequence response")
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
@@ -15638,10 +15638,10 @@ func (p *NodeClient) recvFetchMismatches() (value *FetchMismatchResult_, err err
 		return
 	}
 	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchMismatches failed: invalid message type")
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchMismatch failed: invalid message type")
 		return
 	}
-	result := NodeFetchMismatchesResult{}
+	result := NodeFetchMismatchResult{}
 	if err = result.Read(iprot); err != nil {
 		return
 	}
@@ -17272,7 +17272,7 @@ func NewNodeProcessor(handler Node) *NodeProcessor {
 	self103.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
 	self103.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
 	self103.processorMap["indexChecksum"] = &nodeProcessorIndexChecksum{handler: handler}
-	self103.processorMap["fetchMismatches"] = &nodeProcessorFetchMismatches{handler: handler}
+	self103.processorMap["fetchMismatch"] = &nodeProcessorFetchMismatch{handler: handler}
 	self103.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
 	self103.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
 	self103.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
@@ -17945,16 +17945,16 @@ func (p *nodeProcessorIndexChecksum) Process(seqId int32, iprot, oprot thrift.TP
 	return true, err
 }
 
-type nodeProcessorFetchMismatches struct {
+type nodeProcessorFetchMismatch struct {
 	handler Node
 }
 
-func (p *nodeProcessorFetchMismatches) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeFetchMismatchesArgs{}
+func (p *nodeProcessorFetchMismatch) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeFetchMismatchArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("fetchMismatches", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("fetchMismatch", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush()
@@ -17962,16 +17962,16 @@ func (p *nodeProcessorFetchMismatches) Process(seqId int32, iprot, oprot thrift.
 	}
 
 	iprot.ReadMessageEnd()
-	result := NodeFetchMismatchesResult{}
+	result := NodeFetchMismatchResult{}
 	var retval *FetchMismatchResult_
 	var err2 error
-	if retval, err2 = p.handler.FetchMismatches(args.Req); err2 != nil {
+	if retval, err2 = p.handler.FetchMismatch(args.Req); err2 != nil {
 		switch v := err2.(type) {
 		case *Error:
 			result.Err = v
 		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing fetchMismatches: "+err2.Error())
-			oprot.WriteMessageBegin("fetchMismatches", thrift.EXCEPTION, seqId)
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing fetchMismatch: "+err2.Error())
+			oprot.WriteMessageBegin("fetchMismatch", thrift.EXCEPTION, seqId)
 			x.Write(oprot)
 			oprot.WriteMessageEnd()
 			oprot.Flush()
@@ -17980,7 +17980,7 @@ func (p *nodeProcessorFetchMismatches) Process(seqId int32, iprot, oprot thrift.
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("fetchMismatches", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("fetchMismatch", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -21989,27 +21989,27 @@ func (p *NodeIndexChecksumResult) String() string {
 
 // Attributes:
 //  - Req
-type NodeFetchMismatchesArgs struct {
+type NodeFetchMismatchArgs struct {
 	Req *FetchMismatchRequest `thrift:"req,1" db:"req" json:"req"`
 }
 
-func NewNodeFetchMismatchesArgs() *NodeFetchMismatchesArgs {
-	return &NodeFetchMismatchesArgs{}
+func NewNodeFetchMismatchArgs() *NodeFetchMismatchArgs {
+	return &NodeFetchMismatchArgs{}
 }
 
-var NodeFetchMismatchesArgs_Req_DEFAULT *FetchMismatchRequest
+var NodeFetchMismatchArgs_Req_DEFAULT *FetchMismatchRequest
 
-func (p *NodeFetchMismatchesArgs) GetReq() *FetchMismatchRequest {
+func (p *NodeFetchMismatchArgs) GetReq() *FetchMismatchRequest {
 	if !p.IsSetReq() {
-		return NodeFetchMismatchesArgs_Req_DEFAULT
+		return NodeFetchMismatchArgs_Req_DEFAULT
 	}
 	return p.Req
 }
-func (p *NodeFetchMismatchesArgs) IsSetReq() bool {
+func (p *NodeFetchMismatchArgs) IsSetReq() bool {
 	return p.Req != nil
 }
 
-func (p *NodeFetchMismatchesArgs) Read(iprot thrift.TProtocol) error {
+func (p *NodeFetchMismatchArgs) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -22042,7 +22042,7 @@ func (p *NodeFetchMismatchesArgs) Read(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesArgs) ReadField1(iprot thrift.TProtocol) error {
+func (p *NodeFetchMismatchArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &FetchMismatchRequest{}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
@@ -22050,8 +22050,8 @@ func (p *NodeFetchMismatchesArgs) ReadField1(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("fetchMismatches_args"); err != nil {
+func (p *NodeFetchMismatchArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("fetchMismatch_args"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -22068,7 +22068,7 @@ func (p *NodeFetchMismatchesArgs) Write(oprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *NodeFetchMismatchArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
 	}
@@ -22081,51 +22081,51 @@ func (p *NodeFetchMismatchesArgs) writeField1(oprot thrift.TProtocol) (err error
 	return err
 }
 
-func (p *NodeFetchMismatchesArgs) String() string {
+func (p *NodeFetchMismatchArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeFetchMismatchesArgs(%+v)", *p)
+	return fmt.Sprintf("NodeFetchMismatchArgs(%+v)", *p)
 }
 
 // Attributes:
 //  - Success
 //  - Err
-type NodeFetchMismatchesResult struct {
+type NodeFetchMismatchResult struct {
 	Success *FetchMismatchResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
 
-func NewNodeFetchMismatchesResult() *NodeFetchMismatchesResult {
-	return &NodeFetchMismatchesResult{}
+func NewNodeFetchMismatchResult() *NodeFetchMismatchResult {
+	return &NodeFetchMismatchResult{}
 }
 
-var NodeFetchMismatchesResult_Success_DEFAULT *FetchMismatchResult_
+var NodeFetchMismatchResult_Success_DEFAULT *FetchMismatchResult_
 
-func (p *NodeFetchMismatchesResult) GetSuccess() *FetchMismatchResult_ {
+func (p *NodeFetchMismatchResult) GetSuccess() *FetchMismatchResult_ {
 	if !p.IsSetSuccess() {
-		return NodeFetchMismatchesResult_Success_DEFAULT
+		return NodeFetchMismatchResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var NodeFetchMismatchesResult_Err_DEFAULT *Error
+var NodeFetchMismatchResult_Err_DEFAULT *Error
 
-func (p *NodeFetchMismatchesResult) GetErr() *Error {
+func (p *NodeFetchMismatchResult) GetErr() *Error {
 	if !p.IsSetErr() {
-		return NodeFetchMismatchesResult_Err_DEFAULT
+		return NodeFetchMismatchResult_Err_DEFAULT
 	}
 	return p.Err
 }
-func (p *NodeFetchMismatchesResult) IsSetSuccess() bool {
+func (p *NodeFetchMismatchResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *NodeFetchMismatchesResult) IsSetErr() bool {
+func (p *NodeFetchMismatchResult) IsSetErr() bool {
 	return p.Err != nil
 }
 
-func (p *NodeFetchMismatchesResult) Read(iprot thrift.TProtocol) error {
+func (p *NodeFetchMismatchResult) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -22162,7 +22162,7 @@ func (p *NodeFetchMismatchesResult) Read(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *NodeFetchMismatchResult) ReadField0(iprot thrift.TProtocol) error {
 	p.Success = &FetchMismatchResult_{}
 	if err := p.Success.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
@@ -22170,7 +22170,7 @@ func (p *NodeFetchMismatchesResult) ReadField0(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesResult) ReadField1(iprot thrift.TProtocol) error {
+func (p *NodeFetchMismatchResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
 	}
@@ -22180,8 +22180,8 @@ func (p *NodeFetchMismatchesResult) ReadField1(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("fetchMismatches_result"); err != nil {
+func (p *NodeFetchMismatchResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("fetchMismatch_result"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -22201,7 +22201,7 @@ func (p *NodeFetchMismatchesResult) Write(oprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *NodeFetchMismatchesResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *NodeFetchMismatchResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
@@ -22216,7 +22216,7 @@ func (p *NodeFetchMismatchesResult) writeField0(oprot thrift.TProtocol) (err err
 	return err
 }
 
-func (p *NodeFetchMismatchesResult) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *NodeFetchMismatchResult) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetErr() {
 		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
@@ -22231,11 +22231,11 @@ func (p *NodeFetchMismatchesResult) writeField1(oprot thrift.TProtocol) (err err
 	return err
 }
 
-func (p *NodeFetchMismatchesResult) String() string {
+func (p *NodeFetchMismatchResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeFetchMismatchesResult(%+v)", *p)
+	return fmt.Sprintf("NodeFetchMismatchResult(%+v)", *p)
 }
 
 // Attributes:

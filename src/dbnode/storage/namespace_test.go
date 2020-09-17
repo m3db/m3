@@ -1212,6 +1212,65 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	require.NoError(t, ns.Close())
 }
 
+func TestWideNamespaceIndexQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		queryType  index.QueryType
+		tracepoint string
+	}{
+		{queryType: index.IndexChecksum, tracepoint: "storage.dbNamespace.IndexChecksum"},
+		{queryType: index.FetchMismatch, tracepoint: "storage.dbNamespace.FetchMismatch"},
+	}
+
+	now := time.Now()
+	blockSize := time.Hour * 2
+	for _, tt := range tests {
+		idx := NewMockNamespaceIndex(ctrl)
+		idx.EXPECT().BootstrapsDone().Return(uint(1))
+
+		nsOpts := namespace.NewOptions().
+			SetRetentionOptions(defaultTestRetentionOpts.SetBlockSize(blockSize))
+		ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, nsOpts)
+		ns.reverseIndex = idx
+		defer closer()
+
+		ctx := context.NewContext()
+		mtr := mocktracer.New()
+		sp := mtr.StartSpan("root")
+		ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+		query := index.Query{
+			Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+		}
+
+		opts := index.QueryOptions{
+			StartInclusive: now,
+			QueryType:      tt.queryType,
+		}
+
+		expectedOpts := index.QueryOptions{
+			StartInclusive: now.Truncate(blockSize),
+			EndExclusive:   now.Truncate(blockSize).Add(blockSize),
+			QueryType:      tt.queryType,
+		}
+
+		idx.EXPECT().Query(gomock.Any(), query, expectedOpts)
+		_, err := ns.QueryIDs(ctx, query, opts)
+		require.NoError(t, err)
+
+		idx.EXPECT().Close().Return(nil)
+		require.NoError(t, ns.Close())
+
+		sp.Finish()
+		spans := mtr.FinishedSpans()
+		require.Len(t, spans, 2)
+		assert.Equal(t, tt.tracepoint, spans[0].OperationName)
+		assert.Equal(t, "root", spans[1].OperationName)
+	}
+}
+
 func TestNamespaceTicksIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

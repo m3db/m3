@@ -57,7 +57,7 @@ type TChanNode interface {
 	FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
-	FetchMismatches(ctx thrift.Context, req *FetchMismatchRequest) (*FetchMismatchResult_, error)
+	FetchMismatch(ctx thrift.Context, req *FetchMismatchRequest) (*FetchMismatchResult_, error)
 	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
 	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
 	GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
@@ -696,18 +696,18 @@ func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRaw
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) FetchMismatches(ctx thrift.Context, req *FetchMismatchRequest) (*FetchMismatchResult_, error) {
-	var resp NodeFetchMismatchesResult
-	args := NodeFetchMismatchesArgs{
+func (c *tchanNodeClient) FetchMismatch(ctx thrift.Context, req *FetchMismatchRequest) (*FetchMismatchResult_, error) {
+	var resp NodeFetchMismatchResult
+	args := NodeFetchMismatchArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "fetchMismatches", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "fetchMismatch", &args, &resp)
 	if err == nil && !success {
 		switch {
 		case resp.Err != nil:
 			err = resp.Err
 		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchMismatches")
+			err = fmt.Errorf("received no result or unknown exception for fetchMismatch")
 		}
 	}
 
@@ -1092,7 +1092,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBatchRawV2",
 		"fetchBlocksMetadataRawV2",
 		"fetchBlocksRaw",
-		"fetchMismatches",
+		"fetchMismatch",
 		"fetchTagged",
 		"getPersistRateLimit",
 		"getWriteNewSeriesAsync",
@@ -1142,8 +1142,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchBlocksMetadataRawV2(ctx, protocol)
 	case "fetchBlocksRaw":
 		return s.handleFetchBlocksRaw(ctx, protocol)
-	case "fetchMismatches":
-		return s.handleFetchMismatches(ctx, protocol)
+	case "fetchMismatch":
+		return s.handleFetchMismatch(ctx, protocol)
 	case "fetchTagged":
 		return s.handleFetchTagged(ctx, protocol)
 	case "getPersistRateLimit":
@@ -1526,16 +1526,16 @@ func (s *tchanNodeServer) handleFetchBlocksRaw(ctx thrift.Context, protocol athr
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleFetchMismatches(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeFetchMismatchesArgs
-	var res NodeFetchMismatchesResult
+func (s *tchanNodeServer) handleFetchMismatch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchMismatchArgs
+	var res NodeFetchMismatchResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.FetchMismatches(ctx, req.Req)
+		s.handler.FetchMismatch(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

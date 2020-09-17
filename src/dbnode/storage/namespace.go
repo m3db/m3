@@ -754,6 +754,11 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
+	if opts.QueryType != index.FetchQuery {
+		blockSize := n.nopts.RetentionOptions().BlockSize()
+		opts.SnapToNearestDataBlock(blockSize)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(opts.NSTracepoint())
 	if sampled {
 		sp.LogFields(
