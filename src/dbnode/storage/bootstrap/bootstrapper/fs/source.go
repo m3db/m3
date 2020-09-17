@@ -811,7 +811,12 @@ func (s *fileSystemSource) read(
 		logSpan("bootstrap_from_index_snapshots_start")
 		// NB(bodu): We don't actually bootstrap snapshot data in the fs bootstrapper
 		// (we do this in the commitlog bootstrapper) but we do want to subtract the shard time
-		// ranges fulfilled by index snapshots.
+		// ranges fulfilled by index snapshots. We do this to handle the following case:
+		//      1. node A up, taking writes for shards 1-3
+		//      2. node A receives shards 4-5, starts peer bootstrapping them
+		//      3. then writes TSDB files for shards 4-5, but crashes while writing index files for shards 4-5
+		//      4. node restarts, finds index snapshots for shards 1-3 on disk (either FS or commit log bootstrapper),
+		//         realizes shards 4-5 are missing index segments and builds those but uses existing snapshots for shards 1-3
 		r, err = s.bootstrapFromIndexSnapshots(
 			md,
 			shardTimeRanges,
