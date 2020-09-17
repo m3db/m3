@@ -237,9 +237,14 @@ func (s *commitLogSource) Read(
 		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
 	span.LogEvent("read_snapshots_done")
 
-	commitLogResult, err := s.readCommitLog(namespaces, span)
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
+	if !s.commitLogResult.read {
+		var err error
+		s.commitLogResult, err = s.readCommitLog(namespaces, span)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+	} else {
+		s.log.Debug("commit log already read in a previous pass, using previous result.")
 	}
 
 	bootstrapResult := bootstrap.NamespaceResults{
@@ -249,14 +254,14 @@ func (s *commitLogSource) Read(
 		ns := elem.Value()
 		id := ns.Metadata.ID()
 		dataResult := result.NewDataBootstrapResult()
-		if commitLogResult.shouldReturnUnfulfilled {
+		if s.commitLogResult.shouldReturnUnfulfilled {
 			shardTimeRanges := ns.DataRunOptions.ShardTimeRanges
 			dataResult = shardTimeRanges.ToUnfulfilledDataResult()
 		}
 		var indexResult result.IndexBootstrapResult
 		if ns.Metadata.Options().IndexOptions().Enabled() {
 			indexResult = result.NewIndexBootstrapResult()
-			if commitLogResult.shouldReturnUnfulfilled {
+			if s.commitLogResult.shouldReturnUnfulfilled {
 				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
 			}
@@ -274,19 +279,15 @@ func (s *commitLogSource) Read(
 
 type commitLogResult struct {
 	shouldReturnUnfulfilled bool
+	// ensures we only read the commit log once
 	read                    bool
 }
 
 func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span opentracing.Span) (commitLogResult, error) {
-	if s.commitLogResult.read {
-		s.log.Debug("commit log already read in a previous pass. skipping and returning previous result.	")
-		return s.commitLogResult, nil
-	}
-
 	// Setup the series accumulator pipeline.
 	var (
-		numWorkers              = s.opts.AccumulateConcurrency()
-		workers                 = make([]*accumulateWorker, 0, numWorkers)
+		numWorkers = s.opts.AccumulateConcurrency()
+		workers    = make([]*accumulateWorker, 0, numWorkers)
 	)
 	for i := 0; i < numWorkers; i++ {
 		worker := &accumulateWorker{
@@ -307,7 +308,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 	// NB(r): Ensure that channels always get closed.
 	defer closeWorkerChannels()
 
-	var(
+	var (
 		namespaceIter           = namespaces.Namespaces.Iter()
 		namespaceResults        = make(map[string]*readNamespaceResult, len(namespaceIter))
 		setInitialTopologyState bool
@@ -589,11 +590,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 	if err != nil {
 		return commitLogResult{}, err
 	}
-	s.commitLogResult = commitLogResult{
-		shouldReturnUnfulfilled: shouldReturnUnfulfilled,
-		read:                    true,
-	}
-	return s.commitLogResult, nil
+	return commitLogResult{shouldReturnUnfulfilled: shouldReturnUnfulfilled, read: true}, nil
 }
 
 func (s *commitLogSource) snapshotFilesByShard(
