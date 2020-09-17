@@ -419,6 +419,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 	// to read.
 	var lastFileReadID uint64
 	for iter.Next() {
+		s.metrics.commitLogEntriesRead.Inc(1)
 		entry := iter.Current()
 
 		currFileReadID := entry.Metadata.FileReadID
@@ -1112,12 +1113,14 @@ func (s *commitLogSource) shardsReplicated(
 type commitLogSourceMetrics struct {
 	corruptCommitlogFile tally.Counter
 	bootstrapping        tally.Gauge
+	commitLogEntriesRead tally.Counter
 }
 
 func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
 	return commitLogSourceMetrics{
 		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
 		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
+		commitLogEntriesRead: scope.SubScope("commitlog").Counter("entries-read"),
 	}
 }
 
