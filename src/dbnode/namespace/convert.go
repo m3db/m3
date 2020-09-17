@@ -110,12 +110,12 @@ func ToMetadata(
 		return nil, errNamespaceNil
 	}
 
-	ropts, err := ToRetention(opts.RetentionOptions)
+	rOpts, err := ToRetention(opts.RetentionOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	iopts, err := ToIndexOptions(opts.IndexOptions)
+	iOpts, err := ToIndexOptions(opts.IndexOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func ToMetadata(
 		return nil, err
 	}
 
-	mopts := NewOptions().
+	mOpts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
 		SetCleanupEnabled(opts.CleanupEnabled).
@@ -138,16 +138,20 @@ func ToMetadata(
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetSnapshotEnabled(opts.SnapshotEnabled).
 		SetSchemaHistory(sr).
-		SetRetentionOptions(ropts).
-		SetIndexOptions(iopts).
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts).
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
 		SetRuntimeOptions(runtimeOpts)
 
-	if err := mopts.Validate(); err != nil {
+	if opts.CacheBlocksOnRetrieve != nil {
+		mOpts = mOpts.SetCacheBlocksOnRetrieve(opts.CacheBlocksOnRetrieve.Value)
+	}
+
+	if err := mOpts.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewMetadata(ident.StringID(id), mopts)
+	return NewMetadata(ident.StringID(id), mOpts)
 }
 
 // ToProto converts Map to nsproto.Registry
@@ -202,8 +206,9 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			Enabled:        iopts.Enabled(),
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
-		ColdWritesEnabled: opts.ColdWritesEnabled(),
-		RuntimeOptions:    toRuntimeOptions(opts.RuntimeOptions()),
+		ColdWritesEnabled:     opts.ColdWritesEnabled(),
+		RuntimeOptions:        toRuntimeOptions(opts.RuntimeOptions()),
+		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
 	}
 }
 
