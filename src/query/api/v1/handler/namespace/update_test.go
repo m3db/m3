@@ -48,6 +48,10 @@ const (
 		"options": {
 			"retentionOptions": {
 				"retentionPeriodNanos": 345600000000000
+			},
+			"extendedOptions": {
+				"@type": "testm3.io/google.protobuf.StringValue",
+				"value": "foo"
 			}
 		}
 }

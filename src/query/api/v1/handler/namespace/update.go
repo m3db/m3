@@ -52,14 +52,16 @@ var (
 	fieldNameRetentionOptions = "RetentionOptions"
 	fieldNameRetetionPeriod   = "RetentionPeriodNanos"
 	fieldNameRuntimeOptions   = "RuntimeOptions"
+	fieldNameExtendedOptions  = "ExtendedOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
 	errNamespaceFieldImmutable = errors.New("namespace option field is immutable")
 
 	allowedUpdateOptionsFields = map[string]struct{}{
-		fieldNameRetentionOptions: struct{}{},
-		fieldNameRuntimeOptions:   struct{}{},
+		fieldNameRetentionOptions: {},
+		fieldNameRuntimeOptions:   {},
+		fieldNameExtendedOptions:  {},
 	}
 )
 
@@ -235,6 +237,19 @@ func (h *UpdateHandler) Update(
 		}
 		opts := ns.Options().
 			SetRuntimeOptions(runtimeOpts)
+		ns, err = namespace.NewMetadata(ns.ID(), opts)
+		if err != nil {
+			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+		}
+	}
+
+	// Update extended options.
+	if newExtendedOptions := updateReq.Options.ExtendedOptions; newExtendedOptions != nil {
+		newExtOpts, err := namespace.ToExtendedOptions(newExtendedOptions)
+		if err != nil {
+			return emptyReg, nil, err
+		}
+		opts := ns.Options().SetExtendedOptions(newExtOpts)
 		ns, err = namespace.NewMetadata(ns.ID(), opts)
 		if err != nil {
 			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
