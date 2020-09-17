@@ -942,17 +942,15 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-	snapshotTime time.Time,
-	snapshotPersist persist.SnapshotPreparer,
-) error {
+) ([]time.Time, error) {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return nil
+		return nil, nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Determine the current flush indexing concurrency.
@@ -966,7 +964,7 @@ func (i *nsIndex) WarmFlush(
 
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer builder.Close()
 
@@ -975,11 +973,14 @@ func (i *nsIndex) WarmFlush(
 	i.metrics.flushIndexingConcurrency.Update(float64(concurrency))
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
-	var evicted int
+	var (
+		blockStarts []time.Time
+		evicted     int
+	)
 	for _, block := range flushable {
-		immutableSegments, err := i.flushBlock(flush, block, shards, builder, snapshotTime, snapshotPersist)
+		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
@@ -996,7 +997,7 @@ func (i *nsIndex) WarmFlush(
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
 		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
-			return err
+			return nil, err
 		}
 
 		evicted++
@@ -1014,9 +1015,12 @@ func (i *nsIndex) WarmFlush(
 
 		// NB(bodu): We should reset any snapshot loaded version to default after a successful warm flush.
 		i.setSnapshotStateVersionLoaded(block.StartTime(), defaultSnapshotVersion)
+		// Track successfully warm flushed block starts.
+		blockStarts = append(blockStarts, block.StartTime())
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	return nil
+	// Return block starts that we have succesfully warm flushed.
+	return blockStarts, nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
@@ -1159,8 +1163,6 @@ func (i *nsIndex) flushBlock(
 	indexBlock index.Block,
 	shards []databaseShard,
 	builder segment.DocumentsBuilder,
-	snapshotTime time.Time,
-	snapshotPersist persist.SnapshotPreparer,
 ) ([]segment.Segment, error) {
 	allShards := make(map[uint32]struct{})
 	for _, shard := range shards {
@@ -1197,39 +1199,8 @@ func (i *nsIndex) flushBlock(
 	}
 
 	closed = true
-	immutableSegments, err := preparedPersist.Close()
-	if err != nil {
-		return nil, err
-	}
 
-	// NB(bodu): After a successful warm block flush, we must write an empty snapshot to disk.
-	// If the DB node crashes before next snapshot is written to disk and we bootstrap the warm snapshot
-	// into the now "sealed" block those warm bootstrapped segments will never get evicted from memory.
-	// Since we are doing this after a successful flush, there is a small window where we can crash and
-	// run into the above case. However, we'd rather deal w/ a one time extra mem than long bootstrap times
-	// if we write an empty snapshot to disk and the node crashes before a successful warm flush.
-	prepareOpts := persist.IndexPrepareSnapshotOptions{
-		IndexPrepareOptions: persist.IndexPrepareOptions{
-			NamespaceMetadata: i.nsMetadata,
-			BlockStart:        indexBlock.StartTime(),
-			FileSetType:       persist.FileSetSnapshotType,
-			Shards:            allShards,
-			IndexVolumeType:   idxpersist.SnapshotWarmIndexVolumeType,
-		},
-		SnapshotTime: snapshotTime,
-	}
-	prepared, err := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := prepared.Close(); err != nil {
-		return nil, err
-	}
-
-	// Update the flushed snapshot version after a successful snapshot flush.
-	i.setSnapshotStateVersionFlushed(indexBlock.StartTime(), prepared.VolumeIndex)
-
-	return immutableSegments, nil
+	return preparedPersist.Close()
 }
 
 func (i *nsIndex) flushBlockSegment(
@@ -1389,7 +1360,7 @@ func (i *nsIndex) Snapshot(
 	}
 	_, err = prepared.Close()
 	if err == nil {
-		i.setSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
+		i.SetSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
 	}
 	return err
 }
@@ -2296,12 +2267,15 @@ func (i *nsIndex) initializeSnapshotStates() {
 		persist.FileSetSnapshotType,
 	)
 	for _, f := range infoFiles {
-		i.setSnapshotStateVersionFlushed(f.ID.BlockStart, f.ID.VolumeIndex)
+		i.SetSnapshotStateVersionFlushed(f.ID.BlockStart, f.ID.VolumeIndex)
 	}
 	return
 }
 
-func (i *nsIndex) setSnapshotStateVersionFlushed(blockStart time.Time, version int) {
+// SetSnapshotStateVersionFlushed is exposed so we can continue to share the same persist manager
+// in the flush process. We need to update flushed snapshot versions after a successful warm flush
+// since we are writing empty snapshots to disk.
+func (i *nsIndex) SetSnapshotStateVersionFlushed(blockStart time.Time, version int) {
 	i.snapshotState.Lock()
 	defer i.snapshotState.Unlock()
 	state := i.ensureSnapshotStateWithLock(blockStart)

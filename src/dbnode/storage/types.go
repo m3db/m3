@@ -429,11 +429,7 @@ type databaseNamespace interface {
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
-	FlushIndex(
-		flush persist.IndexFlush,
-		snapshotTime time.Time,
-		snapshot persist.SnapshotPreparer,
-	) error
+	FlushIndex(flush persist.IndexFlush) ([]time.Time, error)
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
 	ColdFlush(
@@ -777,9 +773,7 @@ type NamespaceIndex interface {
 	WarmFlush(
 		flush persist.IndexFlush,
 		shards []databaseShard,
-		snapshotTime time.Time,
-		snapshotPersist persist.SnapshotPreparer,
-	) error
+	) ([]time.Time, error)
 
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when
@@ -802,6 +796,8 @@ type NamespaceIndex interface {
 	) error
 
 	BlockStatesSnapshot() index.BlockStateSnapshot
+
+	SetSnapshotStateVersionFlushed(blockStart time.Time, version int)
 
 	// Close will release the index resources and close the index.
 	Close() error

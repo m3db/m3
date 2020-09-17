@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -155,7 +156,8 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	start := m.nowFn()
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	m.metrics.commitLogRotationDuration.Record(m.nowFn().Sub(start))
-	if err == nil {
+	rotateCommitlogSuccess := err == nil
+	if rotateCommitlogSuccess {
 		if err = m.dataAndIndexSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -163,7 +165,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces, startTime); err != nil {
+	if err = m.indexFlush(namespaces, startTime, rotateCommitlogSuccess, rotatedCommitlogID); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -280,24 +282,21 @@ func (m *flushManager) dataAndIndexSnapshot(
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
 	startTime time.Time,
+	rotateCommitlogSuccess bool,
+	rotatedCommitlogID persist.CommitLogFile,
 ) error {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
 		return err
 	}
 
-	snapshotID := uuid.NewUUID()
-	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
-	if err != nil {
-		return err
-	}
-
 	m.setState(flushManagerIndexFlushInProgress)
 	var (
-		start    = m.nowFn()
-		multiErr = xerrors.NewMultiError()
+		start     = m.nowFn()
+		nsResults = make([][]time.Time, len(namespaces))
+		multiErr  = xerrors.NewMultiError()
 	)
-	for _, ns := range namespaces {
+	for i, ns := range namespaces {
 		var (
 			indexOpts    = ns.Options().IndexOptions()
 			indexEnabled = indexOpts.Enabled()
@@ -305,11 +304,95 @@ func (m *flushManager) indexFlush(
 		if !indexEnabled {
 			continue
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush, startTime, snapshotPersist))
+		blockStarts, err := ns.FlushIndex(indexFlush)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+		nsResults[i] = blockStarts
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
+	// Only write out empty index snapshots if the commit log rotation
+	// was successful we don't mind index flush errors since both
+	// index flush and writing empty index snapshots is best effort.
+	if rotateCommitlogSuccess {
+		multiErr = multiErr.Add(m.writeEmptyIndexSnapshots(
+			namespaces,
+			nsResults,
+			startTime,
+			rotatedCommitlogID,
+		))
+	}
+
 	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
+	return multiErr.FinalError()
+}
+
+// NB(bodu): After a successful warm block flush, we must write an empty snapshot to disk.
+// If the DB node crashes before next snapshot is written to disk and we bootstrap the warm snapshot
+// into the now "sealed" block those warm bootstrapped segments will never get evicted from memory.
+// Since we are doing this after a successful flush, there is a small window where we can crash and
+// run into the above case. However, we'd rather deal w/ a one time extra mem than long bootstrap times
+// if we write an empty snapshot to disk and the node crashes before a successful warm flush.
+func (m *flushManager) writeEmptyIndexSnapshots(
+	namespaces []databaseNamespace,
+	nsResults [][]time.Time,
+	snapshotTime time.Time,
+	// We retain the commitlog ID of the prior data/index snapshot run during this flush
+	// since we haven't actually rotated the commit log again.
+	rotatedCommitlogID persist.CommitLogFile,
+) error {
+	snapshotID := uuid.NewUUID()
+	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
+	if err != nil {
+		return err
+	}
+
+	// Since index warm flush is best effort, we will attempt to be best effort here as well.
+	multiErr := xerrors.NewMultiError()
+	for i, ns := range namespaces {
+		results := nsResults[i]
+		if len(results) == 0 {
+			continue
+		}
+
+		index, err := ns.Index()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		allShards := make(map[uint32]struct{})
+		for _, dbShard := range ns.OwnedShards() {
+			allShards[dbShard.ID()] = struct{}{}
+		}
+		for _, blockStart := range results {
+			prepareOpts := persist.IndexPrepareSnapshotOptions{
+				IndexPrepareOptions: persist.IndexPrepareOptions{
+					NamespaceMetadata: ns.Metadata(),
+					BlockStart:        blockStart,
+					FileSetType:       persist.FileSetSnapshotType,
+					Shards:            allShards,
+					IndexVolumeType:   idxpersist.SnapshotWarmIndexVolumeType,
+				},
+				SnapshotTime: snapshotTime,
+			}
+			prepared, snapshotErr := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
+			if snapshotErr == nil {
+				_, snapshotErr = prepared.Close()
+			}
+			// Only update the snapshot version state if we successfully wrote an empty snapshot.
+			if snapshotErr == nil {
+				index.SetSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
+			}
+			multiErr = multiErr.Add(snapshotErr)
+		}
+	}
+
+	// NB(bodu): Cleanup of index snapshots does not rely on snapshot ID, therefore writing a new snapshot metadata
+	// file w/ an updated index/snapshot ID will not trigger a deletion of latest snapshots.
+	multiErr = multiErr.Add(snapshotPersist.DoneSnapshot(snapshotID, rotatedCommitlogID))
+
 	return multiErr.FinalError()
 }
 

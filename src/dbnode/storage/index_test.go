@@ -323,7 +323,8 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
 	// We won't be flushing any snapshots in this error case.
-	require.NoError(t, idx.WarmFlush(mockFlush, shards, now, persist.NewMockSnapshotPreparer(ctrl)))
+	_, err := idx.WarmFlush(mockFlush, shards)
+	require.NoError(t, err)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
@@ -651,7 +652,8 @@ func verifyFlushForShards(
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
-	require.NoError(t, idx.WarmFlush(mockFlush, dbShards, now, snapshotPreparer))
+	_, err := idx.WarmFlush(mockFlush, dbShards)
+	require.NoError(t, err)
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, numBlocks, snapshotPersistClosedTimes)
