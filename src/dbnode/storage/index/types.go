@@ -985,14 +985,14 @@ type Options interface {
 	QueryLimits() limits.QueryLimits
 }
 
-// BlockStateSnapshot represents a snapshot of a 's block state at
+// BlockStateSnapshot represents a snapshot of a index block's state at
 // a moment in time.
 type BlockStateSnapshot struct {
 	bootstrapped bool
 	snapshot     BootstrappedBlockStateSnapshot
 }
 
-// NewBlockStateSnapshot constructs a new NewBlockStateSnapshot.
+// NewBlockStateSnapshot constructs a new BlockStateSnapshot.
 func NewBlockStateSnapshot(
 	bootstrapped bool,
 	snapshot BootstrappedBlockStateSnapshot,
