@@ -407,6 +407,20 @@ func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) WriteFile(fileType, write
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).WriteFile), fileType, writer)
 }
 
+// SegmentState mocks base method
+func (m *MockFSTSegmentDataFileSetWriter) SegmentState() fst.IndexSegmentState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentState")
+	ret0, _ := ret[0].(fst.IndexSegmentState)
+	return ret0
+}
+
+// SegmentState indicates an expected call of SegmentState
+func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) SegmentState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).SegmentState))
+}
+
 // Reset mocks base method
 func (m *MockFSTSegmentDataFileSetWriter) Reset(arg0 fst.SegmentData) error {
 	m.ctrl.T.Helper()
