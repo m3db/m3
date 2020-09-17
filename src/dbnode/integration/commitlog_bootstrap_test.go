@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"github.com/uber-go/tally"
 	"testing"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestCommitLogBootstrap(t *testing.T) {
