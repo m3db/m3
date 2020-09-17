@@ -21,8 +21,6 @@
 package fs
 
 import (
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,6 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -167,6 +167,21 @@ func TestInfoReadStreamingWrite(t *testing.T) {
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
 
+func TestReadStreamingWriteEmptyFileset(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	err := streamingWriteTestData(t, w, testWriterStart, nil)
+	require.NoError(t, err)
+	err = w.Close()
+	require.NoError(t, err)
+
+	r := newTestReader(t, filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, nil)
+}
+
 func streamingWriteTestData(
 	t *testing.T,
 	w StreamingWriter,
@@ -217,6 +232,7 @@ func streamingWriteWithVolume(
 			return err
 		}
 		entries[i].data = append(segment.Head.Bytes(), segment.Tail.Bytes()...)
+		dataChecksum := segment.CalculateChecksum()
 		stream.Finalize()
 
 		tagsIter := ident.NewTagsIterator(entries[i].Tags())
@@ -225,7 +241,9 @@ func streamingWriteWithVolume(
 		require.NoError(t, err)
 		encodedTags, _ := tagEncoder.Data()
 
-		if err := w.Write(ctx, encoder, ident.StringID(entries[i].id), encodedTags.Bytes()); err != nil {
+		data := [][]byte{entries[i].data}
+
+		if err := w.WriteAll(ident.BytesID(entries[i].id), encodedTags.Bytes(), data, dataChecksum); err != nil {
 			return err
 		}
 	}
