@@ -172,9 +172,14 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
-	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
+	if err := m.cleanupIndexSnapshots(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
+			"encountered errors when cleaning up index snapshot files: %v", err))
+	}
+
+	if err := m.cleanupDataSnapshotsAndCommitlogs(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up data snapshot and commitlog files: %v", err))
 	}
 
 	return multiErr.FinalError()
@@ -342,7 +347,7 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 	return multiErr.FinalError()
 }
 
-// The goal of the cleanupSnapshotsAndCommitlogs function is to delete all snapshots files, snapshot metadata
+// The goal of the cleanupDataSnapshotsAndCommitlogs function is to delete all data snapshots files, snapshot metadata
 // files, and commitlog files except for those that are currently required for recovery from a node failure.
 // According to the snapshotting / commitlog rotation logic, the files that are required for a complete
 // recovery are:
@@ -372,39 +377,21 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 //     9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
-// TODO(bodu): Make this read in index snapshot state and perform cleanup of index snapshot files.
-func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseNamespace) error {
-	m.logger.With(
+func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []databaseNamespace) (finalErr error) {
+	logger := m.logger.With(
 		zap.String("comment",
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
-	multiErr := xerrors.NewMultiError()
 
-	multiErr = multiErr.Add(m.cleanupIndexSnapshots(namespaces))
-
-	// NB(bodu): Since data and index snapshots happen together, the metadata for both data
-	// and index snapshots is the same. This metadata contains information on which commit log
-	// files are captured by the latest snapshot. We subsequently remove all snapshotted commit log files.
-	mostRecentSnapshot, err := m.cleanupDataSnapshots(namespaces)
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
-	multiErr = multiErr.Add(m.cleanupCommitlogs(namespaces, mostRecentSnapshot))
-
-	return multiErr.FinalError()
-}
-
-func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (fs.SnapshotMetadata, error) {
 	fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
 	snapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.snapshotMetadataFilesFn(fsOpts)
 	if err != nil {
-		return fs.SnapshotMetadata{}, err
+		return err
 	}
 
 	if len(snapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
-		return fs.SnapshotMetadata{}, nil
+		return nil
 	}
 
 	// They should technically already be sorted, but better to be safe.
@@ -419,7 +406,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 		currIndex := snapshotMetadata.ID.Index
 		if currIndex == lastMetadataIndex {
 			// Should never happen.
-			return fs.SnapshotMetadata{}, fmt.Errorf(
+			return fmt.Errorf(
 				"found two snapshot metadata files with duplicate index: %d", currIndex)
 		}
 		lastMetadataIndex = currIndex
@@ -427,7 +414,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 
 	if len(sortedSnapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
-		return fs.SnapshotMetadata{}, nil
+		return nil
 	}
 
 	var (
@@ -435,6 +422,13 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 		filesToDelete      = []string{}
 		mostRecentSnapshot = sortedSnapshotMetadatas[len(sortedSnapshotMetadatas)-1]
 	)
+	defer func() {
+		// Use a defer to perform the final file deletion so that we can attempt to cleanup *some* files
+		// when we encounter partial errors on a best effort basis.
+		multiErr = multiErr.Add(finalErr)
+		multiErr = multiErr.Add(m.deleteFilesFn(filesToDelete))
+		finalErr = multiErr.FinalError()
+	}()
 
 	for _, ns := range namespaces {
 		for _, s := range ns.OwnedShards() {
@@ -452,7 +446,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
-					m.logger.With(
+					logger.With(
 						zap.Error(err),
 						zap.Strings("files", snapshot.AbsoluteFilePaths),
 					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
@@ -479,7 +473,7 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		m.logger.With(
+		logger.With(
 			zap.Error(errorWithPath.Error),
 			zap.String("metadataFilePath", errorWithPath.MetadataFilePath),
 			zap.String("checkpointFilePath", errorWithPath.CheckpointFilePath),
@@ -487,15 +481,6 @@ func (m *cleanupManager) cleanupDataSnapshots(namespaces []databaseNamespace) (f
 		filesToDelete = append(filesToDelete, errorWithPath.MetadataFilePath)
 		filesToDelete = append(filesToDelete, errorWithPath.CheckpointFilePath)
 	}
-
-	multiErr = multiErr.Add(m.deleteFilesFn(filesToDelete))
-	return mostRecentSnapshot, multiErr.FinalError()
-}
-
-func (m *cleanupManager) cleanupCommitlogs(
-	namespaces []databaseNamespace,
-	mostRecentSnapshot fs.SnapshotMetadata,
-) error {
 
 	// Figure out which commitlog files exist on disk.
 	files, commitlogErrorsWithPaths, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
@@ -512,8 +497,6 @@ func (m *cleanupManager) cleanupCommitlogs(
 		// being available.
 		return err
 	}
-
-	var filesToDelete = []string{}
 
 	// Delete all commitlog files prior to the one captured by the most recent snapshot.
 	for _, file := range files {
@@ -541,16 +524,28 @@ func (m *cleanupManager) cleanupCommitlogs(
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
-		m.logger.With(
+		logger.With(
 			zap.Error(errorWithPath),
 			zap.String("path", errorWithPath.Path()),
 		).Warn("corrupt commitlog file during cleanup, marking file for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
-	return m.deleteFilesFn(filesToDelete)
+	return finalErr
 }
 
+// cleanupIndexSnapshots is decoupled from the cleanup data snapshots and commit logs logic. Index snapshotting and
+// data snapshotting happen at the same time and share the same snapshot metadata. However, we don't use snapshot metadata
+// to determine whether or not to cleanup index snapshot files from disk. We apply the following logic:
+//
+//     1. Get a snapshot of all index block states.
+//     2. Get all index snapshot files.
+//     3. Remove index snapshots (on a per block start basis) up to either the loaded snapshot version
+//        for that block start or the flushed snapshot version (latest).
+//
+// We do so to ensure that we are not deleting index snapshots from disk while they are still loaded. Cleanup of commit logs
+// still happens in the cleanup data snapshots path. Since index and data snapshots share the same rotated commitlog identifier,
+// this work only needs to happen there once.
 func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) error {
 	var (
 		multiErr      = xerrors.NewMultiError()

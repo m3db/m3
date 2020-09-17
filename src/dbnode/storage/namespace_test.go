@@ -554,7 +554,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil, []fs.ReadIndexInfoFileResult{}))
 }
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
@@ -634,9 +634,9 @@ func testSnapshotWithShardSnapshotErrs(
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 		shardIDs[shardID] = struct{}{}
 	}
-	idx.EXPECT().Snapshot(shardIDs, blockStart, now, gomock.Any()).Return(nil)
+	idx.EXPECT().Snapshot(shardIDs, blockStart, now, gomock.Any(), gomock.Any()).Return(nil)
 
-	return ns.Snapshot(blockStart, now, nil)
+	return ns.Snapshot(blockStart, now, nil, []fs.ReadIndexInfoFileResult{})
 }
 
 func TestNamespaceTruncate(t *testing.T) {
