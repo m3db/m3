@@ -667,6 +667,14 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
+		// Not testing index snapshot cleanup.
+		false,
+		index.BootstrappedBlockStateSnapshot{},
+	))
+	ns.EXPECT().Index().Return(idx, nil)
+
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
