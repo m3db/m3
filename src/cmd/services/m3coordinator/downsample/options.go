@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -46,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
@@ -61,6 +63,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -113,6 +116,7 @@ type DownsamplerOptions struct {
 	OpenTimeout                time.Duration
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
+	RWOptions                  xio.Options
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -187,6 +191,7 @@ type agg struct {
 	clockOpts                    clock.Options
 	matcher                      matcher.Matcher
 	pools                        aggPools
+	m3PrefixFilter               bool
 }
 
 // Configuration configurates a downsampler.
@@ -220,6 +225,9 @@ type Configuration struct {
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
+
+	// DisableAutoMappingRules disables auto mapping rules.
+	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
@@ -286,10 +294,28 @@ type MappingRuleConfiguration struct {
 	// keeping them with a storage policy.
 	Drop bool `yaml:"drop"`
 
+	// Tags are the tags to be added to the metric while applying the mapping
+	// rule. Users are free to add name/value combinations to the metric. The
+	// coordinator also supports certain first class tags which will augment
+	// the metric with coordinator generated tag values.
+	// __m3_graphite_aggregation__ as a tag will augment the metric with an
+	// aggregation tag which is required for graphite. If a metric is of the
+	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
+	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	Tags []Tag `yaml:"tags"`
+
 	// Optional fields follow.
 
 	// Name is optional.
 	Name string `yaml:"name"`
+}
+
+// Tag is structure describing tags as used by mapping rule configuration.
+type Tag struct {
+	// Name is the tag name.
+	Name string `yaml:"name"`
+	// Value is the tag value.
+	Value string `yaml:"value"`
 }
 
 // Rule returns the mapping rule for the mapping rule configuration.
@@ -316,6 +342,14 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 		drop = policy.DropIfOnlyMatch
 	}
 
+	tags := make([]models.Tag, 0, len(r.Tags))
+	for _, tag := range r.Tags {
+		tags = append(tags, models.Tag{
+			Name:  []byte(tag.Name),
+			Value: []byte(tag.Value),
+		})
+	}
+
 	return view.MappingRule{
 		ID:              id,
 		Name:            name,
@@ -323,6 +357,7 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 		AggregationID:   aggID,
 		StoragePolicies: storagePolicies,
 		DropPolicy:      drop,
+		Tags:            tags,
 	}, nil
 }
 
@@ -534,11 +569,13 @@ func (c RemoteAggregatorConfiguration) newClient(
 	kvClient clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (client.Client, error) {
 	if c.clientOverride != nil {
 		return c.clientOverride, nil
 	}
-	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts)
+
+	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts, rwOpts)
 }
 
 // BufferPastLimitConfiguration specifies a custom buffer past limit
@@ -577,6 +614,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		logger                       = instrumentOpts.Logger()
 		openTimeout                  = defaultOpenTimeout
 		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+		m3PrefixFilter               = false
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -644,6 +682,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
+			if strings.Contains(mappingRule.Filter, metric.M3MetricsPrefixString) {
+				m3PrefixFilter = true
+			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -656,6 +697,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
+			if strings.Contains(rollupRule.Filter, metric.M3MetricsPrefixString) {
+				m3PrefixFilter = true
+			}
 			rule, err := rollupRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -691,9 +735,15 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
 		// If downsampling setup to use a remote aggregator instead of local
 		// aggregator, set that up instead.
-		client, err := remoteAgg.newClient(o.ClusterClient, clockOpts,
-			instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("remote-aggregator-client")))
+		scope := instrumentOpts.MetricsScope().SubScope("remote-aggregator-client")
+		iOpts := instrumentOpts.SetMetricsScope(scope)
+		rwOpts := o.RWOptions
+		if rwOpts == nil {
+			logger.Info("no rw options set, using default")
+			rwOpts = xio.NewOptions()
+		}
+
+		client, err := remoteAgg.newClient(o.ClusterClient, clockOpts, iOpts, rwOpts)
 		if err != nil {
 			err = fmt.Errorf("could not create remote aggregator client: %v", err)
 			return agg{}, err
@@ -707,6 +757,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 			matcher:                      matcher,
 			pools:                        pools,
+			m3PrefixFilter:               m3PrefixFilter,
 		}, nil
 	}
 
@@ -872,6 +923,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 		matcher:                      matcher,
 		pools:                        pools,
+		m3PrefixFilter:               m3PrefixFilter,
 	}, nil
 }
 
@@ -922,7 +974,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
 			name, err := resolveEncodedTagsNameTag(id, pools.metricTagsIteratorPool,
 				nameTag)
-			if err != nil {
+			if err != nil && err != errNoMetricNameTag {
 				return nil, nil, err
 			}
 			// ID is always the encoded tags for IDs in the downsampler

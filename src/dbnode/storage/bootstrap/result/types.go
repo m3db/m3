@@ -76,8 +76,32 @@ type IndexBlockByVolumeType struct {
 
 // IndexBlock is an index block for a index volume type.
 type IndexBlock struct {
-	segments  []segment.Segment
+	segments  []Segment
 	fulfilled ShardTimeRanges
+}
+
+// Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.
+type Segment struct {
+	segment   segment.Segment
+	persisted bool
+}
+
+// NewSegment returns an index segment w/ persistence metadata.
+func NewSegment(segment segment.Segment, persisted bool) Segment {
+	return Segment{
+		segment:   segment,
+		persisted: persisted,
+	}
+}
+
+// IsPersisted returns whether or not the underlying segment was persisted to disk.
+func (s Segment) IsPersisted() bool {
+	return s.persisted
+}
+
+// Segment returns a segment.
+func (s Segment) Segment() segment.Segment {
+	return s.segment
 }
 
 // DocumentsBuilderAllocator allocates a new DocumentsBuilder type when

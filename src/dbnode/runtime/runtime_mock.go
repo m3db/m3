@@ -184,6 +184,34 @@ func (mr *MockOptionsMockRecorder) WriteNewSeriesLimitPerShardPerSecond() *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNewSeriesLimitPerShardPerSecond", reflect.TypeOf((*MockOptions)(nil).WriteNewSeriesLimitPerShardPerSecond))
 }
 
+// SetEncodersPerBlockLimit mocks base method
+func (m *MockOptions) SetEncodersPerBlockLimit(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodersPerBlockLimit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodersPerBlockLimit indicates an expected call of SetEncodersPerBlockLimit
+func (mr *MockOptionsMockRecorder) SetEncodersPerBlockLimit(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodersPerBlockLimit", reflect.TypeOf((*MockOptions)(nil).SetEncodersPerBlockLimit), value)
+}
+
+// EncodersPerBlockLimit mocks base method
+func (m *MockOptions) EncodersPerBlockLimit() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EncodersPerBlockLimit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// EncodersPerBlockLimit indicates an expected call of EncodersPerBlockLimit
+func (mr *MockOptionsMockRecorder) EncodersPerBlockLimit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodersPerBlockLimit", reflect.TypeOf((*MockOptions)(nil).EncodersPerBlockLimit))
+}
+
 // SetTickSeriesBatchSize mocks base method
 func (m *MockOptions) SetTickSeriesBatchSize(value int) Options {
 	m.ctrl.T.Helper()

@@ -23,6 +23,7 @@ package promql
 import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/prometheus/prometheus/pkg/labels"
 	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
@@ -45,12 +46,24 @@ func defaultParseFn(query string) (pql.Expr, error) {
 	return pql.ParseExpr(query)
 }
 
+// MetricSelectorFn is a function that parses a query to Prometheus selectors.
+type MetricSelectorFn func(query string) ([]*labels.Matcher, error)
+
+func defaultMetricSelectorFn(query string) ([]*labels.Matcher, error) {
+	return pql.ParseMetricSelector(query)
+}
+
 // ParseOptions are options for the Prometheus parser.
 type ParseOptions interface {
 	// ParseFn gets the parse function.
 	ParseFn() ParseFn
 	// SetParseFn sets the parse function.
 	SetParseFn(f ParseFn) ParseOptions
+
+	// MetricSelectorFn gets the metric selector function.
+	MetricSelectorFn() MetricSelectorFn
+	// SetMetricSelectorFn sets the metric selector function.
+	SetMetricSelectorFn(f MetricSelectorFn) ParseOptions
 
 	// FunctionParseExpr gets the parsing function.
 	FunctionParseExpr() ParseFunctionExpr
@@ -59,25 +72,37 @@ type ParseOptions interface {
 }
 
 type parseOptions struct {
-	fn          ParseFn
+	parseFn     ParseFn
+	selectorFn  MetricSelectorFn
 	fnParseExpr ParseFunctionExpr
 }
 
 // NewParseOptions creates a new parse options.
 func NewParseOptions() ParseOptions {
 	return &parseOptions{
-		fn:          defaultParseFn,
+		parseFn:     defaultParseFn,
+		selectorFn:  defaultMetricSelectorFn,
 		fnParseExpr: NewFunctionExpr,
 	}
 }
 
 func (o *parseOptions) ParseFn() ParseFn {
-	return o.fn
+	return o.parseFn
 }
 
 func (o *parseOptions) SetParseFn(f ParseFn) ParseOptions {
 	opts := *o
-	opts.fn = f
+	opts.parseFn = f
+	return &opts
+}
+
+func (o *parseOptions) MetricSelectorFn() MetricSelectorFn {
+	return o.selectorFn
+}
+
+func (o *parseOptions) SetMetricSelectorFn(f MetricSelectorFn) ParseOptions {
+	opts := *o
+	opts.selectorFn = f
 	return &opts
 }
 

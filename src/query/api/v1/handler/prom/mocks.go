@@ -35,40 +35,56 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type mockQuerier struct{}
+type mockQuerier struct {
+	mockOptions
+}
 
 type mockSeriesSet struct {
+	mockOptions
 	promstorage.SeriesSet
 }
 
-func (m mockSeriesSet) Next() bool             { return false }
-func (m mockSeriesSet) At() promstorage.Series { return nil }
-func (m mockSeriesSet) Err() error             { return nil }
+func (m *mockSeriesSet) Next() bool             { return false }
+func (m *mockSeriesSet) At() promstorage.Series { return nil }
+func (m *mockSeriesSet) Err() error             { return nil }
 
-func (mockQuerier) Select(
+func (q *mockQuerier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
 ) (promstorage.SeriesSet, promstorage.Warnings, error) {
-	return mockSeriesSet{}, nil, nil
+	if q.mockOptions.selectFn != nil {
+		return q.mockOptions.selectFn(sortSeries, hints, labelMatchers...)
+	}
+	return &mockSeriesSet{mockOptions: q.mockOptions}, nil, nil
 }
 
-func (mockQuerier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (mockQuerier) LabelNames() ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelNames() ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (mockQuerier) Close() error {
+func (*mockQuerier) Close() error {
 	return nil
 }
 
-type mockQueryable struct{}
+type mockOptions struct {
+	selectFn func(
+		sortSeries bool,
+		hints *promstorage.SelectHints,
+		labelMatchers ...*labels.Matcher,
+	) (promstorage.SeriesSet, promstorage.Warnings, error)
+}
 
-func (mockQueryable) Querier(_ context.Context, _, _ int64) (promstorage.Querier, error) {
-	return mockQuerier{}, nil
+type mockQueryable struct {
+	mockOptions
+}
+
+func (q *mockQueryable) Querier(_ context.Context, _, _ int64) (promstorage.Querier, error) {
+	return &mockQuerier{mockOptions: q.mockOptions}, nil
 }
 
 func newMockPromQLEngine() *promql.Engine {

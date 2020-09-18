@@ -29,13 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -230,49 +224,20 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestO
 
 func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup TestSetup) TestSetup {
 	commitLogOpts := setup.StorageOpts().CommitLogOptions()
-	fsOpts := commitLogOpts.FilesystemOptions()
 
 	commitLogOpts = commitLogOpts.
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	// commit log bootstrapper
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts).
-		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-
-	// fs bootstrapper
-	persistMgr, err := persistfs.NewPersistManager(fsOpts)
-	require.NoError(t, err)
-
-	storageIdxOpts := setup.StorageOpts().IndexOptions()
-	bfsOpts := fs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts).
-		SetIndexOptions(storageIdxOpts).
-		SetPersistManager(persistMgr).
-		SetCompactor(newCompactor(t, storageIdxOpts))
-
-	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
-	require.NoError(t, err)
+	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		CommitLogOptions: commitLogOpts,
+		WithCommitLog:    true,
+		WithFileSystem:   true,
+	}))
 
 	// Need to make sure we have an active m3dbAdminClient because the previous one
 	// may have been shutdown by StopServer().
 	setup.MaybeResetClients()
-	// bootstrapper storage opts
-	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup).
-		SetOrigin(setup.Origin())
-	processProvider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
-	require.NoError(t, err)
-	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(processProvider))
 
 	return setup
 }

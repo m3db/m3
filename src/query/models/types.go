@@ -110,6 +110,18 @@ type TagOptions interface {
 	// Filters gets the tag filters.
 	Filters() Filters
 
+	// SetAllowTagNameDuplicates sets the value to allow duplicate tags to appear.
+	SetAllowTagNameDuplicates(value bool) TagOptions
+
+	// AllowTagNameDuplicates returns the value to allow duplicate tags to appear.
+	AllowTagNameDuplicates() bool
+
+	// SetAllowTagValueEmpty sets the value to allow empty tag values to appear.
+	SetAllowTagValueEmpty(value bool) TagOptions
+
+	// AllowTagValueEmpty returns the value to allow empty tag values to appear.
+	AllowTagValueEmpty() bool
+
 	// Equals determines if two tag options are equivalent.
 	Equals(other TagOptions) bool
 }

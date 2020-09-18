@@ -70,7 +70,7 @@ func benchmarkInsertSegment(docs []doc.Document, b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
-		s, err := NewSegment(0, NewOptions())
+		s, err := NewSegment(NewOptions())
 		if err != nil {
 			b.Fatalf("unable to construct new segment: %v", err)
 		}
@@ -85,11 +85,11 @@ func benchmarkInsertSegment(docs []doc.Document, b *testing.B) {
 func benchmarkMatchTermSegment(docs []doc.Document, b *testing.B) {
 	b.ReportAllocs()
 
-	sgmt, err := NewSegment(0, NewOptions())
+	sgmt, err := NewSegment(NewOptions())
 	if err != nil {
 		b.Fatalf("unable to construct new segment: %v", err)
 	}
-	s := sgmt.(*segment)
+	s := sgmt.(*memSegment)
 	for _, d := range docs {
 		s.Insert(d)
 	}
@@ -107,11 +107,11 @@ func benchmarkMatchTermSegment(docs []doc.Document, b *testing.B) {
 func benchmarkMatchRegexSegment(docs []doc.Document, b *testing.B) {
 	b.ReportAllocs()
 
-	sgmt, err := NewSegment(0, NewOptions())
+	sgmt, err := NewSegment(NewOptions())
 	if err != nil {
 		b.Fatalf("unable to construct new segment: %v", err)
 	}
-	s := sgmt.(*segment)
+	s := sgmt.(*memSegment)
 	for _, d := range docs {
 		s.Insert(d)
 	}

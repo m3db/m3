@@ -163,6 +163,20 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
+// IsBufferEmptyAtBlockStart mocks base method
+func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.Time) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBufferEmptyAtBlockStart", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBufferEmptyAtBlockStart indicates an expected call of IsBufferEmptyAtBlockStart
+func (mr *MockDatabaseSeriesMockRecorder) IsBufferEmptyAtBlockStart(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBufferEmptyAtBlockStart", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBufferEmptyAtBlockStart), arg0)
+}
+
 // IsEmpty mocks base method
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -271,11 +285,12 @@ func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 }
 
 // Snapshot mocks base method
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) error {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (SnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(SnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Snapshot indicates an expected call of Snapshot

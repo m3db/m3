@@ -33,3 +33,39 @@ func TestTagName(t *testing.T) {
 		require.Equal(t, expected, TagName(i))
 	}
 }
+
+func TestTagIndex(t *testing.T) {
+	for _, test := range []struct {
+		tag        []byte
+		isGraphite bool
+		index      int
+	}{
+		{
+			tag:        []byte("__g0__"),
+			isGraphite: true,
+		},
+		{
+			tag:        []byte("__g11__"),
+			isGraphite: true,
+			index:      11,
+		},
+		{
+			tag: []byte("__g__"),
+		},
+		{
+			tag: []byte("__gabc__"),
+		},
+		{
+			tag: []byte("_g1__"),
+		},
+		{
+			tag: []byte("__g1_"),
+		},
+	} {
+		t.Run(string(test.tag), func(t *testing.T) {
+			index, exists := TagIndex(test.tag)
+			require.Equal(t, test.isGraphite, exists)
+			require.Equal(t, test.index, index)
+		})
+	}
+}

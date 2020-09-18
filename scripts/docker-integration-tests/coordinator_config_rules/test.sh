@@ -43,7 +43,7 @@ function prometheus_remote_write {
   local label2_value=${label2_value:-label2}
 
   network_name="coordinator_config_rules"
-  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ')
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://coordinator01:7201/api/v1/prom/remote/write \

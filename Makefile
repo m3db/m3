@@ -225,15 +225,15 @@ docs-container:
 # shell).
 .PHONY: docs-build
 docs-build: docs-container
-	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
+	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -t material"
 
 .PHONY: docs-serve
 docs-serve: docs-container
-	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -e docs/theme -t material -a 0.0.0.0:8000"
+	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -t material -a 0.0.0.0:8000"
 
 .PHONY: docs-deploy
 docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -t material && mkdocs gh-deploy --force --dirty"
 
 .PHONY: docs-validate
 docs-validate: docs_test
@@ -251,11 +251,15 @@ docker-integration-test:
 	@echo "--- Running Docker integration test"
 	./scripts/docker-integration-tests/run.sh
 
-
 .PHONY: docker-compatibility-test
 docker-compatibility-test:
 	@echo "--- Running Prometheus compatibility test"
 	./scripts/comparator/run.sh
+
+.PHONY: prom-compat
+prom-compat:
+	@echo "--- Running local Prometheus compatibility test"
+	CI="false" make docker-compatibility-test
 
 .PHONY: site-build
 site-build:

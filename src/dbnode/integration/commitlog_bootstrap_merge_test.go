@@ -28,13 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -118,38 +112,11 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	}
 	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1, false)
 
-	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts).
-		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
-
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-	// fs bootstrapper
-	persistMgr, err := persistfs.NewPersistManager(fsOpts)
-	require.NoError(t, err)
-	storageIdxOpts := setup.StorageOpts().IndexOptions()
-	bfsOpts := fs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts).
-		SetIndexOptions(storageIdxOpts).
-		SetPersistManager(persistMgr).
-		SetCompactor(newCompactor(t, storageIdxOpts))
-	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
-	require.NoError(t, err)
-	// bootstrapper storage opts
-	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup).
-		SetOrigin(setup.Origin())
-	process, err := bootstrap.NewProcessProvider(
-		fsBootstrapper, processOpts, bsOpts)
-	require.NoError(t, err)
-	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
+	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		CommitLogOptions: commitLogOpts,
+		WithCommitLog:    true,
+		WithFileSystem:   true,
+	}))
 
 	log.Info("moving time forward and starting server")
 	setup.SetNowFn(t3)

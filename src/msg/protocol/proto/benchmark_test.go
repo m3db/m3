@@ -21,6 +21,7 @@
 package proto
 
 import (
+	"bufio"
 	"bytes"
 	"testing"
 
@@ -29,8 +30,9 @@ import (
 
 func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
 	r := bytes.NewReader(nil)
+	buf := bufio.NewReader(r)
 	encoder := NewEncoder(NewOptions())
-	decoder := NewDecoder(r, NewOptions())
+	decoder := NewDecoder(buf, NewOptions(), 10)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{},
 		Value:    make([]byte, 200),
@@ -45,6 +47,7 @@ func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
 			b.FailNow()
 		}
 		r.Reset(encoder.Bytes())
+		buf.Reset(r)
 		if err := decoder.Decode(&decodeMsg); err != nil {
 			b.FailNow()
 		}

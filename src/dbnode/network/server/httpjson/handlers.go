@@ -27,18 +27,19 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
 )
 
 var (
-	errRequestMustBeGet   = xerrors.NewInvalidParamsError(errors.New("request without request params must be GET"))
-	errRequestMustBePost  = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
-	errInvalidRequestBody = xerrors.NewInvalidParamsError(errors.New("request contains an invalid request body"))
+	errRequestMustBeGet  = xerrors.NewInvalidParamsError(errors.New("request without request params must be GET"))
+	errRequestMustBePost = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
 )
 
 // Error is an HTTP JSON error that also sets a return status code.
@@ -154,18 +155,25 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 				return
 			}
 
-			headers := make(map[string]string)
+			httpHeaders := make(map[string]string)
 			for key, values := range r.Header {
 				if len(values) > 0 {
-					headers[key] = values[0]
+					httpHeaders[key] = values[0]
 				}
 			}
 
 			var in interface{}
 			if reqIn != nil {
 				in = reflect.New(reqIn.Elem()).Interface()
-				if err := json.NewDecoder(r.Body).Decode(in); err != nil {
-					writeError(w, errInvalidRequestBody)
+				decoder := json.NewDecoder(r.Body)
+				disableDisallowUnknownFields, err := strconv.ParseBool(
+					r.Header.Get(headers.JSONDisableDisallowUnknownFields))
+				if err != nil || !disableDisallowUnknownFields {
+					decoder.DisallowUnknownFields()
+				}
+				if err := decoder.Decode(in); err != nil {
+					err := fmt.Errorf("invalid request body: %v", err)
+					writeError(w, xerrors.NewInvalidParamsError(err))
 					return
 				}
 			}
@@ -174,10 +182,10 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			callContext, _ := thrift.NewContext(opts.RequestTimeout())
 			if contextFn != nil {
 				// Allow derivation of context if context fn is set
-				callContext = contextFn(callContext, method.Name, headers)
+				callContext = contextFn(callContext, method.Name, httpHeaders)
 			}
 			// Always set headers finally
-			callContext = thrift.WithHeaders(callContext, headers)
+			callContext = thrift.WithHeaders(callContext, httpHeaders)
 
 			var (
 				svc = reflect.ValueOf(service)

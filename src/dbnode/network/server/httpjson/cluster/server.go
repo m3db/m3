@@ -38,7 +38,7 @@ type server struct {
 	opts    httpjson.ServerOptions
 }
 
-// NewServer creates a cluster HTTP network service
+// NewServer creates a cluster HTTP network service.
 func NewServer(
 	client client.Client,
 	address string,

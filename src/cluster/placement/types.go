@@ -514,7 +514,30 @@ type Storage interface {
 // all write or update operations will persist the generated placement before returning success.
 type Service interface {
 	Storage
+	operations
+}
 
+// Operator is a purely in-memory version of Service; it applies placement related operations to
+// a local copy of a placement without persisting anything to backing storage. This can be useful
+// to apply multiple placement operations in a row before persisting them, e.g.:
+//
+// func DoMultipleOps(opts placement.Options, store placement.Storage) {
+//    curPlacement := store.Placement()
+//    op := placement.NewOperator(curPlacement, opts)
+//    op.ReplaceInstances(...)
+//    op.MarkAllShardsAvailable()
+//    store.CheckAndSet(op.Placement())
+// }
+type Operator interface {
+	operations
+
+	Placement() Placement
+}
+
+// operations are the methods shared by Service and Operator. This type is private because it's
+// not intended to be implemented directly; Operator and Service are the correct ways to access
+// these methods.
+type operations interface {
 	// BuildInitialPlacement initialize a placement.
 	BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error)
 

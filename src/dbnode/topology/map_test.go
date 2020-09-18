@@ -33,13 +33,32 @@ import (
 
 func newTestShardSet(
 	t *testing.T,
-	shards []uint32,
+	shards []testShard,
 	hashFn sharding.HashFn,
 ) sharding.ShardSet {
-	values := sharding.NewShards(shards, shard.Available)
+	var values []shard.Shard
+	for _, elem := range shards {
+		value := shard.NewShard(elem.id).SetState(elem.state)
+		values = append(values, value)
+	}
 	shardSet, err := sharding.NewShardSet(values, hashFn)
 	require.NoError(t, err)
 	return shardSet
+}
+
+type testShard struct {
+	id    uint32
+	state shard.State
+}
+
+type testShards []testShard
+
+func (s testShards) IDs() []uint32 {
+	var ids []uint32
+	for _, elem := range s {
+		ids = append(ids, elem.id)
+	}
+	return ids
 }
 
 func TestStaticMap(t *testing.T) {
@@ -59,12 +78,12 @@ func TestStaticMap(t *testing.T) {
 	hosts := []struct {
 		id     string
 		addr   string
-		shards []uint32
+		shards testShards
 	}{
-		{"h1", "h1:9000", []uint32{0}},
-		{"h2", "h2:9000", []uint32{1}},
-		{"h3", "h3:9000", []uint32{0}},
-		{"h4", "h4:9000", []uint32{1}},
+		{"h1", "h1:9000", []testShard{{id: 0, state: shard.Available}}},
+		{"h2", "h2:9000", []testShard{{id: 1, state: shard.Available}}},
+		{"h3", "h3:9000", []testShard{{id: 0, state: shard.Available}}},
+		{"h4", "h4:9000", []testShard{{id: 1, state: shard.Initializing}}},
 	}
 
 	var hostShardSets []HostShardSet
@@ -75,8 +94,12 @@ func TestStaticMap(t *testing.T) {
 				newTestShardSet(t, h.shards, hashFn)))
 	}
 
+	seedShardSet := newTestShardSet(t, []testShard{
+		{id: 0, state: shard.Available},
+		{id: 1, state: shard.Available},
+	}, hashFn)
 	opts := NewStaticOptions().
-		SetShardSet(newTestShardSet(t, []uint32{0, 1}, hashFn)).
+		SetShardSet(seedShardSet).
 		SetReplicas(2).
 		SetHostShardSets(hostShardSets)
 
@@ -93,12 +116,12 @@ func TestStaticMap(t *testing.T) {
 	for i, h := range hosts {
 		assert.Equal(t, h.id, m.HostShardSets()[i].Host().ID())
 		assert.Equal(t, h.addr, m.HostShardSets()[i].Host().Address())
-		assert.Equal(t, h.shards, m.HostShardSets()[i].ShardSet().AllIDs())
+		assert.Equal(t, h.shards.IDs(), m.HostShardSets()[i].ShardSet().AllIDs())
 	}
 
-	shard, targetHosts, err := m.Route(ident.StringID("foo"))
+	targetShard, targetHosts, err := m.Route(ident.StringID("foo"))
 	require.NoError(t, err)
-	assert.Equal(t, uint32(0), shard)
+	assert.Equal(t, uint32(0), targetShard)
 	require.Equal(t, 2, len(targetHosts))
 	assert.Equal(t, "h1", targetHosts[0].ID())
 	assert.Equal(t, "h3", targetHosts[1].ID())
@@ -117,19 +140,25 @@ func TestStaticMap(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errUnownedShard, err)
 
-	err = m.RouteForEach(ident.StringID("bar"), func(idx int, h Host) {
+	err = m.RouteForEach(ident.StringID("bar"), func(
+		idx int,
+		s shard.Shard,
+		h Host,
+	) {
 		switch idx {
 		case 1:
 			assert.Equal(t, "h2", h.ID())
+			assert.Equal(t, shard.Available, s.State())
 		case 3:
 			assert.Equal(t, "h4", h.ID())
+			assert.Equal(t, shard.Initializing, s.State())
 		default:
 			assert.Fail(t, "routed to wrong host")
 		}
 	})
 	assert.NoError(t, err)
 
-	err = m.RouteForEach(ident.StringID("unowned"), func(idx int, h Host) {})
+	err = m.RouteForEach(ident.StringID("unowned"), func(_ int, _ shard.Shard, _ Host) {})
 	require.Error(t, err)
 	assert.Equal(t, errUnownedShard, err)
 

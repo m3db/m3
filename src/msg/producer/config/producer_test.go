@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,6 @@ writer:
 	cs.EXPECT().Store(gomock.Any()).Return(nil, nil)
 	cs.EXPECT().Services(gomock.Any()).Return(nil, nil)
 
-	_, err := cfg.newOptions(cs, instrument.NewOptions())
+	_, err := cfg.newOptions(cs, instrument.NewOptions(), xio.NewOptions())
 	require.NoError(t, err)
 }

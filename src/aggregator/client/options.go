@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 )
 
 // AggregatorClientType determines the aggregator client type.
@@ -82,6 +83,7 @@ var (
 
 	errLegacyClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
 	errM3MsgClientNoOptions         = errors.New("m3msg aggregator client: no m3msg options set")
+	errNoRWOpts                     = errors.New("no rw opts set for aggregator")
 )
 
 func (t AggregatorClientType) String() string {
@@ -216,6 +218,12 @@ type Options interface {
 
 	// BatchFlushDeadline returns the deadline that triggers a write of queued buffers.
 	BatchFlushDeadline() time.Duration
+
+	// SetRWOptions sets RW options.
+	SetRWOptions(value xio.Options) Options
+
+	// RWOptions returns the RW options.
+	RWOptions() xio.Options
 }
 
 type options struct {
@@ -235,6 +243,7 @@ type options struct {
 	maxBatchSize               int
 	batchFlushDeadline         time.Duration
 	m3msgOptions               M3MsgOptions
+	rwOpts                     xio.Options
 }
 
 // NewOptions creates a new set of client options.
@@ -254,10 +263,14 @@ func NewOptions() Options {
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
 		batchFlushDeadline:         defaultBatchFlushDeadline,
+		rwOpts:                     xio.NewOptions(),
 	}
 }
 
 func (o *options) Validate() error {
+	if o.rwOpts == nil {
+		return errNoRWOpts
+	}
 	switch o.aggregatorClientType {
 	case M3MsgAggregatorClient:
 		opts := o.m3msgOptions
@@ -440,4 +453,14 @@ func (o *options) SetBatchFlushDeadline(value time.Duration) Options {
 
 func (o *options) BatchFlushDeadline() time.Duration {
 	return o.batchFlushDeadline
+}
+
+func (o *options) SetRWOptions(value xio.Options) Options {
+	opts := *o
+	opts.rwOpts = value
+	return &opts
+}
+
+func (o *options) RWOptions() xio.Options {
+	return o.rwOpts
 }

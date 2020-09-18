@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -106,7 +107,7 @@ decoder:
 		),
 	).Return(nil, nil)
 
-	wOpts, err := cfg.NewOptions(cs, instrument.NewOptions())
+	wOpts, err := cfg.NewOptions(cs, instrument.NewOptions(), xio.NewOptions())
 	require.NoError(t, err)
 	require.Equal(t, "testTopic", wOpts.TopicName())
 	require.Equal(t, time.Second, wOpts.TopicWatchInitTimeout())

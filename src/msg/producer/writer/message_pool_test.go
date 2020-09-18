@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +35,7 @@ func TestMessagePool(t *testing.T) {
 	p := newMessagePool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)

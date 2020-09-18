@@ -171,7 +171,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 		m.Unlock()
 	}()
 
-	builder.Reset(0)
+	builder.Reset()
 	insertResultErr := builder.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
@@ -193,23 +193,33 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	return insertResultErr
 }
 
-func (m *mutableSegments) AddReaders(readers []m3ninxindex.Reader) ([]m3ninxindex.Reader, error) {
+func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
 	m.RLock()
 	defer m.RUnlock()
 
-	for _, segs := range [][]*readableSeg{
-		m.foregroundSegments,
-		m.backgroundSegments,
-	} {
-		for _, seg := range segs {
-			reader, err := seg.Segment().Reader()
-			if err != nil {
-				return nil, err
-			}
-			readers = append(readers, reader)
-		}
+	var err error
+	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
+	if err != nil {
+		return nil, err
 	}
+
+	readers, err = m.addReadersWithLock(m.backgroundSegments, readers)
+	if err != nil {
+		return nil, err
+	}
+
 	return readers, nil
+}
+
+func (m *mutableSegments) addReadersWithLock(src []*readableSeg, dst []segment.Reader) ([]segment.Reader, error) {
+	for _, seg := range src {
+		reader, err := seg.Segment().Reader()
+		if err != nil {
+			return nil, err
+		}
+		dst = append(dst, reader)
+	}
+	return dst, nil
 }
 
 func (m *mutableSegments) Len() int {
@@ -217,20 +227,6 @@ func (m *mutableSegments) Len() int {
 	defer m.RUnlock()
 
 	return len(m.foregroundSegments) + len(m.backgroundSegments)
-}
-
-func (m *mutableSegments) AddSegments(segments []segment.Segment) []segment.Segment {
-	m.RLock()
-	defer m.RUnlock()
-
-	// Add foreground & background segments.
-	for _, seg := range m.foregroundSegments {
-		segments = append(segments, seg.Segment())
-	}
-	for _, seg := range m.backgroundSegments {
-		segments = append(segments, seg.Segment())
-	}
-	return segments
 }
 
 func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
@@ -625,7 +621,7 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 			return errForegroundCompactorBadPlanSecondaryTask
 		}
 		// Now use the builder after resetting it.
-		builder.Reset(0)
+		builder.Reset()
 		if err := m.foregroundCompactWithTask(
 			builder, task,
 			log, logger.With(zap.Int("task", i)),

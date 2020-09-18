@@ -24,30 +24,62 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
-	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// nolint
 type queryTestResult struct {
-	name string
-	max  float64
+	series   string
+	expected string
+	max      float64
 }
 
-// nolint
 type queryTest struct {
 	query   string
 	ordered bool
 	results []queryTestResult
 }
 
+func snapStartToStepSize(t time.Time, stepSize int) time.Time {
+	step := time.Duration(stepSize) * time.Millisecond
+	if truncated := t.Truncate(step); truncated.Before(t) {
+		return t.Add(step)
+	}
+
+	return t
+}
+
+func testSeries(name string, stepSize int, val float64, opts storage.FetchOptions) *ts.Series {
+	ctx := context.New()
+	numSteps := int(opts.EndTime.Sub(opts.StartTime)/time.Millisecond) / stepSize
+	vals := ts.NewConstantValues(ctx, val, numSteps, stepSize)
+	firstPoint := snapStartToStepSize(opts.StartTime, stepSize)
+	return ts.NewSeries(ctx, name, firstPoint, vals)
+}
+
+func buildTestSeriesFn(
+	stepSize int,
+	id ...string,
+) func(context.Context, string, storage.FetchOptions) (*storage.FetchResult, error) {
+	return func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
+		series := make([]*ts.Series, 0, len(id))
+		for _, name := range id {
+			val := testValues[name]
+			series = append(series, testSeries(name, stepSize, val, opts))
+		}
+
+		return &storage.FetchResult{SeriesList: series}, nil
+	}
+}
+
 var (
-	// nolint
 	testValues = map[string]float64{
 		"foo.bar.q.zed":      0,
 		"foo.bar.g.zed":      1,
@@ -57,42 +89,56 @@ var (
 		"chicago.cake":       5,
 		"los_angeles.cake":   6,
 	}
-
-	// nolint
-	testPolicy = policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
-	// testTSDB    = makeTSDB(testPolicy)
-	// nolint
-	testStorage storage.Storage //= nil
-	//  local.NewLocalStorage(local.Options{
-	// 	Database:       testTSDB,
-	// 	Workers:        workers,
-	// 	Scope:          metrics.None,
-	// 	PolicyResolver: resolver.NewStaticResolver(testIndex, testPolicy),
-	// })
 )
 
-// TODO arnikola reenable
-// nolint
-func testExecute(t *testing.T) {
-	engine := NewEngine(
-		testStorage,
-	)
+func newTestStorage(ctrl *gomock.Controller) storage.Storage {
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(
+			func(
+				ctx context.Context,
+				query string,
+				opts storage.FetchOptions,
+			) (*storage.FetchResult, error) {
+				return &storage.FetchResult{}, nil
+			})
+
+	return store
+}
+
+func TestExecute(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	engine := NewEngine(store)
+
 	tests := []queryTest{
-		{"foo.bar.q.zed", true, []queryTestResult{{"foo.bar.q.zed", 0}}},
+		{"foo.bar.q.zed", true, []queryTestResult{{"foo.bar.q.zed", "foo.bar.q.zed", 0}}},
 		{"foo.bar.*.zed", false, []queryTestResult{
-			{"foo.bar.q.zed", 0},
-			{"foo.bar.g.zed", 1},
-			{"foo.bar.x.zed", 2}},
+			{"foo.bar.q.zed", "foo.bar.q.zed", 0},
+			{"foo.bar.g.zed", "foo.bar.g.zed", 1},
+			{"foo.bar.x.zed", "foo.bar.x.zed", 2}},
 		},
 		{"sortByName(aliasByNode(foo.bar.*.zed, 0, 2))", true, []queryTestResult{
-			{"foo.g", 1},
-			{"foo.q", 0},
-			{"foo.x", 2},
+			{"foo.bar.g.zed", "foo.g", 1},
+			{"foo.bar.q.zed", "foo.q", 0},
+			{"foo.bar.x.zed", "foo.x", 2},
 		}},
 	}
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
 	for _, test := range tests {
+
+		stepSize := 60000
+		queries := make([]string, 0, len(test.results))
+		for _, r := range test.results {
+			queries = append(queries, r.series)
+		}
+
+		store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			buildTestSeriesFn(stepSize, queries...))
+
 		expr, err := engine.Compile(test.query)
 		require.Nil(t, err)
 
@@ -102,7 +148,7 @@ func testExecute(t *testing.T) {
 
 		for i := range test.results {
 			if test.ordered {
-				assert.Equal(t, test.results[i].name, results.Values[i].Name(),
+				assert.Equal(t, test.results[i].expected, results.Values[i].Name(),
 					"invalid result %d for %s", i, test.query)
 				assert.Equal(t, test.results[i].max, results.Values[i].CalcStatistics().Max,
 					"invalid result %d for %s", i, test.query)
@@ -111,18 +157,24 @@ func testExecute(t *testing.T) {
 	}
 }
 
-// TODO arnikola reenable
-// nolint
-func testTracing(t *testing.T) {
-	engine := NewEngine(
-		testStorage,
-	)
+func TestTracing(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store)
 	var traces []common.Trace
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
 	ctx.Trace = func(t common.Trace) {
 		traces = append(traces, t)
 	}
+
+	stepSize := 60000
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed", "foo.bar.g.zed",
+			"foo.bar.x.zed"))
 
 	expr, err := engine.Compile("groupByNode(sortByName(aliasByNode(foo.bar.*.zed, 0, 2)), 0, 'sumSeries')")
 	require.NoError(t, err)
@@ -156,20 +208,29 @@ func testTracing(t *testing.T) {
 	}
 }
 
-// func makeTSDB(policy policy.StoragePolicy) tsdb.Database {
-// 	var (
-// 		now      = time.Now().Truncate(time.Second * 10)
-// 		testTSDB = nil //FIXME mocktsdb.New()
-// 		ctx      = context.New()
-// 	)
+func buildEmptyTestSeriesFn() func(context.Context, string, storage.FetchOptions) (*storage.FetchResult, error) {
+	return func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
+		series := make([]*ts.Series, 0, 0)
+		return &storage.FetchResult{SeriesList: series}, nil
+	}
+}
 
-// 	defer ctx.Close()
+func TestNilBinaryContextShifter(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
 
-// 	for name, val := range testValues {
-// 		for t := now.Add(-time.Hour * 2); t.Before(now.Add(time.Hour)); t = t.Add(time.Second * 10) {
-// 			testTSDB.WriteRaw(ctx, name, t, val, policy)
-// 		}
-// 	}
+	store := storage.NewMockStorage(ctrl)
 
-// 	return testIndex, testTSDB
-// }
+	engine := NewEngine(store)
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildEmptyTestSeriesFn()).AnyTimes()
+
+	expr, err := engine.Compile("movingSum(foo.bar.q.zed, 30s)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}

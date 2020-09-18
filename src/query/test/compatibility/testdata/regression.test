@@ -1,0 +1,44 @@
+# this test data represents previous regressions
+load 5m
+  http_requests{job="foo", instance="bar"}   0+10x10
+  http_requests{job="foo", instance="baz"}   0+20x10 
+  http_requests{job="baz", instance="bar"}   0+30x10
+  http_requests{instance="bar", group="foo"} 0+40x10
+  http_requests{instance="bar", group="baz"} 0+50x10
+  http_requests{instance="baz", group="foo"} 0+60x10 
+
+eval instant at 0s http_requests{job=~".*foo"}
+  http_requests{job="foo", instance="bar"} 0
+  http_requests{job="foo", instance="baz"} 0
+
+eval instant at 0s http_requests{job!~".*foo"}
+  http_requests{job="baz", instance="bar"}   0
+  http_requests{instance="bar", group="foo"} 0
+  http_requests{instance="bar", group="baz"} 0
+  http_requests{instance="baz", group="foo"} 0
+
+eval instant at 0s http_requests{job=~".+oo"}
+  http_requests{job="foo", instance="bar"} 0
+  http_requests{job="foo", instance="baz"} 0
+
+eval instant at 0s http_requests{job!~".+oo"}
+  http_requests{job="baz", instance="bar"}   0
+  http_requests{instance="bar", group="foo"} 0
+  http_requests{instance="bar", group="baz"} 0
+  http_requests{instance="baz", group="foo"} 0
+
+eval instant at 0s http_requests{job=~".*"}
+  http_requests{job="foo", instance="bar"}   0
+  http_requests{job="foo", instance="baz"}   0
+  http_requests{job="baz", instance="bar"}   0
+  http_requests{instance="bar", group="foo"} 0
+  http_requests{instance="bar", group="baz"} 0
+  http_requests{instance="baz", group="foo"} 0
+
+eval instant at 0s http_requests{job=~".+"}
+  http_requests{job="foo", instance="bar"}   0
+  http_requests{job="foo", instance="baz"}   0
+  http_requests{job="baz", instance="bar"}   0
+
+clear
+

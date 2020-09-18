@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -45,7 +46,7 @@ import (
 func TestWriterInitErrorNoTopic(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -64,7 +65,7 @@ func TestWriterInitErrorNoTopic(t *testing.T) {
 func TestWriterWriteAfterClosed(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -91,7 +92,7 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 func TestWriterWriteWithInvalidShard(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -124,7 +125,7 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 func TestWriterInvalidTopicUpdate(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -193,7 +194,7 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 func TestWriterRegisterFilter(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -242,7 +243,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 func TestWriterTopicUpdate(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -360,7 +361,7 @@ func TestWriterTopicUpdate(t *testing.T) {
 func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -462,7 +463,7 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 func TestWriterWrite(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -587,7 +588,7 @@ func TestWriterWrite(t *testing.T) {
 func TestWriterCloseBlocking(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -659,7 +660,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
@@ -812,7 +813,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 func TestWriterNumShards(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := mem.NewStore()

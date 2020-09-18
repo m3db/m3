@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -58,7 +58,7 @@ func TestNewConsumerWriter(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockRouter := NewMockackRouter(ctrl)
@@ -234,7 +234,7 @@ func TestConsumerWriterFlushWriteAfterFlushErrorTriggerReset(t *testing.T) {
 	require.NoError(t, write(w, &testMsg))
 
 	w.writeState.Lock()
-	require.Error(t, w.writeState.conns[0].rw.Flush())
+	require.Error(t, w.writeState.conns[0].w.Flush())
 	w.writeState.Unlock()
 
 	// Flush err will be stored in bufio.Writer, the next time
@@ -265,7 +265,7 @@ func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
 func TestAutoReset(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockRouter := NewMockackRouter(ctrl)
@@ -413,7 +413,7 @@ func testConsumeAndAckOnConnection(
 	decOpts proto.Options,
 ) {
 	serverEncoder := proto.NewEncoder(encOpts)
-	serverDecoder := proto.NewDecoder(conn, decOpts)
+	serverDecoder := proto.NewDecoder(conn, decOpts, 10)
 	var msg msgpb.Message
 	assert.NoError(t, serverDecoder.Decode(&msg))
 

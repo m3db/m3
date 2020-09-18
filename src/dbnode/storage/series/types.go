@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -109,8 +110,12 @@ type DatabaseSeries interface {
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
-	// IsEmpty returns whether series is empty.
+	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
+
+	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
+	// (only checks for in-mem buffer data).
+	IsBufferEmptyAtBlockStart(time.Time) bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
@@ -136,7 +141,7 @@ type DatabaseSeries interface {
 		blockStart time.Time,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
-	) error
+	) (SnapshotResult, error)
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
 	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
@@ -150,6 +155,28 @@ type DatabaseSeries interface {
 
 	// Reset resets the series for reuse.
 	Reset(opts DatabaseSeriesOptions)
+}
+
+// SnapshotResult contains metadata regarding the snapshot.
+type SnapshotResult struct {
+	Persist bool
+	Stats   SnapshotResultStats
+}
+
+// SnapshotResultStats contains stats regarding the snapshot.
+type SnapshotResultStats struct {
+	TimeMergeByBucket      time.Duration
+	TimeMergeAcrossBuckets time.Duration
+	TimeChecksum           time.Duration
+	TimePersist            time.Duration
+}
+
+// Add adds the result of a snapshot result to this result.
+func (r *SnapshotResultStats) Add(other SnapshotResultStats) {
+	r.TimeMergeByBucket += other.TimeMergeByBucket
+	r.TimeMergeAcrossBuckets += other.TimeMergeAcrossBuckets
+	r.TimeChecksum += other.TimeChecksum
+	r.TimePersist += other.TimePersist
 }
 
 // FetchBlocksMetadataOptions encapsulates block fetch metadata options
@@ -357,20 +384,35 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
-	encoderCreated tally.Counter
-	coldWrites     tally.Counter
+	encoderCreated            tally.Counter
+	coldWrites                tally.Counter
+	encodersPerBlock          tally.Histogram
+	encoderLimitWriteRejected tally.Counter
+	snapshotMergesEachBucket  tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
 func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
+
+	buckets := append(tally.ValueBuckets{0},
+		tally.MustMakeExponentialValueBuckets(1, 2, 20)...)
 	return Stats{
-		encoderCreated: subScope.Counter("encoder-created"),
-		coldWrites:     subScope.Counter("cold-writes"),
+		encoderCreated:            subScope.Counter("encoder-created"),
+		coldWrites:                subScope.Counter("cold-writes"),
+		encodersPerBlock:          subScope.Histogram("encoders-per-block", buckets),
+		encoderLimitWriteRejected: subScope.Counter("encoder-limit-write-rejected"),
+		snapshotMergesEachBucket:  subScope.Counter("snapshot-merges-each-bucket"),
 	}
 }
 
@@ -382,6 +424,16 @@ func (s Stats) IncCreatedEncoders() {
 // IncColdWrites incs the ColdWrites stat.
 func (s Stats) IncColdWrites() {
 	s.coldWrites.Inc(1)
+}
+
+// RecordEncodersPerBlock records the number of encoders histogram.
+func (s Stats) RecordEncodersPerBlock(num int) {
+	s.encodersPerBlock.RecordValue(float64(num))
+}
+
+// IncEncoderLimitWriteRejected incs the encoderLimitWriteRejected stat.
+func (s Stats) IncEncoderLimitWriteRejected() {
+	s.encoderLimitWriteRejected.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.

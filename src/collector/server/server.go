@@ -28,13 +28,16 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3collector/config"
 	"github.com/m3db/m3/src/collector/api/v1/httpd"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/collector/reporter/m3aggregator"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
@@ -50,6 +53,9 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// AggregatorServerOptions are server options for aggregator.
+	AggregatorServerOptions []server.AdminOption
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
@@ -85,8 +91,19 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create etcd client", zap.Error(err))
 	}
 
+	serveOptions := serve.NewOptions(instrumentOpts)
+	for i, transform := range runOpts.AggregatorServerOptions {
+		if opts, err := transform(serveOptions); err != nil {
+			logger.Fatal("could not apply transform",
+				zap.Int("index", i), zap.Error(err))
+		} else {
+			serveOptions = opts
+		}
+	}
+
+	rwOpts := serveOptions.RWOptions()
 	logger.Info("creating reporter")
-	reporter, err := newReporter(cfg.Reporter, clusterClient, instrumentOpts)
+	reporter, err := newReporter(cfg.Reporter, clusterClient, instrumentOpts, rwOpts)
 	if err != nil {
 		logger.Fatal("could not create reporter", zap.Error(err))
 	}
@@ -167,6 +184,7 @@ func newReporter(
 	cfg config.ReporterConfiguration,
 	clusterClient clusterclient.Client,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (reporter.Reporter, error) {
 	scope := instrumentOpts.MetricsScope()
 	logger := instrumentOpts.Logger()
@@ -185,7 +203,7 @@ func newReporter(
 
 	logger.Info("creating aggregator client")
 	aggClient, err := cfg.Client.NewClient(clusterClient, clockOpts,
-		instrumentOpts.SetMetricsScope(scope.SubScope("backend")))
+		instrumentOpts.SetMetricsScope(scope.SubScope("backend")), rwOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create agg tier client: %v", err)
 	}

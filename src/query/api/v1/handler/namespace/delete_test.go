@@ -41,6 +41,7 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
@@ -50,7 +51,7 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	deleteHandler.ServeHTTP(w, req)
+	deleteHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -63,6 +64,7 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
@@ -97,7 +99,7 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 	mockKV.EXPECT().Delete(M3DBNodeNamespacesKey).Return(nil, nil)
-	deleteHandler.ServeHTTP(w, req)
+	deleteHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -110,6 +112,7 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
@@ -159,7 +162,7 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Any()).Return(1, nil)
-	deleteHandler.ServeHTTP(w, req)
+	deleteHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)

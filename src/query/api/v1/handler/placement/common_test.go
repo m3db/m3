@@ -57,9 +57,9 @@ func TestPlacementService(t *testing.T) {
 			ServiceName: serviceName,
 		}
 
-		placementService, algo, err := ServiceWithAlgo(
-			mockClient, handleroptions.
-				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+		placementService, algo, err := ServiceWithAlgo(mockClient,
+			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			time.Time{}, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
 		assert.NotNil(t, algo)
@@ -67,19 +67,20 @@ func TestPlacementService(t *testing.T) {
 		// Test Services returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).
 			Return(nil, errors.New("dummy service error"))
-		placementService, err = Service(
-			mockClient, handleroptions.
-				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+		placementService, err = Service(mockClient,
+			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
 
 		// Test PlacementService returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
+		mockServices.EXPECT().
+			PlacementService(gomock.Not(nil), gomock.Not(nil)).
 			Return(nil, errors.New("dummy placement error"))
-		placementService, err = Service(
-			mockClient, handleroptions.
-				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+		placementService, err = Service(mockClient,
+			handleroptions.NewServiceOptions(svcDefaults, nil, nil),
+			time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
 	})

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
@@ -49,12 +50,24 @@ type readerDocRange struct {
 	endExclusive   postings.ID
 }
 
-func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) index.Reader {
+func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) sgmt.Reader {
 	return &reader{
 		segment: s,
 		limits:  l,
 		plPool:  p,
 	}
+}
+
+func (r *reader) Fields() (sgmt.FieldsIterator, error) {
+	return r.segment.Fields()
+}
+
+func (r *reader) ContainsField(field []byte) (bool, error) {
+	return r.segment.ContainsField(field)
+}
+
+func (r *reader) Terms(field []byte) (sgmt.TermsIterator, error) {
+	return r.segment.Terms(field)
 }
 
 func (r *reader) MatchField(field []byte) (postings.List, error) {

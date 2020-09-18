@@ -23,6 +23,7 @@ package proto
 import (
 	"io"
 
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -73,4 +74,10 @@ type Options interface {
 
 	// SetBytesPool sets the bytes pool.
 	SetBytesPool(value pool.BytesPool) Options
+
+	// SetRWOptions sets RW options.
+	SetRWOptions(value xio.Options) Options
+
+	// RWOptions returns the RW options.
+	RWOptions() xio.Options
 }

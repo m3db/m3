@@ -22,6 +22,7 @@ package prom
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/prometheus/prometheus/pkg/labels"
+	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,6 +45,7 @@ const promQuery = `http_requests_total{job="prometheus",group="canary"}`
 var testPromQLEngine = newMockPromQLEngine()
 
 type testHandlers struct {
+	queryable          *mockQueryable
 	readHandler        http.Handler
 	readInstantHandler http.Handler
 }
@@ -66,10 +70,11 @@ func setupTest(t *testing.T) testHandlers {
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetEngine(engine).
 		SetTimeoutOpts(timeoutOpts)
-	queryable := mockQueryable{}
+	queryable := &mockQueryable{}
 	readHandler := newReadHandler(opts, hOpts, queryable)
 	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
 	return testHandlers{
+		queryable:          queryable,
 		readHandler:        readHandler,
 		readInstantHandler: readInstantHandler,
 	}
@@ -148,4 +153,109 @@ func TestPromReadInstantHandlerInvalidQuery(t *testing.T) {
 	var resp response
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 	require.Equal(t, statusError, resp.Status)
+}
+
+func TestPromReadInstantHandlerParseMinTime(t *testing.T) {
+	setup := setupTest(t)
+
+	var (
+		query   *promstorage.SelectHints
+		selects int
+	)
+	setup.queryable.selectFn = func(
+		sortSeries bool,
+		hints *promstorage.SelectHints,
+		labelMatchers ...*labels.Matcher,
+	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+		selects++
+		query = hints
+		return &mockSeriesSet{}, nil, nil
+	}
+
+	req, _ := http.NewRequest("GET", native.PromReadInstantURL, nil)
+	params := defaultParams()
+	params.Set("time", minTimeFormatted)
+	req.URL.RawQuery = params.Encode()
+
+	var resp response
+	recorder := httptest.NewRecorder()
+
+	setup.readInstantHandler.ServeHTTP(recorder, req)
+
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, statusSuccess, resp.Status)
+
+	require.Equal(t, 1, selects)
+
+	fudge := 5 * time.Minute // Need to account for lookback
+	expected := time.Unix(0, 0)
+	actual := millisTime(query.Start)
+	require.True(t, abs(expected.Sub(actual)) <= fudge,
+		fmt.Sprintf("expected=%v, actual=%v, fudge=%v, delta=%v",
+			expected, actual, fudge, expected.Sub(actual)))
+
+	fudge = 5 * time.Minute // Need to account for lookback
+	expected = time.Unix(0, 0)
+	actual = millisTime(query.Start)
+	require.True(t, abs(expected.Sub(actual)) <= fudge,
+		fmt.Sprintf("expected=%v, actual=%v, fudge=%v, delta=%v",
+			expected, actual, fudge, expected.Sub(actual)))
+}
+
+func TestPromReadInstantHandlerParseMaxTime(t *testing.T) {
+	setup := setupTest(t)
+
+	var (
+		query   *promstorage.SelectHints
+		selects int
+	)
+	setup.queryable.selectFn = func(
+		sortSeries bool,
+		hints *promstorage.SelectHints,
+		labelMatchers ...*labels.Matcher,
+	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+		selects++
+		query = hints
+		return &mockSeriesSet{}, nil, nil
+	}
+
+	req, _ := http.NewRequest("GET", native.PromReadInstantURL, nil)
+	params := defaultParams()
+	params.Set("time", maxTimeFormatted)
+	req.URL.RawQuery = params.Encode()
+
+	var resp response
+	recorder := httptest.NewRecorder()
+
+	setup.readInstantHandler.ServeHTTP(recorder, req)
+
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, statusSuccess, resp.Status)
+
+	require.Equal(t, 1, selects)
+
+	fudge := 6 * time.Minute // Need to account for lookback + time.Now() skew
+	expected := time.Now()
+	actual := millisTime(query.Start)
+	require.True(t, abs(expected.Sub(actual)) <= fudge,
+		fmt.Sprintf("expected=%v, actual=%v, fudge=%v, delta=%v",
+			expected, actual, fudge, expected.Sub(actual)))
+
+	fudge = 6 * time.Minute // Need to account for lookback + time.Now() skew
+	expected = time.Now()
+	actual = millisTime(query.Start)
+	require.True(t, abs(expected.Sub(actual)) <= fudge,
+		fmt.Sprintf("expected=%v, actual=%v, fudge=%v, delta=%v",
+			expected, actual, fudge, expected.Sub(actual)))
+}
+
+func abs(v time.Duration) time.Duration {
+	if v < 0 {
+		return v * -1
+	}
+	return v
+}
+
+func millisTime(timestampMilliseconds int64) time.Time {
+	return time.Unix(0, timestampMilliseconds*int64(time.Millisecond))
 }

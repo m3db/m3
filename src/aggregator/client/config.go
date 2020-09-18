@@ -33,6 +33,7 @@ import (
 	producerconfig "github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -67,8 +68,9 @@ func (c *Configuration) NewAdminClient(
 	kvClient m3clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (AdminClient, error) {
-	client, err := c.NewClient(kvClient, clockOpts, instrumentOpts)
+	client, err := c.NewClient(kvClient, clockOpts, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +82,13 @@ func (c *Configuration) NewClient(
 	kvClient m3clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (Client, error) {
-	opts, err := c.newClientOptions(kvClient, clockOpts, instrumentOpts)
+	opts, err := c.newClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
+
 	return NewClient(opts)
 }
 
@@ -97,11 +101,13 @@ func (c *Configuration) newClientOptions(
 	kvClient m3clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (Options, error) {
 	opts := NewOptions().
 		SetAggregatorClientType(c.Type).
 		SetClockOptions(clockOpts).
-		SetInstrumentOptions(instrumentOpts)
+		SetInstrumentOptions(instrumentOpts).
+		SetRWOptions(rwOpts)
 
 	switch c.Type {
 	case M3MsgAggregatorClient:
@@ -110,7 +116,7 @@ func (c *Configuration) newClientOptions(
 			return nil, errNoM3MsgOptions
 		}
 
-		m3msgOpts, err := m3msgCfg.NewM3MsgOptions(kvClient, instrumentOpts)
+		m3msgOpts, err := m3msgCfg.NewM3MsgOptions(kvClient, instrumentOpts, rwOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -281,6 +287,7 @@ type M3MsgConfiguration struct {
 func (c *M3MsgConfiguration) NewM3MsgOptions(
 	kvClient m3clusterclient.Client,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (M3MsgOptions, error) {
 	opts := NewM3MsgOptions()
 
@@ -289,7 +296,7 @@ func (c *M3MsgConfiguration) NewM3MsgOptions(
 	// timers.
 	instrumentOpts = instrumentOpts.SetTimerOptions(opts.TimerOptions())
 
-	producer, err := c.Producer.NewProducer(kvClient, instrumentOpts)
+	producer, err := c.Producer.NewProducer(kvClient, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}

@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,22 +39,22 @@ func TestAddWarningHeaders(t *testing.T) {
 
 	recorder = httptest.NewRecorder()
 	meta.Exhaustive = false
-	ex := LimitHeaderSeriesLimitApplied
+	ex := headers.LimitHeaderSeriesLimitApplied
 	AddWarningHeaders(recorder, meta)
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 
 	recorder = httptest.NewRecorder()
 	meta.AddWarning("foo", "bar")
-	ex = fmt.Sprintf("%s,%s_%s", LimitHeaderSeriesLimitApplied, "foo", "bar")
+	ex = fmt.Sprintf("%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")
 	AddWarningHeaders(recorder, meta)
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 
 	recorder = httptest.NewRecorder()
 	meta.Exhaustive = true
 	ex = "foo_bar"
 	AddWarningHeaders(recorder, meta)
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+	assert.Equal(t, ex, recorder.Header().Get(headers.LimitHeader))
 }
