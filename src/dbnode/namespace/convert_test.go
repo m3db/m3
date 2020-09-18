@@ -63,14 +63,15 @@ var (
 
 	validNamespaceOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
-			BootstrapEnabled:  true,
-			FlushEnabled:      true,
-			WritesToCommitLog: true,
-			CleanupEnabled:    true,
-			RepairEnabled:     true,
-			RetentionOptions:  &validRetentionOpts,
-			SchemaOptions:     testSchemaOptions,
-			ExtendedOptions:   validExtendedOpts,
+			BootstrapEnabled:      true,
+			FlushEnabled:          true,
+			WritesToCommitLog:     true,
+			CleanupEnabled:        true,
+			RepairEnabled:         true,
+			CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: false},
+			RetentionOptions:      &validRetentionOpts,
+			SchemaOptions:         testSchemaOptions,
+			ExtendedOptions:       validExtendedOpts,
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -78,8 +79,9 @@ var (
 			WritesToCommitLog: true,
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
-			RetentionOptions:  &validRetentionOpts,
-			IndexOptions:      &validIndexOpts,
+			// Explicitly not setting CacheBlocksOnRetrieve here to test defaulting to true when not set.
+			RetentionOptions: &validRetentionOpts,
+			IndexOptions:     &validIndexOpts,
 		},
 	}
 
@@ -350,11 +352,17 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
 
+	expectedCacheBlocksOnRetrieve := true
+	if expected.CacheBlocksOnRetrieve != nil {
+		expectedCacheBlocksOnRetrieve = expected.CacheBlocksOnRetrieve.Value
+	}
+
 	require.Equal(t, expected.BootstrapEnabled, opts.BootstrapEnabled())
 	require.Equal(t, expected.FlushEnabled, opts.FlushEnabled())
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.CleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
+	require.Equal(t, expectedCacheBlocksOnRetrieve, opts.CacheBlocksOnRetrieve())
 	expectedSchemaReg, err := namespace.LoadSchemaHistory(expected.SchemaOptions)
 	require.NoError(t, err)
 	require.NotNil(t, expectedSchemaReg)
