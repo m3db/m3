@@ -48,15 +48,16 @@ func (m *MapConfiguration) Map() (Map, error) {
 
 // MetadataConfiguration is the configuration for a single namespace
 type MetadataConfiguration struct {
-	ID                string                  `yaml:"id" validate:"nonzero"`
-	BootstrapEnabled  *bool                   `yaml:"bootstrapEnabled"`
-	FlushEnabled      *bool                   `yaml:"flushEnabled"`
-	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
-	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
-	RepairEnabled     *bool                   `yaml:"repairEnabled"`
-	ColdWritesEnabled *bool                   `yaml:"coldWritesEnabled"`
-	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
-	Index             IndexConfiguration      `yaml:"index"`
+	ID                    string                  `yaml:"id" validate:"nonzero"`
+	BootstrapEnabled      *bool                   `yaml:"bootstrapEnabled"`
+	FlushEnabled          *bool                   `yaml:"flushEnabled"`
+	WritesToCommitLog     *bool                   `yaml:"writesToCommitLog"`
+	CleanupEnabled        *bool                   `yaml:"cleanupEnabled"`
+	RepairEnabled         *bool                   `yaml:"repairEnabled"`
+	ColdWritesEnabled     *bool                   `yaml:"coldWritesEnabled"`
+	CacheBlocksOnRetrieve *bool                   `yaml:"cacheBlocksOnRetrieve"`
+	Retention             retention.Configuration `yaml:"retention" validate:"nonzero"`
+	Index                 IndexConfiguration      `yaml:"index"`
 }
 
 // Metadata returns a Metadata corresponding to the receiver struct
@@ -83,6 +84,9 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	}
 	if v := mc.ColdWritesEnabled; v != nil {
 		opts = opts.SetColdWritesEnabled(*v)
+	}
+	if v := mc.CacheBlocksOnRetrieve; v != nil {
+		opts = opts.SetCacheBlocksOnRetrieve(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)
 }

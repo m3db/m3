@@ -55,6 +55,9 @@ var (
 
 	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
 	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
+
+	errStreamingRequired    = errors.New("streaming must be enabled for streaming read methods")
+	errStreamingUnsupported = errors.New("streaming mode be disabled for non streaming read methods")
 )
 
 const (
@@ -96,6 +99,10 @@ type reader struct {
 	bytesPool       pool.CheckedBytesPool
 	tagDecoderPool  serialize.TagDecoderPool
 
+	streamingID   ident.BytesID
+	streamingTags []byte
+	streamingData []byte
+
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
 	expectedDataDigest        uint32
@@ -104,7 +111,7 @@ type reader struct {
 	shard                     uint32
 	volume                    int
 	open                      bool
-	orderedByIndex            bool
+	streamingEnabled          bool
 	// NB(bodu): Informs whether or not we optimize for only reading
 	// metadata. We don't need to sort for reading metadata but sorting is
 	// required if we are performing regulars reads.
@@ -161,7 +168,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath        string
 	)
 
-	r.orderedByIndex = opts.OrderedByIndex
+	r.streamingEnabled = opts.StreamingEnabled
 
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
@@ -275,7 +282,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		r.Close()
 		return err
 	}
-	if opts.OrderedByIndex {
+	if opts.StreamingEnabled {
 		r.decoder.Reset(r.indexDecoderStream)
 	} else if err := r.readIndexAndSortByOffsetAsc(); err != nil {
 		r.Close()
@@ -344,7 +351,7 @@ func (r *reader) readInfo(size int) error {
 }
 
 func (r *reader) readIndexAndSortByOffsetAsc() error {
-	if r.orderedByIndex {
+	if r.streamingEnabled {
 		return errUnexpectedSortByOffset
 	}
 
@@ -365,14 +372,11 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
-	if r.orderedByIndex {
-		return r.readInIndexedOrder()
+func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
+	if !r.streamingEnabled {
+		return nil, nil, nil, 0, errStreamingRequired
 	}
-	return r.readInStoredOrder()
-}
 
-func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
 	if r.entriesRead >= r.entries {
 		return nil, nil, nil, 0, io.EOF
 	}
@@ -382,40 +386,33 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 		return nil, nil, nil, 0, err
 	}
 
-	var data checked.Bytes
-	if r.bytesPool != nil {
-		data = r.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
-	} else {
-		data = checked.NewBytes(make([]byte, 0, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
-	}
-
 	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
 		return nil, nil, nil, 0, fmt.Errorf(
 			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
 			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
 	}
-
-	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
+	data := r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size]
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.DataChecksum != int64(digest.Checksum(data.Bytes())) {
+	if entry.DataChecksum != int64(digest.Checksum(data)) {
 		return nil, nil, nil, 0, errSeekChecksumMismatch
 	}
 
-	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
+	r.streamingData = append(r.streamingData[:0], data...)
+	r.streamingID = append(r.streamingID[:0], entry.ID...)
+	r.streamingTags = append(r.streamingTags[:0], entry.EncodedTags...)
 
 	r.entriesRead++
 
-	return id, tags, data, uint32(entry.DataChecksum), nil
+	return r.streamingID, r.streamingTags, r.streamingData, uint32(entry.DataChecksum), nil
 }
 
-func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+	if r.streamingEnabled {
+		return nil, nil, nil, 0, errStreamingUnsupported
+	}
+
 	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
 	if r.optimizedReadMetadataOnly {
 		return nil, nil, nil, 0, errReadMetadataOptimizedForRead
@@ -462,32 +459,10 @@ func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
-	if r.orderedByIndex {
-		return r.readMetadataInIndexedOrder()
-	}
-	return r.readMetadataInStoredOrder()
-}
-
-func (r *reader) readMetadataInIndexedOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
-	if r.entriesRead >= r.entries {
-		return nil, nil, 0, 0, io.EOF
+	if r.streamingEnabled {
+		return nil, nil, 0, 0, errStreamingUnsupported
 	}
 
-	entry, err := r.decoder.DecodeIndexEntry(nil)
-	if err != nil {
-		return nil, nil, 0, 0, err
-	}
-
-	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
-	length := int(entry.Size)
-	checksum := uint32(entry.DataChecksum)
-
-	r.metadataRead++
-	return id, tags, length, checksum, nil
-}
-
-func (r *reader) readMetadataInStoredOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
 	if r.metadataRead >= r.entries {
 		return nil, nil, 0, 0, io.EOF
 	}
@@ -588,8 +563,8 @@ func (r *reader) MetadataRead() int {
 	return r.metadataRead
 }
 
-func (r *reader) OrderedByIndex() bool {
-	return r.orderedByIndex
+func (r *reader) StreamingEnabled() bool {
+	return r.streamingEnabled
 }
 
 func (r *reader) Close() error {

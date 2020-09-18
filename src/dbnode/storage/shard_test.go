@@ -1760,7 +1760,7 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
 }
 
-func TestAggregateTiles(t *testing.T) {
+func TestShardAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
