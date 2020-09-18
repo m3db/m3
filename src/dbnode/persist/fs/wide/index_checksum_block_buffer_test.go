@@ -20,37 +20,38 @@
 
 package wide
 
-import "github.com/m3db/m3/src/x/ident"
+import (
+	"testing"
 
-type indexChecksumBlockBuffer struct {
-	currentBlock ident.IndexChecksumBlock
-	blocks       chan ident.IndexChecksumBlock
+	"github.com/m3db/m3/src/x/ident"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestIndexChecksumBlockBuffer(t *testing.T) {
+	buf := NewIndexChecksumBlockBuffer()
+	bl := ident.IndexChecksumBlock{Marker: []byte("foo")}
+	go func() {
+		buf.Push(bl)
+		buf.Close()
+	}()
+
+	assert.True(t, buf.Next())
+	assert.Equal(t, []byte("foo"), buf.Current().Marker)
+	assert.False(t, buf.Next())
 }
 
-// NewIndexChecksumBlockBuffer creates a new IndexChecksumBlockBuffer.
-func NewIndexChecksumBlockBuffer() IndexChecksumBlockBuffer {
-	return &indexChecksumBlockBuffer{
-		blocks: make(chan ident.IndexChecksumBlock),
-	}
-}
+func TestIndexChecksumBlockBufferDrain(t *testing.T) {
+	buf := NewIndexChecksumBlockBuffer()
+	called := make(chan struct{})
+	go func() {
+		buf.Push(ident.IndexChecksumBlock{Marker: []byte("foo")})
+		buf.Push(ident.IndexChecksumBlock{Marker: []byte("bar")})
+		buf.Push(ident.IndexChecksumBlock{Marker: []byte("baz")})
+		buf.Close()
+		called <- struct{}{}
+	}()
 
-func (b *indexChecksumBlockBuffer) Close() {
-	close(b.blocks)
-}
-
-func (b *indexChecksumBlockBuffer) Push(bl ident.IndexChecksumBlock) {
-	b.blocks <- bl
-}
-
-func (b *indexChecksumBlockBuffer) Current() ident.IndexChecksumBlock {
-	return b.currentBlock
-}
-
-func (b *indexChecksumBlockBuffer) Next() bool {
-	if bl, ok := <-b.blocks; ok {
-		b.currentBlock = bl
-		return true
-	}
-
-	return false
+	buf.Drain()
+	<-called
 }

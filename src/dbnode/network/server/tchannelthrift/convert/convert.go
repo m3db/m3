@@ -278,13 +278,16 @@ func FromFetchMismatchRequest(
 		ns = ident.StringID(string(req.Query.NameSpace))
 	}
 
-	buffer.Push(ident.IndexChecksumBlock{
-		Checksums: req.ChecksumBatch.Checksums,
-		Marker:    req.ChecksumBatch.Marker,
-	})
+	go func() {
+		buffer.Push(ident.IndexChecksumBlock{
+			Checksums: req.ChecksumBatch.Checksums,
+			Marker:    req.ChecksumBatch.Marker,
+		})
 
-	// TODO: stream rather than cancelling after first.
-	buffer.Close()
+		// TODO: stream rather than cancelling after first.
+		buffer.Close()
+	}()
+
 	return ns, index.Query{Query: q}, opts, nil
 }
 

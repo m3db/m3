@@ -101,6 +101,8 @@ type IndexChecksumBlockBuffer interface {
 	Close()
 	// Push adds an IndexChecksumBlock to the buffer.
 	Push(bl ident.IndexChecksumBlock)
+	// Drain drains the buffer in error scenarios.
+	Drain()
 }
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
