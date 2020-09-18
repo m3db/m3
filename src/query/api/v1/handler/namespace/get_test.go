@@ -39,7 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testTypeUrlPrefix = "testm3.io/"
+var testTypeURLPrefix = "testm3.io/"
 
 func setupNamespaceTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *kv.MockStore) {
 	mockClient := client.NewMockClient(ctrl)

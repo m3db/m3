@@ -148,7 +148,7 @@ func (o *testExtendedOptions) Validate() error {
 }
 
 func (o *testExtendedOptions) ToProto() (proto.Message, string) {
-	return &protobuftypes.StringValue{Value: o.value}, testTypeUrlPrefix
+	return &protobuftypes.StringValue{Value: o.value}, testTypeURLPrefix
 }
 
 func convertToTestExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, error) {
@@ -157,7 +157,7 @@ func convertToTestExtendedOptions(msg proto.Message) (namespace.ExtendedOptions,
 }
 
 func init() {
-	namespace.RegisterExtendedOptionsConverter(testTypeUrlPrefix, &protobuftypes.StringValue{}, convertToTestExtendedOptions)
+	namespace.RegisterExtendedOptionsConverter(testTypeURLPrefix, &protobuftypes.StringValue{}, convertToTestExtendedOptions)
 }
 
 func newTestExtendedOptionsProto(s string) *protobuftypes.Any {
@@ -166,14 +166,14 @@ func newTestExtendedOptionsProto(s string) *protobuftypes.Any {
 	serializedMsg, _ := proto.Marshal(strMsg)
 
 	return &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(strMsg),
+		TypeUrl: testTypeURLPrefix + proto.MessageName(strMsg),
 		Value:   serializedMsg,
 	}
 }
 
 func testExtendedOptionsJson(s string) xjson.Map {
 	return xjson.Map{
-		"@type": testTypeUrlPrefix + "google.protobuf.StringValue",
+		"@type": testTypeURLPrefix + "google.protobuf.StringValue",
 		"value": s,
 	}
 }

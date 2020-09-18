@@ -305,7 +305,7 @@ type NamespaceUpdater func(Map) error
 // ExtendedOptions is the type for dynamically typed options.
 type ExtendedOptions interface {
 	// ToProto converts ExtendedOptions to the corresponding protobuf message.
-	ToProto() (msg proto.Message, typeUrlPrefix string)
+	ToProto() (msg proto.Message, typeURLPrefix string)
 
 	// Validate validates the ExtendedOptions.
 	Validate() error

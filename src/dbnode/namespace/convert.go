@@ -111,12 +111,12 @@ func ToRuntimeOptions(
 type ExtendedOptsConverter func(proto.Message) (ExtendedOptions, error)
 
 // RegisterExtendedOptionsConverter registers conversion function from protobuf message to ExtendedOptions.
-func RegisterExtendedOptionsConverter(typeUrlPrefix string, pb proto.Message, converter ExtendedOptsConverter) {
+func RegisterExtendedOptionsConverter(typeURLPrefix string, pb proto.Message, converter ExtendedOptsConverter) {
 	name := proto.MessageName(pb)
-	if !strings.HasSuffix(typeUrlPrefix, "/") {
-		typeUrlPrefix += "/"
+	if !strings.HasSuffix(typeURLPrefix, "/") {
+		typeURLPrefix += "/"
 	}
-	dynamicExtendedOptionsConverters.Store(typeUrlPrefix+name, converter)
+	dynamicExtendedOptionsConverters.Store(typeURLPrefix+name, converter)
 }
 
 // ToExtendedOptions converts protobuf message to ExtendedOptions.
@@ -310,18 +310,18 @@ func toExtendedOptions(opts ExtendedOptions) (*protobuftypes.Any, error) {
 		return nil, nil
 	}
 
-	protoMsg, typeUrlPrefix := opts.ToProto()
+	protoMsg, typeURLPrefix := opts.ToProto()
 	serialized, err := proto.Marshal(protoMsg)
 	if err != nil {
 		return nil, err
 	}
 
-	if !strings.HasSuffix(typeUrlPrefix, "/") {
-		typeUrlPrefix += "/"
+	if !strings.HasSuffix(typeURLPrefix, "/") {
+		typeURLPrefix += "/"
 	}
 
 	return &protobuftypes.Any{
-		TypeUrl: typeUrlPrefix + proto.MessageName(protoMsg),
+		TypeUrl: typeURLPrefix + proto.MessageName(protoMsg),
 		Value:   serialized,
 	}, nil
 }
