@@ -24,9 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type seriesFrameIter struct {
@@ -36,20 +35,16 @@ type seriesFrameIter struct {
 	started   bool
 	curr      SeriesBlockFrame
 
-	recorder recorder
-	iter     fs.CrossBlockIterator
+	iter fs.CrossBlockIterator
 
 	frameStep  xtime.UnixNano
 	frameStart xtime.UnixNano
 }
 
-func newSeriesFrameIterator(recorder recorder) SeriesFrameIterator {
+func newSeriesFrameIterator(recorder *recorder) SeriesFrameIterator {
 	return &seriesFrameIter{
-		recorder: recorder,
-		err:      errors.New("unset"),
-		curr: SeriesBlockFrame{
-			record: newDatapointRecord(),
-		},
+		err:  errors.New("unset"),
+		curr: newSeriesBlockFrame(recorder),
 	}
 }
 
@@ -59,7 +54,7 @@ func (b *seriesFrameIter) Reset(
 	iter fs.CrossBlockIterator,
 ) error {
 	if frameStep <= 0 {
-		b.err = fmt.Errorf("frame step must be >= 0, is %d", frameStep)
+		b.err = fmt.Errorf("frame step must be > 0, is %d", frameStep)
 		return b.err
 	}
 
@@ -69,8 +64,7 @@ func (b *seriesFrameIter) Reset(
 	b.started = false
 	b.frameStart = start
 	b.frameStep = frameStep
-	b.curr.resetWithData(start, start+frameStep)
-	b.recorder.release()
+	b.curr.reset(start, start+frameStep)
 
 	return nil
 }
@@ -81,15 +75,10 @@ func (b *seriesFrameIter) Err() error {
 
 func (b *seriesFrameIter) Close() error {
 	if b.iter != nil {
-		b.iter.Close()
 		b.iter = nil
 	}
 
 	return nil
-}
-
-func (b *seriesFrameIter) Release() {
-	b.curr.release()
 }
 
 func (b *seriesFrameIter) Next() bool {
@@ -104,36 +93,32 @@ func (b *seriesFrameIter) Next() bool {
 			return false
 		}
 	} else {
-		b.curr.release()
+		b.curr.reset(b.frameStart, b.frameStart+b.frameStep)
 	}
 
 	cutover := b.frameStart + b.frameStep
-	b.curr.FrameStart = b.frameStart
-	b.curr.FrameEnd = cutover
+	b.curr.FrameStartInclusive = b.frameStart
+	b.curr.FrameEndExclusive = cutover
 	b.frameStart = cutover
 	firstPoint, firstUnit, firstAnnotation := b.iter.Current()
 	if firstPoint.TimestampNanos >= cutover {
 		// NB: empty block.
-		b.recorder.release()
-		b.recorder.updateRecord(b.curr.record)
 		return true
 	}
 
-	var hasAny bool
-	var hasMore bool
-	b.recorder.record(firstPoint, firstUnit, firstAnnotation)
+	var hasAny, hasMore bool
+	b.curr.record(firstPoint, firstUnit, firstAnnotation)
 	for b.iter.Next() {
 		hasAny = true
-		curr, unit, annotation := b.iter.Current()
-		if curr.TimestampNanos >= cutover {
+		dp, unit, annotation := b.iter.Current()
+		if dp.TimestampNanos >= cutover {
 			hasMore = true
 			break
 		}
 
-		b.recorder.record(curr, unit, annotation)
+		b.curr.record(dp, unit, annotation)
 	}
 
-	b.recorder.updateRecord(b.curr.record)
 	if !hasAny {
 		b.exhausted = true
 		return true

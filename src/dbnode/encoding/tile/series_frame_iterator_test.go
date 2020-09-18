@@ -21,15 +21,16 @@
 package tile
 
 import (
+	"math"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func newSequentialIterator(
 
 	it.EXPECT().Next().Return(false)
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close().AnyTimes()
+	it.EXPECT().Close()
 
 	return it
 }
@@ -77,6 +78,8 @@ func halfFrameSizes(numPoints int) []float64 {
 		if i%2 == 0 {
 			frames[i] = v
 			v++
+		} else {
+			frames[i] = math.NaN()
 		}
 	}
 
@@ -154,7 +157,7 @@ func TestSeriesFrameIterator(t *testing.T) {
 		},
 	}
 
-	recorder := newFlatDatapointRecorder()
+	recorder := newRecorder()
 	it := newSeriesFrameIterator(recorder)
 	require.False(t, it.Next())
 	require.Error(t, it.Err())
@@ -174,7 +177,12 @@ func TestSeriesFrameIterator(t *testing.T) {
 			require.True(t, step < len(tt.exSums))
 			frame := it.Current()
 			assert.NotNil(t, frame)
-			assert.Equal(t, tt.exSums[step], frame.Sum())
+
+			if s := tt.exSums[step]; math.IsNaN(s) {
+				require.True(t, math.IsNaN(frame.Sum()))
+			} else {
+				require.Equal(t, s, frame.Sum())
+			}
 
 			vals := frame.Values()
 			require.Equal(t, tt.exCounts[step], len(vals))
@@ -194,7 +202,10 @@ func TestSeriesFrameIterator(t *testing.T) {
 		}
 
 		assert.Equal(t, len(tt.exSums), step)
-		assert.NoError(t, it.Err())
+		assert.NoError(t, iter.Err())
+		iter.Close()
 	}
+
+	assert.NoError(t, it.Err())
 	assert.NoError(t, it.Close())
 }

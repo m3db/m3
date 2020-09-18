@@ -35,7 +35,6 @@ type seriesBlockIter struct {
 	step  xtime.UnixNano
 	start xtime.UnixNano
 
-	recorder    recorder
 	iter        SeriesFrameIterator
 	blockIter   fs.CrossBlockIterator
 	encodedTags []byte
@@ -47,17 +46,13 @@ func NewSeriesBlockIterator(
 	reader fs.CrossBlockReader,
 	opts Options,
 ) (SeriesBlockIterator, error) {
-	var recorder recorder
-	recorder = newFlatDatapointRecorder()
-
 	return &seriesBlockIter{
 		reader: reader,
 
 		start: opts.Start,
 		step:  opts.FrameSize,
 
-		recorder:  recorder,
-		iter:      newSeriesFrameIterator(recorder),
+		iter:      newSeriesFrameIterator(newRecorder()),
 		blockIter: fs.NewCrossBlockIterator(opts.ReaderIteratorPool),
 	}, nil
 }
@@ -85,7 +80,6 @@ func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, []byte) {
 }
 
 func (b *seriesBlockIter) Close() error {
-	b.recorder.release()
 	b.blockIter.Close()
 	return b.iter.Close()
 }

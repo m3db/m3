@@ -57,12 +57,13 @@ func TestSeriesFrameUnitsMultiple(t *testing.T) {
 	rec.record(xtime.Second)
 	rec.record(xtime.Second)
 	rec.record(xtime.Day)
+	rec.record(xtime.Second)
 
 	_, ok := rec.SingleValue()
 	assert.False(t, ok)
 
 	vals := rec.Values()
-	assert.Equal(t, []xtime.Unit{xtime.Second, xtime.Second, xtime.Day}, vals)
+	assert.Equal(t, []xtime.Unit{xtime.Second, xtime.Second, xtime.Day, xtime.Second}, vals)
 
 	rec.reset()
 	_, ok = rec.SingleValue()

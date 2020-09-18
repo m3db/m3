@@ -25,7 +25,6 @@ import (
 )
 
 type unitRecorder struct {
-	set   bool
 	count int
 	u     xtime.Unit
 	us    []xtime.Unit
@@ -38,7 +37,7 @@ func newUnitRecorder() *unitRecorder {
 }
 
 func (u *unitRecorder) SingleValue() (xtime.Unit, bool) {
-	return u.u, u.set && len(u.us) == 0
+	return u.u, u.count > 0 && len(u.us) == 0
 }
 
 func (u *unitRecorder) Values() []xtime.Unit {
@@ -57,8 +56,7 @@ func (u *unitRecorder) Values() []xtime.Unit {
 
 func (u *unitRecorder) record(unit xtime.Unit) {
 	u.count++
-	if !u.set {
-		u.set = true
+	if u.count == 1 {
 		u.u = unit
 		return
 	}
@@ -87,6 +85,5 @@ func (u *unitRecorder) record(unit xtime.Unit) {
 
 func (u *unitRecorder) reset() {
 	u.count = 0
-	u.set = false
 	u.us = u.us[:0]
 }

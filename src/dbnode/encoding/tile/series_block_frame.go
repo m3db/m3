@@ -23,6 +23,7 @@ package tile
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -36,52 +37,57 @@ import (
 // query start, each series will return
 // 12 frames in a two hour block.
 type SeriesBlockFrame struct {
-	// FrameStart is start of frame.
-	FrameStart xtime.UnixNano
-	// FrameEnd is end of frame.
-	FrameEnd xtime.UnixNano
-	// datapointRecord is the record.
-	record *record
+	// FrameStartInclusive is inclusive start of frame.
+	FrameStartInclusive xtime.UnixNano
+	// FrameEndExclusive is exclusive end of frame.
+	FrameEndExclusive xtime.UnixNano
+	// recorder is the recorder.
+	recorder *recorder
 }
 
-func (f *SeriesBlockFrame) release() {
-	f.record.release()
+func newSeriesBlockFrame(recorder *recorder) SeriesBlockFrame {
+	return SeriesBlockFrame{recorder: recorder}
 }
 
-func (f *SeriesBlockFrame) reset() {
-	f.release()
-}
-
-func (f *SeriesBlockFrame) resetWithData(
+func (f *SeriesBlockFrame) reset(
 	start xtime.UnixNano,
 	end xtime.UnixNano,
 ) {
-	f.reset()
-	f.FrameStart = start
-	f.FrameEnd = end
+	f.recorder.reset()
+	f.FrameStartInclusive = start
+	f.FrameEndExclusive = end
+}
+
+func (f *SeriesBlockFrame) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
+	f.recorder.record(dp, u, a)
+}
+
+// Summary provides a summary for this block frame.
+func (f *SeriesBlockFrame) Summary() *SeriesFrameSummary {
+	return f.recorder.summary
 }
 
 // Values returns values in this SeriesBlockFrame.
 func (f *SeriesBlockFrame) Values() []float64 {
-	return f.record.values()
+	return f.recorder.vals
 }
 
 // Sum returns the sum of values in this SeriesBlockFrame.
 func (f *SeriesBlockFrame) Sum() float64 {
-	return f.record.sum()
+	return f.recorder.summary.Sum()
 }
 
 // Timestamps returns timestamps for the SeriesBlockFrame.
 func (f *SeriesBlockFrame) Timestamps() []time.Time {
-	return f.record.timestamps()
+	return f.recorder.times
 }
 
 // Units returns units for the SeriesBlockFrame.
 func (f *SeriesBlockFrame) Units() SeriesFrameUnits {
-	return f.record.units
+	return f.recorder.units
 }
 
 // Annotations returns annotations for the SeriesBlockFrame.
 func (f *SeriesBlockFrame) Annotations() SeriesFrameAnnotations {
-	return f.record.annotations
+	return f.recorder.annotations
 }

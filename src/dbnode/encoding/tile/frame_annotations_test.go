@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,12 +91,13 @@ func TestSeriesFrameAnnotationsMultipleChanges(t *testing.T) {
 	rec.record(a("foo"))
 	rec.record(a("bar"))
 	rec.record(a("baz"))
+	rec.record(a("foo"))
 
 	_, ok := rec.SingleValue()
 	assert.False(t, ok)
 
 	vals := rec.Values()
-	annotationsEqual(t, []string{"foo", "bar", "baz"}, vals)
+	annotationsEqual(t, []string{"foo", "bar", "baz", "foo"}, vals)
 
 	rec.reset()
 	_, ok = rec.SingleValue()

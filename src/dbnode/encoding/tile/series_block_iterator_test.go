@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -32,6 +31,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func TestSeriesBlockIterator(t *testing.T) {
 	reader := fs.NewMockCrossBlockReader(ctrl)
 	reader.EXPECT().Next().Return(true)
 	tags := []byte("encoded tags")
-	records := []fs.BlockRecord{{Data: []byte("foobar")}}
+	records := []fs.BlockRecord{{Data: []byte("block_record")}}
 	reader.EXPECT().Current().Return(ident.StringID("foobar"), tags, records)
 	reader.EXPECT().Next().Return(false)
 	reader.EXPECT().Err().Return(nil)
@@ -75,6 +75,7 @@ func TestSeriesBlockIterator(t *testing.T) {
 	frameIter, id, iterTags := iter.Current()
 	assert.True(t, frameIter.Next())
 	frame := frameIter.Current()
+
 	assert.False(t, frameIter.Next())
 	assert.False(t, iter.Next())
 	assert.Equal(t, 1.0, frame.Sum())

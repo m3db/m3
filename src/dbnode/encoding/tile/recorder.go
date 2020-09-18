@@ -22,61 +22,48 @@ package tile
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
-type record struct {
-	vals  []float64
-	times []time.Time
+const (
+	// NB: 2 hr block / 15 sec scrape as an initial size.
+	initLength = 2 * 60 * 4
+)
+
+type recorder struct {
+	vals    []float64
+	times   []time.Time // todo: consider delta-delta here?
+	summary *SeriesFrameSummary
 
 	units       *unitRecorder
 	annotations *annotationRecorder
 }
 
-func (r *record) values() []float64 {
-	return r.vals
+func newRecorder() *recorder {
+	return &recorder{
+		vals:    make([]float64, 0, initLength),
+		times:   make([]time.Time, 0, initLength),
+		summary: newSeriesFrameSummary(),
+
+		units:       newUnitRecorder(),
+		annotations: newAnnotationRecorder(),
+	}
 }
 
-func (r *record) sum() float64 {
-	sum := 0.0
-	for _, v := range r.vals {
-		sum += v
-	}
-
-	return sum
-}
-
-func (r *record) timestamps() []time.Time {
-	return r.times
-}
-
-func (r *record) release() {
-	if r == nil {
-		return
-	}
-
-	if r.units != nil {
-		r.units.reset()
-	}
-
-	if r.annotations != nil {
-		r.annotations.reset()
-	}
-
+func (r *recorder) reset() {
+	r.units.reset()
+	r.annotations.reset()
 	r.vals = r.vals[:0]
 	r.times = r.times[:0]
+	r.summary.reset()
 }
 
-func (r *record) setFlatValues(vals []float64, times []time.Time) {
-	r.vals = vals
-	r.times = times
-}
-
-func (r *record) setUnitsAnnotations(
-	units *unitRecorder, annotations *annotationRecorder) {
-	r.units = units
-	r.annotations = annotations
-}
-
-func newDatapointRecord() *record {
-	return &record{}
+func (r *recorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
+	r.summary.record(dp.Value)
+	r.vals = append(r.vals, dp.Value)
+	r.times = append(r.times, dp.Timestamp)
+	r.units.record(u)
+	r.annotations.record(a)
 }

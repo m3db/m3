@@ -70,12 +70,12 @@ type SeriesFrameIterator interface {
 	Reset(
 		start xtime.UnixNano,
 		step xtime.UnixNano,
-		it fs.CrossBlockIterator,
+		iter fs.CrossBlockIterator,
 	) error
 }
 
 // SeriesBlockIterator provides concurrent iteration across multiple series
-// in a frame-wise fashion, exposing results as arrow slices.
+// in a frame-wise fashion.
 type SeriesBlockIterator interface {
 	// Err returns any errors encountered.
 	Err() error
@@ -83,15 +83,8 @@ type SeriesBlockIterator interface {
 	Next() bool
 	// Close closes the iterator.
 	Close() error
-	// Current returns the next set of series frame iterators, with relevant
-	// tags and IDs.
+	// Current returns the next set of series frame iterators.
 	Current() (SeriesFrameIterator, ident.ID, []byte)
-}
-
-type recorder interface {
-	updateRecord(record *record)
-	record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation)
-	release()
 }
 
 // Options are series block iterator options.
@@ -100,6 +93,8 @@ type Options struct {
 	FrameSize xtime.UnixNano
 	// Start is the start time for the iterator in nanos from epoch.
 	Start xtime.UnixNano
+	// EncodingOpts are options for the encoder.
+	EncodingOpts encoding.Options
 	// ReaderIteratorPool yields ReaderIterators.
 	ReaderIteratorPool encoding.ReaderIteratorPool
 }

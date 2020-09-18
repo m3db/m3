@@ -27,7 +27,6 @@ import (
 )
 
 type annotationRecorder struct {
-	set   bool
 	count int
 	a     ts.Annotation
 	as    []ts.Annotation
@@ -40,7 +39,7 @@ func newAnnotationRecorder() *annotationRecorder {
 }
 
 func (a *annotationRecorder) SingleValue() (ts.Annotation, bool) {
-	return a.a, a.set && len(a.as) == 0
+	return a.a, a.count > 0 && len(a.as) == 0
 }
 
 func (a *annotationRecorder) Values() []ts.Annotation {
@@ -59,8 +58,7 @@ func (a *annotationRecorder) Values() []ts.Annotation {
 
 func (a *annotationRecorder) record(annotation ts.Annotation) {
 	a.count++
-	if !a.set {
-		a.set = true
+	if a.count == 1 {
 		a.a = annotation
 		return
 	}
@@ -89,6 +87,10 @@ func (a *annotationRecorder) record(annotation ts.Annotation) {
 
 func (a *annotationRecorder) reset() {
 	a.count = 0
-	a.set = false
+	for i := range a.as {
+		a.as[i] = a.as[i][:0]
+		a.as[i] = nil
+	}
+
 	a.as = a.as[:0]
 }
