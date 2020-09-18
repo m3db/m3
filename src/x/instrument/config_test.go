@@ -27,6 +27,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/uber-go/tally/multi"
+
 	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/sergi/go-diff/diffmatchpatch"
 
@@ -65,6 +67,59 @@ func TestPrometheusDefaults(t *testing.T) {
 	numQuantiles := len(DefaultSummaryQuantileObjectives())
 	require.True(t, numQuantiles > 0)
 	require.Equal(t, numQuantiles, len(cfg.PrometheusReporter.DefaultSummaryObjectives))
+}
+
+func TestPrometheusPublicAndPrivateScopes(t *testing.T) {
+	sanitization := PrometheusMetricSanitization
+	extended := DetailedExtendedMetrics
+	cfg := MetricsConfiguration{
+		Sanitization: &sanitization,
+		SamplingRate: 1,
+		PrometheusReporter: &PrometheusConfiguration{
+			HandlerPath:   "/metrics-private",
+			ListenAddress: "0.0.0.0:0",
+			TimerType:     "histogram",
+		},
+		ExtendedMetrics: &extended,
+	}
+	privateScope, privateCloser, privateReporters, err := cfg.NewRootScopeAndReporters(
+		NewRootScopeAndReportersOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, privateReporters.PrometheusReporter)
+
+	// Should immediately sub-scope the private scope so metrics
+	// never collide with those from the "publicAndPrivateScope"
+	privateScope = privateScope.SubScope("internal")
+
+	defer privateCloser.Close()
+
+	sanitization = PrometheusMetricSanitization
+	extended = DetailedExtendedMetrics
+	cfg = MetricsConfiguration{
+		Sanitization: &sanitization,
+		SamplingRate: 1,
+		PrometheusReporter: &PrometheusConfiguration{
+			HandlerPath:   "/metrics-public",
+			ListenAddress: "0.0.0.0:0",
+			TimerType:     "histogram",
+		},
+		ExtendedMetrics: &extended,
+	}
+	_, publicCloser, publicReporters, err := cfg.NewRootScopeAndReporters(
+		NewRootScopeAndReportersOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, publicReporters.PrometheusReporter)
+
+	defer publicCloser.Close()
+
+	publicAndPrivateReporters := multi.NewMultiCachedReporter(
+		append(privateReporters.AllReporters, publicReporters.AllReporters...)...)
+	publicAndPrivateScope, publicAndPrivateCloser := cfg.NewRootScopeReporter(publicAndPrivateReporters)
+
+	defer publicAndPrivateCloser.Close()
+
+	publicAndPrivateScope.Counter("appears_in_both").Inc(1) // exposed as "appears_in_both"
+	privateScope.Counter("appears_in_private").Inc(1)       // exposed as "internal_appears_in_private"
 }
 
 func TestPrometheusExternalRegistries(t *testing.T) {
