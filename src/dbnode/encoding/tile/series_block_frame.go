@@ -27,22 +27,45 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// SeriesBlockFrame contains either all raw values
-// for a given series in a block if the frame size
-// was not specified, or the number of values
-// that fall into the next sequential frame
-// for a series in the block given the progression
-// through each time series from the query Start time.
-// e.g. with 10minute frame size that aligns with the
-// query start, each series will return
-// 12 frames in a two hour block.
-type SeriesBlockFrame struct {
-	// FrameStartInclusive is inclusive start of frame.
-	FrameStartInclusive xtime.UnixNano
-	// FrameEndExclusive is exclusive end of frame.
-	FrameEndExclusive xtime.UnixNano
-	// recorder is the recorder.
-	recorder *recorder
+const (
+	// NB: 2 hr block / 15 sec scrape as an initial size.
+	initLength = 2 * 60 * 4
+)
+
+type recorder struct {
+	vals    []float64
+	times   []time.Time // todo: consider delta-delta here?
+	summary *SeriesFrameSummary
+
+	units       *unitRecorder
+	annotations *annotationRecorder
+}
+
+func newRecorder() *recorder {
+	return &recorder{
+		vals:    make([]float64, 0, initLength),
+		times:   make([]time.Time, 0, initLength),
+		summary: newSeriesFrameSummary(),
+
+		units:       newUnitRecorder(),
+		annotations: newAnnotationRecorder(),
+	}
+}
+
+func (r *recorder) reset() {
+	r.units.reset()
+	r.annotations.reset()
+	r.vals = r.vals[:0]
+	r.times = r.times[:0]
+	r.summary.reset()
+}
+
+func (r *recorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
+	r.summary.record(dp.Value)
+	r.vals = append(r.vals, dp.Value)
+	r.times = append(r.times, dp.Timestamp)
+	r.units.record(u)
+	r.annotations.record(a)
 }
 
 func newSeriesBlockFrame(recorder *recorder) SeriesBlockFrame {

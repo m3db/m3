@@ -98,3 +98,21 @@ type Options struct {
 	// ReaderIteratorPool yields ReaderIterators.
 	ReaderIteratorPool encoding.ReaderIteratorPool
 }
+
+// SeriesBlockFrame contains either all raw values
+// for a given series in a block if the frame size
+// was not specified, or the number of values
+// that fall into the next sequential frame
+// for a series in the block given the progression
+// through each time series from the query Start time.
+// e.g. with 10minute frame size that aligns with the
+// query start, each series will return
+// 12 frames in a two hour block.
+type SeriesBlockFrame struct {
+	// FrameStartInclusive is inclusive start of frame.
+	FrameStartInclusive xtime.UnixNano
+	// FrameEndExclusive is exclusive end of frame.
+	FrameEndExclusive xtime.UnixNano
+	// recorder is the recorder.
+	recorder *recorder
+}

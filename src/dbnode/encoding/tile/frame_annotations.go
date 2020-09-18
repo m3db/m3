@@ -88,7 +88,6 @@ func (a *annotationRecorder) record(annotation ts.Annotation) {
 func (a *annotationRecorder) reset() {
 	a.count = 0
 	for i := range a.as {
-		a.as[i] = a.as[i][:0]
 		a.as[i] = nil
 	}
 
