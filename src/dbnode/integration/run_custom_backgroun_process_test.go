@@ -38,17 +38,23 @@ var (
 	testBackgroundProcessInstance storage.BackgroundProcess = &testBackgroundProcess{}
 )
 
-type testBackgroundProcess struct {}
+type testBackgroundProcess struct {
+	stopped atomic.Bool
+}
 
 func newTestBackgroundProcess(storage.Database, storage.Options) (storage.BackgroundProcess, error) {
 	return testBackgroundProcessInstance, nil
 }
 
-func (p *testBackgroundProcess) Start() {
+func (p *testBackgroundProcess) Run() {
 	testBackgroundProcessExecuted.Store(true)
+	for !p.stopped.Load() {
+		time.Sleep(time.Second)
+	}
 }
 
 func (p *testBackgroundProcess) Stop() {
+	p.stopped.Store(true)
 	return
 }
 
