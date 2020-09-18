@@ -47,6 +47,14 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
+	backgroundProcess := NewMockBackgroundProcess(ctrl)
+	gomock.InOrder(
+		backgroundProcess.EXPECT().Start(),
+		backgroundProcess.EXPECT().Stop(),
+	)
+
+	m.RegisterBackgroundProcess(backgroundProcess)
+
 	require.Equal(t, errMediatorNotOpen, m.Close())
 
 	require.NoError(t, m.Open())
