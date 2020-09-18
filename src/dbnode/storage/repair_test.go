@@ -66,7 +66,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 		return nil
 	}
 
-	repairer.Start()
+	go repairer.Run()
 
 	for {
 		// Wait for repair to be called

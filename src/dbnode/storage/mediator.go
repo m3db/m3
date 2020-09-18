@@ -146,7 +146,7 @@ func (m *mediator) Open() error {
 	go m.ongoingTick()
 
 	for _, process := range m.backgroundProcesses {
-		process.Start()
+		go process.Run()
 	}
 
 	return nil

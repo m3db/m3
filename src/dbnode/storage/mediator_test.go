@@ -24,8 +24,11 @@ import (
 	"testing"
 	"time"
 
+	xclock "github.com/m3db/m3/src/x/clock"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
@@ -47,9 +50,13 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
+	var executed atomic.Bool
+
 	backgroundProcess := NewMockBackgroundProcess(ctrl)
 	gomock.InOrder(
-		backgroundProcess.EXPECT().Start(),
+		backgroundProcess.EXPECT().Run().Do(func() {
+			executed.Store(true)
+		}),
 		backgroundProcess.EXPECT().Stop(),
 	)
 
@@ -59,6 +66,11 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 
 	require.NoError(t, m.Open())
 	require.Equal(t, errMediatorAlreadyOpen, m.Open())
+
+	hasExecuted := xclock.WaitUntil(func() bool {
+		return executed.Load()
+	}, time.Second)
+	require.True(t, hasExecuted)
 
 	require.NoError(t, m.Close())
 	require.Equal(t, errMediatorAlreadyClosed, m.Close())
