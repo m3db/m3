@@ -69,7 +69,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 		testSetup.Close()
-		closer.Close()
+		_ = closer.Close()
 	}()
 
 	start := time.Now()
@@ -167,7 +167,6 @@ var (
 )
 
 func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
-	t.Skip("timeouts in CI") //FIXME
 	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
 	storageOpts := testSetup.StorageOpts()
 	log := storageOpts.InstrumentOptions().Logger()
@@ -177,7 +176,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 		testSetup.Close()
-		closer.Close()
+		_ = closer.Close()
 	}()
 
 	nowFn := testSetup.NowFn()

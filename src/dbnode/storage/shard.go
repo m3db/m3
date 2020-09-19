@@ -2733,7 +2733,7 @@ func (s *dbShard) AggregateTiles(
 
 	encoder := s.opts.EncoderPool().Get()
 	defer encoder.Close()
-	encoder.SetSchema(targetSchemaDescr)
+	encoder.Reset(opts.Start, 0, targetSchemaDescr)
 
 	latestTargetVolume, err := s.LatestVolume(opts.Start)
 	nextVersion := latestTargetVolume + 1
@@ -2742,8 +2742,8 @@ func (s *dbShard) AggregateTiles(
 		nextVersion = 0
 	}
 
-	writer, err := fs.NewLargeTilesWriter(
-		fs.LargeTilesWriterOptions{
+	writer, err := fs.NewStreamingWriter(
+		fs.StreamingWriterOptions{
 			NamespaceID:         s.namespace.ID(),
 			ShardID:             s.ID(),
 			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
@@ -2765,13 +2765,15 @@ func (s *dbShard) AggregateTiles(
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
 		dp                  ts.Datapoint
+		segmentCapacity     int
+		writerData          = make([][]byte, 2)
 		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 	)
 
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
 		prevFrameLastValue := math.NaN()
-		encoder.Reset(opts.Start, 0, targetSchemaDescr)
+
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
 			unit, singleUnit := frame.Units().SingleValue()
@@ -2824,13 +2826,26 @@ func (s *dbShard) AggregateTiles(
 			}
 		}
 
-		if err := writer.Write(ctx, encoder, id, encodedTags); err != nil {
+		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)
+
+		segmentLen := segment.Len()
+		if segmentLen > segmentCapacity {
+			// Will use the same capacity for the next series.
+			segmentCapacity = segmentLen
+		}
+
+		writerData[0] = segment.Head.Bytes()
+		writerData[1] = segment.Tail.Bytes()
+		checksum := segment.CalculateChecksum()
+
+		if err := writer.WriteAll(id.Bytes(), encodedTags, writerData, checksum); err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
 			multiErr = multiErr.Add(err)
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
 
+		segment.Finalize()
 		id.Finalize()
 	}
 
