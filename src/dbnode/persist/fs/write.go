@@ -29,7 +29,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
@@ -39,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/bloom/v4"
 	"github.com/pborman/uuid"
 )
 
@@ -88,14 +88,18 @@ type writer struct {
 
 type indexEntry struct {
 	index           int64
-	metadata        persist.Metadata
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
 	dataChecksum    uint32
 }
 
-type indexEntries []indexEntry
+type indexEntryWithMetadata struct {
+	entry    indexEntry
+	metadata persist.Metadata
+}
+
+type indexEntries []indexEntryWithMetadata
 
 func (e indexEntries) releaseRefs() {
 	// Close any metadata.
@@ -103,7 +107,7 @@ func (e indexEntries) releaseRefs() {
 		elem.metadata.Finalize()
 	}
 	// Apply memset zero loop optimization.
-	var zeroed indexEntry
+	var zeroed indexEntryWithMetadata
 	for i := range e {
 		e[i] = zeroed
 	}
@@ -297,12 +301,14 @@ func (w *writer) writeAll(
 		return nil
 	}
 
-	entry := indexEntry{
-		index:          w.currIdx,
-		metadata:       metadata,
-		dataFileOffset: w.currOffset,
-		size:           uint32(size),
-		dataChecksum:   dataChecksum,
+	entry := indexEntryWithMetadata{
+		entry: indexEntry{
+			index:          w.currIdx,
+			dataFileOffset: w.currOffset,
+			size:           uint32(size),
+			dataChecksum:   dataChecksum,
+		},
+		metadata: metadata,
 	}
 	for _, d := range data {
 		if d == nil {
@@ -406,6 +412,9 @@ func (w *writer) writeIndexRelatedFiles() error {
 
 	// Write the index entries and calculate the bloom filter
 	n, p := uint(w.currIdx), w.bloomFilterFalsePositivePercent
+	if n == 0 {
+		n = 1
+	}
 	m, k := bloom.EstimateFalsePositiveRate(n, p)
 	bloomFilter := bloom.NewBloomFilter(m, k)
 
@@ -476,13 +485,14 @@ func (w *writer) writeIndexFileContents(
 		if i%summaryEvery == 0 {
 			// Capture the offset for when we write this summary back, only capture
 			// for every summary we'll actually write to avoid a few memcopies
-			w.indexEntries[i].indexFileOffset = offset
+			w.indexEntries[i].entry.indexFileOffset = offset
 		}
 
-		offset, err = w.writeIndex(id, tagsIter, tagsEncoder, entry, offset)
+		length, err := w.writeIndex(id, tagsIter, tagsEncoder, entry.entry)
 		if err != nil {
 			return err
 		}
+		offset += length
 
 		prevID = id
 	}
@@ -495,31 +505,29 @@ func (w *writer) writeIndex(
 	tagsIter ident.TagIterator,
 	tagsEncoder serialize.TagEncoder,
 	entry indexEntry,
-	offset int64,
 ) (int64, error) {
 	var encodedTags []byte
 	if numTags := tagsIter.Remaining(); numTags > 0 {
 		tagsEncoder.Reset()
 		if err := tagsEncoder.Encode(tagsIter); err != nil {
-			return offset, err
+			return 0, err
 		}
 
 		encodedTagsData, ok := tagsEncoder.Data()
 		if !ok {
-			return offset, errWriterEncodeTagsDataNotAccessible
+			return 0, errWriterEncodeTagsDataNotAccessible
 		}
 
 		encodedTags = encodedTagsData.Bytes()
 	}
 
-	return w.writeIndexWithEncodedTags(id, encodedTags, entry, offset)
+	return w.writeIndexWithEncodedTags(id, encodedTags, entry)
 }
 
 func (w *writer) writeIndexWithEncodedTags(
 	id []byte,
 	encodedTags []byte,
 	entry indexEntry,
-	offset int64,
 ) (int64, error) {
 	e := schema.IndexEntry{
 		Index:        entry.index,
@@ -532,16 +540,15 @@ func (w *writer) writeIndexWithEncodedTags(
 
 	w.encoder.Reset()
 	if err := w.encoder.EncodeIndexEntry(e); err != nil {
-		return offset, err
+		return 0, err
 	}
 
 	data := w.encoder.Bytes()
 	if _, err := w.indexFdWithDigest.Write(data); err != nil {
-		return offset, err
+		return 0, err
 	}
 
-	offset += int64(len(data))
-	return offset, nil
+	return int64(len(data)), nil
 }
 
 func (w *writer) writeSummariesFileContents(
@@ -552,7 +559,7 @@ func (w *writer) writeSummariesFileContents(
 		if i%summaryEvery != 0 {
 			continue
 		}
-		err := w.writeSummariesEntry(w.indexEntries[i])
+		err := w.writeSummariesEntry(w.indexEntries[i].metadata.BytesID(), w.indexEntries[i].entry)
 		if err != nil {
 			return 0, err
 		}
@@ -563,11 +570,12 @@ func (w *writer) writeSummariesFileContents(
 }
 
 func (w *writer) writeSummariesEntry(
+	id ident.BytesID,
 	entry indexEntry,
 ) error {
 	summary := schema.IndexSummary{
 		Index:            entry.index,
-		ID:               entry.metadata.BytesID(),
+		ID:               id,
 		IndexEntryOffset: entry.indexFileOffset,
 	}
 
@@ -593,7 +601,7 @@ func (w *writer) writeBloomFilterFileContents(
 func (w *writer) writeInfoFileContents(
 	bloomFilter *bloom.BloomFilter,
 	summaries int,
-	entries int64,
+	entriesCount int64,
 ) error {
 	snapshotBytes, err := w.snapshotID.MarshalBinary()
 	if err != nil {
@@ -606,7 +614,7 @@ func (w *writer) writeInfoFileContents(
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),
-		Entries:      entries,
+		Entries:      entriesCount,
 		MajorVersion: schema.MajorVersion,
 		MinorVersion: schema.MinorVersion,
 		Summaries: schema.IndexSummariesInfo{

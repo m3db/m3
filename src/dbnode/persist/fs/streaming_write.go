@@ -26,21 +26,23 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/bloom/v4"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+
+	"github.com/m3db/bloom/v4"
 )
 
-type LargeTilesWriter interface {
+// StreamingWriter writes into data fileset without intermediate buffering.
+// Writes must be lexicographically ordered by the id.
+type StreamingWriter interface {
 	Open() error
-	Write(ctx context.Context, encoder encoding.Encoder, id ident.ID, encodedTags []byte) error
+	WriteAll(id ident.BytesID, encodedTags ts.EncodedTags, data [][]byte, dataChecksum uint32) error
 	Close() error
 }
 
-type LargeTilesWriterOptions struct {
+// StreamingWriterOptions in the options for the StreamingWriter.
+type StreamingWriterOptions struct {
 	Options             Options
 	NamespaceID         ident.ID
 	ShardID             uint32
@@ -50,11 +52,10 @@ type LargeTilesWriterOptions struct {
 	PlannedRecordsCount uint
 }
 
-type largeTilesWriter struct {
-	opts         LargeTilesWriterOptions
+type streamingWriter struct {
+	opts         StreamingWriterOptions
 	writer       *writer
 	writerOpts   DataWriterOpenOptions
-	data         []checked.Bytes
 	currIdx      int64
 	prevIDBytes  []byte
 	summaryEvery int64
@@ -63,7 +64,7 @@ type largeTilesWriter struct {
 	summaries    int
 }
 
-func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error) {
+func NewStreamingWriter(opts StreamingWriterOptions) (StreamingWriter, error) {
 	w, err := NewWriter(opts.Options)
 	if err != nil {
 		return nil, err
@@ -80,8 +81,12 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 		FileSetType: persist.FileSetFlushType,
 	}
 
+	plannedRecordsCount := opts.PlannedRecordsCount
+	if plannedRecordsCount == 0 {
+		plannedRecordsCount = 1
+	}
 	m, k := bloom.EstimateFalsePositiveRate(
-		opts.PlannedRecordsCount,
+		plannedRecordsCount,
 		opts.Options.IndexBloomFilterFalsePositivePercent(),
 	)
 	bloomFilter := bloom.NewBloomFilter(m, k)
@@ -92,17 +97,16 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 		summaryEvery = int(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
 	}
 
-	return &largeTilesWriter{
+	return &streamingWriter{
 		opts:         opts,
 		writer:       w.(*writer),
 		writerOpts:   writerOpts,
 		summaryEvery: int64(summaryEvery),
-		data:         make([]checked.Bytes, 2),
 		bloomFilter:  bloomFilter,
 	}, nil
 }
 
-func (w *largeTilesWriter) Open() error {
+func (w *streamingWriter) Open() error {
 	if err := w.writer.Open(w.writerOpts); err != nil {
 		return err
 	}
@@ -112,103 +116,83 @@ func (w *largeTilesWriter) Open() error {
 	return nil
 }
 
-func (w *largeTilesWriter) Write(
-	ctx context.Context,
-	encoder encoding.Encoder,
-	id ident.ID,
-	encodedTags []byte,
+func (w *streamingWriter) WriteAll(
+	id ident.BytesID,
+	encodedTags ts.EncodedTags,
+	data [][]byte,
+	dataChecksum uint32,
 ) error {
 	// Need to check if w.prevIDBytes != nil, otherwise we can never write an empty string ID
-	if w.prevIDBytes != nil && bytes.Compare(id.Bytes(), w.prevIDBytes) <= 0 {
+	if w.prevIDBytes != nil && bytes.Compare(id, w.prevIDBytes) <= 0 {
 		return fmt.Errorf("ids must be written in lexicographic order, no duplicates, but got %s followed by %s", w.prevIDBytes, id)
 	}
-	w.prevIDBytes = append(w.prevIDBytes[:0], id.Bytes()...)
+	w.prevIDBytes = append(w.prevIDBytes[:0], id...)
 
-	stream, ok := encoder.Stream(ctx)
-	if !ok {
-		// None of the datapoints passed the predicate.
-		return nil
-	}
-	defer stream.Finalize()
-	segment, err := stream.Segment()
-	if err != nil {
-		return err
-	}
-	w.data[0] = segment.Head
-	w.data[1] = segment.Tail
-	checksum := segment.CalculateChecksum()
-	entry, err := w.writeData(w.data, checksum)
+	entry, ok, err := w.writeData(data, dataChecksum)
 	if err != nil {
 		return err
 	}
 
-	if entry != nil {
+	if ok {
 		return w.writeIndexRelated(id, encodedTags, entry)
 	}
 
 	return nil
 }
 
-func (w *largeTilesWriter) writeData(
-	data []checked.Bytes,
+func (w *streamingWriter) writeData(
+	data [][]byte,
 	dataChecksum uint32,
-) (*indexEntry, error) {
+) (indexEntry, bool, error) {
 	var size int64
 	for _, d := range data {
-		if d == nil {
-			continue
-		}
-		size += int64(d.Len())
+		size += int64(len(d))
 	}
 	if size == 0 {
-		return nil, nil
+		return indexEntry{}, false, nil
 	}
 
-	// Warning: metadata is not set here and should not be used anywhere below.
-	entry := &indexEntry{
+	entry := indexEntry{
 		index:          w.currIdx,
 		dataFileOffset: w.writer.currOffset,
 		size:           uint32(size),
 		dataChecksum:   dataChecksum,
 	}
 	for _, d := range data {
-		if d == nil {
-			continue
-		}
-		if err := w.writer.writeData(d.Bytes()); err != nil {
-			return nil, err
+		if err := w.writer.writeData(d); err != nil {
+			return indexEntry{}, false, err
 		}
 	}
 
 	w.currIdx++
 
-	return entry, nil
+	return entry, true, nil
 }
 
-func (w *largeTilesWriter) writeIndexRelated(
-	id ident.ID,
+func (w *streamingWriter) writeIndexRelated(
+	id ident.BytesID,
 	encodedTags []byte,
-	entry *indexEntry,
+	entry indexEntry,
 ) error {
 	// Add to the bloom filter, note this must be zero alloc or else this will
 	// cause heavy GC churn as we flush millions of series at end of each
 	// time window
-	w.bloomFilter.Add(id.Bytes())
+	w.bloomFilter.Add(id)
+
 	if entry.index%w.summaryEvery == 0 {
 		// Capture the offset for when we write this summary back, only capture
 		// for every summary we'll actually write to avoid a few memcopies
 		entry.indexFileOffset = w.indexOffset
 	}
 
-	indexOffset, err := w.writer.writeIndexWithEncodedTags(id.Bytes(), encodedTags, *entry, w.indexOffset)
+	length, err := w.writer.writeIndexWithEncodedTags(id, encodedTags, entry)
 	if err != nil {
 		return err
 	}
-	w.indexOffset = indexOffset
+	w.indexOffset += length
 
 	if entry.index%w.summaryEvery == 0 {
-		entry.metadata = persist.NewMetadataFromIDAndTagIterator(id, nil, persist.MetadataOptions{})
-		err = w.writer.writeSummariesEntry(*entry)
+		err = w.writer.writeSummariesEntry(id, entry)
 		if err != nil {
 			return err
 		}
@@ -218,10 +202,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	return nil
 }
 
-func (w *largeTilesWriter) Close() error {
-	for i := range w.data {
-		w.data[i] = nil
-	}
+func (w *streamingWriter) Close() error {
 	w.prevIDBytes = nil
 
 	// Write the bloom filter bitset out
