@@ -2845,8 +2845,10 @@ func (s *dbShard) AggregateTiles(
 			s.metrics.largeTilesWrites.Inc(1)
 		}
 
-		segment.Finalize()
+
 		id.Finalize()
+		//FIXME apparently this does not finalize segment.Tail as FinalizeTail flag is not set by default.
+		segment.Finalize()
 	}
 
 	if err := writer.Close(); err != nil {
