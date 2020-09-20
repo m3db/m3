@@ -1013,6 +1013,7 @@ func (s *service) fetchMismatch(
 ) (*rpc.FetchMismatchResult_, error) {
 	callStart := s.nowFn()
 	buffer := wide.NewIndexChecksumBlockBuffer()
+	defer buffer.Close()
 	ns, query, opts, err := convert.FromFetchMismatchRequest(req, buffer, s.pools)
 	if err != nil {
 		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))

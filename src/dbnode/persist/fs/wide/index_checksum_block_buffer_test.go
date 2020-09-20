@@ -48,10 +48,9 @@ func TestIndexChecksumBlockBufferDrain(t *testing.T) {
 		buf.Push(ident.IndexChecksumBlock{Marker: []byte("foo")})
 		buf.Push(ident.IndexChecksumBlock{Marker: []byte("bar")})
 		buf.Push(ident.IndexChecksumBlock{Marker: []byte("baz")})
-		buf.Close()
 		called <- struct{}{}
 	}()
 
-	buf.Drain()
+	buf.DrainAndClose()
 	<-called
 }

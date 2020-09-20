@@ -97,12 +97,14 @@ type IndexChecksumBlockBuffer interface {
 	Next() bool
 	// Current yields the current IndexChecksumBlock.
 	Current() ident.IndexChecksumBlock
-	// Close closes the buffer.
+	// Close closes the buffer without draining any values.
 	Close()
 	// Push adds an IndexChecksumBlock to the buffer.
 	Push(bl ident.IndexChecksumBlock)
-	// Drain drains the buffer in error scenarios.
-	Drain()
+	// DrainAndClose drains and closes the buffer, if it is not already closed.
+	// NB: This should be deferred when pushing values to the buffer to ensure
+	// proper cleanup.
+	DrainAndClose()
 }
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
