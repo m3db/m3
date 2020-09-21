@@ -133,7 +133,7 @@ func TestAbsoluteOffset(t *testing.T) {
 // April 3 2013, 4:05
 func TestParseTimeReference(t *testing.T) {
 	tests := []struct {
-		ref     string
+		ref          string
 		expectedTime time.Time
 	}{
 		{"", relativeTo},

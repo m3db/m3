@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/errors"
 )
 
-var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`) // allows -3min, -4d, etc.
+var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)    // allows -3min, -4d, etc.
 var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`) // -3min, +3min, -4d, +4d
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
@@ -45,29 +45,29 @@ var periods = map[string]time.Duration{
 	"y":   time.Hour * 24 * 365,
 }
 
-var weekdays = map[string]int {
-	"sunday" : 0,
-	"monday" : 1,
-	"tuesday" : 2,
-	"wednesday" : 3,
-	"thursday" : 4,
-	"friday" : 5,
-	"saturday" : 6,
+var weekdays = map[string]int{
+	"sunday":    0,
+	"monday":    1,
+	"tuesday":   2,
+	"wednesday": 3,
+	"thursday":  4,
+	"friday":    5,
+	"saturday":  6,
 }
 
-var months = map[string]int {
-	"january" : 1,
-	"february" : 2,
-	"march" : 3,
-	"april" : 4,
-	"may" : 5,
-	"june" : 6,
-	"july" : 7,
-	"august" : 8,
-	"september" : 9,
-	"october" : 10,
-	"november" : 11,
-	"december" : 12,
+var months = map[string]int{
+	"january":   1,
+	"february":  2,
+	"march":     3,
+	"april":     4,
+	"may":       5,
+	"june":      6,
+	"july":      7,
+	"august":    8,
+	"september": 9,
+	"october":   10,
+	"november":  11,
+	"december":  12,
 }
 
 // on Jan 2 15:04:05 -0700 MST 2006
@@ -148,23 +148,22 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		offset = "-" + offset
 	}
 	parsedReference, err := ParseTimeReference(ref, now)
-if err == nil {
-  parsedOffset, err := ParseOffset(offset)
-  if err == nil {
-    return parsedReference.Add(parsedOffset), nil
-  }
-}
+	if err == nil {
+		parsedOffset, err := ParseOffset(offset)
+		if err == nil {
+			return parsedReference.Add(parsedOffset), nil
+		}
+	}
 
 	return now, err
 }
 
-
 func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	var (
-  hour = now.Hour()
-  minute = now.Minute()
-  refDate time.Time
-)
+		hour    = now.Hour()
+		minute  = now.Minute()
+		refDate time.Time
+	)
 
 	if ref == "" || ref == "now" {
 		return now, nil
@@ -181,7 +180,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	rawRef := ref
 
 	// Time of Day Reference
-	i := strings.Index(ref,":")
+	i := strings.Index(ref, ":")
 	if 0 < i && i < 3 {
 		newHour, err := strconv.ParseInt(ref[:i], 10, 0)
 		if err != nil {
@@ -198,7 +197,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		if len(ref) >= 2 {
 			if ref[:2] == "am" {
 				ref = ref[2:]
-			} else if  ref[:2] == "pm" {
+			} else if ref[:2] == "pm" {
 				hour = (hour + 12) % 24
 				ref = ref[2:]
 			}
@@ -206,7 +205,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	}
 
 	// Xam or XXam
-	i = strings.Index(ref,"am")
+	i = strings.Index(ref, "am")
 	if 0 < i && i < 3 {
 		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
 		if err != nil {
@@ -216,7 +215,6 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		minute = 0
 		ref = ref[i+2:]
 	}
-
 
 	// Xpm or XXpm
 	i = strings.Index(ref, "pm")
@@ -231,13 +229,13 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	}
 
 	if strings.HasPrefix(ref, "noon") {
-		hour,minute = 12,0
+		hour, minute = 12, 0
 		ref = ref[4:]
 	} else if strings.HasPrefix(ref, "midnight") {
-		hour,minute = 0,0
+		hour, minute = 0, 0
 		ref = ref[8:]
 	} else if strings.HasPrefix(ref, "teatime") {
-		hour,minute = 16,0
+		hour, minute = 16, 0
 		ref = ref[7:]
 	}
 
@@ -253,17 +251,17 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	} else if reMonthAndDay.MatchString(ref) { // monthDay (january10, may6, may06 etc.)
 		day := 0
 		monthString := ""
-		if val, err := strconv.ParseInt(ref[len(ref)-2:],10,64); err == nil {
+		if val, err := strconv.ParseInt(ref[len(ref)-2:], 10, 64); err == nil {
 			day = int(val)
 			monthString = ref[:len(ref)-2]
-		} else if val, err := strconv.ParseInt(ref[len(ref)-1:],10,64); err == nil {
+		} else if val, err := strconv.ParseInt(ref[len(ref)-1:], 10, 64); err == nil {
 			day = int(val)
 			monthString = ref[:len(ref)-1]
 		} else {
 			return refDate, errors.NewInvalidParamsError(fmt.Errorf("day of month required after month name"))
 		}
 		refDate = time.Date(refDate.Year(), time.Month(months[monthString]), day, hour, minute, 0, 0, refDate.Location())
-	} else if reDayOfWeek.MatchString(ref)   { // DayOfWeek (Monday, etc)
+	} else if reDayOfWeek.MatchString(ref) { // DayOfWeek (Monday, etc)
 		expectedDay := weekdays[ref]
 		today := int(refDate.Weekday())
 		dayOffset := today - expectedDay
@@ -278,7 +276,6 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 
 	return refDate, nil
 }
-
 
 // ParseDuration parses a duration
 func ParseDuration(s string) (time.Duration, error) {
