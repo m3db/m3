@@ -281,7 +281,7 @@ func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Val
 // Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	var (
-		now                     = time.Now()
+		now = time.Now()
 		tzOffsetForAbsoluteTime time.Duration
 	)
 	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
