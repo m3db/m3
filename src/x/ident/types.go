@@ -311,6 +311,9 @@ func (t Tags) Equal(other Tags) bool {
 	return true
 }
 
+// IDBatch is a batch of IDs.
+type IDBatch []ID
+
 // IndexChecksumBlock represents a set of index checksums within a series block.
 type IndexChecksumBlock struct {
 	// Checksums is the list of index checksums.

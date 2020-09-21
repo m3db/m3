@@ -22,6 +22,7 @@ package index
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,7 +50,6 @@ func TestQueryOptions(t *testing.T) {
 
 	assert.Equal(t, "storage/index.block.Query", opts.queryTracepoint())
 	assert.Equal(t, "storage.dbNamespace.QueryIDs", opts.NSTracepoint())
-	assert.Equal(t, "storage.db.QueryIDs", opts.DBTracepoint())
 	assert.Equal(t, "storage.nsIndex.Query", opts.NSIdxTracepoint())
 }
 
@@ -74,6 +74,19 @@ func TestIndexChecksumQueryOptions(t *testing.T) {
 
 	assert.Equal(t, "storage/index.block.IndexChecksum", opts.queryTracepoint())
 	assert.Equal(t, "storage.dbNamespace.IndexChecksum", opts.NSTracepoint())
-	assert.Equal(t, "storage.db.QueryIDsIndexChecksum", opts.DBTracepoint())
 	assert.Equal(t, "storage.nsIndex.IndexChecksum", opts.NSIdxTracepoint())
+}
+
+func TestIndexChecksumSnapToTime(t *testing.T) {
+	now := time.Now()
+	opts := QueryOptions{
+		StartInclusive: now,
+	}
+
+	blockSize := time.Hour * 2
+	assert.Equal(t, now, opts.StartInclusive)
+	assert.Equal(t, time.Time{}, opts.EndExclusive)
+	opts.SnapToNearestDataBlock(blockSize)
+	assert.Equal(t, now.Truncate(blockSize), opts.StartInclusive)
+	assert.Equal(t, now.Truncate(blockSize).Add(blockSize), opts.EndExclusive)
 }

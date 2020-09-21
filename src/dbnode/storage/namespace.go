@@ -871,8 +871,8 @@ func (n *dbNamespace) ReadEncoded(
 func (n *dbNamespace) IndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	useID bool,
 	start time.Time,
+	useID bool,
 ) (ident.IndexChecksum, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -880,7 +880,7 @@ func (n *dbNamespace) IndexChecksum(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return ident.IndexChecksum{}, err
 	}
-	res, err := shard.IndexChecksum(ctx, id, useID, start, nsCtx)
+	res, err := shard.IndexChecksum(ctx, id, start, useID, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

@@ -1334,6 +1334,43 @@ func (i *nsIndex) Query(
 	}, nil
 }
 
+func (i *nsIndex) WideQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) error {
+	logFields := []opentracinglog.Field{
+		opentracinglog.String("query", query.String()),
+		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+		opentracinglog.Int("docsLimit", opts.DocsLimit),
+		xopentracing.Time("queryStart", opts.StartInclusive),
+		xopentracing.Time("queryEnd", opts.EndExclusive),
+	}
+
+	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	results := index.NewWideQueryResults(
+		i.nsMetadata.ID(),
+		opts.BatchSize,
+		i.opts.IdentifierPool(),
+		opts.IndexBatchCollector,
+		index.QueryResultsOptions{
+			FilterID: i.shardsFilterID(),
+		},
+	)
+
+	ctx.RegisterFinalizer(results)
+	_, err := i.query(ctx, query, results, opts, i.execBlockWideQueryFn, logFields)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (i *nsIndex) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
@@ -1605,6 +1642,44 @@ func (i *nsIndex) queryWithSpan(
 }
 
 func (i *nsIndex) execBlockQueryFn(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+	logFields []opentracinglog.Field,
+) {
+	logFields = append(logFields,
+		xopentracing.Time("blockStart", block.StartTime()),
+		xopentracing.Time("blockEnd", block.EndTime()),
+	)
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results, logFields)
+	if err == index.ErrUnableToQueryBlockClosed {
+		// NB(r): Because we query this block outside of the results lock, it's
+		// possible this block may get closed if it slides out of retention, in
+		// that case those results are no longer considered valid and outside of
+		// retention regardless, so this is a non-issue.
+		err = nil
+	}
+
+	state.Lock()
+	defer state.Unlock()
+
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		state.multiErr = state.multiErr.Add(err)
+	}
+	state.exhaustive = state.exhaustive && blockExhaustive
+}
+
+func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	block index.Block,

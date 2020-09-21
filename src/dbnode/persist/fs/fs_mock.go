@@ -489,6 +489,21 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
 }
 
+// SeekIndexEntryToIndexChecksum mocks base method
+func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1, arg2)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SeekIndexEntryToIndexChecksum indicates an expected call of SeekIndexEntryToIndexChecksum
+func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntryToIndexChecksum", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekIndexEntryToIndexChecksum), arg0, arg1, arg2)
+}
+
 // MockIndexFileSetWriter is a mock of IndexFileSetWriter interface
 type MockIndexFileSetWriter struct {
 	ctrl     *gomock.Controller
@@ -1208,6 +1223,21 @@ func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntry(arg0 ident.ID, arg1 Reu
 func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
+}
+
+// SeekIndexEntryToIndexChecksum mocks base method
+func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1, arg2)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SeekIndexEntryToIndexChecksum indicates an expected call of SeekIndexEntryToIndexChecksum
+func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntryToIndexChecksum", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekIndexEntryToIndexChecksum), arg0, arg1, arg2)
 }
 
 // MockMergeWith is a mock of MergeWith interface

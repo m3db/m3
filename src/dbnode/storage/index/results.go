@@ -82,14 +82,10 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 		nsID = r.idPool.Clone(nsID)
 	}
 	r.nsID = nsID
-
-	if !r.opts.OnlySeriesIDs {
-		// Reset all values from map first if they are present; if OnlySeriesID is
-		// set, this map will have no entries.
-		for _, entry := range r.resultsMap.Iter() {
-			tags := entry.Value()
-			tags.Close()
-		}
+	// Reset all values from map first if they are present.
+	for _, entry := range r.resultsMap.Iter() {
+		tags := entry.Value()
+		tags.Close()
 	}
 
 	// Reset all keys in the map next, this will finalize the keys.
@@ -149,11 +145,7 @@ func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 		return false, r.resultsMap.Len(), nil
 	}
 
-	var tags ident.TagIterator
-	if !r.opts.OnlySeriesIDs {
-		tags = convert.ToSeriesTags(d, convert.Opts{NoClone: true})
-	}
-
+	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 	// It is assumed that the document is valid for the lifetime of the index
 	// results.
 	r.resultsMap.SetUnsafe(tsID, tags, resultMapNoFinalizeOpts)

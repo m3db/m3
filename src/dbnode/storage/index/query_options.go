@@ -21,8 +21,17 @@
 package index
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 )
+
+// SnapToNearestDataBlock will snap query options to the closest block, given
+// the data block size.
+func (o *QueryOptions) SnapToNearestDataBlock(blockSize time.Duration) {
+	o.StartInclusive = o.StartInclusive.Truncate(blockSize)
+	o.EndExclusive = o.StartInclusive.Add(blockSize)
+}
 
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
@@ -64,11 +73,6 @@ func (o QueryOptions) queryTracepoint() string {
 // NSTracepoint yields the appropriate tracepoint for namespace tchannelthrift path.
 func (o QueryOptions) NSTracepoint() string {
 	return o.tracepoint(tracepoint.NSIndexChecksum, tracepoint.NSQueryIDs)
-}
-
-// DBTracepoint yields the appropriate tracepoint for database tchannelthrift path.
-func (o QueryOptions) DBTracepoint() string {
-	return o.tracepoint(tracepoint.DBQueryIDsIndexChecksum, tracepoint.DBQueryIDs)
 }
 
 // NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.

@@ -53,6 +53,9 @@ type LimitsConfiguration struct {
 	// load on the CPU, which can prevent other DB operations.
 	// A setting of 0 means there is no maximum.
 	MaxEncodersPerBlock int `yaml:"maxEncodersPerBlock" validate:"min=0"`
+
+	// BatchSize represents batch size for wide operations. These are unlimited, up to this BatchSize.
+	BatchSize int `yaml:"batchSize"`
 }
 
 // MaxRecentlyQueriedSeriesBlocksConfiguration sets the upper limit on time

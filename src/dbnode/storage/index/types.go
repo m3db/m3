@@ -97,6 +97,8 @@ type QueryOptions struct {
 	IndexChecksumQuery bool
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
+	// IndexBatchCollector collects ID batches in an asynchronous fashion.
+	IndexBatchCollector chan<- ident.IDBatch
 }
 
 // IterationOptions enables users to specify iteration preferences.
@@ -108,19 +110,25 @@ type IterationOptions struct {
 // AggregationOptions enables users to specify constraints on aggregations.
 type AggregationOptions struct {
 	QueryOptions
+	// FieldFilter filters aggregate queries by field.
 	FieldFilter AggregateFieldFilter
-	Type        AggregationType
+	// Type indicates the aggregation type.
+	Type AggregationType
 }
 
 // QueryResult is the collection of results for a query.
 type QueryResult struct {
-	Results    QueryResults
+	// Results are index query results.
+	Results QueryResults
+	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
 type AggregateQueryResult struct {
-	Results    AggregateResults
+	// Results are aggregate index query results.
+	Results AggregateResults
+	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
 }
 
@@ -176,8 +184,8 @@ type QueryResultsOptions struct {
 	// NB(r): This is used to filter out results from shards the DB node
 	// node no longer owns but is still included in index segments.
 	FilterID func(id ident.ID) bool
-	// OnlySeriesIDs, if set, will not include tag values in the result map.
-	OnlySeriesIDs bool
+	// IndexBatchCollector collects ID batches in an asynchronous fashion.
+	IndexBatchCollector chan<- ident.IDBatch
 }
 
 // QueryResultsAllocator allocates QueryResults types.

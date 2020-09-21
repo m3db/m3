@@ -10971,231 +10971,6 @@ func (p *AggregateQueryResultTagValueElement) String() string {
 }
 
 // Attributes:
-//  - NameSpace
-//  - Query
-//  - BlockStart
-//  - BatchSize
-type IndexChecksumRequest struct {
-	NameSpace  []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
-	Query      []byte `thrift:"query,2,required" db:"query" json:"query"`
-	BlockStart int64  `thrift:"blockStart,3,required" db:"blockStart" json:"blockStart"`
-	BatchSize  *int64 `thrift:"batchSize,4" db:"batchSize" json:"batchSize,omitempty"`
-}
-
-func NewIndexChecksumRequest() *IndexChecksumRequest {
-	return &IndexChecksumRequest{}
-}
-
-func (p *IndexChecksumRequest) GetNameSpace() []byte {
-	return p.NameSpace
-}
-
-func (p *IndexChecksumRequest) GetQuery() []byte {
-	return p.Query
-}
-
-func (p *IndexChecksumRequest) GetBlockStart() int64 {
-	return p.BlockStart
-}
-
-var IndexChecksumRequest_BatchSize_DEFAULT int64
-
-func (p *IndexChecksumRequest) GetBatchSize() int64 {
-	if !p.IsSetBatchSize() {
-		return IndexChecksumRequest_BatchSize_DEFAULT
-	}
-	return *p.BatchSize
-}
-func (p *IndexChecksumRequest) IsSetBatchSize() bool {
-	return p.BatchSize != nil
-}
-
-func (p *IndexChecksumRequest) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	var issetNameSpace bool = false
-	var issetQuery bool = false
-	var issetBlockStart bool = false
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-			issetNameSpace = true
-		case 2:
-			if err := p.ReadField2(iprot); err != nil {
-				return err
-			}
-			issetQuery = true
-		case 3:
-			if err := p.ReadField3(iprot); err != nil {
-				return err
-			}
-			issetBlockStart = true
-		case 4:
-			if err := p.ReadField4(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	if !issetNameSpace {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field NameSpace is not set"))
-	}
-	if !issetQuery {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Query is not set"))
-	}
-	if !issetBlockStart {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field BlockStart is not set"))
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) ReadField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 1: ", err)
-	} else {
-		p.NameSpace = v
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 2: ", err)
-	} else {
-		p.Query = v
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) ReadField3(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 3: ", err)
-	} else {
-		p.BlockStart = v
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) ReadField4(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 4: ", err)
-	} else {
-		p.BatchSize = &v
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("IndexChecksumRequest"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField2(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField3(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField4(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *IndexChecksumRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("nameSpace", thrift.STRING, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:nameSpace: ", p), err)
-	}
-	if err := oprot.WriteBinary(p.NameSpace); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.nameSpace (1) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:nameSpace: ", p), err)
-	}
-	return err
-}
-
-func (p *IndexChecksumRequest) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("query", thrift.STRING, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:query: ", p), err)
-	}
-	if err := oprot.WriteBinary(p.Query); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.query (2) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:query: ", p), err)
-	}
-	return err
-}
-
-func (p *IndexChecksumRequest) writeField3(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("blockStart", thrift.I64, 3); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:blockStart: ", p), err)
-	}
-	if err := oprot.WriteI64(int64(p.BlockStart)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.blockStart (3) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:blockStart: ", p), err)
-	}
-	return err
-}
-
-func (p *IndexChecksumRequest) writeField4(oprot thrift.TProtocol) (err error) {
-	if p.IsSetBatchSize() {
-		if err := oprot.WriteFieldBegin("batchSize", thrift.I64, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:batchSize: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.BatchSize)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.batchSize (4) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:batchSize: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *IndexChecksumRequest) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("IndexChecksumRequest(%+v)", *p)
-}
-
-// Attributes:
 //  - Checksums
 //  - Marker
 type IndexChecksumResult_ struct {
@@ -14110,9 +13885,6 @@ type Node interface {
 	FetchBlocksMetadataRawV2(req *FetchBlocksMetadataRawV2Request) (r *FetchBlocksMetadataRawV2Result_, err error)
 	// Parameters:
 	//  - Req
-	IndexChecksum(req *IndexChecksumRequest) (r *IndexChecksumResult_, err error)
-	// Parameters:
-	//  - Req
 	WriteBatchRaw(req *WriteBatchRawRequest) (err error)
 	// Parameters:
 	//  - Req
@@ -15074,87 +14846,6 @@ func (p *NodeClient) recvFetchBlocksMetadataRawV2() (value *FetchBlocksMetadataR
 
 // Parameters:
 //  - Req
-func (p *NodeClient) IndexChecksum(req *IndexChecksumRequest) (r *IndexChecksumResult_, err error) {
-	if err = p.sendIndexChecksum(req); err != nil {
-		return
-	}
-	return p.recvIndexChecksum()
-}
-
-func (p *NodeClient) sendIndexChecksum(req *IndexChecksumRequest) (err error) {
-	oprot := p.OutputProtocol
-	if oprot == nil {
-		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.OutputProtocol = oprot
-	}
-	p.SeqId++
-	if err = oprot.WriteMessageBegin("indexChecksum", thrift.CALL, p.SeqId); err != nil {
-		return
-	}
-	args := NodeIndexChecksumArgs{
-		Req: req,
-	}
-	if err = args.Write(oprot); err != nil {
-		return
-	}
-	if err = oprot.WriteMessageEnd(); err != nil {
-		return
-	}
-	return oprot.Flush()
-}
-
-func (p *NodeClient) recvIndexChecksum() (value *IndexChecksumResult_, err error) {
-	iprot := p.InputProtocol
-	if iprot == nil {
-		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.InputProtocol = iprot
-	}
-	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
-	if err != nil {
-		return
-	}
-	if method != "indexChecksum" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "indexChecksum failed: wrong method name")
-		return
-	}
-	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "indexChecksum failed: out of sequence response")
-		return
-	}
-	if mTypeId == thrift.EXCEPTION {
-		error58 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error59 error
-		error59, err = error58.Read(iprot)
-		if err != nil {
-			return
-		}
-		if err = iprot.ReadMessageEnd(); err != nil {
-			return
-		}
-		err = error59
-		return
-	}
-	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "indexChecksum failed: invalid message type")
-		return
-	}
-	result := NodeIndexChecksumResult{}
-	if err = result.Read(iprot); err != nil {
-		return
-	}
-	if err = iprot.ReadMessageEnd(); err != nil {
-		return
-	}
-	if result.Err != nil {
-		err = result.Err
-		return
-	}
-	value = result.GetSuccess()
-	return
-}
-
-// Parameters:
-//  - Req
 func (p *NodeClient) WriteBatchRaw(req *WriteBatchRawRequest) (err error) {
 	if err = p.sendWriteBatchRaw(req); err != nil {
 		return
@@ -15203,16 +14894,16 @@ func (p *NodeClient) recvWriteBatchRaw() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error60 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error61 error
-		error61, err = error60.Read(iprot)
+		error58 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error59 error
+		error59, err = error58.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error61
+		err = error59
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15283,16 +14974,16 @@ func (p *NodeClient) recvWriteBatchRawV2() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error62 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error63 error
-		error63, err = error62.Read(iprot)
+		error60 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error61 error
+		error61, err = error60.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error63
+		err = error61
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15363,16 +15054,16 @@ func (p *NodeClient) recvWriteTaggedBatchRaw() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error64 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error65 error
-		error65, err = error64.Read(iprot)
+		error62 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error63 error
+		error63, err = error62.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error65
+		err = error63
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15443,16 +15134,16 @@ func (p *NodeClient) recvWriteTaggedBatchRawV2() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error66 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error67 error
-		error67, err = error66.Read(iprot)
+		error64 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error65 error
+		error65, err = error64.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error67
+		err = error65
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15519,16 +15210,16 @@ func (p *NodeClient) recvRepair() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error68 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error69 error
-		error69, err = error68.Read(iprot)
+		error66 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error67 error
+		error67, err = error66.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error69
+		err = error67
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15599,16 +15290,16 @@ func (p *NodeClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error70 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error71 error
-		error71, err = error70.Read(iprot)
+		error68 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error69 error
+		error69, err = error68.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error71
+		err = error69
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15676,16 +15367,16 @@ func (p *NodeClient) recvHealth() (value *NodeHealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error72 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error73 error
-		error73, err = error72.Read(iprot)
+		error70 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error71 error
+		error71, err = error70.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error73
+		err = error71
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15753,16 +15444,16 @@ func (p *NodeClient) recvBootstrapped() (value *NodeBootstrappedResult_, err err
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error74 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error75 error
-		error75, err = error74.Read(iprot)
+		error72 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error73 error
+		error73, err = error72.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error75
+		err = error73
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15830,16 +15521,16 @@ func (p *NodeClient) recvBootstrappedInPlacementOrNoPlacement() (value *NodeBoot
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error76 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error77 error
-		error77, err = error76.Read(iprot)
+		error74 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error75 error
+		error75, err = error74.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error77
+		err = error75
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15907,16 +15598,16 @@ func (p *NodeClient) recvGetPersistRateLimit() (value *NodePersistRateLimitResul
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error78 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error79 error
-		error79, err = error78.Read(iprot)
+		error76 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error77 error
+		error77, err = error76.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error79
+		err = error77
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -15988,16 +15679,16 @@ func (p *NodeClient) recvSetPersistRateLimit() (value *NodePersistRateLimitResul
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error80 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error81 error
-		error81, err = error80.Read(iprot)
+		error78 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error79 error
+		error79, err = error78.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error81
+		err = error79
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16065,16 +15756,16 @@ func (p *NodeClient) recvGetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyn
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error82 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error83 error
-		error83, err = error82.Read(iprot)
+		error80 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error81 error
+		error81, err = error80.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error83
+		err = error81
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16146,16 +15837,16 @@ func (p *NodeClient) recvSetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyn
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error84 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error85 error
-		error85, err = error84.Read(iprot)
+		error82 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error83 error
+		error83, err = error82.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error85
+		err = error83
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16223,16 +15914,16 @@ func (p *NodeClient) recvGetWriteNewSeriesBackoffDuration() (value *NodeWriteNew
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error86 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error87 error
-		error87, err = error86.Read(iprot)
+		error84 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error85 error
+		error85, err = error84.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error87
+		err = error85
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16304,16 +15995,16 @@ func (p *NodeClient) recvSetWriteNewSeriesBackoffDuration() (value *NodeWriteNew
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error88 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error89 error
-		error89, err = error88.Read(iprot)
+		error86 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error87 error
+		error87, err = error86.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error89
+		err = error87
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16381,16 +16072,16 @@ func (p *NodeClient) recvGetWriteNewSeriesLimitPerShardPerSecond() (value *NodeW
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error90 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error91 error
-		error91, err = error90.Read(iprot)
+		error88 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error89 error
+		error89, err = error88.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error91
+		err = error89
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16462,16 +16153,16 @@ func (p *NodeClient) recvSetWriteNewSeriesLimitPerShardPerSecond() (value *NodeW
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error92 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error93 error
-		error93, err = error92.Read(iprot)
+		error90 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error91 error
+		error91, err = error90.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error93
+		err = error91
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16543,16 +16234,16 @@ func (p *NodeClient) recvDebugProfileStart() (value *DebugProfileStartResult_, e
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error94 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error95 error
-		error95, err = error94.Read(iprot)
+		error92 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error93 error
+		error93, err = error92.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error95
+		err = error93
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16624,16 +16315,16 @@ func (p *NodeClient) recvDebugProfileStop() (value *DebugProfileStopResult_, err
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error96 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error97 error
-		error97, err = error96.Read(iprot)
+		error94 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error95 error
+		error95, err = error94.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error97
+		err = error95
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16705,16 +16396,16 @@ func (p *NodeClient) recvDebugIndexMemorySegments() (value *DebugIndexMemorySegm
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error98 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error99 error
-		error99, err = error98.Read(iprot)
+		error96 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error97 error
+		error97, err = error96.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error99
+		err = error97
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -16756,40 +16447,39 @@ func (p *NodeProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewNodeProcessor(handler Node) *NodeProcessor {
 
-	self100 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self100.processorMap["query"] = &nodeProcessorQuery{handler: handler}
-	self100.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
-	self100.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self100.processorMap["write"] = &nodeProcessorWrite{handler: handler}
-	self100.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
-	self100.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
-	self100.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
-	self100.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
-	self100.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
-	self100.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
-	self100.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
-	self100.processorMap["indexChecksum"] = &nodeProcessorIndexChecksum{handler: handler}
-	self100.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
-	self100.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
-	self100.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
-	self100.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
-	self100.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
-	self100.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
-	self100.processorMap["health"] = &nodeProcessorHealth{handler: handler}
-	self100.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
-	self100.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
-	self100.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
-	self100.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self100.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
-	self100.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
-	self100.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
-	self100.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
-	self100.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self100.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self100.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
-	self100.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
-	self100.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
-	return self100
+	self98 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self98.processorMap["query"] = &nodeProcessorQuery{handler: handler}
+	self98.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
+	self98.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
+	self98.processorMap["write"] = &nodeProcessorWrite{handler: handler}
+	self98.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
+	self98.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
+	self98.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
+	self98.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
+	self98.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self98.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
+	self98.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
+	self98.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
+	self98.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
+	self98.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
+	self98.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
+	self98.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
+	self98.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
+	self98.processorMap["health"] = &nodeProcessorHealth{handler: handler}
+	self98.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
+	self98.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
+	self98.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
+	self98.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
+	self98.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self98.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
+	self98.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
+	self98.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
+	self98.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self98.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self98.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
+	self98.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
+	self98.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
+	return self98
 }
 
 func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -16802,12 +16492,12 @@ func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, er
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x101 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x99 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x101.Write(oprot)
+	x99.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x101
+	return false, x99
 
 }
 
@@ -17371,59 +17061,6 @@ func (p *nodeProcessorFetchBlocksMetadataRawV2) Process(seqId int32, iprot, opro
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("fetchBlocksMetadataRawV2", thrift.REPLY, seqId); err2 != nil {
-		err = err2
-	}
-	if err2 = result.Write(oprot); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.Flush(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err != nil {
-		return
-	}
-	return true, err
-}
-
-type nodeProcessorIndexChecksum struct {
-	handler Node
-}
-
-func (p *nodeProcessorIndexChecksum) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeIndexChecksumArgs{}
-	if err = args.Read(iprot); err != nil {
-		iprot.ReadMessageEnd()
-		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("indexChecksum", thrift.EXCEPTION, seqId)
-		x.Write(oprot)
-		oprot.WriteMessageEnd()
-		oprot.Flush()
-		return false, err
-	}
-
-	iprot.ReadMessageEnd()
-	result := NodeIndexChecksumResult{}
-	var retval *IndexChecksumResult_
-	var err2 error
-	if retval, err2 = p.handler.IndexChecksum(args.Req); err2 != nil {
-		switch v := err2.(type) {
-		case *Error:
-			result.Err = v
-		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing indexChecksum: "+err2.Error())
-			oprot.WriteMessageBegin("indexChecksum", thrift.EXCEPTION, seqId)
-			x.Write(oprot)
-			oprot.WriteMessageEnd()
-			oprot.Flush()
-			return true, err2
-		}
-	} else {
-		result.Success = retval
-	}
-	if err2 = oprot.WriteMessageBegin("indexChecksum", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -21177,257 +20814,6 @@ func (p *NodeFetchBlocksMetadataRawV2Result) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("NodeFetchBlocksMetadataRawV2Result(%+v)", *p)
-}
-
-// Attributes:
-//  - Req
-type NodeIndexChecksumArgs struct {
-	Req *IndexChecksumRequest `thrift:"req,1" db:"req" json:"req"`
-}
-
-func NewNodeIndexChecksumArgs() *NodeIndexChecksumArgs {
-	return &NodeIndexChecksumArgs{}
-}
-
-var NodeIndexChecksumArgs_Req_DEFAULT *IndexChecksumRequest
-
-func (p *NodeIndexChecksumArgs) GetReq() *IndexChecksumRequest {
-	if !p.IsSetReq() {
-		return NodeIndexChecksumArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-func (p *NodeIndexChecksumArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *NodeIndexChecksumArgs) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumArgs) ReadField1(iprot thrift.TProtocol) error {
-	p.Req = &IndexChecksumRequest{}
-	if err := p.Req.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("indexChecksum_args"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumArgs) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
-	}
-	if err := p.Req.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
-	}
-	return err
-}
-
-func (p *NodeIndexChecksumArgs) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeIndexChecksumArgs(%+v)", *p)
-}
-
-// Attributes:
-//  - Success
-//  - Err
-type NodeIndexChecksumResult struct {
-	Success *IndexChecksumResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
-	Err     *Error                `thrift:"err,1" db:"err" json:"err,omitempty"`
-}
-
-func NewNodeIndexChecksumResult() *NodeIndexChecksumResult {
-	return &NodeIndexChecksumResult{}
-}
-
-var NodeIndexChecksumResult_Success_DEFAULT *IndexChecksumResult_
-
-func (p *NodeIndexChecksumResult) GetSuccess() *IndexChecksumResult_ {
-	if !p.IsSetSuccess() {
-		return NodeIndexChecksumResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-var NodeIndexChecksumResult_Err_DEFAULT *Error
-
-func (p *NodeIndexChecksumResult) GetErr() *Error {
-	if !p.IsSetErr() {
-		return NodeIndexChecksumResult_Err_DEFAULT
-	}
-	return p.Err
-}
-func (p *NodeIndexChecksumResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *NodeIndexChecksumResult) IsSetErr() bool {
-	return p.Err != nil
-}
-
-func (p *NodeIndexChecksumResult) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 0:
-			if err := p.ReadField0(iprot); err != nil {
-				return err
-			}
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumResult) ReadField0(iprot thrift.TProtocol) error {
-	p.Success = &IndexChecksumResult_{}
-	if err := p.Success.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumResult) ReadField1(iprot thrift.TProtocol) error {
-	p.Err = &Error{
-		Type: 0,
-	}
-	if err := p.Err.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("indexChecksum_result"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField0(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeIndexChecksumResult) writeField0(oprot thrift.TProtocol) (err error) {
-	if p.IsSetSuccess() {
-		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
-		}
-		if err := p.Success.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeIndexChecksumResult) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetErr() {
-		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
-		}
-		if err := p.Err.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeIndexChecksumResult) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeIndexChecksumResult(%+v)", *p)
 }
 
 // Attributes:
@@ -25945,16 +25331,16 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error246 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error247 error
-		error247, err = error246.Read(iprot)
+		error238 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error239 error
+		error239, err = error238.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error247
+		err = error239
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26026,16 +25412,16 @@ func (p *ClusterClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error248 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error249 error
-		error249, err = error248.Read(iprot)
+		error240 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error241 error
+		error241, err = error240.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error249
+		err = error241
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26106,16 +25492,16 @@ func (p *ClusterClient) recvWriteTagged() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error250 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error251 error
-		error251, err = error250.Read(iprot)
+		error242 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error243 error
+		error243, err = error242.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error251
+		err = error243
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26186,16 +25572,16 @@ func (p *ClusterClient) recvQuery() (value *QueryResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error252 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error253 error
-		error253, err = error252.Read(iprot)
+		error244 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error245 error
+		error245, err = error244.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error253
+		err = error245
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26267,16 +25653,16 @@ func (p *ClusterClient) recvAggregate() (value *AggregateQueryResult_, err error
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error254 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error255 error
-		error255, err = error254.Read(iprot)
+		error246 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error247 error
+		error247, err = error246.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error255
+		err = error247
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26348,16 +25734,16 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error256 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error257 error
-		error257, err = error256.Read(iprot)
+		error248 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error249 error
+		error249, err = error248.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error257
+		err = error249
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26429,16 +25815,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error258 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error259 error
-		error259, err = error258.Read(iprot)
+		error250 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error251 error
+		error251, err = error250.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error259
+		err = error251
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26480,15 +25866,15 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self260 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self260.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self260.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self260.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
-	self260.processorMap["query"] = &clusterProcessorQuery{handler: handler}
-	self260.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
-	self260.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self260.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self260
+	self252 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self252.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self252.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self252.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
+	self252.processorMap["query"] = &clusterProcessorQuery{handler: handler}
+	self252.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
+	self252.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self252.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self252
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -26501,12 +25887,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x261 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x253 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x261.Write(oprot)
+	x253.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x261
+	return false, x253
 
 }
 

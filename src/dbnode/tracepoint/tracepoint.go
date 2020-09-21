@@ -64,6 +64,9 @@ const (
 	// DBReadEncoded is the operation name for the db ReadEncoded path.
 	DBReadEncoded = "storage.db.ReadEncoded"
 
+	// DBWideQuery is the operation name for the db WideQuery path.
+	DBWideQuery = "storage.db.WideQuery"
+
 	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
 

@@ -1144,8 +1144,8 @@ func (s *dbShard) ReadEncoded(
 func (s *dbShard) IndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	useID bool,
 	start time.Time,
+	useID bool,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
 	s.RLock()

@@ -56,7 +56,6 @@ service Node {
 	FetchBlocksRawResult           fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 	FetchTaggedResult              fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
-	IndexChecksumResult            indexChecksum(1: IndexChecksumRequest req) throws (1: Error err)
 	void                           writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void                           writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void                           writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
@@ -430,13 +429,6 @@ struct AggregateQueryResultTagNameElement {
 
 struct AggregateQueryResultTagValueElement {
 	1: required string tagValue
-}
-
-struct IndexChecksumRequest {
-	1: required binary nameSpace
-	2: required binary query
-	3: required i64    blockStart
-	4: optional i64    batchSize
 }
 
 struct IndexChecksumResult {

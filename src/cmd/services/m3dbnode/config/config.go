@@ -583,6 +583,4 @@ type TChannelConfiguration struct {
 	MaxIdleTime time.Duration `yaml:"maxIdleTime"`
 	// IdleCheckInterval is the idle check interval.
 	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
-	// BatchSize represents batch size for wide operations.
-	BatchSize int `yaml:"batchSize"`
 }

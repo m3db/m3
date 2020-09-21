@@ -485,7 +485,6 @@ func (b *block) queryWithSpan(
 		docsPool.Put(batch)
 	}()
 
-	// does a similar thing to this.
 	for iter.Next() {
 		if opts.LimitsExceeded(size, docsCount) {
 			break

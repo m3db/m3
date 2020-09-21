@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -343,19 +344,18 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
-// IndexChecksum mocks base method
-func (m *MockDatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+// WideQuery mocks base method
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockDatabaseMockRecorder) IndexChecksum(ctx, namespace, id, useID, start interface{}) *gomock.Call {
+// WideQuery indicates an expected call of WideQuery
+func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockDatabase)(nil).IndexChecksum), ctx, namespace, id, useID, start)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start)
 }
 
 // FetchBlocks mocks base method
@@ -753,19 +753,18 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
-// IndexChecksum mocks base method
-func (m *Mockdatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+// WideQuery mocks base method
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockdatabaseMockRecorder) IndexChecksum(ctx, namespace, id, useID, start interface{}) *gomock.Call {
+// WideQuery indicates an expected call of WideQuery
+func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*Mockdatabase)(nil).IndexChecksum), ctx, namespace, id, useID, start)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start)
 }
 
 // FetchBlocks mocks base method
@@ -1344,18 +1343,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 }
 
 // IndexChecksum mocks base method
-func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, idBatch ident.ID, start time.Time, useID bool) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start)
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, idBatch, start, useID)
 	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockdatabaseNamespaceMockRecorder) IndexChecksum(ctx, id, useID, start interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) IndexChecksum(ctx, idBatch, start, useID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).IndexChecksum), ctx, id, useID, start)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).IndexChecksum), ctx, idBatch, start, useID)
 }
 
 // FetchBlocks mocks base method
@@ -1822,18 +1821,18 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 }
 
 // IndexChecksum mocks base method
-func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
+func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, start time.Time, useID bool, nsCtx namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start, nsCtx)
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, start, useID, nsCtx)
 	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockdatabaseShardMockRecorder) IndexChecksum(ctx, id, useID, start, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) IndexChecksum(ctx, id, start, useID, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).IndexChecksum), ctx, id, useID, start, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).IndexChecksum), ctx, id, start, useID, nsCtx)
 }
 
 // FetchBlocks mocks base method
@@ -4532,6 +4531,62 @@ func (m *MockOptions) MediatorTickInterval() time.Duration {
 func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
+}
+
+// SetAdminClient mocks base method
+func (m *MockOptions) SetAdminClient(value client.AdminClient) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAdminClient", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAdminClient indicates an expected call of SetAdminClient
+func (mr *MockOptionsMockRecorder) SetAdminClient(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminClient", reflect.TypeOf((*MockOptions)(nil).SetAdminClient), value)
+}
+
+// AdminClient mocks base method
+func (m *MockOptions) AdminClient() client.AdminClient {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdminClient")
+	ret0, _ := ret[0].(client.AdminClient)
+	return ret0
+}
+
+// AdminClient indicates an expected call of AdminClient
+func (mr *MockOptionsMockRecorder) AdminClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdminClient", reflect.TypeOf((*MockOptions)(nil).AdminClient))
+}
+
+// SetWideBatchSize mocks base method
+func (m *MockOptions) SetWideBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWideBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWideBatchSize indicates an expected call of SetWideBatchSize
+func (mr *MockOptionsMockRecorder) SetWideBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWideBatchSize", reflect.TypeOf((*MockOptions)(nil).SetWideBatchSize), value)
+}
+
+// WideBatchSize mocks base method
+func (m *MockOptions) WideBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WideBatchSize indicates an expected call of WideBatchSize
+func (mr *MockOptionsMockRecorder) WideBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideBatchSize", reflect.TypeOf((*MockOptions)(nil).WideBatchSize))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

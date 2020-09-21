@@ -635,10 +635,6 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
-	if cfg.TChannel != nil && cfg.TChannel.BatchSize > 0 {
-		ttopts = ttopts.SetBatchSize(cfg.TChannel.BatchSize)
-	}
-
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
 	var (
@@ -915,6 +911,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	opts = opts.SetSchemaRegistry(schemaRegistry)
+	opts.SetAdminClient(m3dbClient)
+	if cfg.Limits.BatchSize > 0 {
+		opts = opts.SetWideBatchSize(cfg.Limits.BatchSize)
+	}
+
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))

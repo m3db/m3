@@ -1611,7 +1611,7 @@ func TestShardStreamIndexChecksum(t *testing.T) {
 			start, gomock.Any()).Return(indexChecksum, true, nil)
 
 	// Check reads as expected
-	r, err := shard.IndexChecksum(ctx, ident.StringID("foo"), true, start, namespace.Context{})
+	r, err := shard.IndexChecksum(ctx, ident.StringID("foo"), start, true, namespace.Context{})
 	require.NoError(t, err)
 
 	// Check that nothing has been cached. Should be cached after a second.

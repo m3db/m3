@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -170,14 +171,14 @@ type Database interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// IndexChecksum retrieves index checksum for an ID.
-	IndexChecksum(
+	// WideQuery performs a wide blockwise query that provides batched results
+	// that can exceed query limits.
+	WideQuery(
 		ctx context.Context,
 		namespace ident.ID,
-		id ident.ID,
-		useID bool,
+		query index.Query,
 		start time.Time,
-	) (ident.IndexChecksum, error)
+	) error // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -342,13 +343,13 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// IndexChecksum retrieves the index checksum for an ID for the block
+	// IndexChecksum retrieves the index checksum for an ID batch for the block
 	// at time start.
 	IndexChecksum(
 		ctx context.Context,
-		id ident.ID,
-		useID bool,
+		idBatch ident.ID,
 		start time.Time,
+		useID bool,
 	) (ident.IndexChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -503,8 +504,8 @@ type databaseShard interface {
 	IndexChecksum(
 		ctx context.Context,
 		id ident.ID,
-		useID bool,
 		start time.Time,
+		useID bool,
 		nsCtx namespace.Context,
 	) (ident.IndexChecksum, error)
 
@@ -1212,6 +1213,18 @@ type Options interface {
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetAdminClient sets the admin client for the database options.
+	SetAdminClient(value client.AdminClient) Options
+
+	// AdminClient returns the admin client.
+	AdminClient() client.AdminClient
+
+	// SetWideBatchSize sets batch size for wide operations.
+	SetWideBatchSize(value int) Options
+
+	// WideBatchSize returns batch size for wide operations.
+	WideBatchSize() int
 }
 
 // MemoryTracker tracks memory.
