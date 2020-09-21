@@ -144,7 +144,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, _, _, _, err = r.Read()
-	assert.Error(t, err)
+	assert.Equal(t, io.EOF, err)
 
 	assert.NoError(t, r.Close())
 }
@@ -311,7 +311,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		BlockSize: testBlockSize,
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
-			Shard:      uint32(shard),
+			Shard:      shard,
 			BlockStart: start,
 		},
 	}
@@ -350,11 +350,11 @@ func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       []byte{0x1},
-			indexFileSuffix:      []byte{0x2},
-			dataFileSuffix:       []byte{0x3},
-			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: []byte{0x12, 0x0, 0x7a, 0x0},
+			infoFileSuffix:       {0x1},
+			indexFileSuffix:      {0x2},
+			dataFileSuffix:       {0x3},
+			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			checkpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -363,11 +363,11 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       []byte{0xa},
-			indexFileSuffix:      []byte{0x2},
-			dataFileSuffix:       []byte{0x3},
-			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: []byte{0x13, 0x0, 0x7a, 0x0},
+			infoFileSuffix:       {0xa},
+			indexFileSuffix:      {0x2},
+			dataFileSuffix:       {0x3},
+			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			checkpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -388,8 +388,8 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 		t,
 		map[string][]byte{
 			infoFileSuffix:       b,
-			indexFileSuffix:      []byte{0xa},
-			dataFileSuffix:       []byte{0x3},
+			indexFileSuffix:      {0xa},
+			dataFileSuffix:       {0x3},
 			digestFileSuffix:     digestOfDigest,
 			checkpointFileSuffix: buf,
 		},
