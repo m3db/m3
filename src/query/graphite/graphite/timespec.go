@@ -187,12 +187,14 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 			return time.Time{}, err
 		}
 		hour = int(newHour)
-		newMinute, err := strconv.ParseInt(ref[i+1:i+3], 10, 32)
-		if err != nil {
-			return time.Time{}, err
+		if len(ref) >= i+3 {
+			newMinute, err := strconv.ParseInt(ref[i+1:i+3], 10, 32)
+			if err != nil {
+				return time.Time{}, err
+			}
+			minute = int(newMinute)
+			ref = ref[i+3:]
 		}
-		minute = int(newMinute)
-		ref = ref[i+3:]
 
 		if len(ref) >= 2 {
 			if ref[:2] == "am" {
