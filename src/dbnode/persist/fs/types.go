@@ -551,6 +551,12 @@ type BlockRetrieverOptions interface {
 	// FetchConcurrency returns the fetch concurrency.
 	FetchConcurrency() int
 
+	// SetCacheBlocksOnRetrieve sets whether to cache blocks after retrieval at a global level.
+	SetCacheBlocksOnRetrieve(value bool) BlockRetrieverOptions
+
+	// CacheBlocksOnRetrieve returns whether to cache blocks after retrieval at a global level.
+	CacheBlocksOnRetrieve() bool
+
 	// SetIdentifierPool sets the identifierPool.
 	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 

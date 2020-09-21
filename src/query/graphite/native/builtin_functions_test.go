@@ -3240,6 +3240,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"derivative",
 		"diffSeries",
 		"divideSeries",
+		"divideSeriesLists",
 		"exclude",
 		"exponentialMovingAverage",
 		"fallbackSeries",

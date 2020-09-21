@@ -42,7 +42,7 @@ func TestQueryLimits(t *testing.T) {
 		Limit:    1,
 		Lookback: time.Second,
 	}
-	queryLimits, err := NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	queryLimits, err := NewQueryLimits(docOpts, bytesOpts, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
@@ -53,7 +53,7 @@ func TestQueryLimits(t *testing.T) {
 	queryLimits.DocsLimit().Inc(2)
 	require.Error(t, queryLimits.AnyExceeded())
 
-	queryLimits, err = NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	queryLimits, err = NewQueryLimits(docOpts, bytesOpts, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
