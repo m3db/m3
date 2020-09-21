@@ -33,9 +33,8 @@ const (
 )
 
 type recorder struct {
-	vals    []float64
-	times   []time.Time // todo: consider delta-delta here?
-	summary *SeriesFrameSummary
+	vals  []float64
+	times []time.Time // todo: consider delta-delta here?
 
 	units       *unitRecorder
 	annotations *annotationRecorder
@@ -43,9 +42,8 @@ type recorder struct {
 
 func newRecorder() *recorder {
 	return &recorder{
-		vals:    make([]float64, 0, initLength),
-		times:   make([]time.Time, 0, initLength),
-		summary: newSeriesFrameSummary(),
+		vals:  make([]float64, 0, initLength),
+		times: make([]time.Time, 0, initLength),
 
 		units:       newUnitRecorder(),
 		annotations: newAnnotationRecorder(),
@@ -57,11 +55,9 @@ func (r *recorder) reset() {
 	r.annotations.reset()
 	r.vals = r.vals[:0]
 	r.times = r.times[:0]
-	r.summary.reset()
 }
 
 func (r *recorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
-	r.summary.record(dp.Value)
 	r.vals = append(r.vals, dp.Value)
 	r.times = append(r.times, dp.Timestamp)
 	r.units.record(u)
@@ -85,19 +81,9 @@ func (f *SeriesBlockFrame) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation
 	f.recorder.record(dp, u, a)
 }
 
-// Summary provides a summary for this block frame.
-func (f *SeriesBlockFrame) Summary() *SeriesFrameSummary {
-	return f.recorder.summary
-}
-
 // Values returns values in this SeriesBlockFrame.
 func (f *SeriesBlockFrame) Values() []float64 {
 	return f.recorder.vals
-}
-
-// Sum returns the sum of values in this SeriesBlockFrame.
-func (f *SeriesBlockFrame) Sum() float64 {
-	return f.recorder.summary.Sum()
 }
 
 // Timestamps returns timestamps for the SeriesBlockFrame.

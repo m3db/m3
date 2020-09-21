@@ -179,9 +179,14 @@ func TestSeriesFrameIterator(t *testing.T) {
 			assert.NotNil(t, frame)
 
 			if s := tt.exSums[step]; math.IsNaN(s) {
-				require.True(t, math.IsNaN(frame.Sum()))
+				assert.Equal(t, 0, len(frame.Values()))
 			} else {
-				require.Equal(t, s, frame.Sum())
+				v := 0.0
+				for _, val := range frame.Values() {
+					v += val
+				}
+
+				assert.Equal(t, s, v)
 			}
 
 			vals := frame.Values()

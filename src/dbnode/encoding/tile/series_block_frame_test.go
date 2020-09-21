@@ -31,14 +31,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRecorder(t *testing.T) {
-	recorder := newSeriesBlockFrame(newRecorder())
+func TestSeriesBlockFrame(t *testing.T) {
+	seriesBlockFrame := newSeriesBlockFrame(newRecorder())
 	start := time.Now().Truncate(time.Hour)
 	timeAt := func(i int) time.Time { return start.Add(time.Minute * time.Duration(i)) }
 
 	addPoints := func(size int) {
 		for i := 0; i < size; i++ {
-			recorder.record(
+			seriesBlockFrame.record(
 				ts.Datapoint{
 					Value:     float64(i),
 					Timestamp: timeAt(i),
@@ -50,7 +50,10 @@ func TestRecorder(t *testing.T) {
 	}
 
 	verify := func(rec SeriesBlockFrame, size int) {
-		ex := float64(size*(size-1)) / 2
+		ex := make([]float64, size)
+		for i := range ex {
+			ex[i] = float64(i)
+		}
 
 		vals := rec.Values()
 		require.Equal(t, size, len(vals))
@@ -58,8 +61,7 @@ func TestRecorder(t *testing.T) {
 			assert.Equal(t, float64(i), vals[i])
 		}
 
-		require.True(t, rec.Summary().Valid())
-		assert.Equal(t, ex, rec.Sum())
+		assert.Equal(t, ex, rec.Values())
 
 		times := rec.Timestamps()
 		require.Equal(t, size, len(times))
@@ -93,10 +95,10 @@ func TestRecorder(t *testing.T) {
 	size := 5
 	addPoints(size)
 
-	verify(recorder, size)
-	recorder.reset(0, 0)
+	verify(seriesBlockFrame, size)
+	seriesBlockFrame.reset(0, 0)
 
 	size = 15
 	addPoints(size)
-	verify(recorder, size)
+	verify(seriesBlockFrame, size)
 }

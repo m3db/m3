@@ -78,7 +78,7 @@ func TestSeriesBlockIterator(t *testing.T) {
 
 	assert.False(t, frameIter.Next())
 	assert.False(t, iter.Next())
-	assert.Equal(t, 1.0, frame.Sum())
+	assert.Equal(t, []float64{1.0}, frame.Values())
 
 	assert.Equal(t, "foobar", id.String())
 	assert.Equal(t, string(tags), string(iterTags))
