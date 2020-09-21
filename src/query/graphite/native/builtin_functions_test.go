@@ -1699,6 +1699,57 @@ func TestIntegral(t *testing.T) {
 	}
 }
 
+// Takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// to skip over. Continues the line with the last received value when gaps (‘None’ values)
+// appear in your data, rather than breaking your line.
+func TestInterpolate(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []struct {
+		values []float64
+		output []float64
+	}{
+		{
+			[]float64{1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0},
+			[]float64{1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0},
+		},
+		{
+			[]float64{math.NaN(),2.0,math.NaN(),4.0,math.NaN(),6.0,math.NaN(),8.0,math.NaN(),10.0,math.NaN(),12.0,math.NaN(),14.0,math.NaN(),16.0,math.NaN(),18.0,math.NaN(),20.0},
+			[]float64{math.NaN(),2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0},
+		},
+		{
+			[]float64{1.0,2.0,math.NaN(),math.NaN(),math.NaN(),6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,math.NaN(),math.NaN(),math.NaN()},
+			[]float64{1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,math.NaN(), math.NaN(), math.NaN()},
+		},
+		{
+			[]float64{1.0,2.0,3.0,4.0,math.NaN(),6.0,math.NaN(),math.NaN(),9.0,10.0,11.0,math.NaN(),13.0,math.NaN(),math.NaN(),math.NaN(),math.NaN(),18.0,19.0,20.0},
+			[]float64{1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0},
+		},
+		{
+			[]float64{1.0,2.0,math.NaN(),math.NaN(),math.NaN(),6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,math.NaN(),math.NaN()},
+			[]float64{1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,math.NaN(), math.NaN()},
+		},
+	}
+
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		input := []common.TestSeries{{"foo", test.values}}
+		expected := []common.TestSeries{{"interpolate(foo)", test.output}}
+		timeSeries := generateSeriesList(ctx, start, input, step)
+		output, err := interpolate(ctx, singlePathSpec{
+			Values: timeSeries,
+		},
+		-1)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			expected, output.Values)
+	}
+}
+
+
+
 func TestDerivative(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2944,6 +2995,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"holtWintersForecast",
 		"identity",
 		"integral",
+		"interpolate",
 		"isNonNull",
 		"keepLastValue",
 		"legendValue",

@@ -557,8 +557,8 @@ func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesLis
 type windowSizeFunc func(stepSize int) int
 
 type windowSizeParsed struct {
-	deltaValue time.Duration
-	stringValue string
+	deltaValue     time.Duration
+	stringValue    string
 	windowSizeFunc windowSizeFunc
 }
 
@@ -858,6 +858,48 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 
 	r := ts.SeriesList(input)
 	r.Values = results
+	return r, nil
+}
+
+func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
+	output := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		consecutiveNaNs := 0
+		numSteps := series.Len()
+		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+
+		for i := 0; i < numSteps; i++ {
+			value := series.ValueAt(i)
+			vals.SetValueAt(i, value)
+
+			if i == 0 {
+				continue
+			} else if math.IsNaN(value) {
+				consecutiveNaNs++
+			} else if consecutiveNaNs == 0 { // have a value but no need to interpolate
+				continue
+			} else if math.IsNaN(series.ValueAt(i - consecutiveNaNs - 1)) { //have a value but can't interpolate: reset count
+				consecutiveNaNs = 0
+				continue
+			} else {
+				if limit == -1 || consecutiveNaNs <= limit {
+					for index := i - consecutiveNaNs; index < i; index++ {
+						lastGoodVal := series.ValueAt(i - consecutiveNaNs - 1)
+						v := lastGoodVal + float64(index-(i-consecutiveNaNs-1)) * (value-lastGoodVal) /float64(consecutiveNaNs+1)
+						vals.SetValueAt(index, v)
+
+					}
+					consecutiveNaNs = 0
+				}
+			}
+		}
+
+		name := fmt.Sprintf("interpolate(%s)", series.Name())
+		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		output = append(output, newSeries)
+	}
+	r := ts.SeriesList(input)
+	r.Values = output
 	return r, nil
 }
 
@@ -1902,6 +1944,9 @@ func init() {
 	MustRegisterFunction(holtWintersForecast)
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
+	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // limit
+	})
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
