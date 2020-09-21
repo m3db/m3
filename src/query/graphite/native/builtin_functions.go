@@ -1104,7 +1104,7 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 		)
 
 		for i := 0; i < series.Len(); i++ {
-			if stepCounter > stepsPerInterval {
+			if stepCounter == stepsPerInterval {
 				// startNewInterval
 				stepCounter = 0
 				currentSum = 0.0
@@ -1112,8 +1112,8 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) {
 				currentSum += n
-				outVals.SetValueAt(i, currentSum)
 			}
+			outVals.SetValueAt(i, currentSum)
 			stepCounter += 1
 		}
 
