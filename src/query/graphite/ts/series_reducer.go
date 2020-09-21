@@ -37,7 +37,6 @@ const (
 	SeriesReducerAverage SeriesReducerApproach = "average" // alias for "avg"
 	SeriesReducerTotal   SeriesReducerApproach = "total"   // alias for "sum"
 	SeriesReducerCurrent SeriesReducerApproach = "current" // alias for "last"
-
 )
 
 // SeriesReducer reduces a series to a single value.
