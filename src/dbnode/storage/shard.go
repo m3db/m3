@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
+	"github.com/m3db/m3/src/dbnode/encoding/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -2710,7 +2710,6 @@ func (s *dbShard) AggregateTiles(
 	tileOpts := tile.Options{
 		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
 		Start:              xtime.ToUnixNano(opts.Start),
-		UseArrow:           false,
 		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
