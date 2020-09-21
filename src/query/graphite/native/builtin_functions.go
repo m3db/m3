@@ -281,7 +281,7 @@ func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Val
 // Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	var (
-		now = time.Now()
+		now                     = time.Now()
 		tzOffsetForAbsoluteTime time.Duration
 	)
 	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
@@ -1103,6 +1103,46 @@ func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) 
 
 		newName := fmt.Sprintf("integral(%s)", series.Name())
 		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outvals))
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = results
+	return r, nil
+}
+
+// integralByInterval will do the same as integral funcion, except it resets the total to 0
+// at the given time in the parameter “from”. Useful for finding totals per hour/day/week.
+func integralByInterval(ctx *common.Context, input singlePathSpec, intervalString string) (ts.SeriesList, error) {
+	intervalUnit, err := common.ParseInterval(intervalString)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	results := make([]*ts.Series, 0, len(input.Values))
+
+	for _, series := range input.Values {
+		var (
+			stepsPerInterval = intervalUnit.Milliseconds() / int64(series.MillisPerStep())
+			outVals          = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+			stepCounter      int64
+			currentSum       float64
+		)
+
+		for i := 0; i < series.Len(); i++ {
+			if stepCounter == stepsPerInterval {
+				// startNewInterval
+				stepCounter = 0
+				currentSum = 0.0
+			}
+			n := series.ValueAt(i)
+			if !math.IsNaN(n) {
+				currentSum += n
+			}
+			outVals.SetValueAt(i, currentSum)
+			stepCounter += 1
+		}
+
+		newName := fmt.Sprintf("integralByInterval(%s, %s)", series.Name(), intervalString)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outVals))
 	}
 
 	r := ts.SeriesList(input)
@@ -2170,6 +2210,7 @@ func init() {
 	MustRegisterFunction(holtWintersForecast)
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
+	MustRegisterFunction(integralByInterval)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
