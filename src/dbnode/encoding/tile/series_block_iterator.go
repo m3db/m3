@@ -22,6 +22,7 @@ package tile
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -37,7 +38,7 @@ type seriesBlockIter struct {
 
 	iter        SeriesFrameIterator
 	blockIter   fs.CrossBlockIterator
-	encodedTags []byte
+	encodedTags ts.EncodedTags
 	id          ident.ID
 }
 
@@ -75,7 +76,7 @@ func (b *seriesBlockIter) Next() bool {
 	return true
 }
 
-func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, []byte) {
+func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, ts.EncodedTags) {
 	return b.iter, b.id, b.encodedTags
 }
 

@@ -171,7 +171,7 @@ func (w *streamingWriter) writeData(
 
 func (w *streamingWriter) writeIndexRelated(
 	id ident.BytesID,
-	encodedTags []byte,
+	encodedTags ts.EncodedTags,
 	entry indexEntry,
 ) error {
 	// Add to the bloom filter, note this must be zero alloc or else this will

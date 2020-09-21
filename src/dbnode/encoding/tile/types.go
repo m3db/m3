@@ -84,7 +84,7 @@ type SeriesBlockIterator interface {
 	// Close closes the iterator.
 	Close() error
 	// Current returns the next set of series frame iterators.
-	Current() (SeriesFrameIterator, ident.ID, []byte)
+	Current() (SeriesFrameIterator, ident.ID, ts.EncodedTags)
 }
 
 // Options are series block iterator options.

@@ -63,7 +63,7 @@ func TestSeriesBlockIterator(t *testing.T) {
 
 	reader := fs.NewMockCrossBlockReader(ctrl)
 	reader.EXPECT().Next().Return(true)
-	tags := []byte("encoded tags")
+	tags := ts.EncodedTags("encoded tags")
 	records := []fs.BlockRecord{{Data: []byte("block_record")}}
 	reader.EXPECT().Current().Return(ident.StringID("foobar"), tags, records)
 	reader.EXPECT().Next().Return(false)
