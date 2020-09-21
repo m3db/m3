@@ -273,7 +273,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		offSetDuration := time.Duration(dayOffset)
 		refDate = refDate.Add(time.Hour * 24 * -1 * offSetDuration)
 	} else if ref != "" {
-		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unkown day reference %s", rawRef))
+		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown day reference %s", rawRef))
 	}
 
 	return refDate, nil
