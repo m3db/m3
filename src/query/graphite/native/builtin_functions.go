@@ -2129,6 +2129,7 @@ func init() {
 	MustRegisterFunction(derivative)
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
+	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
