@@ -114,7 +114,7 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 				StartTime: ctx.StartTime,
 				EndTime:   ctx.EndTime,
 				DataOptions: storage.DataOptions{
-					Timeout: time.Minute,
+					Timeout: ctx.Timeout,
 				},
 			}
 			seriesName := strings.Replace(series.Name(), search, replace, 1)
