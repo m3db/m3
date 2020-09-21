@@ -147,12 +147,13 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		ref, offset = stringSlice[0], stringSlice[1]
 		offset = "-" + offset
 	}
-	err = nil
 	parsedReference, err := ParseTimeReference(ref, now)
-	parsedOffset, err := ParseOffset(offset)
-	if err == nil {
-		return parsedReference.Add(parsedOffset), err
-	}
+if err == nil {
+  parsedOffset, err := ParseOffset(offset)
+  if err == nil {
+    return parsedReference.Add(parsedOffset), nil
+  }
+}
 
 	return now, err
 }
