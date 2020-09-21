@@ -1099,7 +1099,7 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 		var (
 			stepsPerInterval         = intervalUnit.Milliseconds() / int64(series.MillisPerStep())
 			outVals                  = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-			stepCounter      int64   = 0
+			stepCounter      int64
 			currentSum       float64 = 0.0
 		)
 
