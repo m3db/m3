@@ -271,7 +271,7 @@ func delay(
 func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Values {
 	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 	for i := steps; i < series.Len(); i++ {
-		output.SetValueAt(i, series.ValueAt(i - steps))
+		output.SetValueAt(i, series.ValueAt(i-steps))
 	}
 	return output
 }
@@ -281,7 +281,7 @@ func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Val
 // Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	var (
-		now = time.Now()
+		now                     = time.Now()
 		tzOffsetForAbsoluteTime time.Duration
 	)
 	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
@@ -633,8 +633,8 @@ func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesLis
 type windowSizeFunc func(stepSize int) int
 
 type windowSizeParsed struct {
-	deltaValue time.Duration
-	stringValue string
+	deltaValue     time.Duration
+	stringValue    string
 	windowSizeFunc windowSizeFunc
 }
 
@@ -841,7 +841,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 				curr := bootstrap.ValueAt(i + offset)
 				if !math.IsNaN(curr) {
 					// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
-					ema = emaConstant * curr + (1 - emaConstant) * ema
+					ema = emaConstant*curr + (1-emaConstant)*ema
 					vals.SetValueAt(i, ema)
 				} else {
 					vals.SetValueAt(i, math.NaN())
@@ -1079,6 +1079,46 @@ func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) 
 
 		newName := fmt.Sprintf("integral(%s)", series.Name())
 		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outvals))
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = results
+	return r, nil
+}
+
+// integralByInterval will do the same as integral funcion, except it resets the total to 0
+// at the given time in the parameter “from”. Useful for finding totals per hour/day/week.
+func integralByInterval(ctx *common.Context, input singlePathSpec, intervalString string) (ts.SeriesList, error) {
+	intervalUnit, err := common.ParseInterval(intervalString)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	results := make([]*ts.Series, 0, len(input.Values))
+
+	for _, series := range input.Values {
+		var (
+			stepsPerInterval = intervalUnit.Milliseconds() / int64(series.MillisPerStep())
+			outVals          = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+			stepCounter      int64
+			currentSum       float64
+		)
+
+		for i := 0; i < series.Len(); i++ {
+			if stepCounter == stepsPerInterval {
+				// startNewInterval
+				stepCounter = 0
+				currentSum = 0.0
+			}
+			n := series.ValueAt(i)
+			if !math.IsNaN(n) {
+				currentSum += n
+			}
+			outVals.SetValueAt(i, currentSum)
+			stepCounter += 1
+		}
+
+		newName := fmt.Sprintf("integralByInterval(%s, %s)", series.Name(), intervalString)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outVals))
 	}
 
 	r := ts.SeriesList(input)
@@ -1798,8 +1838,6 @@ func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 	}
 }
 
-
-
 func newMovingBinaryTransform(
 	ctx *common.Context,
 	input singlePathSpec,
@@ -1830,7 +1868,7 @@ func newMovingBinaryTransform(
 
 	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
 	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
+		ContextShiftFunc: contextShiftingFn,
 		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
 			bootstrapList, err := combineBootstrapWithOriginal(ctx,
 				bootstrapStartTime, bootstrapEndTime,
@@ -1909,7 +1947,6 @@ func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInte
 func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
 }
-
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
@@ -2145,6 +2182,7 @@ func init() {
 	MustRegisterFunction(holtWintersForecast)
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
+	MustRegisterFunction(integralByInterval)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit

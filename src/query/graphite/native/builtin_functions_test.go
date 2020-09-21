@@ -643,8 +643,8 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 }
 
 var (
-	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
-	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
+	testGeneralFunctionStart = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
+	testGeneralFunctionEnd   = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
 )
 
 // testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
@@ -654,8 +654,8 @@ func testGeneralFunction(t *testing.T, target, expectedName string, values, outp
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     60000,
-			Values:         values,
+			StepMillis: 60000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -694,11 +694,11 @@ func TestMovingAverageSuccess(t *testing.T) {
 
 func TestExponentialMovingAverageSuccess(t *testing.T) {
 	tests := []struct {
-		target string
+		target       string
 		expectedName string
-		bootstrap []float64
-		inputs  []float64
-		expected []float64
+		bootstrap    []float64
+		inputs       []float64
+		expected     []float64
 	}{
 		{
 			"exponentialMovingAverage(foo.bar.baz, 3)",
@@ -1816,6 +1816,40 @@ func TestIntegral(t *testing.T) {
 	output := r.Values
 	require.Equal(t, 1, len(output))
 	assert.Equal(t, "integral(hello)", output[0].Name())
+	assert.Equal(t, series.StartTime(), output[0].StartTime())
+	require.Equal(t, len(outvals), output[0].Len())
+	for i, expected := range outvals {
+		xtest.Equalish(t, expected, output[0].ValueAt(i), "incorrect value at %d", i)
+	}
+}
+
+/*
+ seriesList = self._gen_series_list_with_data(key='test',start=0,end=600,step=60,data=[None, 1, 2, 3, 4, 5, None, 6, 7, 8])
+        expected = [TimeSeries("integralByInterval(test,'2min')", 0, 600, 60, [0, 1, 2, 5, 4, 9, 0, 6, 7, 15])]
+*/
+func TestIntegralByInterval(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	invals := []float64{
+		math.NaN(), 1, 2, 3, 4, 5, math.NaN(), 6, 7, 8,
+	}
+
+	outvals := []float64{
+		0, 1, 2, 5, 4, 9, 0, 6, 7, 15,
+	}
+
+	series := ts.NewSeries(ctx, "hello", time.Now(),
+		common.NewTestSeriesValues(ctx, 60000, invals))
+
+	r, err := integralByInterval(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, "2min")
+	require.NoError(t, err)
+
+	output := r.Values
+	require.Equal(t, 1, len(output))
+	assert.Equal(t, "integralByInterval(hello, 2min)", output[0].Name())
 	assert.Equal(t, series.StartTime(), output[0].StartTime())
 	require.Equal(t, len(outvals), output[0].Len())
 	for i, expected := range outvals {
@@ -2983,8 +3017,8 @@ func TestDelay(t *testing.T) {
 }
 
 var (
-	testDelayStart     = time.Now().Truncate(time.Minute)
-	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
+	testDelayStart = time.Now().Truncate(time.Minute)
+	testDelayEnd   = testMovingFunctionEnd.Add(time.Minute)
 )
 
 func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
@@ -2993,8 +3027,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     10000,
-			Values:         values,
+			StepMillis: 10000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -3020,8 +3054,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 }
 
 func TestTimeSlice(t *testing.T) {
-	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
-	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
+	values := []float64{math.NaN(), 1.0, 2.0, 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, 8.0, 9.0}
+	expected := []float64{math.NaN(), math.NaN(), math.NaN(), 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, math.NaN(), math.NaN()}
 
 	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
 }
@@ -3134,6 +3168,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"holtWintersForecast",
 		"identity",
 		"integral",
+		"integralByInterval",
 		"isNonNull",
 		"keepLastValue",
 		"legendValue",
