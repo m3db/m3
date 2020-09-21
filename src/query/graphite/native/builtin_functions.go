@@ -861,6 +861,9 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 	return r, nil
 }
 
+// Takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// to skip over. Continues the line with the last received value when gaps (‘None’ values)
+// appear in your data, rather than breaking your line.
 func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
@@ -885,7 +888,7 @@ func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.Serie
 				if limit == -1 || consecutiveNaNs <= limit {
 					for index := i - consecutiveNaNs; index < i; index++ {
 						lastGoodVal := series.ValueAt(i - consecutiveNaNs - 1)
-						v := lastGoodVal + float64(index-(i-consecutiveNaNs-1)) * (value-lastGoodVal) /float64(consecutiveNaNs+1)
+						v := lastGoodVal + float64(index-(i-consecutiveNaNs-1))*(value-lastGoodVal)/float64(consecutiveNaNs+1)
 						vals.SetValueAt(index, v)
 
 					}
