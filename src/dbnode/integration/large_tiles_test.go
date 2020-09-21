@@ -342,7 +342,7 @@ func writeTestData(
 	start := time.Now()
 	for a := 0; a < testDataPointsCount; a++ {
 		i := 0
-		batchWriter, err := testSetup.DB().BatchWriter(ns, int(testDataPointsCount))
+		batchWriter, err := testSetup.DB().BatchWriter(ns, testDataPointsCount)
 		require.NoError(t, err)
 
 		for b := 0; b < testSeriesCount; b++ {
