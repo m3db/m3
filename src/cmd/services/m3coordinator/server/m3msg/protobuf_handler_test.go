@@ -26,6 +26,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -36,13 +37,19 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testID             = "stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"
-	validStoragePolicy = policy.MustParseStoragePolicy("1m:40d")
+	testID = "stats.foo1.gauges.m3+some-name+dc=foo1,env=production,service=foo,type=gauge"
+
+	// baseStoragePolicy represents what we typically define in config for SP.
+	// precisionStoragePolicy is the same retention/resolution, but includes the
+	// precision (which is often included with incoming writes).
+	baseStoragePolicy      = policy.MustParseStoragePolicy("1m:40d")
+	precisionStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Second, 40*24*time.Hour)
 )
 
 func TestM3MsgServerWithProtobufHandler(t *testing.T) {
@@ -74,7 +81,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 			Value:     1,
 			Type:      metric.GaugeType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
@@ -98,7 +105,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 			Value:     0,
 			Type:      metric.UnknownType,
 		},
-		StoragePolicy: validStoragePolicy,
+		StoragePolicy: precisionStoragePolicy,
 	}
 	require.NoError(t, encoder.Encode(m2, 3000))
 	enc = proto.NewEncoder(opts.EncoderOptions())
@@ -125,6 +132,95 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 	require.Equal(t, 3000, int(payload.encodeNanos))
 	require.Equal(t, m2.Value, payload.value)
 	require.Equal(t, m2.StoragePolicy, payload.sp)
+}
+
+func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	w := &mockWriter{m: make(map[string]payload)}
+	hOpts := Options{
+		WriteFn:           w.write,
+		InstrumentOptions: instrument.NewOptions(),
+		BlockholePolicies: []policy.StoragePolicy{baseStoragePolicy},
+	}
+	opts := consumer.NewOptions().
+		SetAckBufferSize(1).
+		SetConnectionWriteBufferSize(1)
+
+	s := server.NewServer(
+		"a",
+		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		server.NewOptions(),
+	)
+	s.Serve(l)
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	m1 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte(testID),
+			TimeNanos: 1000,
+			Value:     1,
+			Type:      metric.GaugeType,
+		},
+		StoragePolicy: precisionStoragePolicy,
+	}
+
+	encoder := protobuf.NewAggregatedEncoder(nil)
+	require.NoError(t, encoder.Encode(m1, 2000))
+	enc := proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+
+	var a msgpb.Ack
+	dec := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 0, w.ingested())
+
+	// Ensure a metric with a different policy still gets ingested.
+	m2 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte{},
+			TimeNanos: 0,
+			Value:     0,
+			Type:      metric.UnknownType,
+		},
+		StoragePolicy: policy.MustParseStoragePolicy("5m:180d"),
+	}
+	require.NoError(t, encoder.Encode(m2, 3000))
+	enc = proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 1, w.ingested())
+
+	// Ensure a metric with base policy (equivalent but default precision) is
+	// still ignored.
+	m3 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte(testID),
+			TimeNanos: 1000,
+			Value:     1,
+			Type:      metric.GaugeType,
+		},
+		StoragePolicy: baseStoragePolicy,
+	}
+	require.NoError(t, encoder.Encode(m3, 3000))
+	enc = proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 1, w.ingested())
 }
 
 type mockWriter struct {

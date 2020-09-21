@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -1667,30 +1667,30 @@ func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
 }
 
-// SetQueryStats mocks base method
-func (m *MockOptions) SetQueryStats(value stats.QueryStats) Options {
+// SetQueryLimits mocks base method
+func (m *MockOptions) SetQueryLimits(value limits.QueryLimits) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryStats", value)
+	ret := m.ctrl.Call(m, "SetQueryLimits", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetQueryStats indicates an expected call of SetQueryStats
-func (mr *MockOptionsMockRecorder) SetQueryStats(value interface{}) *gomock.Call {
+// SetQueryLimits indicates an expected call of SetQueryLimits
+func (mr *MockOptionsMockRecorder) SetQueryLimits(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStats", reflect.TypeOf((*MockOptions)(nil).SetQueryStats), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryLimits", reflect.TypeOf((*MockOptions)(nil).SetQueryLimits), value)
 }
 
-// QueryStats mocks base method
-func (m *MockOptions) QueryStats() stats.QueryStats {
+// QueryLimits mocks base method
+func (m *MockOptions) QueryLimits() limits.QueryLimits {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryStats")
-	ret0, _ := ret[0].(stats.QueryStats)
+	ret := m.ctrl.Call(m, "QueryLimits")
+	ret0, _ := ret[0].(limits.QueryLimits)
 	return ret0
 }
 
-// QueryStats indicates an expected call of QueryStats
-func (mr *MockOptionsMockRecorder) QueryStats() *gomock.Call {
+// QueryLimits indicates an expected call of QueryLimits
+func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStats", reflect.TypeOf((*MockOptions)(nil).QueryStats))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
