@@ -118,7 +118,10 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 				},
 			}
 			seriesName := strings.Replace(series.Name(), search, replace, 1)
-			result, _ := ctx.Engine.FetchByQuery(ctx, seriesName, opts)
+			result, err := ctx.Engine.FetchByQuery(ctx, seriesName, opts)
+			if err != nil {
+				return ts.NewSeriesList(), err
+			}
 			if len(result.SeriesList) > 0 {
 				results = append(results, result.SeriesList[0])
 			}
