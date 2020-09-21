@@ -411,6 +411,14 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetWriteShardsInitializing sets whether to write to shards that are
+	// initializing or not.
+	SetWriteShardsInitializing(value bool) Options
+
+	// WriteShardsInitializing returns whether to write to shards that are
+	// initializing or not.
+	WriteShardsInitializing() bool
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 
@@ -506,6 +514,12 @@ type Options interface {
 
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
+
+	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
+	SetHostQueueEmitsHealthStatus(value bool) Options
+
+	// HostQueueEmitsHealthStatus returns the hostQueueEmitHealthStatus.
+	HostQueueEmitsHealthStatus() bool
 
 	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize.
 	SetSeriesIteratorPoolSize(value int) Options
@@ -700,6 +714,13 @@ const (
 	statusNotOpen status = iota
 	statusOpen
 	statusClosed
+)
+
+type healthStatus int
+
+const (
+	healthStatusCheckFailed healthStatus = iota
+	healthStatusOK
 )
 
 type op interface {
