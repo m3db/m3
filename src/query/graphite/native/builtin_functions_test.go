@@ -643,8 +643,8 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 }
 
 var (
-	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
-	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
+	testGeneralFunctionStart = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
+	testGeneralFunctionEnd   = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
 )
 
 // testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
@@ -654,8 +654,8 @@ func testGeneralFunction(t *testing.T, target, expectedName string, values, outp
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     60000,
-			Values:         values,
+			StepMillis: 60000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -694,11 +694,11 @@ func TestMovingAverageSuccess(t *testing.T) {
 
 func TestExponentialMovingAverageSuccess(t *testing.T) {
 	tests := []struct {
-		target string
+		target       string
 		expectedName string
-		bootstrap []float64
-		inputs  []float64
-		expected []float64
+		bootstrap    []float64
+		inputs       []float64
+		expected     []float64
 	}{
 		{
 			"exponentialMovingAverage(foo.bar.baz, 3)",
@@ -1097,11 +1097,9 @@ type nIntParamGoldenDataWithAgg struct {
 	aggFunc string
 }
 
-
 // rankingFunc selects the n lowest or highest series based on certain metric of the
 // series (e.g., maximum, minimum, average).
 type rankingFunc func(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error)
-
 
 // testRanking can be used to test the ranking alias functions
 // (e.g. lowestAverage, highestMax, highestAverage, lowestCurrent)
@@ -1135,7 +1133,7 @@ func testOrderedAggregationFunc(t *testing.T, ctx *common.Context, tests []nIntP
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		input := singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step),}
+		input := singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)}
 		outputs, err := f(ctx, input, test.n, test.aggFunc)
 
 		if test.n < 0 {
@@ -1157,7 +1155,7 @@ func TestHighest(t *testing.T) {
 
 	tests := []nIntParamGoldenDataWithAgg{
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				0,
 				nil,
@@ -1165,7 +1163,7 @@ func TestHighest(t *testing.T) {
 			"sum",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				1,
 				[]common.TestSeries{testInput[0]},
@@ -1173,7 +1171,7 @@ func TestHighest(t *testing.T) {
 			"current",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				2,
 				[]common.TestSeries{testInput[4], testInput[2]},
@@ -1181,7 +1179,7 @@ func TestHighest(t *testing.T) {
 			"average",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				len(testInput) + 10, // force sort
 				[]common.TestSeries{testInput[0], testInput[3], testInput[4], testInput[2], testInput[1]},
@@ -1368,7 +1366,7 @@ func TestLowest(t *testing.T) {
 
 	tests := []nIntParamGoldenDataWithAgg{
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				0,
 				nil,
@@ -1376,7 +1374,7 @@ func TestLowest(t *testing.T) {
 			"max",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				2,
 				[]common.TestSeries{testInput[1], testInput[3]},
@@ -1384,7 +1382,7 @@ func TestLowest(t *testing.T) {
 			"sum",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				2,
 				[]common.TestSeries{testInput[1], testInput[2]},
@@ -1392,7 +1390,7 @@ func TestLowest(t *testing.T) {
 			"current",
 		},
 		{
-			nIntParamGoldenData {
+			nIntParamGoldenData{
 				testInput,
 				3,
 				[]common.TestSeries{testInput[1], testInput[3], testInput[0]},
@@ -1431,8 +1429,6 @@ func TestLowestAverage(t *testing.T) {
 	}
 	testRanking(t, ctx, tests, lowestAverage)
 }
-
-
 
 func TestLowestCurrent(t *testing.T) {
 	ctx := common.NewTestContext()
@@ -3105,8 +3101,8 @@ func TestDelay(t *testing.T) {
 }
 
 var (
-	testDelayStart     = time.Now().Truncate(time.Minute)
-	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
+	testDelayStart = time.Now().Truncate(time.Minute)
+	testDelayEnd   = testMovingFunctionEnd.Add(time.Minute)
 )
 
 func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
@@ -3115,8 +3111,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     10000,
-			Values:         values,
+			StepMillis: 10000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -3142,8 +3138,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 }
 
 func TestTimeSlice(t *testing.T) {
-	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
-	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
+	values := []float64{math.NaN(), 1.0, 2.0, 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, 8.0, 9.0}
+	expected := []float64{math.NaN(), math.NaN(), math.NaN(), 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, math.NaN(), math.NaN()}
 
 	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
 }

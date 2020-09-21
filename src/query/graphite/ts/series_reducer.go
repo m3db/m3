@@ -28,15 +28,15 @@ type SeriesReducerApproach string
 // The standard set of reducers
 const (
 	SeriesReducerAvg    SeriesReducerApproach = "avg"
-	SeriesReducerSum   SeriesReducerApproach = "sum"
+	SeriesReducerSum    SeriesReducerApproach = "sum"
 	SeriesReducerMin    SeriesReducerApproach = "min"
 	SeriesReducerMax    SeriesReducerApproach = "max"
 	SeriesReducerStdDev SeriesReducerApproach = "stddev"
 	SeriesReducerLast   SeriesReducerApproach = "last"
 
-	SeriesReducerAverage    SeriesReducerApproach = "average" // alias for "avg"
-	SeriesReducerTotal    SeriesReducerApproach = "total" // alias for "sum"
-	SeriesReducerCurrent   SeriesReducerApproach = "current" // alias for "last"
+	SeriesReducerAverage SeriesReducerApproach = "average" // alias for "avg"
+	SeriesReducerTotal   SeriesReducerApproach = "total"   // alias for "sum"
+	SeriesReducerCurrent SeriesReducerApproach = "current" // alias for "last"
 
 )
 
@@ -60,14 +60,13 @@ func (sa SeriesReducerApproach) Reducer() SeriesReducer {
 }
 
 var seriesReducers = map[SeriesReducerApproach]SeriesReducer{
-	SeriesReducerAvg:    func(b *Series) float64 { return b.SafeAvg() },
-	SeriesReducerAverage:    func(b *Series) float64 { return b.SafeAvg() },
-	SeriesReducerTotal:    func(b *Series) float64 { return b.SafeSum() },
-	SeriesReducerSum:    func(b *Series) float64 { return b.SafeSum() },
-	SeriesReducerMin:    func(b *Series) float64 { return b.SafeMin() },
-	SeriesReducerMax:    func(b *Series) float64 { return b.SafeMax() },
-	SeriesReducerStdDev: func(b *Series) float64 { return b.SafeStdDev() },
-	SeriesReducerLast:   func(b *Series) float64 { return b.SafeLastValue() },
-	SeriesReducerCurrent:   func(b *Series) float64 { return b.SafeLastValue() },
-
+	SeriesReducerAvg:     func(b *Series) float64 { return b.SafeAvg() },
+	SeriesReducerAverage: func(b *Series) float64 { return b.SafeAvg() },
+	SeriesReducerTotal:   func(b *Series) float64 { return b.SafeSum() },
+	SeriesReducerSum:     func(b *Series) float64 { return b.SafeSum() },
+	SeriesReducerMin:     func(b *Series) float64 { return b.SafeMin() },
+	SeriesReducerMax:     func(b *Series) float64 { return b.SafeMax() },
+	SeriesReducerStdDev:  func(b *Series) float64 { return b.SafeStdDev() },
+	SeriesReducerLast:    func(b *Series) float64 { return b.SafeLastValue() },
+	SeriesReducerCurrent: func(b *Series) float64 { return b.SafeLastValue() },
 }

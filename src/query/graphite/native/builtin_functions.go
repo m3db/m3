@@ -271,7 +271,7 @@ func delay(
 func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Values {
 	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 	for i := steps; i < series.Len(); i++ {
-		output.SetValueAt(i, series.ValueAt(i - steps))
+		output.SetValueAt(i, series.ValueAt(i-steps))
 	}
 	return output
 }
@@ -281,7 +281,7 @@ func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Val
 // Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	var (
-		now = time.Now()
+		now                     = time.Now()
 		tzOffsetForAbsoluteTime time.Duration
 	)
 	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
@@ -657,8 +657,8 @@ func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesL
 type windowSizeFunc func(stepSize int) int
 
 type windowSizeParsed struct {
-	deltaValue time.Duration
-	stringValue string
+	deltaValue     time.Duration
+	stringValue    string
 	windowSizeFunc windowSizeFunc
 }
 
@@ -865,7 +865,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 				curr := bootstrap.ValueAt(i + offset)
 				if !math.IsNaN(curr) {
 					// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
-					ema = emaConstant * curr + (1 - emaConstant) * ema
+					ema = emaConstant*curr + (1-emaConstant)*ema
 					vals.SetValueAt(i, ema)
 				} else {
 					vals.SetValueAt(i, math.NaN())
@@ -1822,8 +1822,6 @@ func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 	}
 }
 
-
-
 func newMovingBinaryTransform(
 	ctx *common.Context,
 	input singlePathSpec,
@@ -1854,7 +1852,7 @@ func newMovingBinaryTransform(
 
 	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
 	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
+		ContextShiftFunc: contextShiftingFn,
 		BinaryTransformer: func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
 			bootstrapList, err := combineBootstrapWithOriginal(ctx,
 				bootstrapStartTime, bootstrapEndTime,
@@ -1933,7 +1931,6 @@ func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInte
 func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
 	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
 }
-
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
@@ -2161,7 +2158,7 @@ func init() {
 	MustRegisterFunction(groupByNode)
 	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
-		2: 1, // n,
+		2: 1,         // n,
 		3: "average", // f
 	})
 	MustRegisterFunction(highestAverage)
@@ -2183,7 +2180,7 @@ func init() {
 		2: 10, // base
 	})
 	MustRegisterFunction(lowest).WithDefaultParams(map[uint8]interface{}{
-		2: 1, // n,
+		2: 1,         // n,
 		3: "average", // f
 	})
 	MustRegisterFunction(lowestAverage)
