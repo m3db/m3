@@ -431,11 +431,6 @@ struct AggregateQueryResultTagValueElement {
 	1: required string tagValue
 }
 
-struct IndexChecksumResult {
-	1: optional list<i64> checksums
-	2: optional binary    marker
-}
-
 // Query wrapper types for simple non-optimized query use
 struct QueryRequest {
 	1: required Query query

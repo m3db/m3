@@ -953,6 +953,7 @@ func (d *db) WideQuery(
 	}
 
 	closed = true
+	close(collector)
 	return nil
 }
 
