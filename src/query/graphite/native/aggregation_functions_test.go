@@ -151,7 +151,7 @@ func (e mockEngine) FetchByQuery(
 }
 
 func TestVariadicSumSeries(t *testing.T) {
-	expr, err := compile("sumSeries(foo.bar.*, foo.baz.*)")
+	expr, err := Compile("sumSeries(foo.bar.*, foo.baz.*)")
 	require.NoError(t, err)
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(
@@ -545,7 +545,7 @@ func TestGroupByNodes(t *testing.T) {
 
 	tests := []struct {
 		fname           string
-		nodes            []int
+		nodes           []int
 		expectedResults []result
 	}{
 		{"avg", []int{2, 4}, []result{ // test normal group by nodes
@@ -567,7 +567,7 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40)  * 12},
+			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
 		}},
 	}
 

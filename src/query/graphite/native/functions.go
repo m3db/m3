@@ -525,11 +525,15 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	}
 	transformerFn := contextShifter.Field(1)
 	var ret []reflect.Value
-	if call.f.out == unaryContextShifterPtrType {
+	switch call.f.out {
+	case unaryContextShifterPtrType:
 		// unary function
 		ret = transformerFn.Call([]reflect.Value{shiftedSeries})
-	} else {
+	case binaryContextShifterPtrType:
+		// binary function
 		ret = transformerFn.Call([]reflect.Value{shiftedSeries, values[0]})
+	default:
+		return reflect.Value{}, fmt.Errorf("unknown context shift: %v", call.f.out)
 	}
 	if !ret[1].IsNil() {
 		err = ret[1].Interface().(error)
