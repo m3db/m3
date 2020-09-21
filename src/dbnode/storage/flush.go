@@ -65,6 +65,7 @@ type flushManagerMetrics struct {
 	dataWarmFlushDuration           tally.Timer
 	dataSnapshotDuration            tally.Timer
 	indexFlushDuration              tally.Timer
+	commitLogRotationDuration       tally.Timer
 }
 
 func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
@@ -76,6 +77,7 @@ func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
 		dataWarmFlushDuration:           scope.Timer("data-warm-flush-duration"),
 		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
 		indexFlushDuration:              scope.Timer("index-flush-duration"),
+		commitLogRotationDuration:       scope.Timer("commit-log-rotation-duration"),
 	}
 }
 
@@ -147,7 +149,9 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		multiErr = multiErr.Add(err)
 	}
 
+	start := m.nowFn()
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	m.metrics.commitLogRotationDuration.Record(m.nowFn().Sub(start))
 	if err == nil {
 		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)

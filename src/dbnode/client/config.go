@@ -114,6 +114,9 @@ type Configuration struct {
 	// FetchSeriesBlocksBatchSize sets the number of blocks to retrieve in a single batch
 	// from the remote peer. Defaults to 4096.
 	FetchSeriesBlocksBatchSize *int `yaml:"fetchSeriesBlocksBatchSize"`
+
+	// WriteShardsInitializing sets whether or not to write to nodes that are initializing.
+	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -417,6 +420,10 @@ func (c Configuration) NewAdminClient(
 			}
 		}
 		v = v.SetSchemaRegistry(schemaRegistry)
+	}
+
+	if c.WriteShardsInitializing != nil {
+		v = v.SetWriteShardsInitializing(*c.WriteShardsInitializing)
 	}
 
 	// Cast to admin options to apply admin config options.

@@ -28,28 +28,34 @@ import (
 )
 
 var (
-	defaultMetricName = []byte(model.MetricNameLabel)
-	defaultBucketName = []byte("le")
+	defaultMetricName             = []byte(model.MetricNameLabel)
+	defaultBucketName             = []byte("le")
+	defaultAllowTagNameDuplicates = false
+	defaultAllowTagValueEmpty     = false
 
 	errNoName   = errors.New("metric name is missing or empty")
 	errNoBucket = errors.New("bucket name is missing or empty")
 )
 
 type tagOptions struct {
-	version    int
-	idScheme   IDSchemeType
-	bucketName []byte
-	metricName []byte
-	filters    Filters
+	version                int
+	idScheme               IDSchemeType
+	bucketName             []byte
+	metricName             []byte
+	filters                Filters
+	allowTagNameDuplicates bool
+	allowTagValueEmpty     bool
 }
 
 // NewTagOptions builds a new tag options with default values.
 func NewTagOptions() TagOptions {
 	return &tagOptions{
-		version:    0,
-		metricName: defaultMetricName,
-		bucketName: defaultBucketName,
-		idScheme:   TypeLegacy,
+		version:                0,
+		metricName:             defaultMetricName,
+		bucketName:             defaultBucketName,
+		idScheme:               TypeLegacy,
+		allowTagNameDuplicates: defaultAllowTagNameDuplicates,
+		allowTagValueEmpty:     defaultAllowTagValueEmpty,
 	}
 }
 
@@ -105,8 +111,30 @@ func (o *tagOptions) Filters() Filters {
 	return o.filters
 }
 
+func (o *tagOptions) SetAllowTagNameDuplicates(value bool) TagOptions {
+	opts := *o
+	opts.allowTagNameDuplicates = value
+	return &opts
+}
+
+func (o *tagOptions) AllowTagNameDuplicates() bool {
+	return o.allowTagNameDuplicates
+}
+
+func (o *tagOptions) SetAllowTagValueEmpty(value bool) TagOptions {
+	opts := *o
+	opts.allowTagValueEmpty = value
+	return &opts
+}
+
+func (o *tagOptions) AllowTagValueEmpty() bool {
+	return o.allowTagValueEmpty
+}
+
 func (o *tagOptions) Equals(other TagOptions) bool {
 	return o.idScheme == other.IDSchemeType() &&
 		bytes.Equal(o.metricName, other.MetricName()) &&
-		bytes.Equal(o.bucketName, other.BucketName())
+		bytes.Equal(o.bucketName, other.BucketName()) &&
+		o.allowTagNameDuplicates == other.AllowTagNameDuplicates() &&
+		o.allowTagValueEmpty == other.AllowTagValueEmpty()
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -561,7 +562,10 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
-func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
+func testSnapshotWithShardSnapshotErrs(
+	t *testing.T,
+	shardMethodResults []snapshotTestCase,
+) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -588,7 +592,9 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, gomock.Any(), gomock.Any()).Return(tc.shardSnapshotErr)
+			shard.EXPECT().
+				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
+				Return(ShardSnapshotResult{}, tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
@@ -1293,6 +1299,110 @@ func TestNamespaceFlushState(t *testing.T) {
 	flushState, err := ns.FlushState(0, blockStart)
 	require.NoError(t, err)
 	require.Equal(t, expectedFlushState, flushState)
+}
+
+func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapping
+
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
+}
+
+func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errColdWritesDisabled, err)
+}
+
+func TestNamespaceAggregateTiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		start      = time.Now().Truncate(2 * time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true)
+
+	wOpts := series.WriteOptions{
+		TruncateType: targetNs.opts.TruncateType(),
+		SchemaDesc:   targetNs.Schema(),
+	}
+
+	sourceShard0 := NewMockdatabaseShard(ctrl)
+	sourceShard1 := NewMockdatabaseShard(ctrl)
+	sourceNs.shards[0] = sourceShard0
+	sourceNs.shards[1] = sourceShard1
+
+	sourceShard0.EXPECT().IsBootstrapped().Return(true)
+	sourceShard1.EXPECT().IsBootstrapped().Return(true)
+
+	targetShard0 := NewMockdatabaseShard(ctrl)
+	targetShard1 := NewMockdatabaseShard(ctrl)
+	targetNs.shards[0] = targetShard0
+	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().ID().Return(uint32(0))
+	targetShard1.EXPECT().ID().Return(uint32(1))
+
+	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard0, opts, wOpts).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard1, opts, wOpts).Return(int64(2), nil)
+
+	shardColdFlush0 := NewMockShardColdFlush(ctrl)
+	shardColdFlush0.EXPECT().Done().Return(nil)
+	shardColdFlush1 := NewMockShardColdFlush(ctrl)
+	shardColdFlush1.EXPECT().Done().Return(nil)
+
+	nsCtx := targetNs.nsContextWithRLock()
+	onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
+	require.NoError(t, err)
+	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
+	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
+
+	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3+2), processedBlockCount)
 }
 
 func waitForStats(

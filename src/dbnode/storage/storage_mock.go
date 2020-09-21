@@ -488,6 +488,21 @@ func (mr *MockDatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockDatabase)(nil).FlushState), namespace, shardID, blockStart)
 }
 
+// AggregateTiles mocks base method
+func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
+}
+
 // Mockdatabase is a mock of database interface
 type Mockdatabase struct {
 	ctrl     *gomock.Controller
@@ -881,6 +896,21 @@ func (m *Mockdatabase) FlushState(namespace ident.ID, shardID uint32, blockStart
 func (mr *MockdatabaseMockRecorder) FlushState(namespace, shardID, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*Mockdatabase)(nil).FlushState), namespace, shardID, blockStart)
+}
+
+// AggregateTiles mocks base method
+func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
 }
 
 // OwnedNamespaces mocks base method
@@ -1532,6 +1562,37 @@ func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePendingIndexInserts", reflect.TypeOf((*MockdatabaseNamespace)(nil).WritePendingIndexInserts), pending)
 }
 
+// AggregateTiles mocks base method
+func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions, pm persist.Manager) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts, pm)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts, pm interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts, pm)
+}
+
+// readableShardAt mocks base method
+func (m *MockdatabaseNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "readableShardAt", shardID)
+	ret0, _ := ret[0].(databaseShard)
+	ret1, _ := ret[1].(namespace.Context)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// readableShardAt indicates an expected call of readableShardAt
+func (mr *MockdatabaseNamespaceMockRecorder) readableShardAt(shardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "readableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).readableShardAt), shardID)
+}
+
 // MockShard is a mock of Shard interface
 type MockShard struct {
 	ctrl     *gomock.Controller
@@ -1906,11 +1967,12 @@ func (mr *MockdatabaseShardMockRecorder) ColdFlush(flush, resources, nsCtx, onFl
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) error {
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush, nsCtx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ShardSnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Snapshot indicates an expected call of Snapshot
@@ -2006,6 +2068,36 @@ func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseShard)(nil).DocRef), id)
+}
+
+// AggregateTiles mocks base method
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceBlockStart time.Time, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts)
+}
+
+// latestVolume mocks base method
+func (m *MockdatabaseShard) latestVolume(blockStart time.Time) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "latestVolume", blockStart)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// latestVolume indicates an expected call of latestVolume
+func (mr *MockdatabaseShardMockRecorder) latestVolume(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "latestVolume", reflect.TypeOf((*MockdatabaseShard)(nil).latestVolume), blockStart)
 }
 
 // MockShardColdFlush is a mock of ShardColdFlush interface

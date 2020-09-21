@@ -21,17 +21,18 @@ message IndexOptions {
 }
 
 message NamespaceOptions {
-    bool bootstrapEnabled                  = 1;
-    bool flushEnabled                      = 2;
-    bool writesToCommitLog                 = 3;
-    bool cleanupEnabled                    = 4;
-    bool repairEnabled                     = 5;
-    RetentionOptions retentionOptions      = 6;
-    bool snapshotEnabled                   = 7;
-    IndexOptions indexOptions              = 8;
-    SchemaOptions schemaOptions            = 9;
-    bool coldWritesEnabled                 = 10;
-    NamespaceRuntimeOptions runtimeOptions = 11;
+    bool bootstrapEnabled                           = 1;
+    bool flushEnabled                               = 2;
+    bool writesToCommitLog                          = 3;
+    bool cleanupEnabled                             = 4;
+    bool repairEnabled                              = 5;
+    RetentionOptions retentionOptions               = 6;
+    bool snapshotEnabled                            = 7;
+    IndexOptions indexOptions                       = 8;
+    SchemaOptions schemaOptions                     = 9;
+    bool coldWritesEnabled                          = 10;
+    NamespaceRuntimeOptions runtimeOptions          = 11;
+    google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
 }
 
 message Registry {
