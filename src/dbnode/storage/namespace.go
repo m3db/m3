@@ -1611,10 +1611,10 @@ func (n *dbNamespace) AggregateTiles(
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
-	return processedBlockCount, err
+	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
@@ -1654,7 +1654,7 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	var processedBlockCount int64
+	var processedTileCount int64
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
 		if err != nil {
@@ -1674,9 +1674,9 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+		shardprocessedTileCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
 
-		processedBlockCount += shardProcessedBlockCount
+		processedTileCount += shardprocessedTileCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -1693,8 +1693,8 @@ func (n *dbNamespace) aggregateTiles(
 		zap.String("sourceNs", sourceNs.ID().String()),
 		zap.String("targetNs", n.ID().String()),
 		zap.Int("shards", len(targetShards)),
-		zap.Int64("processedBlocks", processedBlockCount),
+		zap.Int64("processedBlocks", processedTileCount),
 		zap.Duration("duration", time.Now().Sub(startedAt)))
 
-	return processedBlockCount, multiErr.FinalError()
+	return processedTileCount, multiErr.FinalError()
 }

@@ -2761,7 +2761,7 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	var (
-		processedBlockCount atomic.Int64
+		processedTileCount  atomic.Int64
 		multiErr            xerrors.MultiError
 		dp                  ts.Datapoint
 		segmentCapacity     int
@@ -2806,7 +2806,7 @@ func (s *dbShard) AggregateTiles(
 					multiErr = multiErr.Add(err)
 				}
 
-				processedBlockCount.Inc()
+				processedTileCount.Inc()
 			}
 		}
 
@@ -2869,9 +2869,9 @@ func (s *dbShard) AggregateTiles(
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedBlocks", processedBlockCount.Load()))
+		zap.Int64("processedBlocks", processedTileCount.Load()))
 
-	return processedBlockCount.Load(), nil
+	return processedTileCount.Load(), nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

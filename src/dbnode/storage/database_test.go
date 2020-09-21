@@ -1311,9 +1311,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
 	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
-	processedBlockCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)
-	assert.Equal(t, int64(4), processedBlockCount)
+	assert.Equal(t, int64(4), processedTileCount)
 }
 
 func TestNewAggregateTilesOptions(t *testing.T) {

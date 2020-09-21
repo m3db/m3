@@ -117,13 +117,13 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("Starting aggregation")
 	start = time.Now()
-	processedBlockCount, err := testSetup.DB().AggregateTiles(
+	processedTileCount, err := testSetup.DB().AggregateTiles(
 		storageOpts.ContextPool().Get(),
 		srcNs.ID(), trgNs.ID(),
 		aggOpts)
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
-	assert.Equal(t, int64(10), processedBlockCount)
+	assert.Equal(t, int64(10), processedTileCount)
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
@@ -209,7 +209,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 				result, _, err := session.FetchTagged(srcNs.ID(), query,
 					index.QueryOptions{
 						StartInclusive: dpTimeStart.Add(-blockSizeT),
-						EndExclusive: nowFn(),
+						EndExclusive:   nowFn(),
 					})
 				session.Close()
 				if err != nil {
@@ -224,24 +224,22 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		}()
 	}
 
-	var (
-		processedBlockCount int64
-	)
+	var processedTileCount int64
 	for a := 0; a < iterationCount; a++ {
 		ctx := storageOpts.ContextPool().Get()
-		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
+		processedTileCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
 		ctx.BlockingClose()
 		if err != nil {
 			require.NoError(t, err)
 		}
 		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
-		require.Equal(t, processedBlockCount, expectedPoints)
+		require.Equal(t, processedTileCount, expectedPoints)
 	}
 	inProgress.Toggle()
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	wg.Wait()
 	require.NoError(t, err)
-	require.Equal(t, int64(testDataPointsCount*testSeriesCount/100*6), processedBlockCount)
+	require.Equal(t, int64(testDataPointsCount*testSeriesCount/100*6), processedTileCount)
 
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
@@ -281,16 +279,16 @@ func fetchAndValidate(
 	assert.Equal(t, expected, actual)
 }
 
-func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata,xmetrics.TestStatsReporter, io.Closer) {
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
-				SetColdWritesEnabled(true)
+			SetRetentionOptions(rOpts).
+			SetIndexOptions(idxOpts).
+			SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT).

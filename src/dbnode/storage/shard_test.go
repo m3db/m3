@@ -1817,10 +1817,10 @@ func TestShardAggregateTiles(t *testing.T) {
 		{secondSourceBlockStart, volume1},
 	}
 
-	processedBlockCount, err := targetShard.AggregateTiles(
+	processedTileCount, err := targetShard.AggregateTiles(
 		ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), processedBlockCount)
+	assert.Equal(t, int64(3), processedTileCount)
 }
 
 func getMockReader(

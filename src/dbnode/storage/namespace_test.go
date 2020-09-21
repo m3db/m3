@@ -1378,10 +1378,10 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
 	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
 
-	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(3+2), processedBlockCount)
+	assert.Equal(t, int64(3+2), processedTileCount)
 }
 
 func waitForStats(

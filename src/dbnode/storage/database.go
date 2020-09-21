@@ -1126,7 +1126,7 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),
@@ -1134,7 +1134,7 @@ func (d *db) AggregateTiles(
 			zap.Error(err),
 		)
 	}
-	return processedBlockCount, err
+	return processedTileCount, err
 }
 
 func (d *db) nextIndex() uint64 {
