@@ -2767,12 +2767,10 @@ func (s *dbShard) AggregateTiles(
 		dp                  ts.Datapoint
 		segmentCapacity     int
 		writerData          = make([][]byte, 2)
-		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 	)
 
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
-		prevFrameLastValue := math.NaN()
 
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
@@ -2780,48 +2778,35 @@ func (s *dbShard) AggregateTiles(
 			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
-				downsampledValues = downsampledValues[:0]
 				lastIdx := len(frameValues) - 1
 
-				if opts.HandleCounterResets {
-					// last value plus possible few more datapoints to preserve counter semantics
-					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledValues)
-				} else {
-					// plain last value
-					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
-					downsampledValues = append(downsampledValues, downsampledValue)
-				}
+				value := frameValues[lastIdx]
+				timestamp := frame.Timestamps()[lastIdx]
 
-				for _, downsampledValue := range downsampledValues {
-					value := downsampledValue.Value
-					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
-
-					if !singleUnit {
-						// TODO: what happens if unit has changed mid-tile?
-						// Write early and then do the remaining values separately?
-						if downsampledValue.FrameIndex < len(frame.Units().Values()) {
-							unit = frame.Units().Values()[downsampledValue.FrameIndex]
-						}
-					}
-
-					if !singleAnnotation {
-						// TODO: what happens if annotation has changed mid-tile?
-						// Write early and then do the remaining values separately?
-						if downsampledValue.FrameIndex < len(frame.Annotations().Values()) {
-							annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
-						}
-					}
-
-					dp.Timestamp = timestamp
-					dp.Value = value
-					err = encoder.Encode(dp, unit, annotation)
-					if err != nil {
-						s.metrics.largeTilesWriteErrors.Inc(1)
-						multiErr = multiErr.Add(err)
+				if !singleUnit {
+					// TODO: what happens if unit has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					if lastIdx < len(frame.Units().Values()) {
+						unit = frame.Units().Values()[lastIdx]
 					}
 				}
 
-				prevFrameLastValue = frameValues[lastIdx]
+				if !singleAnnotation {
+					// TODO: what happens if annotation has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					if lastIdx < len(frame.Annotations().Values()) {
+						annotation = frame.Annotations().Values()[lastIdx]
+					}
+				}
+
+				dp.Timestamp = timestamp
+				dp.Value = value
+				err = encoder.Encode(dp, unit, annotation)
+				if err != nil {
+					s.metrics.largeTilesWriteErrors.Inc(1)
+					multiErr = multiErr.Add(err)
+				}
+
 				processedBlockCount.Inc()
 			}
 		}
@@ -2844,7 +2829,6 @@ func (s *dbShard) AggregateTiles(
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
-
 
 		id.Finalize()
 		//FIXME apparently this does not finalize segment.Tail as FinalizeTail flag is not set by default.
