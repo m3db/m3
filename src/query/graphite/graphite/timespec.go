@@ -160,9 +160,11 @@ if err == nil {
 
 
 func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
-	hour := now.Hour()
-	minute := now.Minute()
-	refDate := time.Time{}
+	var (
+  hour = now.Hour()
+  minute = now.Minute()
+  refDate time.Time
+)
 
 	if ref == "" || ref == "now" {
 		return now, nil
