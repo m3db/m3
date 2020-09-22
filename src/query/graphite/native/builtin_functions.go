@@ -199,6 +199,23 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	return r, nil
 }
 
+// grep takes a metric or a wildcard seriesList, followed by a regular
+// expression in double quotes. Excludes metrics that don’t match the regular expression.
+func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.SeriesList, error) {
+	re := regexp.MustCompile(regex)
+
+	var output []*ts.Series
+	for _, series := range seriesList.Values {
+		if re.MatchString(series.Name()) {
+			output = append(output, series)
+		}
+	}
+
+	r := ts.SeriesList(seriesList)
+	r.Values = output
+	return r, nil
+}
+
 // timeShift draws the selected metrics shifted in time. If no sign is given, a minus sign ( - ) is
 // implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
 // be shifted forward in time
@@ -1890,6 +1907,7 @@ func init() {
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
 	MustRegisterFunction(groupByNodes)
