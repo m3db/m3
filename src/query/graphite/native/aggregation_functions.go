@@ -22,12 +22,13 @@ package native
 
 import (
 	"fmt"
-	"math"
-	"strings"
-
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"math"
+	"sort"
+	"strings"
 )
 
 func wrapPathExpr(wrapper string, series ts.SeriesList) string {
@@ -217,6 +218,92 @@ func combineSeriesWithWildcards(
 	// any sort order on the incoming series list
 	r.SortApplied = false
 
+	return r, nil
+}
+
+func evaluateTarget(ctx *common.Context, target string) ([]*ts.Series, error) {
+	fetchOptions := storage.FetchOptions{
+		StartTime: ctx.StartTime,
+		EndTime:   ctx.EndTime,
+		DataOptions: storage.DataOptions{
+			Timeout: ctx.Timeout,
+		},
+	}
+	ctxCopy := ctx.NewChildContext(common.NewChildContextOptions())
+	result, err := ctx.Engine.FetchByQuery(ctxCopy, target, fetchOptions)
+	if err != nil {
+		return nil, err
+	}
+	return result.SeriesList, nil
+}
+
+/*
+applyByNode takes a seriesList and applies some complicated function (described by a string), replacing templates with unique
+prefixes of keys from the seriesList (the key is all nodes up to the index given as `nodeNum`).
+
+If the `newName` parameter is provided, the name of the resulting series will be given by that parameter, with any
+"%" characters replaced by the unique prefix.
+
+Example:
+
+.. code-block:: none
+
+&target=applyByNode(servers.*.disk.bytes_free,1,"divideSeries(%.disk.bytes_free,sumSeries(%.disk.bytes_*))")
+
+Would find all series which match `servers.*.disk.bytes_free`, then trim them down to unique series up to the node
+given by nodeNum, then fill them into the template function provided (replacing % by the prefixes).
+
+Additional Examples:
+
+Given keys of
+
+- `stats.counts.haproxy.web.2XX`
+- `stats.counts.haproxy.web.3XX`
+- `stats.counts.haproxy.web.5XX`
+- `stats.counts.haproxy.microservice.2XX`
+- `stats.counts.haproxy.microservice.3XX`
+- `stats.counts.haproxy.microservice.5XX`
+
+The following will return the rate of 5XX's per service:
+
+.. code-block:: none
+
+applyByNode(stats.counts.haproxy.*.*XX, 3, "asPercent(%.5XX, sumSeries(%.*XX))", "%.pct_5XX")
+
+The output series would have keys `stats.counts.haproxy.web.pct_5XX` and `stats.counts.haproxy.microservice.pct_5XX`.
+*/
+func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, templateFunction string, newName string) (ts.SeriesList, error) {
+	// using this as a set
+	prefixMap := make(map[string]int)
+	for _, series := range seriesList.Values {
+		prefix := strings.Join(strings.Split(series.Name(), ".")[:nodeNum + 1], ".")
+		prefixMap[prefix] = 1
+	}
+	// transform to slice
+	prefixes := []string{}
+	for p := range prefixMap {
+		prefixes = append(prefixes, p)
+	}
+	sort.Strings(prefixes)
+
+	var output []*ts.Series
+	for _, prefix := range prefixes {
+		newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+		resultSeriesList, err := evaluateTarget(ctx, newTarget)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		for _, resultSeries := range resultSeriesList {
+			if newName != "" {
+				resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
+			}
+			resultSeries.Specification = prefix
+			output = append(output, resultSeries)
+		}
+	}
+
+	r := ts.SeriesList(seriesList)
+	r.Values = output
 	return r, nil
 }
 

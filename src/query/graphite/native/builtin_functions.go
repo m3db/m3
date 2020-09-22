@@ -1869,6 +1869,9 @@ func init() {
 	MustRegisterFunction(aliasByMetric)
 	MustRegisterFunction(aliasByNode)
 	MustRegisterFunction(aliasSub)
+	MustRegisterFunction(applyByNode).WithDefaultParams(map[uint8]interface{}{
+		4: "", // newName
+	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
 	})

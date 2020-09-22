@@ -22,6 +22,8 @@ package native
 
 import (
 	"fmt"
+	"github.com/golang/mock/gomock"
+	xgomock "github.com/m3db/m3/src/x/test"
 	"math"
 	"sort"
 	"testing"
@@ -331,6 +333,94 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	}
 }
 
+func TestApplyByNode(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{1, 2, 3})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{99, 98, 97})),
+		}
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "divideSeries(servers.s1.disk.bytes_used, sumSeries(servers.s1.disk.bytes_*))", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_used,servers.s1.disk.bytes_free))", start,
+						common.NewTestSeriesValues(ctx, 60000, []float64{0.10, 0.20, 0.30})) }}, nil).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "divideSeries(servers.s2.disk.bytes_used, sumSeries(servers.s2.disk.bytes_*))", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_used,servers.s2.disk.bytes_free))", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{0.01, 0.02, 0.03})) }}, nil).Times(2)
+
+	tests := []struct {
+		nodeNum          int
+		templateFunction string
+		newName          string
+		expectedResults  []common.TestSeries
+	}{
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_used,servers.s1.disk.bytes_free))",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_used,servers.s2.disk.bytes_free))",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "%.disk.pct_used",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "servers.s1.disk.pct_used",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "servers.s2.disk.pct_used",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		outSeries, err := applyByNode(
+			ctx,
+			singlePathSpec{
+				Values: inputs,
+			},
+			test.nodeNum,
+			test.templateFunction,
+			test.newName,
+		)
+		require.NoError(t, err)
+		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		common.CompareOutputsAndExpected(t, 60000, start, test.expectedResults, outSeries.Values)
+	}
+}
+
 func TestGroupByNode(t *testing.T) {
 	var (
 		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
@@ -435,7 +525,7 @@ func TestGroupByNodes(t *testing.T) {
 
 	tests := []struct {
 		fname           string
-		nodes            []int
+		nodes           []int
 		expectedResults []result
 	}{
 		{"avg", []int{2, 4}, []result{ // test normal group by nodes
@@ -457,7 +547,7 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40)  * 12},
+			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
 		}},
 	}
 
