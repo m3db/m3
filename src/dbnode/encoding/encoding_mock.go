@@ -1293,18 +1293,18 @@ func (m *MockSeriesIteratorConsolidator) EXPECT() *MockSeriesIteratorConsolidato
 }
 
 // ConsolidateReplicas mocks base method
-func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderIterator) ([]MultiReaderIterator, error) {
+func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConsolidateReplicas", arg0)
+	ret := m.ctrl.Call(m, "ConsolidateReplicas", replicas)
 	ret0, _ := ret[0].([]MultiReaderIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ConsolidateReplicas indicates an expected call of ConsolidateReplicas
-func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
+func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(replicas interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), replicas)
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface

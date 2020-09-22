@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -141,7 +141,8 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryStats                      stats.QueryStats
+	queryLimits                     limits.QueryLimits
+	docsLimit                       limits.LookbackLimit
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -249,7 +250,8 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryStats:                      opts.QueryStats(),
+		queryLimits:                     opts.QueryLimits(),
+		docsLimit:                       opts.QueryLimits().DocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -533,7 +535,7 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.queryStats.Update(len(batch)); err != nil {
+	if err := b.docsLimit.Inc(len(batch)); err != nil {
 		return batch, 0, 0, err
 	}
 
@@ -794,7 +796,7 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.queryStats.Update(len(batch)); err != nil {
+	if err := b.docsLimit.Inc(len(batch)); err != nil {
 		return batch, 0, 0, err
 	}
 

@@ -87,6 +87,59 @@ func TestReadEmpty(t *testing.T) {
 	tester.EnsureNoWrites()
 }
 
+func TestReadOnlyOnce(t *testing.T) {
+	opts := testDefaultOpts
+	md := testNsMetadata(t)
+	nsCtx := namespace.NewContextFrom(md)
+	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	now := time.Now()
+	start := now.Truncate(blockSize).Add(-blockSize)
+	end := now.Truncate(blockSize)
+
+	ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
+
+	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
+	bar := ts.Series{Namespace: nsCtx.ID, Shard: 1, ID: ident.StringID("bar")}
+	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
+
+	values := testValues{
+		{foo, start, 1.0, xtime.Second, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		// "baz" is in shard 2 and should not be returned
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+	}
+
+	var commitLogReads int
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+		commitLogReads++
+		return newTestCommitLogIterator(values, nil), nil, nil
+	}
+
+	targetRanges := result.NewShardTimeRanges().Set(0, ranges).Set(1, ranges)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
+	defer tester.Finish()
+
+	// simulate 2 passes over the commit log
+	for i := 0; i < 2; i++ {
+		tester.TestReadWith(src)
+		tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+		read := tester.EnsureDumpWritesForNamespace(md)
+		require.Equal(t, 2, len(read))
+		enforceValuesAreCorrect(t, values[:4], read)
+		tester.EnsureNoLoadedBlocks()
+	}
+
+	// commit log should only be iterated over once.
+	require.Equal(t, 1, commitLogReads)
+}
+
 func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
