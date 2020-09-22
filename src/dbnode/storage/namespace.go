@@ -1408,13 +1408,15 @@ func (n *dbNamespace) Snapshot(
 
 	n.metrics.snapshotSeriesPersist.Inc(int64(seriesPersist))
 
-	multiErr = multiErr.Add(n.reverseIndex.Snapshot(
-		shardIDs,
-		blockStart,
-		snapshotTime,
-		snapshotPersist,
-		infoFiles,
-	))
+	if idx := n.reverseIndex; idx != nil {
+		multiErr = multiErr.Add(idx.Snapshot(
+			shardIDs,
+			blockStart,
+			snapshotTime,
+			snapshotPersist,
+			infoFiles,
+		))
+	}
 
 	res := multiErr.FinalError()
 	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
