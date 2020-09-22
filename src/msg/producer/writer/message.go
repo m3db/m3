@@ -38,14 +38,14 @@ type message struct {
 	retried      int
 	// NB(cw) isAcked could be accessed concurrently by the background thread
 	// in message writer and acked by consumer service writers.
-	isAcked *atomic.Bool
+	// Safe to store value inside struct, as message is never copied by value
+	isAcked atomic.Bool
 }
 
 func newMessage() *message {
 	return &message{
 		retryAtNanos: 0,
 		retried:      0,
-		isAcked:      atomic.NewBool(false),
 	}
 }
 

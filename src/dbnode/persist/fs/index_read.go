@@ -207,7 +207,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 	)
 	success := false
 	defer func() {
-		// Do not close opened files if read finishes sucessfully.
+		// Do not close opened files if read finishes successfully.
 		if success {
 			return
 		}
