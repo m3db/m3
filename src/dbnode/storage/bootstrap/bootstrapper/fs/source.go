@@ -808,30 +808,30 @@ func (s *fileSystemSource) read(
 		}
 		logSpan("bootstrap_from_index_persisted_blocks_done")
 
-		logSpan("bootstrap_from_index_snapshots_start")
-		// NB(bodu): We don't actually bootstrap snapshot data in the fs bootstrapper
-		// (we do this in the commitlog bootstrapper) but we do want to subtract the shard time
-		// ranges fulfilled by index snapshots. We do this to handle the following case:
-		//      1. node A up, taking writes for shards 1-3
-		//      2. node A receives shards 4-5, starts peer bootstrapping them
-		//      3. then writes TSDB files for shards 4-5, but crashes while writing index files for shards 4-5
-		//      4. node restarts, finds index snapshots for shards 1-3 on disk (either FS or commit log bootstrapper),
-		//         realizes shards 4-5 are missing index segments and builds those but uses existing snapshots for shards 1-3
-		r, err = s.bootstrapFromIndexSnapshots(
-			md,
-			shardTimeRanges,
-			infoFiles,
-		)
-		if err != nil {
-			s.log.Warn("filesystem bootstrapped failed to read index snapshots")
-		} else {
-			// We may have less we need to read
-			shardTimeRanges = shardTimeRanges.Copy()
-			shardTimeRanges.Subtract(r.fulfilled)
-			// Set or merge result.
-			setOrMergeResult(r.result)
-		}
-		logSpan("bootstrap_from_index_snapshots_done")
+		//logSpan("bootstrap_from_index_snapshots_start")
+		//// NB(bodu): We don't actually bootstrap snapshot data in the fs bootstrapper
+		//// (we do this in the commitlog bootstrapper) but we do want to subtract the shard time
+		//// ranges fulfilled by index snapshots. We do this to handle the following case:
+		////      1. node A up, taking writes for shards 1-3
+		////      2. node A receives shards 4-5, starts peer bootstrapping them
+		////      3. then writes TSDB files for shards 4-5, but crashes while writing index files for shards 4-5
+		////      4. node restarts, finds index snapshots for shards 1-3 on disk (either FS or commit log bootstrapper),
+		////         realizes shards 4-5 are missing index segments and builds those but uses existing snapshots for shards 1-3
+		//r, err = s.bootstrapFromIndexSnapshots(
+		//	md,
+		//	shardTimeRanges,
+		//	infoFiles,
+		//)
+		//if err != nil {
+		//	s.log.Warn("filesystem bootstrapped failed to read index snapshots")
+		//} else {
+		//	// We may have less we need to read
+		//	shardTimeRanges = shardTimeRanges.Copy()
+		//	shardTimeRanges.Subtract(r.fulfilled)
+		//	// Set or merge result.
+		//	setOrMergeResult(r.result)
+		//}
+		//logSpan("bootstrap_from_index_snapshots_done")
 	}
 
 	// Create a reader pool once per bootstrap as we don't really want to
