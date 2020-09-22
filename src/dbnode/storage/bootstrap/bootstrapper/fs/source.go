@@ -786,7 +786,7 @@ func (s *fileSystemSource) read(
 	}
 	if run == bootstrapIndexRunType {
 		infoFiles := s.readIndexInfoFilesFn(s.fsopts.FilePathPrefix(), md.ID(),
-			s.fsopts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
+			s.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
 
 		logSpan("bootstrap_from_index_persisted_blocks_start")
 		// NB(r): First read all the FSTs and add to runResult index results,
