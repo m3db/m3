@@ -284,6 +284,34 @@ func (mr *MockOptionsMockRecorder) ColdWritesEnabled() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ColdWritesEnabled))
 }
 
+// SetCacheBlocksOnRetrieve mocks base method
+func (m *MockOptions) SetCacheBlocksOnRetrieve(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCacheBlocksOnRetrieve", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCacheBlocksOnRetrieve indicates an expected call of SetCacheBlocksOnRetrieve
+func (mr *MockOptionsMockRecorder) SetCacheBlocksOnRetrieve(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCacheBlocksOnRetrieve", reflect.TypeOf((*MockOptions)(nil).SetCacheBlocksOnRetrieve), value)
+}
+
+// CacheBlocksOnRetrieve mocks base method
+func (m *MockOptions) CacheBlocksOnRetrieve() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CacheBlocksOnRetrieve")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CacheBlocksOnRetrieve indicates an expected call of CacheBlocksOnRetrieve
+func (mr *MockOptionsMockRecorder) CacheBlocksOnRetrieve() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheBlocksOnRetrieve", reflect.TypeOf((*MockOptions)(nil).CacheBlocksOnRetrieve))
+}
+
 // SetRetentionOptions mocks base method
 func (m *MockOptions) SetRetentionOptions(value retention.Options) Options {
 	m.ctrl.T.Helper()

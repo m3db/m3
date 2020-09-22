@@ -93,7 +93,8 @@ type blockRetriever struct {
 	idPool     ident.Pool
 	nsMetadata namespace.Metadata
 
-	blockSize time.Duration
+	blockSize               time.Duration
+	nsCacheBlocksOnRetrieve bool
 
 	status                     blockRetrieverStatus
 	reqsByShardIdx             []*shardRetrieveRequests
@@ -151,8 +152,9 @@ func (r *blockRetriever) Open(
 	r.status = blockRetrieverOpen
 	r.seekerMgr = seekerMgr
 
-	// Cache blockSize result
+	// Cache blockSize result and namespace specific block caching option
 	r.blockSize = ns.Options().RetentionOptions().BlockSize()
+	r.nsCacheBlocksOnRetrieve = ns.Options().CacheBlocksOnRetrieve()
 
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop(seekerMgr)
@@ -339,6 +341,8 @@ func (r *blockRetriever) fetchBatch(
 
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
+	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
+
 	// Seek and execute all requests
 	for _, req := range reqs {
 		var (
@@ -366,7 +370,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := req.onRetrieve != nil && req.foundAndHasNoError()
+		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil && req.foundAndHasNoError()
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
