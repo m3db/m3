@@ -867,7 +867,8 @@ type databaseShardRepairer interface {
 
 // BackgroundProcess is the interface for background processes that are being run by the database.
 type BackgroundProcess interface {
-	// Run runs the BackgroundProcess. Usually it should be called asynchronously (i.e. go Run()).
+	// Run runs the BackgroundProcess (which may block until Stop() is called).
+	// Usually it should be called asynchronously (i.e. go Run()).
 	Run()
 
 	// Stop stops the BackgroundProcess.
