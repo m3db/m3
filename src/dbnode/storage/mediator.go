@@ -39,7 +39,7 @@ type (
 )
 
 const (
-	fileOpCheckInterval              = time.Second
+	fileOpCheckInterval = time.Second
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
