@@ -1,5 +1,21 @@
 # Changelog
 
+# 0.15.15
+
+## Features
+
+- **M3DB**: Add configuration to limit bytes read for historical metrics in a given time window ([#2627](https://github.com/m3db/m3/pull/2627))
+- **M3DB**: Add configuration to toggle block caching ([#2613](https://github.com/m3db/m3/pull/2613))
+- **M3Coordinator**: Add extended configuration of label and tag validation ([#2647](https://github.com/m3db/m3/pull/2647))
+
+## Performance
+
+- **M3DB**: Perform single pass when reading commit log entry and reuse result for second bootstrap phase ([#2645](https://github.com/m3db/m3/pull/2645))
+
+## Documentation
+
+- **M3DB**: Documentation for fileset migrations, the forward and backwards compatibility guarantees and configuring migrations ([#2630](https://github.com/m3db/m3/pull/2630))
+
 # 0.15.14
 
 ## Features

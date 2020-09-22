@@ -439,6 +439,15 @@ func TestTagsValidateEmptyValueQuoted(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
+func TestTagsValidateEmptyValueQuotedWithAllowTagValueEmpty(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetAllowTagValueEmpty(true))
+	tags = tags.AddTag(Tag{Name: []byte("foo"), Value: []byte("")})
+	err := tags.Validate()
+	require.NoError(t, err)
+}
+
 func TestTagsValidateOutOfOrderQuoted(t *testing.T) {
 	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
 	tags.Tags = []Tag{
@@ -477,6 +486,26 @@ func TestTagsValidateDuplicateQuoted(t *testing.T) {
 	err := tags.Validate()
 	require.Error(t, err)
 	require.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestTagsValidateDuplicateQuotedWithAllowTagNameDuplicates(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetAllowTagNameDuplicates(true))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("bar"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("bar"),
+		Value: []byte("baz"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("qux"),
+	})
+	err := tags.Validate()
+	require.NoError(t, err)
 }
 
 func TestTagsValidateEmptyNameGraphite(t *testing.T) {

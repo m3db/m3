@@ -297,13 +297,17 @@ func (t Tags) validate() error {
 			}
 		}
 	} else {
+		var (
+			allowTagNameDuplicates = t.Opts.AllowTagNameDuplicates()
+			allowTagValueEmpty     = t.Opts.AllowTagValueEmpty()
+		)
 		// Sorted alphanumerically otherwise, use bytes.Compare once for
 		// both order and unique test.
 		for i, tag := range t.Tags {
 			if len(tag.Name) == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
 			}
-			if len(tag.Value) == 0 {
+			if !allowTagValueEmpty && len(tag.Value) == 0 {
 				return fmt.Errorf("tag value empty: index=%d, name=%s",
 					i, t.Tags[i].Name)
 			}
@@ -317,7 +321,7 @@ func (t Tags) validate() error {
 				return fmt.Errorf("tags out of order: '%s' appears after '%s', tags: %v",
 					prev.Name, tag.Name, t.Tags)
 			}
-			if cmp == 0 {
+			if !allowTagNameDuplicates && cmp == 0 {
 				return fmt.Errorf("tags duplicate: '%s' appears more than once in '%s'",
 					prev.Name, t)
 			}

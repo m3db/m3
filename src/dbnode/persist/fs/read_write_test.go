@@ -29,13 +29,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/bloom/v4"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,8 +219,13 @@ func readTestDataWithStreamingOpt(
 		assert.NoError(t, err)
 		// Make sure the bloom filter doesn't always return true
 		assert.False(t, bloomFilter.Test([]byte("some_random_data")))
+
+		expectedEntries := uint(len(entries))
+		if expectedEntries == 0 {
+			expectedEntries = 1
+		}
 		expectedM, expectedK := bloom.EstimateFalsePositiveRate(
-			uint(len(entries)), defaultIndexBloomFilterFalsePositivePercent)
+			expectedEntries, defaultIndexBloomFilterFalsePositivePercent)
 		assert.Equal(t, expectedK, bloomFilter.K())
 		// EstimateFalsePositiveRate always returns at least 1, so skip this check
 		// if len entries is 0
