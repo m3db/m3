@@ -79,7 +79,6 @@ var (
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")
-	errDbIndexSnapshotBlockDoesNotExist   = errors.New("snapshot index block does not exist")
 )
 
 const (
@@ -1315,7 +1314,9 @@ func (i *nsIndex) Snapshot(
 	// that we may snapshot data that's out of retention which is fine.
 	block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return errDbIndexSnapshotBlockDoesNotExist
+		// Do nothing if there is no data to snapshot.
+		i.state.RUnlock()
+		return nil
 	}
 	i.state.RUnlock()
 
