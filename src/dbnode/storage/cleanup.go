@@ -166,6 +166,7 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
 	}
+	// TODO(bodu): Implement deleteInactiveIndexSnapshotFiles.
 
 	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
@@ -553,6 +554,10 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 	)
 
 	for _, ns := range namespaces {
+		if !ns.Options().CleanupEnabled() || !ns.Options().IndexOptions().Enabled() {
+			continue
+		}
+
 		i, err := ns.Index()
 		if err != nil {
 			multiErr = multiErr.Add(err)
