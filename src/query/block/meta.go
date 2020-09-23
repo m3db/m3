@@ -22,6 +22,9 @@ package block
 
 import (
 	"fmt"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 )
@@ -64,7 +67,7 @@ type ResultMetadata struct {
 	// incomplete results.
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
-	Resolutions []int64
+	Resolutions []time.Duration
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -75,7 +78,7 @@ func NewResultMetadata() ResultMetadata {
 	}
 }
 
-func combineResolutions(a, b []int64) []int64 {
+func combineResolutions(a, b []time.Duration) []time.Duration {
 	if len(a) == 0 {
 		if len(b) != 0 {
 			return b
@@ -85,7 +88,7 @@ func combineResolutions(a, b []int64) []int64 {
 			return a
 		}
 
-		combined := make([]int64, 0, len(a)+len(b))
+		combined := make([]time.Duration, 0, len(a)+len(b))
 		combined = append(combined, a...)
 		combined = append(combined, b...)
 		return combined
@@ -156,6 +159,31 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 // IsDefault returns true if this result metadata matches the unchanged default.
 func (m ResultMetadata) IsDefault() bool {
 	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
+}
+
+// VerifyTemporalRange will verify that each resolution seen is below the
+// given step size, adding warning headers if it is not.
+func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
+	// NB: this map is unlikely to have more than 2 elements in real execution,
+	// since these correspond to namespace count.
+	invalidResolutions := make(map[time.Duration]struct{}, 10)
+	for _, res := range m.Resolutions {
+		if res > step {
+			invalidResolutions[res] = struct{}{}
+		}
+	}
+
+	if len(invalidResolutions) > 0 {
+		warnings := make([]string, 0, len(invalidResolutions))
+		for k := range invalidResolutions {
+			warnings = append(warnings, fmt.Sprintf("%v", time.Duration(k)))
+		}
+
+		sort.Strings(warnings)
+		warning := fmt.Sprintf("range: %v, resolutions: %s",
+			step, strings.Join(warnings, ", "))
+		m.AddWarning("resolution larger than query range", warning)
+	}
 }
 
 // AddWarning adds a warning to the result metadata.

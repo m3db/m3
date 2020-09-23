@@ -210,6 +210,21 @@ func (mr *MockTChanNodeMockRecorder) AggregateRaw(ctx, req interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateRaw", reflect.TypeOf((*MockTChanNode)(nil).AggregateRaw), ctx, req)
 }
 
+// AggregateTiles mocks base method
+func (m *MockTChanNode) AggregateTiles(ctx thrift.Context, req *AggregateTilesRequest) (*AggregateTilesResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, req)
+	ret0, _ := ret[0].(*AggregateTilesResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockTChanNodeMockRecorder) AggregateTiles(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockTChanNode)(nil).AggregateTiles), ctx, req)
+}
+
 // Bootstrapped mocks base method
 func (m *MockTChanNode) Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error) {
 	m.ctrl.T.Helper()

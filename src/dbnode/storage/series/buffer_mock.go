@@ -93,11 +93,12 @@ func (mr *MockdatabaseBufferMockRecorder) Write(ctx, id, timestamp, value, unit,
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) error {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (SnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, metadata, persistFn, nsCtx)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(SnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Snapshot indicates an expected call of Snapshot

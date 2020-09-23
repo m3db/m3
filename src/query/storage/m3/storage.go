@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
@@ -91,17 +92,24 @@ func (s *m3storage) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
 	}
 
 	defer accumulator.Close()
-	result, _, err := accumulator.FinalResultWithAttrs()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
 	}
 
+	resolutions := make([]time.Duration, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, attr.Resolution)
+	}
+
+	result.Metadata.Resolutions = resolutions
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result,
 		s.opts.ReadWorkerPool(),
@@ -184,7 +192,8 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return consolidators.SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
@@ -197,15 +206,30 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
-	if options.IncludeResolution {
-		resolutions := make([]int64, 0, len(attrs))
-		for _, attr := range attrs {
-			resolutions = append(resolutions, int64(attr.Resolution))
+	if processor := s.opts.SeriesIteratorProcessor(); processor != nil {
+		_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.FetchCompressedInspectSeries)
+		iters := result.SeriesIterators()
+		if err := processor.InspectSeries(ctx, iters); err != nil {
+			s.logger.Error("error inspecting series", zap.Error(err))
 		}
-
-		result.Metadata.Resolutions = resolutions
+		if sampled {
+			span.LogFields(
+				log.String("query", query.Raw),
+				log.String("start", query.Start.String()),
+				log.String("end", query.End.String()),
+				log.String("interval", query.Interval.String()),
+			)
+		}
+		span.Finish()
 	}
 
+	resolutions := make([]time.Duration, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, attr.Resolution)
+	}
+
+	result.Metadata.Resolutions = resolutions
 	return result, accumulator.Close, nil
 }
 
@@ -214,6 +238,7 @@ func (s *m3storage) fetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
+	queryOptions index.QueryOptions,
 ) (consolidators.MultiFetchResult, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
@@ -273,10 +298,7 @@ func (s *m3storage) fetchCompressed(
 		}
 	}
 
-	var (
-		opts = storage.FetchOptionsToM3Options(options, query)
-		wg   sync.WaitGroup
-	)
+	var wg sync.WaitGroup
 	if len(namespaces) == 0 {
 		return nil, errNoNamespacesConfigured
 	}
@@ -300,7 +322,7 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(namespaceID, m3query, opts)
+			iters, metadata, err := session.FetchTagged(namespaceID, m3query, queryOptions)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
