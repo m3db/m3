@@ -99,11 +99,17 @@ func (s *m3storage) FetchProm(
 	}
 
 	defer accumulator.Close()
-	result, _, err := accumulator.FinalResultWithAttrs()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
 	}
 
+	resolutions := make([]time.Duration, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, attr.Resolution)
+	}
+
+	result.Metadata.Resolutions = resolutions
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result,
 		s.opts.ReadWorkerPool(),
@@ -218,15 +224,12 @@ func (s *m3storage) FetchCompressed(
 		span.Finish()
 	}
 
-	if options.IncludeResolution {
-		resolutions := make([]int64, 0, len(attrs))
-		for _, attr := range attrs {
-			resolutions = append(resolutions, int64(attr.Resolution))
-		}
-
-		result.Metadata.Resolutions = resolutions
+	resolutions := make([]time.Duration, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, attr.Resolution)
 	}
 
+	result.Metadata.Resolutions = resolutions
 	return result, accumulator.Close, nil
 }
 
