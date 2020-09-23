@@ -616,6 +616,10 @@ func (i *promTSIter) Next() bool {
 		return false
 	}
 
+	if len(i.annotation) == 0 {
+		i.annotation = nil
+	}
+
 	return true
 }
 

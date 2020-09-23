@@ -327,7 +327,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	resp := writer.Result()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
 	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY)
@@ -340,6 +340,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	require.NoError(t, capturedIter.Error())
 
 	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
+	assert.Nil(t, firstValue.Annotation, "annotation invalidation")
 	assert.Equal(t, annotation.Payload{MetricType: annotation.MetricType_COUNTER}, secondAnnotationPayload, "annotation invalidated")
 }
 
