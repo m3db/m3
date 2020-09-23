@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +47,7 @@ var (
 	testFilesystemOptions     = fs.NewOptions()
 )
 
-func TestStateReadInfoFiles(t *testing.T) {
+func TestCacheReadInfoFiles(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -85,17 +84,27 @@ func TestStateReadInfoFiles(t *testing.T) {
 	require.Equal(t, 2, len(infoFilesByNamespace))
 
 	// Ensure we have two shards.
-	require.Equal(t, 2, len(cache.InfoFilesForNamespace(md1)))
-	require.Equal(t, 2, len(cache.InfoFilesForNamespace(md2)))
+	filesByShard, err := cache.InfoFilesForNamespace(md1)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(filesByShard))
+
+	filesByShard, err = cache.InfoFilesForNamespace(md2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(filesByShard))
 
 	// Ensure each shard has three info files (one for each fileset written).
 	for shard := uint32(0); shard < 2; shard++ {
-		require.Equal(t, 3, len(cache.InfoFilesForShard(md1, shard)))
-		require.Equal(t, 3, len(cache.InfoFilesForShard(md2, shard)))
+		infoFiles, err := cache.InfoFilesForShard(md1, shard)
+		require.NoError(t, err)
+		require.Equal(t, 3, len(infoFiles))
+
+		infoFiles, err = cache.InfoFilesForShard(md2, shard)
+		require.NoError(t, err)
+		require.Equal(t, 3, len(infoFiles))
 	}
 }
 
-func TestStateReadInfoFilesInvariantViolation(t *testing.T) {
+func TestCacheReadInfoFilesInvariantViolation(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -117,17 +126,11 @@ func TestStateReadInfoFilesInvariantViolation(t *testing.T) {
 	cache, err := NewCache(opts)
 	require.NoError(t, err)
 
-	// Force invariant violations to panic for easier testability.
-	os.Setenv(instrument.ShouldPanicEnvironmentVariableName, "true")
-	defer os.Setenv(instrument.ShouldPanicEnvironmentVariableName, "false")
+	_, err = cache.InfoFilesForNamespace(md2)
+	require.Error(t, err)
 
-	require.Panics(t, func() {
-		cache.InfoFilesForNamespace(md2)
-	})
-
-	require.Panics(t, func() {
-		cache.InfoFilesForShard(md1, 12)
-	})
+	_, err = cache.InfoFilesForShard(md1, 12)
+	require.Error(t, err)
 }
 
 func testNamespaceMetadata(t *testing.T, nsID ident.ID) namespace.Metadata {

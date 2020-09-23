@@ -22,13 +22,12 @@ package bootstrap
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
 )
 
 var (
@@ -51,32 +50,29 @@ func NewCache(options CacheOptions) (Cache, error) {
 }
 
 // InfoFilesForNamespace returns the info files grouped by shard for the provided namespace.
-func (c *Cache) InfoFilesForNamespace(ns namespace.Metadata) InfoFileResultsPerShard {
+func (c *Cache) InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error) {
 	infoFilesByShard, ok := c.ReadInfoFiles()[ns]
 	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
 	if !ok {
-		instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
-			l.Error("attempting to read info files for namespace not specified at bootstrap startup",
-				zap.String("namespace", ns.ID().String()))
-		})
-		return make(InfoFileResultsPerShard)
+		return nil, fmt.Errorf("attempting to read info files for namespace %v not specified at bootstrap "+
+			"startup", ns.ID().String())
 	}
-	return infoFilesByShard
+	return infoFilesByShard, nil
 }
 
 // InfoFilesForShard returns the info files grouped by shard for the provided namespace.
-func (c *Cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) []fs.ReadInfoFileResult {
-	infoFileResults, ok := c.InfoFilesForNamespace(ns)[shard]
+func (c *Cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error) {
+	infoFilesByShard, err := c.InfoFilesForNamespace(ns)
+	if err != nil {
+		return nil, err
+	}
+	infoFileResults, ok := infoFilesByShard[shard]
 	// This should never happen as Cache object is initialized with all shards to bootstrap.
 	if !ok {
-		instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
-			l.Error("attempting to read info files for shard not specified at bootstrap startup",
-				zap.String("namespace", ns.ID().String()), zap.Uint32("shard", shard))
-
-		})
-		return make([]fs.ReadInfoFileResult, 0)
+		return nil, fmt.Errorf("attempting to read info files for shard %v not specified "+
+			"at bootstrap startup for namespace %v", shard, ns.ID().String())
 	}
-	return infoFileResults
+	return infoFileResults, nil
 }
 
 // ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy

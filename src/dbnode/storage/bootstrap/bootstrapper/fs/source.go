@@ -268,7 +268,11 @@ func (s *fileSystemSource) availability(
 ) (result.ShardTimeRanges, error) {
 	result := result.NewShardTimeRangesFromSize(shardTimeRanges.Len())
 	for shard, ranges := range shardTimeRanges.Iter() {
-		result.Set(shard, s.shardAvailability(md, shard, ranges, cache))
+		availabilities, err := s.shardAvailability(md, shard, ranges, cache)
+		if err != nil {
+			return nil, err
+		}
+		result.Set(shard, availabilities)
 	}
 	return result, nil
 }
@@ -278,12 +282,15 @@ func (s *fileSystemSource) shardAvailability(
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
 	cache bootstrap.Cache,
-) xtime.Ranges {
+) (xtime.Ranges, error) {
 	if targetRangesForShard.IsEmpty() {
-		return xtime.NewRanges()
+		return xtime.NewRanges(), nil
 	}
-	readInfoFileResults := cache.InfoFilesForShard(md, shard)
-	return s.shardAvailabilityWithInfoFiles(md.ID(), shard, targetRangesForShard, readInfoFileResults)
+	readInfoFileResults, err := cache.InfoFilesForShard(md, shard)
+	if err != nil {
+		return nil, err
+	}
+	return s.shardAvailabilityWithInfoFiles(md.ID(), shard, targetRangesForShard, readInfoFileResults), nil
 }
 
 func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
@@ -759,7 +766,7 @@ func (s *fileSystemSource) read(
 		if seriesCachePolicy != series.CacheAll {
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have.
-			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges, cache), nil
+			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges, cache)
 		}
 	}
 
@@ -839,14 +846,18 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	cache bootstrap.Cache,
-) *runResult {
+) (*runResult, error) {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
 	for shard, ranges := range shardTimeRanges.Iter() {
 		if ranges.IsEmpty() {
 			continue
 		}
-		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, cache.InfoFilesForShard(md, shard))
+		infoFiles, err := cache.InfoFilesForShard(md, shard)
+		if err != nil {
+			return nil, err
+		}
+		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, infoFiles)
 		remaining := ranges.Clone()
 		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
@@ -857,7 +868,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 		}
 	}
 	runResult.data.SetUnfulfilled(unfulfilled)
-	return runResult
+	return runResult, nil
 }
 
 type bootstrapFromIndexPersistedBlocksResult struct {

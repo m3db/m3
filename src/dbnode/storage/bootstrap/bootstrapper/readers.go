@@ -121,7 +121,16 @@ func enqueueReadersGroupedByBlockSize(
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
-			readInfoFilesResults := cache.InfoFilesForShard(ns, shard)
+			readInfoFilesResults, err := cache.InfoFilesForShard(ns, shard)
+			if err != nil {
+				logger.Error("fs bootstrapper unable to read info files for the shard",
+					zap.Uint32("shard", shard),
+					zap.Stringer("namespace", ns.ID()),
+					zap.Error(err),
+					zap.String("timeRange", tr.String()),
+				)
+				continue
+			}
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
 				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders

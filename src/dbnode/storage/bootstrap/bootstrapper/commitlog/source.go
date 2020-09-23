@@ -714,7 +714,10 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	// We do this instead of cross refing blockstarts and current time to handle the case of bootstrapping a
 	// once warm block start after a node has been shut down for a long time. We consider all block starts we
 	// haven't flushed data for yet a warm block start.
-	readInfoFilesResults := cache.InfoFilesForShard(ns, shard)
+	readInfoFilesResults, err := cache.InfoFilesForShard(ns, shard)
+	if err != nil {
+		return err
+	}
 	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
