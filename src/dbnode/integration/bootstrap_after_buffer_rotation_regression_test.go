@@ -134,7 +134,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
-			return bs.Bootstrap(ctx, namespaces, state)
+			return bs.Bootstrap(ctx, namespaces, cache)
 		},
 	}, bootstrapOpts, bs)
 

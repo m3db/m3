@@ -115,7 +115,7 @@ func (t testBootstrapperSource) AvailableData(
 	cache bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return t.availableData(ns, shardsTimeRanges, state, runOpts)
+	return t.availableData(ns, shardsTimeRanges, cache, runOpts)
 }
 
 func (t testBootstrapperSource) AvailableIndex(
@@ -124,7 +124,7 @@ func (t testBootstrapperSource) AvailableIndex(
 	cache bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return t.availableIndex(ns, shardsTimeRanges, state, runOpts)
+	return t.availableIndex(ns, shardsTimeRanges, cache, runOpts)
 }
 
 func (t testBootstrapperSource) Read(
@@ -132,7 +132,7 @@ func (t testBootstrapperSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	return t.read(ctx, namespaces, state)
+	return t.read(ctx, namespaces, cache)
 }
 
 func (t testBootstrapperSource) String() string {
