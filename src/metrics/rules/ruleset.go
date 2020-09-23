@@ -31,7 +31,7 @@ import (
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
-	metricID "github.com/m3db/m3/src/metrics/metric/id"
+	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -143,8 +143,8 @@ type ruleSet struct {
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
 	tagsFilterOpts     filters.TagsFilterOptions
-	newRollupIDFn      metricID.NewIDFn
-	isRollupIDFn       metricID.MatchIDFn
+	newRollupIDFn      metricid.NewIDFn
+	isRollupIDFn       metricid.MatchIDFn
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.

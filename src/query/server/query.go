@@ -52,7 +52,7 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/pools"
-	tsdbRemote "github.com/m3db/m3/src/query/remote"
+	tsdbremote "github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -960,7 +960,7 @@ func remoteZoneStorage(
 		return nil, nil
 	}
 
-	client, err := tsdbRemote.NewGRPCClient(zone.Name, zone.Addresses,
+	client, err := tsdbremote.NewGRPCClient(zone.Name, zone.Addresses,
 		poolWrapper, opts, instrumentOpts)
 	if err != nil {
 		return nil, err
@@ -1013,7 +1013,7 @@ func startGRPCServer(
 	logger := instrumentOpts.Logger()
 
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.NewGRPCServer(storage,
+	server := tsdbremote.NewGRPCServer(storage,
 		queryContextOptions, poolWrapper, instrumentOpts)
 
 	if opts.ReflectionEnabled() {
