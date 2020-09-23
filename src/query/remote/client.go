@@ -134,13 +134,16 @@ func NewGRPCClient(
 			}))
 	}
 
+	scope := instrumentOpts.MetricsScope()
+	interceptorOpts := xgrpc.InterceptorInstrumentOptions{Scope: scope}
+
 	resolver := newStaticResolver(addresses)
 	balancer := grpc.RoundRobin(resolver)
 	dialOptions := append([]grpc.DialOption{
 		grpc.WithBalancer(balancer),
 		grpc.WithInsecure(),
-		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(instrumentOpts)),
-		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(instrumentOpts)),
+		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
+		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
 	}, defaultDialOptions...)
 	dialOptions = append(dialOptions, additionalDialOpts...)
 	cc, err := grpc.Dial("", dialOptions...)
@@ -155,7 +158,7 @@ func NewGRPCClient(
 		poolWrapper: poolWrapper,
 		opts:        opts,
 		closeCh:     make(chan struct{}),
-		metrics:     newGRPCClientMetrics(instrumentOpts.MetricsScope()),
+		metrics:     newGRPCClientMetrics(scope),
 	}
 	go c.healthCheckUntilClosed()
 	return c, nil
