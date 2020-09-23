@@ -223,7 +223,7 @@ func (b bootstrapProcess) Run(
 			Shards:    namespace.Shards,
 		})
 	}
-	state, err := NewState(NewStateOptions().
+	cache, err := NewCache(NewCacheOptions().
 		SetFilesystemOptions(b.fsOpts).
 		SetInfoFilesFinders(finders).
 		SetInstrumentOptions(b.fsOpts.InstrumentOptions()))
@@ -236,7 +236,7 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
-		res, err := b.runPass(ctx, namespaces, state)
+		res, err := b.runPass(ctx, namespaces, cache)
 		if err != nil {
 			return NamespaceResults{}, err
 		}
@@ -250,7 +250,7 @@ func (b bootstrapProcess) Run(
 func (b bootstrapProcess) runPass(
 	ctx context.Context,
 	namespaces Namespaces,
-	state State,
+	cache Cache,
 ) (NamespaceResults, error) {
 	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.BootstrapProcessRun)
 	defer span.Finish()
@@ -277,7 +277,7 @@ func (b bootstrapProcess) runPass(
 	}
 
 	begin := b.nowFn()
-	res, err := b.bootstrapper.Bootstrap(ctx, namespaces, state)
+	res, err := b.bootstrapper.Bootstrap(ctx, namespaces, cache)
 	took := b.nowFn().Sub(begin)
 	if err != nil {
 		b.log.Error("bootstrap process error",

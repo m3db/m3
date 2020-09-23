@@ -76,7 +76,7 @@ type EnqueueReadersOptions struct {
 	Logger                    *zap.Logger
 	Span                      opentracing.Span
 	NowFn                     clock.NowFn
-	State                     bootstrap.State
+	Cache                     bootstrap.Cache
 }
 
 // EnqueueReaders into a readers channel grouped by data block.
@@ -96,7 +96,7 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 		opts.Logger,
 		opts.Span,
 		opts.NowFn,
-		opts.State,
+		opts.Cache,
 	)
 }
 
@@ -111,7 +111,7 @@ func enqueueReadersGroupedByBlockSize(
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 ) {
 	// Group them by block size.
 	groupFn := NewShardTimeRangesTimeWindowGroups
@@ -121,7 +121,7 @@ func enqueueReadersGroupedByBlockSize(
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
-			readInfoFilesResults := state.InfoFilesForShard(ns, shard)
+			readInfoFilesResults := cache.InfoFilesForShard(ns, shard)
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
 				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders

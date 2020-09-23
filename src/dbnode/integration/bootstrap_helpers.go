@@ -45,7 +45,7 @@ func newTestBootstrapperSource(
 	if opts.availableData != nil {
 		src.availableData = opts.availableData
 	} else {
-		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.State, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
+		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.Cache, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
 			return shardsTimeRanges, nil
 		}
 	}
@@ -53,7 +53,7 @@ func newTestBootstrapperSource(
 	if opts.availableIndex != nil {
 		src.availableIndex = opts.availableIndex
 	} else {
-		src.availableIndex = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.State, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
+		src.availableIndex = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.Cache, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
 			return shardsTimeRanges, nil
 		}
 	}
@@ -61,7 +61,7 @@ func newTestBootstrapperSource(
 	if opts.read != nil {
 		src.read = opts.read
 	} else {
-		src.read = func(_ context.Context, namespaces bootstrap.Namespaces, _ bootstrap.State) (bootstrap.NamespaceResults, error) {
+		src.read = func(_ context.Context, namespaces bootstrap.Namespaces, _ bootstrap.Cache) (bootstrap.NamespaceResults, error) {
 			return bootstrap.NewNamespaceResults(namespaces), nil
 		}
 	}
@@ -96,23 +96,23 @@ type testBootstrapper struct {
 }
 
 type testBootstrapperSourceOptions struct {
-	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.State, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.State, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	read           func(ctx context.Context, namespaces bootstrap.Namespaces, state bootstrap.State) (bootstrap.NamespaceResults, error)
+	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.Cache, bootstrap.RunOptions) (result.ShardTimeRanges, error)
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.Cache, bootstrap.RunOptions) (result.ShardTimeRanges, error)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces, cache bootstrap.Cache) (bootstrap.NamespaceResults, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
-	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.State, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.State, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	read           func(ctx context.Context, namespaces bootstrap.Namespaces, state bootstrap.State) (bootstrap.NamespaceResults, error)
+	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.Cache, bootstrap.RunOptions) (result.ShardTimeRanges, error)
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.Cache, bootstrap.RunOptions) (result.ShardTimeRanges, error)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces, cache bootstrap.Cache) (bootstrap.NamespaceResults, error)
 }
 
 func (t testBootstrapperSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return t.availableData(ns, shardsTimeRanges, state, runOpts)
@@ -121,7 +121,7 @@ func (t testBootstrapperSource) AvailableData(
 func (t testBootstrapperSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return t.availableIndex(ns, shardsTimeRanges, state, runOpts)
@@ -130,7 +130,7 @@ func (t testBootstrapperSource) AvailableIndex(
 func (t testBootstrapperSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	return t.read(ctx, namespaces, state)
 }

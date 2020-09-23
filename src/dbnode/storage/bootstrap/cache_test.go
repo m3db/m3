@@ -62,7 +62,7 @@ func TestStateReadInfoFiles(t *testing.T) {
 	writeFilesets(t, md2.ID(), 0, fsOpts)
 	writeFilesets(t, md2.ID(), 1, fsOpts)
 
-	opts := NewStateOptions().
+	opts := NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
 		SetInfoFilesFinders([]InfoFilesFinder{
@@ -75,23 +75,23 @@ func TestStateReadInfoFiles(t *testing.T) {
 				Shards:    []uint32{0, 1},
 			},
 		})
-	state, err := NewState(opts)
+	cache, err := NewCache(opts)
 	require.NoError(t, err)
 
-	infoFilesByNamespace := state.ReadInfoFiles()
+	infoFilesByNamespace := cache.ReadInfoFiles()
 	require.NotEmpty(t, infoFilesByNamespace)
 
 	// Ensure we have two namespaces.
 	require.Equal(t, 2, len(infoFilesByNamespace))
 
 	// Ensure we have two shards.
-	require.Equal(t, 2, len(state.InfoFilesForNamespace(md1)))
-	require.Equal(t, 2, len(state.InfoFilesForNamespace(md2)))
+	require.Equal(t, 2, len(cache.InfoFilesForNamespace(md1)))
+	require.Equal(t, 2, len(cache.InfoFilesForNamespace(md2)))
 
 	// Ensure each shard has three info files (one for each fileset written).
 	for shard := uint32(0); shard < 2; shard++ {
-		require.Equal(t, 3, len(state.InfoFilesForShard(md1, shard)))
-		require.Equal(t, 3, len(state.InfoFilesForShard(md2, shard)))
+		require.Equal(t, 3, len(cache.InfoFilesForShard(md1, shard)))
+		require.Equal(t, 3, len(cache.InfoFilesForShard(md2, shard)))
 	}
 }
 
@@ -105,7 +105,7 @@ func TestStateReadInfoFilesInvariantViolation(t *testing.T) {
 	fsOpts := testFilesystemOptions.SetFilePathPrefix(dir)
 	writeFilesets(t, md1.ID(), 0, fsOpts)
 
-	opts := NewStateOptions().
+	opts := NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
 		SetInfoFilesFinders([]InfoFilesFinder{
@@ -114,7 +114,7 @@ func TestStateReadInfoFilesInvariantViolation(t *testing.T) {
 				Shards:    []uint32{0, 1},
 			},
 		})
-	state, err := NewState(opts)
+	cache, err := NewCache(opts)
 	require.NoError(t, err)
 
 	// Force invariant violations to panic for easier testability.
@@ -122,11 +122,11 @@ func TestStateReadInfoFilesInvariantViolation(t *testing.T) {
 	defer os.Setenv(instrument.ShouldPanicEnvironmentVariableName, "false")
 
 	require.Panics(t, func() {
-		state.InfoFilesForNamespace(md2)
+		cache.InfoFilesForNamespace(md2)
 	})
 
 	require.Panics(t, func() {
-		state.InfoFilesForShard(md1, 12)
+		cache.InfoFilesForShard(md1, 12)
 	})
 }
 

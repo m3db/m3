@@ -308,8 +308,8 @@ type NamespacesTester struct {
 
 	// Namespaces are the namespaces for this tester.
 	Namespaces Namespaces
-	// State is a snapshot of state useful during bootstrapping.
-	State State
+	// Cache is a snapshot of data useful during bootstrapping.
+	Cache Cache
 	// Results are the namespace results after bootstrapping.
 	Results NamespaceResults
 }
@@ -417,7 +417,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			Shards:    shards,
 		})
 	}
-	state, err := NewState(NewStateOptions().
+	cache, err := NewCache(NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
 		SetInfoFilesFinders(finders))
@@ -428,7 +428,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 		ctrl:         ctrl,
 		pool:         iterPool,
 		Accumulators: accumulators,
-		State:        state,
+		Cache:        cache,
 		Namespaces: Namespaces{
 			Namespaces: namespacesMap,
 		},
@@ -574,7 +574,7 @@ func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 	ctx := context.NewContext()
 	defer ctx.Close()
-	res, err := b.Bootstrap(ctx, nt.Namespaces, nt.State)
+	res, err := b.Bootstrap(ctx, nt.Namespaces, nt.Cache)
 	assert.NoError(nt.t, err)
 	nt.Results = res
 }
@@ -584,7 +584,7 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 func (nt *NamespacesTester) TestReadWith(s Source) {
 	ctx := context.NewContext()
 	defer ctx.Close()
-	res, err := s.Read(ctx, nt.Namespaces, nt.State)
+	res, err := s.Read(ctx, nt.Namespaces, nt.Cache)
 	require.NoError(nt.t, err)
 	nt.Results = res
 }

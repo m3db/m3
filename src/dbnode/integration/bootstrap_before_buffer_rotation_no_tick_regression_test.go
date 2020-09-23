@@ -139,7 +139,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		read: func(
 			ctx context.Context,
 			namespaces bootstrap.Namespaces,
-			state bootstrap.State,
+			cache bootstrap.Cache,
 		) (bootstrap.NamespaceResults, error) {
 			<-signalCh
 			// Mark all as unfulfilled so the commitlog bootstrapper will be called after

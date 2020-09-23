@@ -64,7 +64,7 @@ func (noop noOpNoneBootstrapper) String() string {
 func (noop noOpNoneBootstrapper) Bootstrap(
 	_ context.Context,
 	namespaces bootstrap.Namespaces,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	results := bootstrap.NewNamespaceResults(namespaces)
 	for _, elem := range results.Results.Iter() {
@@ -122,7 +122,7 @@ func (noop noOpAllBootstrapper) String() string {
 func (noop noOpAllBootstrapper) Bootstrap(
 	_ context.Context,
 	namespaces bootstrap.Namespaces,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	return bootstrap.NewNamespaceResults(namespaces), nil
 }

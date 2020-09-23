@@ -375,7 +375,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			ctx := context.NewContext()
 			defer ctx.Close()
 
-			bootstrapResults, err := source.Bootstrap(ctx, tester.Namespaces, tester.State)
+			bootstrapResults, err := source.Bootstrap(ctx, tester.Namespaces, tester.Cache)
 			if err != nil {
 				return false, err
 			}

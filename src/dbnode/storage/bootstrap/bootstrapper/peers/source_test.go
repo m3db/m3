@@ -60,7 +60,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
-		stateOptions = bootstrap.NewStateOptions().
+		cacheOptions = bootstrap.NewCacheOptions().
 				SetFilesystemOptions(fs.NewOptions()).
 				SetInstrumentOptions(instrument.NewOptions())
 	)
@@ -162,7 +162,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
 				shards = append(shards, shard)
 			}
-			state, sErr := bootstrap.NewState(stateOptions.
+			cache, sErr := bootstrap.NewCache(cacheOptions.
 				SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
 					{
 						Namespace: nsMetadata,
@@ -172,7 +172,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			require.NoError(t, sErr)
 
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
-			dataRes, err := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
+			dataRes, err := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, err)
 			} else {
@@ -180,7 +180,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 			}
 
-			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
+			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, err)
 			} else {
@@ -222,7 +222,7 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, err = src.Read(ctx, tester.Namespaces, tester.State)
+	_, err = src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
 	tester.EnsureNoLoadedBlocks()

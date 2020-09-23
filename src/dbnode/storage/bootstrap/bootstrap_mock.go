@@ -565,18 +565,18 @@ func (mr *MockBootstrapperMockRecorder) String() *gomock.Call {
 }
 
 // Bootstrap mocks base method
-func (m *MockBootstrapper) Bootstrap(ctx context.Context, namespaces Namespaces, state State) (NamespaceResults, error) {
+func (m *MockBootstrapper) Bootstrap(ctx context.Context, namespaces Namespaces, cache Cache) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", ctx, namespaces, state)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, namespaces, cache)
 	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockBootstrapperMockRecorder) Bootstrap(ctx, namespaces, state interface{}) *gomock.Call {
+func (mr *MockBootstrapperMockRecorder) Bootstrap(ctx, namespaces, cache interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), ctx, namespaces, state)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), ctx, namespaces, cache)
 }
 
 // MockSource is a mock of Source interface
@@ -603,75 +603,75 @@ func (m *MockSource) EXPECT() *MockSourceMockRecorder {
 }
 
 // AvailableData mocks base method
-func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, state State, runOpts RunOptions) (result.ShardTimeRanges, error) {
+func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, cache Cache, runOpts RunOptions) (result.ShardTimeRanges, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, state, runOpts)
+	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, cache, runOpts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AvailableData indicates an expected call of AvailableData
-func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges, state, runOpts interface{}) *gomock.Call {
+func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges, cache, runOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges, state, runOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges, cache, runOpts)
 }
 
 // AvailableIndex mocks base method
-func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, state State, opts RunOptions) (result.ShardTimeRanges, error) {
+func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, cache Cache, opts RunOptions) (result.ShardTimeRanges, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, state, opts)
+	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, cache, opts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AvailableIndex indicates an expected call of AvailableIndex
-func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges, state, opts interface{}) *gomock.Call {
+func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges, cache, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, shardsTimeRanges, state, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, shardsTimeRanges, cache, opts)
 }
 
 // Read mocks base method
-func (m *MockSource) Read(ctx context.Context, namespaces Namespaces, state State) (NamespaceResults, error) {
+func (m *MockSource) Read(ctx context.Context, namespaces Namespaces, cache Cache) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", ctx, namespaces, state)
+	ret := m.ctrl.Call(m, "Read", ctx, namespaces, cache)
 	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Read indicates an expected call of Read
-func (mr *MockSourceMockRecorder) Read(ctx, namespaces, state interface{}) *gomock.Call {
+func (mr *MockSourceMockRecorder) Read(ctx, namespaces, cache interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), ctx, namespaces, state)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), ctx, namespaces, cache)
 }
 
-// MockStateOptions is a mock of StateOptions interface
-type MockStateOptions struct {
+// MockCacheOptions is a mock of CacheOptions interface
+type MockCacheOptions struct {
 	ctrl     *gomock.Controller
-	recorder *MockStateOptionsMockRecorder
+	recorder *MockCacheOptionsMockRecorder
 }
 
-// MockStateOptionsMockRecorder is the mock recorder for MockStateOptions
-type MockStateOptionsMockRecorder struct {
-	mock *MockStateOptions
+// MockCacheOptionsMockRecorder is the mock recorder for MockCacheOptions
+type MockCacheOptionsMockRecorder struct {
+	mock *MockCacheOptions
 }
 
-// NewMockStateOptions creates a new mock instance
-func NewMockStateOptions(ctrl *gomock.Controller) *MockStateOptions {
-	mock := &MockStateOptions{ctrl: ctrl}
-	mock.recorder = &MockStateOptionsMockRecorder{mock}
+// NewMockCacheOptions creates a new mock instance
+func NewMockCacheOptions(ctrl *gomock.Controller) *MockCacheOptions {
+	mock := &MockCacheOptions{ctrl: ctrl}
+	mock.recorder = &MockCacheOptionsMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockStateOptions) EXPECT() *MockStateOptionsMockRecorder {
+func (m *MockCacheOptions) EXPECT() *MockCacheOptionsMockRecorder {
 	return m.recorder
 }
 
 // Validate mocks base method
-func (m *MockStateOptions) Validate() error {
+func (m *MockCacheOptions) Validate() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
@@ -679,27 +679,27 @@ func (m *MockStateOptions) Validate() error {
 }
 
 // Validate indicates an expected call of Validate
-func (mr *MockStateOptionsMockRecorder) Validate() *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) Validate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockStateOptions)(nil).Validate))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockCacheOptions)(nil).Validate))
 }
 
 // SetFilesystemOptions mocks base method
-func (m *MockStateOptions) SetFilesystemOptions(value fs.Options) StateOptions {
+func (m *MockCacheOptions) SetFilesystemOptions(value fs.Options) CacheOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFilesystemOptions", value)
-	ret0, _ := ret[0].(StateOptions)
+	ret0, _ := ret[0].(CacheOptions)
 	return ret0
 }
 
 // SetFilesystemOptions indicates an expected call of SetFilesystemOptions
-func (mr *MockStateOptionsMockRecorder) SetFilesystemOptions(value interface{}) *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) SetFilesystemOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFilesystemOptions", reflect.TypeOf((*MockStateOptions)(nil).SetFilesystemOptions), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFilesystemOptions", reflect.TypeOf((*MockCacheOptions)(nil).SetFilesystemOptions), value)
 }
 
 // FilesystemOptions mocks base method
-func (m *MockStateOptions) FilesystemOptions() fs.Options {
+func (m *MockCacheOptions) FilesystemOptions() fs.Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FilesystemOptions")
 	ret0, _ := ret[0].(fs.Options)
@@ -707,27 +707,27 @@ func (m *MockStateOptions) FilesystemOptions() fs.Options {
 }
 
 // FilesystemOptions indicates an expected call of FilesystemOptions
-func (mr *MockStateOptionsMockRecorder) FilesystemOptions() *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) FilesystemOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilesystemOptions", reflect.TypeOf((*MockStateOptions)(nil).FilesystemOptions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilesystemOptions", reflect.TypeOf((*MockCacheOptions)(nil).FilesystemOptions))
 }
 
 // SetInfoFilesFinders mocks base method
-func (m *MockStateOptions) SetInfoFilesFinders(value []InfoFilesFinder) StateOptions {
+func (m *MockCacheOptions) SetInfoFilesFinders(value []InfoFilesFinder) CacheOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInfoFilesFinders", value)
-	ret0, _ := ret[0].(StateOptions)
+	ret0, _ := ret[0].(CacheOptions)
 	return ret0
 }
 
 // SetInfoFilesFinders indicates an expected call of SetInfoFilesFinders
-func (mr *MockStateOptionsMockRecorder) SetInfoFilesFinders(value interface{}) *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) SetInfoFilesFinders(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInfoFilesFinders", reflect.TypeOf((*MockStateOptions)(nil).SetInfoFilesFinders), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInfoFilesFinders", reflect.TypeOf((*MockCacheOptions)(nil).SetInfoFilesFinders), value)
 }
 
 // InfoFilesFinders mocks base method
-func (m *MockStateOptions) InfoFilesFinders() []InfoFilesFinder {
+func (m *MockCacheOptions) InfoFilesFinders() []InfoFilesFinder {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InfoFilesFinders")
 	ret0, _ := ret[0].([]InfoFilesFinder)
@@ -735,27 +735,27 @@ func (m *MockStateOptions) InfoFilesFinders() []InfoFilesFinder {
 }
 
 // InfoFilesFinders indicates an expected call of InfoFilesFinders
-func (mr *MockStateOptionsMockRecorder) InfoFilesFinders() *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) InfoFilesFinders() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesFinders", reflect.TypeOf((*MockStateOptions)(nil).InfoFilesFinders))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesFinders", reflect.TypeOf((*MockCacheOptions)(nil).InfoFilesFinders))
 }
 
 // SetInstrumentOptions mocks base method
-func (m *MockStateOptions) SetInstrumentOptions(value instrument.Options) StateOptions {
+func (m *MockCacheOptions) SetInstrumentOptions(value instrument.Options) CacheOptions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
-	ret0, _ := ret[0].(StateOptions)
+	ret0, _ := ret[0].(CacheOptions)
 	return ret0
 }
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
-func (mr *MockStateOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockStateOptions)(nil).SetInstrumentOptions), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockCacheOptions)(nil).SetInstrumentOptions), value)
 }
 
 // InstrumentOptions mocks base method
-func (m *MockStateOptions) InstrumentOptions() instrument.Options {
+func (m *MockCacheOptions) InstrumentOptions() instrument.Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
@@ -763,7 +763,7 @@ func (m *MockStateOptions) InstrumentOptions() instrument.Options {
 }
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
-func (mr *MockStateOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+func (mr *MockCacheOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockStateOptions)(nil).InstrumentOptions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockCacheOptions)(nil).InstrumentOptions))
 }

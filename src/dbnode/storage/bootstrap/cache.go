@@ -36,14 +36,14 @@ var (
 	errInstrumentOptsNotSet = errors.New("instrumentOptions not set")
 )
 
-// NewState creates state specifically to be used during the bootstrap process.
+// NewCache creates a cache specifically to be used during the bootstrap process.
 // Primarily a mechanism for passing info files along without needing to re-read them at each
 // stage of the bootstrap process.
-func NewState(options StateOptions) (State, error) {
+func NewCache(options CacheOptions) (Cache, error) {
 	if err := options.Validate(); err != nil {
-		return State{}, err
+		return Cache{}, err
 	}
-	return State{
+	return Cache{
 		fsOpts:           options.FilesystemOptions(),
 		infoFilesFinders: options.InfoFilesFinders(),
 		iOpts:            options.InstrumentOptions(),
@@ -51,11 +51,11 @@ func NewState(options StateOptions) (State, error) {
 }
 
 // InfoFilesForNamespace returns the info files grouped by shard for the provided namespace.
-func (r *State) InfoFilesForNamespace(ns namespace.Metadata) InfoFileResultsPerShard {
-	infoFilesByShard, ok := r.ReadInfoFiles()[ns]
-	// This should never happen as State object is initialized with all namespaces to bootstrap.
+func (c *Cache) InfoFilesForNamespace(ns namespace.Metadata) InfoFileResultsPerShard {
+	infoFilesByShard, ok := c.ReadInfoFiles()[ns]
+	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
 	if !ok {
-		instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
+		instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
 			l.Error("attempting to read info files for namespace not specified at bootstrap startup",
 				zap.String("namespace", ns.ID().String()))
 		})
@@ -65,11 +65,11 @@ func (r *State) InfoFilesForNamespace(ns namespace.Metadata) InfoFileResultsPerS
 }
 
 // InfoFilesForShard returns the info files grouped by shard for the provided namespace.
-func (r *State) InfoFilesForShard(ns namespace.Metadata, shard uint32) []fs.ReadInfoFileResult {
-	infoFileResults, ok := r.InfoFilesForNamespace(ns)[shard]
-	// This should never happen as State object is initialized with all shards to bootstrap.
+func (c *Cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) []fs.ReadInfoFileResult {
+	infoFileResults, ok := c.InfoFilesForNamespace(ns)[shard]
+	// This should never happen as Cache object is initialized with all shards to bootstrap.
 	if !ok {
-		instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
+		instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
 			l.Error("attempting to read info files for shard not specified at bootstrap startup",
 				zap.String("namespace", ns.ID().String()), zap.Uint32("shard", shard))
 
@@ -81,76 +81,76 @@ func (r *State) InfoFilesForShard(ns namespace.Metadata, shard uint32) []fs.Read
 
 // ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
 // is returned if the info files have already been read.
-func (r *State) ReadInfoFiles() InfoFilesByNamespace {
-	if r.infoFilesByNamespace != nil {
-		return r.infoFilesByNamespace
+func (c *Cache) ReadInfoFiles() InfoFilesByNamespace {
+	if c.infoFilesByNamespace != nil {
+		return c.infoFilesByNamespace
 	}
 
-	r.infoFilesByNamespace = make(InfoFilesByNamespace, len(r.infoFilesFinders))
-	for _, finder := range r.infoFilesFinders {
+	c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.infoFilesFinders))
+	for _, finder := range c.infoFilesFinders {
 		result := make(InfoFileResultsPerShard, len(finder.Shards))
 		for _, shard := range finder.Shards {
-			result[shard] = fs.ReadInfoFiles(r.fsOpts.FilePathPrefix(),
-				finder.Namespace.ID(), shard, r.fsOpts.InfoReaderBufferSize(), r.fsOpts.DecodingOptions(),
+			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
+				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
 				persist.FileSetFlushType)
 		}
 
-		r.infoFilesByNamespace[finder.Namespace] = result
+		c.infoFilesByNamespace[finder.Namespace] = result
 	}
 
-	return r.infoFilesByNamespace
+	return c.infoFilesByNamespace
 }
 
-type stateOptions struct {
+type cacheOptions struct {
 	fsOpts           fs.Options
 	infoFilesFinders []InfoFilesFinder
 	iOpts            instrument.Options
 }
 
-// NewStateOptions creates new StateOptions.
-func NewStateOptions() StateOptions {
-	return &stateOptions{}
+// NewCacheOptions creates new CacheOptions.
+func NewCacheOptions() CacheOptions {
+	return &cacheOptions{}
 }
 
-func (s *stateOptions) Validate() error {
-	if s.fsOpts == nil {
+func (c *cacheOptions) Validate() error {
+	if c.fsOpts == nil {
 		return errFilesystemOptsNotSet
 	}
-	if err := s.fsOpts.Validate(); err != nil {
+	if err := c.fsOpts.Validate(); err != nil {
 		return err
 	}
-	if s.iOpts == nil {
+	if c.iOpts == nil {
 		return errInstrumentOptsNotSet
 	}
 	return nil
 }
 
-func (s *stateOptions) SetFilesystemOptions(value fs.Options) StateOptions {
-	opts := *s
+func (c *cacheOptions) SetFilesystemOptions(value fs.Options) CacheOptions {
+	opts := *c
 	opts.fsOpts = value
 	return &opts
 }
 
-func (s *stateOptions) FilesystemOptions() fs.Options {
-	return s.fsOpts
+func (c *cacheOptions) FilesystemOptions() fs.Options {
+	return c.fsOpts
 }
 
-func (s *stateOptions) SetInfoFilesFinders(value []InfoFilesFinder) StateOptions {
-	opts := *s
+func (c *cacheOptions) SetInfoFilesFinders(value []InfoFilesFinder) CacheOptions {
+	opts := *c
 	opts.infoFilesFinders = value
 	return &opts
 }
 
-func (s *stateOptions) InfoFilesFinders() []InfoFilesFinder {
-	return s.infoFilesFinders
+func (c *cacheOptions) InfoFilesFinders() []InfoFilesFinder {
+	return c.infoFilesFinders
 }
 
-func (s *stateOptions) SetInstrumentOptions(value instrument.Options) StateOptions {
-	opts := *s
+func (c *cacheOptions) SetInstrumentOptions(value instrument.Options) CacheOptions {
+	opts := *c
 	opts.iOpts = value
 	return &opts
 }
 
-func (s *stateOptions) InstrumentOptions() instrument.Options {
-	return s.iOpts
+func (c *cacheOptions) InstrumentOptions() instrument.Options {
+	return c.iOpts
 }

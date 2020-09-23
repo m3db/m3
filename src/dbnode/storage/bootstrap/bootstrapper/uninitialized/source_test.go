@@ -57,7 +57,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
-		stateOptions = bootstrap.NewStateOptions().
+		cacheOptions = bootstrap.NewCacheOptions().
 				SetFilesystemOptions(fs.NewOptions()).
 				SetInstrumentOptions(instrument.NewOptions())
 	)
@@ -193,7 +193,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
 				shards = append(shards, shard)
 			}
-			state, sErr := bootstrap.NewState(stateOptions.
+			cache, sErr := bootstrap.NewCache(cacheOptions.
 				SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
 					{
 						Namespace: nsMetadata,
@@ -202,8 +202,8 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				}))
 			require.NoError(t, sErr)
 
-			dataAvailabilityResult, dataErr := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
-			indexAvailabilityResult, indexErr := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
+			dataAvailabilityResult, dataErr := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
+			indexAvailabilityResult, indexErr := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, dataErr)

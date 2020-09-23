@@ -59,20 +59,20 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 	return md
 }
 
-func testState(t *testing.T) bootstrap.State {
-	state, err := bootstrap.NewState(bootstrap.NewStateOptions().
+func testCache(t *testing.T) bootstrap.Cache {
+	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
 		SetFilesystemOptions(fs.NewOptions()).
 		SetInstrumentOptions(instrument.NewOptions()))
 	require.NoError(t, err)
 
-	return state
+	return cache
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
 	var (
 		opts     = testDefaultOpts
 		src      = newCommitLogSource(opts, fs.Inspection{})
-		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testState(t), testDefaultRunOpts)
+		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testCache(t), testDefaultRunOpts)
 	)
 	require.NoError(t, err)
 	require.True(t, result.NewShardTimeRanges().Equal(res))
@@ -170,7 +170,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	res, err := src.Read(ctx, tester.Namespaces, tester.State)
+	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	require.Nil(t, res.Results)
 	tester.EnsureNoLoadedBlocks()

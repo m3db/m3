@@ -55,7 +55,7 @@ func newTopologyUninitializedSource(opts Options) bootstrap.Source {
 func (s *uninitializedTopologySource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
@@ -64,7 +64,7 @@ func (s *uninitializedTopologySource) AvailableData(
 func (s *uninitializedTopologySource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
@@ -142,7 +142,7 @@ func (s *uninitializedTopologySource) availability(
 func (s *uninitializedTopologySource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperUninitializedSourceRead)
 	defer span.Finish()

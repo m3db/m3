@@ -55,7 +55,7 @@ func TestAvailableData(t *testing.T) {
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
-		stateOptions = bootstrap.NewStateOptions().
+		cacheOptions = bootstrap.NewCacheOptions().
 				SetFilesystemOptions(fs.NewOptions()).
 				SetInstrumentOptions(instrument.NewOptions())
 	)
@@ -130,7 +130,7 @@ func TestAvailableData(t *testing.T) {
 			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
 				shards = append(shards, shard)
 			}
-			state, sErr := bootstrap.NewState(stateOptions.
+			cache, sErr := bootstrap.NewCache(cacheOptions.
 				SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
 					{
 						Namespace: nsMetadata,
@@ -142,7 +142,7 @@ func TestAvailableData(t *testing.T) {
 			var (
 				src          = newCommitLogSource(testDefaultOpts, fs.Inspection{})
 				runOpts      = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
-				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
+				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			)
 
 			if tc.expectedErr != nil {
@@ -152,7 +152,7 @@ func TestAvailableData(t *testing.T) {
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 			}
 
-			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, state, runOpts)
+			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, err, tc.expectedErr)
 			} else {

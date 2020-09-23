@@ -95,7 +95,7 @@ type shardPeerAvailability struct {
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -107,7 +107,7 @@ func (s *peersSource) AvailableData(
 func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	_ bootstrap.State,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -119,7 +119,7 @@ func (s *peersSource) AvailableIndex(
 func (s *peersSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
@@ -196,7 +196,7 @@ func (s *peersSource) Read(
 			namespace.IndexRunOptions.ShardTimeRanges,
 			builder,
 			span,
-			state,
+			cache,
 			namespace.IndexRunOptions.RunOptions,
 		)
 		if err != nil {
@@ -665,7 +665,7 @@ func (s *peersSource) readIndex(
 	shardTimeRanges result.ShardTimeRanges,
 	builder *result.IndexBuilder,
 	span opentracing.Span,
-	state bootstrap.State,
+	cache bootstrap.Cache,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
@@ -713,7 +713,7 @@ func (s *peersSource) readIndex(
 		Logger:                    s.log,
 		Span:                      span,
 		NowFn:                     s.nowFn,
-		State:                     state,
+		Cache:                     cache,
 	})
 
 	for timeWindowReaders := range readersCh {

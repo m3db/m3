@@ -134,12 +134,12 @@ func testNsMetadataWithIndex(t require.TestingT, indexOn bool) namespace.Metadat
 	return md
 }
 
-func testState(t *testing.T, md namespace.Metadata, ranges result.ShardTimeRanges, fsOpts fs.Options) bootstrap.State {
+func testCache(t *testing.T, md namespace.Metadata, ranges result.ShardTimeRanges, fsOpts fs.Options) bootstrap.Cache {
 	var shards []uint32
 	for shard := range ranges.Iter() {
 		shards = append(shards, shard)
 	}
-	state, err := bootstrap.NewState(bootstrap.NewStateOptions().
+	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
 		SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
@@ -150,7 +150,7 @@ func testState(t *testing.T, md namespace.Metadata, ranges result.ShardTimeRange
 		}))
 	require.NoError(t, err)
 
-	return state
+	return cache
 }
 
 func createTempDir(t *testing.T) string {
@@ -349,11 +349,11 @@ func TestAvailableEmptyRangeError(t *testing.T) {
 	require.NoError(t, err)
 	md := testNsMetadata(t)
 	shardRanges := result.NewShardTimeRanges().Set(0, xtime.NewRanges())
-	state := testState(t, md, shardRanges, opts.FilesystemOptions())
+	cache := testCache(t, md, shardRanges, opts.FilesystemOptions())
 	res, err := src.AvailableData(
 		md,
 		shardRanges,
-		state,
+		cache,
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -369,7 +369,7 @@ func TestAvailablePatternError(t *testing.T) {
 	res, err := src.AvailableData(
 		md,
 		testShardRanges,
-		testState(t, md, testShardRanges, opts.FilesystemOptions()),
+		testCache(t, md, testShardRanges, opts.FilesystemOptions()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestAvailableReadInfoError(t *testing.T) {
 	res, err := src.AvailableData(
 		md,
 		testShardRanges,
-		testState(t, md, testShardRanges, opts.FilesystemOptions()),
+		testCache(t, md, testShardRanges, opts.FilesystemOptions()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	res, err := src.AvailableData(
 		md,
 		testShardRanges,
-		testState(t, md, testShardRanges, opts.FilesystemOptions()),
+		testCache(t, md, testShardRanges, opts.FilesystemOptions()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	res, err := src.AvailableData(
 		md,
 		testShardRanges,
-		testState(t, md, testShardRanges, opts.FilesystemOptions()),
+		testCache(t, md, testShardRanges, opts.FilesystemOptions()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -476,7 +476,7 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	res, err := src.AvailableData(
 		md,
 		testShardRanges,
-		testState(t, md, testShardRanges, opts.FilesystemOptions()),
+		testCache(t, md, testShardRanges, opts.FilesystemOptions()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
