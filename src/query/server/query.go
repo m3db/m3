@@ -64,6 +64,7 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
@@ -953,18 +954,18 @@ func remoteZoneStorage(
 	zone config.Remote,
 	poolWrapper *pools.PoolWrapper,
 	opts tsdb.Options,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, error) {
 	if len(zone.Addresses) == 0 {
 		// No addresses; skip.
 		return nil, nil
 	}
 
-	client, err := tsdbRemote.NewGRPCClient(
-		zone.Addresses,
-		poolWrapper,
-		opts,
-	)
+	// Use specific timer options for GRPC timing buckets.
+	instrumentOpts = instrumentOpts.SetTimerOptions(xgrpc.DefaultTimerOptions())
 
+	client, err := tsdbRemote.NewGRPCClient(zone.Name, zone.Addresses,
+		poolWrapper, opts, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -994,7 +995,8 @@ func remoteClient(
 			zap.Strings("addresses", zone.Addresses),
 		)
 
-		remote, err := remoteZoneStorage(zone, poolWrapper, opts)
+		remote, err := remoteZoneStorage(zone, poolWrapper, opts,
+			instrumentOpts)
 		if err != nil {
 			return nil, false, err
 		}
