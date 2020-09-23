@@ -382,7 +382,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	ctrl := xtest.NewController(t)
 	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
 	accumulators := make([]*TestDataAccumulator, 0, len(mds))
-	finders := make([]InfoFilesFinder, 0, len(mds))
+	finders := make([]NamespaceDetails, 0, len(mds))
 	for _, md := range mds {
 		nsCtx := namespace.NewContextFrom(md)
 		acc := &TestDataAccumulator{
@@ -412,7 +412,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 				RunOptions:            runOpts,
 			},
 		})
-		finders = append(finders, InfoFilesFinder{
+		finders = append(finders, NamespaceDetails{
 			Namespace: md,
 			Shards:    shards,
 		})
@@ -420,7 +420,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	cache, err := NewCache(NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
-		SetInfoFilesFinders(finders))
+		SetNamespaceDetails(finders))
 	require.NoError(t, err)
 
 	return NamespacesTester{

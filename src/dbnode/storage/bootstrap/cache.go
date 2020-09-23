@@ -44,7 +44,7 @@ func NewCache(options CacheOptions) (Cache, error) {
 	}
 	return Cache{
 		fsOpts:           options.FilesystemOptions(),
-		infoFilesFinders: options.InfoFilesFinders(),
+		namespaceDetails: options.NamespaceDetails(),
 		iOpts:            options.InstrumentOptions(),
 	}, nil
 }
@@ -82,8 +82,8 @@ func (c *Cache) ReadInfoFiles() InfoFilesByNamespace {
 		return c.infoFilesByNamespace
 	}
 
-	c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.infoFilesFinders))
-	for _, finder := range c.infoFilesFinders {
+	c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
+	for _, finder := range c.namespaceDetails {
 		result := make(InfoFileResultsPerShard, len(finder.Shards))
 		for _, shard := range finder.Shards {
 			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
@@ -99,7 +99,7 @@ func (c *Cache) ReadInfoFiles() InfoFilesByNamespace {
 
 type cacheOptions struct {
 	fsOpts           fs.Options
-	infoFilesFinders []InfoFilesFinder
+	namespaceDetails []NamespaceDetails
 	iOpts            instrument.Options
 }
 
@@ -131,14 +131,14 @@ func (c *cacheOptions) FilesystemOptions() fs.Options {
 	return c.fsOpts
 }
 
-func (c *cacheOptions) SetInfoFilesFinders(value []InfoFilesFinder) CacheOptions {
+func (c *cacheOptions) SetNamespaceDetails(value []NamespaceDetails) CacheOptions {
 	opts := *c
-	opts.infoFilesFinders = value
+	opts.namespaceDetails = value
 	return &opts
 }
 
-func (c *cacheOptions) InfoFilesFinders() []InfoFilesFinder {
-	return c.infoFilesFinders
+func (c *cacheOptions) NamespaceDetails() []NamespaceDetails {
+	return c.namespaceDetails
 }
 
 func (c *cacheOptions) SetInstrumentOptions(value instrument.Options) CacheOptions {

@@ -434,7 +434,7 @@ type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
 // process.
 type Cache struct {
 	fsOpts               fs.Options
-	infoFilesFinders     []InfoFilesFinder
+	namespaceDetails     []NamespaceDetails
 	infoFilesByNamespace InfoFilesByNamespace
 	iOpts                instrument.Options
 }
@@ -450,11 +450,11 @@ type CacheOptions interface {
 	// FilesystemOptions returns the filesystem options.
 	FilesystemOptions() fs.Options
 
-	// SetInfoFilesFinders sets the finders used to load info files for all namespaces provided.
-	SetInfoFilesFinders(value []InfoFilesFinder) CacheOptions
+	// SetNamespaceDetails sets the namespaces to cache information for.
+	SetNamespaceDetails(value []NamespaceDetails) CacheOptions
 
-	// InfoFilesFinders returns the finders used to load info files for all namespaces provided.
-	InfoFilesFinders() []InfoFilesFinder
+	// NamespaceDetails returns the namespaces to cache information for.
+	NamespaceDetails() []NamespaceDetails
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) CacheOptions
@@ -463,8 +463,8 @@ type CacheOptions interface {
 	InstrumentOptions() instrument.Options
 }
 
-// InfoFilesFinder is used to lookup info files for the given combination of namespace and shards.
-type InfoFilesFinder struct {
+// NamespaceDetails are used to lookup info files for the given combination of namespace and shards.
+type NamespaceDetails struct {
 	// Namespace is the namespace to retrieve info files for.
 	Namespace namespace.Metadata
 	// Shards are the shards to retrieve info files for in the specified namespace.

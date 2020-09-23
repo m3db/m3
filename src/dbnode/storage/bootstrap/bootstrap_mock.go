@@ -712,32 +712,32 @@ func (mr *MockCacheOptionsMockRecorder) FilesystemOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilesystemOptions", reflect.TypeOf((*MockCacheOptions)(nil).FilesystemOptions))
 }
 
-// SetInfoFilesFinders mocks base method
-func (m *MockCacheOptions) SetInfoFilesFinders(value []InfoFilesFinder) CacheOptions {
+// SetNamespaceDetails mocks base method
+func (m *MockCacheOptions) SetNamespaceDetails(value []NamespaceDetails) CacheOptions {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInfoFilesFinders", value)
+	ret := m.ctrl.Call(m, "SetNamespaceDetails", value)
 	ret0, _ := ret[0].(CacheOptions)
 	return ret0
 }
 
-// SetInfoFilesFinders indicates an expected call of SetInfoFilesFinders
-func (mr *MockCacheOptionsMockRecorder) SetInfoFilesFinders(value interface{}) *gomock.Call {
+// SetNamespaceDetails indicates an expected call of SetNamespaceDetails
+func (mr *MockCacheOptionsMockRecorder) SetNamespaceDetails(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInfoFilesFinders", reflect.TypeOf((*MockCacheOptions)(nil).SetInfoFilesFinders), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceDetails", reflect.TypeOf((*MockCacheOptions)(nil).SetNamespaceDetails), value)
 }
 
-// InfoFilesFinders mocks base method
-func (m *MockCacheOptions) InfoFilesFinders() []InfoFilesFinder {
+// NamespaceDetails mocks base method
+func (m *MockCacheOptions) NamespaceDetails() []NamespaceDetails {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InfoFilesFinders")
-	ret0, _ := ret[0].([]InfoFilesFinder)
+	ret := m.ctrl.Call(m, "NamespaceDetails")
+	ret0, _ := ret[0].([]NamespaceDetails)
 	return ret0
 }
 
-// InfoFilesFinders indicates an expected call of InfoFilesFinders
-func (mr *MockCacheOptionsMockRecorder) InfoFilesFinders() *gomock.Call {
+// NamespaceDetails indicates an expected call of NamespaceDetails
+func (mr *MockCacheOptionsMockRecorder) NamespaceDetails() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesFinders", reflect.TypeOf((*MockCacheOptions)(nil).InfoFilesFinders))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceDetails", reflect.TypeOf((*MockCacheOptions)(nil).NamespaceDetails))
 }
 
 // SetInstrumentOptions mocks base method

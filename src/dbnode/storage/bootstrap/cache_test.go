@@ -64,7 +64,7 @@ func TestCacheReadInfoFiles(t *testing.T) {
 	opts := NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
-		SetInfoFilesFinders([]InfoFilesFinder{
+		SetNamespaceDetails([]NamespaceDetails{
 			{
 				Namespace: md1,
 				Shards:    []uint32{0, 1},
@@ -117,7 +117,7 @@ func TestCacheReadInfoFilesInvariantViolation(t *testing.T) {
 	opts := NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
-		SetInfoFilesFinders([]InfoFilesFinder{
+		SetNamespaceDetails([]NamespaceDetails{
 			{
 				Namespace: md1,
 				Shards:    []uint32{0, 1},

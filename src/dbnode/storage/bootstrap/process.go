@@ -170,7 +170,7 @@ func (b bootstrapProcess) Run(
 	namespacesRunSecond := Namespaces{
 		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
 	}
-	finders := make([]InfoFilesFinder, 0, len(namespaces))
+	namespaceDetails := make([]NamespaceDetails, 0, len(namespaces))
 	for _, namespace := range namespaces {
 		ropts := namespace.Metadata.Options().RetentionOptions()
 		idxopts := namespace.Metadata.Options().IndexOptions()
@@ -218,14 +218,14 @@ func (b bootstrapProcess) Run(
 				RunOptions:            indexRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 		})
-		finders = append(finders, InfoFilesFinder{
+		namespaceDetails = append(namespaceDetails, NamespaceDetails{
 			Namespace: namespace.Metadata,
 			Shards:    namespace.Shards,
 		})
 	}
 	cache, err := NewCache(NewCacheOptions().
 		SetFilesystemOptions(b.fsOpts).
-		SetInfoFilesFinders(finders).
+		SetNamespaceDetails(namespaceDetails).
 		SetInstrumentOptions(b.fsOpts.InstrumentOptions()))
 	if err != nil {
 		return NamespaceResults{}, err

@@ -142,7 +142,7 @@ func testCache(t *testing.T, md namespace.Metadata, ranges result.ShardTimeRange
 	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
 		SetFilesystemOptions(fsOpts).
 		SetInstrumentOptions(fsOpts.InstrumentOptions()).
-		SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
+		SetNamespaceDetails([]bootstrap.NamespaceDetails{
 			{
 				Namespace: md,
 				Shards:    shards,

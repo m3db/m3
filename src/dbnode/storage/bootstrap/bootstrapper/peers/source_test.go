@@ -163,7 +163,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				shards = append(shards, shard)
 			}
 			cache, sErr := bootstrap.NewCache(cacheOptions.
-				SetInfoFilesFinders([]bootstrap.InfoFilesFinder{
+				SetNamespaceDetails([]bootstrap.NamespaceDetails{
 					{
 						Namespace: nsMetadata,
 						Shards:    shards,
