@@ -135,7 +135,7 @@ func TestParseQueryResults(t *testing.T) {
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -189,7 +189,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -244,7 +244,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -301,12 +301,12 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			}
 
 			meta := block.NewResultMetadata()
-			meta.Resolutions = []int64{int64(resolution)}
+			meta.Resolutions = []time.Duration{resolution}
 			meta.Exhaustive = tt.ex
 			frOne := &storage.FetchResult{SeriesList: seriesList, Metadata: meta}
 
 			metaTwo := block.NewResultMetadata()
-			metaTwo.Resolutions = []int64{int64(resolution)}
+			metaTwo.Resolutions = []time.Duration{resolution}
 			if !tt.ex2 {
 				metaTwo.AddWarning("foo", "bar")
 			}

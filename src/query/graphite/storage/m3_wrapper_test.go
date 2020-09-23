@@ -104,10 +104,10 @@ func buildResult(
 	steps int,
 	start time.Time,
 ) block.Result {
-	resos := make([]int64, 0, size)
+	resos := make([]time.Duration, 0, size)
 	metas := make([]block.SeriesMeta, 0, size)
 	for i := 0; i < size; i++ {
-		resos = append(resos, int64(resolution))
+		resos = append(resos, resolution)
 		metas = append(metas, block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))})
 	}
 
@@ -188,7 +188,7 @@ func TestFetchByQuery(t *testing.T) {
 		Exhaustive:  false,
 		LocalOnly:   true,
 		Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		Resolutions: []int64{int64(resolution)},
+		Resolutions: []time.Duration{resolution},
 	}
 
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
