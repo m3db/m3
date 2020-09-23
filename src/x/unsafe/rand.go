@@ -18,25 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+// Package unsafe contains operations that step around the type safety of Go programs.
+package unsafe
 
-import "github.com/m3db/m3/src/m3ninx/index/segment"
+import (
+	_ "unsafe" // needed for go:linkname hack
+)
 
-// Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.
-type Segment struct {
-	persisted bool
-	segment.Segment
-}
+//go:linkname fastrand runtime.fastrand
+func fastrand() uint32
 
-// NewSegment returns an index segment w/ persistence metadata.
-func NewSegment(segment segment.Segment, persisted bool) *Segment {
-	return &Segment{
-		persisted: persisted,
-		Segment:   segment,
-	}
-}
-
-// IsPersisted returns whether or not the underlying segment was persisted to disk.
-func (s *Segment) IsPersisted() bool {
-	return s.persisted
+// Fastrandn returns a uint32 in range of 0..n, like rand() % n, but faster not as precise,
+// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+func Fastrandn(n uint32) uint32 {
+	// This is similar to fastrand() % n, but faster.
+	return uint32(uint64(fastrand()) * uint64(n) >> 32)
 }

@@ -72,7 +72,7 @@ type SegmentData struct {
 	// the docs data and docs idx data if the documents
 	// already reside in memory and we want to use the
 	// in memory references instead.
-	DocsReader *docs.SliceReader
+	DocsReader docs.Reader
 
 	Closer io.Closer
 }
@@ -131,38 +131,27 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	}
 
 	var (
-		docsSliceReader = data.DocsReader
-		docsDataReader  *docs.DataReader
-		docsIndexReader *docs.IndexReader
-		startInclusive  postings.ID
-		endExclusive    postings.ID
+		docsThirdPartyReader = data.DocsReader
+		docsDataReader       *docs.DataReader
+		docsIndexReader      *docs.IndexReader
 	)
-	if docsSliceReader != nil {
-		startInclusive = docsSliceReader.Base()
-		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
-	} else {
+	if docsThirdPartyReader == nil {
 		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
 		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData.Bytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
-
-		// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
-		startInclusive = docsIndexReader.Base()
-		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
 
 	s := &fsSegment{
-		fieldsFST:       fieldsFST,
-		docsDataReader:  docsDataReader,
-		docsIndexReader: docsIndexReader,
-		docsSliceReader: docsSliceReader,
+		fieldsFST:            fieldsFST,
+		docsDataReader:       docsDataReader,
+		docsIndexReader:      docsIndexReader,
+		docsThirdPartyReader: docsThirdPartyReader,
 
-		data:           data,
-		opts:           opts,
-		numDocs:        metadata.NumDocs,
-		startInclusive: startInclusive,
-		endExclusive:   endExclusive,
+		data:    data,
+		opts:    opts,
+		numDocs: metadata.NumDocs,
 	}
 
 	// NB(r): The segment uses the context finalization to finalize
@@ -180,19 +169,17 @@ var _ segment.ImmutableSegment = (*fsSegment)(nil)
 
 type fsSegment struct {
 	sync.RWMutex
-	ctx             context.Context
-	closed          bool
-	finalized       bool
-	fieldsFST       *vellum.FST
-	docsDataReader  *docs.DataReader
-	docsIndexReader *docs.IndexReader
-	docsSliceReader *docs.SliceReader
-	data            SegmentData
-	opts            Options
+	ctx                  context.Context
+	closed               bool
+	finalized            bool
+	fieldsFST            *vellum.FST
+	docsDataReader       *docs.DataReader
+	docsIndexReader      *docs.IndexReader
+	docsThirdPartyReader docs.Reader
+	data                 SegmentData
+	opts                 Options
 
-	numDocs        int64
-	startInclusive postings.ID
-	endExclusive   postings.ID
+	numDocs int64
 }
 
 func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
@@ -251,7 +238,7 @@ func (r *fsSegment) ContainsField(field []byte) (bool, error) {
 	return r.fieldsFST.Contains(field)
 }
 
-func (r *fsSegment) Reader() (index.Reader, error) {
+func (r *fsSegment) Reader() (sgmt.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -304,6 +291,7 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 
 	iter := newFSTTermsIter()
 	iter.reset(fstTermsIterOpts{
+		seg:         r,
 		fst:         r.fieldsFST,
 		finalizeFST: false,
 	})
@@ -355,11 +343,30 @@ type termsIterable struct {
 	postingsIter *fstTermsPostingsIter
 }
 
+func newTermsIterable(r *fsSegment) *termsIterable {
+	return &termsIterable{
+		r:            r,
+		fieldsIter:   newFSTTermsIter(),
+		postingsIter: newFSTTermsPostingsIter(),
+	}
+}
+
 func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 	i.r.RLock()
 	defer i.r.RUnlock()
 	if i.r.closed {
 		return nil, errReaderClosed
+	}
+	return i.termsNotClosedMaybeFinalizedWithRLock(field)
+}
+
+func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
+	field []byte,
+) (sgmt.TermsIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if i.r.finalized {
+		return nil, errReaderFinalized
 	}
 
 	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
@@ -372,6 +379,7 @@ func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 	}
 
 	i.fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.r,
 		fst:         termsFST,
 		finalizeFST: true,
 	})
@@ -384,6 +392,14 @@ func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset 
 	defer r.RUnlock()
 	if r.closed {
 		return errReaderClosed
+	}
+
+	return r.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b, offset)
+}
+
+func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b *pilosaroaring.Bitmap, offset uint64) error {
+	if r.finalized {
+		return errReaderFinalized
 	}
 
 	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
@@ -594,7 +610,7 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.Mutable
 	}
 
 	pl := r.opts.PostingsListPool().Get()
-	err := pl.AddRange(r.startInclusive, r.endExclusive)
+	err := pl.AddRange(0, postings.ID(r.numDocs))
 	if err != nil {
 		return nil, err
 	}
@@ -619,8 +635,8 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Doc
 	}
 
 	// If using docs slice reader, return from the in memory slice reader
-	if r.docsSliceReader != nil {
-		return r.docsSliceReader.Read(id)
+	if r.docsThirdPartyReader != nil {
+		return r.docsThirdPartyReader.Read(id)
 	}
 
 	offset, err := r.docsIndexReader.Read(id)
@@ -671,7 +687,7 @@ func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	pi := postings.NewRangeIterator(r.startInclusive, r.endExclusive)
+	pi := postings.NewRangeIterator(0, postings.ID(r.numDocs))
 	return index.NewIDDocIterator(retriever, pi), nil
 }
 
@@ -833,14 +849,15 @@ func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, 
 	return base[payloadStart:payloadEnd], nil
 }
 
-var _ index.Reader = (*fsSegmentReader)(nil)
+var _ sgmt.Reader = (*fsSegmentReader)(nil)
 
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed    bool
-	ctx       context.Context
-	fsSegment *fsSegment
+	closed        bool
+	ctx           context.Context
+	fsSegment     *fsSegment
+	termsIterable *termsIterable
 }
 
 func newReader(
@@ -851,6 +868,47 @@ func newReader(
 		ctx:       opts.ContextPool().Get(),
 		fsSegment: fsSegment,
 	}
+}
+
+func (sr *fsSegmentReader) Fields() (sgmt.FieldsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+
+	iter := newFSTTermsIter()
+	iter.reset(fstTermsIterOpts{
+		seg:         sr.fsSegment,
+		fst:         sr.fsSegment.fieldsFST,
+		finalizeFST: false,
+	})
+	return iter, nil
+}
+
+func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
+	if sr.closed {
+		return false, errReaderClosed
+	}
+
+	sr.fsSegment.RLock()
+	defer sr.fsSegment.RUnlock()
+	if sr.fsSegment.finalized {
+		return false, errReaderFinalized
+	}
+
+	return sr.fsSegment.fieldsFST.Contains(field)
+}
+
+func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	if sr.termsIterable == nil {
+		sr.termsIterable = newTermsIterable(sr.fsSegment)
+	}
+	sr.fsSegment.RLock()
+	iter, err := sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	sr.fsSegment.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {

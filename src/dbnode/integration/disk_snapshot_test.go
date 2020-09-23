@@ -152,8 +152,8 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	maxWaitTime := time.Minute
 	for i, ns := range testSetup.Namespaces() {
 		log.Info("waiting for snapshot files to flush")
-		require.NoError(t, waitUntilSnapshotFilesFlushed(
-			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime))
+		_, err := waitUntilSnapshotFilesFlushed(filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime)
+		require.NoError(t, err)
 		log.Info("verifying snapshot files")
 		verifySnapshottedDataFiles(t, shardSet, testSetup.StorageOpts(), ns.ID(), seriesMaps)
 	}
@@ -167,15 +167,17 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	for _, ns := range testSetup.Namespaces() {
 		log.Info("waiting for new snapshot files to be written out")
 		snapshotsToWaitFor := []snapshotID{{blockStart: newTime.Truncate(blockSize)}}
-		require.NoError(t, waitUntilSnapshotFilesFlushed(
-			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitFor, maxWaitTime))
+		// NB(bodu): We need to check if a specific snapshot ID was deleted since snapshotting logic now changed
+		// to always snapshotting every block start w/in retention.
+		snapshotID, err := waitUntilSnapshotFilesFlushed(filePathPrefix, shardSet, ns.ID(), snapshotsToWaitFor, maxWaitTime)
+		require.NoError(t, err)
 		log.Info("waiting for old snapshot files to be deleted")
 		for _, shard := range shardSet.All() {
 			waitUntil(func() bool {
 				// Increase the time each check to ensure that the filesystem processes are able to progress (some
 				// of them throttle themselves based on time elapsed since the previous time.)
 				testSetup.SetNowFn(testSetup.NowFn()().Add(10 * time.Second))
-				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
+				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), snapshotID, shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists
 			}, maxWaitTime)

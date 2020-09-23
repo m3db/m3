@@ -65,8 +65,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -137,9 +137,6 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
-
-	// QueryStatsTrackerFn returns a tracker for tracking query stats.
-	QueryStatsTrackerFn func(instrument.Options, stats.QueryStatsOptions) stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -410,27 +407,22 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	statsOpts := stats.QueryStatsOptions{
-		Lookback: stats.DefaultLookback,
+	docsLimit := limits.DefaultLookbackLimitOptions()
+	bytesReadLimit := limits.DefaultLookbackLimitOptions()
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
+		docsLimit.Limit = limitConfig.Value
+		docsLimit.Lookback = limitConfig.Lookback
 	}
-	if max := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; max != nil {
-		statsOpts = stats.QueryStatsOptions{
-			MaxDocs:  max.Value,
-			Lookback: max.Lookback,
-		}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskBytesRead; limitConfig != nil {
+		bytesReadLimit.Limit = limitConfig.Value
+		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
-	if err := statsOpts.Validate(); err != nil {
-		logger.Fatal("could not construct query stats options from config", zap.Error(err))
+	queryLimits, err := limits.NewQueryLimits(docsLimit, bytesReadLimit, iopts)
+	if err != nil {
+		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
 	}
-
-	tracker := stats.DefaultQueryStatsTracker(iopts, statsOpts)
-	if runOpts.QueryStatsTrackerFn != nil {
-		tracker = runOpts.QueryStatsTrackerFn(iopts, statsOpts)
-	}
-
-	queryStats := stats.NewQueryStats(tracker)
-	queryStats.Start()
-	defer queryStats.Stop()
+	queryLimits.Start()
+	defer queryLimits.Stop()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -445,7 +437,7 @@ func Run(runOpts RunOptions) {
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
-		SetQueryStats(queryStats)
+		SetQueryLimits(queryLimits)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -559,10 +551,14 @@ func Run(runOpts RunOptions) {
 			SetBytesPool(opts.BytesPool()).
 			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
-			SetBlockLeaseManager(blockLeaseManager)
+			SetBlockLeaseManager(blockLeaseManager).
+			SetQueryLimits(queryLimits)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
+			if blockRetrieveCfg.CacheBlocksOnRetrieve != nil {
+				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*blockRetrieveCfg.CacheBlocksOnRetrieve)
+			}
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 			func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
@@ -945,6 +941,8 @@ func Run(runOpts RunOptions) {
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
+			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 	}()
 
 	// Wait for process interrupt.
@@ -1055,6 +1053,62 @@ func kvWatchNewSeriesLimitPerShard(
 			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
 			if err != nil {
 				logger.Warn("unable to set cluster new series insert limit", zap.Error(err))
+				continue
+			}
+		}
+	}()
+}
+
+func kvWatchEncodersPerBlockLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	defaultEncodersPerBlockLimit int,
+) {
+	var initEncoderLimit int
+
+	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
+	if err == nil {
+		protoValue := &commonpb.Int64Proto{}
+		err = value.Unmarshal(protoValue)
+		if err == nil {
+			initEncoderLimit = int(protoValue.Value)
+		}
+	}
+
+	if err != nil {
+		if err != kv.ErrNotFound {
+			logger.Warn("error resolving encoder per block limit", zap.Error(err))
+		}
+		initEncoderLimit = defaultEncodersPerBlockLimit
+	}
+
+	err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, initEncoderLimit)
+	if err != nil {
+		logger.Warn("unable to set encoder per block limit", zap.Error(err))
+	}
+
+	watch, err := store.Watch(kvconfig.EncodersPerBlockLimitKey)
+	if err != nil {
+		logger.Error("could not watch encoder per block limit", zap.Error(err))
+		return
+	}
+
+	go func() {
+		protoValue := &commonpb.Int64Proto{}
+		for range watch.C() {
+			value := defaultEncodersPerBlockLimit
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
+					continue
+				}
+				value = int(protoValue.Value)
+			}
+
+			err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warn("unable to set encoder per block limit", zap.Error(err))
 				continue
 			}
 		}
@@ -1218,6 +1272,21 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 	nodeLimit := int(math.Ceil(
 		float64(clusterLimit) / float64(numPlacedShards)))
 	return nodeLimit
+}
+
+func setEncodersPerBlockLimitOnChange(
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	encoderLimit int,
+) error {
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetEncodersPerBlockLimit(encoderLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 // this function will block for at most waitTimeout to try to get an initial value

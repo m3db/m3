@@ -153,7 +153,7 @@ func newTestSegmentWithDocs(
 	t *testing.T,
 	docs []doc.Document,
 ) segment.Segment {
-	seg, err := mem.NewSegment(0, testMemOptions)
+	seg, err := mem.NewSegment(testMemOptions)
 	require.NoError(t, err)
 
 	defer func() {

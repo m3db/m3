@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"context"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -80,6 +81,10 @@ type Options interface {
 	SetSeriesConsolidationMatchOptions(value queryconsolidator.MatchOptions) Options
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.
 	SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions
+	// SetSeriesIteratorProcessor sets the series iterator processor.
+	SetSeriesIteratorProcessor(SeriesIteratorProcessor) Options
+	// SeriesIteratorProcessor returns the series iterator processor.
+	SeriesIteratorProcessor() SeriesIteratorProcessor
 	// SetIteratorBatchingFn sets the batching function for the converter.
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
@@ -94,6 +99,12 @@ type Options interface {
 	Instrumented() bool
 	// Validate ensures that the given block options are valid.
 	Validate() error
+}
+
+// SeriesIteratorProcessor optionally defines methods to process series iterators.
+type SeriesIteratorProcessor interface {
+	// InspectSeries inspects SeriesIterator slices.
+	InspectSeries(ctx context.Context, seriesIterators []encoding.SeriesIterator) error
 }
 
 // IteratorBatchingFn determines how the iterator is split into batches.

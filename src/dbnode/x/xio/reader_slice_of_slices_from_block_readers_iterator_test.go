@@ -42,6 +42,32 @@ func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
 	}
 
 	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	validateIterReaders(t, iter, readers)
+}
+
+func TestRewind(t *testing.T) {
+	var a, b, c, d, e, f BlockReader
+	all := []BlockReader{a, b, c, d, e, f}
+	for i := range all {
+		all[i] = BlockReader{
+			SegmentReader: nullSegmentReader{},
+		}
+	}
+
+	readers := [][]BlockReader{
+		[]BlockReader{a, b, c},
+		[]BlockReader{d},
+		[]BlockReader{e, f},
+	}
+
+	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	validateIterReaders(t, iter, readers)
+
+	iter.Rewind()
+	validateIterReaders(t, iter, readers)
+}
+
+func validateIterReaders(t *testing.T, iter ReaderSliceOfSlicesFromBlockReadersIterator, readers [][]BlockReader) {
 	for i := range readers {
 		assert.True(t, iter.Next())
 		l, _, _ := iter.CurrentReaders()

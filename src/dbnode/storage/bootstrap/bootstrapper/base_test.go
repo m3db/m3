@@ -129,12 +129,13 @@ func TestBaseBootstrapperEmptyRangeWithIndex(t *testing.T) {
 func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	src, _, base := testBaseBootstrapper(t, ctrl)
+	src, next, base := testBaseBootstrapper(t, ctrl)
 	testNs := testNsMetadata(t, withIndex)
 
 	rngs := result.NewShardTimeRanges()
 	unfulfilled := xtime.NewRanges()
 	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
 	shardRangeMatcher := bootstrap.ShardTimeRangesMatcher{Ranges: rngs}
 	src.EXPECT().AvailableData(testNs, shardRangeMatcher, testDefaultRunOpts).
 		Return(rngs, nil)
@@ -155,6 +156,7 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
+	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
 
 	// Test non-nil empty range
 	tester.TestBootstrapWith(base)
@@ -176,11 +178,12 @@ func TestBaseBootstrapperCurrentNoUnfulfilledWithIndex(t *testing.T) {
 func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	src, _, base := testBaseBootstrapper(t, ctrl)
+	src, next, base := testBaseBootstrapper(t, ctrl)
 	testNs := testNsMetadata(t, withIndex)
 
 	unfulfilled := xtime.NewRanges()
 	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
 
 	targetRanges := testShardTimeRanges()
 	src.EXPECT().AvailableData(testNs, targetRanges, testDefaultRunOpts).
@@ -203,6 +206,7 @@ func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
+	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 	assert.Equal(t, nsResults, tester.Results)

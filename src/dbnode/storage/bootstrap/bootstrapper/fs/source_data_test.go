@@ -34,7 +34,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
+	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -44,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -191,6 +196,10 @@ func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
 }
 
 func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
+	writeGoodFilesWithFsOpts(t, namespace, shard, newTestFsOptions(dir))
+}
+
+func writeGoodFilesWithFsOpts(t *testing.T, namespace ident.ID, shard uint32, fsOpts fs.Options) {
 	inputs := []struct {
 		start time.Time
 		id    string
@@ -203,8 +212,8 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 	}
 
 	for _, input := range inputs {
-		writeTSDBFiles(t, dir, namespace, shard, input.start,
-			[]testSeries{{input.id, input.tags, input.data}})
+		writeTSDBFilesWithFsOpts(t, namespace, shard, input.start,
+			[]testSeries{{input.id, input.tags, input.data}}, fsOpts)
 	}
 }
 
@@ -246,7 +255,18 @@ func writeTSDBFiles(
 	start time.Time,
 	series []testSeries,
 ) {
-	w, err := fs.NewWriter(newTestFsOptions(dir))
+	writeTSDBFilesWithFsOpts(t, namespace, shard, start, series, newTestFsOptions(dir))
+}
+
+func writeTSDBFilesWithFsOpts(
+	t require.TestingT,
+	namespace ident.ID,
+	shard uint32,
+	start time.Time,
+	series []testSeries,
+	opts fs.Options,
+) {
+	w, err := fs.NewWriter(opts)
 	require.NoError(t, err)
 	writerOpts := fs.DataWriterOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
@@ -858,4 +878,47 @@ func TestReadTags(t *testing.T) {
 	reader := readersForTime[0]
 	require.Equal(t, tags, reader.Tags)
 	tester.EnsureNoWrites()
+}
+
+func TestReadRunMigrations(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	// Write existing data filesets with legacy encoding
+	eOpts := msgpack.LegacyEncodingOptions{
+		EncodeLegacyIndexInfoVersion:  msgpack.LegacyEncodingIndexVersionV4,      // MinorVersion 0
+		EncodeLegacyIndexEntryVersion: msgpack.LegacyEncodingIndexEntryVersionV2, // No checksum data
+	}
+	writeGoodFilesWithFsOpts(t, testNs1ID, testShard, newTestFsOptions(dir).SetEncodingOptions(eOpts))
+
+	opts := newTestOptions(t, dir)
+	sOpts, closer := newTestStorageOptions(t, opts.PersistManager())
+	defer closer()
+
+	src, err := newFileSystemSource(opts.
+		SetMigrationOptions(migration.NewOptions().
+			SetTargetMigrationVersion(migration.MigrationVersion_1_1).
+			SetConcurrency(2)). // Lower concurrency to ensure workers process more than 1 migration.
+		SetStorageOptions(sOpts))
+	require.NoError(t, err)
+
+	validateReadResults(t, src, dir, testShardTimeRanges())
+}
+
+func newTestStorageOptions(t *testing.T, pm persist.Manager) (storage.Options, index.Closer) {
+	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
+		InstrumentOptions: instrument.NewOptions(),
+	})
+	require.NoError(t, err)
+
+	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions)
+	require.NoError(t, err)
+
+	return storage.NewOptions().
+		SetPersistManager(pm).
+		SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).
+		SetRepairEnabled(false).
+		SetIndexOptions(index.NewOptions().
+			SetPostingsListCache(plCache)).
+		SetBlockLeaseManager(block.NewLeaseManager(nil)), closer
 }

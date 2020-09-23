@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -71,10 +72,15 @@ func NewGetHandler(
 	}
 }
 
-func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	nsRegistry, err := h.Get()
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
+	nsRegistry, err := h.Get(opts)
 
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Error(err))
@@ -102,10 +108,10 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get gets the namespaces.
-func (h *GetHandler) Get() (nsproto.Registry, error) {
+func (h *GetHandler) Get(opts handleroptions.ServiceOptions) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
-	store, err := h.client.KV()
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyReg, err
 	}

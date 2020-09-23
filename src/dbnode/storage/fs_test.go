@@ -85,7 +85,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	ts := time.Now()
 	gomock.InOrder(
-		cm.EXPECT().Cleanup(ts, true).Return(errors.New("foo")),
+		cm.EXPECT().WarmFlushCleanup(ts, true).Return(errors.New("foo")),
 		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 

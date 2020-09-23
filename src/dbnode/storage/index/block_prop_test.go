@@ -189,7 +189,7 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 		fulfilled              = result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(testBlockSize), uint32(1))
 		indexBlockByVolumeType = result.NewIndexBlockByVolumeType(blockStart)
 	)
-	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{fstSeg}, fulfilled))
+	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(fstSeg, false)}, fulfilled))
 
 	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
 	// in a ReadThroughSegment to use the postings list cache.

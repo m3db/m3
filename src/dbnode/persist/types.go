@@ -218,7 +218,7 @@ type Preparer interface {
 }
 
 // FlushPreparer is a persist flush cycle, each shard and block start permutation needs
-// to explicility be prepared.
+// to explicitly be prepared.
 type FlushPreparer interface {
 	Preparer
 
@@ -227,7 +227,7 @@ type FlushPreparer interface {
 }
 
 // SnapshotPreparer is a persist snapshot cycle, each shard and block start permutation needs
-// to explicility be prepared.
+// to explicitly be prepared.
 type SnapshotPreparer interface {
 	Preparer
 
@@ -236,7 +236,7 @@ type SnapshotPreparer interface {
 }
 
 // IndexFlush is a persist flush cycle, each namespace, block combination needs
-// to explicility be prepared.
+// to explicitly be prepared.
 type IndexFlush interface {
 	// Prepare prepares writing data for a given ns/blockStart, returning a
 	// PreparedIndexPersist object and any error encountered during

@@ -54,7 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	logger, _          = zap.NewProduction()
+	errTooManyEncoders = xerrors.NewInvalidParamsError(errors.New("too many encoders per block"))
 )
 
 const (
@@ -96,7 +96,7 @@ type databaseBuffer interface {
 		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
-	) error
+	) (SnapshotResult, error)
 
 	WarmFlush(
 		ctx context.Context,
@@ -132,6 +132,8 @@ type databaseBuffer interface {
 	) (block.FetchBlockMetadataResults, error)
 
 	IsEmpty() bool
+
+	IsEmptyAtBlockStart(time.Time) bool
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
@@ -417,6 +419,14 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
+func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
+	bv, exists := b.bucketVersionsAt(start)
+	if !exists {
+		return true
+	}
+	return bv.streamsLen() == 0
+}
+
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
 	var times OptimizedTimes
 
@@ -497,6 +507,8 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 			}
 		}
 
+		buckets.recordActiveEncoders()
+
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
 		merges, err := buckets.merge(WarmWrite, nsCtx)
@@ -529,10 +541,15 @@ func (b *dbBuffer) Snapshot(
 	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
-) error {
+) (SnapshotResult, error) {
+	var (
+		start  = b.nowFn()
+		result SnapshotResult
+	)
+
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
-		return nil
+		return result, nil
 	}
 
 	// Snapshot must take both cold and warm writes because cold flushes don't
@@ -540,13 +557,22 @@ func (b *dbBuffer) Snapshot(
 	// warm flush has happened).
 	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 	if err != nil {
-		return err
+		return result, err
 	}
-	numStreams := len(streams)
 
-	var mergedStream xio.SegmentReader
-	if numStreams == 1 {
-		mergedStream = streams[0]
+	afterMergeByBucket := b.nowFn()
+	result.Stats.TimeMergeByBucket = afterMergeByBucket.Sub(start)
+
+	var (
+		numStreams         = len(streams)
+		mergeAcrossBuckets = numStreams != 1
+		segment            ts.Segment
+	)
+	if !mergeAcrossBuckets {
+		segment, err = streams[0].Segment()
+		if err != nil {
+			return result, err
+		}
 	} else {
 		// We may need to merge again here because the regular merge method does
 		// not merge warm and cold buckets or buckets that have different versions.
@@ -559,8 +585,11 @@ func (b *dbBuffer) Snapshot(
 		encoder := bopts.EncoderPool().Get()
 		encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 		iter := b.opts.MultiReaderIteratorPool().Get()
+		var encoderClosed bool
 		defer func() {
-			encoder.Close()
+			if !encoderClosed {
+				encoder.Close()
+			}
 			iter.Close()
 		}()
 		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
@@ -568,33 +597,39 @@ func (b *dbBuffer) Snapshot(
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			if err := encoder.Encode(dp, unit, annotation); err != nil {
-				return err
+				return result, err
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return err
+			return result, err
 		}
 
-		var ok bool
-		mergedStream, ok = encoder.Stream(ctx)
-		if !ok {
-			// Don't write out series with no data.
-			return nil
-		}
+		segment = encoder.Discard()
+		defer segment.Finalize()
+		encoderClosed = true
 	}
 
-	segment, err := mergedStream.Segment()
-	if err != nil {
-		return err
-	}
+	afterMergeAcrossBuckets := b.nowFn()
+	result.Stats.TimeMergeAcrossBuckets = afterMergeAcrossBuckets.Sub(afterMergeByBucket)
 
 	if segment.Len() == 0 {
 		// Don't write out series with no data.
-		return nil
+		return result, nil
 	}
 
 	checksum := segment.CalculateChecksum()
-	return persistFn(metadata, segment, checksum)
+
+	afterChecksum := b.nowFn()
+	result.Stats.TimeChecksum = afterChecksum.Sub(afterMergeAcrossBuckets)
+
+	if err := persistFn(metadata, segment, checksum); err != nil {
+		return result, err
+	}
+
+	result.Stats.TimePersist = b.nowFn().Sub(afterChecksum)
+
+	result.Persist = true
+	return result, nil
 }
 
 func (b *dbBuffer) WarmFlush(
@@ -1146,6 +1181,16 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 	return res, nil
 }
 
+func (b *BufferBucketVersions) recordActiveEncoders() {
+	var numActiveEncoders int
+	for _, bucket := range b.buckets {
+		if bucket.version == writableBucketVersion {
+			numActiveEncoders += len(bucket.encoders)
+		}
+	}
+	b.opts.Stats().RecordEncodersPerBlock(numActiveEncoders)
+}
+
 type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
@@ -1256,7 +1301,13 @@ func (b *BufferBucket) write(
 		return err == nil, err
 	}
 
-	// Need a new encoder, we didn't find an encoder to write to
+	// Need a new encoder, we didn't find an encoder to write to.
+	maxEncoders := b.opts.RuntimeOptionsManager().Get().EncodersPerBlockLimit()
+	if maxEncoders != 0 && len(b.encoders) >= int(maxEncoders) {
+		b.opts.Stats().IncEncoderLimitWriteRejected()
+		return false, errTooManyEncoders
+	}
+
 	b.opts.Stats().IncCreatedEncoders()
 	bopts := b.opts.DatabaseBlockOptions()
 	blockSize := b.opts.RetentionOptions().BlockSize()

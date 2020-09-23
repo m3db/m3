@@ -268,12 +268,11 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 		// Set the modified result.
 		currResults.Results.Set(id, currResult)
 
-		// Set the next bootstrapper namespace run options if we need to bootstrap
-		// further time ranges.
-		if !nextNamespace.DataRunOptions.ShardTimeRanges.IsEmpty() ||
-			!nextNamespace.IndexRunOptions.ShardTimeRanges.IsEmpty() {
-			next.Namespaces.Set(id, nextNamespace)
-		}
+		// Always set the next bootstrapper namespace run options regardless of
+		// whether there are unfulfilled index/data shard time ranges.
+		// NB(bodu): We perform short circuiting directly in the peers bootstrapper and the
+		// commitlog bootstrapper should always run for all time ranges.
+		next.Namespaces.Set(id, nextNamespace)
 
 		// Log the result.
 		_, _, dataRangeRequested := dataCurrRequested.MinMaxRange()

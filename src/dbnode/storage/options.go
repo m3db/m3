@@ -75,6 +75,8 @@ const (
 	// defaultNumLoadedBytesLimit is the default limit (2GiB) for the number of outstanding loaded bytes that
 	// the memory tracker will allow.
 	defaultNumLoadedBytesLimit = 2 << 30
+
+	defaultMediatorTickInterval = 5 * time.Second
 )
 
 var (
@@ -113,7 +115,8 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetBufferBucketPool(opts.BufferBucketPool()).
-		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool())
+		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool()).
+		SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 }
 
 type options struct {
@@ -162,6 +165,7 @@ type options struct {
 	mmapReporter                    mmap.Reporter
 	doNotIndexWithFieldsMap         map[string]string
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
+	mediatorTickInterval            time.Duration
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -234,6 +238,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		onColdFlush:                     &noOpColdFlush{},
 		memoryTracker:                   NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 		namespaceRuntimeOptsMgrRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
+		mediatorTickInterval:            defaultMediatorTickInterval,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -796,6 +801,16 @@ func (o *options) SetNamespaceRuntimeOptionsManagerRegistry(
 
 func (o *options) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
 	return o.namespaceRuntimeOptsMgrRegistry
+}
+
+func (o *options) SetMediatorTickInterval(value time.Duration) Options {
+	opts := *o
+	opts.mediatorTickInterval = value
+	return &opts
+}
+
+func (o *options) MediatorTickInterval() time.Duration {
+	return o.mediatorTickInterval
 }
 
 type noOpColdFlush struct{}

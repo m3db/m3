@@ -408,6 +408,9 @@ func TestConfiguration(t *testing.T) {
     asyncWriteMaxConcurrency: null
     useV2BatchAPIs: null
     writeTimestampOffset: null
+    fetchSeriesBlocksBatchConcurrency: null
+    fetchSeriesBlocksBatchSize: null
+    writeShardsInitializing: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -419,6 +422,7 @@ func TestConfiguration(t *testing.T) {
     - noop-all
     fs:
       numProcessorsPerCPU: 0.42
+      migration: null
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
@@ -715,9 +719,11 @@ func TestConfiguration(t *testing.T) {
       meta_event_reporting_enabled: false
   limits:
     maxRecentlyQueriedSeriesBlocks: null
+    maxRecentlyQueriedSeriesDiskBytesRead: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+    maxEncodersPerBlock: 0
   tchannel: null
 coordinator: null
 `

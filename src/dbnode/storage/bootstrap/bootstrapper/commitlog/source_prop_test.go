@@ -53,7 +53,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/spaolacci/murmur3"
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/stretchr/testify/require"
 )
 

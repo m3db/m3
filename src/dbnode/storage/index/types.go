@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -85,7 +85,6 @@ type QueryOptions struct {
 	SeriesLimit       int
 	DocsLimit         int
 	RequireExhaustive bool
-	IterationOptions  IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.
@@ -473,8 +472,11 @@ type WriteBatchResult struct {
 
 // BlockTickResult returns statistics about tick.
 type BlockTickResult struct {
-	NumSegments int64
-	NumDocs     int64
+	NumSegments             int64
+	NumSegmentsBootstrapped int64
+	NumSegmentsMutable      int64
+	NumDocs                 int64
+	FreeMmap                int64
 }
 
 // WriteBatch is a batch type that allows for building of a slice of documents
@@ -831,7 +833,7 @@ type fieldsAndTermsIterator interface {
 	Close() error
 
 	// Reset resets the iterator to the start iterating the given segment.
-	Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error
+	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 }
 
 // Options control the Indexing knobs.
@@ -960,9 +962,9 @@ type Options interface {
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
 
-	// SetQueryStatsTracker sets current query stats.
-	SetQueryStats(value stats.QueryStats) Options
+	// SetQueryLimits sets current query limits.
+	SetQueryLimits(value limits.QueryLimits) Options
 
-	// QueryStats returns the current query stats.
-	QueryStats() stats.QueryStats
+	// QueryLimits returns the current query limits.
+	QueryLimits() limits.QueryLimits
 }

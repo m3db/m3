@@ -152,6 +152,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -315,6 +316,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -430,6 +432,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -551,6 +554,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -802,6 +806,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -882,7 +887,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
 		testDBCfg, svcDefaultOptions, instrument.NewOptions())
@@ -946,6 +951,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 				"namespaces": {
 					"testNamespace": {
 						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,

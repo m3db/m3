@@ -611,6 +611,12 @@ type TagOptionsConfiguration struct {
 	// Filters are optional tag filters, removing all series with tags
 	// matching the filter from computations.
 	Filters []TagFilter `yaml:"filters"`
+
+	// AllowTagNameDuplicates allows for duplicate tags to appear on series.
+	AllowTagNameDuplicates bool `yaml:"allowTagNameDuplicates"`
+
+	// AllowTagValueEmpty allows for empty tags to appear on series.
+	AllowTagValueEmpty bool `yaml:"allowTagValueEmpty"`
 }
 
 // TagFilter is a tag filter.
@@ -664,6 +670,9 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 
 		opts = opts.SetFilters(filters)
 	}
+
+	opts = opts.SetAllowTagNameDuplicates(cfg.AllowTagNameDuplicates)
+	opts = opts.SetAllowTagValueEmpty(cfg.AllowTagValueEmpty)
 
 	return opts, nil
 }
