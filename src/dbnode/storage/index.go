@@ -1312,7 +1312,7 @@ func (i *nsIndex) Query(
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
-	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
@@ -1337,18 +1337,17 @@ func (i *nsIndex) Query(
 func (i *nsIndex) WideQuery(
 	ctx context.Context,
 	query index.Query,
-	opts index.QueryOptions,
+	opts index.WideQueryOptions,
 ) error {
 	logFields := []opentracinglog.Field{
-		opentracinglog.String("query", query.String()),
+		opentracinglog.String("wideQuery", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
-		opentracinglog.Int("docsLimit", opts.DocsLimit),
+		opentracinglog.Int("batchSize", opts.BatchSize),
 		xopentracing.Time("queryStart", opts.StartInclusive),
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
-	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxWideQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
@@ -1358,12 +1357,14 @@ func (i *nsIndex) WideQuery(
 		i.opts.IdentifierPool(),
 		opts.IndexBatchCollector,
 		index.QueryResultsOptions{
+			// TODO: add a filter to ensure only requested shards are returned.
 			FilterID: i.shardsFilterID(),
 		},
 	)
 
 	ctx.RegisterFinalizer(results)
-	_, err := i.query(ctx, query, results, opts, i.execBlockWideQueryFn, logFields)
+	queryOpts := opts.ToQueryOptions()
+	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err

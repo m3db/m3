@@ -302,7 +302,8 @@ func TestDatabaseWideQueryNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	err := d.WideQuery(ctx, ident.StringID("nonexistent"), index.Query{}, time.Now())
+	err := d.WideQuery(ctx, ident.StringID("nonexistent"),
+		index.Query{}, time.Now(), []int{}, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 

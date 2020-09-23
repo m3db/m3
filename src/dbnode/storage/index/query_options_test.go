@@ -21,17 +21,18 @@
 package index
 
 import (
+	"math"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestQueryOptions(t *testing.T) {
 	opts := QueryOptions{
-		DocsLimit:          10,
-		SeriesLimit:        20,
-		IndexChecksumQuery: false,
+		DocsLimit:   10,
+		SeriesLimit: 20,
 	}
 
 	assert.False(t, opts.SeriesLimitExceeded(19))
@@ -47,46 +48,33 @@ func TestQueryOptions(t *testing.T) {
 	assert.False(t, opts.exhaustive(19, 10))
 	assert.False(t, opts.exhaustive(20, 9))
 	assert.True(t, opts.exhaustive(19, 9))
-
-	assert.Equal(t, "storage/index.block.Query", opts.queryTracepoint())
-	assert.Equal(t, "storage.dbNamespace.QueryIDs", opts.NSTracepoint())
-	assert.Equal(t, "storage.nsIndex.Query", opts.NSIdxTracepoint())
 }
 
-func TestIndexChecksumQueryOptions(t *testing.T) {
-	opts := QueryOptions{
-		IndexChecksumQuery: true,
-	}
-
-	assert.False(t, opts.SeriesLimitExceeded(19))
-	assert.False(t, opts.SeriesLimitExceeded(20))
-
-	assert.False(t, opts.DocsLimitExceeded(9))
-	assert.False(t, opts.DocsLimitExceeded(10))
-
-	assert.False(t, opts.LimitsExceeded(19, 10))
-	assert.False(t, opts.LimitsExceeded(20, 9))
-	assert.False(t, opts.LimitsExceeded(19, 9))
-
-	assert.True(t, opts.exhaustive(19, 10))
-	assert.True(t, opts.exhaustive(20, 9))
-	assert.True(t, opts.exhaustive(19, 9))
-
-	assert.Equal(t, "storage/index.block.IndexChecksum", opts.queryTracepoint())
-	assert.Equal(t, "storage.dbNamespace.IndexChecksum", opts.NSTracepoint())
-	assert.Equal(t, "storage.nsIndex.IndexChecksum", opts.NSIdxTracepoint())
-}
-
-func TestIndexChecksumSnapToTime(t *testing.T) {
+func TestWideQueryOptions(t *testing.T) {
 	now := time.Now()
-	opts := QueryOptions{
-		StartInclusive: now,
-	}
-
+	batchSize := 100
+	collector := make(chan<- ident.IDBatch)
 	blockSize := time.Hour * 2
-	assert.Equal(t, now, opts.StartInclusive)
-	assert.Equal(t, time.Time{}, opts.EndExclusive)
-	opts.SnapToNearestDataBlock(blockSize)
-	assert.Equal(t, now.Truncate(blockSize), opts.StartInclusive)
-	assert.Equal(t, now.Truncate(blockSize).Add(blockSize), opts.EndExclusive)
+	iterOpts := IterationOptions{}
+	opts := NewWideQueryOptions(now, batchSize, collector, blockSize, iterOpts)
+	assert.Equal(t, WideQueryOptions{
+		StartInclusive:      now.Truncate(blockSize),
+		EndExclusive:        now.Truncate(blockSize).Add(blockSize),
+		BatchSize:           batchSize,
+		IndexBatchCollector: collector,
+		IterationOptions:    iterOpts,
+	}, opts)
+
+	qOpts := opts.ToQueryOptions()
+	assert.Equal(t, QueryOptions{
+		StartInclusive:    now.Truncate(blockSize),
+		EndExclusive:      now.Truncate(blockSize).Add(blockSize),
+		SeriesLimit:       0,
+		DocsLimit:         0,
+		RequireExhaustive: false,
+		IterationOptions:  iterOpts,
+	}, qOpts)
+
+	upperBound := int(math.MaxInt64)
+	assert.False(t, qOpts.LimitsExceeded(upperBound, upperBound))
 }

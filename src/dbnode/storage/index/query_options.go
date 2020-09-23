@@ -23,15 +23,8 @@ package index
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/ident"
 )
-
-// SnapToNearestDataBlock will snap query options to the closest block, given
-// the data block size.
-func (o *QueryOptions) SnapToNearestDataBlock(blockSize time.Duration) {
-	o.StartInclusive = o.StartInclusive.Truncate(blockSize)
-	o.EndExclusive = o.StartInclusive.Add(blockSize)
-}
 
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
@@ -47,10 +40,6 @@ func (o QueryOptions) DocsLimitExceeded(size int) bool {
 
 // LimitsExceeded returns whether a given size exceeds the given limits.
 func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
-	if o.IndexChecksumQuery {
-		return false
-	}
-
 	return o.SeriesLimitExceeded(seriesCount) || o.DocsLimitExceeded(docsCount)
 }
 
@@ -58,24 +47,31 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) tracepoint(idxHash, query string) string {
-	if o.IndexChecksumQuery {
-		return idxHash
+// NewWideQueryOptions creates a new wide query options, snapped to block start.
+func NewWideQueryOptions(
+	queryStart time.Time,
+	batchSize int,
+	collector chan<- ident.IDBatch,
+	blockSize time.Duration,
+	iterOpts IterationOptions,
+) WideQueryOptions {
+	start := queryStart.Truncate(blockSize)
+	end := start.Add(blockSize)
+	return WideQueryOptions{
+		StartInclusive:      start,
+		EndExclusive:        end,
+		BatchSize:           batchSize,
+		IndexBatchCollector: collector,
+		IterationOptions:    iterOpts,
 	}
-
-	return query
 }
 
-func (o QueryOptions) queryTracepoint() string {
-	return o.tracepoint(tracepoint.IndexChecksumQuery, tracepoint.BlockQuery)
-}
-
-// NSTracepoint yields the appropriate tracepoint for namespace tchannelthrift path.
-func (o QueryOptions) NSTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexChecksum, tracepoint.NSQueryIDs)
-}
-
-// NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.
-func (o QueryOptions) NSIdxTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexChecksumQuery, tracepoint.NSIdxQuery)
+// ToQueryOptions converts a WideQueryOptions to appropriate QueryOptions that
+// will not enforce any limits.
+func (q *WideQueryOptions) ToQueryOptions() QueryOptions {
+	return QueryOptions{
+		StartInclusive:   q.StartInclusive,
+		EndExclusive:     q.EndExclusive,
+		IterationOptions: q.IterationOptions,
+	}
 }

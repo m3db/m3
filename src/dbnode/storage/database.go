@@ -895,6 +895,8 @@ func (d *db) WideQuery(
 	namespace ident.ID,
 	query index.Query,
 	start time.Time,
+	shards []int,
+	iterOpts index.IterationOptions,
 ) error { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -904,20 +906,15 @@ func (d *db) WideQuery(
 
 	batchSize := d.opts.WideBatchSize()
 	collector := make(chan ident.IDBatch)
-	opts := index.QueryOptions{
-		StartInclusive:      start,
-		IndexChecksumQuery:  true,
-		BatchSize:           batchSize,
-		IndexBatchCollector: collector,
-	}
-
-	opts.SnapToNearestDataBlock(n.Options().IndexOptions().BlockSize())
+	blockSize := n.Options().IndexOptions().BlockSize()
+	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, iterOpts)
 	start, end := opts.StartInclusive, opts.EndExclusive
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
 	if sampled {
 		sp.LogFields(
+			opentracinglog.String("wideQuery", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.String("query", query.String()),
+			opentracinglog.Int("batchSize", batchSize),
 			xopentracing.Time("start", start),
 			xopentracing.Time("end", end),
 		)
@@ -925,7 +922,7 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
-	res, err := n.QueryIDs(ctx, query, opts)
+	err = n.WideQueryIDs(ctx, query, opts)
 	if err != nil {
 		return err
 	}
@@ -934,7 +931,6 @@ func (d *db) WideQuery(
 	defer func() {
 		if !closed {
 			// Drain any remaining results and close.
-			res.Results.Finalize()
 			for range collector {
 			}
 			close(collector)

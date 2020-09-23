@@ -162,7 +162,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks           instrument.MethodMetrics
 	fetchBlocksMetadata   instrument.MethodMetrics
 	queryIDs              instrument.MethodMetrics
-	indexChecksum         instrument.MethodMetrics
+	wideQuery             instrument.MethodMetrics
 	aggregateQuery        instrument.MethodMetrics
 	unfulfilled           tally.Counter
 	bootstrapStart        tally.Counter
@@ -248,7 +248,7 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		indexChecksum:         instrument.NewMethodMetrics(scope, "indexChecksum", opts),
+		wideQuery:             instrument.NewMethodMetrics(scope, "wideQuery", opts),
 		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
 		bootstrapStart:        bootstrapScope.Counter("start"),
@@ -753,7 +753,7 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(opts.NSTracepoint())
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSQueryIDs)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
@@ -789,6 +789,47 @@ func (n *dbNamespace) QueryIDs(
 	}
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
+}
+
+func (n *dbNamespace) WideQueryIDs(
+	ctx context.Context,
+	query index.Query,
+	opts index.WideQueryOptions,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSWideQueryIDs)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.Int("batchSize", opts.BatchSize),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+	}
+	defer sp.Finish()
+
+	callStart := n.nowFn()
+	if n.reverseIndex == nil { // only happens if indexing is enabled.
+		n.metrics.wideQuery.ReportError(n.nowFn().Sub(callStart))
+		err := errNamespaceIndexingDisabled
+		sp.LogFields(opentracinglog.Error(err))
+		return err
+	}
+
+	if n.reverseIndex.BootstrapsDone() < 1 {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		err := errIndexNotBootstrappedToRead
+		sp.LogFields(opentracinglog.Error(err))
+		return xerrors.NewRetryableError(err)
+	}
+
+	err := n.reverseIndex.WideQuery(ctx, query, opts)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
 }
 
 func (n *dbNamespace) AggregateQuery(

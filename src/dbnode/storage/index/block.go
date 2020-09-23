@@ -403,7 +403,7 @@ func (b *block) Query(
 	results BaseResults,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(opts.queryTracepoint())
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 

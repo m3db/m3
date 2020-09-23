@@ -178,6 +178,8 @@ type Database interface {
 		namespace ident.ID,
 		query index.Query,
 		start time.Time,
+		shards []int,
+		iterOpts index.IterationOptions,
 	) error // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -328,6 +330,13 @@ type databaseNamespace interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
+
+	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		opts index.WideQueryOptions,
+	) error
 
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
@@ -660,6 +669,13 @@ type NamespaceIndex interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
+
+	// WideQuery resolves the given query into known IDs.
+	WideQuery(
+		ctx context.Context,
+		query index.Query,
+		opts index.WideQueryOptions,
+	) error
 
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(

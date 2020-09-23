@@ -92,13 +92,21 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
-	// IndexChecksumQuery causes this query to return only matching IDs and a
-	// corresponding checksum.
-	IndexChecksumQuery bool
+}
+
+// WideQueryOptions enables users to specify constraints and
+// preferences on wide query execution.
+type WideQueryOptions struct {
+	// StartInclusive is the start time for the query.
+	StartInclusive time.Time
+	// EndExclusive is the exclusive end for the query.
+	EndExclusive time.Time
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
 	// IndexBatchCollector collects ID batches in an asynchronous fashion.
 	IndexBatchCollector chan<- ident.IDBatch
+	// IterationOptions controls additional iteration methods.
+	IterationOptions IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.

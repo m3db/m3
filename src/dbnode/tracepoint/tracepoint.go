@@ -46,17 +46,8 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
-	// IndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
-	IndexChecksum = "tchannelthrift/node.service.IndexChecksum"
-
-	// IndexChecksumSingleResult is the operation name for the tchannelthrift IndexChecksumSingleResult path.
-	IndexChecksumSingleResult = "tchannelthrift/node.service.IndexChecksumSingleResult"
-
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
-
-	// DBQueryIDsIndexChecksum is the operation name for the db QueryIDs IndexChecksum path.
-	DBQueryIDsIndexChecksum = "storage.db.QueryIDsIndexChecksum"
 
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
@@ -82,17 +73,14 @@ const (
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 
-	// NSIndexChecksumQuery is the operation name for the dbNamespace QueryIDs path when fetching index checksums.
-	NSIndexChecksumQuery = "storage.nsIndex.IndexChecksum"
+	// NSWideQueryIDs is the operation name for the dbNamespace WideQueryIDs path.
+	NSWideQueryIDs = "storage.nsIndex.WideQueryIDs"
 
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
 
 	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
 	NSBootstrap = "storage.dbNamespace.Bootstrap"
-
-	// NSIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
-	NSIndexChecksum = "storage.dbNamespace.IndexChecksum"
 
 	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
 	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
@@ -102,6 +90,9 @@ const (
 
 	// NSIdxQuery is the operation name for the nsIndex Query path.
 	NSIdxQuery = "storage.nsIndex.Query"
+
+	// NSIdxWideQuery is the operation name for the nsIndex WideQuery path.
+	NSIdxWideQuery = "storage.nsIndex.WideQuery"
 
 	// NSIdxAggregateQuery is the operation name for the nsIndex AggregateQuery path.
 	NSIdxAggregateQuery = "storage.nsIndex.AggregateQuery"
@@ -120,9 +111,6 @@ const (
 
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
-
-	// IndexChecksumQuery is the operation name for the IndexChecksum query path.
-	IndexChecksumQuery = "storage/index.block.IndexChecksum"
 
 	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
 	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"
