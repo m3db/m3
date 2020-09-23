@@ -33,7 +33,6 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -596,9 +595,7 @@ type promTSIter struct {
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 	metadatas  []ts.Metadata
-
-	prevAnnotationPayload annotation.Payload
-	annotation            []byte
+	annotation []byte
 }
 
 func (i *promTSIter) Next() bool {
@@ -613,19 +610,10 @@ func (i *promTSIter) Next() bool {
 		return false
 	}
 
-	// Avoid repeated marshalling for the same payload.
-	if annotationPayload != i.prevAnnotationPayload {
-		i.prevAnnotationPayload = annotationPayload
-		i.annotation = i.annotation[:0]
-		size := annotationPayload.Size()
-		if size > 0 {
-			i.annotation = append(i.annotation, make([]byte, size)...)
-			_, err = annotationPayload.MarshalTo(i.annotation)
-			if err != nil {
-				i.err = err
-				return false
-			}
-		}
+	i.annotation, err = annotationPayload.Marshal()
+	if err != nil {
+		i.err = err
+		return false
 	}
 
 	return true

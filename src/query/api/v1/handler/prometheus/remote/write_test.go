@@ -311,8 +311,11 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 			{Type: prompb.MetricType_UNKNOWN},
 			{Type: prompb.MetricType_COUNTER},
 			{Type: prompb.MetricType_GAUGE},
-			{Type: prompb.MetricType_GAUGE},
-			{Type: prompb.MetricType_UNKNOWN},
+			{Type: prompb.MetricType_SUMMARY},
+			{Type: prompb.MetricType_HISTOGRAM},
+			{Type: prompb.MetricType_GAUGE_HISTOGRAM},
+			{Type: prompb.MetricType_INFO},
+			{Type: prompb.MetricType_STATESET},
 		},
 	}
 
@@ -325,13 +328,19 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
+	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_HISTOGRAM)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE_HISTOGRAM)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_STATESET)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
+
+	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
+	assert.Equal(t, annotation.Payload{MetricType: annotation.MetricType_COUNTER}, secondAnnotationPayload, "annotation invalidated")
 }
 
 func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
@@ -405,13 +414,18 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 	}
 }
 
-func verifyIterValueAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter, expectedMetricType annotation.MetricType) {
+func verifyIterValueAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter, expectedMetricType annotation.MetricType) ingest.IterValue {
 	require.True(t, iter.Next())
 	value := iter.Current()
 
-	actualPayload := annotation.Payload{}
-	require.NoError(t, actualPayload.Unmarshal(value.Annotation))
-
 	expectedPayload := annotation.Payload{MetricType: expectedMetricType}
-	assert.Equal(t, expectedPayload, actualPayload)
+	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
+
+	return value
+}
+
+func unmarshalAnnotation(t *testing.T, annot []byte) annotation.Payload {
+	payload := annotation.Payload{}
+	require.NoError(t, payload.Unmarshal(annot))
+	return payload
 }
