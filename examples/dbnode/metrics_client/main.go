@@ -82,8 +82,8 @@ func main() {
 // runTaggedExample demonstrates how to write "tagged" (indexed) metrics data
 // and then read it back out again by either:
 //
-//   1. Querying for a specific time series by its ID directly
-//   2. Querying for a set of time series using an inverted index query
+//   1. Querying for a set of time series using an inverted index query
+//   2. Querying for a specific time series by its ID directly
 func runTaggedExample(session client.Session) {
 	log.Printf("------ run tagged example ------")
 	var (
@@ -103,20 +103,12 @@ func runTaggedExample(session client.Session) {
 		log.Fatalf("error writing series %s, err: %v", seriesID.String(), err)
 	}
 
-	// Fetch data for the tagged seriesID using a direct ID lookup (only data written within the last minute).
+	// 1. Fetch data for the tagged seriesID using a query (only data written
+	// within the last minute).
 	start, end := time.Now().Add(-time.Minute), time.Now()
-	seriesIter, err := session.Fetch(namespaceID, seriesID, start, end)
-	if err != nil {
-		log.Fatalf("error fetching data for untagged series: %v", err)
-	}
-	for seriesIter.Next() {
-		dp, _, _ := seriesIter.Current()
-		log.Printf("%s: %v", dp.Timestamp.String(), dp.Value)
-	}
-	if err := seriesIter.Err(); err != nil {
-		log.Fatalf("error in series iterator: %v", err)
-	}
 
+	// Use regexp to filter on a single tag, use idx.NewConjunctionQuery to
+	// to search on multiple tags, etc.
 	reQuery, err := idx.NewRegexpQuery([]byte("host"), []byte("host[0-9]+"))
 	if err != nil {
 		log.Fatalf("error in creating query: %v", err)
@@ -144,5 +136,18 @@ func runTaggedExample(session client.Session) {
 		if err := seriesIter.Err(); err != nil {
 			log.Fatalf("error in series iterator: %v", err)
 		}
+	}
+
+	// 2. Fetch data for the series ID directly, skips the inverted index.
+	seriesIter, err := session.Fetch(namespaceID, seriesID, start, end)
+	if err != nil {
+		log.Fatalf("error fetching data for untagged series: %v", err)
+	}
+	for seriesIter.Next() {
+		dp, _, _ := seriesIter.Current()
+		log.Printf("%s: %v", dp.Timestamp.String(), dp.Value)
+	}
+	if err := seriesIter.Err(); err != nil {
+		log.Fatalf("error in series iterator: %v", err)
 	}
 }
