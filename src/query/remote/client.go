@@ -126,9 +126,6 @@ func NewGRPCClient(
 		return nil, errors.ErrNoClientAddresses
 	}
 
-	// Use specific timer options for GRPC timing buckets.
-	instrumentOpts = instrumentOpts.SetTimerOptions(xgrpc.DefaultTimerOptions())
-
 	// Set name if using a named client.
 	if remote := strings.TrimSpace(name); remote != "" {
 		instrumentOpts = instrumentOpts.

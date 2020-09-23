@@ -29,7 +29,6 @@ import (
 	"time"
 
 	testpb "github.com/m3db/m3/src/x/generated/proto/test"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -130,15 +129,13 @@ func testServerClient(t *testing.T) (net.Listener, testpb.TestServiceClient, tal
 	s, _ := tally.NewRootScope(tally.ScopeOptions{Separator: "_"}, 0)
 	scope, ok := s.(tally.TestScope)
 	require.True(t, ok)
-	instrumentOpts := instrument.NewOptions().
-		SetMetricsScope(scope).
-		SetTimerOptions(DefaultTimerOptions())
+
 	clientConn, err := grpc.Dial(
 		serverListener.Addr().String(),
 		grpc.WithInsecure(),
 		grpc.WithBlock(),
-		grpc.WithUnaryInterceptor(UnaryClientInterceptor(instrumentOpts)),
-		grpc.WithStreamInterceptor(StreamClientInterceptor(instrumentOpts)),
+		grpc.WithUnaryInterceptor(UnaryClientInterceptor(InterceptorInstrumentOptions{Scope: s})),
+		grpc.WithStreamInterceptor(StreamClientInterceptor(InterceptorInstrumentOptions{Scope: s})),
 		grpc.WithTimeout(2*time.Second))
 	require.NoError(t, err)
 	return serverListener, testpb.NewTestServiceClient(clientConn), scope

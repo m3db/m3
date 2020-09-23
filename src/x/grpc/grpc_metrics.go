@@ -41,12 +41,36 @@ var (
 	grpcTypeBidiStream   = "bidi_stream"
 )
 
+// InterceptorInstrumentOptions is a set of options for instrumented interceptors.
+type InterceptorInstrumentOptions struct {
+	// Scope, required.
+	Scope tally.Scope
+	// TimerOptions, optional and if not set will use defaults.
+	TimerOptions *instrument.TimerOptions
+}
+
+type interceptorInstrumentOptions struct {
+	Scope        tally.Scope
+	TimerOptions instrument.TimerOptions
+}
+
+func (o InterceptorInstrumentOptions) resolve() interceptorInstrumentOptions {
+	result := interceptorInstrumentOptions{Scope: o.Scope}
+	if o.TimerOptions == nil {
+		result.TimerOptions = DefaultTimerOptions()
+	} else {
+		result.TimerOptions = *o.TimerOptions
+	}
+	return result
+}
+
 // UnaryClientInterceptor provides tally metrics for client unary calls.
 func UnaryClientInterceptor(
-	instrumentOpts instrument.Options,
+	opts InterceptorInstrumentOptions,
 ) func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	resolvedOpts := opts.resolve()
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		m := newClientMetrics(grpcTypeUnary, method, instrumentOpts)
+		m := newClientMetrics(grpcTypeUnary, method, resolvedOpts)
 		err := invoker(ctx, method, req, reply, cc, opts...)
 		st, _ := status.FromError(err)
 		m.Handled(st.Code())
@@ -56,10 +80,11 @@ func UnaryClientInterceptor(
 
 // StreamClientInterceptor provides tally metrics for client streams.
 func StreamClientInterceptor(
-	instrumentOpts instrument.Options,
+	opts InterceptorInstrumentOptions,
 ) func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	resolvedOpts := opts.resolve()
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		m := newClientMetrics(rpcTypeFromStreamDesc(desc), method, instrumentOpts)
+		m := newClientMetrics(rpcTypeFromStreamDesc(desc), method, resolvedOpts)
 		stream, err := streamer(ctx, desc, cc, method, opts...)
 		if err != nil {
 			st, _ := status.FromError(err)
@@ -116,7 +141,7 @@ type clientMetrics struct {
 func newClientMetrics(
 	rpcType string,
 	fullMethod string,
-	instrumentOpts instrument.Options,
+	opts interceptorInstrumentOptions,
 ) clientMetrics {
 	var (
 		name            = strings.TrimPrefix(fullMethod, "/")
@@ -131,7 +156,8 @@ func newClientMetrics(
 		"grpc_service": service,
 		"grpc_method":  method,
 	}
-	scope := instrumentOpts.MetricsScope().SubScope("grpc").Tagged(tags)
+
+	scope := opts.Scope.SubScope("grpc").Tagged(tags)
 
 	m := clientMetrics{
 		scope:                scope,
@@ -139,12 +165,12 @@ func newClientMetrics(
 		tags:                 tags, // Reuse tags for later subscoping.
 		clientStartedCounter: scope.Counter("client_started_total"),
 		clientHandledHistogram: instrument.NewTimer(scope,
-			"client_handling_seconds", instrumentOpts.TimerOptions()),
+			"client_handling_seconds", opts.TimerOptions),
 		clientStreamRecvHistogram: instrument.NewTimer(scope,
-			"client_msg_recv_handling_seconds", instrumentOpts.TimerOptions()),
+			"client_msg_recv_handling_seconds", opts.TimerOptions),
 		clientStreamMsgReceived: scope.Counter("client_msg_received_total"),
 		clientStreamSendHistogram: instrument.NewTimer(scope,
-			"client_msg_send_handling_seconds", instrumentOpts.TimerOptions()),
+			"client_msg_send_handling_seconds", opts.TimerOptions),
 		clientStreamMsgSent: scope.Counter("client_msg_sent_total"),
 	}
 	m.clientStartedCounter.Inc(1)
