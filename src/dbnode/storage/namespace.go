@@ -1653,14 +1653,11 @@ func (n *dbNamespace) aggregateTiles(
 		blockReaders = append(blockReaders, reader)
 	}
 
-	multiErr := xerrors.NewMultiError()
 	var processedTileCount int64
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
 		if err != nil {
-			detailedErr := fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
-			multiErr = multiErr.Add(detailedErr)
-			continue
+			return 0, fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
 		}
 
 		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
@@ -1674,19 +1671,12 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
-		shardprocessedTileCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+		shardProcessedTileCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
 
-		processedTileCount += shardprocessedTileCount
+		processedTileCount += shardProcessedTileCount
 		if err != nil {
-			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
-			multiErr = multiErr.Add(detailedErr)
-			continue
+			return 0, fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 		}
-	}
-
-	err := multiErr.FinalError()
-	if err != nil {
-		n.log.Error("errors when aggregating large tiles", zap.Error(err))
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
@@ -1696,5 +1686,5 @@ func (n *dbNamespace) aggregateTiles(
 		zap.Int64("processedBlocks", processedTileCount),
 		zap.Duration("duration", time.Now().Sub(startedAt)))
 
-	return processedTileCount, multiErr.FinalError()
+	return processedTileCount, nil
 }

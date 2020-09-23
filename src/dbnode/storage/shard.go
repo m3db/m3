@@ -2668,6 +2668,10 @@ func (s *dbShard) AggregateTiles(
 	opts AggregateTilesOptions,
 	targetSchemaDescr namespace.SchemaDescr,
 ) (int64, error) {
+	if len(blockReaders) != len(sourceBlockVolumes) {
+		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
+	}
+
 	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
 		for _, reader := range blockReadersToClose {
@@ -2708,7 +2712,7 @@ func (s *dbShard) AggregateTiles(
 	defer crossBlockReader.Close()
 
 	tileOpts := tile.Options{
-		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
+		FrameSize:          opts.Step,
 		Start:              xtime.ToUnixNano(opts.Start),
 		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
@@ -2735,12 +2739,11 @@ func (s *dbShard) AggregateTiles(
 	encoder.Reset(opts.Start, 0, targetSchemaDescr)
 
 	latestTargetVolume, err := s.LatestVolume(opts.Start)
-	nextVersion := latestTargetVolume + 1
 	if err != nil {
-		s.logger.Error("latestTargetVolume", zap.Error(err))
-		nextVersion = 0
+		return 0, err
 	}
 
+	nextVolume := latestTargetVolume + 1
 	writer, err := fs.NewStreamingWriter(
 		fs.StreamingWriterOptions{
 			NamespaceID:         s.namespace.ID(),
@@ -2748,7 +2751,7 @@ func (s *dbShard) AggregateTiles(
 			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
 			BlockStart:          opts.Start,
 			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
-			VolumeIndex:         nextVersion,
+			VolumeIndex:         nextVolume,
 			PlannedRecordsCount: uint(maxEntries),
 		},
 	)
@@ -2761,13 +2764,14 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	var (
-		processedTileCount  atomic.Int64
-		multiErr            xerrors.MultiError
-		dp                  ts.Datapoint
-		segmentCapacity     int
-		writerData          = make([][]byte, 2)
+		processedTileCount atomic.Int64
+		multiErr           xerrors.MultiError
+		dp                 ts.Datapoint
+		segmentCapacity    int
+		writerData         = make([][]byte, 2)
 	)
 
+	READER:
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
 
@@ -2804,6 +2808,8 @@ func (s *dbShard) AggregateTiles(
 				if err != nil {
 					s.metrics.largeTilesWriteErrors.Inc(1)
 					multiErr = multiErr.Add(err)
+					encoder.Reset(opts.Start, segmentCapacity, targetSchemaDescr)
+					continue READER
 				}
 
 				processedTileCount.Inc()
@@ -2830,11 +2836,15 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		id.Finalize()
-		//FIXME apparently this does not finalize segment.Tail as FinalizeTail flag is not set by default.
 		segment.Finalize()
 	}
 
-	if err := writer.Close(); err != nil {
+	if err := readerIter.Err(); err != nil {
+		multiErr = multiErr.Add(err)
+		if err := writer.Abort(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	} else if err := writer.Close(); err != nil {
 		multiErr = multiErr.Add(err)
 	} else {
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
@@ -2844,11 +2854,7 @@ func (s *dbShard) AggregateTiles(
 			Namespace:  s.namespace.ID(),
 			Shard:      s.ID(),
 			BlockStart: opts.Start,
-		}, block.LeaseState{Volume: nextVersion})
-	}
-
-	if err := readerIter.Err(); err != nil {
-		multiErr = multiErr.Add(err)
+		}, block.LeaseState{Volume: nextVolume})
 	}
 
 	closed = true
@@ -2856,15 +2862,8 @@ func (s *dbShard) AggregateTiles(
 		multiErr = multiErr.Add(err)
 	}
 
-	// If there were some errors shard is still flushable. Log an error but do not return it to the upper level.
-	writeErr := multiErr.FinalError()
-	if writeErr != nil {
-		s.logger.Error("error writing large tiles",
-			zap.Uint32("shardID", sourceShardID),
-			zap.String("sourceNs", sourceNsID.String()),
-			zap.String("targetNs", s.namespace.ID().String()),
-			zap.Error(writeErr),
-		)
+	if err := multiErr.FinalError(); err != nil {
+		return 0, err
 	}
 
 	s.logger.Debug("finished aggregating tiles",

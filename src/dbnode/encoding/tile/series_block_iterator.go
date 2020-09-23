@@ -21,6 +21,8 @@
 package tile
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -33,7 +35,7 @@ type seriesBlockIter struct {
 	err       error
 	exhausted bool
 
-	step  xtime.UnixNano
+	step  time.Duration
 	start xtime.UnixNano
 
 	iter        SeriesFrameIterator

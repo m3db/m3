@@ -56,7 +56,7 @@ func TestSeriesBlockIterator(t *testing.T) {
 	iterPool.EXPECT().Get().Return(it)
 
 	opts := Options{
-		FrameSize:          xtime.UnixNano(100),
+		FrameSize:          time.Duration(100),
 		Start:              xtime.UnixNano(0),
 		ReaderIteratorPool: iterPool,
 	}
