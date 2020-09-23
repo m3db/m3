@@ -64,7 +64,6 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
-	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
@@ -960,9 +959,6 @@ func remoteZoneStorage(
 		// No addresses; skip.
 		return nil, nil
 	}
-
-	// Use specific timer options for GRPC timing buckets.
-	instrumentOpts = instrumentOpts.SetTimerOptions(xgrpc.DefaultTimerOptions())
 
 	client, err := tsdbRemote.NewGRPCClient(zone.Name, zone.Addresses,
 		poolWrapper, opts, instrumentOpts)
