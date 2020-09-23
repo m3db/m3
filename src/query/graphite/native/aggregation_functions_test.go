@@ -324,7 +324,6 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
-
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()

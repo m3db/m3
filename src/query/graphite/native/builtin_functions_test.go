@@ -3129,6 +3129,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
