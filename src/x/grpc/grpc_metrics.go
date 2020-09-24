@@ -228,7 +228,6 @@ func DefaultTimerOptions() instrument.TimerOptions {
 			0.007,
 			0.008,
 			0.009,
-			0.010,
 			0.01,
 			0.02,
 			0.04,
