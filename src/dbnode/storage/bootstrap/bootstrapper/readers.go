@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -77,6 +76,7 @@ type EnqueueReadersOptions struct {
 	Logger                    *zap.Logger
 	Span                      opentracing.Span
 	NowFn                     clock.NowFn
+	Cache                     bootstrap.Cache
 }
 
 // EnqueueReaders into a readers channel grouped by data block.
@@ -87,7 +87,6 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 	// Normal run, open readers
 	enqueueReadersGroupedByBlockSize(
 		opts.NsMD,
-		opts.RunOpts,
 		opts.FsOpts,
 		opts.ShardTimeRanges,
 		opts.ReaderPool,
@@ -97,12 +96,12 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 		opts.Logger,
 		opts.Span,
 		opts.NowFn,
+		opts.Cache,
 	)
 }
 
 func enqueueReadersGroupedByBlockSize(
 	ns namespace.Metadata,
-	runOpts bootstrap.RunOptions,
 	fsOpts fs.Options,
 	shardTimeRanges result.ShardTimeRanges,
 	readerPool *ReaderPool,
@@ -112,30 +111,25 @@ func enqueueReadersGroupedByBlockSize(
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
+	cache bootstrap.Cache,
 ) {
 	// Group them by block size.
 	groupFn := NewShardTimeRangesTimeWindowGroups
 	groupedByBlockSize := groupFn(shardTimeRanges, blockSize)
 
-	// Cache info files by shard.
-	readInfoFilesResultsByShard := make(map[uint32][]fs.ReadInfoFileResult)
-
 	// Now enqueue across all shards by block size.
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
-			readInfoFilesResults, ok := readInfoFilesResultsByShard[shard]
-			if !ok {
-				start := nowFn()
-				logger.Debug("enqueue readers read info files start",
-					zap.Uint32("shard", shard))
-				readInfoFilesResults = fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
-					ns.ID(), shard, fsOpts.InfoReaderBufferSize(),
-					fsOpts.DecodingOptions(), persist.FileSetFlushType)
-				logger.Debug("enqueue readers read info files done",
+			readInfoFilesResults, err := cache.InfoFilesForShard(ns, shard)
+			if err != nil {
+				logger.Error("fs bootstrapper unable to read info files for the shard",
 					zap.Uint32("shard", shard),
-					zap.Duration("took", nowFn().Sub(start)))
-				readInfoFilesResultsByShard[shard] = readInfoFilesResults
+					zap.Stringer("namespace", ns.ID()),
+					zap.Error(err),
+					zap.String("timeRange", tr.String()),
+				)
+				continue
 			}
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
 				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)

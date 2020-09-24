@@ -679,9 +679,3 @@ type CrossBlockIterator interface {
 	// Reset resets the iterator to the given block records.
 	Reset(records []BlockRecord)
 }
-
-// InfoFileResultsPerShard maps shards to info files.
-type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
-
-// InfoFilesByNamespace maps a namespace to info files grouped by shard.
-type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
