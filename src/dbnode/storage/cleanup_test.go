@@ -96,6 +96,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 		snapshots            fs.SnapshotFilesFn
 		indexSnapshots       fs.IndexSnapshotFilesFn
 		indexBootstrapped    bool
+		indexEnabled         bool
 		indexBlockStates     index.BootstrappedBlockStateSnapshot
 		expectedDeletedFiles []string
 		expectErr            bool
@@ -105,8 +106,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
 				return nil, nil, nil
 			},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Does not delete snapshots associated with the most recent snapshot metadata file",
@@ -131,8 +130,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			commitlogs: func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Deletes snapshots and metadata not associated with the most recent snapshot metadata file",
@@ -170,8 +167,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				"metadata-filepath-0",
 				"checkpoint-filepath-0",
 			},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Deletes corrupt snapshot metadata",
@@ -194,8 +189,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				"metadata-filepath-0",
 				"checkpoint-filepath-0",
 			},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Deletes corrupt snapshot files",
@@ -233,8 +226,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				"/snapshots/ns2/snapshot-filepath-1",
 				"/snapshots/ns2/snapshot-filepath-2",
 			},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Does not delete the commitlog identified in the most recent snapshot metadata file, or any with a higher index",
@@ -254,8 +245,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			},
 			// Should only delete anything with an index lower than 1.
 			expectedDeletedFiles: []string{"commitlog-file-0"},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Deletes all corrupt commitlog files",
@@ -273,8 +262,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			},
 			// Should only delete anything with an index lower than 1.
 			expectedDeletedFiles: []string{"corrupt-commitlog-file-0", "corrupt-commitlog-file-1"},
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Handles errors listing snapshot files",
@@ -293,8 +280,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			// We still expect it to delete the commitlog files even though its going to return an error.
 			expectedDeletedFiles: []string{"corrupt-commitlog-file-0", "corrupt-commitlog-file-1"},
 			expectErr:            true,
-			// Not testing cleanup of index snapshots.
-			indexBootstrapped: false,
 		},
 		{
 			title: "Deletes index snapshot files for block starts up to loaded version",
@@ -345,6 +330,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				},
 			},
 			indexBootstrapped: true,
+			indexEnabled:      true,
 			expectedDeletedFiles: []string{
 				"/index_snapshots/ns0/snapshot-filepath-0",
 				"/index_snapshots/ns1/snapshot-filepath-0",
@@ -390,6 +376,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				},
 			},
 			indexBootstrapped: true,
+			indexEnabled:      true,
 			expectedDeletedFiles: []string{
 				"/index_snapshots/ns0/snapshot-filepath-0",
 				"/index_snapshots/ns1/snapshot-filepath-0",
@@ -449,6 +436,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				},
 			},
 			indexBootstrapped: true,
+			indexEnabled:      true,
 		},
 	}
 
@@ -458,7 +446,11 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			rOpts := retention.NewOptions().
 				SetRetentionPeriod(21600 * time.Second).
 				SetBlockSize(7200 * time.Second)
-			nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
+			nsOpts := namespace.NewOptions().
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(namespace.NewIndexOptions().
+					SetEnabled(tc.indexEnabled).
+					SetBlockSize(7200 * time.Second))
 
 			namespaces := make([]databaseNamespace, 0, 3)
 			shards := make([]databaseShard, 0, 3)
@@ -478,12 +470,16 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 				ns.EXPECT().OwnedShards().Return(shards).AnyTimes()
 
-				idx := NewMockNamespaceIndex(ctrl)
-				idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
-					tc.indexBootstrapped,
-					tc.indexBlockStates,
-				))
-				ns.EXPECT().Index().Return(idx, nil)
+				if tc.indexEnabled {
+					idx := NewMockNamespaceIndex(ctrl)
+					idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
+						tc.indexBootstrapped,
+						tc.indexBlockStates,
+					))
+					idx.EXPECT().CleanupExpiredFileSets(gomock.Any())
+					idx.EXPECT().CleanupDuplicateFileSets()
+					ns.EXPECT().Index().Return(idx, nil).AnyTimes()
+				}
 				namespaces = append(namespaces, ns)
 			}
 
@@ -623,17 +619,22 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
-	nsOpts := namespaceOptions
+	nsOpts := namespaceOptions.
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(7200 * time.Second))
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().CleanupExpiredFileSets(gomock.Any())
+	idx.EXPECT().CleanupDuplicateFileSets()
 	idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
 		// We perform testing of cleanup index snapshot files elsewhere.
 		false,
 		index.BootstrappedBlockStateSnapshot{},
 	))
-	ns.EXPECT().Index().Return(idx, nil)
+	ns.EXPECT().Index().Return(idx, nil).AnyTimes()
 
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)

@@ -554,7 +554,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 	)
 
 	for _, ns := range namespaces {
-		if !ns.Options().CleanupEnabled() || !ns.Options().IndexOptions().Enabled() {
+		if !ns.Options().IndexOptions().Enabled() {
 			continue
 		}
 
