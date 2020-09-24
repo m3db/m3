@@ -983,20 +983,21 @@ func newClients(
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
 		clientOpts = defaultClientOptions(topoInit).
-				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit).
-				SetUseV2BatchAPIs(true)
+			SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
+			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+			SetTopologyInitializer(topoInit).
+			SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
 		adminOpts = clientOpts.(client.AdminOptions).
-				SetOrigin(origin).
-				SetSchemaRegistry(schemaReg)
+			SetOrigin(origin).
+			SetSchemaRegistry(schemaReg)
 		verificationAdminOpts = adminOpts.
-					SetOrigin(verificationOrigin).
-					SetSchemaRegistry(schemaReg)
+			SetOrigin(verificationOrigin).
+			SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {

@@ -224,22 +224,21 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		}()
 	}
 
-	var processedTileCount int64
+	var expectedPoints = int64(testDataPointsCount * testSeriesCount / 100 * 6)
 	for a := 0; a < iterationCount; a++ {
 		ctx := storageOpts.ContextPool().Get()
-		processedTileCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
+		processedTileCount, err := testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
 		ctx.BlockingClose()
 		if err != nil {
 			require.NoError(t, err)
 		}
-		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
 		require.Equal(t, processedTileCount, expectedPoints)
 	}
-	inProgress.Toggle()
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
+
+	inProgress.Toggle()
 	wg.Wait()
-	require.NoError(t, err)
-	require.Equal(t, int64(testDataPointsCount*testSeriesCount/100*6), processedTileCount)
+	log.Info("Finished parallel querying")
 
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
@@ -303,7 +302,8 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
 		SetWriteNewSeriesAsync(true).
-		SetNumShards(1)
+		SetNumShards(1).
+		SetFetchRequestTimeout(time.Second * 30)
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
