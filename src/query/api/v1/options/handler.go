@@ -294,8 +294,9 @@ func NewHandlerOptions(
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
-		queryRouter:        queryRouter,
-		instantQueryRouter: instantQueryRouter,
+		queryRouter:         queryRouter,
+		instantQueryRouter:  instantQueryRouter,
+		graphiteStorageOpts: graphiteStorageOpts,
 	}, nil
 }
 
