@@ -148,7 +148,8 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
 					timesToRestart    = []time.Time{}
 					start             = earliestToCheck
-					filePathPrefix    = setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
+					fsOpts            = setup.StorageOpts().CommitLogOptions().FilesystemOptions()
+					filePathPrefix    = fsOpts.FilePathPrefix()
 				)
 
 				// Generate randomly selected times during which the node will restart
@@ -229,7 +230,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 							snapshotBlock = now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 						}
 						_, err := waitUntilSnapshotFilesFlushed(
-							filePathPrefix,
+							fsOpts,
 							setup.ShardSet(),
 							nsID,
 							[]snapshotID{{blockStart: snapshotBlock}},
