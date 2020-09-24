@@ -299,7 +299,7 @@ func newDefaultBootstrappableTestSetups(
 		processOpts := bootstrap.NewProcessOptions().
 			SetTopologyMapProvider(setup).
 			SetOrigin(setup.Origin())
-		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
+		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts, fsOpts)
 		require.NoError(t, err)
 
 		setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(provider))

@@ -95,6 +95,7 @@ type shardPeerAvailability struct {
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -106,6 +107,7 @@ func (s *peersSource) AvailableData(
 func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -117,6 +119,7 @@ func (s *peersSource) AvailableIndex(
 func (s *peersSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
@@ -192,8 +195,10 @@ func (s *peersSource) Read(
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			builder,
+			span,
+			cache,
 			namespace.IndexRunOptions.RunOptions,
-			span)
+		)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -659,8 +664,9 @@ func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	builder *result.IndexBuilder,
-	opts bootstrap.RunOptions,
 	span opentracing.Span,
+	cache bootstrap.Cache,
+	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
 		return nil, err
@@ -707,6 +713,7 @@ func (s *peersSource) readIndex(
 		Logger:                    s.log,
 		Span:                      span,
 		NowFn:                     s.nowFn,
+		Cache:                     cache,
 	})
 
 	for timeWindowReaders := range readersCh {
@@ -984,7 +991,7 @@ func (s *peersSource) readBlockMetadataAndIndex(
 }
 
 func (s *peersSource) peerAvailability(
-	nsMetadata namespace.Metadata,
+	_ namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {

@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -40,7 +41,7 @@ var (
 
 type options struct {
 	migrationTaskFn      MigrationTaskFn
-	infoFilesByNamespace fs.InfoFilesByNamespace
+	infoFilesByNamespace bootstrap.InfoFilesByNamespace
 	migrationOpts        migration.Options
 	fsOpts               fs.Options
 	instrumentOpts       instrument.Options
@@ -93,13 +94,13 @@ func (o *options) MigrationTaskFn() MigrationTaskFn {
 	return o.migrationTaskFn
 }
 
-func (o *options) SetInfoFilesByNamespace(value fs.InfoFilesByNamespace) Options {
+func (o *options) SetInfoFilesByNamespace(value bootstrap.InfoFilesByNamespace) Options {
 	opts := *o
 	opts.infoFilesByNamespace = value
 	return &opts
 }
 
-func (o *options) InfoFilesByNamespace() fs.InfoFilesByNamespace {
+func (o *options) InfoFilesByNamespace() bootstrap.InfoFilesByNamespace {
 	return o.infoFilesByNamespace
 }
 
