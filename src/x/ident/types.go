@@ -23,6 +23,7 @@ package ident
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -311,8 +312,12 @@ func (t Tags) Equal(other Tags) bool {
 	return true
 }
 
-// IDBatch is a batch of IDs.
-type IDBatch []ID
+// IDBatch is a batch of IDs that is consumed asynchronously.
+type IDBatch struct {
+	sync.WaitGroup
+	// IDs are the IDs for the batch.
+	IDs []ID
+}
 
 // IndexChecksumBlock represents a set of index checksums within a series block.
 type IndexChecksumBlock struct {

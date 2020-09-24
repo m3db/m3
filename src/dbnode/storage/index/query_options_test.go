@@ -53,7 +53,7 @@ func TestQueryOptions(t *testing.T) {
 func TestWideQueryOptions(t *testing.T) {
 	now := time.Now()
 	batchSize := 100
-	collector := make(chan<- ident.IDBatch)
+	collector := make(chan ident.IDBatch)
 	blockSize := time.Hour * 2
 	iterOpts := IterationOptions{}
 	opts := NewWideQueryOptions(now, batchSize, collector, blockSize, iterOpts)

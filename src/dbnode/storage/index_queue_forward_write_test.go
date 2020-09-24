@@ -205,6 +205,53 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 		require.True(t, vMap.Contains(ident.StringID("value")))
 	}
 }
+func TestNamespaceForwardIndexWideQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	idx, now, blockSize := setupForwardIndex(t, ctrl)
+	defer idx.Close()
+
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	require.NoError(t, err)
+
+	// NB: query both the current and the next index block to ensure that the
+	// write was correctly indexed to both.
+	nextBlockTime := now.Add(blockSize)
+	queryTimes := []time.Time{now, nextBlockTime}
+	for _, ts := range queryTimes {
+		ch := make(chan ident.IDBatch)
+		go func() {
+			fmt.Println("CH", <-ch)
+		}()
+		err := idx.WideQuery(ctx, index.Query{Query: reQuery},
+			index.WideQueryOptions{
+				StartInclusive:      ts.Add(-1 * time.Minute),
+				EndExclusive:        ts.Add(1 * time.Minute),
+				IndexBatchCollector: ch,
+			},
+		)
+		require.NoError(t, err)
+
+		time.Sleep(time.Millisecond * 100)
+		// require.True(t, res.Exhaustive)
+		// results := res.Results
+		// require.Equal(t, "testns1", results.Namespace().String())
+
+		// rMap := results.Map()
+		// require.Equal(t, 1, rMap.Len())
+		// seenIters, found := rMap.Get(ident.StringID("name"))
+		// require.True(t, found)
+
+		// vMap := seenIters.Map()
+		// require.Equal(t, 1, vMap.Len())
+		// require.True(t, vMap.Contains(ident.StringID("value")))
+	}
+}
 
 func setupMockBlock(
 	t *testing.T,

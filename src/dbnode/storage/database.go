@@ -927,16 +927,6 @@ func (d *db) WideQuery(
 		return err
 	}
 
-	closed := false
-	defer func() {
-		if !closed {
-			// Drain any remaining results and close.
-			for range collector {
-			}
-			close(collector)
-		}
-	}()
-
 	for batch := range collector {
 		for i, id := range batch {
 			useID := i == len(batch)-1
@@ -948,8 +938,6 @@ func (d *db) WideQuery(
 		}
 	}
 
-	closed = true
-	close(collector)
 	return nil
 }
 

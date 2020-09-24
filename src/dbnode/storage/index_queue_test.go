@@ -34,6 +34,7 @@ import (
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -63,7 +64,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (NamespaceInde
 }
 
 func TestNamespaceIndexHappyPath(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
@@ -85,7 +86,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 }
 
 func TestNamespaceIndexStartErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
@@ -103,7 +104,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 }
 
 func TestNamespaceIndexStopErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
@@ -125,7 +126,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 }
 
 func TestNamespaceIndexWriteAfterClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dbIdx, q := newTestNamespaceIndex(t, ctrl)
@@ -151,7 +152,7 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 }
 
 func TestNamespaceIndexWriteQueueError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dbIdx, q := newTestNamespaceIndex(t, ctrl)
@@ -176,7 +177,7 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 }
 
 func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -256,7 +257,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 }
 
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dbIdx, q := newTestNamespaceIndex(t, ctrl)
@@ -323,7 +324,7 @@ func setupIndex(t *testing.T,
 }
 
 func TestNamespaceIndexInsertQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
@@ -354,7 +355,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 }
 
 func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
@@ -389,4 +390,25 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	vMap := seenIters.Map()
 	require.Equal(t, 1, vMap.Len())
 	assert.True(t, vMap.Contains(ident.StringID("value")))
+}
+
+func TestNamespaceIndexInsertWideQuery(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	idx := setupIndex(t, ctrl, now)
+	defer idx.Close()
+
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, index.WideQueryOptions{
+		StartInclusive: now.Add(-1 * time.Minute),
+		EndExclusive:   now.Add(1 * time.Minute),
+	})
+	require.NoError(t, err)
 }

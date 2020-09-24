@@ -21,87 +21,97 @@
 package index
 
 import (
-	"sync"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 )
 
 type wideResults struct {
-	sync.RWMutex
-
 	nsID   ident.ID
 	opts   QueryResultsOptions
 	idPool ident.Pool
 
-	closed        bool
-	batch         ident.IDBatch
-	batchOverflow ident.IDBatch
-	batchCh       chan<- ident.IDBatch
-	closeCh       chan struct{}
-	batchSize     int
+	closed      bool
+	idsOverflow []ident.ID
+	batch       *ident.IDBatch
+	batchCh     chan<- *ident.IDBatch
+	batchSize   int
 }
 
 // NewWideQueryResults returns a new wide query results object.
+// NB: Reader must read results from `batchCh` in a goroutine, and call
+// batch.Done() after the result is used, and the writer must close the
+// channel after no more Documents are available.
 func NewWideQueryResults(
 	namespaceID ident.ID,
 	batchSize int,
 	idPool ident.Pool,
-	batchCh chan<- ident.IDBatch,
+	batchCh chan<- *ident.IDBatch,
 	opts QueryResultsOptions,
 ) BaseResults {
 	return &wideResults{
-		nsID:          namespaceID,
-		idPool:        idPool,
-		batchSize:     batchSize,
-		batch:         make(ident.IDBatch, 0, batchSize),
-		batchOverflow: make(ident.IDBatch, 0, batchSize),
-		batchCh:       batchCh,
-		closeCh:       make(chan struct{}),
+		nsID:        namespaceID,
+		idPool:      idPool,
+		batchSize:   batchSize,
+		idsOverflow: make([]ident.ID, 0, batchSize),
+		batch: &ident.IDBatch{
+			IDs: make([]ident.ID, 0, batchSize),
+		},
+		batchCh: batchCh,
+		opts:    opts,
 	}
 }
 
-// NB: If documents with duplicate IDs are added, they are simply ignored and
-// the first document added with an ID is returned.
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	r.Lock()
 	if r.closed {
-		r.Unlock()
 		return 0, 0, nil
 	}
 
 	err := r.addDocumentsBatchWithLock(batch)
-	release := len(r.batch) > r.batchSize
-	r.Unlock()
-
+	release := len(r.batch.IDs) >= r.batchSize
+	// fmt.Println("release", release, len(r.ids), r.batchSize)
+	// fmt.Println(r.ids)
 	if release {
-		select {
-		case r.batchCh <- r.batch:
-			r.releaseOverflow()
-		case <-r.closeCh:
-		}
+		// fmt.Println("released", r.ids)
+		r.releaseAndWait()
+		r.releaseOverflow(false)
 	}
 
 	return 0, 0, err
 }
 
-func (r *wideResults) releaseOverflow() {
+func (r *wideResults) releaseOverflow(forceRelease bool) {
+	var (
+		incomplete bool
+		size       int
+		overflow   int
+	)
 	for {
-		r.Lock()
-		r.batch = r.batchOverflow[0:r.batchSize]
-		copy(r.batchOverflow, r.batchOverflow[r.batchSize:])
-		r.batchOverflow = r.batchOverflow[:len(r.batchOverflow)-r.batchSize]
-		release := len(r.batch) > r.batchSize
-		r.Unlock()
-		if !release {
+		size = r.batchSize
+		overflow = len(r.idsOverflow)
+		if overflow == 0 {
+			// NB: no overflow elements.
 			return
 		}
 
-		select {
-		case r.batchCh <- r.batch:
-			r.releaseOverflow()
-		case <-r.closeCh:
+		if overflow < size {
+			size = overflow
+			incomplete = true
 		}
+
+		// fmt.Println("batch overflow", r.idsOverflow)
+		// fmt.Println("batch before", r.ids)
+		copy(r.batch.IDs, r.idsOverflow[0:size])
+		r.batch.IDs = r.batch.IDs[:size]
+		// fmt.Println("batch after", r.ids)
+		copy(r.idsOverflow, r.idsOverflow[size:])
+		r.idsOverflow = r.idsOverflow[:overflow-size]
+		// fmt.Println("batch doubleAfter", r.ids)
+		// fmt.Println("batch overfloiwafter", r.idsOverflow)
+		if !forceRelease && incomplete {
+			return
+		}
+
+		r.releaseAndWait()
 	}
 }
 
@@ -112,6 +122,7 @@ func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -129,11 +140,10 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 
 	// Pool IDs after filter is passed.
 	tsID = r.idPool.Clone(tsID)
-
-	if len(r.batch) > r.batchSize {
-		r.batch = append(r.batch, tsID)
+	if len(r.batch.IDs) < r.batchSize {
+		r.batch.IDs = append(r.batch.IDs, tsID)
 	} else {
-		r.batchOverflow = append(r.batchOverflow, tsID)
+		r.idsOverflow = append(r.idsOverflow, tsID)
 	}
 
 	return nil
@@ -153,12 +163,22 @@ func (r *wideResults) TotalDocsCount() int {
 
 // NB: Finalize should be called after all documents have been consumed.
 func (r *wideResults) Finalize() {
-	r.Lock()
 	if r.closed {
 		return
 	}
 
 	r.closed = true
-	r.Unlock()
-	r.closeCh <- struct{}{}
+	r.releaseAndWait()
+	r.releaseOverflow(true)
+	close(r.batchCh)
+}
+
+func (r *wideResults) releaseAndWait() {
+	if r.closed {
+		return
+	}
+
+	r.batch.Add(1)
+	r.batchCh <- r.batch
+	r.batch.Wait()
 }

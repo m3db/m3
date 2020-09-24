@@ -880,6 +880,15 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		aggOpts = index.AggregationOptions{}
 		aggRes  = index.AggregateQueryResult{}
 		err     error
+
+		now      = time.Now()
+		iterOpts = index.IterationOptions{}
+		wideOpts = index.WideQueryOptions{
+			StartInclusive:   now.Truncate(2 * time.Hour),
+			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
+			IterationOptions: iterOpts,
+			BatchSize:        1024,
+		}
 	)
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 	ns.EXPECT().QueryIDs(gomock.Any(), q, opts).Return(res, nil)
@@ -899,6 +908,36 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.Error(t, err)
 
+	ns.EXPECT().IndexChecksum(gomock.Any(),
+		ident.StringID("foo"), wideOpts.StartInclusive, true).
+		Return(ident.IndexChecksum{}, nil)
+
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ index.Query, opts index.WideQueryOptions) error {
+			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
+			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
+			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
+			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
+			go func() {
+				opts.IndexBatchCollector <- ident.IDBatch{ident.StringID("foo")}
+				close(opts.IndexBatchCollector)
+			}()
+			return nil
+		})
+	err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+	require.NoError(t, err)
+
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ index.Query, opts index.WideQueryOptions) error {
+			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
+			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
+			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
+			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
+			return fmt.Errorf("random err")
+		})
+	err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+	require.Error(t, err)
+
 	ns.EXPECT().Close().Return(nil)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
@@ -907,12 +946,22 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 5)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[2].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[3].OperationName)
-	assert.Equal(t, "root", spans[4].OperationName)
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+	exSpans := []string{
+		tracepoint.DBQueryIDs,
+		tracepoint.DBQueryIDs,
+		tracepoint.DBAggregateQuery,
+		tracepoint.DBAggregateQuery,
+		tracepoint.DBIndexChecksum,
+		tracepoint.DBWideQuery,
+		tracepoint.DBWideQuery,
+		"root",
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {

@@ -1188,6 +1188,40 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	assert.Equal(t, "root", spans[1].OperationName)
 }
 
+func TestNamespaceIndexWideQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().BootstrapsDone().Return(uint(1))
+
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+	opts := index.WideQueryOptions{}
+
+	idx.EXPECT().WideQuery(gomock.Any(), query, opts)
+	err := ns.WideQueryIDs(ctx, query, opts)
+	require.NoError(t, err)
+
+	idx.EXPECT().Close().Return(nil)
+	require.NoError(t, ns.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.NSWideQueryIDs, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
+}
+
 func TestNamespaceAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

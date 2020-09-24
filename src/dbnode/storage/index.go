@@ -1364,11 +1364,25 @@ func (i *nsIndex) WideQuery(
 
 	ctx.RegisterFinalizer(results)
 	queryOpts := opts.ToQueryOptions()
+
+	closed := false
+	defer func() {
+		if !closed {
+			// Drain any remaining results and close.
+			for range opts.IndexBatchCollector {
+			}
+			close(opts.IndexBatchCollector)
+		}
+	}()
+
 	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err
 	}
+
+	close(opts.IndexBatchCollector)
+	closed = true
 	return nil
 }
 
@@ -1699,7 +1713,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results, logFields)
+	_, err := block.Query(ctx, cancellable, query, opts, results, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1715,7 +1729,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 		sp.LogFields(opentracinglog.Error(err))
 		state.multiErr = state.multiErr.Add(err)
 	}
-	state.exhaustive = state.exhaustive && blockExhaustive
+	state.exhaustive = true
 }
 
 func (i *nsIndex) execBlockAggregateQueryFn(
