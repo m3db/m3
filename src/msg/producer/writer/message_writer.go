@@ -117,7 +117,6 @@ type messageWriterMetrics struct {
 	dequeuedMessages         tally.Counter
 	processedWrite           tally.Counter
 	processedClosed          tally.Counter
-
 	processedNotReady        tally.Counter
 	processedTTL             tally.Counter
 	processedAck             tally.Counter
