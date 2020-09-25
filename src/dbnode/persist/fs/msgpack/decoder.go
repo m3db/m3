@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -75,7 +74,7 @@ type Decoder struct {
 	// Wraps original reader with reader that can calculate digest. Digest calculation must be enabled,
 	// otherwise it defaults to off.
 	readerWithDigest  *decoderStreamWithDigest
-	hash              hash.Hash32
+	hasher            schema.IndexEntryHasher
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -98,7 +97,7 @@ func newDecoder(legacy LegacyEncodingOptions, opts DecodingOptions) *Decoder {
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
-		hash:              opts.Hash32(),
+		hasher:            opts.IndexEntryHasher(),
 		readerWithDigest:  newDecoderStreamWithDigest(nil),
 	}
 }
@@ -489,9 +488,8 @@ func (dec *Decoder) decodeIndexChecksum(
 	compare := bytes.Compare(compareID, entry.ID)
 	var checksum int64
 	if compare == 0 {
-		dec.hash.Reset()
 		// NB: need to compute hash before freeing entry bytes.
-		checksum = entry.Hash(dec.hash)
+		checksum = dec.hasher.HashIndexEntry(entry)
 	}
 
 	// free elements if pooled.

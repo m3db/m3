@@ -287,7 +287,7 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 	var (
 		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))

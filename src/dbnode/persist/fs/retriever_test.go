@@ -789,7 +789,7 @@ func TestBlockRetrieverIndexChecksum(t *testing.T) {
 	nsCtx := namespace.NewContextFrom(testNs1Metadata(t))
 	shard := uint32(0)
 	blockStart := time.Now().Truncate(rOpts.BlockSize())
-	decOpts := fsOpts.DecodingOptions().SetHash32(xtest.NewHash32(t))
+	decOpts := fsOpts.DecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t))
 	fsOpts = fsOpts.SetDecodingOptions(decOpts)
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
@@ -860,17 +860,16 @@ func TestBlockRetrieverIndexChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, 0, len(indexChecksum.ID))
-	expected := 200 - int64(digest.Checksum([]byte("Hello world!")))
-	assert.Equal(t, expected, indexChecksum.Checksum)
+	// NB: 200 from ID
+	assert.Equal(t, int64(200), indexChecksum.Checksum)
 
 	indexChecksum, found, err = retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("tags12"), true, blockStart, nsCtx)
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, "tags12", string(indexChecksum.ID))
-	// NB: 1000 from tag, 12 from ID
-	expected = 1012 - int64(digest.Checksum([]byte("foobar")))
-	assert.Equal(t, expected, indexChecksum.Checksum)
+	// NB: 12 from ID
+	assert.Equal(t, int64(12), indexChecksum.Checksum)
 
 	_, found, err = retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("zzzzz"), true, blockStart, nsCtx)

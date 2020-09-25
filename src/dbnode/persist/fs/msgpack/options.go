@@ -21,8 +21,7 @@
 package msgpack
 
 import (
-	"hash"
-	"hash/adler32"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 )
 
 // DecodingOptions provide a set of options for decoding data.
@@ -35,31 +34,27 @@ type DecodingOptions interface {
 	// a byte slice.
 	AllocDecodedBytes() bool
 
-	// SetHash32 sets the hash32 method for this decoder.
-	SetHash32(value hash.Hash32) DecodingOptions
+	// SetIndexEntryHasher sets the indexEntryHasher method for this decoder.
+	SetIndexEntryHasher(value schema.IndexEntryHasher) DecodingOptions
 
-	// SetHash sets the hash method for this decoder.
-	Hash32() hash.Hash32
+	// IndexEntryHasher returns the IndexEntryHasher for this decoder.
+	IndexEntryHasher() schema.IndexEntryHasher
 }
 
 const (
 	defaultAllocDecodedBytes = false
 )
 
-var (
-	defaultHash = adler32.New()
-)
-
 type decodingOptions struct {
 	allocDecodedBytes bool
-	hash32            hash.Hash32
+	indexEntryHasher  schema.IndexEntryHasher
 }
 
 // NewDecodingOptions creates a new set of decoding options.
 func NewDecodingOptions() DecodingOptions {
 	return &decodingOptions{
 		allocDecodedBytes: defaultAllocDecodedBytes,
-		hash32:            defaultHash,
+		indexEntryHasher:  schema.NewAdlerHash(),
 	}
 }
 
@@ -73,12 +68,12 @@ func (o *decodingOptions) AllocDecodedBytes() bool {
 	return o.allocDecodedBytes
 }
 
-func (o *decodingOptions) SetHash32(value hash.Hash32) DecodingOptions {
+func (o *decodingOptions) SetIndexEntryHasher(value schema.IndexEntryHasher) DecodingOptions {
 	opts := *o
-	opts.hash32 = value
+	opts.indexEntryHasher = value
 	return &opts
 }
 
-func (o *decodingOptions) Hash32() hash.Hash32 {
-	return o.hash32
+func (o *decodingOptions) IndexEntryHasher() schema.IndexEntryHasher {
+	return o.indexEntryHasher
 }

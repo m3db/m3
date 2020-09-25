@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/persist/schema"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +54,7 @@ func (h *testHash) Write(p []byte) (n int, err error) {
 
 func (h *testHash) Sum(b []byte) []byte {
 	h.count = h.count + 1
-	matched := h.re.FindAll(b, -1)
+	matched := h.re.FindAllString(string(b), -1)
 	if len(matched) == 0 {
 		return b
 	}
@@ -63,11 +65,27 @@ func (h *testHash) Sum(b []byte) []byte {
 	return b
 }
 
-// NewHash32 builds a new test hash.Hash32. Given hash value is a sum of all
-// integer values from string representations of input bytes.
-// e.g. testHash.Sum([]byte("foo123")) will increment hash value by 32.
-func NewHash32(t *testing.T) hash.Hash32 {
-	re, err := regexp.Compile(`[-]?\d[\d,]*[\.]?[\d{2}]*`)
+// NewParseValueHash32 builds a new test hash.Hash32. Given hash value is a sum
+// of all integer values from string representations of input bytes.
+// e.g. testHash.Sum([]byte("foo123")) will increment hash value by 123.
+func NewParseValueHash32(t *testing.T) hash.Hash32 {
+	re, err := regexp.Compile(`\d[\d,]*[\.]?[\d{2}]*`)
 	require.NoError(t, err)
 	return &testHash{t: t, re: re}
+}
+
+type parsedIndexHasher struct {
+	hash hash.Hash32
+}
+
+// NewParsedIndexHasher builds a new test IndexEntryHasher, hashing IndexEntries
+// to the parsed value of their IDs.
+func NewParsedIndexHasher(t *testing.T) schema.IndexEntryHasher {
+	return &parsedIndexHasher{hash: NewParseValueHash32(t)}
+}
+
+func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
+	h.hash.Reset()
+	h.hash.Sum(e.ID)
+	return int64(h.hash.Sum32())
 }

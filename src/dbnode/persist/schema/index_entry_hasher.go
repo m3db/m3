@@ -21,17 +21,25 @@
 package schema
 
 import (
-	"testing"
-
-	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/assert"
+	"hash"
+	"hash/adler32"
 )
 
-func TestIndexEntryHash(t *testing.T) {
-	id, tags := []byte("a100"), []byte("b12")
-	e := IndexEntry{ID: id, EncodedTags: tags, DataChecksum: -8}
+type adlerHasher struct {
+	hash hash.Hash32
+}
 
-	hashed := e.Hash(xtest.NewHash32(t))
-	assert.Equal(t, int64(120), hashed)
+// NewAdlerHash returns an IndexEntryHasher utilizing adler32 hashing.
+func NewAdlerHash() IndexEntryHasher {
+	return &adlerHasher{hash: adler32.New()}
+}
+
+func (h *adlerHasher) HashIndexEntry(e IndexEntry) int64 {
+	h.hash.Reset()
+	h.hash.Sum(e.ID)
+	h.hash.Sum(e.EncodedTags)
+	// TODO: investigate performance of this; also may be neecessary to add
+	// other fields to this hash. Also subrtacting a computed value from the hash
+	// may lead to more collision prone values.
+	return int64(h.hash.Sum32()) - e.DataChecksum
 }

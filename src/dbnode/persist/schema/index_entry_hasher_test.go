@@ -21,16 +21,27 @@
 package schema
 
 import (
-	"hash"
+	"hash/adler32"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// Hash computes a hash value for this index entry using the given hash method,
-// using its ID, tags, and the computed data checksum.
-func (e *IndexEntry) Hash(h hash.Hash32) int64 {
+func adler(e IndexEntry) int64 {
+	h := adler32.New()
+	h.Reset()
 	h.Sum(e.ID)
 	h.Sum(e.EncodedTags)
-	// TODO: investigate performance of this; also may be neecessary to add
-	// other fields to this hash. Also subrtacting a computed value from the hash
-	// may lead to more collision prone values.
 	return int64(h.Sum32()) - e.DataChecksum
+}
+
+func TestIndexEntryHash(t *testing.T) {
+	id, tags := []byte("a100"), []byte("b12")
+	e := IndexEntry{ID: id, EncodedTags: tags, DataChecksum: -8}
+
+	expected := adler(e)
+	hasher := NewAdlerHash()
+	assert.Equal(t, expected, hasher.HashIndexEntry(e))
+	// NB: ensure hash is reset between calculations.
+	assert.Equal(t, expected, hasher.HashIndexEntry(e))
 }

@@ -100,8 +100,8 @@ var (
 		IndexChecksum: testIndexEntryChecksum,
 		EncodedTags:   []byte("2000"),
 	}
-	// NB: 2000 from tags + 1000 from ID - 50 for data checksum
-	testIndexHashValue = int64(2050)
+	// NB: 100 comes from using xtest.NewParseValueHash32("test100")
+	testIndexHashValue = int64(100)
 )
 
 func TestIndexInfoRoundtrip(t *testing.T) {
@@ -402,7 +402,7 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 	var (
 		pool = pool.NewBytesPool(nil, nil)
 		enc  = NewEncoder()
-		dec  = NewDecoder(NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec  = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 	pool.Init()
 
@@ -416,7 +416,7 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 func TestIndexEntryIntoIndexChecksumRoundtripWithoutBytesPool(t *testing.T) {
 	var (
 		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
@@ -433,7 +433,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 			EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -462,7 +462,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, Match, status)
-	assert.Equal(t, int64(50), chk) // NB: 100 from ID, -50 from data checksum.
+	assert.Equal(t, testIndexHashValue, chk)
 }
 
 // Make sure the V1 decoder code can handle the V3 file format.
@@ -471,7 +471,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 		opts = LegacyEncodingOptions{
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -500,7 +500,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, Match, status)
-	assert.Equal(t, int64(50), chk) // NB: 100 from ID, -50 from data checksum.
+	assert.Equal(t, testIndexHashValue, chk)
 }
 
 // Make sure the V3 decoding code can handle the V2 file format.
@@ -509,7 +509,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
@@ -536,7 +536,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2}
 		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+		dec  = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
@@ -626,8 +626,8 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 func TestMultiTypeRoundtripStress(t *testing.T) {
 	var (
 		enc      = NewEncoder()
-		hasher   = xtest.NewHash32(t)
-		dec      = NewDecoder(NewDecodingOptions().SetHash32(hasher))
+		hasher   = xtest.NewParsedIndexHasher(t)
+		dec      = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(hasher))
 		iter     = 10000
 		res      interface{}
 		err      error

@@ -75,6 +75,13 @@ type IndexEntry struct {
 	IndexChecksum uint32
 }
 
+// IndexEntryHasher hashes an index entry.
+type IndexEntryHasher interface {
+	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
+	// and the computed data checksum.
+	HashIndexEntry(e IndexEntry) int64
+}
+
 // IndexSummary stores a summary of an index entry to lookup.
 type IndexSummary struct {
 	Index            int64
