@@ -372,8 +372,7 @@ func (enc *encoder) Discard() ts.Segment {
 	return segment
 }
 
-// DiscardReset does the same thing as Discard except it also resets the encoder
-// for reuse.
+// DiscardReset does the same thing as Discard except it does not close the encoder but resets it for reuse.
 func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
