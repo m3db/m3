@@ -41,26 +41,34 @@ const (
 	// PromMetricTypeUnknown is the unknown Prometheus metric type.
 	PromMetricTypeUnknown PromMetricType = iota
 
-	// PromMetricTypeUnknown is the counter Prometheus metric type.
+	// PromMetricTypeCounter is the counter Prometheus metric type.
 	PromMetricTypeCounter
 
-	// PromMetricTypeUnknown is the gauge Prometheus metric type.
+	// PromMetricTypeGauge is the gauge Prometheus metric type.
 	PromMetricTypeGauge
 
-	// PromMetricTypeUnknown is the histogram Prometheus metric type.
-	PromMetricTypeHistogram
-
-	// PromMetricTypeUnknown is the gauge histogram Prometheus metric type.
-	PromMetricTypeGaugeHistogram
-
-	// PromMetricTypeUnknown is the summary Prometheus metric type.
-	PromMetricTypeSummary
-
-	// PromMetricTypeUnknown is the info Prometheus metric type.
+	// PromMetricTypeInfo is the info Prometheus metric type.
 	PromMetricTypeInfo
 
-	// PromMetricTypeUnknown is the state set Prometheus metric type.
+	// PromMetricTypeStateSet is the state set Prometheus metric type.
 	PromMetricTypeStateSet
+)
+
+// PromMetricFamilyType is the enum for Prometheus metric types.
+type PromMetricFamilyType int
+
+const (
+	// PromMetricFamilyTypeNone indicates that the metric does not belong to a metrics family.
+	PromMetricFamilyTypeNone PromMetricFamilyType = iota
+
+	// PromMetricFamilyTypeHistogram is the histogram Prometheus metric family type.
+	PromMetricFamilyTypeHistogram
+
+	// PromMetricFamilyTypeGaugeHistogram is the gauge histogram Prometheus metric family type.
+	PromMetricFamilyTypeGaugeHistogram
+
+	// PromMetricFamilyTypeSummary is the summary Prometheus metric family type.
+	PromMetricFamilyTypeSummary
 )
 
 // SourceType is the enum for metric source types.
@@ -76,9 +84,10 @@ const (
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	M3Type   M3MetricType
-	PromType PromMetricType
-	Source   SourceType
+	M3Type         M3MetricType
+	PromType       PromMetricType
+	PromFamilyType PromMetricFamilyType
+	Source         SourceType
 }
 
 // DefaultSeriesAttributes returns a default series attributes.

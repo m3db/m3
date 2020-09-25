@@ -295,21 +295,45 @@ func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
 }
 
 func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
-	mapping := map[prompb.MetricType]ts.PromMetricType{
-		prompb.MetricType_UNKNOWN:         ts.PromMetricTypeUnknown,
-		prompb.MetricType_COUNTER:         ts.PromMetricTypeCounter,
-		prompb.MetricType_GAUGE:           ts.PromMetricTypeGauge,
-		prompb.MetricType_HISTOGRAM:       ts.PromMetricTypeHistogram,
-		prompb.MetricType_GAUGE_HISTOGRAM: ts.PromMetricTypeGaugeHistogram,
-		prompb.MetricType_SUMMARY:         ts.PromMetricTypeSummary,
-		prompb.MetricType_INFO:            ts.PromMetricTypeInfo,
-		prompb.MetricType_STATESET:        ts.PromMetricTypeStateSet,
+	type prompbMetricTypeWithNameSuffix struct {
+		metricType prompb.MetricType
+		nameSuffix string
+	}
+
+	type promMetricTypeWithFamily struct {
+		metricType        ts.PromMetricType
+		metricsFamilyType ts.PromMetricFamilyType
+	}
+
+	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithFamily{
+		{metricType: prompb.MetricType_UNKNOWN}:  {metricType: ts.PromMetricTypeUnknown},
+		{metricType: prompb.MetricType_COUNTER}:  {metricType: ts.PromMetricTypeCounter},
+		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
+		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
+		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
+
+		{prompb.MetricType_HISTOGRAM, "bucket"}: {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeHistogram},
+		{prompb.MetricType_HISTOGRAM, "count"}:  {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeHistogram},
+		{prompb.MetricType_HISTOGRAM, "sum"}:    {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeHistogram},
+
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {ts.PromMetricTypeGauge, ts.PromMetricFamilyTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {ts.PromMetricTypeGauge, ts.PromMetricFamilyTypeGaugeHistogram},
+
+		{metricType: prompb.MetricType_SUMMARY}: {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeSummary},
+		{prompb.MetricType_SUMMARY, "count"}:    {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeSummary},
+		{prompb.MetricType_SUMMARY, "sum"}:      {ts.PromMetricTypeCounter, ts.PromMetricFamilyTypeSummary},
 	}
 
 	for proto, expected := range mapping {
-		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto})
+		var labels []prompb.Label
+		if proto.nameSuffix != "" {
+			labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+		}
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto.metricType, Labels: labels})
 		require.NoError(t, err)
-		assert.Equal(t, expected, attrs.PromType)
+		assert.Equal(t, expected.metricType, attrs.PromType, fmt.Sprintf("metric type of %v", proto))
+		assert.Equal(t, expected.metricsFamilyType, attrs.PromFamilyType, fmt.Sprintf("metric family type of %v", proto))
 	}
 
 	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: -1})
@@ -347,16 +371,13 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.
 	}
 }
 
-func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
+func TestSeriesAttributesMetricTypeToAnnotationPayload(t *testing.T) {
 	mapping := map[ts.PromMetricType]annotation.MetricType{
-		ts.PromMetricTypeUnknown:        annotation.MetricType_UNKNOWN,
-		ts.PromMetricTypeCounter:        annotation.MetricType_COUNTER,
-		ts.PromMetricTypeGauge:          annotation.MetricType_GAUGE,
-		ts.PromMetricTypeHistogram:      annotation.MetricType_HISTOGRAM,
-		ts.PromMetricTypeGaugeHistogram: annotation.MetricType_GAUGE_HISTOGRAM,
-		ts.PromMetricTypeSummary:        annotation.MetricType_SUMMARY,
-		ts.PromMetricTypeInfo:           annotation.MetricType_INFO,
-		ts.PromMetricTypeStateSet:       annotation.MetricType_STATESET,
+		ts.PromMetricTypeUnknown:  annotation.MetricType_UNKNOWN,
+		ts.PromMetricTypeCounter:  annotation.MetricType_COUNTER,
+		ts.PromMetricTypeGauge:    annotation.MetricType_GAUGE,
+		ts.PromMetricTypeInfo:     annotation.MetricType_INFO,
+		ts.PromMetricTypeStateSet: annotation.MetricType_STATESET,
 	}
 
 	for promType, expected := range mapping {
@@ -366,5 +387,26 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 	}
 
 	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: -1})
+	require.Error(t, err)
+}
+
+func TestSeriesAttributesMetricFamilyTypeToAnnotationPayload(t *testing.T) {
+	mapping := map[ts.PromMetricFamilyType]annotation.MetricFamilyType{
+		ts.PromMetricFamilyTypeNone:           annotation.MetricFamilyType_NONE,
+		ts.PromMetricFamilyTypeHistogram:      annotation.MetricFamilyType_HISTOGRAM,
+		ts.PromMetricFamilyTypeGaugeHistogram: annotation.MetricFamilyType_GAUGE_HISTOGRAM,
+		ts.PromMetricFamilyTypeSummary:        annotation.MetricFamilyType_SUMMARY,
+	}
+
+	for promFamilyType, expected := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromFamilyType: promFamilyType})
+		require.NoError(t, err)
+		assert.Equal(t, expected, payload.MetricFamilyType)
+	}
+
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: -1})
+	require.Error(t, err)
+
+	_, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromFamilyType: -1})
 	require.Error(t, err)
 }
