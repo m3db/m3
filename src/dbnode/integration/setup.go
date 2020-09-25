@@ -952,7 +952,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(ts).
 		SetOrigin(ts.Origin())
-	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts, fsOpts)
 	if err != nil {
 		return err
 	}
