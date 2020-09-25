@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	goerrors "errors"
 	"io"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )
@@ -49,12 +51,14 @@ import (
 const (
 	initResultSize             = 10
 	healthCheckInterval        = 60 * time.Second
-	healthCheckTimeout         = 10 * time.Second
+	healthCheckTimeout         = 5 * time.Second
 	healthCheckMetricName      = "health-check"
 	healthCheckMetricResultTag = "result"
 )
 
 var (
+	errAlreadyClosed = goerrors.New("already closed")
+
 	// NB(r): These options tries to ensure we don't let connections go stale
 	// and cause failed RPCs as a result.
 	defaultDialOptions = []grpc.DialOption{
@@ -85,6 +89,7 @@ type Client interface {
 }
 
 type grpcClient struct {
+	state       grpcClientState
 	client      rpc.QueryClient
 	connection  *grpc.ClientConn
 	poolWrapper *pools.PoolWrapper
@@ -92,8 +97,14 @@ type grpcClient struct {
 	pools       encoding.IteratorPools
 	poolErr     error
 	opts        m3db.Options
-	closeCh     chan struct{}
+	logger      *zap.Logger
 	metrics     grpcClientMetrics
+}
+
+type grpcClientState struct {
+	sync.RWMutex
+	closed  bool
+	closeCh chan struct{}
 }
 
 type grpcClientMetrics struct {
@@ -153,11 +164,14 @@ func NewGRPCClient(
 
 	client := rpc.NewQueryClient(cc)
 	c := &grpcClient{
+		state: grpcClientState{
+			closeCh: make(chan struct{}),
+		},
 		client:      client,
 		connection:  cc,
 		poolWrapper: poolWrapper,
 		opts:        opts,
-		closeCh:     make(chan struct{}),
+		logger:      instrumentOpts.Logger(),
 		metrics:     newGRPCClientMetrics(scope),
 	}
 	go c.healthCheckUntilClosed()
@@ -168,27 +182,49 @@ func (c *grpcClient) healthCheckUntilClosed() {
 	ticker := time.NewTicker(healthCheckInterval)
 	defer ticker.Stop()
 
-	req := &rpc.HealthRequest{}
 	for {
+		if c.closed() {
+			return // Abort early, closed already.
+		}
+
 		// Perform immediately so first check isn't delayed.
-		ctx, cancel := context.WithTimeout(context.Background(),
-			healthCheckTimeout)
-		_, err := c.client.Health(ctx, req)
-		cancel()
+		err := c.healthCheck()
+
+		if c.closed() {
+			return // Don't report results, closed already.
+		}
+
 		if err != nil {
 			c.metrics.healthCheckError.Inc(1)
+			c.logger.Debug("remote storage client health check failed",
+				zap.Error(err))
 		} else {
 			c.metrics.healthCheckSuccess.Inc(1)
 		}
 
 		select {
-		case <-c.closeCh:
+		case <-c.state.closeCh:
 			return
 		case <-ticker.C:
 			// Continue to next check.
 			continue
 		}
 	}
+}
+
+func (c *grpcClient) healthCheck() error {
+	ctx, cancel := context.WithTimeout(context.Background(),
+		healthCheckTimeout)
+	_, err := c.client.Health(ctx, &rpc.HealthRequest{})
+	cancel()
+	return err
+}
+
+func (c *grpcClient) closed() bool {
+	c.state.RLock()
+	closed := c.state.closed
+	c.state.RUnlock()
+	return closed
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -424,6 +460,14 @@ func (c *grpcClient) CompleteTags(
 }
 
 func (c *grpcClient) Close() error {
-	close(c.closeCh)
+	c.state.Lock()
+	defer c.state.Unlock()
+
+	if c.state.closed {
+		return errAlreadyClosed
+	}
+	c.state.closed = true
+
+	close(c.state.closeCh)
 	return c.connection.Close()
 }
