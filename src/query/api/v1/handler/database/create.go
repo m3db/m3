@@ -473,6 +473,7 @@ func defaultedUnaggregatedNamespaceAddRequest(
 	opts = opts.SetRetentionOptions(retentionOpts).
 		SetIndexOptions(indexOpts)
 
+	// Resolution does not apply to unaggregated namespaces so set to 0.
 	attrs, err := dbnamespace.NewAggregationAttributes(0, dbnamespace.Unaggregated)
 	if err != nil {
 		return nil, err
