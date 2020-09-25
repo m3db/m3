@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
@@ -137,7 +138,7 @@ func TestQuantileCreationFn(t *testing.T) {
 
 func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewAggregationOp(QuantileType, NodeParams{
-		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 0.6,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: scalar.Value{Scalar: 0.6},
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)

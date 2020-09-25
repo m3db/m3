@@ -52,7 +52,13 @@ func NewTakeOp(
 	}
 
 	var fn takeFunc
-	k := int(params.Parameter)
+	if params.Parameter.HasTimeValues {
+		// TODO: fix this case.
+		return baseOp{},
+			fmt.Errorf("cannot make take function with timed parameters")
+	}
+
+	k := int(params.Parameter.Scalar)
 	if k < 1 {
 		fn = func(values []float64, buckets [][]int) []float64 {
 			return takeNone(values, buckets)

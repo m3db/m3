@@ -20,20 +20,16 @@
 
 package block
 
-import (
-	"time"
-)
+import "github.com/m3db/m3/src/query/ts"
 
 var (
-	defaultTimeTransform       = func(t time.Time) time.Time { return t }
-	defaultValueTransform      = func(v float64) float64 { return v }
+	defaultDatapointTransform  = func(dp ts.Datapoint) ts.Datapoint { return dp }
 	defaultMetaTransform       = func(m Metadata) Metadata { return m }
 	defaultSeriesMetaTransform = func(m []SeriesMeta) []SeriesMeta { return m }
 )
 
 type lazyOpts struct {
-	timeTransform       TimeTransform
-	valueTransform      ValueTransform
+	datapointTransform  DatapointTransform
 	metaTransform       MetaTransform
 	seriesMetaTransform SeriesMetaTransform
 }
@@ -41,31 +37,20 @@ type lazyOpts struct {
 // NewLazyOptions creates LazyOpts with default values.
 func NewLazyOptions() LazyOptions {
 	return &lazyOpts{
-		timeTransform:       defaultTimeTransform,
-		valueTransform:      defaultValueTransform,
+		datapointTransform:  defaultDatapointTransform,
 		metaTransform:       defaultMetaTransform,
 		seriesMetaTransform: defaultSeriesMetaTransform,
 	}
 }
 
-func (o *lazyOpts) SetTimeTransform(t TimeTransform) LazyOptions {
+func (o *lazyOpts) SetDatapointTransform(t DatapointTransform) LazyOptions {
 	opts := *o
-	opts.timeTransform = t
+	opts.datapointTransform = t
 	return &opts
 }
 
-func (o *lazyOpts) TimeTransform() TimeTransform {
-	return o.timeTransform
-}
-
-func (o *lazyOpts) SetValueTransform(t ValueTransform) LazyOptions {
-	opts := *o
-	opts.valueTransform = t
-	return &opts
-}
-
-func (o *lazyOpts) ValueTransform() ValueTransform {
-	return o.valueTransform
+func (o *lazyOpts) DatapointTransform() DatapointTransform {
+	return o.datapointTransform
 }
 
 func (o *lazyOpts) SetMetaTransform(t MetaTransform) LazyOptions {

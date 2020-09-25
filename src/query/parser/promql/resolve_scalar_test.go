@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -80,8 +80,57 @@ func TestScalarResolver(t *testing.T) {
 			expr := parsed.(*promParser).expr
 			actual, err := resolveScalarArgument(expr)
 
+			require.False(t, actual.HasTimeValues)
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, actual)
+			test.EqualsWithNans(t, tt.expected, actual.Scalar)
+		})
+	}
+}
+
+var timeScalarResolverTests = []struct {
+	funcString string
+	expected   []float64
+}{
+	{"7+2-1+time()", []float64{9, 10, 11, 12}},
+	{"(9+time()+scalar(vector(-10)))", []float64{0, 1, 2, 3}},
+	{"time()+time()*2+time()*3", []float64{6, 12, 18, 24}},
+	{"(time()+time()*2+time())*3", []float64{12, 24, 36, 48}},
+	{"time()*2000-(time()*1000)", []float64{1000, 2000, 3000, 4000}},
+	{"time()*(2000-time()*1000)", []float64{1000, 0, -3000, -8000}},
+	{"time() * 2000 -(time() * 1000)", []float64{1000, 2000, 3000, 4000}},
+	{"scalar(vector(time()))", []float64{1, 2, 3, 4}},
+	{"scalar(1+vector(time() != bool 1))", []float64{1, 2, 2, 2}},
+	{"(time()+scalar(some_fetch))", []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN()}},
+	{"scalar(9+vector(time())) / 2", []float64{5, 5.5, 6, 6.5}},
+	{
+		`scalar(
+			scalar(
+				scalar(
+					time() + vector(-time()) ^ 2 
+				) - vector(+2)
+			) + vector(time())
+		)`,
+		[]float64{1, 6, 13, 22},
+	},
+}
+
+func TestScalarResolverWithTime(t *testing.T) {
+	for _, tt := range timeScalarResolverTests {
+		t.Run(tt.funcString, func(t *testing.T) {
+			timeFn := func() []float64 {
+				return []float64{1, 2, 3, 4}
+			}
+
+			parsed, err := Parse(tt.funcString, time.Second,
+				models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			expr := parsed.(*promParser).expr
+			actual, err := resolveScalarArgument(expr)
+
+			require.NoError(t, err, tt.funcString)
+			require.True(t, actual.HasTimeValues)
+			applied := actual.TimeValueFn(timeFn)
+			test.EqualsWithNans(t, tt.expected, applied)
 		})
 	}
 }

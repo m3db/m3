@@ -970,7 +970,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 		rhsResultMeta = block.ResultMetadata{
 			LocalOnly:  false,
 			Exhaustive: true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 		}
 
 		rhsMeta  = meta(bounds, "right", rhsResultMeta)
@@ -1007,7 +1007,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	exResultMeta := block.ResultMetadata{
 		LocalOnly:  false,
 		Exhaustive: false,
-		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 	}
 
 	// Extract duped expected metas
@@ -1018,7 +1018,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		block.SeriesMeta{
+		{
 			Name: []byte("a1"),
 			Tags: models.EmptyTags(),
 		},

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -52,7 +53,7 @@ type NodeParams struct {
 	// MatchingTags should be excluded from grouping.
 	Without bool
 	// Parameter is the param value for the aggregation op when appropriate.
-	Parameter float64
+	Parameter scalar.Value
 	// StringParameter is the string representation of the param value.
 	StringParameter string
 }
@@ -66,7 +67,13 @@ func NewAggregationOp(
 		return newBaseOp(params, opType, fn), nil
 	}
 
-	if fn, ok := makeQuantileFn(opType, params.Parameter); ok {
+	if params.Parameter.HasTimeValues {
+		// TODO: fix this case.
+		return baseOp{},
+			fmt.Errorf("cannot make quantile function with timed parameters")
+	}
+
+	if fn, ok := makeQuantileFn(opType, params.Parameter.Scalar); ok {
 		return newBaseOp(params, opType, fn), nil
 	}
 

@@ -148,7 +148,7 @@ func newScalarOperator(
 	expr *promql.NumberLiteral,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	return scalar.NewScalarOp(expr.Val, tagOpts)
+	return scalar.NewScalarOp(scalar.Value{Scalar: expr.Val}, tagOpts)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type.
