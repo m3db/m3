@@ -390,9 +390,11 @@ type databaseNamespace interface {
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 
-	// BootstrapState captures and returns a snapshot of the namespaces'
-	// bootstrap state.
-	BootstrapState() ShardBootstrapStates
+	// BootstrapState captures and returns a snapshot of the namespaces' bootstrap state.
+	BootstrapState() BootstrapState
+
+	// ShardBootstrapState captures and returns a snapshot of the namespaces' shards bootstrap state.
+	ShardBootstrapState() ShardBootstrapStates
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)

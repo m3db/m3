@@ -1047,7 +1047,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 	d.RLock()
 	for _, n := range d.namespaces.Iter() {
 		ns := n.Value()
-		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+		nsBootstrapStates[ns.ID().String()] = ns.ShardBootstrapState()
 	}
 	d.RUnlock()
 

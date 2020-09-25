@@ -1574,7 +1574,13 @@ func (n *dbNamespace) Close() error {
 	return nil
 }
 
-func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
+func (n *dbNamespace) BootstrapState() BootstrapState {
+	n.RLock()
+	defer n.RUnlock()
+	return n.bootstrapState
+}
+
+func (n *dbNamespace) ShardBootstrapState() ShardBootstrapStates {
 	n.RLock()
 	shardStates := make(ShardBootstrapStates, len(n.shards))
 	for _, shard := range n.shards {
@@ -1631,11 +1637,11 @@ func (n *dbNamespace) aggregateTiles(
 			opts.Start, opts.End, targetBlockSize.String())
 	}
 
-	n.RLock()
-	if n.bootstrapState != Bootstrapped {
-		n.RUnlock()
+	if n.BootstrapState() != Bootstrapped || sourceNs.BootstrapState() != Bootstrapped {
 		return 0, errNamespaceNotBootstrapped
 	}
+
+	n.RLock()
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
@@ -1682,7 +1688,7 @@ func (n *dbNamespace) aggregateTiles(
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
 		zap.Int("shards", len(targetShards)),
-		zap.Int64("processedBlocks", processedTileCount),
+		zap.Int64("processedTiles", processedTileCount),
 		zap.Duration("duration", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil

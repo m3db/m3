@@ -1504,10 +1504,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *g
 }
 
 // BootstrapState mocks base method
-func (m *MockdatabaseNamespace) BootstrapState() ShardBootstrapStates {
+func (m *MockdatabaseNamespace) BootstrapState() BootstrapState {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
-	ret0, _ := ret[0].(ShardBootstrapStates)
+	ret0, _ := ret[0].(BootstrapState)
 	return ret0
 }
 
@@ -1515,6 +1515,20 @@ func (m *MockdatabaseNamespace) BootstrapState() ShardBootstrapStates {
 func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
+}
+
+// ShardBootstrapState mocks base method
+func (m *MockdatabaseNamespace) ShardBootstrapState() ShardBootstrapStates {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardBootstrapState")
+	ret0, _ := ret[0].(ShardBootstrapStates)
+	return ret0
+}
+
+// ShardBootstrapState indicates an expected call of ShardBootstrapState
+func (mr *MockdatabaseNamespaceMockRecorder) ShardBootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardBootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).ShardBootstrapState))
 }
 
 // FlushState mocks base method

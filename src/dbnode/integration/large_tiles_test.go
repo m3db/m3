@@ -78,7 +78,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	nowFn := testSetup.NowFn()
 
 	// Write test data.
-	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
+	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
 	dpTime := dpTimeStart
 	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
@@ -124,14 +124,6 @@ func TestReadAggregateWrite(t *testing.T) {
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
 	assert.Equal(t, int64(10), processedTileCount)
-
-	require.True(t, xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		writeErrorsCount, _ := counters["database.writeAggData.errors"]
-		require.Equal(t, int64(0), writeErrorsCount)
-		seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-		return seriesWritesCount >= 2
-	}, time.Second*10))
 
 	log.Info("validating aggregated data")
 	expectedDps := []ts.Datapoint{
@@ -290,8 +282,9 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 			SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
-			SetIndexOptions(idxOptsT).
-			SetColdWritesEnabled(true)
+			SetIndexOptions(idxOptsT)
+
+		fixedNow = time.Now().Truncate(blockSizeT).Add(10 * time.Minute)
 	)
 
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
@@ -303,7 +296,10 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
 		SetWriteNewSeriesAsync(true).
 		SetNumShards(1).
-		SetFetchRequestTimeout(time.Second * 30)
+		SetFetchRequestTimeout(time.Second * 30).
+		SetNowFn(func() time.Time {
+			return fixedNow
+		})
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
