@@ -1369,9 +1369,10 @@ func (i *nsIndex) WideQuery(
 	defer func() {
 		if !closed {
 			// Drain any remaining results and close.
-			for range opts.IndexBatchCollector {
-			}
-			close(opts.IndexBatchCollector)
+			results.Finalize()
+			// for range opts.IndexBatchCollector {
+			// }
+			// close(opts.IndexBatchCollector)
 		}
 	}()
 
@@ -1381,8 +1382,8 @@ func (i *nsIndex) WideQuery(
 		return err
 	}
 
-	close(opts.IndexBatchCollector)
 	closed = true
+	results.Finalize()
 	return nil
 }
 

@@ -180,7 +180,7 @@ type Database interface {
 		start time.Time,
 		shards []int,
 		iterOpts index.IterationOptions,
-	) error // FIXME: change when exact type known.
+	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

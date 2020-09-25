@@ -406,9 +406,37 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
-	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, index.WideQueryOptions{
-		StartInclusive: now.Add(-1 * time.Minute),
-		EndExclusive:   now.Add(1 * time.Minute),
-	})
+	doneCh := make(chan struct{})
+	collector := make(chan *ident.IDBatch)
+	queryOpts := index.NewWideQueryOptions(
+		time.Now(),
+		5,
+		collector,
+		time.Hour*2,
+		index.IterationOptions{})
+
+	expectedBatchIDs := [][]string{{"foo"}}
+	go func() {
+		i := 0
+		for b := range collector {
+			batchStr := make([]string, 0, len(b.IDs))
+			for _, id := range b.IDs {
+				batchStr = append(batchStr, id.String())
+			}
+
+			withinIndex := i < len(expectedBatchIDs)
+			assert.True(t, withinIndex)
+			if withinIndex {
+				assert.Equal(t, expectedBatchIDs[i], batchStr)
+			}
+
+			b.Done()
+			i++
+		}
+		doneCh <- struct{}{}
+	}()
+
+	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, queryOpts)
 	require.NoError(t, err)
+	<-doneCh
 }

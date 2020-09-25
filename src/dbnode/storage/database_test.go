@@ -302,7 +302,7 @@ func TestDatabaseWideQueryNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	err := d.WideQuery(ctx, ident.StringID("nonexistent"),
+	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
 		index.Query{}, time.Now(), []int{}, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
@@ -919,7 +919,9 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			go func() {
-				opts.IndexBatchCollector <- ident.IDBatch{ident.StringID("foo")}
+				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch.Add(1)
+				opts.IndexBatchCollector <- batch
 				close(opts.IndexBatchCollector)
 			}()
 			return nil

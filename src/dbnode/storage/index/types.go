@@ -104,7 +104,7 @@ type WideQueryOptions struct {
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
 	// IndexBatchCollector collects ID batches in an asynchronous fashion.
-	IndexBatchCollector chan ident.IDBatch
+	IndexBatchCollector chan *ident.IDBatch
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
 }

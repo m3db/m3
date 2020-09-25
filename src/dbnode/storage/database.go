@@ -897,15 +897,16 @@ func (d *db) WideQuery(
 	start time.Time,
 	shards []int,
 	iterOpts index.IterationOptions,
-) error { // FIXME: change when exact type known.
+) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return err
+		return nil, err
 	}
 
 	batchSize := d.opts.WideBatchSize()
-	collector := make(chan ident.IDBatch)
+	doneCh := make(chan struct{})
+	collector := make(chan *ident.IDBatch)
 	blockSize := n.Options().IndexOptions().BlockSize()
 	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, iterOpts)
 	start, end := opts.StartInclusive, opts.EndExclusive
@@ -922,23 +923,45 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
+	var (
+		c            ident.IndexChecksum
+		collected    = make([]ident.IndexChecksum, 0, 10)
+		collectorErr error
+	)
+
+	// Setup consumer
+	go func() {
+		for batch := range collector {
+			if collectorErr != nil {
+				batch.Done()
+				continue
+			}
+
+			for i, id := range batch.IDs {
+				useID := i == len(batch.IDs)-1
+				c, collectorErr = d.indexChecksum(ctx, namespace, n, id, start, useID)
+				if collectorErr == nil {
+					// TODO: use index checksum value
+					collected = append(collected, c)
+				}
+			}
+
+			batch.Done()
+		}
+		doneCh <- struct{}{}
+	}()
+
 	err = n.WideQueryIDs(ctx, query, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for batch := range collector {
-		for i, id := range batch {
-			useID := i == len(batch)-1
-			_, err := d.indexChecksum(ctx, namespace, n, id, start, useID)
-			if err != nil {
-				return err
-			}
-			// TODO: use index checksum value
-		}
+	<-doneCh
+	if collectorErr != nil {
+		return nil, collectorErr
 	}
 
-	return nil
+	return collected, nil
 }
 
 func (d *db) indexChecksum(

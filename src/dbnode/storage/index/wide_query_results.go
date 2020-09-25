@@ -67,11 +67,8 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	}
 
 	err := r.addDocumentsBatchWithLock(batch)
-	release := len(r.batch.IDs) >= r.batchSize
-	// fmt.Println("release", release, len(r.ids), r.batchSize)
-	// fmt.Println(r.ids)
+	release := len(r.batch.IDs) == r.batchSize
 	if release {
-		// fmt.Println("released", r.ids)
 		r.releaseAndWait()
 		r.releaseOverflow(false)
 	}
@@ -98,15 +95,10 @@ func (r *wideResults) releaseOverflow(forceRelease bool) {
 			incomplete = true
 		}
 
-		// fmt.Println("batch overflow", r.idsOverflow)
-		// fmt.Println("batch before", r.ids)
-		copy(r.batch.IDs, r.idsOverflow[0:size])
+		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
 		r.batch.IDs = r.batch.IDs[:size]
-		// fmt.Println("batch after", r.ids)
 		copy(r.idsOverflow, r.idsOverflow[size:])
 		r.idsOverflow = r.idsOverflow[:overflow-size]
-		// fmt.Println("batch doubleAfter", r.ids)
-		// fmt.Println("batch overfloiwafter", r.idsOverflow)
 		if !forceRelease && incomplete {
 			return
 		}
@@ -167,18 +159,19 @@ func (r *wideResults) Finalize() {
 		return
 	}
 
-	r.closed = true
+	// NB: release current
 	r.releaseAndWait()
-	r.releaseOverflow(true)
+	r.closed = true
 	close(r.batchCh)
 }
 
 func (r *wideResults) releaseAndWait() {
-	if r.closed {
+	if r.closed || len(r.batch.IDs) == 0 {
 		return
 	}
 
 	r.batch.Add(1)
 	r.batchCh <- r.batch
 	r.batch.Wait()
+	r.batch.IDs = r.batch.IDs[:0]
 }

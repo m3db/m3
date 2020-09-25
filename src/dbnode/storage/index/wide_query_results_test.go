@@ -31,23 +31,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWideSeriesResults(t *testing.T) {
-	var (
-		ns        = ident.StringID("ns")
-		batchSize = 20
-		bytesPool = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
-		})
-		idPool  = ident.NewPool(bytesPool, ident.PoolOptions{})
-		batchCh = make(chan *ident.IDBatch)
-		opts    = QueryResultsOptions{}
-
-		elementCount = 48
-		docBatchSize = 6
-		doneCh       = make(chan struct{})
-	)
-
-	bytesPool.Init()
+func assertExpected(
+	t *testing.T,
+	elementCount int,
+	batchSize int,
+	batchCh <-chan *ident.IDBatch,
+	doneCh chan<- struct{},
+) {
 	exBatches := int(math.Ceil(float64(elementCount) / float64(batchSize)))
 	expected := make([][]string, 0, exBatches)
 	for i := 0; i < exBatches; i++ {
@@ -71,27 +61,28 @@ func TestWideSeriesResults(t *testing.T) {
 			}
 
 			batch.Done()
-			fmt.Println(i, "Batch", batchStr)
 			withinIndex := i < len(expected)
 			assert.True(t, withinIndex)
 			if withinIndex {
-				fmt.Println(i, "Ex   ", expected[i])
 				assert.Equal(t, expected[i], batchStr)
 			}
 			i++
 		}
 		doneCh <- struct{}{}
 	}()
+}
 
-	docBatches := int(math.Ceil(float64(elementCount) / float64(docBatchSize)))
+func buildDocs(elementCount int, batchSize int) [][]doc.Document {
+	docBatches := int(math.Ceil(float64(elementCount) / float64(batchSize)))
 	docs := make([][]doc.Document, 0, docBatches)
 	for i := 0; i < docBatches; i++ {
-		batch := make([]doc.Document, 0, docBatchSize)
-		for j := 0; j < docBatchSize; j++ {
-			val := i*docBatchSize + j
+		batch := make([]doc.Document, 0, batchSize)
+		for j := 0; j < batchSize; j++ {
+			val := i*batchSize + j
 			if val < elementCount {
+				val := fmt.Sprintf("foo%d", i*batchSize+j)
 				batch = append(batch, doc.Document{
-					ID: []byte(fmt.Sprintf("foo%d", i*docBatchSize+j)),
+					ID: []byte(val),
 				})
 			}
 		}
@@ -99,14 +90,48 @@ func TestWideSeriesResults(t *testing.T) {
 		docs = append(docs, batch)
 	}
 
-	wideRes := NewWideQueryResults(ns, batchSize, idPool, batchCh, opts)
-	for _, docBatch := range docs {
-		size, docsCount, err := wideRes.AddDocuments(docBatch)
-		assert.Equal(t, 0, size)
-		assert.Equal(t, 0, docsCount)
-		assert.NoError(t, err)
-	}
+	return docs
+}
 
-	wideRes.Finalize()
-	<-doneCh
+func TestWideSeriesResults(t *testing.T) {
+	var (
+		ns        = ident.StringID("ns")
+		bytesPool = pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		})
+		idPool = ident.NewPool(bytesPool, ident.PoolOptions{})
+		opts   = QueryResultsOptions{}
+
+		max = 31
+	)
+
+	bytesPool.Init()
+	// Test many different permutations of element count and batch sizes.
+	for elementCount := 0; elementCount < max; elementCount++ {
+		for docBatchSize := 1; docBatchSize < max; docBatchSize++ {
+			for batchSize := 1; batchSize < max; batchSize++ {
+				var (
+					batchCh = make(chan *ident.IDBatch)
+					doneCh  = make(chan struct{})
+				)
+
+				docs := buildDocs(elementCount, docBatchSize)
+				assertExpected(t, elementCount, batchSize, batchCh, doneCh)
+
+				wideRes := NewWideQueryResults(ns, batchSize, idPool, batchCh, opts)
+				for _, docBatch := range docs {
+					size, docsCount, err := wideRes.AddDocuments(docBatch)
+					assert.Equal(t, 0, size)
+					assert.Equal(t, 0, docsCount)
+					assert.NoError(t, err)
+				}
+
+				wideRes.Finalize()
+				assert.Equal(t, 0, wideRes.TotalDocsCount())
+				assert.Equal(t, 0, wideRes.Size())
+				assert.Equal(t, "ns", wideRes.Namespace().String())
+				<-doneCh
+			}
+		}
+	}
 }

@@ -373,7 +373,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	err = idx.WideQuery(ctx, query, index.WideQueryOptions{
 		StartInclusive:      start,
 		EndExclusive:        end,
-		IndexBatchCollector: make(chan ident.IDBatch),
+		IndexBatchCollector: make(chan *ident.IDBatch),
 	})
 	require.NoError(t, err)
 }

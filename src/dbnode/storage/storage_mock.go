@@ -345,11 +345,12 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []int, iterOpts index.IterationOptions) error {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []int, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WideQuery indicates an expected call of WideQuery
@@ -754,11 +755,12 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []int, iterOpts index.IterationOptions) error {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []int, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WideQuery indicates an expected call of WideQuery

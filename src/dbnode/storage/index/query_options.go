@@ -51,7 +51,7 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 func NewWideQueryOptions(
 	queryStart time.Time,
 	batchSize int,
-	collector chan ident.IDBatch,
+	collector chan *ident.IDBatch,
 	blockSize time.Duration,
 	iterOpts IterationOptions,
 ) WideQueryOptions {

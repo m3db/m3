@@ -43,6 +43,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -224,32 +225,33 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	nextBlockTime := now.Add(blockSize)
 	queryTimes := []time.Time{now, nextBlockTime}
 	for _, ts := range queryTimes {
-		ch := make(chan ident.IDBatch)
+		collector := make(chan *ident.IDBatch)
+		doneCh := make(chan struct{})
+		expectedBatchIDs := [][]string{{"foo"}}
 		go func() {
-			fmt.Println("CH", <-ch)
+			i := 0
+			for b := range collector {
+				batchStr := make([]string, 0, len(b.IDs))
+				for _, id := range b.IDs {
+					batchStr = append(batchStr, id.String())
+				}
+
+				withinIndex := i < len(expectedBatchIDs)
+				assert.True(t, withinIndex)
+				if withinIndex {
+					assert.Equal(t, expectedBatchIDs[i], batchStr)
+				}
+
+				b.Done()
+				i++
+			}
+			doneCh <- struct{}{}
 		}()
-		err := idx.WideQuery(ctx, index.Query{Query: reQuery},
-			index.WideQueryOptions{
-				StartInclusive:      ts.Add(-1 * time.Minute),
-				EndExclusive:        ts.Add(1 * time.Minute),
-				IndexBatchCollector: ch,
-			},
-		)
+
+		err := idx.WideQuery(ctx, index.Query{Query: reQuery}, index.NewWideQueryOptions(
+			ts, 5, collector, time.Hour*2, index.IterationOptions{}))
 		require.NoError(t, err)
-
-		time.Sleep(time.Millisecond * 100)
-		// require.True(t, res.Exhaustive)
-		// results := res.Results
-		// require.Equal(t, "testns1", results.Namespace().String())
-
-		// rMap := results.Map()
-		// require.Equal(t, 1, rMap.Len())
-		// seenIters, found := rMap.Get(ident.StringID("name"))
-		// require.True(t, found)
-
-		// vMap := seenIters.Map()
-		// require.Equal(t, 1, vMap.Len())
-		// require.True(t, vMap.Contains(ident.StringID("value")))
+		<-doneCh
 	}
 }
 
