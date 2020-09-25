@@ -131,7 +131,7 @@ func newMessageWriterMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) messageWriterMetrics {
-	return newMessageWriterMetricsWithConsumer(scope, opts, "")
+	return newMessageWriterMetricsWithConsumer(scope, opts, "unknown")
 }
 
 func newMessageWriterMetricsWithConsumer(
@@ -216,7 +216,8 @@ type messageWriterImpl struct {
 	isClosed         bool
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
-	m                messageWriterMetrics
+	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
+	m                *messageWriterMetrics
 	nextFullScan     time.Time
 	lastNewWrite     *list.Element
 
@@ -249,7 +250,7 @@ func newMessageWriter(
 		msgsToWrite:       make([]*message, 0, opts.MessageQueueScanBatchSize()),
 		isClosed:          false,
 		doneCh:            make(chan struct{}),
-		m:                 m,
+		m:                 &m,
 		nowFn:             nowFn,
 	}
 }
@@ -298,6 +299,7 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 func (w *messageWriterImpl) write(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
+	metrics *messageWriterMetrics,
 	m *message,
 ) error {
 	m.IncReads()
@@ -321,18 +323,18 @@ func (w *messageWriterImpl) write(
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
-			w.m.oneConsumerWriteError.Inc(1)
+			metrics.oneConsumerWriteError.Inc(1)
 			continue
 		}
 		written = true
-		w.m.writeSuccess.Inc(1)
+		metrics.writeSuccess.Inc(1)
 		break
 	}
 	if written {
 		return nil
 	}
 	// Could not be written to any consumer, will retry later.
-	w.m.allConsumersWriteError.Inc(1)
+	metrics.allConsumersWriteError.Inc(1)
 	return errFailAllConsumers
 }
 
@@ -359,6 +361,8 @@ func (w *messageWriterImpl) nextRetryNanos(writeTimes int, nowNanos int64) int64
 func (w *messageWriterImpl) Ack(meta metadata) bool {
 	acked, initNanos := w.acks.ack(meta)
 	if acked {
+		w.RLock()
+		defer w.RUnlock()
 		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
 		w.m.messageAcked.Inc(1)
 		return true
@@ -400,6 +404,7 @@ func (w *messageWriterImpl) scanMessageQueue() {
 	e := w.queue.Front()
 	w.lastNewWrite = nil
 	isClosed := w.isClosed
+	m := w.m
 	w.RUnlock()
 	var (
 		msgsToWrite      []*message
@@ -419,24 +424,24 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
 		if !fullScan && len(msgsToWrite) == 0 {
-			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			// If this is not a full scan, abort after the iteration batch
 			// that no new messages were found.
 			break
 		}
 		if skipWrites {
-			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			continue
 		}
-		if err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite); err != nil {
+		if err := w.writeBatch(iterationIndexes, consumerWriters, m, msgsToWrite); err != nil {
 			// When we can't write to any consumer writer, skip the writes in this scan
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
 		}
-		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+		m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 	}
 	afterScan := w.nowFn()
-	w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
+	m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
 	if fullScan {
 		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
 	}
@@ -445,18 +450,19 @@ func (w *messageWriterImpl) scanMessageQueue() {
 func (w *messageWriterImpl) writeBatch(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
+	metrics *messageWriterMetrics,
 	messages []*message,
 ) error {
 	if len(consumerWriters) == 0 {
 		// Not expected in a healthy/valid placement.
-		w.m.noWritersError.Inc(int64(len(messages)))
+		metrics.noWritersError.Inc(int64(len(messages)))
 		return errNoWriters
 	}
 	for _, m := range messages {
-		if err := w.write(iterationIndexes, consumerWriters, m); err != nil {
+		if err := w.write(iterationIndexes, consumerWriters, metrics, m); err != nil {
 			return err
 		}
-		w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
+		metrics.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
 	}
 	return nil
 }
@@ -662,12 +668,12 @@ func (w *messageWriterImpl) RemoveConsumerWriter(addr string) {
 func (w *messageWriterImpl) Metrics() messageWriterMetrics {
 	w.RLock()
 	defer w.RUnlock()
-	return w.m
+	return *w.m
 }
 
 func (w *messageWriterImpl) SetMetrics(m messageWriterMetrics) {
 	w.Lock()
-	w.m = m
+	w.m = &m
 	w.Unlock()
 }
 
