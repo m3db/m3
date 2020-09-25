@@ -51,6 +51,9 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout.
 	defaultTruncateRequestTimeout = 2 * time.Second
 
+	// defaultFetchRequestTimeout is the default fetch request timeout
+	defaultFetchRequestTimeout = 15 * time.Second
+
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
@@ -170,6 +173,12 @@ type TestOptions interface {
 
 	// TruncateRequestTimeout returns the truncate request timeout.
 	TruncateRequestTimeout() time.Duration
+
+	// SetFetchRequestTimeout sets the fetch request timeout.
+	SetFetchRequestTimeout(value time.Duration) TestOptions
+
+	// FetchRequestTimeout returns the fetch request timeout.
+	FetchRequestTimeout() time.Duration
 
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
 	SetWorkerPoolSize(value int) TestOptions
@@ -292,6 +301,7 @@ type options struct {
 	readRequestTimeout                 time.Duration
 	writeRequestTimeout                time.Duration
 	truncateRequestTimeout             time.Duration
+	fetchRequestTimeout                time.Duration
 	workerPoolSize                     int
 	clusterDatabaseTopologyInitializer topology.Initializer
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
@@ -330,6 +340,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		readRequestTimeout:             defaultReadRequestTimeout,
 		writeRequestTimeout:            defaultWriteRequestTimeout,
 		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		fetchRequestTimeout:            defaultFetchRequestTimeout,
 		workerPoolSize:                 defaultWorkerPoolSize,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
@@ -479,6 +490,16 @@ func (o *options) SetTruncateRequestTimeout(value time.Duration) TestOptions {
 
 func (o *options) TruncateRequestTimeout() time.Duration {
 	return o.truncateRequestTimeout
+}
+
+func (o *options) SetFetchRequestTimeout(value time.Duration) TestOptions {
+	opts := *o
+	opts.fetchRequestTimeout = value
+	return &opts
+}
+
+func (o *options) FetchRequestTimeout() time.Duration {
+	return o.fetchRequestTimeout
 }
 
 func (o *options) SetWorkerPoolSize(value int) TestOptions {

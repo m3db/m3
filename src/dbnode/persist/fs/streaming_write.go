@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"time"
 
@@ -36,9 +37,17 @@ import (
 // StreamingWriter writes into data fileset without intermediate buffering.
 // Writes must be lexicographically ordered by the id.
 type StreamingWriter interface {
+	io.Closer
+
+	// Open opens the files for writing data to the given shard in the given namespace.
 	Open() error
+
+	// WriteAll will write the id and all byte slices and returns an error on a write error.
+	// Callers should call this method with strictly lexicographically increasing ID values.
 	WriteAll(id ident.BytesID, encodedTags ts.EncodedTags, data [][]byte, dataChecksum uint32) error
-	Close() error
+
+	// Abort closes the file descriptors without writing out a checkpoint file.
+	Abort() error
 }
 
 // StreamingWriterOptions in the options for the StreamingWriter.
@@ -171,7 +180,7 @@ func (w *streamingWriter) writeData(
 
 func (w *streamingWriter) writeIndexRelated(
 	id ident.BytesID,
-	encodedTags []byte,
+	encodedTags ts.EncodedTags,
 	entry indexEntry,
 ) error {
 	// Add to the bloom filter, note this must be zero alloc or else this will
@@ -203,8 +212,6 @@ func (w *streamingWriter) writeIndexRelated(
 }
 
 func (w *streamingWriter) Close() error {
-	w.prevIDBytes = nil
-
 	// Write the bloom filter bitset out
 	if err := w.writer.writeBloomFilterFileContents(w.bloomFilter); err != nil {
 		return err
@@ -228,6 +235,16 @@ func (w *streamingWriter) Close() error {
 		w.writer.digestBuf,
 		w.writer.newFileMode,
 	); err != nil {
+		w.writer.err = err
+		return err
+	}
+
+	return nil
+}
+
+func (w *streamingWriter) Abort() error {
+	err := w.writer.closeWOIndex()
+	if err != nil {
 		w.writer.err = err
 		return err
 	}
