@@ -77,13 +77,13 @@ type Encoder interface {
 	// Reset sets up the schema for schema-aware encoders such as proto encoders.
 	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
 
-	// Close closes the encoder and if pooled will return to the pool.
+	// Close closes the encoder and if pooled will return it to the pool.
 	Close()
 
-	// Discard will take ownership of the encoder data and if pooled will return to the pool.
+	// Discard will take ownership of the encoder data and if pooled will return the encoder to the pool.
 	Discard() ts.Segment
 
-	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
+	// DiscardReset will take ownership of the encoder data and reset the encoder for reuse.
 	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
 	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
 }

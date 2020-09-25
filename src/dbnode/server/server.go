@@ -554,10 +554,11 @@ func Run(runOpts RunOptions) {
 			SetBlockLeaseManager(blockLeaseManager).
 			SetQueryLimits(queryLimits)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
-			retrieverOpts = retrieverOpts.
-				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
-			if blockRetrieveCfg.CacheBlocksOnRetrieve != nil {
-				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*blockRetrieveCfg.CacheBlocksOnRetrieve)
+			if v := blockRetrieveCfg.FetchConcurrency; v != nil {
+				retrieverOpts = retrieverOpts.SetFetchConcurrency(*v)
+			}
+			if v := blockRetrieveCfg.CacheBlocksOnRetrieve; v != nil {
+				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*v)
 			}
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(

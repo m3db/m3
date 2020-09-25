@@ -414,10 +414,10 @@ type databaseNamespace interface {
 		ctx context.Context,
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
-		pm persist.Manager,
 	) (int64, error)
 
-	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
+	// ReadableShardAt returns a shard of this namespace by shardID.
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -598,15 +598,16 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		ctx context.Context,
-		reader fs.DataFileSetReader,
 		sourceNsID ident.ID,
-		sourceBlockStart time.Time,
-		sourceShard databaseShard,
+		sourceShardID uint32,
+		blockReaders []fs.DataFileSetReader,
+		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
-		wOpts series.WriteOptions,
+		targetSchemaDesc namespace.SchemaDescr,
 	) (int64, error)
 
-	latestVolume(blockStart time.Time) (int, error)
+	// LatestVolume returns the latest volume for the combination of shard+blockStart.
+	LatestVolume(blockStart time.Time) (int, error)
 }
 
 // ShardSnapshotResult is a result from a shard snapshot.
