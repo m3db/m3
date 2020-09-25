@@ -2694,7 +2694,10 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {
-			s.logger.Error("blockReader.Open", zap.Error(err))
+			s.logger.Error("blockReader.Open",
+				zap.Error(err),
+				zap.Time("blockStart", sourceBlockVolume.blockStart),
+				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
 			//FIXME: for now we skip on Open errors because in practice they happen when trying to open
 			// a very recent source block that has no fileset yet.
 			//return 0, err
