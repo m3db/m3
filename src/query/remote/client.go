@@ -62,9 +62,6 @@ var (
 	// NB(r): These options tries to ensure we don't let connections go stale
 	// and cause failed RPCs as a result.
 	defaultDialOptions = []grpc.DialOption{
-		grpc.WithDefaultCallOptions(
-			grpc.WaitForReady(true),
-		),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			// After a duration of this time if the client doesn't see any activity it
 			// pings the server to see if the transport is still alive.
