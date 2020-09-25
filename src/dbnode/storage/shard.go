@@ -2771,7 +2771,7 @@ func (s *dbShard) AggregateTiles(
 		writerData         = make([][]byte, 2)
 	)
 
-	READER:
+READER:
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
 
@@ -2808,8 +2808,7 @@ func (s *dbShard) AggregateTiles(
 				if err != nil {
 					s.metrics.largeTilesWriteErrors.Inc(1)
 					multiErr = multiErr.Add(err)
-					encoder.Reset(opts.Start, segmentCapacity, targetSchemaDescr)
-					continue READER
+					break READER
 				}
 
 				processedTileCount.Inc()
@@ -2841,6 +2840,9 @@ func (s *dbShard) AggregateTiles(
 
 	if err := readerIter.Err(); err != nil {
 		multiErr = multiErr.Add(err)
+	}
+
+	if !multiErr.Empty() {
 		if err := writer.Abort(); err != nil {
 			multiErr = multiErr.Add(err)
 		}
