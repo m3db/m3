@@ -78,7 +78,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	nowFn := testSetup.NowFn()
 
 	// Write test data.
-	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
+	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
 	dpTime := dpTimeStart
 	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
@@ -299,11 +299,16 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
 	require.NoError(t, err)
 
+	fixedNow := time.Now().Truncate(blockSizeT)
+
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
 		SetWriteNewSeriesAsync(true).
 		SetNumShards(1).
-		SetFetchRequestTimeout(time.Second * 30)
+		SetFetchRequestTimeout(time.Second * 30).
+		SetNowFn(func() time.Time {
+			return fixedNow
+	})
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
