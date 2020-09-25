@@ -558,13 +558,13 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 		)
 	}
 
-	processedBlockCount, err := s.aggregateTiles(ctx, db, req)
+	processedTileCount, err := s.aggregateTiles(ctx, db, req)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 
 	return &rpc.AggregateTilesResult_{
-		ProcessedBlockCount: processedBlockCount,
+		ProcessedTileCount: processedTileCount,
 	}, err
 }
 
@@ -593,12 +593,12 @@ func (s *service) aggregateTiles(
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
 
-	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	processedTileCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
-		return processedBlockCount, convert.ToRPCError(err)
+		return processedTileCount, convert.ToRPCError(err)
 	}
 
-	return processedBlockCount, nil
+	return processedTileCount, nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {

@@ -48,6 +48,12 @@ type m3WrappedStore struct {
 	m3             storage.Storage
 	enforcer       cost.ChainedEnforcer
 	instrumentOpts instrument.Options
+	opts           M3WrappedStorageOptions
+}
+
+// M3WrappedStorageOptions is the graphite storage options.
+type M3WrappedStorageOptions struct {
+	AggregateNamespacesAllData bool
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
@@ -56,6 +62,7 @@ func NewM3WrappedStorage(
 	m3storage storage.Storage,
 	enforcer cost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
+	opts M3WrappedStorageOptions,
 ) Storage {
 	if enforcer == nil {
 		enforcer = cost.NoopChainedEnforcer()
@@ -65,6 +72,7 @@ func NewM3WrappedStorage(
 		m3:             m3storage,
 		enforcer:       enforcer,
 		instrumentOpts: instrumentOpts,
+		opts:           opts,
 	}
 }
 
@@ -229,12 +237,17 @@ func (s *m3WrappedStore) FetchByQuery(
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
-	fetchOptions.IncludeResolution = true
 	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
 		FanoutAggregated:          storage.FanoutDefault,
 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
+	}
+	if s.opts.AggregateNamespacesAllData {
+		// NB(r): If aggregate namespaces house all the data, we can do a
+		// default optimized fanout where we only query the namespaces
+		// that contain the data for the ranges we are querying for.
+		fetchOptions.FanoutOptions.FanoutAggregatedOptimized = storage.FanoutDefault
 	}
 
 	res, err := s.m3.FetchBlocks(m3ctx, m3query, fetchOptions)
