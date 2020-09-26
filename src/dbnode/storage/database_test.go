@@ -303,7 +303,7 @@ func TestDatabaseWideQueryNamespaceNotOwned(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
-		index.Query{}, time.Now(), []int{}, index.IterationOptions{})
+		index.Query{}, time.Now(), nil, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
@@ -912,12 +912,14 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		ident.StringID("foo"), wideOpts.StartInclusive, true).
 		Return(ident.IndexChecksum{}, nil)
 
+	shards := []uint32{1, 2, 3}
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
 		func(_ context.Context, _ index.Query, opts index.WideQueryOptions) error {
 			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
 			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
 			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
+			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
 				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
 				batch.Add(1)
@@ -926,7 +928,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 			}()
 			return nil
 		})
-	err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 	require.NoError(t, err)
 
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
@@ -937,7 +939,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			return fmt.Errorf("random err")
 		})
-	err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)

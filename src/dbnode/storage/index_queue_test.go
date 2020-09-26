@@ -408,12 +408,8 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	assert.NoError(t, err)
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
-	queryOpts := index.NewWideQueryOptions(
-		time.Now(),
-		5,
-		collector,
-		time.Hour*2,
-		index.IterationOptions{})
+	queryOpts := index.NewWideQueryOptions(time.Now(), 5, collector,
+		time.Hour*2, nil, index.IterationOptions{})
 
 	expectedBatchIDs := [][]string{{"foo"}}
 	go func() {
@@ -433,6 +429,43 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 			b.Done()
 			i++
 		}
+		doneCh <- struct{}{}
+	}()
+
+	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, queryOpts)
+	require.NoError(t, err)
+	<-doneCh
+}
+
+func TestNamespaceIndexInsertWideQueryFiltereByShard(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	idx := setupIndex(t, ctrl, now)
+	defer idx.Close()
+
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+	doneCh := make(chan struct{})
+	collector := make(chan *ident.IDBatch)
+	shard := testShardSet.Lookup(ident.StringID("foo"))
+	offShard := shard + 1
+	queryOpts := index.NewWideQueryOptions(time.Now(), 5, collector,
+		time.Hour*2, []uint32{offShard}, index.IterationOptions{})
+
+	go func() {
+		i := 0
+		for b := range collector {
+			b.Done()
+			fmt.Println(b.IDs)
+			i++
+		}
+		assert.Equal(t, 0, i)
 		doneCh <- struct{}{}
 	}()
 

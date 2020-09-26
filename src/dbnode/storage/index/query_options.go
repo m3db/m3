@@ -53,6 +53,7 @@ func NewWideQueryOptions(
 	batchSize int,
 	collector chan *ident.IDBatch,
 	blockSize time.Duration,
+	shards []uint32,
 	iterOpts IterationOptions,
 ) WideQueryOptions {
 	start := queryStart.Truncate(blockSize)
@@ -63,6 +64,7 @@ func NewWideQueryOptions(
 		BatchSize:           batchSize,
 		IndexBatchCollector: collector,
 		IterationOptions:    iterOpts,
+		ShardsQueried:       shards,
 	}
 }
 

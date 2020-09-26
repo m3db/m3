@@ -895,7 +895,7 @@ func (d *db) WideQuery(
 	namespace ident.ID,
 	query index.Query,
 	start time.Time,
-	shards []int,
+	shards []uint32,
 	iterOpts index.IterationOptions,
 ) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
@@ -908,7 +908,7 @@ func (d *db) WideQuery(
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
 	blockSize := n.Options().IndexOptions().BlockSize()
-	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, iterOpts)
+	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, shards, iterOpts)
 	start, end := opts.StartInclusive, opts.EndExclusive
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
 	if sampled {

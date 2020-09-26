@@ -107,6 +107,8 @@ type WideQueryOptions struct {
 	IndexBatchCollector chan *ident.IDBatch
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
+	// ShardsQueried are the shards to query.
+	ShardsQueried []uint32
 }
 
 // IterationOptions enables users to specify iteration preferences.

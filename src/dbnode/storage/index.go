@@ -140,6 +140,8 @@ type nsIndex struct {
 	shardSet             sharding.ShardSet
 }
 
+type shardFilterForIDFn func(id ident.ID) (uint32, bool)
+
 type nsIndexState struct {
 	sync.RWMutex // NB: guards all variables in this struct
 
@@ -170,7 +172,7 @@ type nsIndexState struct {
 
 	// shardFilteredForID is set every time the shards change to correctly
 	// only return IDs that this node owns, and the appropriate shard.
-	shardFilteredForID func(ident.ID) (uint32, bool)
+	shardFilteredForID func([]uint32) shardFilterForIDFn
 
 	shardsAssigned map[uint32]struct{}
 }
@@ -1294,9 +1296,26 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
 
-	i.state.shardFilteredForID = func(id ident.ID) (uint32, bool) {
-		shard := shardSet.Lookup(id)
-		return shard, set.Test(uint(shard))
+	i.state.shardFilteredForID = func(shards []uint32) shardFilterForIDFn {
+		return func(id ident.ID) (uint32, bool) {
+			shard := shardSet.Lookup(id)
+			owned := set.Test(uint(shard))
+			if !owned {
+				return 0, false
+			}
+
+			if len(shards) == 0 {
+				return shard, true
+			}
+
+			for _, s := range shards {
+				if s == shard {
+					return shard, true
+				}
+			}
+
+			return 0, false
+		}
 	}
 
 	i.state.shardsAssigned = assigned
@@ -1310,9 +1329,9 @@ func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
 	return v
 }
 
-func (i *nsIndex) shardForID() func(id ident.ID) (uint32, bool) {
+func (i *nsIndex) shardForID(shards []uint32) func(id ident.ID) (uint32, bool) {
 	i.state.RLock()
-	v := i.state.shardFilteredForID
+	v := i.state.shardFilteredForID(shards)
 	i.state.RUnlock()
 	return v
 }
@@ -1375,7 +1394,7 @@ func (i *nsIndex) WideQuery(
 		opts.BatchSize,
 		i.opts.IdentifierPool(),
 		opts.IndexBatchCollector,
-		i.shardForID(),
+		i.shardForID(opts.ShardsQueried),
 	)
 
 	ctx.RegisterFinalizer(results)

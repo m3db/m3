@@ -178,7 +178,7 @@ type Database interface {
 		namespace ident.ID,
 		query index.Query,
 		start time.Time,
-		shards []int,
+		shards []uint32,
 		iterOpts index.IterationOptions,
 	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
 
