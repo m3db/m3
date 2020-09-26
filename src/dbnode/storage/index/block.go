@@ -224,6 +224,7 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
+
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -544,6 +545,7 @@ func (b *block) addQueryResults(
 	}
 
 	// try to add the docs to the resource.
+	fmt.Println("Adding batch", batch)
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.

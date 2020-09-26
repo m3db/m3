@@ -21,20 +21,30 @@
 package index
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 )
 
+type shardFilterFn func(ident.ID) (uint32, bool)
+
 type wideResults struct {
-	nsID   ident.ID
-	opts   QueryResultsOptions
-	idPool ident.Pool
+	nsID        ident.ID
+	shardFilter shardFilterFn
+	idPool      ident.Pool
 
 	closed      bool
 	idsOverflow []ident.ID
 	batch       *ident.IDBatch
 	batchCh     chan<- *ident.IDBatch
 	batchSize   int
+
+	// debug only, remove after
+	lastSet   bool
+	lastID    []byte
+	lastShard uint32
 }
 
 // NewWideQueryResults returns a new wide query results object.
@@ -46,7 +56,7 @@ func NewWideQueryResults(
 	batchSize int,
 	idPool ident.Pool,
 	batchCh chan<- *ident.IDBatch,
-	opts QueryResultsOptions,
+	shardFilter shardFilterFn,
 ) BaseResults {
 	return &wideResults{
 		nsID:        namespaceID,
@@ -56,8 +66,8 @@ func NewWideQueryResults(
 		batch: &ident.IDBatch{
 			IDs: make([]ident.ID, 0, batchSize),
 		},
-		batchCh: batchCh,
-		opts:    opts,
+		batchCh:     batchCh,
+		shardFilter: shardFilter,
 	}
 }
 
@@ -126,8 +136,32 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 	var tsID ident.ID = ident.BytesID(d.ID)
 
 	// Need to apply filter if set first.
-	if r.opts.FilterID != nil && !r.opts.FilterID(tsID) {
-		return nil
+	if r.shardFilter != nil {
+		shard, shardOwned := r.shardFilter(tsID)
+		if !shardOwned {
+			return nil
+		}
+
+		// Debug below.
+		if r.lastSet {
+			if r.lastShard == shard {
+				// ID sorted check
+				if bytes.Compare(r.lastID, d.ID) != -1 {
+					return fmt.Errorf("IDs within shard %d are unsorted: %s appeared in shard before %s",
+						shard, string(r.lastID), string(d.ID))
+				}
+			}
+
+			// Shard sorted check
+			// if r.lastShard > shard {
+			// 	return fmt.Errorf("Shards are unsorted: shard %d comes before shard %d",
+			// 		int(r.lastShard), int(shard))
+			// }
+		}
+
+		r.lastSet = true
+		r.lastID = append(make([]byte, 0, len(d.ID)), d.ID...)
+		r.lastShard = shard
 	}
 
 	// Pool IDs after filter is passed.

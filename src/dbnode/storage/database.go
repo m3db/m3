@@ -937,6 +937,7 @@ func (d *db) WideQuery(
 				continue
 			}
 
+			fmt.Println("Batch", batch)
 			for i, id := range batch.IDs {
 				useID := i == len(batch.IDs)-1
 				c, collectorErr = d.indexChecksum(ctx, namespace, n, id, start, useID)

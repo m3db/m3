@@ -21,8 +21,6 @@
 package integration
 
 import (
-	"fmt"
-	"sort"
 	"testing"
 	"time"
 
@@ -45,9 +43,9 @@ func TestWideFetch(t *testing.T) {
 	}
 
 	var (
-		blockSize   = 2 * time.Hour
-		batchSize   = 1
-		seriesCount = 15
+		blockSize = 2 * time.Hour
+		batchSize = 15
+		// seriesCount = 15
 	)
 
 	nsOpts := namespace.NewOptions()
@@ -83,19 +81,23 @@ func TestWideFetch(t *testing.T) {
 	}))
 
 	// Write test data
-	blockTime := setup.NowFn()().Truncate(time.Hour).Add(-blockSize)
-	ids := make([]string, seriesCount)
-	for i := range ids {
-		// Keep in lex order.
-		padCount := i / 10
-		pad := ""
-		for i := 0; i < padCount; i++ {
-			pad = fmt.Sprintf("%so", pad)
-		}
+	now := setup.NowFn()()
+	blockTime := now //.Truncate(time.Hour).Add(-blockSize)
+	// ids := make([]string, seriesCount)
+	// for i := range ids {
+	// 	// Keep in lex order.
+	// 	padCount := i / 10
+	// 	pad := ""
+	// 	for i := 0; i < padCount; i++ {
+	// 		pad = fmt.Sprintf("%so", pad)
+	// 	}
 
-		ids[i] = fmt.Sprintf("foo%s-%d", pad, i)
+	// 	ids[i] = fmt.Sprintf("foo%s-%d", pad, i)
+	// }
+	ids := []string{
+		// "a-1", "b-2", "c-3", "d-4", "e-5", "f-6", "g-7", "h-8", "i-9", "j-10", "k-11", "l-12", "m-13", "n-14", "o-15",
+		"z-1", "y-2", "x-3", "w-4", "v-5", "u-6", "t-7", "s-8", "r-9", "q-10", "p-11", "o-12", "n-13", "m-14", "l-15",
 	}
-
 	tags := ident.NewTags(ident.StringTag("abc", "def"))
 	inputData := []generate.BlockConfig{
 		{IDs: ids, NumPoints: 1, Start: blockTime, Tags: tags},
@@ -122,61 +124,68 @@ func TestWideFetch(t *testing.T) {
 		iterOpts = index.IterationOptions{}
 	)
 
-	chk, err := setup.DB().WideQuery(ctx, ns1.ID(), query, blockTime, nil, iterOpts)
+	// for i := range ids {
+	// 	id := ids[len(ids)-i-1]
+	// 	require.NoError(t, setup.DB().WriteTagged(context.NewContext(), ns1.ID(),
+	// 		ident.StringID(id), ident.MustNewTagStringsIterator("abc", "def"), now, 1,
+	// 		xtime.Second, nil))
+	// }
+
+	_, err = setup.DB().WideQuery(ctx, ns1.ID(), query, blockTime, nil, iterOpts)
 	// Verify in-memory data match what we expect
 	require.NoError(t, err)
 
-	type shardedIndexChecksum struct {
-		shard     uint32
-		checksums []ident.IndexChecksum
-	}
+	// type shardedIndexChecksum struct {
+	// 	shard     uint32
+	// 	checksums []ident.IndexChecksum
+	// }
 
-	shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
-	for i, id := range ids {
-		checksum := ident.IndexChecksum{ID: []byte(id), Checksum: int64(i)}
-		shard := setup.ShardSet().Lookup(ident.BytesID([]byte(id)))
-		found := false
-		for idx, sharded := range shardedChecksums {
-			if shard != sharded.shard {
-				continue
-			}
+	// shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
+	// for i, id := range ids {
+	// 	checksum := ident.IndexChecksum{ID: []byte(id), Checksum: int64(i)}
+	// 	shard := setup.ShardSet().Lookup(ident.BytesID([]byte(id)))
+	// 	found := false
+	// 	for idx, sharded := range shardedChecksums {
+	// 		if shard != sharded.shard {
+	// 			continue
+	// 		}
 
-			found = true
-			shardedChecksums[idx].checksums = append(sharded.checksums, checksum)
-			break
-		}
+	// 		found = true
+	// 		shardedChecksums[idx].checksums = append(sharded.checksums, checksum)
+	// 		break
+	// 	}
 
-		if found {
-			continue
-		}
+	// 	if found {
+	// 		continue
+	// 	}
 
-		shardedChecksums = append(shardedChecksums, shardedIndexChecksum{
-			shard:     shard,
-			checksums: []ident.IndexChecksum{checksum},
-		})
-	}
+	// 	shardedChecksums = append(shardedChecksums, shardedIndexChecksum{
+	// 		shard:     shard,
+	// 		checksums: []ident.IndexChecksum{checksum},
+	// 	})
+	// }
 
-	for _, s := range shardedChecksums {
-		fmt.Println(" ", s.shard)
-		for _, cs := range s.checksums {
-			fmt.Println("   ", cs.Checksum, string(cs.ID))
-		}
-	}
+	// for _, s := range shardedChecksums {
+	// 	fmt.Println(" ", s.shard)
+	// 	for _, cs := range s.checksums {
+	// 		fmt.Println("   ", cs.Checksum, string(cs.ID))
+	// 	}
+	// }
 
-	sort.Slice(shardedChecksums, func(i, j int) bool {
-		return shardedChecksums[i].shard < shardedChecksums[j].shard
-	})
+	// sort.Slice(shardedChecksums, func(i, j int) bool {
+	// 	return shardedChecksums[i].shard < shardedChecksums[j].shard
+	// })
 
-	fmt.Println("===============")
+	// fmt.Println("===============")
 
-	for _, s := range shardedChecksums {
-		fmt.Println(" ", s.shard)
-		for _, cs := range s.checksums {
-			fmt.Println("   ", cs.Checksum, string(cs.ID))
-		}
-	}
+	// for _, s := range shardedChecksums {
+	// 	fmt.Println(" ", s.shard)
+	// 	for _, cs := range s.checksums {
+	// 		fmt.Println("   ", cs.Checksum, string(cs.ID))
+	// 	}
+	// }
 
-	for i, c := range chk {
-		fmt.Println(i, c.Checksum, string(c.ID), "Shard:", setup.ShardSet().Lookup(ident.BytesID(c.ID)))
-	}
+	// for i, c := range chk {
+	// 	fmt.Println(i, c.Checksum, string(c.ID), "Shard:", setup.ShardSet().Lookup(ident.BytesID(c.ID)))
+	// }
 }

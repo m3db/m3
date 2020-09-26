@@ -137,6 +137,7 @@ type nsIndex struct {
 	forwardIndexDice forwardIndexDice
 
 	doNotIndexWithFields []doc.Field
+	shardSet             sharding.ShardSet
 }
 
 type nsIndexState struct {
@@ -166,6 +167,10 @@ type nsIndexState struct {
 	// shardsFilterID is set every time the shards change to correctly
 	// only return IDs that this node owns.
 	shardsFilterID func(ident.ID) bool
+
+	// shardFilteredForID is set every time the shards change to correctly
+	// only return IDs that this node owns, and the appropriate shard.
+	shardFilteredForID func(ident.ID) (uint32, bool)
 
 	shardsAssigned map[uint32]struct{}
 }
@@ -347,6 +352,7 @@ func newNamespaceIndexWithOptions(
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
+		shardSet:             shardSet,
 	}
 
 	// Assign shard set upfront.
@@ -1287,6 +1293,12 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		// NB(r): Use a bitset for fast lookups.
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
+
+	i.state.shardFilteredForID = func(id ident.ID) (uint32, bool) {
+		shard := shardSet.Lookup(id)
+		return shard, set.Test(uint(shard))
+	}
+
 	i.state.shardsAssigned = assigned
 	i.state.Unlock()
 }
@@ -1294,6 +1306,13 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
 	i.state.RLock()
 	v := i.state.shardsFilterID
+	i.state.RUnlock()
+	return v
+}
+
+func (i *nsIndex) shardForID() func(id ident.ID) (uint32, bool) {
+	i.state.RLock()
+	v := i.state.shardFilteredForID
 	i.state.RUnlock()
 	return v
 }
@@ -1351,15 +1370,13 @@ func (i *nsIndex) WideQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	// i.shardSet.Lookup(id ident.ID)
 	results := index.NewWideQueryResults(
 		i.nsMetadata.ID(),
 		opts.BatchSize,
 		i.opts.IdentifierPool(),
 		opts.IndexBatchCollector,
-		index.QueryResultsOptions{
-			// TODO: add a filter to ensure only requested shards are returned.
-			FilterID: i.shardsFilterID(),
-		},
+		i.shardForID(),
 	)
 
 	ctx.RegisterFinalizer(results)

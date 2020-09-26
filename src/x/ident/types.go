@@ -334,3 +334,7 @@ type IndexChecksum struct {
 	// ID is an optional ID for this series, set only when explicitly requested.
 	ID []byte
 }
+
+func (i *IndexChecksum) String() string {
+	return fmt.Sprintf("%d%s", i.Checksum, string(i.ID))
+}
