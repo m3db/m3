@@ -1,3 +1,5 @@
+// +build integration
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,22 +26,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
-	xtime "github.com/m3db/m3/src/x/time"
 	"go.uber.org/zap"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,19 +110,16 @@ func buildExpectedChecksumsByShard(
 	return checksums
 }
 
-func writeData(t *testing.T, testSetup TestSetup) {
-
-}
-
 func TestWideFetch(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	var (
-		batchSize   = 15
-		seriesCount = 15
-		blockSize   = time.Hour * 2
+		batchSize     = 15
+		seriesCount   = 15
+		blockSize     = time.Hour * 2
+		verifyTimeout = 2 * time.Minute
 	)
 
 	// Test setup
@@ -135,13 +135,17 @@ func TestWideFetch(t *testing.T) {
 	nsMetadata, err := namespace.NewMetadata(nsID, nsOpts)
 	require.NoError(t, err)
 
-	testOpts := NewTestOptions(t).
-		SetTickMinimumInterval(time.Second).
-		SetNamespaces([]namespace.Metadata{nsMetadata})
-
-	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-11"))
+	// Set up file path prefix
+	postfix := atomic.AddUint64(&created, 1) - 1
+	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", postfix))
 	require.NoError(t, err)
 
+	testOpts := NewTestOptions(t).
+		SetTickMinimumInterval(time.Second).
+		SetNamespaces([]namespace.Metadata{nsMetadata}).
+		SetFilePathPrefix(filePathPrefix)
+
+	require.NoError(t, err)
 	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
 	decOpts := fsOpts.DecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t))
 	fsOpts = fsOpts.SetDecodingOptions(decOpts)
@@ -152,19 +156,6 @@ func TestWideFetch(t *testing.T) {
 		})
 	require.NoError(t, err)
 	defer testSetup.Close()
-
-	// Write test data
-	ids := make([]string, seriesCount)
-	for i := range ids {
-		// Keep in lex order.
-		padCount := i / 10
-		pad := ""
-		for i := 0; i < padCount; i++ {
-			pad = fmt.Sprintf("%so", pad)
-		}
-
-		ids[i] = fmt.Sprintf("foo%s-%d", pad, i)
-	}
 
 	// Start the server with filesystem bootstrapper
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -178,66 +169,72 @@ func TestWideFetch(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
+	// Setup test data
 	now := testSetup.NowFn()()
-	// Write the data.
-	tags := ident.NewTags(ident.StringTag("abc", "def"))
-	inputData := []generate.BlockConfig{
-		{IDs: ids, NumPoints: 1, Start: now, Tags: tags},
+	indexWrites := make(TestIndexWrites, 0, seriesCount)
+	ids := make([]string, 0, seriesCount)
+	for i := 0; i < seriesCount; i++ {
+		// Keep in lex order.
+		padCount := i / 10
+		pad := ""
+		for i := 0; i < padCount; i++ {
+			pad = fmt.Sprintf("%so", pad)
+		}
+
+		id := fmt.Sprintf("foo%s-%d", pad, i)
+		ids = append(ids, id)
+		indexWrites = append(indexWrites, testIndexWrite{
+			id:    ident.StringID(id),
+			tags:  ident.MustNewTagStringsIterator("abc", fmt.Sprintf("def%d", i)),
+			ts:    now,
+			value: float64(i),
+		})
 	}
 
-	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
-	for _, input := range inputData {
-		testSetup.SetNowFn(input.Start)
-		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		fmt.Println("Writing points at", input.Start)
-		require.NoError(t, testSetup.WriteBatch(nsID, testData))
-	}
+	log.Debug("write test data")
+	client := testSetup.M3DBClient()
+	session, err := client.DefaultSession()
+	require.NoError(t, err)
 
-	log.Debug("test data written")
+	start := time.Now()
+	indexWrites.Write(t, nsID, session)
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
+
+	log.Info("waiting until data is indexed")
+	indexed := xclock.WaitUntil(func() bool {
+		numIndexed := indexWrites.NumIndexed(t, nsID, session)
+		return numIndexed == len(indexWrites)
+	}, verifyTimeout)
+	require.True(t, indexed)
+	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
+
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.SetNowFn(testSetup.NowFn()().Add(blockSize * 2))
-	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), nsID, seriesMaps, maxWaitTime))
-	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), nsID, seriesMaps)
-	log.Debug("test data has been flushed")
-
-	require.True(t, indexed)
-	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
+	log.Info("waiting until filesets found on disk")
+	found := xclock.WaitUntil(func() bool {
+		at := now.Truncate(blockSize).Add(-1 * blockSize)
+		filesets, err := fs.IndexFileSetsAt(testSetup.FilePathPrefix(), nsID, at)
+		require.NoError(t, err)
+		return len(filesets) == 1
+	}, verifyTimeout)
+	require.True(t, found)
+	log.Info("filesets found on disk")
 
 	var (
 		ctx      = context.NewContext()
-		query    = index.Query{Query: idx.NewAllQuery()} // idx.NewTermQuery([]byte("abc"), []byte("def"))}
+		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte("abc"), []byte("def.*"))}
 		iterOpts = index.IterationOptions{}
 	)
 
-	fmt.Println("Wide querying at", now)
+	// Verify data.
 	chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query, now, nil, iterOpts)
-	// Verify data match what we expect
 	require.NoError(t, err)
 
-	fmt.Println("COMPLETED.", len(chk))
+	expected := buildExpectedChecksumsByShard(ids, nil, testSetup.ShardSet())
+	require.Equal(t, len(expected), len(chk))
 	for i, c := range chk {
-		fmt.Println(i, c.Checksum, string(c.ID), "Shard:", testSetup.ShardSet().Lookup(ident.BytesID(c.ID)))
+		assert.Equal(t, expected[i].Checksum, c.Checksum)
 	}
-
-	qr, err := testSetup.DB().QueryIDs(ctx, nsMetadata.ID(), query, index.QueryOptions{
-		StartInclusive: now.Add(time.Hour * -10),
-		EndExclusive:   now.Add(time.Hour * 10),
-	})
-
-	require.NoError(t, err)
-	fmt.Println("Querying IDs")
-	for _, v := range qr.Results.Map().Iter() {
-		fmt.Println(v.Key().String())
-		for v.Value().Next() {
-			c := v.Value().Current()
-			fmt.Println(c.Name.String(), ":", c.Value.String())
-		}
-		fmt.Println(v.Value().Err())
-	}
-	fmt.Println("QueryIDs done")
 }

@@ -545,7 +545,6 @@ func (b *block) addQueryResults(
 	}
 
 	// try to add the docs to the resource.
-	fmt.Println("Adding batch", batch)
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.

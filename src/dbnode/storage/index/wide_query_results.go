@@ -41,7 +41,6 @@ type wideResults struct {
 	batchCh     chan<- *ident.IDBatch
 	batchSize   int
 
-	// debug only, remove after
 	lastSet   bool
 	lastID    []byte
 	lastShard uint32
@@ -142,7 +141,6 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 			return nil
 		}
 
-		// Debug below.
 		if r.lastSet {
 			if r.lastShard == shard {
 				// ID sorted check
@@ -153,14 +151,17 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 			}
 
 			// Shard sorted check
-			// if r.lastShard > shard {
-			// 	return fmt.Errorf("Shards are unsorted: shard %d comes before shard %d",
-			// 		int(r.lastShard), int(shard))
-			// }
+			if r.lastShard > shard {
+				return fmt.Errorf("Shards are unsorted: shard %d comes before shard %d",
+					int(r.lastShard), int(shard))
+			}
+		} else {
+			r.lastID = make([]byte, 0, len(d.ID))
 		}
 
 		r.lastSet = true
-		r.lastID = append(make([]byte, 0, len(d.ID)), d.ID...)
+		r.lastID = r.lastID[:0]
+		r.lastID = append(r.lastID, d.ID...)
 		r.lastShard = shard
 	}
 

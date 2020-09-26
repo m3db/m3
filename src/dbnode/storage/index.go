@@ -1370,7 +1370,6 @@ func (i *nsIndex) WideQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	// i.shardSet.Lookup(id ident.ID)
 	results := index.NewWideQueryResults(
 		i.nsMetadata.ID(),
 		opts.BatchSize,
@@ -1387,9 +1386,6 @@ func (i *nsIndex) WideQuery(
 		if !closed {
 			// Drain any remaining results and close.
 			results.Finalize()
-			// for range opts.IndexBatchCollector {
-			// }
-			// close(opts.IndexBatchCollector)
 		}
 	}()
 
