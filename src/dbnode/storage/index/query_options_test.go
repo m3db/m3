@@ -56,13 +56,15 @@ func TestWideQueryOptions(t *testing.T) {
 	collector := make(chan *ident.IDBatch)
 	blockSize := time.Hour * 2
 	iterOpts := IterationOptions{}
-	opts := NewWideQueryOptions(now, batchSize, collector, blockSize, iterOpts)
+	shards := []uint32{100, 23, 1}
+	opts := NewWideQueryOptions(now, batchSize, collector, blockSize, shards, iterOpts)
 	assert.Equal(t, WideQueryOptions{
 		StartInclusive:      now.Truncate(blockSize),
 		EndExclusive:        now.Truncate(blockSize).Add(blockSize),
 		BatchSize:           batchSize,
 		IndexBatchCollector: collector,
 		IterationOptions:    iterOpts,
+		ShardsQueried:       []uint32{1, 23, 100},
 	}, opts)
 
 	qOpts := opts.ToQueryOptions()

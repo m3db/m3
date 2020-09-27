@@ -250,7 +250,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 
 		err := idx.WideQuery(ctx, index.Query{Query: reQuery}, index.NewWideQueryOptions(
 			ts, 5, collector, time.Hour*2, nil, index.IterationOptions{}))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		<-doneCh
 	}
 }

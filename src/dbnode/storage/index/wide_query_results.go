@@ -21,19 +21,23 @@
 package index
 
 import (
-	"bytes"
-	"fmt"
+	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 )
 
+// ErrWideQueryResultsExhausted is used to short circuit additional document
+// entries being added if theese wide results will no longer accept documents,
+// e.g. if the results are closed, or if no further docuemnts will pass the
+// shard filter.
+var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide query results")
+
 type shardFilterFn func(ident.ID) (uint32, bool)
 
 type wideResults struct {
-	nsID        ident.ID
-	shardFilter shardFilterFn
-	idPool      ident.Pool
+	nsID   ident.ID
+	idPool ident.Pool
 
 	closed      bool
 	idsOverflow []ident.ID
@@ -41,9 +45,14 @@ type wideResults struct {
 	batchCh     chan<- *ident.IDBatch
 	batchSize   int
 
-	lastSet   bool
-	lastID    []byte
-	lastShard uint32
+	shardFilter shardFilterFn
+	shards      []uint32
+	shardIdx    int
+	// NB: pastLastShard will mark this reader as exhausted after a
+	// document is discovered whose shard exceeds the last shard this results
+	// is responsible for, using the fact that incoming documents are sorted by
+	// shard then by ID.
+	pastLastShard bool
 }
 
 // NewWideQueryResults returns a new wide query results object.
@@ -52,12 +61,12 @@ type wideResults struct {
 // channel after no more Documents are available.
 func NewWideQueryResults(
 	namespaceID ident.ID,
-	batchSize int,
 	idPool ident.Pool,
-	batchCh chan<- *ident.IDBatch,
 	shardFilter shardFilterFn,
+	opts WideQueryOptions,
 ) BaseResults {
-	return &wideResults{
+	batchSize := opts.BatchSize
+	results := &wideResults{
 		nsID:        namespaceID,
 		idPool:      idPool,
 		batchSize:   batchSize,
@@ -65,14 +74,21 @@ func NewWideQueryResults(
 		batch: &ident.IDBatch{
 			IDs: make([]ident.ID, 0, batchSize),
 		},
-		batchCh:     batchCh,
-		shardFilter: shardFilter,
+		batchCh: opts.IndexBatchCollector,
+		shards:  opts.ShardsQueried,
 	}
+
+	if len(opts.ShardsQueried) > 0 {
+		// Only apply filter if there are shards to filter against.
+		results.shardFilter = shardFilter
+	}
+
+	return results
 }
 
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	if r.closed {
-		return 0, 0, nil
+	if r.closed || r.pastLastShard {
+		return 0, 0, ErrWideQueryResultsExhausted
 	}
 
 	err := r.addDocumentsBatchWithLock(batch)
@@ -136,33 +152,36 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 
 	// Need to apply filter if set first.
 	if r.shardFilter != nil {
+		filteringShard := r.shards[r.shardIdx]
 		shard, shardOwned := r.shardFilter(tsID)
-		if !shardOwned {
+		// NB: Check to see if shard is exceeded first (to short circuit earlier if
+		// the current shard is not owned by this node, but shard exceeds filtered).
+		if filteringShard > shard {
+			// this element is from a shard lower than the next shard allowed.
 			return nil
 		}
 
-		if r.lastSet {
-			if r.lastShard == shard {
-				// ID sorted check
-				if bytes.Compare(r.lastID, d.ID) != -1 {
-					return fmt.Errorf("IDs within shard %d are unsorted: %s appeared in shard before %s",
-						shard, string(r.lastID), string(d.ID))
-				}
+		for filteringShard < shard {
+			// this element is from a shard higher than the next shard allowed;
+			// advance to the next shard, then try again.
+			r.shardIdx = r.shardIdx + 1
+			if r.shardIdx >= len(r.shards) {
+				// shard is past the final shard allowed by filter, no more results
+				// will be accepted.
+				r.pastLastShard = true
+				return ErrWideQueryResultsExhausted
 			}
 
-			// Shard sorted check
-			if r.lastShard > shard {
-				return fmt.Errorf("Shards are unsorted: shard %d comes before shard %d",
-					int(r.lastShard), int(shard))
+			filteringShard = r.shards[r.shardIdx]
+			if filteringShard > shard {
+				// this element is from a shard lower than the next shard allowed.
+				return nil
 			}
-		} else {
-			r.lastID = make([]byte, 0, len(d.ID))
 		}
 
-		r.lastSet = true
-		r.lastID = r.lastID[:0]
-		r.lastID = append(r.lastID, d.ID...)
-		r.lastShard = shard
+		if !shardOwned {
+			return nil
+		}
 	}
 
 	// Pool IDs after filter is passed.

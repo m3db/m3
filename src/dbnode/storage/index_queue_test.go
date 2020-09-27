@@ -410,7 +410,6 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	collector := make(chan *ident.IDBatch)
 	queryOpts := index.NewWideQueryOptions(time.Now(), 5, collector,
 		time.Hour*2, nil, index.IterationOptions{})
-
 	expectedBatchIDs := [][]string{{"foo"}}
 	go func() {
 		i := 0
@@ -433,11 +432,11 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	}()
 
 	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, queryOpts)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	<-doneCh
 }
 
-func TestNamespaceIndexInsertWideQueryFiltereByShard(t *testing.T) {
+func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()

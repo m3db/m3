@@ -21,6 +21,7 @@
 package index
 
 import (
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/x/ident"
@@ -58,6 +59,12 @@ func NewWideQueryOptions(
 ) WideQueryOptions {
 	start := queryStart.Truncate(blockSize)
 	end := start.Add(blockSize)
+
+	// NB: shards queried must be sorted.
+	sort.Slice(shards, func(i, j int) bool {
+		return shards[i] < shards[j]
+	})
+
 	return WideQueryOptions{
 		StartInclusive:      start,
 		EndExclusive:        end,

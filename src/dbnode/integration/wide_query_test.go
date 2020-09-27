@@ -116,8 +116,8 @@ func TestWideFetch(t *testing.T) {
 	}
 
 	var (
-		batchSize     = 15
-		seriesCount   = 15
+		batchSize     = 7
+		seriesCount   = 100
 		blockSize     = time.Hour * 2
 		verifyTimeout = 2 * time.Minute
 	)
@@ -228,13 +228,65 @@ func TestWideFetch(t *testing.T) {
 		iterOpts = index.IterationOptions{}
 	)
 
-	// Verify data.
-	chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query, now, nil, iterOpts)
-	require.NoError(t, err)
+	// Test sharding on query which matches every element.
+	shardFilterTests := []struct {
+		name   string
+		shards []uint32
+	}{
+		{name: "no shards filter", shards: nil},
+		{name: "shards filter", shards: []uint32{1, 3, 5, 7}},
+		{name: "all shards filter", shards: testSetup.ShardSet().AllIDs()},
+	}
 
-	expected := buildExpectedChecksumsByShard(ids, nil, testSetup.ShardSet())
-	require.Equal(t, len(expected), len(chk))
-	for i, c := range chk {
-		assert.Equal(t, expected[i].Checksum, c.Checksum)
+	for _, tt := range shardFilterTests {
+		t.Run(tt.name, func(t *testing.T) {
+			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
+				now, tt.shards, iterOpts)
+			require.NoError(t, err)
+
+			expected := buildExpectedChecksumsByShard(ids, tt.shards, testSetup.ShardSet())
+			require.Equal(t, len(expected), len(chk))
+			for i, c := range chk {
+				assert.Equal(t, expected[i].Checksum, c.Checksum)
+			}
+		})
+	}
+
+	var (
+		exactID    = ids[1]
+		exactQuery = index.Query{Query: idx.NewTermQuery([]byte("abc"), []byte("def1"))}
+		exactShard = testSetup.ShardSet().Lookup(ident.StringID(exactID))
+	)
+
+	// Test sharding on query which matches only a single element.
+	exactShardFilterTests := []struct {
+		name     string
+		expected bool
+		shards   []uint32
+	}{
+		{name: "exact query no shard filter", expected: true,
+			shards: nil},
+		{name: "exact query at shard filter", expected: true,
+			shards: []uint32{exactShard}},
+		{name: "exact query within shard filters", expected: true,
+			shards: []uint32{exactShard + 1, exactShard - 1, exactShard}},
+		{name: "exact query not in shard filter", expected: false,
+			shards: []uint32{exactShard + 1}},
+	}
+
+	for _, tt := range exactShardFilterTests {
+		t.Run(tt.name, func(t *testing.T) {
+			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
+				now, tt.shards, iterOpts)
+			require.NoError(t, err)
+
+			if !tt.expected {
+				assert.Equal(t, 0, len(chk))
+			} else {
+				require.Equal(t, 1, len(chk))
+				assert.Equal(t, int64(1), chk[0].Checksum)
+				assert.Equal(t, []byte(exactID), chk[0].ID)
+			}
+		})
 	}
 }

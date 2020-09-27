@@ -105,10 +105,11 @@ type WideQueryOptions struct {
 	BatchSize int
 	// IndexBatchCollector collects ID batches in an asynchronous fashion.
 	IndexBatchCollector chan *ident.IDBatch
+	// ShardsQueried are the shards to query. These must be in ascending order.
+	// If empty, all shards are queried.
+	ShardsQueried []uint32
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
-	// ShardsQueried are the shards to query.
-	ShardsQueried []uint32
 }
 
 // IterationOptions enables users to specify iteration preferences.

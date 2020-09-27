@@ -140,8 +140,6 @@ type nsIndex struct {
 	shardSet             sharding.ShardSet
 }
 
-type shardFilterForIDFn func(id ident.ID) (uint32, bool)
-
 type nsIndexState struct {
 	sync.RWMutex // NB: guards all variables in this struct
 
@@ -171,8 +169,8 @@ type nsIndexState struct {
 	shardsFilterID func(ident.ID) bool
 
 	// shardFilteredForID is set every time the shards change to correctly
-	// only return IDs that this node owns, and the appropriate shard.
-	shardFilteredForID func([]uint32) shardFilterForIDFn
+	// only return IDs that this node owns, and the shard responsible for that ID.
+	shardFilteredForID func(id ident.ID) (uint32, bool)
 
 	shardsAssigned map[uint32]struct{}
 }
@@ -1296,26 +1294,9 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
 
-	i.state.shardFilteredForID = func(shards []uint32) shardFilterForIDFn {
-		return func(id ident.ID) (uint32, bool) {
-			shard := shardSet.Lookup(id)
-			owned := set.Test(uint(shard))
-			if !owned {
-				return 0, false
-			}
-
-			if len(shards) == 0 {
-				return shard, true
-			}
-
-			for _, s := range shards {
-				if s == shard {
-					return shard, true
-				}
-			}
-
-			return 0, false
-		}
+	i.state.shardFilteredForID = func(id ident.ID) (uint32, bool) {
+		shard := shardSet.Lookup(id)
+		return shard, set.Test(uint(shard))
 	}
 
 	i.state.shardsAssigned = assigned
@@ -1329,9 +1310,9 @@ func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
 	return v
 }
 
-func (i *nsIndex) shardForID(shards []uint32) func(id ident.ID) (uint32, bool) {
+func (i *nsIndex) shardForID() func(id ident.ID) (uint32, bool) {
 	i.state.RLock()
-	v := i.state.shardFilteredForID(shards)
+	v := i.state.shardFilteredForID
 	i.state.RUnlock()
 	return v
 }
@@ -1391,10 +1372,9 @@ func (i *nsIndex) WideQuery(
 
 	results := index.NewWideQueryResults(
 		i.nsMetadata.ID(),
-		opts.BatchSize,
 		i.opts.IdentifierPool(),
-		opts.IndexBatchCollector,
-		i.shardForID(opts.ShardsQueried),
+		i.shardForID(),
+		opts,
 	)
 
 	ctx.RegisterFinalizer(results)
@@ -1752,6 +1732,10 @@ func (i *nsIndex) execBlockWideQueryFn(
 		// possible this block may get closed if it slides out of retention, in
 		// that case those results are no longer considered valid and outside of
 		// retention regardless, so this is a non-issue.
+		err = nil
+	} else if err == index.ErrWideQueryResultsExhausted {
+		// NB: this error indicates a wide query short-circuit, so it is expected
+		// after the queried shard set is exhausted.
 		err = nil
 	}
 
