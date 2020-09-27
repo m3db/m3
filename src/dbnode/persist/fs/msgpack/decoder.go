@@ -467,7 +467,9 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	actualChecksum := dec.readerWithDigest.digest().Sum32()
 
 	// Decode checksum field originally added in V3
-	if uint32(dec.decodeVarint()) != actualChecksum {
+	v := dec.decodeVarint()
+	indexEntry.IndexChecksum = uint32(v)
+	if indexEntry.IndexChecksum != actualChecksum {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
 
