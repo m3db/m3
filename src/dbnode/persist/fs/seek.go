@@ -379,7 +379,7 @@ func (s *seeker) SeekByIndexEntry(
 //     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
 //        begin at the offset provided by the offset lookup).
 //     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntry(
@@ -468,7 +468,7 @@ func (s *seeker) SeekIndexEntry(
 //     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
 //        begin at the offset provided by the offset lookup).
 //     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntryToIndexChecksum(

@@ -338,6 +338,7 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
+		streamReqs = append(streamReqs, req)
 		if limitErr != nil {
 			req.onError(limitErr)
 			continue

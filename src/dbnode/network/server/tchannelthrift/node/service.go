@@ -104,7 +104,6 @@ var (
 type serviceMetrics struct {
 	fetch                   instrument.MethodMetrics
 	fetchTagged             instrument.MethodMetrics
-	indexChecksum           instrument.MethodMetrics
 	aggregate               instrument.MethodMetrics
 	write                   instrument.MethodMetrics
 	writeTagged             instrument.MethodMetrics
@@ -125,7 +124,6 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
-		indexChecksum:           instrument.NewMethodMetrics(scope, "indexChecksum", opts),
 		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
 		write:                   instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
