@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
@@ -526,7 +527,7 @@ func (w *writer) writeIndex(
 
 func (w *writer) writeIndexWithEncodedTags(
 	id []byte,
-	encodedTags []byte,
+	encodedTags ts.EncodedTags,
 	entry indexEntry,
 ) (int64, error) {
 	e := schema.IndexEntry{
