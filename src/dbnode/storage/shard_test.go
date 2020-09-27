@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -81,9 +83,12 @@ func testDatabaseShardWithIndexFn(
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
+
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
 		SetBufferBucketVersionsPool(series.NewBufferBucketVersionsPool(nil)).
-		SetBufferBucketPool(series.NewBufferBucketPool(nil))
+		SetBufferBucketPool(series.NewBufferBucketPool(nil)).
+		SetColdWritesEnabled(coldWritesEnabled)
+
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
 }
@@ -190,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -268,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -326,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1816,4 +1821,92 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
 
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
+}
+
+func TestShardAggregateTiles(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ctx             = context.NewContext()
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: time.Minute}
+	)
+
+	sourceShard := testDatabaseShard(t, DefaultTestOptions())
+	defer sourceShard.Close()
+
+	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
+	defer targetShard.Close()
+
+	reverseIndex := NewMockNamespaceIndex(ctrl)
+	targetShard.reverseIndex = reverseIndex
+
+	sourceNsID := sourceShard.namespace.ID()
+
+	dataBytes := func() []byte {
+		encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
+		datapointTimestamp := start.Add(10 * time.Second)
+		datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
+		err := encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
+		require.NoError(t, err)
+		m3tszSegment := encoder.Discard()
+		encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
+		m3tszSegment.Finalize()
+		return encodedBytes
+	}
+
+	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
+	reader0.EXPECT().Entries().Return(2).AnyTimes()
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(), uint32(11), nil)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(), uint32(22), nil)
+	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	secondSourceBlockStart := start.Add(sourceBlockSize)
+	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
+	reader1.EXPECT().Entries().Return(1).AnyTimes()
+	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(), uint32(33), nil)
+	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	blockReaders := []fs.DataFileSetReader{reader0, reader1}
+	sourceBlockVolumes := []shardBlockVolume{
+		{start, volume0},
+		{secondSourceBlockStart, volume1},
+	}
+
+	processedTileCount, err := targetShard.AggregateTiles(
+		ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), processedTileCount)
+}
+
+func getMockReader(
+	ctrl *gomock.Controller,
+	t *testing.T,
+	shard *dbShard,
+	blockStart time.Time,
+) (*fs.MockDataFileSetReader, int) {
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
+	require.NoError(t, err)
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	reader := fs.NewMockDataFileSetReader(ctrl)
+	reader.EXPECT().Open(openOpts).Return(nil)
+	reader.EXPECT().StreamingEnabled().Return(true)
+	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
+	reader.EXPECT().Close()
+
+	return reader, latestSourceVolume
 }

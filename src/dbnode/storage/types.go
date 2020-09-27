@@ -231,6 +231,9 @@ type Database interface {
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+
+	// AggregateTiles does large tile aggregation from source namespace to target namespace.
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error)
 }
 
 // database is the internal database interface.
@@ -433,6 +436,16 @@ type databaseNamespace interface {
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
+
+	// AggregateTiles does large tile aggregation from source namespace into this namespace.
+	AggregateTiles(
+		ctx context.Context,
+		sourceNs databaseNamespace,
+		opts AggregateTilesOptions,
+	) (int64, error)
+
+	// ReadableShardAt returns a shard of this namespace by shardID.
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -618,6 +631,20 @@ type databaseShard interface {
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+
+	// AggregateTiles does large tile aggregation from source shards into this shard.
+	AggregateTiles(
+		ctx context.Context,
+		sourceNsID ident.ID,
+		sourceShardID uint32,
+		blockReaders []fs.DataFileSetReader,
+		sourceBlockVolumes []shardBlockVolume,
+		opts AggregateTilesOptions,
+		targetSchemaDesc namespace.SchemaDescr,
+	) (int64, error)
+
+	// LatestVolume returns the latest volume for the combination of shard+blockStart.
+	LatestVolume(blockStart time.Time) (int, error)
 }
 
 // ShardSnapshotResult is a result from a shard snapshot.
@@ -1299,3 +1326,14 @@ type newFSMergeWithMemFn func(
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
+
+// AggregateTilesOptions is the options for large tile aggregation.
+type AggregateTilesOptions struct {
+	// Start and End specify the aggregation window.
+	Start, End          time.Time
+	// Step is the downsampling step.
+	Step                time.Duration
+	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
+	// TODO: remove once we have metrics type stored in the metadata.
+	HandleCounterResets bool
+}

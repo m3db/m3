@@ -260,7 +260,11 @@ type TickConfiguration struct {
 type BlockRetrievePolicy struct {
 	// FetchConcurrency is the concurrency to fetch blocks from disk. For
 	// spinning disks it is highly recommended to set this value to 1.
-	FetchConcurrency int `yaml:"fetchConcurrency" validate:"min=0"`
+	FetchConcurrency *int `yaml:"fetchConcurrency" validate:"min=1"`
+
+	// CacheBlocksOnRetrieve globally enables/disables callbacks used to cache blocks fetched
+	// from disk.
+	CacheBlocksOnRetrieve *bool `yaml:"cacheBlocksOnRetrieve"`
 }
 
 // CommitLogPolicy is the commit log policy.

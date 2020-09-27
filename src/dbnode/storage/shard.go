@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -59,6 +60,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -210,6 +212,8 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	largeTilesWrites                    tally.Counter
+	largeTilesWriteErrors               tally.Counter
 	snapshotTotalLatency                tally.Timer
 	snapshotCheckNeedsSnapshotLatency   tally.Timer
 	snapshotPrepareLatency              tally.Timer
@@ -247,6 +251,11 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
+		largeTilesWriteErrors: scope.Tagged(map[string]string{
+			"error_type":    "large-tiles",
+			"suberror_type": "write-error",
+		}).Counter(insertErrorName),
+		largeTilesWrites:                  scope.Counter("large-tiles-writes"),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
 		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
 		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
@@ -2703,6 +2712,222 @@ func (s *dbShard) Repair(
 	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
 }
 
+func (s *dbShard) AggregateTiles(
+	ctx context.Context,
+	sourceNsID ident.ID,
+	sourceShardID uint32,
+	blockReaders []fs.DataFileSetReader,
+	sourceBlockVolumes []shardBlockVolume,
+	opts AggregateTilesOptions,
+	targetSchemaDescr namespace.SchemaDescr,
+) (int64, error) {
+	if len(blockReaders) != len(sourceBlockVolumes) {
+		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
+	}
+
+	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	defer func() {
+		for _, reader := range blockReadersToClose {
+			reader.Close()
+		}
+	}()
+
+	maxEntries := 0
+	for sourceBlockPos, blockReader := range blockReaders {
+		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   sourceNsID,
+				Shard:       sourceShardID,
+				BlockStart:  sourceBlockVolume.blockStart,
+				VolumeIndex: sourceBlockVolume.latestVolume,
+			},
+			FileSetType:      persist.FileSetFlushType,
+			StreamingEnabled: true,
+		}
+
+		if err := blockReader.Open(openOpts); err != nil {
+			s.logger.Error("blockReader.Open", zap.Error(err))
+			return 0, err
+		}
+		if blockReader.Entries() > maxEntries {
+			maxEntries = blockReader.Entries()
+		}
+
+		blockReadersToClose = append(blockReadersToClose, blockReader)
+	}
+
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
+	if err != nil {
+		s.logger.Error("NewCrossBlockReader", zap.Error(err))
+		return 0, err
+	}
+	defer crossBlockReader.Close()
+
+	tileOpts := tile.Options{
+		FrameSize:          opts.Step,
+		Start:              xtime.ToUnixNano(opts.Start),
+		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
+	}
+
+	// TODO: these should probably be pooled
+	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
+	if err != nil {
+		s.logger.Error("error when creating new series block iterator", zap.Error(err))
+		return 0, err
+	}
+
+	closed := false
+	defer func() {
+		if !closed {
+			if err := readerIter.Close(); err != nil {
+				// NB: log the error on ungraceful exit.
+				s.logger.Error("could not close read iterator on error", zap.Error(err))
+			}
+		}
+	}()
+
+	encoder := s.opts.EncoderPool().Get()
+	defer encoder.Close()
+	encoder.Reset(opts.Start, 0, targetSchemaDescr)
+
+	latestTargetVolume, err := s.LatestVolume(opts.Start)
+	if err != nil {
+		return 0, err
+	}
+
+	nextVolume := latestTargetVolume + 1
+	writer, err := fs.NewStreamingWriter(
+		fs.StreamingWriterOptions{
+			NamespaceID:         s.namespace.ID(),
+			ShardID:             s.ID(),
+			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
+			BlockStart:          opts.Start,
+			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
+			VolumeIndex:         nextVolume,
+			PlannedRecordsCount: uint(maxEntries),
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := writer.Open(); err != nil {
+		return 0, err
+	}
+
+	var (
+		processedTileCount atomic.Int64
+		multiErr           xerrors.MultiError
+		dp                 ts.Datapoint
+		segmentCapacity    int
+		writerData         = make([][]byte, 2)
+	)
+
+READER:
+	for readerIter.Next() {
+		seriesIter, id, encodedTags := readerIter.Current()
+
+		for seriesIter.Next() {
+			frame := seriesIter.Current()
+			unit, singleUnit := frame.Units().SingleValue()
+			annotation, singleAnnotation := frame.Annotations().SingleValue()
+
+			if frameValues := frame.Values(); len(frameValues) > 0 {
+				lastIdx := len(frameValues) - 1
+
+				value := frameValues[lastIdx]
+				timestamp := frame.Timestamps()[lastIdx]
+
+				if !singleUnit {
+					// TODO: what happens if unit has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					if lastIdx < len(frame.Units().Values()) {
+						unit = frame.Units().Values()[lastIdx]
+					}
+				}
+
+				if !singleAnnotation {
+					// TODO: what happens if annotation has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					if lastIdx < len(frame.Annotations().Values()) {
+						annotation = frame.Annotations().Values()[lastIdx]
+					}
+				}
+
+				dp.Timestamp = timestamp
+				dp.Value = value
+				err = encoder.Encode(dp, unit, annotation)
+				if err != nil {
+					s.metrics.largeTilesWriteErrors.Inc(1)
+					multiErr = multiErr.Add(err)
+					break READER
+				}
+
+				processedTileCount.Inc()
+			}
+		}
+
+		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)
+
+		segmentLen := segment.Len()
+		if segmentLen > segmentCapacity {
+			// Will use the same capacity for the next series.
+			segmentCapacity = segmentLen
+		}
+
+		writerData[0] = segment.Head.Bytes()
+		writerData[1] = segment.Tail.Bytes()
+		checksum := segment.CalculateChecksum()
+
+		if err := writer.WriteAll(id.Bytes(), encodedTags, writerData, checksum); err != nil {
+			s.metrics.largeTilesWriteErrors.Inc(1)
+			multiErr = multiErr.Add(err)
+		} else {
+			s.metrics.largeTilesWrites.Inc(1)
+		}
+
+		id.Finalize()
+		segment.Finalize()
+	}
+
+	if err := readerIter.Err(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	if !multiErr.Empty() {
+		if err := writer.Abort(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	} else if err := writer.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	} else {
+		// Notify all block leasers that a new volume for the namespace/shard/blockstart
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: opts.Start,
+		}, block.LeaseState{Volume: nextVolume})
+	}
+
+	closed = true
+	if err := readerIter.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return 0, err
+	}
+
+	s.logger.Debug("finished aggregating tiles",
+		zap.Uint32("shard", s.ID()),
+		zap.Int64("processedBlocks", processedTileCount.Load()))
+
+	return processedTileCount.Load(), nil
+}
+
 func (s *dbShard) BootstrapState() BootstrapState {
 	s.RLock()
 	bs := s.bootstrapState
@@ -2722,6 +2947,10 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 		return emptyDoc, false, nil
 	}
 	return emptyDoc, false, err
+}
+
+func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
+	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
@@ -2805,4 +3034,9 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
+}
+
+type shardBlockVolume struct {
+	blockStart   time.Time
+	latestVolume int
 }
