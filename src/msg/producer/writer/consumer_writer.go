@@ -206,15 +206,12 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	}
 
 	writeConn := w.writeState.conns[connIndex]
+	w.writeState.RUnlock()
 
 	// Make sure only writer to this connection.
 	writeConn.writeLock.Lock()
 	_, err := writeConn.w.Write(b)
 	writeConn.writeLock.Unlock()
-
-	// Hold onto the write state lock until done, since flushing and
-	// closing connections are done by acquiring the write state lock.
-	w.writeState.RUnlock()
 
 	if err != nil {
 		w.notifyReset(err)
@@ -254,13 +251,23 @@ func (w *consumerWriterImpl) flushUntilClose() {
 	for {
 		select {
 		case <-flushTicker.C:
-			w.writeState.Lock()
-			for _, conn := range w.writeState.conns {
+			w.writeState.RLock()
+			if !w.writeState.validConns || len(w.writeState.conns) == 0 {
+				w.writeState.RUnlock()
+				w.m.writeInvalidConn.Inc(1)
+				return
+			}
+			conns := w.writeState.conns
+			w.writeState.RUnlock()
+
+			for _, conn := range conns {
+				// Make sure only writer to this connection.
+				conn.writeLock.Lock()
 				if err := conn.w.Flush(); err != nil {
 					w.notifyReset(err)
 				}
+				conn.writeLock.Unlock()
 			}
-			w.writeState.Unlock()
 		case <-w.doneCh:
 			return
 		}
@@ -288,7 +295,15 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 		case <-w.doneCh:
 			w.writeState.Lock()
 			for _, c := range w.writeState.conns {
-				c.conn.Close()
+				// Make sure nobody is actively writing to this connection.
+				c.writeLock.Lock()
+				if err := c.w.Flush(); err != nil {
+					w.logger.Error("failed to flush the connection while closing", zap.Error(err))
+				}
+				if err := c.conn.Close(); err != nil {
+					w.logger.Error("failed to close the connection", zap.Error(err))
+				}
+				c.writeLock.Unlock()
 			}
 			w.writeState.Unlock()
 			return
@@ -297,8 +312,8 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 }
 
 func (w *consumerWriterImpl) resetTooSoon() bool {
-	w.writeState.Lock()
-	defer w.writeState.Unlock()
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
 	return w.nowFn().UnixNano() < w.writeState.lastResetNanos+int64(w.connOpts.ResetDelay())
 }
 
@@ -393,8 +408,8 @@ func (w *consumerWriterImpl) notifyReset(err error) {
 }
 
 func (w *consumerWriterImpl) isClosed() bool {
-	w.writeState.Lock()
-	defer w.writeState.Unlock()
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
 	return w.writeState.closed
 }
 
