@@ -55,9 +55,9 @@ a 15s lookback.
 ```
 limits:
   # If set, will enforce a maximum cap on disk read bytes for time series that
-  # resides historically on disk (and is not already in memory).
+  # resides historically on disk (and are not already in memory).
   maxRecentlyQueriedSeriesDiskBytesRead:
-    # Value sets the maximum disk read bytes for historical data.
+    # Value sets the maximum disk bytes read for historical data.
     value: 0
     # Lookback sets the time window that this limit is enforced over, every 
     # lookback period the global count is reset to zero and when the limit 
