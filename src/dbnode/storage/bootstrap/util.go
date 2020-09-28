@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -307,6 +308,8 @@ type NamespacesTester struct {
 
 	// Namespaces are the namespaces for this tester.
 	Namespaces Namespaces
+	// Cache is a snapshot of data useful during bootstrapping.
+	Cache Cache
 	// Results are the namespace results after bootstrapping.
 	Results NamespaceResults
 }
@@ -334,6 +337,25 @@ func BuildNamespacesTester(
 		runOpts,
 		ranges,
 		nil,
+		fs.NewOptions(),
+		mds...,
+	)
+}
+
+// BuildNamespacesTesterWithFilesystemOptions builds a NamespacesTester with fs.Options
+func BuildNamespacesTesterWithFilesystemOptions(
+	t require.TestingT,
+	runOpts RunOptions,
+	ranges result.ShardTimeRanges,
+	fsOpts fs.Options,
+	mds ...namespace.Metadata,
+) NamespacesTester {
+	return BuildNamespacesTesterWithReaderIteratorPool(
+		t,
+		runOpts,
+		ranges,
+		nil,
+		fsOpts,
 		mds...,
 	)
 }
@@ -345,6 +367,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	iterPool encoding.MultiReaderIteratorPool,
+	fsOpts fs.Options,
 	mds ...namespace.Metadata,
 ) NamespacesTester {
 	shards := make([]uint32, 0, ranges.Len())
@@ -359,6 +382,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	ctrl := xtest.NewController(t)
 	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
 	accumulators := make([]*TestDataAccumulator, 0, len(mds))
+	finders := make([]NamespaceDetails, 0, len(mds))
 	for _, md := range mds {
 		nsCtx := namespace.NewContextFrom(md)
 		acc := &TestDataAccumulator{
@@ -388,13 +412,23 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 				RunOptions:            runOpts,
 			},
 		})
+		finders = append(finders, NamespaceDetails{
+			Namespace: md,
+			Shards:    shards,
+		})
 	}
+	cache, err := NewCache(NewCacheOptions().
+		SetFilesystemOptions(fsOpts).
+		SetInstrumentOptions(fsOpts.InstrumentOptions()).
+		SetNamespaceDetails(finders))
+	require.NoError(t, err)
 
 	return NamespacesTester{
 		t:            t,
 		ctrl:         ctrl,
 		pool:         iterPool,
 		Accumulators: accumulators,
+		Cache:        cache,
 		Namespaces: Namespaces{
 			Namespaces: namespacesMap,
 		},
@@ -540,7 +574,7 @@ func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 	ctx := context.NewContext()
 	defer ctx.Close()
-	res, err := b.Bootstrap(ctx, nt.Namespaces)
+	res, err := b.Bootstrap(ctx, nt.Namespaces, nt.Cache)
 	assert.NoError(nt.t, err)
 	nt.Results = res
 }
@@ -550,7 +584,7 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 func (nt *NamespacesTester) TestReadWith(s Source) {
 	ctx := context.NewContext()
 	defer ctx.Close()
-	res, err := s.Read(ctx, nt.Namespaces)
+	res, err := s.Read(ctx, nt.Namespaces, nt.Cache)
 	require.NoError(nt.t, err)
 	nt.Results = res
 }

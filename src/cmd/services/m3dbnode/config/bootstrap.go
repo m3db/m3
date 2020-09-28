@@ -283,7 +283,7 @@ func (bsc BootstrapConfiguration) New(
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
-	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
+	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts, fsOpts)
 }
 
 func (bsc BootstrapConfiguration) filesystemConfig() BootstrapFilesystemConfiguration {

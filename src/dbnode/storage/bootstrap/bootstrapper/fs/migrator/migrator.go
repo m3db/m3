@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
@@ -44,7 +45,7 @@ type worker struct {
 // the info files.
 type Migrator struct {
 	migrationTaskFn      MigrationTaskFn
-	infoFilesByNamespace fs.InfoFilesByNamespace
+	infoFilesByNamespace bootstrap.InfoFilesByNamespace
 	migrationOpts        migration.Options
 	fsOpts               fs.Options
 	instrumentOpts       instrument.Options

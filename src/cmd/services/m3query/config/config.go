@@ -409,7 +409,17 @@ type IngestConfiguration struct {
 
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
+	// Ingester if set defines an ingester to run for carbon.
 	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
+	// AggregateNamespacesAllData configures whether all aggregate
+	// namespaces contain entire copies of the data set.
+	// This affects whether queries can be optimized or not, if false
+	// they cannot be since it's unclear if data matching an expression
+	// sits in one or many or none of the aggregate namespaces so all
+	// must be queried, but if true then it can be determined based
+	// on the query range whether a single namespace can fulfill the
+	// entire query and if so to only fetch from that one aggregated namespace.
+	AggregateNamespacesAllData bool `yaml:"aggregateNamespacesAllData"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
