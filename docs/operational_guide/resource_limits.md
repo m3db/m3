@@ -15,6 +15,8 @@ The primary limit is on total bytes recently read from disk across all queries
 since this most directly causes memory pressure. Reading time series data that 
 is already in-memory (either due to already being cached or being actively written) 
 costs much less than reading historical time series data which must be read from disk. 
+By specifically limiting bytes read from disk, and excluding bytes already in-memory, we
+can apply a limit that most accurately reflects increased memory pressure on the database nodes.
 To set a limit, use the `maxRecentlyQueriedSeriesDiskBytesRead` stanza to define a 
 policy for how much historical time series data can be read over a given 
 lookback time window. The `value` specifies max numbers of bytes read from disk allowed
