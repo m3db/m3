@@ -191,6 +191,10 @@ func TestSortByMaxima(t *testing.T) {
 	testSortingFuncs(t, sortByMaxima, []int{4, 0, 3, 2, 1})
 }
 
+func TestSortByMinima(t *testing.T) {
+	testSortingFuncs(t, sortByMinima, []int{1, 3, 2, 4, 0})
+}
+
 func TestAbsolute(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3360,6 +3364,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"scale",
 		"scaleToSeconds",
 		"sortByMaxima",
+		"sortByMinima",
 		"sortByName",
 		"sortByTotal",
 		"squareRoot",
