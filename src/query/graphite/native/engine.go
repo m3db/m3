@@ -52,3 +52,7 @@ func (e *Engine) FetchByQuery(
 func (e *Engine) Compile(s string) (Expression, error) {
 	return Compile(s)
 }
+
+func (e *Engine) Storage() storage.Storage {
+	return e.storage;
+}

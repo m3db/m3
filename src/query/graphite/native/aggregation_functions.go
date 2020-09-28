@@ -25,7 +25,6 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
-	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"math"
 	"sort"
@@ -278,22 +277,6 @@ func combineSeriesWithWildcards(
 	return r, nil
 }
 
-func evaluateTarget(ctx *common.Context, target string) ([]*ts.Series, error) {
-	fetchOptions := storage.FetchOptions{
-		StartTime: ctx.StartTime,
-		EndTime:   ctx.EndTime,
-		DataOptions: storage.DataOptions{
-			Timeout: ctx.Timeout,
-		},
-	}
-	ctxCopy := ctx.NewChildContext(common.NewChildContextOptions())
-	result, err := ctx.Engine.FetchByQuery(ctxCopy, target, fetchOptions)
-	if err != nil {
-		return nil, err
-	}
-	return result.SeriesList, nil
-}
-
 /*
 applyByNode takes a seriesList and applies some complicated function (described by a string), replacing templates with unique
 prefixes of keys from the seriesList (the key is all nodes up to the index given as `nodeNum`).
@@ -346,11 +329,17 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	var output []*ts.Series
 	for _, prefix := range prefixes {
 		newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
-		resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+		eng := NewEngine(ctx.Engine.Storage())
+		expression, err := eng.Compile(newTarget)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
-		for _, resultSeries := range resultSeriesList {
+		resultSeriesList, err := expression.Execute(ctx)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		for _, resultSeries := range resultSeriesList.Values {
 			if newName != "" {
 				resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
 			}

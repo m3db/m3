@@ -142,6 +142,8 @@ type mockEngine struct {
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
+
+	storage storage.Storage
 }
 
 func (e mockEngine) FetchByQuery(
@@ -150,6 +152,10 @@ func (e mockEngine) FetchByQuery(
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return e.fn(ctx, query, opts)
+}
+
+func (e mockEngine) Storage() storage.Storage {
+	return e.storage;
 }
 
 func TestVariadicSumSeries(t *testing.T) {
@@ -416,12 +422,26 @@ func TestApplyByNode(t *testing.T) {
 	defer ctrl.Finish()
 	defer ctx.Close()
 
-	store.EXPECT().FetchByQuery(gomock.Any(), "divideSeries(servers.s1.disk.bytes_used, sumSeries(servers.s1.disk.bytes_*))", gomock.Any()).Return(
-		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_used,servers.s1.disk.bytes_free))", start,
-			common.NewTestSeriesValues(ctx, 60000, []float64{0.10, 0.20, 0.30}))}}, nil).Times(2)
-	store.EXPECT().FetchByQuery(gomock.Any(), "divideSeries(servers.s2.disk.bytes_used, sumSeries(servers.s2.disk.bytes_*))", gomock.Any()).Return(
-		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_used,servers.s2.disk.bytes_free))", start,
-			common.NewTestSeriesValues(ctx, 60000, []float64{0.01, 0.02, 0.03}))}}, nil).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{90, 80, 70})),
+				ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{99, 98, 97})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
 
 	tests := []struct {
 		nodeNum          int
@@ -435,11 +455,11 @@ func TestApplyByNode(t *testing.T) {
 			newName:          "",
 			expectedResults: []common.TestSeries{
 				{
-					Name: "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_used,servers.s1.disk.bytes_free))",
+					Name: "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_*))",
 					Data: []float64{0.10, 0.20, 0.30},
 				},
 				{
-					Name: "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_used,servers.s2.disk.bytes_free))",
+					Name: "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_*))",
 					Data: []float64{0.01, 0.02, 0.03},
 				},
 			},

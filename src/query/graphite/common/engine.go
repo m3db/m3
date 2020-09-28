@@ -32,6 +32,8 @@ type QueryEngine interface {
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
+
+	Storage() storage.Storage
 }
 
 // The Engine for running queries
@@ -53,4 +55,8 @@ func (e *Engine) FetchByQuery(
 	options storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return e.storage.FetchByQuery(ctx, query, options)
+}
+
+func (e *Engine) Storage() storage.Storage {
+	return e.storage;
 }
