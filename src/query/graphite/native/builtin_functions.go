@@ -110,7 +110,7 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 
 	for _, series := range seriesList.Values {
 		if series.SafeMax() > maxAllowedValue {
-			seriesName := strings.Replace(series.Name(), search, replace, 1)
+			seriesName := strings.Replace(series.Name(), search, replace, -1)
 			newNames = append(newNames, seriesName)
 		}
 	}
