@@ -1493,10 +1493,12 @@ func (n *dbNamespace) OwnedShards() []databaseShard {
 func (n *dbNamespace) SetIndex(reverseIndex NamespaceIndex) error {
 	n.Lock()
 	defer n.Unlock()
+
 	if !n.metadata.Options().IndexOptions().Enabled() {
 		return errNamespaceIndexingDisabled
 	}
 	n.reverseIndex = reverseIndex
+
 	return nil
 }
 
@@ -1687,7 +1689,8 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
-		shardProcessedTileCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+		shardProcessedTileCount, err := targetShard.AggregateTiles(
+			ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		if err != nil {

@@ -393,7 +393,7 @@ type databaseNamespace interface {
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 
-	// BootstrapState captures and returns a snapshot of the namespaces' bootstrap state.
+	// BootstrapState returns namespaces' bootstrap state.
 	BootstrapState() BootstrapState
 
 	// ShardBootstrapState captures and returns a snapshot of the namespaces' shards bootstrap state.
@@ -702,6 +702,9 @@ type NamespaceIndex interface {
 	// the owned shards of the database. Also returns a callback to be called when
 	// cold flushing completes to perform houskeeping.
 	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
+
+	// SetExtendedRetentionPeriod allows to extend index retention beyond the retention of the namespace it belongs to.
+	SetExtendedRetentionPeriod(period time.Duration)
 
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error

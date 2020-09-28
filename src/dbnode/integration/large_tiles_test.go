@@ -55,10 +55,8 @@ import (
 )
 
 var (
-	blockSize       = 2 * time.Hour
-	blockSizeT      = 24 * time.Hour
-	indexBlockSize  = 2 * blockSize
-	indexBlockSizeT = 2 * blockSizeT
+	blockSize  = 2 * time.Hour
+	blockSizeT = 24 * time.Hour
 )
 
 func TestReadAggregateWrite(t *testing.T) {
@@ -86,15 +84,15 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
 		dpTime, 15, xtime.Second, nil)
 
-	testDataPointsCount := 60.0
-	for a := 0.0; a < testDataPointsCount; a++ {
+	testDataPointsCount := 60
+	for a := 0; a < testDataPointsCount; a++ {
 		if a < 10 {
 			dpTime = dpTime.Add(10 * time.Minute)
 			continue
 		}
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"),
 			ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
-			dpTime, 42.1+a, xtime.Second, nil)
+			dpTime, 42.1+float64(a), xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
 	}
@@ -166,7 +164,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	computedNSResults, _, err := session.FetchTagged(
 		trgNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
 	require.NoError(t, err)
-	assert.Equal(t, 2, computedNSResults.Len(), "read through the shared reverse index")
+	assert.Equal(t, 2, computedNSResults.Len(), "read through the reverse index")
 }
 
 var (
@@ -189,7 +187,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	}()
 
 	nowFn := testSetup.NowFn()
-	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
+	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-2 * blockSizeT)
 	writeTestData(t, testSetup, log, reporter, dpTimeStart, srcNs.ID())
 
 	aggOpts, err := storage.NewAggregateTilesOptions(
@@ -291,8 +289,8 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT).SetBufferPast(0)
-		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
+		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
 		nsOpts   = namespace.NewOptions().
 			SetRetentionOptions(rOpts).
 			SetIndexOptions(idxOpts).
@@ -409,7 +407,10 @@ func newShareReverseIndexFn(srcNs namespace.Metadata, trgNs namespace.Metadata) 
 			if err != nil {
 				return err
 			}
-			return ns.SetIndex(reverseIndex)
+			reverseIndex.SetExtendedRetentionPeriod(ns.Options().RetentionOptions().RetentionPeriod())
+			readOnlyIndex := storage.NewReadOnlyIndexProxy(reverseIndex)
+
+			return ns.SetIndex(readOnlyIndex)
 		}
 		return nil
 	}
