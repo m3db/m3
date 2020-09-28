@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
+	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -109,6 +110,7 @@ func setupHandler(
 		svcDefaultOptions,
 		NewQueryRouter(),
 		NewQueryRouter(),
+		graphite.M3WrappedStorageOptions{},
 	)
 
 	if err != nil {
@@ -145,6 +147,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		svcDefaultOptions,
 		nil,
 		nil,
+		graphite.M3WrappedStorageOptions{},
 	)
 	require.NoError(t, err)
 
@@ -406,7 +409,7 @@ func TestCustomRoutes(t *testing.T) {
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
-	)
+		graphite.M3WrappedStorageOptions{})
 
 	require.NoError(t, err)
 	custom := &customHandler{t: t}

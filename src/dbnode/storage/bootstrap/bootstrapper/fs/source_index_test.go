@@ -330,8 +330,8 @@ func TestBootstrapIndex(t *testing.T) {
 	require.True(t, ok)
 
 	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, runOpts,
-		times.shardTimeRanges, nsMD)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+		times.shardTimeRanges, opts.FilesystemOptions(), nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
@@ -410,8 +410,8 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.True(t, ok)
 
 	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, runOpts,
-		times.shardTimeRanges, nsMD)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+		times.shardTimeRanges, opts.FilesystemOptions(), nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
@@ -483,8 +483,8 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	require.True(t, ok)
 
 	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, runOpts,
-		times.shardTimeRanges, nsMD)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+		times.shardTimeRanges, opts.FilesystemOptions(), nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
@@ -588,8 +588,8 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			End:   times.end,
 		}),
 	)
-	tester := bootstrap.BuildNamespacesTester(t, runOpts,
-		times.shardTimeRanges, ns)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+		times.shardTimeRanges, opts.FilesystemOptions(), ns)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)

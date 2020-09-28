@@ -23,6 +23,7 @@ package tile
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -37,7 +38,7 @@ type seriesFrameIter struct {
 
 	iter fs.CrossBlockIterator
 
-	frameStep  xtime.UnixNano
+	frameStep  time.Duration
 	frameStart xtime.UnixNano
 }
 
@@ -50,7 +51,7 @@ func newSeriesFrameIterator(recorder *recorder) SeriesFrameIterator {
 
 func (b *seriesFrameIter) Reset(
 	start xtime.UnixNano,
-	frameStep xtime.UnixNano,
+	frameStep time.Duration,
 	iter fs.CrossBlockIterator,
 ) error {
 	if frameStep <= 0 {
@@ -64,7 +65,7 @@ func (b *seriesFrameIter) Reset(
 	b.started = false
 	b.frameStart = start
 	b.frameStep = frameStep
-	b.curr.reset(start, start+frameStep)
+	b.curr.reset(start, start+xtime.UnixNano(frameStep))
 
 	return nil
 }
@@ -93,10 +94,10 @@ func (b *seriesFrameIter) Next() bool {
 			return false
 		}
 	} else {
-		b.curr.reset(b.frameStart, b.frameStart+b.frameStep)
+		b.curr.reset(b.frameStart, b.frameStart+xtime.UnixNano(b.frameStep))
 	}
 
-	cutover := b.frameStart + b.frameStep
+	cutover := b.frameStart + xtime.UnixNano(b.frameStep)
 	b.curr.FrameStartInclusive = b.frameStart
 	b.curr.FrameEndExclusive = cutover
 	b.frameStart = cutover

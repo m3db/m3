@@ -200,7 +200,8 @@ func TestFetchByQuery(t *testing.T) {
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
 
-	wrapper := NewM3WrappedStorage(store, enforcer, instrument.NewOptions())
+	wrapper := NewM3WrappedStorage(store, enforcer, instrument.NewOptions(),
+		M3WrappedStorageOptions{})
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
 	end := start.Add(time.Duration(steps) * resolution)
@@ -241,7 +242,8 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 	query := "a."
 	ctx := xctx.New()
-	wrapper := NewM3WrappedStorage(store, nil, instrument.NewOptions())
+	wrapper := NewM3WrappedStorage(store, nil, instrument.NewOptions(),
+		M3WrappedStorageOptions{})
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)
 	require.Equal(t, 0, len(result.SeriesList))
