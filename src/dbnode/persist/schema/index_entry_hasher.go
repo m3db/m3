@@ -23,9 +23,11 @@ package schema
 import (
 	"hash"
 	"hash/adler32"
+	"sync"
 )
 
 type adlerHasher struct {
+	sync.Mutex
 	hash hash.Hash32
 }
 
@@ -35,11 +37,14 @@ func NewAdlerHash() IndexEntryHasher {
 }
 
 func (h *adlerHasher) HashIndexEntry(e IndexEntry) int64 {
+	h.Lock()
 	h.hash.Reset()
 	h.hash.Sum(e.ID)
 	h.hash.Sum(e.EncodedTags)
 	// TODO: investigate performance of this; also may be neecessary to add
 	// other fields to this hash. Also subrtacting a computed value from the hash
 	// may lead to more collision prone values.
-	return int64(h.hash.Sum32()) - e.DataChecksum
+	hash := int64(h.hash.Sum32()) - e.DataChecksum
+	h.Unlock()
+	return hash
 }

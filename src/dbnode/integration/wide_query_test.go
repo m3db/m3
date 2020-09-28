@@ -23,9 +23,12 @@
 package integration
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"runtime"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -51,6 +55,8 @@ type shardedIndexChecksum struct {
 	checksums []ident.IndexChecksum
 }
 
+// buildExpectedChecksumsByShard sorts the given IDs into ascending shard order,
+// applying given shard filters.
 func buildExpectedChecksumsByShard(
 	ids []string,
 	allowedShards []uint32,
@@ -289,4 +295,67 @@ func TestWideFetch(t *testing.T) {
 			}
 		})
 	}
+
+	log.Info("high concurrency filter tests")
+
+	concurrentTests := exactShardFilterTests
+	concurrency := runtime.NumCPU()
+	for len(concurrentTests) < concurrency {
+		concurrentTests = append(concurrentTests, exactShardFilterTests...)
+	}
+
+	concurrentTests = concurrentTests[:concurrency]
+	runs := 1000
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var multiErr xerrors.MultiError
+	for _, tt := range concurrentTests {
+		tt := tt
+		wg.Add(1)
+		go func() {
+			var runError error
+			for j := 0; j < runs; j++ {
+				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
+					now, tt.shards, iterOpts)
+
+				if err != nil {
+					runError = fmt.Errorf("query err: %v", err)
+					break
+				}
+
+				if !tt.expected {
+					if 0 != len(chk) {
+						runError = fmt.Errorf("check length should be 0, is %d", len(chk))
+						break
+					}
+				} else {
+					if 1 != len(chk) {
+						runError = fmt.Errorf("check length should be 1, is %d", len(chk))
+						break
+					}
+
+					if int64(1) != chk[0].Checksum {
+						runError = fmt.Errorf("checksum should be 1, is %d", chk[0].Checksum)
+						break
+					}
+
+					if !bytes.Equal([]byte(exactID), chk[0].ID) {
+						runError = fmt.Errorf("Expected ID %s does not match %s", exactID, string(chk[0].ID))
+						break
+					}
+				}
+			}
+
+			if runError != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(runError)
+				mu.Unlock()
+			}
+
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	require.NoError(t, multiErr.LastError())
 }

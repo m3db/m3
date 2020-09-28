@@ -24,6 +24,7 @@ import (
 	"hash"
 	"regexp"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -75,6 +76,7 @@ func NewParseValueHash32(t *testing.T) hash.Hash32 {
 }
 
 type parsedIndexHasher struct {
+	sync.Mutex
 	hash hash.Hash32
 }
 
@@ -85,7 +87,10 @@ func NewParsedIndexHasher(t *testing.T) schema.IndexEntryHasher {
 }
 
 func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
+	h.Lock()
 	h.hash.Reset()
 	h.hash.Sum(e.ID)
-	return int64(h.hash.Sum32())
+	hash := int64(h.hash.Sum32())
+	h.Unlock()
+	return hash
 }
