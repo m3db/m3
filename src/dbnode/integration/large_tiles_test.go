@@ -290,7 +290,7 @@ func fetchAndValidate(
 func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
-		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
+		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT).SetBufferPast(0)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
@@ -301,7 +301,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT)
 
-		fixedNow = time.Now().Truncate(blockSizeT).Add(10 * time.Minute)
+		fixedNow = time.Now().Truncate(blockSizeT)
 	)
 
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
