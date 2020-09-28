@@ -105,7 +105,7 @@ corresponding request/s metric is > 10
 
 &target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
 */
-func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
 	var newNames []string
 
 	for _, series := range seriesList.Values {
@@ -115,20 +115,25 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 		}
 	}
 	allRenamedSeries := strings.Join(newNames, ",")
-	target := strings.ReplaceAll("group(%)", "%", allRenamedSeries)
-	eng := NewEngine(ctx.Engine.Storage())
-	expression, err := eng.Compile(target)
-	if err != nil {
-		return ts.NewSeriesList(), err
+	if len(allRenamedSeries) > 0 {
+		target := strings.ReplaceAll("group(%)", "%", allRenamedSeries)
+		eng := NewEngine(ctx.Engine.Storage())
+		expression, err := eng.Compile(target)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		resultSeriesList, err := expression.Execute(ctx)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		return resultSeriesList, nil
 	}
-	resultSeriesList, err := expression.Execute(ctx)
-	if err != nil {
-		return ts.NewSeriesList(), err
-	}
-	return resultSeriesList, nil
+
+	// if none of the series have a value above the threshold, return an empty serieslist
+	return ts.NewSeriesList(), nil
 }
 
- // sortByMinima sorts timeseries by the minimum value across the time period specified.
+// sortByMinima sorts timeseries by the minimum value across the time period specified.
 func sortByMinima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
 	return lowest(ctx, series, len(series.Values), "min")
 }
