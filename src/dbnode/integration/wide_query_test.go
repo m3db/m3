@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"runtime"
@@ -297,50 +296,33 @@ func TestWideFetch(t *testing.T) {
 	}
 
 	log.Info("high concurrency filter tests")
-
-	concurrentTests := exactShardFilterTests
-	concurrency := runtime.NumCPU()
-	for len(concurrentTests) < concurrency {
-		concurrentTests = append(concurrentTests, exactShardFilterTests...)
-	}
-
-	concurrentTests = concurrentTests[:concurrency]
-	runs := 1000
+	runs := 100
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var multiErr xerrors.MultiError
-	for _, tt := range concurrentTests {
-		tt := tt
+	for i := 0; i < runtime.NumCPU(); i++ {
+		q := index.Query{Query: idx.NewAllQuery()}
+		expected := buildExpectedChecksumsByShard(ids, nil, testSetup.ShardSet())
 		wg.Add(1)
 		go func() {
 			var runError error
 			for j := 0; j < runs; j++ {
-				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
-					now, tt.shards, iterOpts)
+				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
+					now, nil, iterOpts)
 
 				if err != nil {
 					runError = fmt.Errorf("query err: %v", err)
 					break
 				}
 
-				if !tt.expected {
-					if 0 != len(chk) {
-						runError = fmt.Errorf("check length should be 0, is %d", len(chk))
-						break
-					}
-				} else {
-					if 1 != len(chk) {
-						runError = fmt.Errorf("check length should be 1, is %d", len(chk))
-						break
-					}
+				if len(expected) != len(chk) {
+					runError = fmt.Errorf("expected %d results, got %d", len(expected), len(chk))
+					break
+				}
 
-					if int64(1) != chk[0].Checksum {
-						runError = fmt.Errorf("checksum should be 1, is %d", chk[0].Checksum)
-						break
-					}
-
-					if !bytes.Equal([]byte(exactID), chk[0].ID) {
-						runError = fmt.Errorf("Expected ID %s does not match %s", exactID, string(chk[0].ID))
+				for i, c := range chk {
+					if expected[i].Checksum != c.Checksum {
+						runError = fmt.Errorf("expected %d checksum, got %d", expected[i].Checksum, c.Checksum)
 						break
 					}
 				}
