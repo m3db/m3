@@ -2079,6 +2079,11 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	return r, nil
 }
 
+// cumulative is an alias for consolidateBy(series, 'sum')
+func cumulative(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return consolidateBy(ctx, seriesList, "sum")
+}
+
 // offsetToZero offsets a metric or wildcard seriesList by subtracting the minimum
 // value in the series from each data point.
 func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
@@ -2181,6 +2186,7 @@ func init() {
 	MustRegisterFunction(consolidateBy)
 	MustRegisterFunction(constantLine)
 	MustRegisterFunction(countSeries)
+	MustRegisterFunction(cumulative)
 	MustRegisterFunction(currentAbove)
 	MustRegisterFunction(currentBelow)
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
