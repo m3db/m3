@@ -41,7 +41,7 @@ func TestIndexChecksumBlockBuffer(t *testing.T) {
 	assert.False(t, buf.Next())
 }
 
-func TestIndexChecksumBlockBufferDrain(t *testing.T) {
+func testIndexChecksumBlockBufferDrain(t *testing.T) {
 	buf := NewIndexChecksumBlockBuffer()
 	called := make(chan struct{})
 	go func() {

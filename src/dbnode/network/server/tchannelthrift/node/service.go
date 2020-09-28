@@ -21,7 +21,6 @@
 package node
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -35,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -934,116 +932,116 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 }
 
 func (s *service) FetchMismatch(tctx thrift.Context, req *rpc.FetchMismatchRequest) (*rpc.FetchMismatchResult_, error) {
-	db, err := s.startReadRPCWithDB()
-	if err != nil {
-		return nil, err
-	}
-	defer s.readRPCCompleted()
-
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexChecksum)
-	if sampled {
-		query := req.Query
-		sp.LogFields(
-			opentracinglog.String("query", string(query.Query)),
-			opentracinglog.String("namespace", string(query.NameSpace)),
-			xopentracing.Time("start", time.Unix(0, query.BlockStart)),
-			opentracinglog.Int("batch_length", len(req.ChecksumBatch.Checksums)),
-			opentracinglog.String("marker", string(req.ChecksumBatch.Marker)),
-		)
-	}
-
-	result, err := s.fetchMismatch(ctx, db, req)
-	if sampled && err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-	sp.Finish()
-
-	return result, err
-}
-
-func (s *service) fetchMismatch(
-	ctx context.Context,
-	db storage.Database,
-	req *rpc.FetchMismatchRequest,
-) (*rpc.FetchMismatchResult_, error) {
-	callStart := s.nowFn()
-	buffer := wide.NewIndexChecksumBlockBuffer()
-	defer buffer.Close()
-	ns, query, opts, err := convert.FromFetchMismatchRequest(req, buffer, s.pools)
-	if err != nil {
-		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewBadRequestError(err)
-	}
-
-	fmt.Printf("opts %+v\n", opts)
-	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
-	if err != nil {
-		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
-		return nil, convert.ToRPCError(err)
-	}
-
-	results := queryResult.Results
-	response := &rpc.FetchMismatchResult_{
-		Mismatches: make([]*rpc.FetchMismatch, 0, s.opts.BatchSize()),
-	}
-
-	// TODO: this should open a stream.
-	if err := s.fetchMismatchSingle(ctx, db, response, results, opts); err != nil {
-		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
-		return nil, err
-	}
-
-	s.metrics.fetchMismatched.ReportSuccess(s.nowFn().Sub(callStart))
 	return nil, nil
+	// db, err := s.startReadRPCWithDB()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer s.readRPCCompleted()
+	// ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.FetchMismatch)
+	// if sampled {
+	// 	query := req.Query
+	// 	sp.LogFields(
+	// 		opentracinglog.String("query", string(query.Query)),
+	// 		opentracinglog.String("namespace", string(query.NameSpace)),
+	// 		xopentracing.Time("start", time.Unix(0, query.BlockStart)),
+	// 		opentracinglog.Int("batch_length", len(req.ChecksumBatch.Checksums)),
+	// 		opentracinglog.String("marker", string(req.ChecksumBatch.Marker)),
+	// 	)
+	// }
+
+	// result, err := s.fetchMismatch(ctx, db, req)
+	// if sampled && err != nil {
+	// 	sp.LogFields(opentracinglog.Error(err))
+	// }
+	// sp.Finish()
+
+	// return result, err
 }
 
-func (s *service) fetchMismatchSingle(ctx context.Context,
-	db storage.Database,
-	response *rpc.FetchMismatchResult_,
-	results index.QueryResults,
-	opts index.QueryOptions,
-) error {
-	nsID := results.Namespace()
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexChecksumSingleResult)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("id", nsID.String()),
-		)
-	}
-	defer sp.Finish()
+// func (s *service) fetchMismatch(
+// 	ctx context.Context,
+// 	db storage.Database,
+// 	req *rpc.FetchMismatchRequest,
+// ) (*rpc.FetchMismatchResult_, error) {
+// 	callStart := s.nowFn()
+// 	buffer := wide.NewIndexChecksumBlockBuffer()
+// 	defer buffer.Close()
+// 	ns, query, opts, err := convert.FromFetchMismatchRequest(req, buffer, s.pools)
+// 	if err != nil {
+// 		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+// 		return nil, tterrors.NewBadRequestError(err)
+// 	}
 
-	i := 0
-	count := results.Map().Len()
-	// TODO: have an ordered representation generated into the result instead.
-	orderedIDs := make([]ident.ID, 0, count)
-	for _, entry := range results.Map().Iter() {
-		orderedIDs = append(orderedIDs, entry.Key())
-	}
+// 	fmt.Printf("opts %+v\n", opts)
+// 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
+// 	if err != nil {
+// 		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+// 		return nil, convert.ToRPCError(err)
+// 	}
 
-	// Sort counters for comparison purposes.
-	sort.Slice(orderedIDs, func(i, j int) bool {
-		return bytes.Compare(orderedIDs[i].Bytes(), orderedIDs[j].Bytes()) == -1
-	})
+// 	results := queryResult.Results
+// 	response := &rpc.FetchMismatchResult_{
+// 		Mismatches: make([]*rpc.FetchMismatch, 0, s.opts.BatchSize()),
+// 	}
 
-	for _, tsID := range orderedIDs {
-		i++
+// 	// TODO: this should open a stream.
+// 	if err := s.fetchMismatchSingle(ctx, db, response, results, opts); err != nil {
+// 		s.metrics.fetchMismatched.ReportError(s.nowFn().Sub(callStart))
+// 		return nil, err
+// 	}
 
-		// if last element of the batch or last element in the result set,
-		// include ID as a batch marker.
-		mismatches, err := db.FetchMismatch(ctx, nsID, tsID, opts.ChecksumBlockBuffer, opts.StartInclusive)
-		if err != nil {
-			continue
-		}
+// 	s.metrics.fetchMismatched.ReportSuccess(s.nowFn().Sub(callStart))
+// 	return nil, nil
+// }
 
-		for _, mismatch := range mismatches {
-			response.Mismatches = append(response.Mismatches, &rpc.FetchMismatch{
-				Checksum:     mismatch.Checksum,
-				FetchResult_: &rpc.FetchTaggedResult_{},
-			})
-		}
-	}
-	return nil
-}
+// func (s *service) fetchMismatchSingle(ctx context.Context,
+// 	db storage.Database,
+// 	response *rpc.FetchMismatchResult_,
+// 	results index.QueryResults,
+// 	opts index.QueryOptions,
+// ) error {
+// 	nsID := results.Namespace()
+// 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexChecksumSingleResult)
+// 	if sampled {
+// 		sp.LogFields(
+// 			opentracinglog.String("id", nsID.String()),
+// 		)
+// 	}
+// 	defer sp.Finish()
+
+// 	i := 0
+// 	count := results.Map().Len()
+// 	// TODO: have an ordered representation generated into the result instead.
+// 	orderedIDs := make([]ident.ID, 0, count)
+// 	for _, entry := range results.Map().Iter() {
+// 		orderedIDs = append(orderedIDs, entry.Key())
+// 	}
+
+// 	// Sort counters for comparison purposes.
+// 	sort.Slice(orderedIDs, func(i, j int) bool {
+// 		return bytes.Compare(orderedIDs[i].Bytes(), orderedIDs[j].Bytes()) == -1
+// 	})
+
+// 	for _, tsID := range orderedIDs {
+// 		i++
+
+// 		// if last element of the batch or last element in the result set,
+// 		// include ID as a batch marker.
+// 		mismatches, err := db.FetchMismatch(ctx, nsID, tsID, opts.ChecksumBlockBuffer, opts.StartInclusive)
+// 		if err != nil {
+// 			continue
+// 		}
+
+// 		for _, mismatch := range mismatches {
+// 			response.Mismatches = append(response.Mismatches, &rpc.FetchMismatch{
+// 				Checksum:     mismatch.Checksum,
+// 				FetchResult_: &rpc.FetchTaggedResult_{},
+// 			})
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (s *service) encodeTags(
 	enc serialize.TagEncoder,

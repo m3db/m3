@@ -232,7 +232,7 @@ func TestComputeMismatchNoMismatch(t *testing.T) {
 	assertNoMismatch(t, chk, idxEntry("abc1", "aaa"))
 	assertNoMismatch(t, chk, idxEntry("def2", "bbb"))
 	assertNoMismatch(t, chk, idxEntry("foo3", "ccc"))
-	assertNoMismatch(t, chk, idxEntry("qux50", "ddd50"))
+	assertNoMismatch(t, chk, idxEntry("qux100", "ddd"))
 	assertNoMismatch(t, chk, idxEntry("zoo5", "eee"))
 	assert.Equal(t, 0, len(chk.Drain()))
 }
@@ -283,7 +283,7 @@ func TestComputeMismatchMismatchesPrimary(t *testing.T) {
 
 func TestComputeMismatchMismatchesSecondary(t *testing.T) {
 	buffer := buildTestBuffer(ident.IndexChecksumBlock{
-		Checksums: []int64{3},
+		Checksums: []int64{4},
 		Marker:    []byte("foo3"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{5},
@@ -314,7 +314,7 @@ func TestComputeMismatchMismatchesSecondary(t *testing.T) {
 	testMismatches(t, expected, mismatches)
 
 	expected = []ReadMismatch{
-		testEntryMismatch("foo3", "f1", 4),
+		testEntryMismatch("foo3", "f1", 3),
 	}
 
 	mismatches, err = chk.ComputeMismatchForEntry(idxEntry("foo3", "f1"))
@@ -378,13 +378,13 @@ func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
 
 func TestComputeMismatchMismatchesSecondarySkipsFirst(t *testing.T) {
 	buffer := buildTestBuffer(ident.IndexChecksumBlock{
-		Checksums: []int64{3},
+		Checksums: []int64{4},
 		Marker:    []byte("foo3"),
 	})
 
 	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
 	expected := []ReadMismatch{
-		testEntryMismatch("foo3", "abc1", 4),
+		testEntryMismatch("foo3", "abc1", 3),
 	}
 
 	mismatches, err := chk.ComputeMismatchForEntry(idxEntry("foo3", "abc1"))
