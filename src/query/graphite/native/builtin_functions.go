@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
-	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/util"
 )
 
@@ -96,7 +95,7 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 }
 
 /*
-Compares the maximum of each series against the given `value`. If the series
+useSeriesAbove compares the maximum of each series against the given `value`. If the series
 maximum is greater than `value`, the regular expression search and replace is
 applied against the series name to plot a related metric
 
@@ -107,32 +106,26 @@ corresponding request/s metric is > 10
 &target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
 */
 func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
-	results := make([]*ts.Series, 0, len(seriesList.Values))
+	var newNames []string
+
 	for _, series := range seriesList.Values {
 		if series.SafeMax() > maxAllowedValue {
-			opts := storage.FetchOptions{
-				StartTime: ctx.StartTime,
-				EndTime:   ctx.EndTime,
-				DataOptions: storage.DataOptions{
-					Timeout: ctx.Timeout,
-				},
-			}
 			seriesName := strings.Replace(series.Name(), search, replace, 1)
-			result, err := ctx.Engine.FetchByQuery(ctx, seriesName, opts)
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-			if len(result.SeriesList) > 0 {
-				results = append(results, result.SeriesList[0])
-			}
-		} else {
-			results = append(results, series)
+			newNames = append(newNames, seriesName)
 		}
 	}
-
-	r := ts.SeriesList(seriesList)
-	r.Values = results
-	return r, nil
+	allRenamedSeries := strings.Join(newNames, ",")
+	target := strings.ReplaceAll("group(%)", "%", allRenamedSeries)
+	eng := NewEngine(ctx.Engine.Storage())
+	expression, err := eng.Compile(target)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	resultSeriesList, err := expression.Execute(ctx)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	return resultSeriesList, nil
 }
 
  // sortByMinima sorts timeseries by the minimum value across the time period specified.

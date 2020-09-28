@@ -140,6 +140,8 @@ type mockEngine struct {
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
+
+	storage storage.Storage
 }
 
 func (e mockEngine) FetchByQuery(
@@ -148,6 +150,10 @@ func (e mockEngine) FetchByQuery(
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return e.fn(ctx, query, opts)
+}
+
+func (e mockEngine) Storage() storage.Storage {
+	return e.storage
 }
 
 func TestVariadicSumSeries(t *testing.T) {
