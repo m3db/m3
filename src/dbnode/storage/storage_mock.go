@@ -1049,6 +1049,20 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
+// SetIndex mocks base method
+func (m *MockNamespace) SetIndex(reverseIndex NamespaceIndex) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetIndex indicates an expected call of SetIndex
+func (mr *MockNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockNamespace)(nil).SetIndex), reverseIndex)
+}
+
 // Index mocks base method
 func (m *MockNamespace) Index() (NamespaceIndex, error) {
 	m.ctrl.T.Helper()
@@ -1183,6 +1197,20 @@ func (m *MockdatabaseNamespace) Shards() []Shard {
 func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+}
+
+// SetIndex mocks base method
+func (m *MockdatabaseNamespace) SetIndex(reverseIndex NamespaceIndex) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetIndex indicates an expected call of SetIndex
+func (mr *MockdatabaseNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetIndex), reverseIndex)
 }
 
 // Index mocks base method
@@ -4577,6 +4605,34 @@ func (m *MockOptions) MediatorTickInterval() time.Duration {
 func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
+}
+
+// SetAfterNamespaceCreatedFn mocks base method
+func (m *MockOptions) SetAfterNamespaceCreatedFn(fn AfterNamespaceCreatedFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAfterNamespaceCreatedFn", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAfterNamespaceCreatedFn indicates an expected call of SetAfterNamespaceCreatedFn
+func (mr *MockOptionsMockRecorder) SetAfterNamespaceCreatedFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAfterNamespaceCreatedFn", reflect.TypeOf((*MockOptions)(nil).SetAfterNamespaceCreatedFn), fn)
+}
+
+// AfterNamespaceCreatedFn mocks base method
+func (m *MockOptions) AfterNamespaceCreatedFn() AfterNamespaceCreatedFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AfterNamespaceCreatedFn")
+	ret0, _ := ret[0].(AfterNamespaceCreatedFn)
+	return ret0
+}
+
+// AfterNamespaceCreatedFn indicates an expected call of AfterNamespaceCreatedFn
+func (mr *MockOptionsMockRecorder) AfterNamespaceCreatedFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AfterNamespaceCreatedFn", reflect.TypeOf((*MockOptions)(nil).AfterNamespaceCreatedFn))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface
