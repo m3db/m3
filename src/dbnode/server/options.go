@@ -27,7 +27,8 @@ import (
 
 // StorageOptions are options to apply to the database storage options.
 type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
+	OnColdFlush             storage.OnColdFlush
+	ForceColdWritesEnabled  bool
+	TChanNodeServerFn       node.NewTChanNodeServerFn
+	AfterNamespaceCreatedFn storage.AfterNamespaceCreatedFn
 }

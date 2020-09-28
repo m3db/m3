@@ -826,6 +826,10 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
+	if runOpts.StorageOptions.AfterNamespaceCreatedFn != nil {
+		opts = opts.SetAfterNamespaceCreatedFn(runOpts.StorageOptions.AfterNamespaceCreatedFn)
+	}
+
 	// Set bootstrap options - We need to create a topology map provider from the
 	// same topology that will be passed to the cluster so that when we make
 	// bootstrapping decisions they are in sync with the clustered database
