@@ -799,7 +799,9 @@ func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testOptions().SetMessageQueueScanBatchSize(1)
-	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	scope := tally.NewTestScope("", nil)
+	metrics := testMessageWriterMetricsWithScope(scope).withConsumer("c1")
+	w := newMessageWriter(200, nil, opts, metrics).(*messageWriterImpl)
 	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
 
 	mm1 := producer.NewMockMessage(ctrl)
@@ -820,6 +822,11 @@ func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
 	rm1.Drop()
 	w.scanMessageQueue()
 	require.Equal(t, 1, w.queue.Len())
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Equal(t, int64(1), counters["message-processed+consumer=c1,result=write"].Value())
+	require.Equal(t, int64(1), counters["message-processed+consumer=c1,result=drop"].Value())
 }
 
 func isEmptyWithLock(h *acks) bool {
@@ -836,6 +843,10 @@ func testMessagePool(opts Options) messagePool {
 
 func testMessageWriterMetrics() messageWriterMetrics {
 	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{})
+}
+
+func testMessageWriterMetricsWithScope(scope tally.TestScope) messageWriterMetrics {
+	return newMessageWriterMetrics(scope, instrument.TimerOptions{})
 }
 
 func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriterImpl) {

@@ -146,7 +146,11 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 		target     = result.NewShardTimeRanges()
 		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
-	available, err := src.AvailableData(nsMetadata, target, runOpts)
+	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
+		SetFilesystemOptions(opts.FilesystemOptions()).
+		SetInstrumentOptions(opts.FilesystemOptions().InstrumentOptions()))
+	require.NoError(t, err)
+	available, err := src.AvailableData(nsMetadata, target, cache, runOpts)
 	require.NoError(t, err)
 	require.Equal(t, target, available)
 
@@ -191,7 +195,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, err = src.Read(ctx, tester.Namespaces)
+	_, err = src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 	tester.EnsureNoLoadedBlocks()

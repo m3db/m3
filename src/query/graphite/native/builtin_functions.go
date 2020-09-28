@@ -135,6 +135,11 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 	return r, nil
 }
 
+ // sortByMinima sorts timeseries by the minimum value across the time period specified.
+func sortByMinima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+	return lowest(ctx, series, len(series.Values), "min")
+}
+
 type valueComparator func(v, threshold float64) bool
 
 func compareByFunction(
@@ -2120,6 +2125,11 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	return r, nil
 }
 
+// cumulative is an alias for consolidateBy(series, 'sum')
+func cumulative(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return consolidateBy(ctx, seriesList, "sum")
+}
+
 // offsetToZero offsets a metric or wildcard seriesList by subtracting the minimum
 // value in the series from each data point.
 func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
@@ -2222,6 +2232,7 @@ func init() {
 	MustRegisterFunction(consolidateBy)
 	MustRegisterFunction(constantLine)
 	MustRegisterFunction(countSeries)
+	MustRegisterFunction(cumulative)
 	MustRegisterFunction(currentAbove)
 	MustRegisterFunction(currentBelow)
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
@@ -2302,6 +2313,7 @@ func init() {
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortByMaxima)
+	MustRegisterFunction(sortByMinima)
 	MustRegisterFunction(sortByName)
 	MustRegisterFunction(sortByTotal)
 	MustRegisterFunction(squareRoot)

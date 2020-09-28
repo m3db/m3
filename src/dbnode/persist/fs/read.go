@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -372,7 +373,7 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
+func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
 	if !r.streamingEnabled {
 		return nil, nil, nil, 0, errStreamingRequired
 	}
