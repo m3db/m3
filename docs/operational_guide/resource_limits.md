@@ -22,7 +22,7 @@ policy for how much historical time series data can be read over a given
 lookback time window. The `value` specifies max numbers of bytes read from disk allowed
 within a given `lookback` period.
 
-You can use the Prometheus query `rate(query_limit_total_disk-bytes-read[1m])` to determine 
+You can use the Prometheus query `rate(query_limit_total_disk_bytes_read[1m])` to determine 
 how many bytes are read from disk per second by your cluster today to inform an appropriate limit.
 Make sure to multiply that number by the `lookback` period to get your desired max value. For 
 instance, if the query shows that you frequently read 10,000 bytes 
