@@ -1490,6 +1490,16 @@ func (n *dbNamespace) OwnedShards() []databaseShard {
 	return databaseShards
 }
 
+func (n *dbNamespace) SetIndex(reverseIndex NamespaceIndex) error {
+	n.Lock()
+	defer n.Unlock()
+	if !n.metadata.Options().IndexOptions().Enabled() {
+		return errNamespaceIndexingDisabled
+	}
+	n.reverseIndex = reverseIndex
+	return nil
+}
+
 func (n *dbNamespace) Index() (NamespaceIndex, error) {
 	n.RLock()
 	defer n.RUnlock()

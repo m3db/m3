@@ -255,6 +255,9 @@ type Namespace interface {
 	// Shards returns the shard description.
 	Shards() []Shard
 
+	// SetIndex sets and enables reverse index for this namespace.
+	SetIndex(reverseIndex NamespaceIndex) error
+
 	// Index returns the reverse index backing the namespace, if it exists.
 	Index() (NamespaceIndex, error)
 
@@ -1214,6 +1217,12 @@ type Options interface {
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetAfterNamespaceCreatedFn sets the AfterNamespaceCreatedFn.
+	SetAfterNamespaceCreatedFn(fn AfterNamespaceCreatedFn) Options
+
+	// AfterNamespaceCreatedFn returns the AfterNamespaceCreatedFn.
+	AfterNamespaceCreatedFn() AfterNamespaceCreatedFn
 }
 
 // MemoryTracker tracks memory.
@@ -1283,3 +1292,8 @@ type AggregateTilesOptions struct {
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool
 }
+
+// AfterNamespaceCreatedFn is the type of function invoked after each namespace is created.
+type AfterNamespaceCreatedFn func (Namespace, GetNamespaceFn) error
+
+type GetNamespaceFn func (k ident.ID) (databaseNamespace, bool)

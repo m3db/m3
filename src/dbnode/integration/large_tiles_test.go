@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -150,6 +152,21 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.StringID("aab"),
 		dpTimeStart, nowFn(),
 		expectedDps)
+
+	log.Info("waiting until index filesets are on disk")
+	start = time.Now()
+	completed := xclock.WaitUntil(func() bool {
+		filesets, err := fs.IndexFileSetsAt(testSetup.FilesystemOpts().FilePathPrefix(), srcNs.ID(), dpTimeStart)
+		require.NoError(t, err)
+		return len(filesets) == 1
+	}, time.Minute)
+	require.True(t, completed)
+
+	query := index.Query{Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+	computedNSResults, _, err := session.FetchTagged(
+		trgNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
+	require.NoError(t, err)
+	assert.Equal(t, 2, computedNSResults.Len(), "read through the shared reverse index")
 }
 
 var (
@@ -275,7 +292,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
 			SetRetentionOptions(rOpts).
 			SetIndexOptions(idxOpts).
@@ -305,8 +322,10 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
-	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
-		instrument.NewOptions().SetMetricsScope(scope)))
+	storageOpts := testSetup.StorageOpts().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
+		SetAfterNamespaceCreatedFn(newShareReverseIndexFn(srcNs, trgNs))
+	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
@@ -376,4 +395,22 @@ func writeTestData(
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
+}
+
+func newShareReverseIndexFn(srcNs namespace.Metadata, trgNs namespace.Metadata) storage.AfterNamespaceCreatedFn {
+	// Share reverse index between source and target namespaces.
+	return func(ns storage.Namespace, get storage.GetNamespaceFn) error {
+		if ns.ID() == trgNs.ID() {
+			otherNs, ok := get(srcNs.ID())
+			if !ok {
+				return fmt.Errorf("source namespace %s for sharing reverse index not found", srcNs.ID())
+			}
+			reverseIndex, err := otherNs.Index()
+			if err != nil {
+				return err
+			}
+			return ns.SetIndex(reverseIndex)
+		}
+		return nil
+	}
 }

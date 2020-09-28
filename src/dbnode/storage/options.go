@@ -166,6 +166,7 @@ type options struct {
 	doNotIndexWithFieldsMap         map[string]string
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval            time.Duration
+	afterNamespaceCreatedFn         AfterNamespaceCreatedFn
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -239,6 +240,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		memoryTracker:                   NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 		namespaceRuntimeOptsMgrRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
 		mediatorTickInterval:            defaultMediatorTickInterval,
+		afterNamespaceCreatedFn:         noopAfterNamespaceCreatedFn,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -813,8 +815,22 @@ func (o *options) MediatorTickInterval() time.Duration {
 	return o.mediatorTickInterval
 }
 
+func (o *options) SetAfterNamespaceCreatedFn(value AfterNamespaceCreatedFn) Options {
+	opts := *o
+	opts.afterNamespaceCreatedFn = value
+	return &opts
+}
+
+func (o *options) AfterNamespaceCreatedFn() AfterNamespaceCreatedFn {
+	return o.afterNamespaceCreatedFn
+}
+
 type noOpColdFlush struct{}
 
 func (n *noOpColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
+}
+
+func noopAfterNamespaceCreatedFn(Namespace, GetNamespaceFn) error {
+	return nil
 }
