@@ -2694,14 +2694,15 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {
+			if err == fs.ErrCheckpointFileNotFound {
+				// A very recent source block might not have been flushed yet.
+				continue
+			}
 			s.logger.Error("blockReader.Open",
 				zap.Error(err),
 				zap.Time("blockStart", sourceBlockVolume.blockStart),
 				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
-			//FIXME: for now we skip on Open errors because in practice they happen when trying to open
-			// a very recent source block that has no fileset yet.
-			//return 0, err
-			continue
+			return 0, err
 		}
 		if blockReader.Entries() > maxEntries {
 			maxEntries = blockReader.Entries()
