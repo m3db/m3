@@ -8,32 +8,40 @@ performance of M3 in a production environment.
 
 ### Configuring limits
 
-The best way to get started protecting M3DB nodes is to set a few limits on the
+The best way to get started protecting M3DB nodes is to set a few resource limits on the
 top level `limits` config stanza for M3DB.
 
-The primary concern is to set a limit on the historical bytes read from disk 
-since this directly causes memory pressure when large historical queries are 
-issued, one of the most common abusive patterns. Reading time series data that 
-is already in-memory (either due to it being cached already or it's actively 
-being written) costs much less than reading historical time series data. To set 
-a limit use the `maxRecentlyQueriedSeriesDiskBytesRead` stanza to define a 
+The primary limit is on total bytes recently read from disk across all queries
+since this most directly causes memory pressure. Reading time series data that 
+is already in-memory (either due to already being cached or being actively written) 
+costs much less than reading historical time series data which must be read from disk. 
+To set a limit, use the `maxRecentlyQueriedSeriesDiskBytesRead` stanza to define a 
 policy for how much historical time series data can be read over a given 
-lookback time window.
+lookback time window. The `value` specifies max numbers of bytes read from disk allowed
+within a given `lookback` period.
 
-The secondary concern here is just the total number of time series data read 
-in total, since even querying time series data already in memory in an unbound 
+You can use the Prometheus query `rate(query_limit_total_disk-bytes-read[1m])` to determine 
+how many bytes are read from disk per second by your cluster today to inform an appropriate limit.
+Make sure to multiply that number by the `lookback` period to get your desired max value. For 
+instance, if the query shows that you frequently read 10,000 bytes 
+per second safely with your deployment and you want to use the default lookback 
+of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
+a 15s lookback.
+
+The secondary limit is on the total volume of time series data recently read 
+across all queries (in-memory or not), since even querying data already in memory in an unbounded 
 manner can overwhelm a database node. When using M3DB for metrics workloads, 
 queries arrive as a set of matchers that select time series based on certain 
 dimensions. The primary mechanism to protect against these matchers matching 
 huge amounts of data in an unbounded way is to set a maximum limit for the 
 amount of time series blocks allowed to be matched and consequently read in a 
-given time window. This can be done using `maxRecentlyQueriedSeriesBlocks` to 
-set a maximum value and lookback time window to determine the duration over 
+given time window. Use the `maxRecentlyQueriedSeriesBlocks` to 
+set a maximum `value` and `lookback` time window to determine the duration over 
 which the max limit is enforced.
 
-You can use the Prometheus query `rate(query_stats_total_docs_per_block[1m])` to 
+You can use the Prometheus query `rate(query_limit_total_docs_matched[1m])` to 
 determine how many time series blocks are queried per second by your cluster 
-today to determine what is a sane value to set this to. Make sure to multiply 
+today to inform and appripriate limit. Make sure to multiply 
 that number by the `lookback` period to get your desired max value. For 
 instance, if the query shows that you frequently query 10,000 time series blocks 
 per second safely with your deployment and you want to use the default lookback 
