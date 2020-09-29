@@ -38,12 +38,14 @@ import (
 )
 
 func buildTestBuffer(bls ...ident.IndexChecksumBlock) IndexChecksumBlockBuffer {
-	buffer := NewIndexChecksumBlockBuffer()
+	ch := make(chan ident.IndexChecksumBlock)
+	buffer := NewIndexChecksumBlockBuffer(ch)
 	go func() {
 		for _, bl := range bls {
-			buffer.Push(bl)
+			ch <- bl
 		}
-		buffer.Close()
+
+		close(ch)
 	}()
 	return buffer
 }
@@ -197,20 +199,21 @@ func assertNoMismatch(
 }
 
 func TestComputeMismatchWithDelayedBuffer(t *testing.T) {
-	buffer := NewIndexChecksumBlockBuffer()
+	ch := make(chan ident.IndexChecksumBlock)
+	buffer := NewIndexChecksumBlockBuffer(ch)
 	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
 
 	go func() {
 		time.Sleep(time.Millisecond * 100)
-		buffer.Push(ident.IndexChecksumBlock{
+		ch <- ident.IndexChecksumBlock{
 			Checksums: []int64{1},
 			Marker:    []byte("foo1"),
-		})
+		}
 		time.Sleep(time.Millisecond * 200)
-		buffer.Push(ident.IndexChecksumBlock{
+		ch <- ident.IndexChecksumBlock{
 			Checksums: []int64{10},
 			Marker:    []byte("qux10"),
-		})
+		}
 		buffer.Close()
 	}()
 

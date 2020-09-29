@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -118,9 +119,20 @@ func (r *shardBlockRetriever) StreamIndexChecksum(
 	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (ident.IndexChecksum, error) {
 	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id, useID,
 		blockStart, nsCtx)
+}
+
+func (r *shardBlockRetriever) StreamFetchMismatch(
+	ctx context.Context,
+	id ident.ID,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	return r.DatabaseBlockRetriever.StreamFetchMismatch(ctx, r.shard, id,
+		mismatchChecker, blockStart, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

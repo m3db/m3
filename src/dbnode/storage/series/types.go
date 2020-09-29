@@ -99,7 +99,7 @@ type DatabaseSeries interface {
 	// checksum block buffer.
 	FetchMismatch(
 		ctx context.Context,
-		buffer wide.IndexChecksumBlockBuffer,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		start time.Time,
 		nsCtx namespace.Context,
 	) ([]wide.ReadMismatch, error)

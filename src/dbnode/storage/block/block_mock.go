@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -885,19 +886,33 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, shard, id, useID, startTime, nsCtx)
 	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum
 func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, shard, id, useID, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamIndexChecksum), ctx, shard, id, useID, startTime, nsCtx)
+}
+
+// StreamFetchMismatch mocks base method
+func (m *MockDatabaseBlockRetriever) StreamFetchMismatch(ctx context.Context, shard uint32, id ident.ID, mismatchChecker wide.EntryChecksumMismatchChecker, blockStart time.Time, nsCtx namespace.Context) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamFetchMismatch", ctx, shard, id, mismatchChecker, blockStart, nsCtx)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamFetchMismatch indicates an expected call of StreamFetchMismatch
+func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamFetchMismatch(ctx, shard, id, mismatchChecker, blockStart, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamFetchMismatch", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamFetchMismatch), ctx, shard, id, mismatchChecker, blockStart, nsCtx)
 }
 
 // AssignShardSet mocks base method
@@ -951,19 +966,33 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, id, useID, blockStart, nsCtx)
 	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum
 func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, id, useID, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamIndexChecksum), ctx, id, useID, blockStart, nsCtx)
+}
+
+// StreamFetchMismatch mocks base method
+func (m *MockDatabaseShardBlockRetriever) StreamFetchMismatch(ctx context.Context, id ident.ID, mismatchChecker wide.EntryChecksumMismatchChecker, blockStart time.Time, nsCtx namespace.Context) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamFetchMismatch", ctx, id, mismatchChecker, blockStart, nsCtx)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamFetchMismatch indicates an expected call of StreamFetchMismatch
+func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamFetchMismatch(ctx, id, mismatchChecker, blockStart, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamFetchMismatch", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamFetchMismatch), ctx, id, mismatchChecker, blockStart, nsCtx)
 }
 
 // MockDatabaseBlockRetrieverManager is a mock of DatabaseBlockRetrieverManager interface

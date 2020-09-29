@@ -29,28 +29,15 @@ import (
 )
 
 func TestIndexChecksumBlockBuffer(t *testing.T) {
-	buf := NewIndexChecksumBlockBuffer()
+	ch := make(chan ident.IndexChecksumBlock)
+	buf := NewIndexChecksumBlockBuffer(ch)
 	bl := ident.IndexChecksumBlock{Marker: []byte("foo")}
 	go func() {
-		buf.Push(bl)
-		buf.Close()
+		ch <- bl
+		close(ch)
 	}()
 
 	assert.True(t, buf.Next())
 	assert.Equal(t, []byte("foo"), buf.Current().Marker)
 	assert.False(t, buf.Next())
-}
-
-func testIndexChecksumBlockBufferDrain(t *testing.T) {
-	buf := NewIndexChecksumBlockBuffer()
-	called := make(chan struct{})
-	go func() {
-		buf.Push(ident.IndexChecksumBlock{Marker: []byte("foo")})
-		buf.Push(ident.IndexChecksumBlock{Marker: []byte("bar")})
-		buf.Push(ident.IndexChecksumBlock{Marker: []byte("baz")})
-		called <- struct{}{}
-	}()
-
-	buf.DrainAndClose()
-	<-called
 }

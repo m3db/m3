@@ -409,9 +409,21 @@ func (s *dbShard) StreamIndexChecksum(
 	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (ident.IndexChecksum, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		useID, blockStart, nsCtx)
+}
+
+// StreamFetchMismatch implements series.QueryableBlockRetriever
+func (s *dbShard) StreamFetchMismatch(
+	ctx context.Context,
+	id ident.ID,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	return s.DatabaseBlockRetriever.StreamFetchMismatch(ctx, s.shard, id,
+		mismatchChecker, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1194,7 +1206,7 @@ func (s *dbShard) IndexChecksum(
 func (s *dbShard) FetchMismatch(
 	ctx context.Context,
 	id ident.ID,
-	buffer wide.IndexChecksumBlockBuffer,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	start time.Time,
 	nsCtx namespace.Context,
 ) ([]wide.ReadMismatch, error) {
@@ -1222,13 +1234,13 @@ func (s *dbShard) FetchMismatch(
 	}
 
 	if entry != nil {
-		return entry.Series.FetchMismatch(ctx, buffer, start, nsCtx)
+		return entry.Series.FetchMismatch(ctx, mismatchChecker, start, nsCtx)
 	}
 
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchMismatch(ctx, buffer, start, nsCtx)
+	return reader.FetchMismatch(ctx, mismatchChecker, start, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

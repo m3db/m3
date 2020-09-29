@@ -932,7 +932,7 @@ func (n *dbNamespace) IndexChecksum(
 func (n *dbNamespace) FetchMismatch(
 	ctx context.Context,
 	id ident.ID,
-	buffer wide.IndexChecksumBlockBuffer,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	start time.Time,
 ) ([]wide.ReadMismatch, error) {
 	callStart := n.nowFn()
@@ -941,7 +941,7 @@ func (n *dbNamespace) FetchMismatch(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	res, err := shard.FetchMismatch(ctx, id, buffer, start, nsCtx)
+	res, err := shard.FetchMismatch(ctx, id, mismatchChecker, start, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

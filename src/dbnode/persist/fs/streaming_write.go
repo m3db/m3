@@ -73,6 +73,7 @@ type streamingWriter struct {
 	summaries    int
 }
 
+// NewStreamingWriter builds a new streaming writer.
 func NewStreamingWriter(opts StreamingWriterOptions) (StreamingWriter, error) {
 	w, err := NewWriter(opts.Options)
 	if err != nil {

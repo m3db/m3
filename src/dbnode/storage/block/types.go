@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -293,7 +294,18 @@ type DatabaseBlockRetriever interface {
 		useID bool,
 		startTime time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksum, bool, error)
+	) (ident.IndexChecksum, error)
+
+	// StreamFetchMismatch will stream block fetch mismatches for a given id and
+	// start, comparing against incoming index checksums and reporting mismatches.
+	StreamFetchMismatch(
+		ctx context.Context,
+		shard uint32,
+		id ident.ID,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) ([]wide.ReadMismatch, error)
 
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -310,15 +322,24 @@ type DatabaseShardBlockRetriever interface {
 	) (xio.BlockReader, error)
 
 	// StreamIndexChecksum will stream block index checksums for a given id and
-	// start, yielding an index checksum if available, a boolean indicating if
-	// it was found, and any errors encountered.
+	// start, yielding an index checksum if available, and any errors encountered.
 	StreamIndexChecksum(
 		ctx context.Context,
 		id ident.ID,
 		useID bool,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksum, bool, error)
+	) (ident.IndexChecksum, error)
+
+	// StreamFetchMismatch will stream block fetch mismatches for a given id and
+	// start, comparing against incoming index checksums and reporting mismatches.
+	StreamFetchMismatch(
+		ctx context.Context,
+		id ident.ID,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) ([]wide.ReadMismatch, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

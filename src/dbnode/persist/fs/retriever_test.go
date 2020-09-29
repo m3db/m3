@@ -951,28 +951,23 @@ func TestBlockRetrieverIndexChecksum(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, found, err := retriever.StreamIndexChecksum(ctx, shard,
+	_, err = retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("a"), true, blockStart, nsCtx)
 	require.NoError(t, err)
-	require.False(t, found)
 
-	indexChecksum, found, err := retriever.StreamIndexChecksum(ctx, shard,
+	indexChecksum, err := retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("no-tags200"), false, blockStart, nsCtx)
 	require.NoError(t, err)
-	require.True(t, found)
 	assert.Equal(t, 0, len(indexChecksum.ID))
 	assert.Equal(t, int64(200), indexChecksum.Checksum)
 
-	indexChecksum, found, err = retriever.StreamIndexChecksum(ctx, shard,
+	indexChecksum, err = retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("tags12"), true, blockStart, nsCtx)
 	require.NoError(t, err)
-	require.True(t, found)
 	assert.Equal(t, "tags12", string(indexChecksum.ID))
-	// NB: 1000 from tag, 12 from ID
 	assert.Equal(t, int64(12), indexChecksum.Checksum)
 
-	_, found, err = retriever.StreamIndexChecksum(ctx, shard,
+	_, err = retriever.StreamIndexChecksum(ctx, shard,
 		ident.StringID("zzzzz"), true, blockStart, nsCtx)
 	require.NoError(t, err)
-	require.False(t, found)
 }

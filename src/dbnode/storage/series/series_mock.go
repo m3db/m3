@@ -151,7 +151,7 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // FetchMismatch mocks base method
-func (m *MockDatabaseSeries) FetchMismatch(arg0 context.Context, arg1 wide.IndexChecksumBlockBuffer, arg2 time.Time, arg3 namespace.Context) ([]wide.ReadMismatch, error) {
+func (m *MockDatabaseSeries) FetchMismatch(arg0 context.Context, arg1 wide.EntryChecksumMismatchChecker, arg2 time.Time, arg3 namespace.Context) ([]wide.ReadMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchMismatch", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]wide.ReadMismatch)
@@ -472,14 +472,28 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
 }
 
+// StreamFetchMismatch mocks base method
+func (m *MockQueryableBlockRetriever) StreamFetchMismatch(arg0 context.Context, arg1 ident.ID, arg2 wide.EntryChecksumMismatchChecker, arg3 time.Time, arg4 namespace.Context) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamFetchMismatch", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamFetchMismatch indicates an expected call of StreamFetchMismatch
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamFetchMismatch(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamFetchMismatch", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamFetchMismatch), arg0, arg1, arg2, arg3, arg4)
+}
+
 // StreamIndexChecksum mocks base method
-func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum

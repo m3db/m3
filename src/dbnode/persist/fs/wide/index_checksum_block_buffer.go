@@ -21,13 +21,10 @@
 package wide
 
 import (
-	"sync"
-
 	"github.com/m3db/m3/src/x/ident"
 )
 
 type indexChecksumBlockBuffer struct {
-	sync.RWMutex
 	closed       bool
 	currentBlock ident.IndexChecksumBlock
 	blocks       chan ident.IndexChecksumBlock
@@ -35,35 +32,22 @@ type indexChecksumBlockBuffer struct {
 }
 
 // NewIndexChecksumBlockBuffer creates a new IndexChecksumBlockBuffer.
-func NewIndexChecksumBlockBuffer() IndexChecksumBlockBuffer {
+func NewIndexChecksumBlockBuffer(
+	blockInput chan ident.IndexChecksumBlock,
+) IndexChecksumBlockBuffer {
 	return &indexChecksumBlockBuffer{
-		blocks: make(chan ident.IndexChecksumBlock),
+		blocks: blockInput,
 		buffer: make([]ident.IndexChecksumBlock, 0, 10),
 	}
 }
 
 func (b *indexChecksumBlockBuffer) Close() {
-	b.Lock()
 	if b.closed {
-		b.Unlock()
 		return
 	}
 
 	b.closed = true
-	b.Unlock()
-
 	close(b.blocks)
-}
-
-func (b *indexChecksumBlockBuffer) Push(bl ident.IndexChecksumBlock) {
-	b.RLock()
-	if b.closed {
-		b.RUnlock()
-		return
-	}
-
-	b.RUnlock()
-	b.blocks <- bl
 }
 
 func (b *indexChecksumBlockBuffer) Current() ident.IndexChecksumBlock {
@@ -71,24 +55,14 @@ func (b *indexChecksumBlockBuffer) Current() ident.IndexChecksumBlock {
 }
 
 func (b *indexChecksumBlockBuffer) Next() bool {
-	b.RLock()
 	if b.closed {
-		b.RUnlock()
 		return false
 	}
 
-	b.RUnlock()
 	if bl, ok := <-b.blocks; ok {
 		b.currentBlock = bl
 		return true
 	}
 
 	return false
-}
-
-func (b *indexChecksumBlockBuffer) DrainAndClose() {
-	for range b.blocks {
-	}
-
-	b.Close()
 }

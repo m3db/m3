@@ -188,9 +188,11 @@ type Database interface {
 	FetchMismatch(
 		ctx context.Context,
 		namespace ident.ID,
-		id ident.ID,
+		query index.Query,
 		buffer wide.IndexChecksumBlockBuffer,
 		start time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
 	) ([]wide.ReadMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -380,7 +382,7 @@ type databaseNamespace interface {
 	FetchMismatch(
 		ctx context.Context,
 		id ident.ID,
-		buffer wide.IndexChecksumBlockBuffer,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		start time.Time,
 	) ([]wide.ReadMismatch, error)
 
@@ -556,7 +558,7 @@ type databaseShard interface {
 	FetchMismatch(
 		ctx context.Context,
 		id ident.ID,
-		buffer wide.IndexChecksumBlockBuffer,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		start time.Time,
 		nsCtx namespace.Context,
 	) ([]wide.ReadMismatch, error)
@@ -1360,9 +1362,9 @@ type newFSMergeWithMemFn func(
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
+	Step time.Duration
 	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool

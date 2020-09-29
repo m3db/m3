@@ -58,6 +58,7 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
+	errNoID                              = errors.New("ID missed bloom filter")
 )
 
 const (
@@ -345,23 +346,27 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
-			continue
-		}
+		if req.reqType == streamMismatch && req.mismatchChecker != nil {
 
-		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
-			req.onError(err)
-			limitErr = err
-			continue
-		}
+		} else {
+			entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
+			if err != nil && err != errSeekIDNotFound {
+				req.onError(err)
+				continue
+			}
 
-		if err == errSeekIDNotFound {
-			req.notFound = true
-		}
+			if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
+				req.onError(err)
+				limitErr = err
+				continue
+			}
 
-		req.indexEntry = entry
+			if err == errSeekIDNotFound {
+				req.notFound = true
+			}
+
+			req.indexEntry = entry
+		}
 	}
 
 	reqs = streamReqs[:len(streamReqs)]
@@ -460,56 +465,16 @@ func (r *blockRetriever) Stream(
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
-	req.shard = shard
-	// NB(r): Clone the ID as we're not positive it will stay valid throughout
-	// the lifecycle of the async request.
-	req.id = r.idPool.Clone(id)
-	req.start = startTime
-	req.blockSize = r.blockSize
-
-	req.reqType = streamReq
 	req.onRetrieve = onRetrieve
-	req.resultWg.Add(1)
-
-	// Ensure to finalize at the end of request
-	ctx.RegisterFinalizer(req)
-
-	// Capture variable and RLock() because this slice can be modified in the
-	// Open() method
-	r.RLock()
-	// This should never happen unless caller tries to use Stream() before Open()
-	if r.seekerMgr == nil {
-		r.RUnlock()
-		return xio.EmptyBlockReader, errNoSeekerMgr
-	}
-	r.RUnlock()
-
-	idExists, err := r.seekerMgr.Test(id, shard, startTime)
+	req.reqType = streamReq
+	err := r.streamRequest(ctx, shard, id, startTime, req, nsCtx)
 	if err != nil {
+		if err == errNoID {
+			// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
+			req.onRetrieved(ts.Segment{}, namespace.Context{})
+			return req.toBlock(), nil
+		}
 		return xio.EmptyBlockReader, err
-	}
-
-	// If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// disk and we can return immediately.
-	if !idExists {
-		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
-		req.onRetrieved(ts.Segment{}, namespace.Context{})
-		return req.toBlock(), nil
-	}
-	reqs, err := r.shardRequests(shard)
-	if err != nil {
-		return xio.EmptyBlockReader, err
-	}
-
-	reqs.Lock()
-	reqs.queued = append(reqs.queued, req)
-	reqs.Unlock()
-
-	// Notify fetch loop
-	select {
-	case r.notifyFetch <- struct{}{}:
-	default:
-		// Loop busy, already ready to consume notification
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -527,8 +492,84 @@ func (r *blockRetriever) StreamIndexChecksum(
 	useID bool,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (ident.IndexChecksum, error) {
 	req := r.reqPool.Get()
+	req.useID = useID
+	req.reqType = streamIdxChecksumReq
+	err := r.streamRequest(ctx, shard, id, startTime, req, nsCtx)
+	if err != nil {
+		if err == errNoID {
+			// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
+			req.onIndexChecksumCompleted(ident.IndexChecksum{})
+		} else {
+			return ident.IndexChecksum{}, err
+		}
+	}
+
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
+	checksum, err := req.waitForIndexChecksum()
+	if err != nil {
+		if err == errSeekIDNotFound {
+			return ident.IndexChecksum{}, nil
+		}
+
+		return ident.IndexChecksum{}, err
+	}
+
+	return checksum, nil
+}
+
+func (r *blockRetriever) StreamFetchMismatch(
+	ctx context.Context,
+	shard uint32,
+	id ident.ID,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	startTime time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	req := r.reqPool.Get()
+	req.mismatchChecker = mismatchChecker
+	req.reqType = streamIdxChecksumReq
+	err := r.streamRequest(ctx, shard, id, startTime, req, nsCtx)
+	return nil, err
+	// if err != nil {
+	// 	if err == errNoID {
+	// 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
+	// 		req.onIndexChecksumCompleted(ident.IndexChecksum{})
+	// 	} else {
+	// 		return ident.IndexChecksum{}, err
+	// 	}
+	// }
+
+	// // The request may not have completed yet, but it has an internal
+	// // waitgroup which the caller will have to wait for before retrieving
+	// // the data. This means that even though we're returning nil for error
+	// // here, the caller may still encounter an error when they attempt to
+	// // read the data.
+	// checksum, err := req.waitForIndexChecksum()
+	// if err != nil {
+	// 	if err == errSeekIDNotFound {
+	// 		return ident.IndexChecksum{}, nil
+	// 	}
+
+	// 	return ident.IndexChecksum{}, err
+	// }
+
+	// return checksum, nil
+}
+
+func (r *blockRetriever) streamRequest(
+	ctx context.Context,
+	shard uint32,
+	id ident.ID,
+	startTime time.Time,
+	req *retrieveRequest,
+	nsCtx namespace.Context,
+) error {
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
@@ -536,8 +577,6 @@ func (r *blockRetriever) StreamIndexChecksum(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
-	req.reqType = streamIdxChecksumReq
-	req.useID = useID
 	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
@@ -549,24 +588,24 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return ident.IndexChecksum{}, false, errNoSeekerMgr
+		return errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return ident.IndexChecksum{}, false, err
+		return err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		return ident.IndexChecksum{}, false, nil
+		return errNoID
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return ident.IndexChecksum{}, false, err
+		return err
 	}
 
 	reqs.Lock()
@@ -580,21 +619,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 		// Loop busy, already ready to consume notification
 	}
 
-	// The request may not have completed yet, but it has an internal
-	// waitgroup which the caller will have to wait for before retrieving
-	// the data. This means that even though we're returning nil for error
-	// here, the caller may still encounter an error when they attempt to
-	// read the data.
-	checksum, err := req.waitForIndexChecksum()
-	if err != nil {
-		if err == errSeekIDNotFound {
-			return ident.IndexChecksum{}, false, nil
-		}
-
-		return ident.IndexChecksum{}, false, err
-	}
-
-	return checksum, true, nil
+	return nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -691,6 +716,7 @@ type reqType uint8
 const (
 	streamReq reqType = iota
 	streamIdxChecksumReq
+	streamMismatch
 )
 
 // Don't forget to update the resetForReuse method when adding a new field
@@ -706,12 +732,15 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 
-	reqType            reqType
-	indexEntry         IndexEntry
-	indexChecksum      ident.IndexChecksum
-	useID              bool
-	reader             xio.SegmentReader
-	checksumMismatcher wide.EntryChecksumMismatchChecker
+	reqType         reqType
+	indexEntry      IndexEntry
+	indexChecksum   ident.IndexChecksum
+	readMismatch    wide.ReadMismatch
+	useID           bool
+	reader          xio.SegmentReader
+	mismatchChecker wide.EntryChecksumMismatchChecker
+
+	checksumBlockBuffer wide.IndexChecksumBlockBuffer
 
 	err error
 
@@ -843,7 +872,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = ident.IndexChecksum{}
-	// req.checksumMismatcher = req.checksumMismatcher.Reset() TODO: reset this here
+	req.checksumBlockBuffer = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

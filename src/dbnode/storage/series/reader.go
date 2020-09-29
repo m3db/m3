@@ -243,27 +243,54 @@ func (r Reader) indexChecksum(
 	} else if !isRetrievable {
 		return ident.IndexChecksum{}, nil
 	}
-	streamedBlock, found, err := r.retriever.StreamIndexChecksum(ctx,
+
+	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
 		r.id, useID, alignedStart, nsCtx)
 	if err != nil {
 		return ident.IndexChecksum{}, err
-	}
-	if !found {
-		return ident.IndexChecksum{}, nil
 	}
 
 	return streamedBlock, nil
 }
 
-// FetchMismatch retrieves read mismatch segments for an ID, given a
+// FetchMismatch retrieves read mismatch data for a given ID, given a
 // checksum block buffer.
 func (r Reader) FetchMismatch(
 	ctx context.Context,
-	buffer wide.IndexChecksumBlockBuffer,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	start time.Time,
 	nsCtx namespace.Context,
 ) ([]wide.ReadMismatch, error) {
-	return nil, errors.New("not implemented")
+	var (
+		nowFn        = r.opts.ClockOptions().NowFn()
+		now          = nowFn()
+		ropts        = r.opts.RetentionOptions()
+		size         = ropts.BlockSize()
+		alignedStart = start.Truncate(size)
+	)
+	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
+	earliest := retention.FlushTimeStart(ropts, now)
+	if alignedStart.Before(earliest) {
+		alignedStart = earliest
+	}
+
+	if r.retriever == nil {
+		return nil, nil
+	}
+	// Try to stream from disk
+	isRetrievable, err := r.retriever.IsBlockRetrievable(alignedStart)
+	if err != nil {
+		return nil, err
+	} else if !isRetrievable {
+		return nil, nil
+	}
+	streamedBlock, err := r.retriever.StreamFetchMismatch(ctx,
+		r.id, mismatchChecker, alignedStart, nsCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return streamedBlock, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

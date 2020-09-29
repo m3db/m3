@@ -1000,11 +1000,99 @@ func (d *db) indexChecksum(
 func (d *db) FetchMismatch(
 	ctx context.Context,
 	namespace ident.ID,
-	id ident.ID,
+	query index.Query,
 	buffer wide.IndexChecksumBlockBuffer,
 	start time.Time,
+	shards []uint32,
+	iterOpts index.IterationOptions,
 ) ([]wide.ReadMismatch, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	batchSize := d.opts.WideBatchSize()
+	doneCh := make(chan struct{})
+	collector := make(chan *ident.IDBatch)
+	blockSize := n.Options().IndexOptions().BlockSize()
+	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, shards, iterOpts)
+	start, end := opts.StartInclusive, opts.EndExclusive
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatch)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+
+	defer sp.Finish()
+
+	var (
+		c            []wide.ReadMismatch
+		collected    = make([]wide.ReadMismatch, 0, 10)
+		collectorErr error
+	)
+
+	decodeOpts := d.opts.CommitLogOptions().FilesystemOptions().DecodingOptions()
+	mismatchOpts := wide.NewOptions().
+		SetBatchSize(batchSize).
+		SetDecodingOptions(decodeOpts).
+		SetBytesPool(d.opts.BytesPool().BytesPool()).
+		SetInstrumentOptions(d.opts.InstrumentOptions()).
+		SetStrict(true)
+
+	if err := mismatchOpts.Validate(); err != nil {
+		return nil, err
+	}
+
+	mismatchChecker := wide.NewEntryChecksumMismatchChecker(buffer, mismatchOpts)
+
+	// Setup consumer
+	go func() {
+		for batch := range collector {
+			if collectorErr != nil {
+				batch.Done()
+				continue
+			}
+
+			for _, id := range batch.IDs {
+				c, collectorErr = d.fetchMismatchData(ctx, namespace, n, id, mismatchChecker, start)
+				if collectorErr == nil {
+					// TODO: use index checksum value
+					collected = append(collected, c...)
+				}
+			}
+
+			batch.Done()
+		}
+		doneCh <- struct{}{}
+	}()
+
+	err = n.WideQueryIDs(ctx, query, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	<-doneCh
+	if collectorErr != nil {
+		return nil, collectorErr
+	}
+
+	return collected, nil
+}
+
+func (d *db) fetchMismatchData(
+	ctx context.Context,
+	namespace ident.ID,
+	n databaseNamespace,
+	id ident.ID,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	start time.Time,
+) ([]wide.ReadMismatch, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatchData)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", namespace.String()),
@@ -1012,15 +1100,9 @@ func (d *db) FetchMismatch(
 			xopentracing.Time("start", start),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceRead.Inc(1)
-		return nil, err
-	}
-
-	return n.FetchMismatch(ctx, id, buffer, start)
+	return n.FetchMismatch(ctx, id, mismatchChecker, start)
 }
 
 func (d *db) FetchBlocks(
@@ -1319,9 +1401,9 @@ func NewAggregateTilesOptions(
 	}
 
 	return AggregateTilesOptions{
-		Start: start,
-		End: end,
-		Step: step,
+		Start:               start,
+		End:                 end,
+		Step:                step,
 		HandleCounterResets: handleCounterResets,
 	}, nil
 }

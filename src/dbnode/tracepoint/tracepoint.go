@@ -67,6 +67,12 @@ const (
 	// DBWideQuery is the operation name for the db WideQuery path.
 	DBWideQuery = "storage.db.WideQuery"
 
+	// DBFetchMismatch is the operation name for the db FetchMismatch path.
+	DBFetchMismatch = "storage.db.DBFetchMismatch"
+
+	// DBFetchMismatchData is the operation name for the db FetchMismatchData path.
+	DBFetchMismatchData = "storage.db.DBFetchMismatchData"
+
 	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
 

@@ -112,7 +112,7 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	retriever.EXPECT().
 		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
 			true, start, gomock.Any()).
-		Return(indexChecksum, true, nil)
+		Return(indexChecksum, nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
