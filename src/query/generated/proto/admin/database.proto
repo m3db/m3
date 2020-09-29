@@ -25,10 +25,10 @@ message DatabaseCreateRequest {
   repeated Host hosts = 7;
 
   // Optional field to add an additional aggregated namespace.
-  AggregationNamespace aggregation_namespace = 8;
+  AggregatedNamespace aggregated_namespace = 8;
 }
 
-message AggregationNamespace {
+message AggregatedNamespace {
   // Required fields.
   // Namespace name.
   string name = 1;

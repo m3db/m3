@@ -214,8 +214,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(rartoul): Add test for NS exists.
 	for _, namespaceRequest := range namespaceRequests {
-		_, nsExists := nsRegistry.Namespaces[namespaceRequest.Name]
-		if nsExists {
+		if _, nsExists := nsRegistry.Namespaces[namespaceRequest.Name]; nsExists {
 			err := fmt.Errorf(
 				"unable to create namespace: %s because it already exists",
 				namespaceRequest.Name)
@@ -452,16 +451,7 @@ func defaultedUnaggregatedNamespaceAddRequest(
 		}
 
 	default:
-		// Use the maximum block size if we don't find a way to
-		// recommended one based on request parameters
-		max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
-		blockSize = max.blockSize
-		for _, elem := range recommendedBlockSizesByRetentionAsc {
-			if retentionPeriod <= elem.forRetentionLessThanOrEqual {
-				blockSize = elem.blockSize
-				break
-			}
-		}
+		blockSize = getRecommendedBlockSize(retentionPeriod)
 	}
 
 	retentionOpts = retentionOpts.SetBlockSize(blockSize)
@@ -488,44 +478,35 @@ func defaultedUnaggregatedNamespaceAddRequest(
 func defaultedAggregatedNamespaceAddRequest(
 	r *admin.DatabaseCreateRequest,
 ) (*admin.NamespaceAddRequest, error) {
-	agg := r.AggregationNamespace
+	agg := r.AggregatedNamespace
 	if agg == nil {
 		return nil, nil
 	}
 
 	if agg.Name == "" {
-		return nil, errors.New("name required when aggregationNamespace is set")
+		return nil, errors.New("name required when aggregatedNamespace is set")
 	}
 
 	if agg.Resolution == "" {
-		return nil, errors.New("resolution required when aggregationNamespace is set")
+		return nil, errors.New("resolution required when aggregatedNamespace is set")
 	}
 
 	if agg.RetentionTime == "" {
-		return nil, errors.New("retention_time required when aggregationNamespace is set")
+		return nil, errors.New("retention_time required when aggregatedNamespace is set")
 	}
 
 	opts := dbnamespace.NewOptions().
 		SetRepairEnabled(false)
 
 	retentionOpts := opts.RetentionOptions()
-	value, err := time.ParseDuration(agg.RetentionTime)
+	retentionPeriod, err := time.ParseDuration(agg.RetentionTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid retention time: %v", err)
 	}
-	retentionOpts = retentionOpts.SetRetentionPeriod(value)
+	retentionOpts = retentionOpts.SetRetentionPeriod(retentionPeriod)
 
-	// Use the maximum block size if we don't find a way to
-	// recommended one based on request parameters
-	retentionPeriod := retentionOpts.RetentionPeriod()
-	max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
-	blockSize := max.blockSize
-	for _, elem := range recommendedBlockSizesByRetentionAsc {
-		if retentionPeriod <= elem.forRetentionLessThanOrEqual {
-			blockSize = elem.blockSize
-			break
-		}
-	}
+	blockSize := getRecommendedBlockSize(retentionPeriod)
+
 	retentionOpts = retentionOpts.SetBlockSize(blockSize)
 
 	indexOpts := opts.IndexOptions().
@@ -554,6 +535,20 @@ func defaultedAggregatedNamespaceAddRequest(
 		Name:    agg.Name,
 		Options: dbnamespace.OptionsToProto(opts),
 	}, nil
+}
+
+func getRecommendedBlockSize(retentionPeriod time.Duration) time.Duration {
+	// Use the maximum block size if we don't find a way to
+	// recommended one based on request parameters
+	max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
+	blockSize := max.blockSize
+	for _, elem := range recommendedBlockSizesByRetentionAsc {
+		if retentionPeriod <= elem.forRetentionLessThanOrEqual {
+			blockSize = elem.blockSize
+			break
+		}
+	}
+	return blockSize
 }
 
 func defaultedPlacementInitRequest(

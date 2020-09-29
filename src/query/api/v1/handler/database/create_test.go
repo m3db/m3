@@ -1164,7 +1164,7 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 	jsonInput := xjson.Map{
 		"namespaceName": "testNamespace",
 		"type":          "local",
-		"aggregationNamespace": xjson.Map{
+		"aggregatedNamespace": xjson.Map{
 			"name":          "testAggregatedNamespace",
 			"resolution":    "5m",
 			"retentionTime": "2440h",
