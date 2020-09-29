@@ -1403,25 +1403,56 @@ M3 components to prevent abusive reads/writes impacting availability or
 performance of M3 in a production environment.</p>
 <h2 id="m3db">M3DB</h2>
 <h3 id="configuring-limits">Configuring limits</h3>
-<p>The best way to get started protecting M3DB nodes is to set a few limits on the
+<p>The best way to get started protecting M3DB nodes is to set a few resource limits on the
 top level <code>limits</code> config stanza for M3DB.</p>
-<p>When using M3DB for metrics workloads, queries arrive as a set of matchers 
-that select time series based on certain dimensions. The primary mechanism to 
-protect against these matchers matching huge amounts of data in an unbounded 
-way is to set a maximum limit for the amount of time series blocks allowed to
-be matched and consequently read in a given time window. This can be done using 
-<code>maxRecentlyQueriedSeriesBlocks</code> to set a maximum value and lookback time window 
-to determine the duration over which the max limit is enforced.</p>
-<p>You can use the Prometheus query <code>rate(query_stats_total_docs_per_block[1m])</code> to 
+<p>The primary limit is on total bytes recently read from disk across all queries
+since this most directly causes memory pressure. Reading time series data that 
+is already in-memory (either due to already being cached or being actively written) 
+costs much less than reading historical time series data which must be read from disk. 
+By specifically limiting bytes read from disk, and excluding bytes already in-memory, we
+can apply a limit that most accurately reflects increased memory pressure on the database nodes.
+To set a limit, use the <code>maxRecentlyQueriedSeriesDiskBytesRead</code> stanza to define a 
+policy for how much historical time series data can be read over a given 
+lookback time window. The <code>value</code> specifies max numbers of bytes read from disk allowed
+within a given <code>lookback</code> period.</p>
+<p>You can use the Prometheus query <code>rate(query_limit_total_disk_bytes_read[1m])</code> to determine 
+how many bytes are read from disk per second by your cluster today to inform an appropriate limit.
+Make sure to multiply that number by the <code>lookback</code> period to get your desired max value. For 
+instance, if the query shows that you frequently read 100MB
+per second safely with your deployment and you want to use the default lookback 
+of <code>15s</code> then you would multiply 100MB by 15 to get 1.5GB as a max value with 
+a 15s lookback.</p>
+<p>The secondary limit is on the total volume of time series data recently read 
+across all queries (in-memory or not), since even querying data already in memory in an unbounded 
+manner can overwhelm a database node. When using M3DB for metrics workloads, 
+queries arrive as a set of matchers that select time series based on certain 
+dimensions. The primary mechanism to protect against these matchers matching 
+huge amounts of data in an unbounded way is to set a maximum limit for the 
+amount of time series blocks allowed to be matched and consequently read in a 
+given time window. Use the <code>maxRecentlyQueriedSeriesBlocks</code> to 
+set a maximum <code>value</code> and <code>lookback</code> time window to determine the duration over 
+which the max limit is enforced.</p>
+<p>You can use the Prometheus query <code>rate(query_limit_total_docs_matched[1m])</code> to 
 determine how many time series blocks are queried per second by your cluster 
-today to determine what is a sane value to set this to. Make sure to multiply 
+today to inform and appripriate limit. Make sure to multiply 
 that number by the <code>lookback</code> period to get your desired max value. For 
 instance, if the query shows that you frequently query 10,000 time series blocks 
 per second safely with your deployment and you want to use the default lookback 
-of <code>5s</code> then you would multiply 10,000 by 5 to get 50,000 as a max value with 
-a 5s lookback.</p>
+of <code>15s</code> then you would multiply 10,000 by 15 to get 150,000 as a max value with 
+a 15s lookback.</p>
 <h3 id="annotated-configuration">Annotated configuration</h3>
 <div class="highlight"><pre><span></span><code>limits:
+  # If set, will enforce a maximum cap on disk read bytes for time series that
+  # resides historically on disk (and are not already in memory).
+  maxRecentlyQueriedSeriesDiskBytesRead:
+    # Value sets the maximum disk bytes read for historical data.
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
   # If set, will enforce a maximum cap on time series blocks matched for
   # queries searching time series by dimensions.
   maxRecentlyQueriedSeriesBlocks:
@@ -1434,7 +1465,7 @@ a 5s lookback.</p>
     # lookback period the global count is reset to zero and when the limit 
     # is reached it will reject any further time series blocks being matched 
     # and read until the lookback period resets.
-    lookback: 5s
+    lookback: 15s
 
   # If set then will limit the number of parallel write batch requests to the 
   # database and return errors if hit.
@@ -1582,7 +1613,7 @@ and a warning included in the response body.</p>
     </div>
     
       <script src="../../assets/javascripts/vendor.c3dc8c49.min.js"></script>
-      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.config.separator": "[\\s\\-]+", "clipboard.copied": "Copied to clipboard", "search.result.other": "# matching documents", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.config.lang": "en", "clipboard.copy": "Copy to clipboard", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.placeholder": "Type to start searching"}</script>
+      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.one": "1 matching document", "search.result.placeholder": "Type to start searching", "search.config.separator": "[\\s\\-]+", "search.result.other": "# matching documents", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.lang": "en", "search.result.none": "No matching documents", "clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard"}</script>
       
       <script>
         app = initialize({
