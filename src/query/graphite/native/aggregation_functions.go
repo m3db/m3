@@ -287,9 +287,7 @@ If the `newName` parameter is provided, the name of the resulting series will be
 
 Example:
 
-.. code-block:: none
-
-&target=applyByNode(servers.*.disk.bytes_free,1,"divideSeries(%.disk.bytes_free,sumSeries(%.disk.bytes_*))")
+`applyByNode(servers.*.disk.bytes_free,1,"divideSeries(%.disk.bytes_free,sumSeries(%.disk.bytes_*))")`
 
 Would find all series which match `servers.*.disk.bytes_free`, then trim them down to unique series up to the node
 given by nodeNum, then fill them into the template function provided (replacing % by the prefixes).
@@ -307,9 +305,7 @@ Given keys of
 
 The following will return the rate of 5XX's per service:
 
-.. code-block:: none
-
-applyByNode(stats.counts.haproxy.*.*XX, 3, "asPercent(%.5XX, sumSeries(%.*XX))", "%.pct_5XX")
+`applyByNode(stats.counts.haproxy.*.*XX, 3, "asPercent(%.5XX, sumSeries(%.*XX))", "%.pct_5XX")`
 
 The output series would have keys `stats.counts.haproxy.web.pct_5XX` and `stats.counts.haproxy.microservice.pct_5XX`.
 */
