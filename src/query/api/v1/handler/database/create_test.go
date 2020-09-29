@@ -151,6 +151,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -315,6 +316,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -431,6 +433,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -553,6 +556,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -805,6 +809,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -950,6 +955,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": null,
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
