@@ -22,13 +22,14 @@ package native
 
 import (
 	"fmt"
+	"math"
+	"sort"
+	"strings"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
-	"math"
-	"sort"
-	"strings"
 )
 
 func wrapPathExpr(wrapper string, series ts.SeriesList) string {
