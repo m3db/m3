@@ -220,7 +220,7 @@ func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.Series
 		}
 	}
 
-	r := ts.SeriesList(seriesList)
+	r := ts.NewSeriesList()
 	r.Values = filtered
 	return r, nil
 }
