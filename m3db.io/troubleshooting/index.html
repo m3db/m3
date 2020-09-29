@@ -1370,7 +1370,15 @@
 </ul>
 <p>This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, namespace and placement info are only available on the coordinator debug endpoint.</p>
 <p>To use this, simply run the following on either the M3DB debug listen port or the regular port on M3Coordinator.</p>
-<div class="highlight"><pre><span></span><code>curl &lt;m3db_or_m3coordinator_ip&gt;:&lt;port&gt;/debug/dump &gt; &lt;tmp_zip_file.zip&gt;
+<p>You may need to include the following headers:</p>
+<ul>
+<li><code>Cluster-Environment-Name</code>:<br />
+ This header is used to specify the cluster environment name. If not set, the default <code>default_env</code> is used. 
+<br /></li>
+<li><code>Cluster-Zone-Name</code>:<br />
+ This header is used to specify the cluster zone name. If not set, the default <code>embedded</code> is used. </li>
+</ul>
+<div class="highlight"><pre><span></span><code>curl -H &quot;Cluster-Environment-Name: [set if not default]&quot; &lt;m3db_or_m3coordinator_ip&gt;:&lt;port&gt;/debug/dump &gt; &lt;tmp_zip_file.zip&gt;
 
 # unzip the file
 unzip &lt;tmp_zip_file.zip&gt;
@@ -1462,7 +1470,7 @@ unzip &lt;tmp_zip_file.zip&gt;
     </div>
     
       <script src="../assets/javascripts/vendor.c3dc8c49.min.js"></script>
-      <script src="../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "search.result.one": "1 matching document", "clipboard.copied": "Copied to clipboard", "search.config.separator": "[\\s\\-]+", "search.result.none": "No matching documents", "search.config.lang": "en", "search.result.placeholder": "Type to start searching", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.other": "# matching documents"}</script>
+      <script src="../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.none": "No matching documents", "clipboard.copy": "Copy to clipboard", "search.result.other": "# matching documents", "search.config.lang": "en", "search.result.placeholder": "Type to start searching", "search.result.one": "1 matching document", "search.config.separator": "[\\s\\-]+", "search.config.pipeline": "trimmer, stopWordFilter", "clipboard.copied": "Copied to clipboard"}</script>
       
       <script>
         app = initialize({
