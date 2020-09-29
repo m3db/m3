@@ -22,6 +22,7 @@ package native
 
 import (
 	"fmt"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"math"
 	"runtime"
 	"sort"
@@ -308,10 +309,6 @@ func evaluateTarget(ctx *common.Context, target string) (ts.SeriesList, error) {
 	return expression.Execute(ctx)
 }
 
-
-// WaitGroup is used to wait for the program to finish goroutines.
-var wg sync.WaitGroup
-
 /*
 applyByNode takes a seriesList and applies some complicated function (described by a string), replacing templates with unique
 prefixes of keys from the seriesList (the key is all nodes up to the index given as `nodeNum`).
@@ -379,68 +376,47 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	}
 	sort.Strings(prefixes)
 
-	maxConcurrency := runtime.NumCPU() / 2
 	var output []*ts.Series
+	maxConcurrency := runtime.NumCPU() / 2
 	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
-		for _, prefix := range prefixChunk {
-			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+			var (
+				mu       sync.Mutex
+				wg       sync.WaitGroup
+				multiErr xerrors.MultiError
+			)
 
-			var resultSeriesList ts.SeriesList
-			nums := make(chan int) // Declare a unbuffered channel
-			wg.Add(1)
-			go evaluateTarget(ctx, newTarget)
-			fmt.Println(<-nums) // Read the value from unbuffered channel
-			resultSeriesList <- nums
+			for i, prefix := range prefixChunk {
+				_, prefix := i, prefix
+				newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+				wg.Add(1)
+				go func() {
+					resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+					if err != nil {
+						mu.Lock()
+						multiErr = multiErr.Add(err)
+						mu.Unlock()
+					}
+
+					for _, resultSeries := range resultSeriesList.Values {
+						if newName != "" {
+							resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
+						}
+						resultSeries.Specification = prefix
+						output = append(output, resultSeries)
+					}
+
+					wg.Done()
+				}()
+			}
 			wg.Wait()
-			close(nums) // Closes the channel
-
-			if err != nil {
-				return ts.NewSeriesList(), err
-			}
-
-			for _, resultSeries := range resultSeriesList.Values {
-				if newName != "" {
-					resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
-				}
-				resultSeries.Specification = prefix
-				output = append(output, resultSeries)
-			}
 		}
-	}
 
-
-
-	r := ts.SeriesList(seriesList)
+	r := ts.NewSeriesList()
 	r.Values = output
 	return r, nil
 }
 
-/*
-for _, series := range seriesList.Values {
-		var (
-			name  = series.Name()
-
-			partsSeen int
-			prefix    string
-		)
-
-		for i, c := range name {
-			if c == '.' {
-				partsSeen++
-				if partsSeen == nodeNum+1 {
-					prefix = name[:i]
-					break
-				}
-			}
-		}
-
-		if len(prefix) == 0 {
-			continue
-		}
-
-		prefixMap[prefix] = struct{}{}
-
-*/
 
 // groupByNode takes a serieslist and maps a callback to subgroups within as defined by a common node
 //
