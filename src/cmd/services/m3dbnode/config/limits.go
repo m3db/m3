@@ -24,15 +24,15 @@ import "time"
 
 // LimitsConfiguration contains configuration for configurable limits that can be applied to M3DB.
 type LimitsConfiguration struct {
-	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
-	// count within a given lookback period. Queries which are issued while this
-	// max is surpassed encounter an error.
-	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
-
 	// MaxRecentlyQueriedSeriesDiskBytesRead sets the upper limit on time series bytes
 	// read from disk within a given lookback period. Queries which are issued while this
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesDiskBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskBytesRead"`
+
+	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
+	// count within a given lookback period. Queries which are issued while this
+	// max is surpassed encounter an error.
+	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value

@@ -424,6 +424,34 @@ func (mr *MockOptionsMockRecorder) RuntimeOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptions", reflect.TypeOf((*MockOptions)(nil).RuntimeOptions))
 }
 
+// SetAggregationOptions mocks base method
+func (m *MockOptions) SetAggregationOptions(value AggregationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregationOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregationOptions indicates an expected call of SetAggregationOptions
+func (mr *MockOptionsMockRecorder) SetAggregationOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregationOptions", reflect.TypeOf((*MockOptions)(nil).SetAggregationOptions), value)
+}
+
+// AggregationOptions mocks base method
+func (m *MockOptions) AggregationOptions() AggregationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregationOptions")
+	ret0, _ := ret[0].(AggregationOptions)
+	return ret0
+}
+
+// AggregationOptions indicates an expected call of AggregationOptions
+func (mr *MockOptionsMockRecorder) AggregationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregationOptions", reflect.TypeOf((*MockOptions)(nil).AggregationOptions))
+}
+
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller
@@ -1332,4 +1360,69 @@ func (m *MockNamespaceWatch) Close() error {
 func (mr *MockNamespaceWatchMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceWatch)(nil).Close))
+}
+
+// MockAggregationOptions is a mock of AggregationOptions interface
+type MockAggregationOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockAggregationOptionsMockRecorder
+}
+
+// MockAggregationOptionsMockRecorder is the mock recorder for MockAggregationOptions
+type MockAggregationOptionsMockRecorder struct {
+	mock *MockAggregationOptions
+}
+
+// NewMockAggregationOptions creates a new mock instance
+func NewMockAggregationOptions(ctrl *gomock.Controller) *MockAggregationOptions {
+	mock := &MockAggregationOptions{ctrl: ctrl}
+	mock.recorder = &MockAggregationOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAggregationOptions) EXPECT() *MockAggregationOptionsMockRecorder {
+	return m.recorder
+}
+
+// Equal mocks base method
+func (m *MockAggregationOptions) Equal(value AggregationOptions) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Equal", value)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal
+func (mr *MockAggregationOptionsMockRecorder) Equal(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockAggregationOptions)(nil).Equal), value)
+}
+
+// SetAggregations mocks base method
+func (m *MockAggregationOptions) SetAggregations(value []Aggregation) AggregationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregations", value)
+	ret0, _ := ret[0].(AggregationOptions)
+	return ret0
+}
+
+// SetAggregations indicates an expected call of SetAggregations
+func (mr *MockAggregationOptionsMockRecorder) SetAggregations(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregations", reflect.TypeOf((*MockAggregationOptions)(nil).SetAggregations), value)
+}
+
+// Aggregations mocks base method
+func (m *MockAggregationOptions) Aggregations() []Aggregation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Aggregations")
+	ret0, _ := ret[0].([]Aggregation)
+	return ret0
+}
+
+// Aggregations indicates an expected call of Aggregations
+func (mr *MockAggregationOptionsMockRecorder) Aggregations() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregations", reflect.TypeOf((*MockAggregationOptions)(nil).Aggregations))
 }

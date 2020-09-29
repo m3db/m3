@@ -130,6 +130,11 @@ func ToMetadata(
 		return nil, err
 	}
 
+	aggOpts, err := ToAggregationOptions(opts.AggregationOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	mOpts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
@@ -141,7 +146,8 @@ func ToMetadata(
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(iOpts).
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
-		SetRuntimeOptions(runtimeOpts)
+		SetRuntimeOptions(runtimeOpts).
+		SetAggregationOptions(aggOpts)
 
 	if opts.CacheBlocksOnRetrieve != nil {
 		mOpts = mOpts.SetCacheBlocksOnRetrieve(opts.CacheBlocksOnRetrieve.Value)
@@ -152,6 +158,38 @@ func ToMetadata(
 	}
 
 	return NewMetadata(ident.StringID(id), mOpts)
+}
+
+// ToAggregationOptions converts nsproto.AggregationOptions to AggregationOptions.
+func ToAggregationOptions(opts *nsproto.AggregationOptions) (AggregationOptions, error) {
+	aggOpts := NewAggregationOptions()
+	if opts == nil || len(opts.Aggregations) == 0 {
+		return aggOpts, nil
+	}
+	aggregations := make([]Aggregation, 0, len(opts.Aggregations))
+	for _, agg := range opts.Aggregations {
+		if agg.Aggregated {
+			if agg.Attributes == nil {
+				return nil, errors.New("must set Attributes when aggregated is true")
+			}
+
+			var dsOpts DownsampleOptions
+			if agg.Attributes.DownsampleOptions == nil {
+				dsOpts = NewDownsampleOptions(true)
+			} else {
+				dsOpts = NewDownsampleOptions(agg.Attributes.DownsampleOptions.All)
+			}
+
+			attrs, err := NewAggregatedAttributes(time.Duration(agg.Attributes.ResolutionNanos), dsOpts)
+			if err != nil {
+				return nil, err
+			}
+			aggregations = append(aggregations, NewAggregatedAggregation(attrs))
+		} else {
+			aggregations = append(aggregations, NewUnaggregatedAggregation())
+		}
+	}
+	return aggOpts.SetAggregations(aggregations), nil
 }
 
 // ToProto converts Map to nsproto.Registry
@@ -209,7 +247,26 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		ColdWritesEnabled:     opts.ColdWritesEnabled(),
 		RuntimeOptions:        toRuntimeOptions(opts.RuntimeOptions()),
 		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
+		AggregationOptions:    toProtoAggregationOptions(opts.AggregationOptions()),
 	}
+}
+
+func toProtoAggregationOptions(aggOpts AggregationOptions) *nsproto.AggregationOptions {
+	if aggOpts == nil || len(aggOpts.Aggregations()) == 0 {
+		return nil
+	}
+	protoAggs := make([]*nsproto.Aggregation, 0, len(aggOpts.Aggregations()))
+	for _, agg := range aggOpts.Aggregations() {
+		protoAgg := nsproto.Aggregation{Aggregated: agg.Aggregated}
+		if agg.Aggregated {
+			protoAgg.Attributes = &nsproto.AggregatedAttributes{
+				ResolutionNanos:   agg.Attributes.Resolution.Nanoseconds(),
+				DownsampleOptions: &nsproto.DownsampleOptions{All: agg.Attributes.DownsampleOptions.All},
+			}
+		}
+		protoAggs = append(protoAggs, &protoAgg)
+	}
+	return &nsproto.AggregationOptions{Aggregations: protoAggs}
 }
 
 // toRuntimeOptions returns the corresponding RuntimeOptions proto.
