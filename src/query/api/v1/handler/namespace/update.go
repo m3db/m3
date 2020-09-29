@@ -49,17 +49,19 @@ var (
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut
 
-	fieldNameRetentionOptions = "RetentionOptions"
-	fieldNameRetetionPeriod   = "RetentionPeriodNanos"
-	fieldNameRuntimeOptions   = "RuntimeOptions"
+	fieldNameRetentionOptions   = "RetentionOptions"
+	fieldNameRetetionPeriod     = "RetentionPeriodNanos"
+	fieldNameRuntimeOptions     = "RuntimeOptions"
+	fieldNameAggregationOptions = "AggregationOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
 	errNamespaceFieldImmutable = errors.New("namespace option field is immutable")
 
 	allowedUpdateOptionsFields = map[string]struct{}{
-		fieldNameRetentionOptions: struct{}{},
-		fieldNameRuntimeOptions:   struct{}{},
+		fieldNameRetentionOptions:   struct{}{},
+		fieldNameRuntimeOptions:     struct{}{},
+		fieldNameAggregationOptions: struct{}{},
 	}
 )
 
@@ -241,6 +243,20 @@ func (h *UpdateHandler) Update(
 		}
 	}
 
+	if protoAggOpts := updateReq.Options.AggregationOptions; protoAggOpts != nil {
+		newAggOpts, err := namespace.ToAggregationOptions(protoAggOpts)
+		if err != nil {
+			return emptyReg, nil, fmt.Errorf("error constructing construction aggregationOptions: %w", err)
+		}
+		if !ns.Options().AggregationOptions().Equal(newAggOpts) {
+			opts := ns.Options().SetAggregationOptions(newAggOpts)
+			ns, err = namespace.NewMetadata(ns.ID(), opts)
+			if err != nil {
+				return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+			}
+		}
+	}
+
 	// Update the namespace in case an update occurred.
 	newMetadata[updateReq.Name] = ns
 
@@ -249,6 +265,11 @@ func (h *UpdateHandler) Update(
 	for _, elem := range newMetadata {
 		newMDs = append(newMDs, elem)
 	}
+
+	if err = validateNamespaceAggregationOptions(newMDs); err != nil {
+		return emptyReg, nil, err
+	}
+
 	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
 		return emptyReg, nil, err
