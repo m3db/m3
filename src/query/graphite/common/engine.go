@@ -57,6 +57,7 @@ func (e *Engine) FetchByQuery(
 	return e.storage.FetchByQuery(ctx, query, options)
 }
 
+// Storage returns the engine's storage object
 func (e *Engine) Storage() storage.Storage {
 	return e.storage;
 }
