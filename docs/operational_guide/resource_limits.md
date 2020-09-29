@@ -8,30 +8,63 @@ performance of M3 in a production environment.
 
 ### Configuring limits
 
-The best way to get started protecting M3DB nodes is to set a few limits on the
+The best way to get started protecting M3DB nodes is to set a few resource limits on the
 top level `limits` config stanza for M3DB.
 
-When using M3DB for metrics workloads, queries arrive as a set of matchers 
-that select time series based on certain dimensions. The primary mechanism to 
-protect against these matchers matching huge amounts of data in an unbounded 
-way is to set a maximum limit for the amount of time series blocks allowed to
-be matched and consequently read in a given time window. This can be done using 
-`maxRecentlyQueriedSeriesBlocks` to set a maximum value and lookback time window 
-to determine the duration over which the max limit is enforced.
+The primary limit is on total bytes recently read from disk across all queries
+since this most directly causes memory pressure. Reading time series data that 
+is already in-memory (either due to already being cached or being actively written) 
+costs much less than reading historical time series data which must be read from disk. 
+By specifically limiting bytes read from disk, and excluding bytes already in-memory, we
+can apply a limit that most accurately reflects increased memory pressure on the database nodes.
+To set a limit, use the `maxRecentlyQueriedSeriesDiskBytesRead` stanza to define a 
+policy for how much historical time series data can be read over a given 
+lookback time window. The `value` specifies max numbers of bytes read from disk allowed
+within a given `lookback` period.
 
-You can use the Prometheus query `rate(query_stats_total_docs_per_block[1m])` to 
+You can use the Prometheus query `rate(query_limit_total_disk_bytes_read[1m])` to determine 
+how many bytes are read from disk per second by your cluster today to inform an appropriate limit.
+Make sure to multiply that number by the `lookback` period to get your desired max value. For 
+instance, if the query shows that you frequently read 100MB
+per second safely with your deployment and you want to use the default lookback 
+of `15s` then you would multiply 100MB by 15 to get 1.5GB as a max value with 
+a 15s lookback.
+
+The secondary limit is on the total volume of time series data recently read 
+across all queries (in-memory or not), since even querying data already in memory in an unbounded 
+manner can overwhelm a database node. When using M3DB for metrics workloads, 
+queries arrive as a set of matchers that select time series based on certain 
+dimensions. The primary mechanism to protect against these matchers matching 
+huge amounts of data in an unbounded way is to set a maximum limit for the 
+amount of time series blocks allowed to be matched and consequently read in a 
+given time window. Use the `maxRecentlyQueriedSeriesBlocks` to 
+set a maximum `value` and `lookback` time window to determine the duration over 
+which the max limit is enforced.
+
+You can use the Prometheus query `rate(query_limit_total_docs_matched[1m])` to 
 determine how many time series blocks are queried per second by your cluster 
-today to determine what is a sane value to set this to. Make sure to multiply 
+today to inform and appripriate limit. Make sure to multiply 
 that number by the `lookback` period to get your desired max value. For 
 instance, if the query shows that you frequently query 10,000 time series blocks 
 per second safely with your deployment and you want to use the default lookback 
-of `5s` then you would multiply 10,000 by 5 to get 50,000 as a max value with 
-a 5s lookback.
+of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
+a 15s lookback.
 
 ### Annotated configuration
 
 ```
 limits:
+  # If set, will enforce a maximum cap on disk read bytes for time series that
+  # resides historically on disk (and are not already in memory).
+  maxRecentlyQueriedSeriesDiskBytesRead:
+    # Value sets the maximum disk bytes read for historical data.
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
   # If set, will enforce a maximum cap on time series blocks matched for
   # queries searching time series by dimensions.
   maxRecentlyQueriedSeriesBlocks:
@@ -44,7 +77,7 @@ limits:
     # lookback period the global count is reset to zero and when the limit 
     # is reached it will reject any further time series blocks being matched 
     # and read until the lookback period resets.
-    lookback: 5s
+    lookback: 15s
 
   # If set then will limit the number of parallel write batch requests to the 
   # database and return errors if hit.
