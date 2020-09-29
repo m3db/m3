@@ -326,6 +326,7 @@ func (w *consumerWriterImpl) readAcksUntilClose(idx int) {
 		default:
 			w.ackRetrier.AttemptWhile(w.continueFn,
 				func() error {
+					time.Sleep(w.opts.AckDelay())
 					return w.readAcks(idx)
 				})
 		}

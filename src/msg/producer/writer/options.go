@@ -357,6 +357,12 @@ type Options interface {
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// SetAckDelay sets the amount of time to sleep after acking
+	SetAckDelay(value time.Duration) Options
+
+	// AckDelay is the amount of time to sleep after acking.
+	AckDelay() time.Duration
 }
 
 type writerOptions struct {
@@ -378,6 +384,7 @@ type writerOptions struct {
 	decOpts                           proto.Options
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
+	ackDelay                          time.Duration
 }
 
 // NewOptions creates Options.
@@ -397,6 +404,7 @@ func NewOptions() Options {
 		decOpts:                           proto.NewOptions(),
 		cOpts:                             NewConnectionOptions(),
 		iOpts:                             instrument.NewOptions(),
+		ackDelay:                          time.Second * 1,
 	}
 }
 
@@ -578,4 +586,14 @@ func (opts *writerOptions) SetInstrumentOptions(value instrument.Options) Option
 	o := *opts
 	o.iOpts = value
 	return &o
+}
+
+func (opts *writerOptions) SetAckDelay(value time.Duration) Options {
+	o := *opts
+	o.ackDelay = value
+	return &o
+}
+
+func (opts *writerOptions) AckDelay() time.Duration {
+	return opts.ackDelay
 }

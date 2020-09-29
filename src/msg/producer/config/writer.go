@@ -103,6 +103,7 @@ type WriterConfiguration struct {
 	Encoder                           *proto.Configuration           `yaml:"encoder"`
 	Decoder                           *proto.Configuration           `yaml:"decoder"`
 	Connection                        *ConnectionConfiguration       `yaml:"connection"`
+	AckDelay                          *time.Duration                 `yaml:"ackDelay"`
 }
 
 // NewOptions creates writer options.
@@ -176,6 +177,9 @@ func (c *WriterConfiguration) NewOptions(
 	}
 	if c.Connection != nil {
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
+	}
+	if c.AckDelay != nil {
+		opts = opts.SetAckDelay(c.AckDelay)
 	}
 
 	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
