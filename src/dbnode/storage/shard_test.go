@@ -1799,22 +1799,26 @@ func TestShardAggregateTiles(t *testing.T) {
 		return encodedBytes
 	}
 
-	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
+	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
 	reader0.EXPECT().Entries().Return(2).AnyTimes()
 	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(), uint32(11), nil)
 	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(), uint32(22), nil)
 	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
-	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
+	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
 	reader1.EXPECT().Entries().Return(1).AnyTimes()
 	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(), uint32(33), nil)
 	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
-	blockReaders := []fs.DataFileSetReader{reader0, reader1}
+	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
+	reader2, volume2 := getMockReader(ctrl, t, sourceShard, thirdSourceBlockStart, false)
+
+	blockReaders := []fs.DataFileSetReader{reader0, reader1, reader2}
 	sourceBlockVolumes := []shardBlockVolume{
 		{start, volume0},
 		{secondSourceBlockStart, volume1},
+		{thirdSourceBlockStart, volume2},
 	}
 
 	processedTileCount, err := targetShard.AggregateTiles(
@@ -1823,11 +1827,30 @@ func TestShardAggregateTiles(t *testing.T) {
 	assert.Equal(t, int64(3), processedTileCount)
 }
 
+func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
+	var (
+		ctx     = context.NewContext()
+		srcNsID = ident.StringID("src")
+		start   = time.Now()
+	)
+
+	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
+	defer targetShard.Close()
+
+	var blockReaders []fs.DataFileSetReader
+	sourceBlockVolumes := []shardBlockVolume{{start, 0}}
+
+	_, err := targetShard.AggregateTiles(
+		ctx, srcNsID, 1, blockReaders, sourceBlockVolumes, AggregateTilesOptions{}, nil)
+	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,
 	shard *dbShard,
 	blockStart time.Time,
+	dataFilesetFlushed bool,
 ) (*fs.MockDataFileSetReader, int) {
 	latestSourceVolume, err := shard.LatestVolume(blockStart)
 	require.NoError(t, err)
@@ -1844,10 +1867,14 @@ func getMockReader(
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	reader.EXPECT().Open(openOpts).Return(nil)
-	reader.EXPECT().StreamingEnabled().Return(true)
-	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
-	reader.EXPECT().Close()
+	if dataFilesetFlushed {
+		reader.EXPECT().Open(openOpts).Return(nil)
+		reader.EXPECT().StreamingEnabled().Return(true)
+		reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
+		reader.EXPECT().Close()
+	} else {
+		reader.EXPECT().Open(openOpts).Return(fs.ErrCheckpointFileNotFound)
+	}
 
 	return reader, latestSourceVolume
 }
