@@ -73,7 +73,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	// Assert captured byTime objects match expectations
 	require.Equal(t, len(shards), len(byTimes))
 	for _, shard := range shards {
+		mu.Lock()
 		byTimes[shard].shard = shard
+		mu.Unlock()
 	}
 
 	// Assert seeksByShardIdx match expectations
