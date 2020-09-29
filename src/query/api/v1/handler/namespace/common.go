@@ -177,9 +177,8 @@ func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
 				if resolutionRetentionMap[key] {
 					return fmt.Errorf("resolution and retention combination must be unique. "+
 						"namespace with resolution=%v retention=%v already exists", key.resolution, key.retention)
-				} else {
-					resolutionRetentionMap[key] = true
 				}
+				resolutionRetentionMap[key] = true
 			}
 		}
 	}
