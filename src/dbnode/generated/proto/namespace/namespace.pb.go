@@ -287,8 +287,9 @@ func (m *AggregationOptions) GetAggregations() []*Aggregation {
 type Aggregation struct {
 	// aggregated is true if data points are aggregated, false otherwise.
 	Aggregated bool `protobuf:"varint,1,opt,name=aggregated,proto3" json:"aggregated,omitempty"`
-	// attributes specifies details for how to aggregate data when aggregated is set to true.
-	// This field is ignored when aggregated is false.
+	// attributes specifies how to aggregate data when aggregated is set to true.
+	// This field is ignored when aggregated is false and required when aggregated
+	// is true.
 	Attributes *AggregatedAttributes `protobuf:"bytes,2,opt,name=attributes" json:"attributes,omitempty"`
 }
 
