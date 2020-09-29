@@ -25,9 +25,9 @@ within a given `lookback` period.
 You can use the Prometheus query `rate(query_limit_total_disk_bytes_read[1m])` to determine 
 how many bytes are read from disk per second by your cluster today to inform an appropriate limit.
 Make sure to multiply that number by the `lookback` period to get your desired max value. For 
-instance, if the query shows that you frequently read 10,000 bytes 
+instance, if the query shows that you frequently read 100MB
 per second safely with your deployment and you want to use the default lookback 
-of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
+of `15s` then you would multiply 100MB by 15 to get 1.5GB as a max value with 
 a 15s lookback.
 
 The secondary limit is on the total volume of time series data recently read 
