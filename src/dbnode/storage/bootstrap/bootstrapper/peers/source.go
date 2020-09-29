@@ -943,6 +943,8 @@ func (s *peersSource) processReaders(
 			})
 		}
 	} else {
+		// TODO(bodu): We can remove the in-memory index segment building code path once
+		// we've fully migrated to 1:1 sizing of TSDB and index blocks.
 		s.log.Info("building in-memory index segment", buildIndexLogFields...)
 		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,

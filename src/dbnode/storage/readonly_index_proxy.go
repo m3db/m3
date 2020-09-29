@@ -103,8 +103,8 @@ func (r readOnlyIndexProxy) Tick(c context.Cancellable, startTime time.Time) (na
 	return namespaceIndexTickResult{}, nil
 }
 
-func (r readOnlyIndexProxy) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
-	return nil
+func (r readOnlyIndexProxy) WarmFlush(flush persist.IndexFlush, shards []databaseShard) ([]time.Time, error) {
+	return nil, nil
 }
 
 func (r readOnlyIndexProxy) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
@@ -117,6 +117,10 @@ func (r readOnlyIndexProxy) SetExtendedRetentionPeriod(period time.Duration) {
 
 func (r readOnlyIndexProxy) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	return r.underlying.DebugMemorySegments(opts)
+}
+
+func (r readOnlyIndexProxy) BlockStatesSnapshot() index.BlockStateSnapshot {
+	return index.BlockStateSnapshot{}
 }
 
 func (r readOnlyIndexProxy) Close() error {

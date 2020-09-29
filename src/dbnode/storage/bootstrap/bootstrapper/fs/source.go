@@ -30,25 +30,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs/migrator"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -148,13 +141,6 @@ func (s *fileSystemSource) Read(
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
 
-	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
-	}
-	builder := result.NewIndexBuilder(segBuilder)
-
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
 	// having to re-read migrated info files.
@@ -176,7 +162,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, cache)
+			namespace.DataRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -206,7 +192,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, cache)
+			namespace.IndexRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -329,22 +315,15 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	runResult *runResult,
 	readerPool *bootstrapper.ReaderPool,
 	readersCh <-chan bootstrapper.TimeWindowReaders,
-	builder *result.IndexBuilder,
-	persistManager *bootstrapper.SharedPersistManager,
-	compactor *bootstrapper.SharedCompactor,
-) {
+) *runResult {
 	var (
 		resultOpts = s.opts.ResultOptions()
 	)
 
 	for timeWindowReaders := range readersCh {
-		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
-		// it is not thread safe and requires reset after every processed index block.
-		builder.Builder().Reset()
-
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 			runOpts, runResult, resultOpts, timeWindowReaders, readerPool,
-			builder, persistManager, compactor)
+			persistManager, compactor)
 	}
 }
 
@@ -395,7 +374,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ropts result.Options,
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
-	builder *result.IndexBuilder,
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 ) {
@@ -404,12 +382,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		seriesCachePolicy    = ropts.SeriesCachePolicy()
 		timesWithErrors      []time.Time
 		nsCtx                = namespace.NewContextFrom(ns)
-		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
-		batch                = docsPool.Get()
-		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
-	defer docsPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -425,15 +399,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockSize = ns.Options().RetentionOptions().BlockSize()
 				err       error
 			)
-			switch run {
-			case bootstrapDataRunType:
-				// Pass, since nothing to do.
-			case bootstrapIndexRunType:
-				runResult.addIndexBlockIfNotExists(start, ns)
-			default:
-				// Unreachable unless an internal method calls with a run type casted from int.
-				panic(fmt.Errorf("invalid run type: %d", run))
-			}
 
 			numEntries := r.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
@@ -441,25 +406,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				case bootstrapDataRunType:
 					err = s.readNextEntryAndRecordBlock(nsCtx, accumulator, shard, r,
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
-				case bootstrapIndexRunType:
-					// We can just read the entry and index if performing an index run.
-					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
-					if err != nil {
-						s.log.Error("readNextEntryAndMaybeIndex failed", zap.Error(err),
-							zap.Time("timeRangeStart", timeRange.Start))
-					}
-					totalEntries++
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
-				}
-			}
-			// NB(bodu): Only flush if we've experienced no errors up to this point.
-			if err == nil && len(batch) > 0 {
-				batch, err = builder.FlushBatch(batch)
-				if err != nil {
-					s.log.Error("builder FlushBatch failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
 				}
 			}
 
@@ -473,28 +422,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					} else {
 						err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 					}
-				case bootstrapIndexRunType:
-					validateErr = r.ValidateMetadata()
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
 				}
 				if validateErr != nil {
 					err = fmt.Errorf("data validation failed: %v", validateErr)
-				}
-			}
-
-			if err == nil && run == bootstrapIndexRunType {
-				// Mark index block as fulfilled.
-				fulfilled := result.NewShardTimeRanges().Set(shard, xtime.NewRanges(timeRange))
-				runResult.Lock()
-				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
-					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
-					idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
-				runResult.Unlock()
-				if err != nil {
-					s.log.Error("indexResults MarkFulfilled failed", zap.Error(err),
-						zap.Time("timeRangeStart", timeRange.Start))
 				}
 			}
 
@@ -508,138 +441,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
-	}
-
-	var (
-		noneRemaining      = remainingRanges.IsEmpty()
-		shouldBuildSegment = run == bootstrapIndexRunType &&
-			// NB(r): Do not try to build a segment if no entries to index.
-			totalEntries > 0 &&
-			len(timesWithErrors) == 0
-	)
-	if shouldBuildSegment {
-		var (
-			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
-			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
-			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
-				retentionPeriod, indexBlockSize, s.nowFn())
-			initialIndexRange = xtime.Range{
-				Start: beginningOfIndexRetention,
-				End:   beginningOfIndexRetention.Add(indexBlockSize),
-			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
-		)
-		for _, remainingRange := range remainingRanges.Iter() {
-			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
-			}
-		}
-
-		remainingMin, remainingMax := remainingRanges.MinMax()
-		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
-
-		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
-		runResult.Lock()
-		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
-		runResult.Unlock()
-		if !ok {
-			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-				blockStart.String(), blockStart.UnixNano())
-			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-				l.Error("index bootstrap failed",
-					zap.Error(err),
-					zap.Stringer("namespace", ns.ID()),
-					zap.Stringer("requestedRanges", requestedRanges))
-			})
-		}
-
-		// Determine if should flush data for range.
-		persistCfg := runOpts.PersistConfig()
-		shouldFlush := persistCfg.Enabled &&
-			persistCfg.FileSetType == persist.FileSetFlushType
-
-		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
-
-		buildIndexLogFields := []zapcore.Field{
-			zap.Stringer("namespace", ns.ID()),
-			zap.Bool("shouldBuildSegment", shouldBuildSegment),
-			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
-			zap.Int("totalEntries", totalEntries),
-			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
-			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
-			zap.String("remainingRanges", remainingRanges.SummaryString()),
-			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
-			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
-			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
-			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
-		}
-
-		if shouldFlush && satisifiedFlushRanges {
-			s.log.Debug("building file set index segment", buildIndexLogFields...)
-			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
-				ns,
-				requestedRanges,
-				builder.Builder(),
-				persistManager,
-				s.opts.ResultOptions(),
-				existingIndexBlock.Fulfilled(),
-				blockStart,
-				blockEnd,
-			)
-			if err != nil {
-				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-					l.Error("persist fs index bootstrap failed",
-						zap.Error(err),
-						zap.Stringer("namespace", ns.ID()),
-						zap.Stringer("requestedRanges", requestedRanges))
-				})
-			}
-			// Track success.
-			s.metrics.persistedIndexBlocksWrite.Inc(1)
-		} else {
-			s.log.Info("building in-memory index segment", buildIndexLogFields...)
-			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
-				ns,
-				requestedRanges,
-				builder.Builder(),
-				compactor,
-				s.opts.ResultOptions(),
-				s.opts.FilesystemOptions().MmapReporter(),
-				blockStart,
-				blockEnd,
-			)
-			if err != nil {
-				iopts := s.opts.ResultOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-					l.Error("build fs index bootstrap failed",
-						zap.Error(err),
-						zap.Stringer("namespace", ns.ID()),
-						zap.Stringer("requestedRanges", requestedRanges))
-				})
-			}
-		}
-
-		// Merge segments and fulfilled time ranges.
-		segments := indexBlock.Segments()
-		for _, seg := range existingIndexBlock.Segments() {
-			segments = append(segments, seg)
-		}
-		newFulfilled := existingIndexBlock.Fulfilled().Copy()
-		newFulfilled.AddRanges(indexBlock.Fulfilled())
-
-		// Replace index block for default index volume type.
-		runResult.Lock()
-		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
-		runResult.Unlock()
 	}
 
 	// Return readers to pool.
@@ -712,41 +513,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	return nil
 }
 
-func (s *fileSystemSource) readNextEntryAndMaybeIndex(
-	r fs.DataFileSetReader,
-	batch []doc.Document,
-	builder *result.IndexBuilder,
-) ([]doc.Document, error) {
-	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
-	if err != nil {
-		return batch, err
-	}
-
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
-	if err != nil {
-		return batch, err
-	}
-
-	batch = append(batch, d)
-
-	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return builder.FlushBatch(batch)
-	}
-
-	return batch, nil
-}
-
 func (s *fileSystemSource) read(
 	run runType,
 	md namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-	builder *result.IndexBuilder,
 	span opentracing.Span,
 	cache bootstrap.Cache,
 ) (*runResult, error) {
@@ -807,116 +579,45 @@ func (s *fileSystemSource) read(
 			setOrMergeResult(r.result)
 		}
 		logSpan("bootstrap_from_index_persisted_blocks_done")
-
-		//logSpan("bootstrap_from_index_snapshots_start")
-		//// NB(bodu): We don't actually bootstrap snapshot data in the fs bootstrapper
-		//// (we do this in the commitlog bootstrapper) but we do want to subtract the shard time
-		//// ranges fulfilled by index snapshots. We do this to handle the following case:
-		////      1. node A up, taking writes for shards 1-3
-		////      2. node A receives shards 4-5, starts peer bootstrapping them
-		////      3. then writes TSDB files for shards 4-5, but crashes while writing index files for shards 4-5
-		////      4. node restarts, finds index snapshots for shards 1-3 on disk (either FS or commit log bootstrapper),
-		////         realizes shards 4-5 are missing index segments and builds those but uses existing snapshots for shards 1-3
-		//r, err = s.bootstrapFromIndexSnapshots(
-		//	md,
-		//	shardTimeRanges,
-		//	infoFiles,
-		//)
-		//if err != nil {
-		//	s.log.Warn("filesystem bootstrapped failed to read index snapshots")
-		//} else {
-		//	// We may have less we need to read
-		//	shardTimeRanges = shardTimeRanges.Copy()
-		//	shardTimeRanges.Subtract(r.fulfilled)
-		//	// Set or merge result.
-		//	setOrMergeResult(r.result)
-		//}
-		//logSpan("bootstrap_from_index_snapshots_done")
 	}
 
-	// Create a reader pool once per bootstrap as we don't really want to
-	// allocate and keep around readers outside of the bootstrapping process,
-	// hence why its created on demand each time.
-	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
-	indexSegmentConcurrency := s.opts.IndexSegmentConcurrency()
-	readersCh := make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
-	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
-		blockSize = md.Options().RetentionOptions().BlockSize()
+		// Create a reader pool once per bootstrap as we don't really want to
+		// allocate and keep around readers outside of the bootstrapping process,
+		// hence why its created on demand each time.
+		readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
+		readersCh := make(chan bootstrapper.TimeWindowReaders)
+
+		blockSize := md.Options().RetentionOptions().BlockSize()
+		runtimeOpts := s.opts.RuntimeOptionsManager().Get()
+
+		go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
+			NsMD:            md,
+			RunOpts:         runOpts,
+			RuntimeOpts:     runtimeOpts,
+			FsOpts:          s.fsopts,
+			ShardTimeRanges: shardTimeRanges,
+			ReaderPool:      readerPool,
+			ReadersCh:       readersCh,
+			BlockSize:       blockSize,
+			Logger:          s.log,
+			Span:            span,
+			NowFn:           s.nowFn,
+			Cache:           cache,
+		})
+
+		bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
+			accumulator, runOpts, readerPool, readersCh)
+
+		// Merge any existing results if necessary.
+		setOrMergeResult(bootstrapFromDataReadersResult)
 	case bootstrapIndexRunType:
-		blockSize = md.Options().IndexOptions().BlockSize()
+		// NB(bodu): We no longer persist index blocks for TSDB blocks missing persisted index blocks.
+		// See bootstrapper README section on "TSDB data on disk missing index data" for more details.
 	default:
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
-	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
-	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
-		NsMD:            md,
-		RunOpts:         runOpts,
-		RuntimeOpts:     runtimeOpts,
-		FsOpts:          s.fsopts,
-		ShardTimeRanges: shardTimeRanges,
-		ReaderPool:      readerPool,
-		ReadersCh:       readersCh,
-		BlockSize:       blockSize,
-		// NB(bodu): We only read metadata when bootstrap index
-		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
-		Logger:                    s.log,
-		Span:                      span,
-		NowFn:                     s.nowFn,
-		Cache:                     cache,
-	})
-
-	bootstrapFromReadersRunResult := newRunResult()
-
-	var buildWg sync.WaitGroup
-	for i := 0; i < indexSegmentConcurrency; i++ {
-		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-		segBuilder, err := alloc()
-		if err != nil {
-			return nil, err
-		}
-
-		builder := result.NewIndexBuilder(segBuilder)
-
-		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
-			indexOpts.SegmentBuilderOptions(),
-			indexOpts.FSTSegmentOptions(),
-			compaction.CompactorOptions{
-				FSTWriterOptions: &fst.WriterOptions{
-					// DisableRegistry is set to true to trade a larger FST size
-					// for a faster FST compaction since we want to reduce the end
-					// to end latency for time to first index a metric.
-					DisableRegistry: true,
-				},
-			})
-		if err != nil {
-			return nil, err
-		}
-
-		persistManager, err := fs.NewPersistManager(s.opts.FilesystemOptions())
-		if err != nil {
-			return nil, err
-		}
-
-		buildWg.Add(1)
-		go func() {
-			s.bootstrapFromReaders(run, md,
-				accumulator, runOpts, bootstrapFromReadersRunResult,
-				readerPool, readersCh, builder,
-				&bootstrapper.SharedPersistManager{Mgr: persistManager},
-				&bootstrapper.SharedCompactor{Compactor: compactor})
-			buildWg.Done()
-		}()
-	}
-
-	buildWg.Wait()
-
-	// Merge any existing results if necessary.
-	setOrMergeResult(bootstrapFromReadersRunResult)
 
 	return res, nil
 }
@@ -956,8 +657,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	return runResult, nil
 }
 
-// Either from persisted blocks or snapshots.
-type bootstrapFromIndexResult struct {
+type bootstrapFromIndexPersistedBlocksResult struct {
 	fulfilled result.ShardTimeRanges
 	result    *runResult
 }
@@ -966,8 +666,8 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	infoFiles []fs.ReadIndexInfoFileResult,
-) (bootstrapFromIndexResult, error) {
-	res := bootstrapFromIndexResult{
+) (bootstrapFromIndexPersistedBlocksResult, error) {
+	res := bootstrapFromIndexPersistedBlocksResult{
 		fulfilled: result.NewShardTimeRanges(),
 	}
 
@@ -1058,78 +758,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		// we place in the IndexResuts with the call to Add(...).
 		res.result.index.Add(indexBlockByVolumeType, nil)
 		res.fulfilled.AddRanges(segmentsFulfilled)
-	}
-
-	return res, nil
-}
-
-func (s *fileSystemSource) bootstrapFromIndexSnapshots(
-	ns namespace.Metadata,
-	shardTimeRanges result.ShardTimeRanges,
-	infoFiles []fs.ReadIndexInfoFileResult,
-) (bootstrapFromIndexResult, error) {
-	res := bootstrapFromIndexResult{
-		fulfilled: result.NewShardTimeRanges(),
-		result:    newRunResult(),
-	}
-
-	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	for _, infoFile := range infoFiles {
-		if err := infoFile.Err.Error(); err != nil {
-			s.log.Error("unable to read index snapshot info file",
-				zap.Stringer("namespace", ns.ID()),
-				zap.Error(err),
-				zap.Stringer("shardTimeRanges", shardTimeRanges),
-				zap.String("filepath", infoFile.Err.Filepath()),
-			)
-			continue
-		}
-
-		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
-		indexBlockRange := xtime.Range{
-			Start: indexBlockStart,
-			End:   indexBlockStart.Add(indexBlockSize),
-		}
-		willFulfill := result.NewShardTimeRanges()
-		for _, shard := range info.Shards {
-			tr, ok := shardTimeRanges.Get(shard)
-			if !ok {
-				// No ranges match for this shard.
-				continue
-			}
-			if _, ok := willFulfill.Get(shard); !ok {
-				willFulfill.Set(shard, xtime.NewRanges())
-			}
-
-			iter := tr.Iter()
-			for iter.Next() {
-				curr := iter.Value()
-				intersection, intersects := curr.Intersect(indexBlockRange)
-				if !intersects {
-					continue
-				}
-				willFulfill.GetOrAdd(shard).AddRange(intersection)
-			}
-		}
-
-		if willFulfill.IsEmpty() {
-			// No matching shard/time ranges with this block.
-			continue
-		}
-
-		// Mark ranges as fulfilled since we are going to bootstrap these shard time ranges later
-		// in the commitlog bootstrapper from snapshots.
-		err := res.result.index.IndexResults().MarkFulfilled(indexBlockStart, willFulfill,
-			// NB(bodu): By default, we always load bootstrapped data into the default index volume.
-			idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
-		if err != nil {
-			return res, err
-		}
-		res.fulfilled.AddRanges(willFulfill)
-
-		// Track success.
-		s.metrics.persistedIndexSnapshotsRead.Inc(1)
 	}
 
 	return res, nil
