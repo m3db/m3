@@ -1782,9 +1782,6 @@ func TestShardAggregateTiles(t *testing.T) {
 	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
 	defer targetShard.Close()
 
-	reverseIndex := NewMockNamespaceIndex(ctrl)
-	targetShard.reverseIndex = reverseIndex
-
 	sourceNsID := sourceShard.namespace.ID()
 
 	dataBytes := func() []byte {
