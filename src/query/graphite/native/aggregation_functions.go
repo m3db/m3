@@ -345,7 +345,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	prefixMap := map[string]struct{}{}
 	for _, series := range seriesList.Values {
 		var (
-			name  = series.Name()
+			name = series.Name()
 
 			partsSeen int
 			prefix    string
@@ -368,7 +368,6 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		prefixMap[prefix] = struct{}{}
 	}
 
-
 	// transform to slice
 	var prefixes []string
 	for p := range prefixMap {
@@ -379,44 +378,43 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	var output []*ts.Series
 	maxConcurrency := runtime.NumCPU() / 2
 	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
-			var (
-				mu       sync.Mutex
-				wg       sync.WaitGroup
-				multiErr xerrors.MultiError
-			)
+		var (
+			mu       sync.Mutex
+			wg       sync.WaitGroup
+			multiErr xerrors.MultiError
+		)
 
-			for i, prefix := range prefixChunk {
-				_, prefix := i, prefix
-				newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
-				wg.Add(1)
-				go func() {
-					resultSeriesList, err := evaluateTarget(ctx, newTarget)
+		for i, prefix := range prefixChunk {
+			_, prefix := i, prefix
+			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+			wg.Add(1)
+			go func() {
+				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
-					if err != nil {
-						mu.Lock()
-						multiErr = multiErr.Add(err)
-						mu.Unlock()
+				if err != nil {
+					mu.Lock()
+					multiErr = multiErr.Add(err)
+					mu.Unlock()
+				}
+
+				for _, resultSeries := range resultSeriesList.Values {
+					if newName != "" {
+						resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
 					}
+					resultSeries.Specification = prefix
+					output = append(output, resultSeries)
+				}
 
-					for _, resultSeries := range resultSeriesList.Values {
-						if newName != "" {
-							resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
-						}
-						resultSeries.Specification = prefix
-						output = append(output, resultSeries)
-					}
-
-					wg.Done()
-				}()
-			}
-			wg.Wait()
+				wg.Done()
+			}()
 		}
+		wg.Wait()
+	}
 
 	r := ts.NewSeriesList()
 	r.Values = output
 	return r, nil
 }
-
 
 // groupByNode takes a serieslist and maps a callback to subgroups within as defined by a common node
 //
