@@ -208,17 +208,20 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 // grep takes a metric or a wildcard seriesList, followed by a regular
 // expression in double quotes. Excludes metrics that don’t match the regular expression.
 func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.SeriesList, error) {
-	re := regexp.MustCompile(regex)
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
 
-	var output []*ts.Series
+	filtered := seriesList.Values[:0]
 	for _, series := range seriesList.Values {
 		if re.MatchString(series.Name()) {
-			output = append(output, series)
+			filtered = append(filtered, series)
 		}
 	}
 
 	r := ts.SeriesList(seriesList)
-	r.Values = output
+	r.Values = filtered
 	return r, nil
 }
 

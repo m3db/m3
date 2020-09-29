@@ -149,6 +149,10 @@ func TestGrep(t *testing.T) {
 	testInputs := []*ts.Series{series1, series2, series3, series4}
 	expectedOutput := []common.TestSeries{
 		{
+			Name: "collectd.test-db1.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+		{
 			Name: "collectd.test-db2.load.value",
 			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
 		},
@@ -156,10 +160,16 @@ func TestGrep(t *testing.T) {
 
 	results, err := grep(nil, singlePathSpec{
 		Values: testInputs,
-	}, ".*db2")
+	}, ".*db[12]")
 	require.Nil(t, err)
 	require.NotNil(t, results)
 	common.CompareOutputsAndExpected(t, 10, now, expectedOutput, results.Values)
+
+	// error case
+	_, err = grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, "+++++")
+	require.NotNil(t, err)
 }
 
 func TestSortByName(t *testing.T) {
