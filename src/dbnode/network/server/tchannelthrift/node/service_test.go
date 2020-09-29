@@ -3151,5 +3151,5 @@ func TestServiceAggregateTiles(t *testing.T) {
 		RangeType:       rpc.TimeType_UNIX_SECONDS,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, int64(4), result.ProcessedBlockCount)
+	assert.Equal(t, int64(4), result.ProcessedTileCount)
 }

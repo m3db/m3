@@ -166,7 +166,7 @@ func TestSeriesFrameIterator(t *testing.T) {
 		iter := newSequentialIterator(ctrl, start, stepSize, numPoints)
 		require.NoError(t, it.Reset(
 			xtime.ToUnixNano(start),
-			xtime.UnixNano(tt.frameSize),
+			tt.frameSize,
 			iter,
 		))
 

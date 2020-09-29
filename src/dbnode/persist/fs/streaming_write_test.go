@@ -182,6 +182,29 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, nil)
 }
 
+func TestStreamingWriterAbort(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	err := streamingWriteTestData(t, w, testWriterStart, nil)
+	require.NoError(t, err)
+	err = w.Abort()
+	require.NoError(t, err)
+
+	r := newTestReader(t, filePathPrefix)
+	rOpenOpts := DataReaderOpenOptions{
+		Identifier: FileSetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = r.Open(rOpenOpts)
+	require.Equal(t, ErrCheckpointFileNotFound, err)
+}
+
 func streamingWriteTestData(
 	t *testing.T,
 	w StreamingWriter,
