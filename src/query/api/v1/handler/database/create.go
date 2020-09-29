@@ -474,14 +474,9 @@ func defaultedUnaggregatedNamespaceAddRequest(
 		SetIndexOptions(indexOpts)
 
 	// Resolution does not apply to unaggregated namespaces so set to 0.
-	attrs, err := dbnamespace.NewAggregationAttributes(0, dbnamespace.Unaggregated)
-	if err != nil {
-		return nil, err
-	}
-
 	opts = opts.SetAggregationOptions(dbnamespace.NewAggregationOptions().
 		SetAggregations([]dbnamespace.Aggregation{
-			dbnamespace.NewAggregation(attrs, dbnamespace.NewDownsampleOptions(true)),
+			dbnamespace.NewUnaggregatedAggregation(),
 		}))
 
 	return &admin.NamespaceAddRequest{
@@ -545,14 +540,14 @@ func defaultedAggregatedNamespaceAddRequest(
 		return nil, fmt.Errorf("invalid resolution: %v", err)
 	}
 
-	attrs, err := dbnamespace.NewAggregationAttributes(resolution, dbnamespace.Aggregated)
+	attrs, err := dbnamespace.NewAggregatedAttributes(resolution, dbnamespace.NewDownsampleOptions(true))
 	if err != nil {
 		return nil, err
 	}
 
 	opts = opts.SetAggregationOptions(dbnamespace.NewAggregationOptions().
 		SetAggregations([]dbnamespace.Aggregation{
-			dbnamespace.NewAggregation(attrs, dbnamespace.NewDownsampleOptions(true)),
+			dbnamespace.NewAggregatedAggregation(attrs),
 		}))
 
 	return &admin.NamespaceAddRequest{

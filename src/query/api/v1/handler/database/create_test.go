@@ -156,13 +156,8 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -333,13 +328,8 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -463,13 +453,8 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -598,13 +583,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -863,13 +843,8 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -1021,13 +996,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -1239,13 +1209,8 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
-									"attributes": {
-										"resolutionNanos": "0",
-										"type": "UNAGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
-									}
+									"aggregated": false,
+									"attributes": null
 								}
 							]
 						},
@@ -1277,12 +1242,12 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						"aggregationOptions": {
 							"aggregations": [
 								{
+									"aggregated": true,
 									"attributes": {
 										"resolutionNanos": "300000000000",
-										"type": "AGGREGATED"
-									},
-									"downsampleOptions": {
-										"all": true
+										"downsampleOptions": {
+											"all": true
+										}
 									}
 								}
 							]
