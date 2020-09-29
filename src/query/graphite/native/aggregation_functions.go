@@ -23,8 +23,10 @@ package native
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -278,6 +280,38 @@ func combineSeriesWithWildcards(
 	return r, nil
 }
 
+// splits a slice into chunks
+func chunkArrayHelper(slice []string, numChunks int) [][]string {
+	var divided [][]string
+
+	chunkSize := (len(slice) + numChunks - 1) / numChunks
+
+	for i := 0; i < len(slice); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(slice) {
+			end = len(slice)
+		}
+
+		divided = append(divided, slice[i:end])
+	}
+
+	return divided
+}
+
+func evaluateTarget(ctx *common.Context, target string) (ts.SeriesList, error) {
+	eng := NewEngine(ctx.Engine.Storage())
+	expression, err := eng.Compile(target)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	return expression.Execute(ctx)
+}
+
+
+// WaitGroup is used to wait for the program to finish goroutines.
+var wg sync.WaitGroup
+
 /*
 applyByNode takes a seriesList and applies some complicated function (described by a string), replacing templates with unique
 prefixes of keys from the seriesList (the key is all nodes up to the index given as `nodeNum`).
@@ -311,44 +345,102 @@ The output series would have keys `stats.counts.haproxy.web.pct_5XX` and `stats.
 */
 func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, templateFunction string, newName string) (ts.SeriesList, error) {
 	// using this as a set
-	prefixMap := make(map[string]int)
+	prefixMap := map[string]struct{}{}
 	for _, series := range seriesList.Values {
-		prefix := strings.Join(strings.Split(series.Name(), ".")[:nodeNum+1], ".")
-		prefixMap[prefix] = 1
+		var (
+			name  = series.Name()
+
+			partsSeen int
+			prefix    string
+		)
+
+		for i, c := range name {
+			if c == '.' {
+				partsSeen++
+				if partsSeen == nodeNum+1 {
+					prefix = name[:i]
+					break
+				}
+			}
+		}
+
+		if len(prefix) == 0 {
+			continue
+		}
+
+		prefixMap[prefix] = struct{}{}
 	}
+
+
 	// transform to slice
-	prefixes := []string{}
+	var prefixes []string
 	for p := range prefixMap {
 		prefixes = append(prefixes, p)
 	}
 	sort.Strings(prefixes)
 
+	maxConcurrency := runtime.NumCPU() / 2
 	var output []*ts.Series
-	for _, prefix := range prefixes {
-		newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
+		for _, prefix := range prefixChunk {
+			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 
-		eng := NewEngine(ctx.Engine.Storage())
-		expression, err := eng.Compile(newTarget)
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-		resultSeriesList, err := expression.Execute(ctx)
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-		for _, resultSeries := range resultSeriesList.Values {
-			if newName != "" {
-				resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
+			var resultSeriesList ts.SeriesList
+			nums := make(chan int) // Declare a unbuffered channel
+			wg.Add(1)
+			go evaluateTarget(ctx, newTarget)
+			fmt.Println(<-nums) // Read the value from unbuffered channel
+			resultSeriesList <- nums
+			wg.Wait()
+			close(nums) // Closes the channel
+
+			if err != nil {
+				return ts.NewSeriesList(), err
 			}
-			resultSeries.Specification = prefix
-			output = append(output, resultSeries)
+
+			for _, resultSeries := range resultSeriesList.Values {
+				if newName != "" {
+					resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
+				}
+				resultSeries.Specification = prefix
+				output = append(output, resultSeries)
+			}
 		}
 	}
+
+
 
 	r := ts.SeriesList(seriesList)
 	r.Values = output
 	return r, nil
 }
+
+/*
+for _, series := range seriesList.Values {
+		var (
+			name  = series.Name()
+
+			partsSeen int
+			prefix    string
+		)
+
+		for i, c := range name {
+			if c == '.' {
+				partsSeen++
+				if partsSeen == nodeNum+1 {
+					prefix = name[:i]
+					break
+				}
+			}
+		}
+
+		if len(prefix) == 0 {
+			continue
+		}
+
+		prefixMap[prefix] = struct{}{}
+
+*/
 
 // groupByNode takes a serieslist and maps a callback to subgroups within as defined by a common node
 //
