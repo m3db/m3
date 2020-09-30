@@ -152,6 +152,7 @@ func (e mockEngine) FetchByQuery(
 	return e.fn(ctx, query, opts)
 }
 
+// dummy/placeholder function so mockEngine can satisfy the Engine interface
 func (e mockEngine) Storage() storage.Storage {
 	return nil
 }
