@@ -22,7 +22,6 @@ package native
 
 import (
 	"fmt"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"math"
 	"runtime"
 	"sort"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 func wrapPathExpr(wrapper string, series ts.SeriesList) string {
@@ -375,28 +375,35 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	}
 	sort.Strings(prefixes)
 
-	var output []*ts.Series
-	maxConcurrency := runtime.NumCPU() / 2
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+
+		output         = make([]*ts.Series, len(prefixes))
+		maxConcurrency = runtime.NumCPU() / 2
+	)
 	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
-		var (
-			mu       sync.Mutex
-			wg       sync.WaitGroup
-			multiErr xerrors.MultiError
-		)
+		if multiErr.LastError() != nil {
+			return ts.NewSeriesList(), multiErr.LastError()
+		}
 
 		for i, prefix := range prefixChunk {
 			_, prefix := i, prefix
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
 				if err != nil {
 					mu.Lock()
 					multiErr = multiErr.Add(err)
 					mu.Unlock()
+					return
 				}
 
+				mu.Lock()
 				for _, resultSeries := range resultSeriesList.Values {
 					if newName != "" {
 						resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
@@ -404,8 +411,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 					resultSeries.Specification = prefix
 					output = append(output, resultSeries)
 				}
-
-				wg.Done()
+				mu.Unlock()
 			}()
 		}
 		wg.Wait()

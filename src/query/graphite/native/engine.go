@@ -55,5 +55,5 @@ func (e *Engine) Compile(s string) (Expression, error) {
 
 // Storage returns the engine's storage object
 func (e *Engine) Storage() storage.Storage {
-	return e.storage;
+	return e.storage
 }

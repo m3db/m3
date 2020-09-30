@@ -22,8 +22,6 @@ package native
 
 import (
 	"fmt"
-	"github.com/golang/mock/gomock"
-	xgomock "github.com/m3db/m3/src/x/test"
 	"math"
 	"sort"
 	"testing"
@@ -34,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
-
+	xgomock "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/golang/mock/gomock"
 )
 
 var (

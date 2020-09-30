@@ -27,12 +27,15 @@ import (
 
 // QueryEngine is the generic engine interface.
 type QueryEngine interface {
+
+	// FetchByQuery retrieves one or more time series based on a query.
 	FetchByQuery(
 		ctx context.Context,
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
 
+	// Storage returns the engine's storage object.
 	Storage() storage.Storage
 }
 
@@ -48,7 +51,6 @@ func NewEngine(storage storage.Storage) *Engine {
 	}
 }
 
-// FetchByQuery retrieves one or more time series based on a query
 func (e *Engine) FetchByQuery(
 	ctx context.Context,
 	query string,
@@ -57,7 +59,6 @@ func (e *Engine) FetchByQuery(
 	return e.storage.FetchByQuery(ctx, query, options)
 }
 
-// Storage returns the engine's storage object
 func (e *Engine) Storage() storage.Storage {
-	return e.storage;
+	return e.storage
 }
