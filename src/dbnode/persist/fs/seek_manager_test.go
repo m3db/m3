@@ -73,7 +73,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	// Assert captured byTime objects match expectations
 	require.Equal(t, len(shards), len(byTimes))
 	for _, shard := range shards {
+		mu.Lock()
 		byTimes[shard].shard = shard
+		mu.Unlock()
 	}
 
 	// Assert seeksByShardIdx match expectations
@@ -457,7 +459,7 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 	var (
 		wg                                      sync.WaitGroup
 		mockSeekerStatsLock                     sync.Mutex
-		numMockSeekerClosesByShardAndBlockStart = make(map[uint32]map[time.Time]int)
+		numMockSeekerClosesByShardAndBlockStart = make(map[uint32]map[xtime.UnixNano]int)
 	)
 	m.newOpenSeekerFn = func(
 		shard uint32,
@@ -476,10 +478,10 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 			mockSeekerStatsLock.Lock()
 			numMockSeekerClosesByBlockStart, ok := numMockSeekerClosesByShardAndBlockStart[shard]
 			if !ok {
-				numMockSeekerClosesByBlockStart = make(map[time.Time]int)
+				numMockSeekerClosesByBlockStart = make(map[xtime.UnixNano]int)
 				numMockSeekerClosesByShardAndBlockStart[shard] = numMockSeekerClosesByBlockStart
 			}
-			numMockSeekerClosesByBlockStart[blockStart]++
+			numMockSeekerClosesByBlockStart[xtime.ToUnixNano(blockStart)]++
 			mockSeekerStatsLock.Unlock()
 			wg.Done()
 			return nil
@@ -526,7 +528,9 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 
 	mockSeekerStatsLock.Lock()
 	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
-		require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerClosesByBlockStart[blockStart])
+		require.Equal(t,
+			defaultTestingFetchConcurrency,
+			numMockSeekerClosesByBlockStart[xtime.ToUnixNano(blockStart)])
 	}
 	mockSeekerStatsLock.Unlock()
 
@@ -548,7 +552,7 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 	mockSeekerStatsLock.Lock()
 	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
 		for start, numMockSeekerCloses := range numMockSeekerClosesByBlockStart {
-			if blockStart == start {
+			if xtime.ToUnixNano(blockStart) == start {
 				// NB(bodu): These get closed twice since they've been closed once already due to updating their block lease.
 				require.Equal(t, defaultTestingFetchConcurrency*2, numMockSeekerCloses)
 				continue

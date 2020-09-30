@@ -39,10 +39,11 @@ markdown_extensions:
   - pymdownx.betterem:
       smart_enable: all
   - pymdownx.caret
-  - pymdownx.critic
   - pymdownx.details
   - pymdownx.emoji:
       emoji_generator: !!python/name:pymdownx.emoji.to_svg
+  - pymdownx.highlight:
+      use_pygments: true      
   - pymdownx.inlinehilite
   - pymdownx.magiclink
   - pymdownx.mark
@@ -53,6 +54,7 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - admonition
 
 pages:
   - "Introduction": "index.md"
@@ -112,6 +114,7 @@ pages:
     - "Upgrading M3": "operational_guide/upgrading_m3.md"
     - "Repairs": "operational_guide/repairs.md"
     - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
+    - "Fileset Migrations": "operational_guide/fileset_migrations.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

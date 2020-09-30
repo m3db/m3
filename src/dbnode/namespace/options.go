@@ -47,6 +47,9 @@ const (
 
 	// Namespace with cold writes disabled by default.
 	defaultColdWritesEnabled = false
+
+	// Namespace caches retrieved blocks by default.
+	defaultCacheBlocksOnRetrieve = true
 )
 
 var (
@@ -54,20 +57,23 @@ var (
 	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
 	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
 	errNamespaceRuntimeOptionsNotSet                = errors.New("namespace runtime options is not set")
+	errAggregationOptionsNotSet                     = errors.New("aggregation options is not set")
 )
 
 type options struct {
-	bootstrapEnabled  bool
-	flushEnabled      bool
-	snapshotEnabled   bool
-	writesToCommitLog bool
-	cleanupEnabled    bool
-	repairEnabled     bool
-	coldWritesEnabled bool
-	retentionOpts     retention.Options
-	indexOpts         IndexOptions
-	schemaHis         SchemaHistory
-	runtimeOpts       RuntimeOptions
+	bootstrapEnabled      bool
+	flushEnabled          bool
+	snapshotEnabled       bool
+	writesToCommitLog     bool
+	cleanupEnabled        bool
+	repairEnabled         bool
+	coldWritesEnabled     bool
+	cacheBlocksOnRetrieve bool
+	retentionOpts         retention.Options
+	indexOpts             IndexOptions
+	schemaHis             SchemaHistory
+	runtimeOpts           RuntimeOptions
+	aggregationOpts       AggregationOptions
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -78,17 +84,19 @@ func NewSchemaHistory() SchemaHistory {
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		bootstrapEnabled:  defaultBootstrapEnabled,
-		flushEnabled:      defaultFlushEnabled,
-		snapshotEnabled:   defaultSnapshotEnabled,
-		writesToCommitLog: defaultWritesToCommitLog,
-		cleanupEnabled:    defaultCleanupEnabled,
-		repairEnabled:     defaultRepairEnabled,
-		coldWritesEnabled: defaultColdWritesEnabled,
-		retentionOpts:     retention.NewOptions(),
-		indexOpts:         NewIndexOptions(),
-		schemaHis:         NewSchemaHistory(),
-		runtimeOpts:       NewRuntimeOptions(),
+		bootstrapEnabled:      defaultBootstrapEnabled,
+		flushEnabled:          defaultFlushEnabled,
+		snapshotEnabled:       defaultSnapshotEnabled,
+		writesToCommitLog:     defaultWritesToCommitLog,
+		cleanupEnabled:        defaultCleanupEnabled,
+		repairEnabled:         defaultRepairEnabled,
+		coldWritesEnabled:     defaultColdWritesEnabled,
+		cacheBlocksOnRetrieve: defaultCacheBlocksOnRetrieve,
+		retentionOpts:         retention.NewOptions(),
+		indexOpts:             NewIndexOptions(),
+		schemaHis:             NewSchemaHistory(),
+		runtimeOpts:           NewRuntimeOptions(),
+		aggregationOpts:       NewAggregationOptions(),
 	}
 }
 
@@ -117,6 +125,9 @@ func (o *options) Validate() error {
 	if o.runtimeOpts == nil {
 		return errNamespaceRuntimeOptionsNotSet
 	}
+	if o.aggregationOpts == nil {
+		return errAggregationOptionsNotSet
+	}
 	return nil
 }
 
@@ -128,10 +139,12 @@ func (o *options) Equal(value Options) bool {
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
 		o.coldWritesEnabled == value.ColdWritesEnabled() &&
+		o.cacheBlocksOnRetrieve == value.CacheBlocksOnRetrieve() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
 		o.schemaHis.Equal(value.SchemaHistory()) &&
-		o.runtimeOpts.Equal(value.RuntimeOptions())
+		o.runtimeOpts.Equal(value.RuntimeOptions()) &&
+		o.aggregationOpts.Equal(value.AggregationOptions())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -204,6 +217,16 @@ func (o *options) ColdWritesEnabled() bool {
 	return o.coldWritesEnabled
 }
 
+func (o *options) SetCacheBlocksOnRetrieve(value bool) Options {
+	opts := *o
+	opts.cacheBlocksOnRetrieve = value
+	return &opts
+}
+
+func (o *options) CacheBlocksOnRetrieve() bool {
+	return o.cacheBlocksOnRetrieve
+}
+
 func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
@@ -242,4 +265,14 @@ func (o *options) SetRuntimeOptions(value RuntimeOptions) Options {
 
 func (o *options) RuntimeOptions() RuntimeOptions {
 	return o.runtimeOpts
+}
+
+func (o *options) SetAggregationOptions(value AggregationOptions) Options {
+	opts := *o
+	opts.aggregationOpts = value
+	return &opts
+}
+
+func (o *options) AggregationOptions() AggregationOptions {
+	return o.aggregationOpts
 }

@@ -44,11 +44,11 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -94,29 +94,32 @@ type shardPeerAvailability struct {
 
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
 		return nil, err
 	}
-	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
+	return s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
 }
 
 func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
 		return nil, err
 	}
-	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
+	return s.peerAvailability(nsMetadata, shardTimeRanges, runOpts)
 }
 
 func (s *peersSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
@@ -144,8 +147,7 @@ func (s *peersSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
-	start := nowFn()
+	start := s.nowFn()
 	s.log.Info("bootstrapping time series data start")
 	span.LogEvent("bootstrap_data_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -166,7 +168,7 @@ func (s *peersSource) Read(
 		})
 	}
 	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
 	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
@@ -176,7 +178,7 @@ func (s *peersSource) Read(
 	}
 	builder := result.NewIndexBuilder(segBuilder)
 
-	start = nowFn()
+	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -193,7 +195,10 @@ func (s *peersSource) Read(
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			builder,
-			namespace.IndexRunOptions.RunOptions)
+			span,
+			cache,
+			namespace.IndexRunOptions.RunOptions,
+		)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -210,7 +215,7 @@ func (s *peersSource) Read(
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
@@ -219,14 +224,14 @@ func (s *peersSource) Read(
 func (s *peersSource) readData(
 	nsMetadata namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
 		return nil, err
 	}
 
-	if shardsTimeRanges.IsEmpty() {
+	if shardTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
 
@@ -266,7 +271,7 @@ func (s *peersSource) readData(
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
 		s.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
-		result.SetUnfulfilled(shardsTimeRanges)
+		result.SetUnfulfilled(shardTimeRanges)
 		return nil, err
 	}
 
@@ -277,7 +282,7 @@ func (s *peersSource) readData(
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
-		count                   = shardsTimeRanges.Len()
+		count                   = shardTimeRanges.Len()
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
 	)
@@ -296,7 +301,7 @@ func (s *peersSource) readData(
 
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
-	for shard, ranges := range shardsTimeRanges.Iter() {
+	for shard, ranges := range shardTimeRanges.Iter() {
 		shard, ranges := shard, ranges
 		wg.Add(1)
 		workers.Go(func() {
@@ -657,8 +662,10 @@ func (s *peersSource) flush(
 
 func (s *peersSource) readIndex(
 	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	builder *result.IndexBuilder,
+	span opentracing.Span,
+	cache bootstrap.Cache,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
@@ -668,12 +675,12 @@ func (s *peersSource) readIndex(
 	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
 	// call rather than going to the network again
 	r := result.NewIndexBootstrapResult()
-	if shardsTimeRanges.IsEmpty() {
+	if shardTimeRanges.IsEmpty() {
 		return r, nil
 	}
 
 	var (
-		count          = shardsTimeRanges.Len()
+		count          = shardTimeRanges.Len()
 		indexBlockSize = ns.Options().IndexOptions().BlockSize()
 		runtimeOpts    = s.opts.RuntimeOptionsManager().Get()
 		fsOpts         = s.opts.FilesystemOptions()
@@ -691,13 +698,28 @@ func (s *peersSource) readIndex(
 		zap.Int("shards", count),
 	)
 
-	go bootstrapper.EnqueueReaders(ns, opts, runtimeOpts, fsOpts, shardsTimeRanges, readerPool,
-		readersCh, indexBlockSize, s.log)
+	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
+		NsMD:            ns,
+		RunOpts:         opts,
+		RuntimeOpts:     runtimeOpts,
+		FsOpts:          fsOpts,
+		ShardTimeRanges: shardTimeRanges,
+		ReaderPool:      readerPool,
+		ReadersCh:       readersCh,
+		BlockSize:       indexBlockSize,
+		// NB(bodu): We only read metadata when performing a peers bootstrap
+		// so we do not need to sort the data fileset reader.
+		OptimizedReadMetadataOnly: true,
+		Logger:                    s.log,
+		Span:                      span,
+		NowFn:                     s.nowFn,
+		Cache:                     cache,
+	})
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
-		builder.Builder().Reset(0)
+		builder.Builder().Reset()
 
 		// NB(bodu): This is fetching the data for all shards for a block of time.
 		remainingRanges, timesWithErrors := s.processReaders(
@@ -969,8 +991,8 @@ func (s *peersSource) readBlockMetadataAndIndex(
 }
 
 func (s *peersSource) peerAvailability(
-	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	_ namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	var (
@@ -978,7 +1000,7 @@ func (s *peersSource) peerAvailability(
 		initialTopologyState    = runOpts.InitialTopologyState()
 	)
 
-	for shardIDUint := range shardsTimeRanges.Iter() {
+	for shardIDUint := range shardTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
@@ -1025,7 +1047,7 @@ func (s *peersSource) peerAvailability(
 		majorityReplicas          = initialTopologyState.MajorityReplicas
 		availableShardTimeRanges  = result.NewShardTimeRanges()
 	)
-	for shardIDUint := range shardsTimeRanges.Iter() {
+	for shardIDUint := range shardTimeRanges.Iter() {
 		var (
 			shardID    = topology.ShardID(shardIDUint)
 			shardPeers = peerAvailabilityByShard[shardID]
@@ -1057,7 +1079,7 @@ func (s *peersSource) peerAvailability(
 		// all the data. This assumption is safe, as the shard/block ranges
 		// will simply be marked unfulfilled if the peers are not able to
 		// satisfy the requests.
-		if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+		if tr, ok := shardTimeRanges.Get(shardIDUint); ok {
 			availableShardTimeRanges.Set(shardIDUint, tr)
 		}
 	}

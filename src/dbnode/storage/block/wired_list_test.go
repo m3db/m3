@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
@@ -36,7 +37,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 // The tests in this file use Start and Stop a lot to ensure
@@ -175,4 +175,37 @@ func wiredListTestWiredBlocksString(l *WiredList) string { // nolint: unused
 		b.WriteString(fmt.Sprintf("%s\n", string(dbBlock.segment.Head.Bytes())))
 	}
 	return b.String()
+}
+
+func TestWiredListUpdateNoopsAfterStop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	l, _ := newTestWiredList(nil, nil)
+
+	opts := testOptions.SetWiredList(l)
+
+	l.Start()
+
+	var blocks []*dbBlock
+	for i := 0; i < 2; i++ {
+		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
+		blocks = append(blocks, bl)
+	}
+
+	l.BlockingUpdate(blocks[0])
+	l.BlockingUpdate(blocks[1])
+	require.NoError(t, l.Stop())
+	l.BlockingUpdate(blocks[0])
+	l.NonBlockingUpdate(blocks[0])
+
+	// Order due to LRU should be: 0, 1, since next updates are rejected
+	require.Equal(t, blocks[0], l.root.next())
+	require.Equal(t, blocks[1], l.root.next().next())
+
+	// Assert end
+	require.Equal(t, &l.root, l.root.next().next().next())
+
+	// Assert tail
+	require.Equal(t, blocks[1], l.root.prev())
 }

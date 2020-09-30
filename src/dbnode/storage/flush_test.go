@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -554,7 +555,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 
 	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
 	require.True(t, ok)
-	require.Equal(t, now, lastSuccessfulSnapshot)
+	require.Equal(t, xtime.ToUnixNano(now), lastSuccessfulSnapshot)
 }
 
 type timesInOrder []time.Time

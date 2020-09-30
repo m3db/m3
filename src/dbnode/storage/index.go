@@ -894,7 +894,10 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		blockTickResult, tickErr := block.Tick(c)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
+		result.NumSegmentsBootstrapped += blockTickResult.NumSegmentsBootstrapped
+		result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 		result.NumTotalDocs += blockTickResult.NumDocs
+		result.FreeMmap += blockTickResult.FreeMmap
 
 		// seal any blocks that are sealable
 		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
@@ -950,9 +953,16 @@ func (i *nsIndex) WarmFlush(
 		// block for each shard
 		fulfilled := result.NewShardTimeRangesFromRange(block.StartTime(), block.EndTime(),
 			dbShards(shards).IDs()...)
-		// Add the results to the block
+
+		// Add the results to the block.
+		persistedSegments := make([]result.Segment, 0, len(immutableSegments))
+		for _, elem := range immutableSegments {
+			persistedSegment := result.NewSegment(elem, true)
+			persistedSegments = append(persistedSegments, persistedSegment)
+		}
+		blockResult := result.NewIndexBlock(persistedSegments, fulfilled)
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
-		results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(immutableSegments, fulfilled))
+		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
@@ -1158,7 +1168,7 @@ func (i *nsIndex) flushBlockSegment(
 	builder segment.DocumentsBuilder,
 ) error {
 	// Reset the builder
-	builder.Reset(0)
+	builder.Reset()
 
 	var (
 		batch     = m3ninxindex.Batch{AllowPartialUpdates: true}
@@ -1885,10 +1895,10 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		fsOpts.InfoReaderBufferSize(),
 	)
 
-	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[time.Time]map[idxpersist.IndexVolumeType][]fs.Segments)
+	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[xtime.UnixNano]map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {
 		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilePaths)
-		blockStart := seg.BlockStart()
+		blockStart := xtime.ToUnixNano(seg.BlockStart())
 		segmentsOrderByVolumeIndexByVolumeType, ok := segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart[blockStart]
 		if !ok {
 			segmentsOrderByVolumeIndexByVolumeType = make(map[idxpersist.IndexVolumeType][]fs.Segments)

@@ -24,7 +24,7 @@
 // were added.
 package hash
 
-import "github.com/spaolacci/murmur3"
+import "github.com/m3db/stackmurmur3/v2"
 
 // Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
 type Hash128 [2]uint64

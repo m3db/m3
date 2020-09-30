@@ -25,10 +25,11 @@ import (
 	"time"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 
+	protobuftypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,15 +54,22 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
+	validAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{Aggregated: false},
+		},
+	}
+
 	validNamespaceOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
-			BootstrapEnabled:  true,
-			FlushEnabled:      true,
-			WritesToCommitLog: true,
-			CleanupEnabled:    true,
-			RepairEnabled:     true,
-			RetentionOptions:  &validRetentionOpts,
-			SchemaOptions:     testSchemaOptions,
+			BootstrapEnabled:      true,
+			FlushEnabled:          true,
+			WritesToCommitLog:     true,
+			CleanupEnabled:        true,
+			RepairEnabled:         true,
+			CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: false},
+			RetentionOptions:      &validRetentionOpts,
+			SchemaOptions:         testSchemaOptions,
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -69,8 +77,10 @@ var (
 			WritesToCommitLog: true,
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
-			RetentionOptions:  &validRetentionOpts,
-			IndexOptions:      &validIndexOpts,
+			// Explicitly not setting CacheBlocksOnRetrieve here to test defaulting to true when not set.
+			RetentionOptions:   &validRetentionOpts,
+			IndexOptions:       &validIndexOpts,
+			AggregationOptions: &validAggregationOpts,
 		},
 	}
 
@@ -99,6 +109,18 @@ var (
 			BufferPastNanos:                          toNanos(10),   // 10m
 			BlockDataExpiry:                          true,
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
+		},
+	}
+
+	invalidAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{
+				Aggregated: true,
+				Attributes: &nsproto.AggregatedAttributes{
+					ResolutionNanos:   -10,
+					DownsampleOptions: &nsproto.DownsampleOptions{All: true},
+				},
+			},
 		},
 	}
 )
@@ -271,15 +293,57 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
+func TestToAggregationOptions(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(aggOpts.Aggregations()))
+
+	aggregation := aggOpts.Aggregations()[0]
+	require.Equal(t, false, aggregation.Aggregated)
+	require.Equal(t, namespace.AggregatedAttributes{}, aggregation.Attributes)
+}
+
+func TestToAggregationOptionsInvalid(t *testing.T) {
+	_, err := namespace.ToAggregationOptions(&invalidAggregationOpts)
+	require.Error(t, err)
+}
+
+func TestAggregationOptsToProto(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	// make ns map
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
+		namespace.NewOptions().SetAggregationOptions(aggOpts))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// convert to nsproto map
+	reg := namespace.ToProto(nsMap)
+	require.Len(t, reg.Namespaces, 1)
+
+	nsOpts := *reg.Namespaces["ns1"]
+
+	require.Equal(t, validAggregationOpts, *nsOpts.AggregationOptions)
+}
+
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
+
+	expectedCacheBlocksOnRetrieve := true
+	if expected.CacheBlocksOnRetrieve != nil {
+		expectedCacheBlocksOnRetrieve = expected.CacheBlocksOnRetrieve.Value
+	}
 
 	require.Equal(t, expected.BootstrapEnabled, opts.BootstrapEnabled())
 	require.Equal(t, expected.FlushEnabled, opts.FlushEnabled())
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.CleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
+	require.Equal(t, expectedCacheBlocksOnRetrieve, opts.CacheBlocksOnRetrieve())
 	expectedSchemaReg, err := namespace.LoadSchemaHistory(expected.SchemaOptions)
 	require.NoError(t, err)
 	require.NotNil(t, expectedSchemaReg)

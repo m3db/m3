@@ -31,19 +31,66 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
+	testFilesystemBootstrapIndexWithIndexingEnabled(t,
+		testFilesystemBootstrapIndexWithIndexingEnabledOptions{})
+}
+
+// TestFilesystemBootstrapIndexWithIndexingEnabledAndCheckTickFreeMmap makes
+// sure that bootstrapped segments free mmap calls occur.
+func TestFilesystemBootstrapIndexWithIndexingEnabledAndCheckTickFreeMmap(t *testing.T) {
+	testFilesystemBootstrapIndexWithIndexingEnabled(t,
+		testFilesystemBootstrapIndexWithIndexingEnabledOptions{
+			test: func(t *testing.T, setup TestSetup) {
+				var (
+					cancellable             = context.NewCancellable()
+					numSegmentsBootstrapped int64
+					freeMmap                int64
+				)
+				for _, ns := range setup.DB().Namespaces() {
+					idx, err := ns.Index()
+					require.NoError(t, err)
+
+					result, err := idx.Tick(cancellable, time.Now())
+					require.NoError(t, err)
+
+					numSegmentsBootstrapped += result.NumSegmentsBootstrapped
+					freeMmap += result.FreeMmap
+				}
+
+				log := setup.StorageOpts().InstrumentOptions().Logger()
+				log.Info("ticked namespaces",
+					zap.Int64("numSegmentsBootstrapped", numSegmentsBootstrapped),
+					zap.Int64("freeMmap", freeMmap))
+				require.True(t, numSegmentsBootstrapped > 0)
+				require.True(t, freeMmap > 0)
+			},
+		})
+}
+
+type testFilesystemBootstrapIndexWithIndexingEnabledOptions struct {
+	// test is an extended test to run at the end of the core bootstrap test.
+	test func(t *testing.T, setup TestSetup)
+}
+
+func testFilesystemBootstrapIndexWithIndexingEnabled(
+	t *testing.T,
+	testOpts testFilesystemBootstrapIndexWithIndexingEnabledOptions,
+) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	var (
 		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * blockSize).SetBlockSize(blockSize)
+		rOpts     = retention.NewOptions().SetRetentionPeriod(6 * blockSize).SetBlockSize(blockSize)
 		idxOpts   = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(2 * blockSize)
 		nOpts     = namespace.NewOptions().SetRetentionOptions(rOpts).SetIndexOptions(idxOpts)
 	)
@@ -87,13 +134,13 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			IDs:       []string{fooSeries.ID.String()},
 			Tags:      fooSeries.Tags,
 			NumPoints: 100,
-			Start:     now.Add(-blockSize),
+			Start:     now.Add(-3 * blockSize),
 		},
 		{
 			IDs:       []string{barSeries.ID.String()},
 			Tags:      barSeries.Tags,
 			NumPoints: 100,
-			Start:     now.Add(-blockSize),
+			Start:     now.Add(-3 * blockSize),
 		},
 		{
 			IDs:       []string{fooSeries.ID.String()},
@@ -163,4 +210,8 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries},
 	})
+
+	if testOpts.test != nil {
+		testOpts.test(t, setup)
+	}
 }

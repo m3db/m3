@@ -22,7 +22,6 @@ package peers
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"sort"
 	"testing"
@@ -273,7 +272,8 @@ func TestBootstrapIndex(t *testing.T) {
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, shardTimeRanges, nsMetadata)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, testDefaultRunOpts, shardTimeRanges,
+		opts.FilesystemOptions(), nsMetadata)
 	defer tester.Finish()
 	tester.TestReadWith(src)
 
@@ -285,7 +285,6 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		if len(indexBlock.Segments()) != 0 {
-			log.Printf("result block start: %s", indexBlockByVolumeType.BlockStart())
 			numBlocksWithData++
 		}
 	}
@@ -320,7 +319,7 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
+			reader, err := seg.Segment().Reader()
 			require.NoError(t, err)
 
 			docs, err := reader.AllDocs()

@@ -118,12 +118,14 @@ func TestNamespaceGetHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
-						"bootstrapEnabled":  true,
-						"cleanupEnabled":    false,
-						"coldWritesEnabled": false,
-						"flushEnabled":      true,
-						"indexOptions":      nil,
-						"repairEnabled":     false,
+						"aggregationOptions":    nil,
+						"bootstrapEnabled":      true,
+						"cacheBlocksOnRetrieve": nil,
+						"cleanupEnabled":        false,
+						"coldWritesEnabled":     false,
+						"flushEnabled":          true,
+						"indexOptions":          nil,
+						"repairEnabled":         false,
 						"retentionOptions": xjson.Map{
 							"blockDataExpiry":                          true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "3600000000000",
@@ -198,12 +200,14 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
-						"bootstrapEnabled":  true,
-						"cleanupEnabled":    false,
-						"coldWritesEnabled": false,
-						"flushEnabled":      true,
-						"indexOptions":      nil,
-						"repairEnabled":     false,
+						"aggregationOptions":    nil,
+						"bootstrapEnabled":      true,
+						"cacheBlocksOnRetrieve": nil,
+						"cleanupEnabled":        false,
+						"coldWritesEnabled":     false,
+						"flushEnabled":          true,
+						"indexOptions":          nil,
+						"repairEnabled":         false,
 						"retentionOptions": xjson.Map{
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodDuration": "1h0m0s",

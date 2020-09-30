@@ -105,7 +105,8 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		request.Params.End,
 		request.Params.Step)
 	if err != nil {
-		h.logger.Error("error creating range query", zap.Error(err), zap.String("query", request.Params.Query))
+		h.logger.Error("error creating range query",
+			zap.Error(err), zap.String("query", request.Params.Query))
 		respondError(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -113,13 +114,20 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	res := qry.Exec(ctx)
 	if res.Err != nil {
-		h.logger.Error("error executing range query", zap.Error(res.Err), zap.String("query", request.Params.Query))
+		h.logger.Error("error executing range query",
+			zap.Error(res.Err), zap.String("query", request.Params.Query))
 		respondError(w, res.Err, http.StatusInternalServerError)
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, resultMetadata)
+	query := request.Params.Query
+	err = applyRangeWarnings(query, &resultMetadata)
+	if err != nil {
+		h.logger.Warn("error applying range warnings",
+			zap.Error(err), zap.String("query", query))
+	}
 
+	handleroptions.AddWarningHeaders(w, resultMetadata)
 	respond(w, &queryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),

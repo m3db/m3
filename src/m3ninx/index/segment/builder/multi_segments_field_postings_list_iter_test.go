@@ -104,7 +104,7 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 		}),
 	}
 	builder := NewBuilderFromSegments(testOptions)
-	builder.Reset(0)
+	builder.Reset()
 
 	b, ok := builder.(*builderFromSegments)
 	require.True(t, ok)

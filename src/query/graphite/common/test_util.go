@@ -21,6 +21,7 @@
 package common
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ type TestSeries struct {
 
 // NewTestContext creates a new test context.
 func NewTestContext() *Context {
-	now := time.Now()
+	now := time.Now().Truncate(time.Hour)
 	return NewContext(ContextOptions{Start: now.Add(-time.Hour), End: now})
 }
 
@@ -95,22 +96,27 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 		a := actual[i]
 		require.Equal(t, expected[i].Name, a.Name())
 		assert.Equal(t, step, a.MillisPerStep(), a.Name()+": MillisPerStep in expected series do not match MillisPerStep in actual")
-		assert.Equal(t, start, a.StartTime(), a.Name()+": StartTime in expected series does not match StartTime in actual")
+		diff := time.Duration(math.Abs(float64(start.Sub(a.StartTime()))))
+		assert.True(t, diff < time.Millisecond,
+			fmt.Sprintf("%s: StartTime in expected series (%v) does not match StartTime in actual (%v), diff %v",
+				a.Name(), start, a.StartTime(), diff))
 		e := expected[i].Data
 		require.Equal(t, len(e), a.Len(), a.Name()+": length of expected series does not match length of actual")
 		for step := 0; step < a.Len(); step++ {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
-				assert.True(t, math.IsNaN(v), a.Name()+": invalid value for step %d/%d, should be NaN but is %v", step, a.Len(), v)
+				assert.True(t, math.IsNaN(v), fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v))
+			} else if math.IsNaN(v) {
+				assert.Fail(t, fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step]))
 			} else {
-				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", step, a.Len())
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", 1+step, a.Len())
 			}
 		}
 	}
 }
 
-// MovingAverageStorage is a special test construct for the moving average function
-type MovingAverageStorage struct {
+// MovingFunctionStorage is a special test construct for all moving functions
+type MovingFunctionStorage struct {
 	StepMillis     int
 	Bootstrap      []float64
 	Values         []float64
@@ -118,7 +124,7 @@ type MovingAverageStorage struct {
 }
 
 // FetchByPath builds a new series from the input path
-func (s *MovingAverageStorage) FetchByPath(
+func (s *MovingFunctionStorage) FetchByPath(
 	ctx context.Context,
 	path string,
 	opts storage.FetchOptions,
@@ -127,7 +133,7 @@ func (s *MovingAverageStorage) FetchByPath(
 }
 
 // FetchByQuery builds a new series from the input query
-func (s *MovingAverageStorage) FetchByQuery(
+func (s *MovingFunctionStorage) FetchByQuery(
 	ctx context.Context,
 	query string,
 	opts storage.FetchOptions,
@@ -136,7 +142,7 @@ func (s *MovingAverageStorage) FetchByQuery(
 }
 
 // FetchByIDs builds a new series from the input query
-func (s *MovingAverageStorage) fetchByIDs(
+func (s *MovingFunctionStorage) fetchByIDs(
 	ctx context.Context,
 	ids []string,
 	opts storage.FetchOptions,

@@ -25,13 +25,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs/migrator"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -39,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -48,6 +50,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -69,6 +73,7 @@ type fileSystemSource struct {
 	opts              Options
 	fsopts            fs.Options
 	log               *zap.Logger
+	nowFn             clock.NowFn
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
@@ -96,6 +101,7 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		opts:        opts,
 		fsopts:      opts.FilesystemOptions(),
 		log:         iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn:       opts.ResultOptions().ClockOptions().NowFn(),
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		persistManager: &bootstrapper.SharedPersistManager{
@@ -116,23 +122,26 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 
 func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+	_ bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardsTimeRanges)
+	return s.availability(md, shardTimeRanges, cache)
 }
 
 func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+	_ bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardsTimeRanges)
+	return s.availability(md, shardTimeRanges, cache)
 }
 
 func (s *fileSystemSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
 	defer span.Finish()
@@ -148,10 +157,15 @@ func (s *fileSystemSource) Read(
 	}
 	builder := result.NewIndexBuilder(segBuilder)
 
+	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
+	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
+	// having to re-read migrated info files.
+	infoFilesByNamespace := cache.ReadInfoFiles()
+	s.runMigrations(ctx, infoFilesByNamespace)
+
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
-	start := nowFn()
+	start := s.nowFn()
 	dataLogFields := []zapcore.Field{
 		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
 	}
@@ -164,7 +178,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder)
+			namespace.DataRunOptions.RunOptions, builder, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -176,10 +190,10 @@ func (s *fileSystemSource) Read(
 		})
 	}
 	s.log.Info("bootstrapping time series data success",
-		append(dataLogFields, zap.Duration("took", nowFn().Sub(start)))...)
+		append(dataLogFields, zap.Duration("took", s.nowFn().Sub(start)))...)
 	span.LogEvent("bootstrap_data_done")
 
-	start = nowFn()
+	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -194,7 +208,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder)
+			namespace.IndexRunOptions.RunOptions, builder, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -210,36 +224,81 @@ func (s *fileSystemSource) Read(
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
 }
 
+func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespace bootstrap.InfoFilesByNamespace) {
+	// Only one migration for now, so just short circuit entirely if not enabled
+	if s.opts.MigrationOptions().TargetMigrationVersion() != migration.MigrationVersion_1_1 {
+		return
+	}
+
+	migrator, err := migrator.NewMigrator(migrator.NewOptions().
+		SetMigrationTaskFn(migration.MigrationTask).
+		SetInfoFilesByNamespace(infoFilesByNamespace).
+		SetMigrationOptions(s.opts.MigrationOptions()).
+		SetFilesystemOptions(s.fsopts).
+		SetInstrumentOptions(s.opts.InstrumentOptions()).
+		SetStorageOptions(s.opts.StorageOptions()))
+	if err != nil {
+		s.log.Error("error creating migrator. continuing bootstrap", zap.Error(err))
+	}
+
+	// NB(nate): Handling of errors should be re-evaluated as migrations are added. Current migrations
+	// do not mutate state in such a way that data can be left in an invalid state in the case of failures. Additionally,
+	// we want to ensure that the bootstrap process is always able to continue. If either of these conditions change,
+	// error handling at this level AND the individual migration task level should be reconsidered.
+	//
+	// One final note, as more migrations are introduced and the complexity is increased, we may want to consider adding
+	// 1) a recovery mechanism to ensure that repeatable panics don't create a crash loop and
+	// 2) state tracking to abort migration attempts after a certain number of consecutive failures.
+	// For now, simply setting the target migration to "None" in config is enough to mitigate both of these cases.
+	if err = migrator.Run(ctx); err != nil {
+		s.log.Error("error performing migrations. continuing bootstrap", zap.Error(err))
+	}
+}
+
 func (s *fileSystemSource) availability(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
 ) (result.ShardTimeRanges, error) {
-	result := result.NewShardTimeRangesFromSize(shardsTimeRanges.Len())
-	for shard, ranges := range shardsTimeRanges.Iter() {
-		result.Set(shard, s.shardAvailability(md.ID(), shard, ranges))
+	result := result.NewShardTimeRangesFromSize(shardTimeRanges.Len())
+	for shard, ranges := range shardTimeRanges.Iter() {
+		availabilities, err := s.shardAvailability(md, shard, ranges, cache)
+		if err != nil {
+			return nil, err
+		}
+		result.Set(shard, availabilities)
 	}
 	return result, nil
 }
 
 func (s *fileSystemSource) shardAvailability(
+	md namespace.Metadata,
+	shard uint32,
+	targetRangesForShard xtime.Ranges,
+	cache bootstrap.Cache,
+) (xtime.Ranges, error) {
+	if targetRangesForShard.IsEmpty() {
+		return xtime.NewRanges(), nil
+	}
+	readInfoFileResults, err := cache.InfoFilesForShard(md, shard)
+	if err != nil {
+		return nil, err
+	}
+	return s.shardAvailabilityWithInfoFiles(md.ID(), shard, targetRangesForShard, readInfoFileResults), nil
+}
+
+func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
 	namespace ident.ID,
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
+	readInfoFilesResults []fs.ReadInfoFileResult,
 ) xtime.Ranges {
-	if targetRangesForShard.IsEmpty() {
-		return xtime.NewRanges()
-	}
-
-	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
-		persist.FileSetFlushType)
-
 	tr := xtime.NewRanges()
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
@@ -281,7 +340,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
-		builder.Builder().Reset(0)
+		builder.Builder().Reset()
 
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 			runOpts, runResult, resultOpts, timeWindowReaders, readerPool, builder)
@@ -459,9 +518,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
-			nowFn                     = s.opts.ResultOptions().ClockOptions().NowFn()
 			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
-				retentionPeriod, indexBlockSize, nowFn())
+				retentionPeriod, indexBlockSize, s.nowFn())
 			initialIndexRange = xtime.Range{
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
@@ -482,19 +540,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 		remainingMin, remainingMax := remainingRanges.MinMax()
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
-		buildIndexLogFields := []zapcore.Field{
-			zap.Stringer("namespace", ns.ID()),
-			zap.Bool("shouldBuildSegment", shouldBuildSegment),
-			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
-			zap.Int("totalEntries", totalEntries),
-			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
-			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
-			zap.String("remainingRanges", remainingRanges.SummaryString()),
-			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
-			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
-			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
-		}
 
 		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
 		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
@@ -513,8 +558,26 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		persistCfg := runOpts.PersistConfig()
 		shouldFlush := persistCfg.Enabled &&
 			persistCfg.FileSetType == persist.FileSetFlushType
+
 		// Determine all requested ranges were fulfilled or at edge of retention
 		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+
+		buildIndexLogFields := []zapcore.Field{
+			zap.Stringer("namespace", ns.ID()),
+			zap.Bool("shouldBuildSegment", shouldBuildSegment),
+			zap.Bool("noneRemaining", noneRemaining),
+			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Int("totalEntries", totalEntries),
+			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
+			zap.String("remainingRanges", remainingRanges.SummaryString()),
+			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
+			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
+			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
+			zap.Bool("shouldFlush", shouldFlush),
+			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+		}
+
 		if shouldFlush && satisifiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
@@ -674,15 +737,17 @@ func (s *fileSystemSource) read(
 	run runType,
 	md namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
+	span opentracing.Span,
+	cache bootstrap.Cache,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		res               *runResult
 	)
-	if shardsTimeRanges.IsEmpty() {
+	if shardTimeRanges.IsEmpty() {
 		return newRunResult(), nil
 	}
 
@@ -701,25 +766,34 @@ func (s *fileSystemSource) read(
 		if seriesCachePolicy != series.CacheAll {
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have.
-			return s.bootstrapDataRunResultFromAvailability(md, shardsTimeRanges), nil
+			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges, cache)
 		}
 	}
 
+	logSpan := func(event string) {
+		span.LogFields(
+			opentracinglog.String("event", event),
+			opentracinglog.String("nsID", md.ID().String()),
+			opentracinglog.String("shardTimeRanges", shardTimeRanges.SummaryString()),
+		)
+	}
 	if run == bootstrapIndexRunType {
+		logSpan("bootstrap_from_index_persisted_blocks_start")
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
-			shardsTimeRanges)
+			shardTimeRanges)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
 			// We may have less we need to read
-			shardsTimeRanges = shardsTimeRanges.Copy()
-			shardsTimeRanges.Subtract(r.fulfilled)
+			shardTimeRanges = shardTimeRanges.Copy()
+			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
+		logSpan("bootstrap_from_index_persisted_blocks_done")
 	}
 
 	// Create a reader pool once per bootstrap as we don't really want to
@@ -737,8 +811,23 @@ func (s *fileSystemSource) read(
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
 	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
-	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
-		readerPool, readersCh, blockSize, s.log)
+	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
+		NsMD:            md,
+		RunOpts:         runOpts,
+		RuntimeOpts:     runtimeOpts,
+		FsOpts:          s.fsopts,
+		ShardTimeRanges: shardTimeRanges,
+		ReaderPool:      readerPool,
+		ReadersCh:       readersCh,
+		BlockSize:       blockSize,
+		// NB(bodu): We only read metadata when bootstrap index
+		// so we do not need to sort the data fileset reader.
+		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
+		Logger:                    s.log,
+		Span:                      span,
+		NowFn:                     s.nowFn,
+		Cache:                     cache,
+	})
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh, builder)
 
@@ -755,15 +844,20 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-) *runResult {
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+) (*runResult, error) {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
-	for shard, ranges := range shardsTimeRanges.Iter() {
+	for shard, ranges := range shardTimeRanges.Iter() {
 		if ranges.IsEmpty() {
 			continue
 		}
-		availability := s.shardAvailability(md.ID(), shard, ranges)
+		infoFiles, err := cache.InfoFilesForShard(md, shard)
+		if err != nil {
+			return nil, err
+		}
+		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, infoFiles)
 		remaining := ranges.Clone()
 		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
@@ -774,7 +868,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 		}
 	}
 	runResult.data.SetUnfulfilled(unfulfilled)
-	return runResult
+	return runResult, nil
 }
 
 type bootstrapFromIndexPersistedBlocksResult struct {
@@ -784,7 +878,7 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 
 func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 ) (bootstrapFromIndexPersistedBlocksResult, error) {
 	res := bootstrapFromIndexPersistedBlocksResult{
 		fulfilled: result.NewShardTimeRanges(),
@@ -799,7 +893,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			s.log.Error("unable to read index info file",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Error(err),
-				zap.Stringer("shardsTimeRanges", shardsTimeRanges),
+				zap.Stringer("shardTimeRanges", shardTimeRanges),
 				zap.String("filepath", infoFile.Err.Filepath()),
 			)
 			continue
@@ -813,7 +907,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		willFulfill := result.NewShardTimeRanges()
 		for _, shard := range info.Shards {
-			tr, ok := shardsTimeRanges.Get(shard)
+			tr, ok := shardTimeRanges.Get(shard)
 			if !ok {
 				// No ranges match for this shard.
 				continue
@@ -864,9 +958,9 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]segment.Segment, 0, len(segments))
+		persistedSegments := make([]result.Segment, 0, len(segments))
 		for _, segment := range segments {
-			persistedSegments = append(persistedSegments, bootstrapper.NewSegment(segment, true))
+			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType
 		if info.IndexVolumeType != nil {

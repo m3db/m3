@@ -32,6 +32,10 @@
 		RetentionOptions
 		IndexOptions
 		NamespaceOptions
+		AggregationOptions
+		Aggregation
+		AggregatedAttributes
+		DownsampleOptions
 		Registry
 		NamespaceRuntimeOptions
 		SchemaOptions
@@ -147,17 +151,19 @@ func (m *IndexOptions) GetBlockSizeNanos() int64 {
 }
 
 type NamespaceOptions struct {
-	BootstrapEnabled  bool                     `protobuf:"varint,1,opt,name=bootstrapEnabled,proto3" json:"bootstrapEnabled,omitempty"`
-	FlushEnabled      bool                     `protobuf:"varint,2,opt,name=flushEnabled,proto3" json:"flushEnabled,omitempty"`
-	WritesToCommitLog bool                     `protobuf:"varint,3,opt,name=writesToCommitLog,proto3" json:"writesToCommitLog,omitempty"`
-	CleanupEnabled    bool                     `protobuf:"varint,4,opt,name=cleanupEnabled,proto3" json:"cleanupEnabled,omitempty"`
-	RepairEnabled     bool                     `protobuf:"varint,5,opt,name=repairEnabled,proto3" json:"repairEnabled,omitempty"`
-	RetentionOptions  *RetentionOptions        `protobuf:"bytes,6,opt,name=retentionOptions" json:"retentionOptions,omitempty"`
-	SnapshotEnabled   bool                     `protobuf:"varint,7,opt,name=snapshotEnabled,proto3" json:"snapshotEnabled,omitempty"`
-	IndexOptions      *IndexOptions            `protobuf:"bytes,8,opt,name=indexOptions" json:"indexOptions,omitempty"`
-	SchemaOptions     *SchemaOptions           `protobuf:"bytes,9,opt,name=schemaOptions" json:"schemaOptions,omitempty"`
-	ColdWritesEnabled bool                     `protobuf:"varint,10,opt,name=coldWritesEnabled,proto3" json:"coldWritesEnabled,omitempty"`
-	RuntimeOptions    *NamespaceRuntimeOptions `protobuf:"bytes,11,opt,name=runtimeOptions" json:"runtimeOptions,omitempty"`
+	BootstrapEnabled      bool                       `protobuf:"varint,1,opt,name=bootstrapEnabled,proto3" json:"bootstrapEnabled,omitempty"`
+	FlushEnabled          bool                       `protobuf:"varint,2,opt,name=flushEnabled,proto3" json:"flushEnabled,omitempty"`
+	WritesToCommitLog     bool                       `protobuf:"varint,3,opt,name=writesToCommitLog,proto3" json:"writesToCommitLog,omitempty"`
+	CleanupEnabled        bool                       `protobuf:"varint,4,opt,name=cleanupEnabled,proto3" json:"cleanupEnabled,omitempty"`
+	RepairEnabled         bool                       `protobuf:"varint,5,opt,name=repairEnabled,proto3" json:"repairEnabled,omitempty"`
+	RetentionOptions      *RetentionOptions          `protobuf:"bytes,6,opt,name=retentionOptions" json:"retentionOptions,omitempty"`
+	SnapshotEnabled       bool                       `protobuf:"varint,7,opt,name=snapshotEnabled,proto3" json:"snapshotEnabled,omitempty"`
+	IndexOptions          *IndexOptions              `protobuf:"bytes,8,opt,name=indexOptions" json:"indexOptions,omitempty"`
+	SchemaOptions         *SchemaOptions             `protobuf:"bytes,9,opt,name=schemaOptions" json:"schemaOptions,omitempty"`
+	ColdWritesEnabled     bool                       `protobuf:"varint,10,opt,name=coldWritesEnabled,proto3" json:"coldWritesEnabled,omitempty"`
+	RuntimeOptions        *NamespaceRuntimeOptions   `protobuf:"bytes,11,opt,name=runtimeOptions" json:"runtimeOptions,omitempty"`
+	CacheBlocksOnRetrieve *google_protobuf.BoolValue `protobuf:"bytes,12,opt,name=cacheBlocksOnRetrieve" json:"cacheBlocksOnRetrieve,omitempty"`
+	AggregationOptions    *AggregationOptions        `protobuf:"bytes,13,opt,name=aggregationOptions" json:"aggregationOptions,omitempty"`
 }
 
 func (m *NamespaceOptions) Reset()                    { *m = NamespaceOptions{} }
@@ -242,6 +248,115 @@ func (m *NamespaceOptions) GetRuntimeOptions() *NamespaceRuntimeOptions {
 	return nil
 }
 
+func (m *NamespaceOptions) GetCacheBlocksOnRetrieve() *google_protobuf.BoolValue {
+	if m != nil {
+		return m.CacheBlocksOnRetrieve
+	}
+	return nil
+}
+
+func (m *NamespaceOptions) GetAggregationOptions() *AggregationOptions {
+	if m != nil {
+		return m.AggregationOptions
+	}
+	return nil
+}
+
+// AggregationOptions is a set of options for aggregating data
+// within the namespace.
+type AggregationOptions struct {
+	// aggregations is a repeated field to support the ability to send aggregated data
+	// to a namespace also receiving unaggregated data. In this case, the namespace will
+	// have one Aggregation with aggregated set to false and another with aggregated set to true.
+	Aggregations []*Aggregation `protobuf:"bytes,1,rep,name=aggregations" json:"aggregations,omitempty"`
+}
+
+func (m *AggregationOptions) Reset()                    { *m = AggregationOptions{} }
+func (m *AggregationOptions) String() string            { return proto.CompactTextString(m) }
+func (*AggregationOptions) ProtoMessage()               {}
+func (*AggregationOptions) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{3} }
+
+func (m *AggregationOptions) GetAggregations() []*Aggregation {
+	if m != nil {
+		return m.Aggregations
+	}
+	return nil
+}
+
+// Aggregation describes data points within the namespace.
+type Aggregation struct {
+	// aggregated is true if data points are aggregated, false otherwise.
+	Aggregated bool `protobuf:"varint,1,opt,name=aggregated,proto3" json:"aggregated,omitempty"`
+	// attributes specifies how to aggregate data when aggregated is set to true.
+	// This field is ignored when aggregated is false and required when aggregated
+	// is true.
+	Attributes *AggregatedAttributes `protobuf:"bytes,2,opt,name=attributes" json:"attributes,omitempty"`
+}
+
+func (m *Aggregation) Reset()                    { *m = Aggregation{} }
+func (m *Aggregation) String() string            { return proto.CompactTextString(m) }
+func (*Aggregation) ProtoMessage()               {}
+func (*Aggregation) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{4} }
+
+func (m *Aggregation) GetAggregated() bool {
+	if m != nil {
+		return m.Aggregated
+	}
+	return false
+}
+
+func (m *Aggregation) GetAttributes() *AggregatedAttributes {
+	if m != nil {
+		return m.Attributes
+	}
+	return nil
+}
+
+// AggregatedAttributes describe how to aggregate data.
+type AggregatedAttributes struct {
+	// resolutionNanos is the time range to aggregate data across.
+	ResolutionNanos   int64              `protobuf:"varint,1,opt,name=resolutionNanos,proto3" json:"resolutionNanos,omitempty"`
+	DownsampleOptions *DownsampleOptions `protobuf:"bytes,2,opt,name=downsampleOptions" json:"downsampleOptions,omitempty"`
+}
+
+func (m *AggregatedAttributes) Reset()                    { *m = AggregatedAttributes{} }
+func (m *AggregatedAttributes) String() string            { return proto.CompactTextString(m) }
+func (*AggregatedAttributes) ProtoMessage()               {}
+func (*AggregatedAttributes) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{5} }
+
+func (m *AggregatedAttributes) GetResolutionNanos() int64 {
+	if m != nil {
+		return m.ResolutionNanos
+	}
+	return 0
+}
+
+func (m *AggregatedAttributes) GetDownsampleOptions() *DownsampleOptions {
+	if m != nil {
+		return m.DownsampleOptions
+	}
+	return nil
+}
+
+// DownsampleOptions is a set of options related to downsampling data.
+type DownsampleOptions struct {
+	// all indicates whether to send data points to this namespace. If false,
+	// data points must be sent via rollup/recording rules. Defaults to true.
+	All bool `protobuf:"varint,1,opt,name=all,proto3" json:"all,omitempty"`
+}
+
+func (m *DownsampleOptions) Reset()                    { *m = DownsampleOptions{} }
+func (m *DownsampleOptions) String() string            { return proto.CompactTextString(m) }
+func (*DownsampleOptions) ProtoMessage()               {}
+func (*DownsampleOptions) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{6} }
+
+func (m *DownsampleOptions) GetAll() bool {
+	if m != nil {
+		return m.All
+	}
+	return false
+}
+
 type Registry struct {
 	Namespaces map[string]*NamespaceOptions `protobuf:"bytes,1,rep,name=namespaces" json:"namespaces,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
 }
@@ -249,7 +364,7 @@ type Registry struct {
 func (m *Registry) Reset()                    { *m = Registry{} }
 func (m *Registry) String() string            { return proto.CompactTextString(m) }
 func (*Registry) ProtoMessage()               {}
-func (*Registry) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{3} }
+func (*Registry) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{7} }
 
 func (m *Registry) GetNamespaces() map[string]*NamespaceOptions {
 	if m != nil {
@@ -266,7 +381,7 @@ type NamespaceRuntimeOptions struct {
 func (m *NamespaceRuntimeOptions) Reset()                    { *m = NamespaceRuntimeOptions{} }
 func (m *NamespaceRuntimeOptions) String() string            { return proto.CompactTextString(m) }
 func (*NamespaceRuntimeOptions) ProtoMessage()               {}
-func (*NamespaceRuntimeOptions) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{4} }
+func (*NamespaceRuntimeOptions) Descriptor() ([]byte, []int) { return fileDescriptorNamespace, []int{8} }
 
 func (m *NamespaceRuntimeOptions) GetWriteIndexingPerCPUConcurrency() *google_protobuf.DoubleValue {
 	if m != nil {
@@ -286,6 +401,10 @@ func init() {
 	proto.RegisterType((*RetentionOptions)(nil), "namespace.RetentionOptions")
 	proto.RegisterType((*IndexOptions)(nil), "namespace.IndexOptions")
 	proto.RegisterType((*NamespaceOptions)(nil), "namespace.NamespaceOptions")
+	proto.RegisterType((*AggregationOptions)(nil), "namespace.AggregationOptions")
+	proto.RegisterType((*Aggregation)(nil), "namespace.Aggregation")
+	proto.RegisterType((*AggregatedAttributes)(nil), "namespace.AggregatedAttributes")
+	proto.RegisterType((*DownsampleOptions)(nil), "namespace.DownsampleOptions")
 	proto.RegisterType((*Registry)(nil), "namespace.Registry")
 	proto.RegisterType((*NamespaceRuntimeOptions)(nil), "namespace.NamespaceRuntimeOptions")
 }
@@ -505,6 +624,155 @@ func (m *NamespaceOptions) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i += n4
 	}
+	if m.CacheBlocksOnRetrieve != nil {
+		dAtA[i] = 0x62
+		i++
+		i = encodeVarintNamespace(dAtA, i, uint64(m.CacheBlocksOnRetrieve.Size()))
+		n5, err := m.CacheBlocksOnRetrieve.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n5
+	}
+	if m.AggregationOptions != nil {
+		dAtA[i] = 0x6a
+		i++
+		i = encodeVarintNamespace(dAtA, i, uint64(m.AggregationOptions.Size()))
+		n6, err := m.AggregationOptions.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n6
+	}
+	return i, nil
+}
+
+func (m *AggregationOptions) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AggregationOptions) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Aggregations) > 0 {
+		for _, msg := range m.Aggregations {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintNamespace(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *Aggregation) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Aggregation) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Aggregated {
+		dAtA[i] = 0x8
+		i++
+		if m.Aggregated {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	if m.Attributes != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintNamespace(dAtA, i, uint64(m.Attributes.Size()))
+		n7, err := m.Attributes.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n7
+	}
+	return i, nil
+}
+
+func (m *AggregatedAttributes) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AggregatedAttributes) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ResolutionNanos != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintNamespace(dAtA, i, uint64(m.ResolutionNanos))
+	}
+	if m.DownsampleOptions != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintNamespace(dAtA, i, uint64(m.DownsampleOptions.Size()))
+		n8, err := m.DownsampleOptions.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n8
+	}
+	return i, nil
+}
+
+func (m *DownsampleOptions) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DownsampleOptions) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.All {
+		dAtA[i] = 0x8
+		i++
+		if m.All {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
 	return i, nil
 }
 
@@ -543,11 +811,11 @@ func (m *Registry) MarshalTo(dAtA []byte) (int, error) {
 				dAtA[i] = 0x12
 				i++
 				i = encodeVarintNamespace(dAtA, i, uint64(v.Size()))
-				n5, err := v.MarshalTo(dAtA[i:])
+				n9, err := v.MarshalTo(dAtA[i:])
 				if err != nil {
 					return 0, err
 				}
-				i += n5
+				i += n9
 			}
 		}
 	}
@@ -573,21 +841,21 @@ func (m *NamespaceRuntimeOptions) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintNamespace(dAtA, i, uint64(m.WriteIndexingPerCPUConcurrency.Size()))
-		n6, err := m.WriteIndexingPerCPUConcurrency.MarshalTo(dAtA[i:])
+		n10, err := m.WriteIndexingPerCPUConcurrency.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n6
+		i += n10
 	}
 	if m.FlushIndexingPerCPUConcurrency != nil {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintNamespace(dAtA, i, uint64(m.FlushIndexingPerCPUConcurrency.Size()))
-		n7, err := m.FlushIndexingPerCPUConcurrency.MarshalTo(dAtA[i:])
+		n11, err := m.FlushIndexingPerCPUConcurrency.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n7
+		i += n11
 	}
 	return i, nil
 }
@@ -679,6 +947,61 @@ func (m *NamespaceOptions) Size() (n int) {
 	if m.RuntimeOptions != nil {
 		l = m.RuntimeOptions.Size()
 		n += 1 + l + sovNamespace(uint64(l))
+	}
+	if m.CacheBlocksOnRetrieve != nil {
+		l = m.CacheBlocksOnRetrieve.Size()
+		n += 1 + l + sovNamespace(uint64(l))
+	}
+	if m.AggregationOptions != nil {
+		l = m.AggregationOptions.Size()
+		n += 1 + l + sovNamespace(uint64(l))
+	}
+	return n
+}
+
+func (m *AggregationOptions) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Aggregations) > 0 {
+		for _, e := range m.Aggregations {
+			l = e.Size()
+			n += 1 + l + sovNamespace(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *Aggregation) Size() (n int) {
+	var l int
+	_ = l
+	if m.Aggregated {
+		n += 2
+	}
+	if m.Attributes != nil {
+		l = m.Attributes.Size()
+		n += 1 + l + sovNamespace(uint64(l))
+	}
+	return n
+}
+
+func (m *AggregatedAttributes) Size() (n int) {
+	var l int
+	_ = l
+	if m.ResolutionNanos != 0 {
+		n += 1 + sovNamespace(uint64(m.ResolutionNanos))
+	}
+	if m.DownsampleOptions != nil {
+		l = m.DownsampleOptions.Size()
+		n += 1 + l + sovNamespace(uint64(l))
+	}
+	return n
+}
+
+func (m *DownsampleOptions) Size() (n int) {
+	var l int
+	_ = l
+	if m.All {
+		n += 2
 	}
 	return n
 }
@@ -1303,6 +1626,428 @@ func (m *NamespaceOptions) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CacheBlocksOnRetrieve", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.CacheBlocksOnRetrieve == nil {
+				m.CacheBlocksOnRetrieve = &google_protobuf.BoolValue{}
+			}
+			if err := m.CacheBlocksOnRetrieve.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AggregationOptions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AggregationOptions == nil {
+				m.AggregationOptions = &AggregationOptions{}
+			}
+			if err := m.AggregationOptions.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipNamespace(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AggregationOptions) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowNamespace
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AggregationOptions: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AggregationOptions: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Aggregations", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Aggregations = append(m.Aggregations, &Aggregation{})
+			if err := m.Aggregations[len(m.Aggregations)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipNamespace(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Aggregation) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowNamespace
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Aggregation: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Aggregation: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Aggregated", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Aggregated = bool(v != 0)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Attributes", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Attributes == nil {
+				m.Attributes = &AggregatedAttributes{}
+			}
+			if err := m.Attributes.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipNamespace(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AggregatedAttributes) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowNamespace
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AggregatedAttributes: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AggregatedAttributes: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResolutionNanos", wireType)
+			}
+			m.ResolutionNanos = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ResolutionNanos |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DownsampleOptions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.DownsampleOptions == nil {
+				m.DownsampleOptions = &DownsampleOptions{}
+			}
+			if err := m.DownsampleOptions.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipNamespace(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthNamespace
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DownsampleOptions) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowNamespace
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DownsampleOptions: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DownsampleOptions: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field All", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowNamespace
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.All = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipNamespace(dAtA[iNdEx:])
@@ -1723,48 +2468,58 @@ func init() {
 }
 
 var fileDescriptorNamespace = []byte{
-	// 679 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0x5d, 0x6e, 0xd3, 0x4c,
-	0x14, 0xfd, 0x9c, 0xf4, 0x27, 0x9d, 0xf4, 0x27, 0xdf, 0x08, 0xa9, 0x51, 0x40, 0x51, 0x65, 0x10,
-	0x8a, 0x10, 0x8a, 0x45, 0xfa, 0x82, 0x40, 0xaa, 0x54, 0xd2, 0x52, 0x81, 0x50, 0x89, 0xa6, 0xfc,
-	0x48, 0x7d, 0x1b, 0xdb, 0x37, 0x8e, 0x55, 0x7b, 0xc6, 0x9a, 0x19, 0xd3, 0x86, 0x35, 0xf0, 0xc0,
-	0x3e, 0xd8, 0x48, 0x1f, 0x59, 0x02, 0x2a, 0x62, 0x1f, 0xc8, 0x33, 0x38, 0xb5, 0x9d, 0xb6, 0x54,
-	0xbc, 0x44, 0xce, 0xb9, 0xe7, 0xde, 0x63, 0xdf, 0x73, 0x66, 0xd0, 0x41, 0x10, 0xaa, 0x49, 0xea,
-	0xf6, 0x3d, 0x1e, 0x3b, 0xf1, 0xb6, 0xef, 0x3a, 0xf1, 0xb6, 0x23, 0x85, 0xe7, 0xf8, 0x2e, 0xe3,
-	0x3e, 0x38, 0x01, 0x30, 0x10, 0x54, 0x81, 0xef, 0x24, 0x82, 0x2b, 0xee, 0x30, 0x1a, 0x83, 0x4c,
-	0xa8, 0x07, 0x97, 0x4f, 0x7d, 0x5d, 0xc1, 0x2b, 0x33, 0xa0, 0xd3, 0x0d, 0x38, 0x0f, 0x22, 0x30,
-	0x2d, 0x6e, 0x3a, 0x76, 0x4e, 0x05, 0x4d, 0x12, 0x10, 0xd2, 0x50, 0x3b, 0x7b, 0xff, 0xaa, 0x29,
-	0xbd, 0x09, 0xc4, 0xd4, 0x4c, 0xb1, 0xbf, 0xd4, 0x51, 0x8b, 0x80, 0x02, 0xa6, 0x42, 0xce, 0xde,
-	0x26, 0xd9, 0xaf, 0xc4, 0x03, 0x74, 0x47, 0xe4, 0xd8, 0x08, 0x44, 0xc8, 0xfd, 0x43, 0xca, 0xb8,
-	0x6c, 0x5b, 0x5b, 0x56, 0xaf, 0x4e, 0xae, 0xac, 0xe1, 0x87, 0x68, 0xdd, 0x8d, 0xb8, 0x77, 0x72,
-	0x14, 0x7e, 0x06, 0xc3, 0xae, 0x69, 0x76, 0x05, 0xc5, 0x8f, 0xd1, 0xff, 0x6e, 0x3a, 0x1e, 0x83,
-	0x78, 0x99, 0xaa, 0x54, 0xfc, 0xa1, 0xd6, 0x35, 0x75, 0xbe, 0x80, 0x7b, 0x68, 0xc3, 0x80, 0x23,
-	0x2a, 0x95, 0xe1, 0x2e, 0x68, 0x6e, 0x15, 0xd6, 0xcc, 0x4c, 0x69, 0x8f, 0x2a, 0xba, 0x7f, 0x96,
-	0x84, 0x62, 0xda, 0x5e, 0xdc, 0xb2, 0x7a, 0x0d, 0x52, 0x85, 0xf1, 0x31, 0xea, 0x55, 0xa0, 0xdd,
-	0xb1, 0x02, 0x71, 0xc8, 0xd5, 0xae, 0xe7, 0x81, 0x94, 0xc5, 0x2f, 0x5e, 0xd2, 0x62, 0xb7, 0xe6,
-	0xe3, 0x1d, 0xd4, 0x19, 0xeb, 0xd7, 0x27, 0x57, 0xed, 0x6f, 0x59, 0x4f, 0xbb, 0x81, 0x61, 0x8f,
-	0xd0, 0xea, 0x2b, 0xe6, 0xc3, 0x59, 0xee, 0x44, 0x1b, 0x2d, 0x03, 0xa3, 0x6e, 0x04, 0xbe, 0x5e,
-	0x7e, 0x83, 0xe4, 0x7f, 0x6f, 0xbb, 0x6f, 0xfb, 0x7c, 0x01, 0xb5, 0x0e, 0x73, 0xef, 0xf3, 0xb1,
-	0x8f, 0x50, 0xcb, 0xe5, 0x5c, 0x49, 0x25, 0x68, 0xb2, 0x5f, 0x9a, 0x3f, 0x87, 0x63, 0x1b, 0xad,
-	0x8e, 0xa3, 0x54, 0x4e, 0x72, 0x5e, 0x4d, 0xf3, 0x4a, 0x58, 0x66, 0xea, 0xa9, 0x08, 0x15, 0xc8,
-	0x77, 0x7c, 0xc8, 0xe3, 0x38, 0x54, 0x6f, 0x78, 0xa0, 0x4d, 0x6d, 0x90, 0xf9, 0x42, 0xf6, 0xea,
-	0x5e, 0x04, 0x94, 0xa5, 0x33, 0xed, 0x05, 0x4d, 0xad, 0xa0, 0xf8, 0x01, 0x5a, 0x13, 0x90, 0xd0,
-	0x50, 0xe4, 0x34, 0x63, 0x68, 0x19, 0xc4, 0x07, 0xa8, 0x25, 0x2a, 0x01, 0xd6, 0xb6, 0x35, 0x07,
-	0x77, 0xfb, 0x97, 0xc7, 0xab, 0x9a, 0x71, 0x32, 0xd7, 0x94, 0x25, 0x48, 0x32, 0x9a, 0xc8, 0x09,
-	0x57, 0xb9, 0xe0, 0xb2, 0x49, 0x50, 0x05, 0xc6, 0xcf, 0xd1, 0x6a, 0x58, 0x70, 0xa9, 0xdd, 0xd0,
-	0x72, 0x9b, 0x05, 0xb9, 0xa2, 0x89, 0xa4, 0x44, 0xc6, 0x3b, 0x68, 0xcd, 0x9c, 0xc0, 0xbc, 0x7b,
-	0x45, 0x77, 0xb7, 0x0b, 0xdd, 0x47, 0xc5, 0x3a, 0x29, 0xd3, 0xb3, 0x5d, 0x7b, 0x3c, 0xf2, 0x3f,
-	0xea, 0xb5, 0xe6, 0x2f, 0x8a, 0xcc, 0xae, 0xe7, 0x0a, 0xf8, 0x35, 0x5a, 0x17, 0x29, 0x53, 0x61,
-	0x9c, 0x7b, 0xdf, 0x6e, 0x6a, 0x39, 0xbb, 0x20, 0x37, 0x8b, 0x07, 0x29, 0x31, 0x49, 0xa5, 0xd3,
-	0xfe, 0x66, 0xa1, 0x06, 0x81, 0x20, 0x94, 0x4a, 0x4c, 0xf1, 0x10, 0xa1, 0xd9, 0x84, 0xec, 0x66,
-	0xa8, 0xf7, 0x9a, 0x83, 0xfb, 0xa5, 0x85, 0x1b, 0xe2, 0xe5, 0x74, 0xb9, 0xcf, 0x94, 0x98, 0x92,
-	0x42, 0x5b, 0xe7, 0x18, 0x6d, 0x54, 0xca, 0xb8, 0x85, 0xea, 0x27, 0x30, 0xd5, 0x69, 0x5c, 0x21,
-	0xd9, 0x23, 0x7e, 0x82, 0x16, 0x3f, 0xd1, 0x28, 0x05, 0x9d, 0xbc, 0xb2, 0xab, 0xd5, 0x60, 0x13,
-	0xc3, 0x7c, 0x56, 0x7b, 0x6a, 0xd9, 0xbf, 0x2c, 0xb4, 0x79, 0xcd, 0x97, 0x61, 0x1f, 0x75, 0x75,
-	0x2c, 0xb5, 0x4d, 0x21, 0x0b, 0x46, 0x20, 0x86, 0xa3, 0xf7, 0x43, 0xce, 0xbc, 0x54, 0x08, 0x60,
-	0x9e, 0xd1, 0x6f, 0x0e, 0xee, 0xf5, 0xcd, 0x25, 0xdc, 0xcf, 0x2f, 0xe1, 0xfe, 0x1e, 0x4f, 0xdd,
-	0x08, 0x3e, 0x64, 0x2a, 0xe4, 0x2f, 0x33, 0x32, 0x15, 0x7d, 0x4a, 0xae, 0x57, 0xa9, 0xdd, 0x46,
-	0xe5, 0xe6, 0x19, 0x2f, 0x5a, 0xe7, 0x17, 0x5d, 0xeb, 0xfb, 0x45, 0xd7, 0xfa, 0x71, 0xd1, 0xb5,
-	0xbe, 0xfe, 0xec, 0xfe, 0xe7, 0x2e, 0xe9, 0x39, 0xdb, 0xbf, 0x03, 0x00, 0x00, 0xff, 0xff, 0x18,
-	0x2e, 0x5a, 0xd3, 0x96, 0x06, 0x00, 0x00,
+	// 848 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xcd, 0x6e, 0xdb, 0x46,
+	0x10, 0xc7, 0x4b, 0x2b, 0x8e, 0xe5, 0x91, 0x9c, 0xc8, 0x8b, 0xb4, 0x11, 0x94, 0x56, 0x0d, 0xd8,
+	0x0f, 0x08, 0x45, 0x21, 0xa1, 0xf6, 0xa5, 0x48, 0x81, 0x14, 0xfe, 0x6a, 0xd0, 0xa0, 0x75, 0x84,
+	0x4d, 0x3f, 0x80, 0xdc, 0x96, 0xe4, 0x88, 0x22, 0x42, 0xee, 0x12, 0xbb, 0xcb, 0x38, 0xee, 0x33,
+	0xe4, 0xd0, 0xf7, 0xe8, 0x8b, 0xf4, 0xd8, 0x47, 0x28, 0x5c, 0xf4, 0xd0, 0xb7, 0x28, 0xb8, 0x6b,
+	0xca, 0x2b, 0x92, 0x71, 0x8d, 0x5e, 0x04, 0x6a, 0xe6, 0x37, 0xf3, 0x9f, 0x9d, 0x99, 0x5d, 0x78,
+	0x12, 0x27, 0x7a, 0x59, 0x04, 0xd3, 0x50, 0x64, 0xb3, 0x6c, 0x3f, 0x0a, 0x66, 0xd9, 0xfe, 0x4c,
+	0xc9, 0x70, 0x16, 0x05, 0x5c, 0x44, 0x38, 0x8b, 0x91, 0xa3, 0x64, 0x1a, 0xa3, 0x59, 0x2e, 0x85,
+	0x16, 0x33, 0xce, 0x32, 0x54, 0x39, 0x0b, 0xf1, 0xea, 0x6b, 0x6a, 0x3c, 0x64, 0x7b, 0x65, 0x18,
+	0x8d, 0x63, 0x21, 0xe2, 0x14, 0x6d, 0x48, 0x50, 0x2c, 0x66, 0x67, 0x92, 0xe5, 0x39, 0x4a, 0x65,
+	0xd1, 0xd1, 0xf1, 0xff, 0xd5, 0x54, 0xe1, 0x12, 0x33, 0x66, 0xb3, 0xf8, 0x6f, 0x3a, 0x30, 0xa0,
+	0xa8, 0x91, 0xeb, 0x44, 0xf0, 0x67, 0x79, 0xf9, 0xab, 0xc8, 0x1e, 0xdc, 0x93, 0x95, 0x6d, 0x8e,
+	0x32, 0x11, 0xd1, 0x29, 0xe3, 0x42, 0x0d, 0xbd, 0x87, 0xde, 0xa4, 0x43, 0x5b, 0x7d, 0xe4, 0x53,
+	0xb8, 0x13, 0xa4, 0x22, 0x7c, 0xf9, 0x3c, 0xf9, 0x05, 0x2d, 0xbd, 0x61, 0xe8, 0x9a, 0x95, 0x7c,
+	0x0e, 0xbb, 0x41, 0xb1, 0x58, 0xa0, 0xfc, 0xa6, 0xd0, 0x85, 0xbc, 0x44, 0x3b, 0x06, 0x6d, 0x3a,
+	0xc8, 0x04, 0xee, 0x5a, 0xe3, 0x9c, 0x29, 0x6d, 0xd9, 0x5b, 0x86, 0xad, 0x9b, 0x0d, 0x59, 0x2a,
+	0x1d, 0x33, 0xcd, 0x4e, 0x5e, 0xe7, 0x89, 0x3c, 0x1f, 0x6e, 0x3e, 0xf4, 0x26, 0x5d, 0x5a, 0x37,
+	0x93, 0x17, 0x30, 0xa9, 0x99, 0x0e, 0x16, 0x1a, 0xe5, 0xa9, 0xd0, 0x07, 0x61, 0x88, 0x4a, 0xb9,
+	0x27, 0xbe, 0x6d, 0xc4, 0x6e, 0xcc, 0x93, 0xc7, 0x30, 0x5a, 0x98, 0xf2, 0x69, 0x5b, 0xff, 0xb6,
+	0x4c, 0xb6, 0x6b, 0x08, 0x7f, 0x0e, 0xfd, 0x6f, 0x79, 0x84, 0xaf, 0xab, 0x49, 0x0c, 0x61, 0x0b,
+	0x39, 0x0b, 0x52, 0x8c, 0x4c, 0xf3, 0xbb, 0xb4, 0xfa, 0x7b, 0xd3, 0x7e, 0xfb, 0xff, 0x6c, 0xc2,
+	0xe0, 0xb4, 0x9a, 0x7d, 0x95, 0xf6, 0x33, 0x18, 0x04, 0x42, 0x68, 0xa5, 0x25, 0xcb, 0x4f, 0xd6,
+	0xf2, 0x37, 0xec, 0xc4, 0x87, 0xfe, 0x22, 0x2d, 0xd4, 0xb2, 0xe2, 0x36, 0x0c, 0xb7, 0x66, 0x2b,
+	0x87, 0x7a, 0x26, 0x13, 0x8d, 0xea, 0x07, 0x71, 0x24, 0xb2, 0x2c, 0xd1, 0xdf, 0x89, 0xd8, 0x0c,
+	0xb5, 0x4b, 0x9b, 0x8e, 0xb2, 0xf4, 0x30, 0x45, 0xc6, 0x8b, 0x95, 0xf6, 0x2d, 0x83, 0xd6, 0xac,
+	0xe4, 0x63, 0xd8, 0x91, 0x98, 0xb3, 0x44, 0x56, 0x98, 0x1d, 0xe8, 0xba, 0x91, 0x3c, 0x81, 0x81,
+	0xac, 0x2d, 0xb0, 0x19, 0x5b, 0x6f, 0xef, 0xc1, 0xf4, 0xea, 0x7a, 0xd5, 0x77, 0x9c, 0x36, 0x82,
+	0xca, 0x0d, 0x52, 0x9c, 0xe5, 0x6a, 0x29, 0x74, 0x25, 0xb8, 0x65, 0x37, 0xa8, 0x66, 0x26, 0x5f,
+	0x41, 0x3f, 0x71, 0xa6, 0x34, 0xec, 0x1a, 0xb9, 0xfb, 0x8e, 0x9c, 0x3b, 0x44, 0xba, 0x06, 0x93,
+	0xc7, 0xb0, 0x63, 0x6f, 0x60, 0x15, 0xbd, 0x6d, 0xa2, 0x87, 0x4e, 0xf4, 0x73, 0xd7, 0x4f, 0xd7,
+	0xf1, 0xb2, 0xd7, 0xa1, 0x48, 0xa3, 0x9f, 0x4d, 0x5b, 0xab, 0x42, 0xc1, 0xf6, 0xba, 0xe1, 0x20,
+	0x4f, 0xe1, 0x8e, 0x2c, 0xb8, 0x4e, 0xb2, 0x6a, 0xf6, 0xc3, 0x9e, 0x91, 0xf3, 0x1d, 0xb9, 0xd5,
+	0x7a, 0xd0, 0x35, 0x92, 0xd6, 0x22, 0xc9, 0x1c, 0xde, 0x0d, 0x59, 0xb8, 0xc4, 0xc3, 0x72, 0xc3,
+	0xd4, 0x33, 0x4e, 0x51, 0xcb, 0x04, 0x5f, 0xe1, 0xb0, 0x6f, 0x52, 0x8e, 0xa6, 0xf6, 0xc5, 0x9a,
+	0x56, 0x2f, 0xd6, 0xf4, 0x50, 0x88, 0xf4, 0x27, 0x96, 0x16, 0x48, 0xdb, 0x03, 0xc9, 0xf7, 0x40,
+	0x58, 0x1c, 0x4b, 0x8c, 0x99, 0x3b, 0xbd, 0x1d, 0x93, 0xee, 0x03, 0xa7, 0xc2, 0x83, 0x06, 0x44,
+	0x5b, 0x02, 0xfd, 0x39, 0x90, 0x26, 0x49, 0x1e, 0x41, 0xdf, 0x61, 0xcb, 0x57, 0xac, 0x33, 0xe9,
+	0xed, 0xbd, 0xd7, 0x9e, 0x9e, 0xae, 0xb1, 0x3e, 0x87, 0x9e, 0xe3, 0x24, 0x63, 0x80, 0xca, 0xbd,
+	0xba, 0x31, 0x8e, 0x85, 0x7c, 0x0d, 0xc0, 0xb4, 0x96, 0x49, 0x50, 0x68, 0xb4, 0x17, 0xb2, 0xb7,
+	0xf7, 0x61, 0x8b, 0x10, 0x46, 0x07, 0x2b, 0x8c, 0x3a, 0x21, 0xfe, 0x1b, 0x0f, 0xee, 0xb5, 0x41,
+	0xe5, 0x72, 0x4a, 0x54, 0x22, 0x2d, 0xca, 0x3a, 0xdc, 0xd7, 0xb8, 0x6e, 0x26, 0x4f, 0x61, 0x37,
+	0x12, 0x67, 0x5c, 0xb1, 0x2c, 0x4f, 0x57, 0x43, 0xb7, 0xa5, 0xbc, 0xef, 0x94, 0x72, 0x5c, 0x67,
+	0x68, 0x33, 0xcc, 0xff, 0x04, 0x76, 0x1b, 0x1c, 0x19, 0x40, 0x87, 0xa5, 0xe9, 0xe5, 0xe9, 0xcb,
+	0x4f, 0xff, 0x37, 0x0f, 0xba, 0x14, 0xe3, 0x44, 0x69, 0x79, 0x4e, 0x8e, 0x00, 0x56, 0x2a, 0x55,
+	0xb3, 0x3f, 0x5a, 0xbb, 0x89, 0x16, 0xbc, 0x5a, 0x3b, 0x75, 0xc2, 0xb5, 0x3c, 0xa7, 0x4e, 0xd8,
+	0xe8, 0x05, 0xdc, 0xad, 0xb9, 0x4b, 0xd9, 0x97, 0x78, 0x6e, 0x64, 0xb7, 0x69, 0xf9, 0x49, 0xbe,
+	0x80, 0xcd, 0x57, 0xe5, 0x76, 0x5d, 0x9e, 0xee, 0x41, 0xdb, 0x4a, 0x57, 0x87, 0xb3, 0xe4, 0xa3,
+	0x8d, 0x2f, 0x3d, 0xff, 0x6f, 0x0f, 0xee, 0xbf, 0x65, 0xe5, 0x49, 0x04, 0x63, 0xf3, 0x5e, 0x99,
+	0xfb, 0x9b, 0xf0, 0x78, 0x8e, 0xf2, 0x68, 0xfe, 0xe3, 0x91, 0xe0, 0x61, 0x21, 0x25, 0xf2, 0xd0,
+	0xea, 0x97, 0x9d, 0xac, 0xef, 0xfa, 0xb1, 0x28, 0x82, 0x14, 0xed, 0xb6, 0xff, 0x47, 0x8e, 0x52,
+	0xc5, 0x3c, 0x9f, 0x6f, 0x57, 0xd9, 0xb8, 0x89, 0xca, 0xf5, 0x39, 0x0e, 0x07, 0xbf, 0x5f, 0x8c,
+	0xbd, 0x3f, 0x2e, 0xc6, 0xde, 0x9f, 0x17, 0x63, 0xef, 0xd7, 0xbf, 0xc6, 0xef, 0x04, 0xb7, 0x4d,
+	0x9e, 0xfd, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xba, 0xc3, 0xf3, 0x56, 0xaf, 0x08, 0x00, 0x00,
 }

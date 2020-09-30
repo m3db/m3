@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -55,7 +55,7 @@ type Encoder interface {
 	// passed to this method is closed, so to avoid not returning the
 	// encoder's buffer back to the pool when it is completed be sure to call
 	// close on the context eventually.
-	Stream(ctx context.Context) (xio.SegmentReader, bool)
+	Stream(ctx xcontext.Context) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int
@@ -77,13 +77,13 @@ type Encoder interface {
 	// Reset sets up the schema for schema-aware encoders such as proto encoders.
 	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
 
-	// Close closes the encoder and if pooled will return to the pool.
+	// Close closes the encoder and if pooled will return it to the pool.
 	Close()
 
-	// Discard will take ownership of the encoder data and if pooled will return to the pool.
+	// Discard will take ownership of the encoder data and if pooled will return the encoder to the pool.
 	Discard() ts.Segment
 
-	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
+	// DiscardReset will take ownership of the encoder data and reset the encoder for reuse.
 	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
 	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
@@ -280,11 +280,10 @@ type SeriesIteratorStats struct {
 	ApproximateSizeInBytes int
 }
 
-// SeriesIteratorConsolidator optionally defines methods to consolidate newly
-// reset series iterators.
+// SeriesIteratorConsolidator optionally defines methods to consolidate series iterators.
 type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
-	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
+	ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error)
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.

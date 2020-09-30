@@ -50,5 +50,5 @@ func (e *Engine) FetchByQuery(
 
 // Compile compiles an expression from an expression string
 func (e *Engine) Compile(s string) (Expression, error) {
-	return compile(s)
+	return Compile(s)
 }

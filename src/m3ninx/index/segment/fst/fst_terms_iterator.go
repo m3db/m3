@@ -28,6 +28,7 @@ import (
 )
 
 type fstTermsIterOpts struct {
+	seg         *fsSegment
 	fst         *vellum.FST
 	finalizeFST bool
 }
@@ -68,11 +69,7 @@ func (f *fstTermsIter) clear() {
 
 func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
 	f.clear()
-
 	f.opts = opts
-	if err := f.iter.Reset(opts.fst, nil, nil, nil); err != nil {
-		f.handleIterErr(err)
-	}
 }
 
 func (f *fstTermsIter) handleIterErr(err error) {
@@ -88,8 +85,19 @@ func (f *fstTermsIter) Next() bool {
 		return false
 	}
 
+	f.opts.seg.RLock()
+	defer f.opts.seg.RUnlock()
+	if f.opts.seg.finalized {
+		f.err = errReaderFinalized
+		return false
+	}
+
 	if f.firstNext {
 		f.firstNext = false
+		if err := f.iter.Reset(f.opts.fst, nil, nil, nil); err != nil {
+			f.handleIterErr(err)
+			return false
+		}
 	} else {
 		if err := f.iter.Next(); err != nil {
 			f.handleIterErr(err)

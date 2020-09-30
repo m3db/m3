@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -81,9 +83,12 @@ func testDatabaseShardWithIndexFn(
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
+
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
 		SetBufferBucketVersionsPool(series.NewBufferBucketVersionsPool(nil)).
-		SetBufferBucketPool(series.NewBufferBucketPool(nil))
+		SetBufferBucketPool(series.NewBufferBucketPool(nil)).
+		SetColdWritesEnabled(coldWritesEnabled)
+
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
 }
@@ -182,7 +187,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -190,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -260,7 +265,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -268,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -318,7 +323,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -326,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -406,7 +411,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 }
 
 func TestShardFlushSeriesFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -478,7 +483,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 }
 
 func TestShardFlushSeriesFlushSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -662,7 +667,7 @@ func TestShardColdFlush(t *testing.T) {
 }
 
 func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	now := time.Now()
 	nowFn := func() time.Time {
@@ -725,14 +730,15 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 }
 
 func newMergerTestFn(
-	reader fs.DataFileSetReader,
-	blockAllocSize int,
-	srPool xio.SegmentReaderPool,
-	multiIterPool encoding.MultiReaderIteratorPool,
-	identPool ident.Pool,
-	encoderPool encoding.EncoderPool,
-	contextPool context.Pool,
-	nsOpts namespace.Options,
+	_ fs.DataFileSetReader,
+	_ int,
+	_ xio.SegmentReaderPool,
+	_ encoding.MultiReaderIteratorPool,
+	_ ident.Pool,
+	_ encoding.EncoderPool,
+	_ context.Pool,
+	_ string,
+	_ namespace.Options,
 ) fs.Merger {
 	return &noopMerger{}
 }
@@ -740,48 +746,40 @@ func newMergerTestFn(
 type noopMerger struct{}
 
 func (m *noopMerger) Merge(
-	fileID fs.FileSetFileIdentifier,
-	mergeWith fs.MergeWith,
-	nextVersion int,
-	flushPreparer persist.FlushPreparer,
-	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
 ) (persist.DataCloser, error) {
 	closer := func() error { return nil }
 	return closer, nil
 }
 
-func newFSMergeWithMemTestFn(
-	shard databaseShard,
-	retriever series.QueryableBlockRetriever,
-	dirtySeries *dirtySeriesMap,
-	dirtySeriesToWrite map[xtime.UnixNano]*idList,
-) fs.MergeWith {
-	return &noopMergeWith{}
-}
-
-type noopMergeWith struct{}
-
-func (m *noopMergeWith) Read(
-	ctx context.Context,
-	seriesID ident.ID,
-	blockStart xtime.UnixNano,
-	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
-	return nil, false, nil
-}
-
-func (m *noopMergeWith) ForEachRemaining(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	fn fs.ForEachRemainingFn,
-	nsCtx namespace.Context,
+func (m *noopMerger) MergeAndCleanup(
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
+	_ bool,
 ) error {
 	return nil
 }
 
+func newFSMergeWithMemTestFn(
+	_ databaseShard,
+	_ series.QueryableBlockRetriever,
+	_ *dirtySeriesMap,
+	_ map[xtime.UnixNano]*idList,
+) fs.MergeWith {
+	return fs.NewNoopMergeWith()
+}
+
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -791,12 +789,12 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	s.bootstrapState = Bootstrapping
 
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
 
 func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -826,21 +824,20 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	snapshotted := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
 		i := i
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
-		series.EXPECT().
+		entry := series.NewMockDatabaseSeries(ctrl)
+		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
+		entry.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
+		entry.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				snapshotted[i] = struct{}{}
 			}).
-			Return(nil)
-		s.list.PushBack(lookup.NewEntry(series, 0))
+			Return(series.SnapshotResult{}, nil)
+		s.list.PushBack(lookup.NewEntry(entry, 0))
 	}
 
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
-
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, len(snapshotted), 2)
 	for i := 0; i < 2; i++ {
 		_, ok := snapshotted[i]
@@ -904,7 +901,7 @@ func TestShardTick(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Now()
@@ -1046,7 +1043,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
@@ -1228,7 +1225,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1286,7 +1283,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 // This tests ensures the resources held in series contained in the shard are released
 // when closing the shard.
 func TestShardTicksWhenClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1302,7 +1299,7 @@ func TestShardTicksWhenClosed(t *testing.T) {
 
 // This tests ensures the shard terminates Ticks when closing.
 func TestShardTicksStopWhenClosing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1368,7 +1365,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 // This tests the scenario where a non-empty series is not expired.
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1390,7 +1387,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 // but receives writes after tickForEachSeries finishes but before purgeExpiredSeries
 // starts. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1419,7 +1416,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 // starts, we receive a write for a series, then purgeExpiredSeries runs, then we write to
 // the series. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var entry *lookup.Entry
@@ -1494,7 +1491,7 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 }
 
 func TestShardFetchBlocksIDExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1539,7 +1536,7 @@ func (c *testCloser) Close() {
 }
 
 func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	callRegisterListenerOnShard := 0
@@ -1581,7 +1578,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().
@@ -1699,7 +1696,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 }
 
 func TestShardNewValidShardEntry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, DefaultTestOptions())
@@ -1765,4 +1762,92 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
 
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
+}
+
+func TestShardAggregateTiles(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ctx             = context.NewContext()
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: time.Minute}
+	)
+
+	sourceShard := testDatabaseShard(t, DefaultTestOptions())
+	defer sourceShard.Close()
+
+	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
+	defer targetShard.Close()
+
+	reverseIndex := NewMockNamespaceIndex(ctrl)
+	targetShard.reverseIndex = reverseIndex
+
+	sourceNsID := sourceShard.namespace.ID()
+
+	dataBytes := func() []byte {
+		encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
+		datapointTimestamp := start.Add(10 * time.Second)
+		datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
+		err := encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
+		require.NoError(t, err)
+		m3tszSegment := encoder.Discard()
+		encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
+		m3tszSegment.Finalize()
+		return encodedBytes
+	}
+
+	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
+	reader0.EXPECT().Entries().Return(2).AnyTimes()
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(), uint32(11), nil)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(), uint32(22), nil)
+	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	secondSourceBlockStart := start.Add(sourceBlockSize)
+	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
+	reader1.EXPECT().Entries().Return(1).AnyTimes()
+	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(), uint32(33), nil)
+	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	blockReaders := []fs.DataFileSetReader{reader0, reader1}
+	sourceBlockVolumes := []shardBlockVolume{
+		{start, volume0},
+		{secondSourceBlockStart, volume1},
+	}
+
+	processedTileCount, err := targetShard.AggregateTiles(
+		ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), processedTileCount)
+}
+
+func getMockReader(
+	ctrl *gomock.Controller,
+	t *testing.T,
+	shard *dbShard,
+	blockStart time.Time,
+) (*fs.MockDataFileSetReader, int) {
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
+	require.NoError(t, err)
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	reader := fs.NewMockDataFileSetReader(ctrl)
+	reader.EXPECT().Open(openOpts).Return(nil)
+	reader.EXPECT().StreamingEnabled().Return(true)
+	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
+	reader.EXPECT().Close()
+
+	return reader, latestSourceVolume
 }

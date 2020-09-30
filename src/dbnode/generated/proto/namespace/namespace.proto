@@ -21,17 +21,53 @@ message IndexOptions {
 }
 
 message NamespaceOptions {
-    bool bootstrapEnabled                  = 1;
-    bool flushEnabled                      = 2;
-    bool writesToCommitLog                 = 3;
-    bool cleanupEnabled                    = 4;
-    bool repairEnabled                     = 5;
-    RetentionOptions retentionOptions      = 6;
-    bool snapshotEnabled                   = 7;
-    IndexOptions indexOptions              = 8;
-    SchemaOptions schemaOptions            = 9;
-    bool coldWritesEnabled                 = 10;
-    NamespaceRuntimeOptions runtimeOptions = 11;
+    bool bootstrapEnabled                           = 1;
+    bool flushEnabled                               = 2;
+    bool writesToCommitLog                          = 3;
+    bool cleanupEnabled                             = 4;
+    bool repairEnabled                              = 5;
+    RetentionOptions retentionOptions               = 6;
+    bool snapshotEnabled                            = 7;
+    IndexOptions indexOptions                       = 8;
+    SchemaOptions schemaOptions                     = 9;
+    bool coldWritesEnabled                          = 10;
+    NamespaceRuntimeOptions runtimeOptions          = 11;
+    google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
+    AggregationOptions aggregationOptions           = 13;
+}
+
+// AggregationOptions is a set of options for aggregating data
+// within the namespace.
+message AggregationOptions {
+    // aggregations is a repeated field to support the ability to send aggregated data
+    // to a namespace also receiving unaggregated data. In this case, the namespace will
+    // have one Aggregation with aggregated set to false and another with aggregated set to true.
+    repeated Aggregation aggregations = 1;
+}
+
+// Aggregation describes data points within the namespace.
+message Aggregation {
+    // aggregated is true if data points are aggregated, false otherwise.
+    bool aggregated = 1;
+
+    // attributes specifies how to aggregate data when aggregated is set to true.
+    // This field is ignored when aggregated is false and required when aggregated
+    // is true.
+    AggregatedAttributes attributes = 2;
+}
+
+// AggregatedAttributes describe how to aggregate data.
+message AggregatedAttributes {
+    // resolutionNanos is the time range to aggregate data across.
+    int64 resolutionNanos = 1;
+    DownsampleOptions downsampleOptions = 2;
+}
+
+// DownsampleOptions is a set of options related to downsampling data.
+message DownsampleOptions {
+    // all indicates whether to send data points to this namespace. If false,
+    // data points must be sent via rollup/recording rules. Defaults to true.
+    bool all = 1;
 }
 
 message Registry {

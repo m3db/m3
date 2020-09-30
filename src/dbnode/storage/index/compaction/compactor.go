@@ -114,7 +114,7 @@ func (c *Compactor) Compact(
 		return nil, errCompactorClosed
 	}
 
-	c.builder.Reset(0)
+	c.builder.Reset()
 	if err := c.builder.AddSegments(segs); err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// Release resources regardless of result,
 		// otherwise old compacted segments are held onto
 		// strongly
-		builder.Reset(0)
+		builder.Reset()
 	}()
 
 	// Since this builder is likely reused between compaction
@@ -275,7 +275,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// rather than encoding them and mmap'ing the encoded documents.
 		allDocsCopy := make([]doc.Document, len(allDocs))
 		copy(allDocsCopy, allDocs)
-		fstData.DocsReader = docs.NewSliceReader(0, allDocsCopy)
+		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {
 		// Otherwise encode and reference the encoded bytes as mmap'd bytes.
 		c.buff.Reset()

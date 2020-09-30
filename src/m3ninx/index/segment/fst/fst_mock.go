@@ -387,10 +387,10 @@ func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Cal
 }
 
 // Reader mocks base method
-func (m *MockSegment) Reader() (index.Reader, error) {
+func (m *MockSegment) Reader() (segment.Reader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
-	ret0, _ := ret[0].(index.Reader)
+	ret0, _ := ret[0].(segment.Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
