@@ -118,6 +118,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": nil,
 						"cleanupEnabled":        false,
@@ -199,6 +200,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": nil,
 						"cleanupEnabled":        false,
