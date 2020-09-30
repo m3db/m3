@@ -52,6 +52,16 @@ const (
 			},
 			"runtimeOptions": {
 				"writeIndexingPerCPUConcurrency": 16
+			},
+			"aggregationOptions": {
+				"aggregations": [
+					{
+						"aggregated": true,
+						"attributes": {
+							"resolutionDuration": "5m"
+						}
+					}
+				]
 			}
 		}
 }
@@ -141,6 +151,19 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions": xjson.Map{
+							"aggregations": xjson.Array{
+								xjson.Map{
+									"aggregated": true,
+									"attributes": xjson.Map{
+										"resolutionNanos": "300000000000",
+										"downsampleOptions": xjson.Map{
+											"all": true,
+										},
+									},
+								},
+							},
+						},
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled":          true,
@@ -199,6 +222,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled":          true,

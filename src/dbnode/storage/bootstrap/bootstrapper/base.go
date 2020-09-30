@@ -78,6 +78,7 @@ func (b baseBootstrapper) String() string {
 func (b baseBootstrapper) Bootstrap(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	logFields := []zapcore.Field{
 		zap.String("bootstrapper", b.name),
@@ -96,7 +97,7 @@ func (b baseBootstrapper) Bootstrap(
 			logFields, currNamespace)
 
 		dataAvailable, err := b.src.AvailableData(currNamespace.Metadata,
-			currNamespace.DataRunOptions.ShardTimeRanges.Copy(),
+			currNamespace.DataRunOptions.ShardTimeRanges.Copy(), cache,
 			currNamespace.DataRunOptions.RunOptions)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
@@ -107,7 +108,7 @@ func (b baseBootstrapper) Bootstrap(
 		// Prepare index if required.
 		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			indexAvailable, err := b.src.AvailableIndex(currNamespace.Metadata,
-				currNamespace.IndexRunOptions.ShardTimeRanges.Copy(),
+				currNamespace.IndexRunOptions.ShardTimeRanges.Copy(), cache,
 				currNamespace.IndexRunOptions.RunOptions)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
@@ -137,7 +138,7 @@ func (b baseBootstrapper) Bootstrap(
 	b.log.Info("bootstrap from source started", logFields...)
 
 	// Run the bootstrap source.
-	currResults, err := b.src.Read(ctx, curr)
+	currResults, err := b.src.Read(ctx, curr, cache)
 
 	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if err != nil {
@@ -166,7 +167,7 @@ func (b baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// that we can attempt then pass it along to the next bootstrapper.
 	if next.Namespaces.Len() > 0 {
-		nextResults, err := b.next.Bootstrap(ctx, next)
+		nextResults, err := b.next.Bootstrap(ctx, next, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}

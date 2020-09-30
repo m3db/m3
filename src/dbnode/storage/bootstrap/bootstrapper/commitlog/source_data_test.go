@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -58,11 +59,20 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 	return md
 }
 
+func testCache(t *testing.T) bootstrap.Cache {
+	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
+		SetFilesystemOptions(fs.NewOptions()).
+		SetInstrumentOptions(instrument.NewOptions()))
+	require.NoError(t, err)
+
+	return cache
+}
+
 func TestAvailableEmptyRangeError(t *testing.T) {
 	var (
 		opts     = testDefaultOpts
 		src      = newCommitLogSource(opts, fs.Inspection{})
-		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testDefaultRunOpts)
+		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testCache(t), testDefaultRunOpts)
 	)
 	require.NoError(t, err)
 	require.True(t, result.NewShardTimeRanges().Equal(res))
@@ -160,7 +170,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	res, err := src.Read(ctx, tester.Namespaces)
+	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	require.Nil(t, res.Results)
 	tester.EnsureNoLoadedBlocks()
@@ -457,6 +467,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		testDefaultRunOpts,
 		targetRanges,
 		opts.ResultOptions().DatabaseBlockOptions().MultiReaderIteratorPool(),
+		fs.NewOptions(),
 		md,
 	)
 

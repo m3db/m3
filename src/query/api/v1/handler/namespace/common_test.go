@@ -24,9 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -132,4 +136,41 @@ func TestMetadata(t *testing.T) {
 	assert.Equal(t, 0, version)
 	assert.Len(t, meta, 2)
 	assert.NoError(t, err)
+}
+
+func TestValidateAggregationOptionsUniqueResolutionAndRetention(t *testing.T) {
+	// Validate that non-unique (resolution, retention) fails.
+	dsOpts := namespace.NewDownsampleOptions(true)
+	attrs, err := namespace.NewAggregatedAttributes(5*time.Minute, dsOpts)
+	require.NoError(t, err)
+
+	agg := namespace.NewAggregatedAggregation(attrs)
+	aggOpts := namespace.NewAggregationOptions().
+		SetAggregations([]namespace.Aggregation{agg})
+
+	nsOpts := namespace.NewOptions().
+		SetAggregationOptions(aggOpts).
+		SetRetentionOptions(retention.NewOptions().
+			SetRetentionPeriod(24 * time.Hour))
+
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"), nsOpts)
+	require.NoError(t, err)
+
+	md2, err := namespace.NewMetadata(ident.StringID("ns2"), nsOpts)
+	require.NoError(t, err)
+
+	err = validateNamespaceAggregationOptions([]namespace.Metadata{md1, md2})
+	require.Error(t, err)
+
+	// Validate that unique (resolution, retention) is fine.
+	nsOpts2 := namespace.NewOptions().
+		SetAggregationOptions(aggOpts).
+		SetRetentionOptions(retention.NewOptions().
+			SetRetentionPeriod(48 * time.Hour))
+
+	md2, err = namespace.NewMetadata(ident.StringID("ns2"), nsOpts2)
+	require.NoError(t, err)
+
+	err = validateNamespaceAggregationOptions([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
 }

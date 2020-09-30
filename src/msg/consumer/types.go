@@ -106,6 +106,12 @@ type Options interface {
 	// SetConnectionWriteBufferSize sets the buffer size.
 	SetConnectionReadBufferSize(value int) Options
 
+	// ConnectionWriteTimeout returns the timeout for writing to the connection.
+	ConnectionWriteTimeout() time.Duration
+
+	// SetConnectionWriteTimeout sets the write timeout for the connection.
+	SetConnectionWriteTimeout(value time.Duration) Options
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
