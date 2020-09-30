@@ -30,9 +30,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestDiskSnapshotSimple(t *testing.T) {
