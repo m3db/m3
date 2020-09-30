@@ -134,6 +134,12 @@ func TestReadAggregateWrite(t *testing.T) {
 	}, time.Second*10))
 
 	log.Info("validating aggregated data")
+
+	flushState, err := testSetup.DB().FlushState(trgNs.ID(), 0, dpTimeStart)
+	require.NoError(t, err)
+	require.Equal(t, 1, flushState.ColdVersionRetrievable)
+	require.Equal(t, 1, flushState.ColdVersionFlushed)
+
 	expectedDps := []ts.Datapoint{
 		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
 		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
@@ -285,9 +291,9 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
-			SetRetentionOptions(rOpts).
-			SetIndexOptions(idxOpts).
-			SetColdWritesEnabled(true)
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(idxOpts).
+				SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT).
