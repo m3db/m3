@@ -1047,9 +1047,11 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 	return r, nil
 }
 
-// Takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// interpolate takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
 // to skip over. Continues the line with the last received value when gaps (‘None’ values)
 // appear in your data, rather than breaking your line.
+//
+// interpolate will not interpolate at the beginning or end of a series, only in the middle
 func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
@@ -2267,7 +2269,7 @@ func init() {
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
 	MustRegisterFunction(integralByInterval)
-  MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
+	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
 	})
 	MustRegisterFunction(isNonNull)

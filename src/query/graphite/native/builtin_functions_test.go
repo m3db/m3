@@ -1948,26 +1948,37 @@ func TestInterpolate(t *testing.T) {
 	tests := []struct {
 		values []float64
 		output []float64
+		limit  int
 	}{
 		{
 			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
 			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
 		},
 		{
 			[]float64{math.NaN(), 2.0, math.NaN(), 4.0, math.NaN(), 6.0, math.NaN(), 8.0, math.NaN(), 10.0, math.NaN(), 12.0, math.NaN(), 14.0, math.NaN(), 16.0, math.NaN(), 18.0, math.NaN(), 20.0},
 			[]float64{math.NaN(), 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
 		},
 		{
 			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, math.NaN(), math.NaN(), math.NaN()},
 			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, math.NaN(), math.NaN(), math.NaN()},
+			-1,
 		},
 		{
 			[]float64{1.0, 2.0, 3.0, 4.0, math.NaN(), 6.0, math.NaN(), math.NaN(), 9.0, 10.0, 11.0, math.NaN(), 13.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 18.0, 19.0, 20.0},
 			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
 		},
 		{
 			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
 			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			-1,
+		},
+		{
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			3,
 		},
 	}
 
@@ -1979,12 +1990,11 @@ func TestInterpolate(t *testing.T) {
 		timeSeries := generateSeriesList(ctx, start, input, step)
 		output, err := interpolate(ctx, singlePathSpec{
 			Values: timeSeries,
-		},
-			-1)
+		}, test.limit)
 		require.NoError(t, err)
 		common.CompareOutputsAndExpected(t, step, start,
 			expected, output.Values)
-  }
+	}
 }
 
 func TestIntegralByInterval(t *testing.T) {
