@@ -94,17 +94,14 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 	return highestMax(ctx, series, len(series.Values))
 }
 
-/*
-useSeriesAbove compares the maximum of each series against the given `value`. If the series
-maximum is greater than `value`, the regular expression search and replace is
-applied against the series name to plot a related metric
-
-e.g. given useSeriesAbove(ganglia.metric1.reqs,10,'reqs','time'),
-the response time metric will be plotted only when the maximum value of the
-corresponding request/s metric is > 10
-
-&target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
-*/
+// useSeriesAbove compares the maximum of each series against the given `value`. If the series
+// maximum is greater than `value`, the regular expression search and replace is
+// applied against the series name to plot a related metric.
+// 
+// e.g. given useSeriesAbove(ganglia.metric1.reqs,10,'reqs','time'),
+// the response time metric will be plotted only when the maximum value of the
+// corresponding request/s metric is > 10
+// Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
 func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
 	var newNames []string
 
