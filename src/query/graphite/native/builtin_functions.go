@@ -1053,34 +1053,45 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
-		consecutiveNaNs := 0
-		numSteps := series.Len()
-		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+		var (
+			consecutiveNaNs = 0
+			numSteps        = series.Len()
+			vals            = ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstNonNan     = false
+		)
 
 		for i := 0; i < numSteps; i++ {
 			value := series.ValueAt(i)
 			vals.SetValueAt(i, value)
 
-			if i == 0 {
-				continue
-			} else if math.IsNaN(value) {
-				consecutiveNaNs++
-			} else if consecutiveNaNs == 0 { // have a value but no need to interpolate
-				continue
-			} else if math.IsNaN(series.ValueAt(i - consecutiveNaNs - 1)) { //have a value but can't interpolate: reset count
-				consecutiveNaNs = 0
-				continue
-			} else {
-				if limit == -1 || consecutiveNaNs <= limit {
-					for index := i - consecutiveNaNs; index < i; index++ {
-						lastGoodVal := series.ValueAt(i - consecutiveNaNs - 1)
-						v := lastGoodVal + float64(index-(i-consecutiveNaNs-1))*(value-lastGoodVal)/float64(consecutiveNaNs+1)
-						vals.SetValueAt(index, v)
+			if math.IsNaN(value) {
+				if !firstNonNan {
+					continue
+				}
 
-					}
+				consecutiveNaNs++
+				if limit >= 0 && consecutiveNaNs > limit {
 					consecutiveNaNs = 0
 				}
+
+				continue
+			} else {
+				firstNonNan = true
 			}
+
+			if consecutiveNaNs == 0 {
+				// have a value but no need to interpolate
+				continue
+			}
+
+			interpolated := series.ValueAt(i - consecutiveNaNs - 1)
+			interpolateStep := (value - interpolated) / float64(consecutiveNaNs+1)
+			for index := i - consecutiveNaNs; index < i; index++ {
+				interpolated = interpolated + interpolateStep
+				vals.SetValueAt(index, interpolated)
+			}
+
+			consecutiveNaNs = 0
 		}
 
 		name := fmt.Sprintf("interpolate(%s)", series.Name())
