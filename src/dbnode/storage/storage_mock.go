@@ -4619,32 +4619,32 @@ func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
 }
 
-// SetAfterNamespaceCreatedFn mocks base method
-func (m *MockOptions) SetAfterNamespaceCreatedFn(fn AfterNamespaceCreatedFn) Options {
+// SetNamespaceHooks mocks base method
+func (m *MockOptions) SetNamespaceHooks(hooks NamespaceHooks) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAfterNamespaceCreatedFn", fn)
+	ret := m.ctrl.Call(m, "SetNamespaceHooks", hooks)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetAfterNamespaceCreatedFn indicates an expected call of SetAfterNamespaceCreatedFn
-func (mr *MockOptionsMockRecorder) SetAfterNamespaceCreatedFn(fn interface{}) *gomock.Call {
+// SetNamespaceHooks indicates an expected call of SetNamespaceHooks
+func (mr *MockOptionsMockRecorder) SetNamespaceHooks(hooks interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAfterNamespaceCreatedFn", reflect.TypeOf((*MockOptions)(nil).SetAfterNamespaceCreatedFn), fn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceHooks", reflect.TypeOf((*MockOptions)(nil).SetNamespaceHooks), hooks)
 }
 
-// AfterNamespaceCreatedFn mocks base method
-func (m *MockOptions) AfterNamespaceCreatedFn() AfterNamespaceCreatedFn {
+// NamespaceHooks mocks base method
+func (m *MockOptions) NamespaceHooks() NamespaceHooks {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AfterNamespaceCreatedFn")
-	ret0, _ := ret[0].(AfterNamespaceCreatedFn)
+	ret := m.ctrl.Call(m, "NamespaceHooks")
+	ret0, _ := ret[0].(NamespaceHooks)
 	return ret0
 }
 
-// AfterNamespaceCreatedFn indicates an expected call of AfterNamespaceCreatedFn
-func (mr *MockOptionsMockRecorder) AfterNamespaceCreatedFn() *gomock.Call {
+// NamespaceHooks indicates an expected call of NamespaceHooks
+func (mr *MockOptionsMockRecorder) NamespaceHooks() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AfterNamespaceCreatedFn", reflect.TypeOf((*MockOptions)(nil).AfterNamespaceCreatedFn))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceHooks", reflect.TypeOf((*MockOptions)(nil).NamespaceHooks))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface
@@ -4732,4 +4732,41 @@ func (m *MockMemoryTracker) WaitForDec() {
 func (mr *MockMemoryTrackerMockRecorder) WaitForDec() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForDec", reflect.TypeOf((*MockMemoryTracker)(nil).WaitForDec))
+}
+
+// MockNamespaceHooks is a mock of NamespaceHooks interface
+type MockNamespaceHooks struct {
+	ctrl     *gomock.Controller
+	recorder *MockNamespaceHooksMockRecorder
+}
+
+// MockNamespaceHooksMockRecorder is the mock recorder for MockNamespaceHooks
+type MockNamespaceHooksMockRecorder struct {
+	mock *MockNamespaceHooks
+}
+
+// NewMockNamespaceHooks creates a new mock instance
+func NewMockNamespaceHooks(ctrl *gomock.Controller) *MockNamespaceHooks {
+	mock := &MockNamespaceHooks{ctrl: ctrl}
+	mock.recorder = &MockNamespaceHooksMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockNamespaceHooks) EXPECT() *MockNamespaceHooksMockRecorder {
+	return m.recorder
+}
+
+// OnCreatedNamespace mocks base method
+func (m *MockNamespaceHooks) OnCreatedNamespace(arg0 Namespace, arg1 GetNamespaceFn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OnCreatedNamespace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// OnCreatedNamespace indicates an expected call of OnCreatedNamespace
+func (mr *MockNamespaceHooksMockRecorder) OnCreatedNamespace(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnCreatedNamespace", reflect.TypeOf((*MockNamespaceHooks)(nil).OnCreatedNamespace), arg0, arg1)
 }

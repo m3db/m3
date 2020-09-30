@@ -826,8 +826,8 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
-	if runOpts.StorageOptions.AfterNamespaceCreatedFn != nil {
-		opts = opts.SetAfterNamespaceCreatedFn(runOpts.StorageOptions.AfterNamespaceCreatedFn)
+	if runOpts.StorageOptions.NamespaceHooks != nil {
+		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

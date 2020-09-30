@@ -1221,11 +1221,11 @@ type Options interface {
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
 
-	// SetAfterNamespaceCreatedFn sets the AfterNamespaceCreatedFn.
-	SetAfterNamespaceCreatedFn(fn AfterNamespaceCreatedFn) Options
+	// SetNamespaceHooks sets the NamespaceHooks.
+	SetNamespaceHooks(hooks NamespaceHooks) Options
 
-	// AfterNamespaceCreatedFn returns the AfterNamespaceCreatedFn.
-	AfterNamespaceCreatedFn() AfterNamespaceCreatedFn
+	// NamespaceHooks returns the NamespaceHooks.
+	NamespaceHooks() NamespaceHooks
 }
 
 // MemoryTracker tracks memory.
@@ -1296,7 +1296,10 @@ type AggregateTilesOptions struct {
 	HandleCounterResets bool
 }
 
-// AfterNamespaceCreatedFn is the type of function invoked after each namespace is created.
-type AfterNamespaceCreatedFn func (Namespace, GetNamespaceFn) error
+// NamespaceHooks allows dynamic plugging into the namespace lifecycle.
+type NamespaceHooks interface {
+	// OnCreatedNamespace gets invoked after each namespace is created.
+	OnCreatedNamespace(Namespace, GetNamespaceFn) error
+}
 
 type GetNamespaceFn func (k ident.ID) (databaseNamespace, bool)

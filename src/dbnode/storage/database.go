@@ -387,9 +387,9 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 		createdNamespaces = append(createdNamespaces, newNs)
 	}
 
-	afterNamespaceCreatedFn := d.Options().AfterNamespaceCreatedFn()
+	hooks := d.Options().NamespaceHooks()
 	for _, ns := range createdNamespaces {
-		err := afterNamespaceCreatedFn(ns, d.namespaces.Get)
+		err := hooks.OnCreatedNamespace(ns, d.namespaces.Get)
 		if err != nil {
 			return err
 		}

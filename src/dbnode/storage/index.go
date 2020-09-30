@@ -864,7 +864,7 @@ func (i *nsIndex) BootstrapsDone() uint {
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
-	var result = namespaceIndexTickResult{}
+	var result namespaceIndexTickResult
 
 	i.state.Lock()
 	defer func() {

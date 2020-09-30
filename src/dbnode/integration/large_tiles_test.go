@@ -322,7 +322,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	storageOpts := testSetup.StorageOpts().
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetAfterNamespaceCreatedFn(newShareReverseIndexFn(srcNs, trgNs))
+		SetNamespaceHooks(&aggregateTilesNamespaceHooks{srcNs, trgNs})
 	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
@@ -395,23 +395,25 @@ func writeTestData(
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 }
 
-func newShareReverseIndexFn(srcNs namespace.Metadata, trgNs namespace.Metadata) storage.AfterNamespaceCreatedFn {
-	// Share reverse index between source and target namespaces.
-	return func(ns storage.Namespace, get storage.GetNamespaceFn) error {
-		if ns.ID() == trgNs.ID() {
-			otherNs, ok := get(srcNs.ID())
-			if !ok {
-				return fmt.Errorf("source namespace %s for sharing reverse index not found", srcNs.ID())
-			}
-			reverseIndex, err := otherNs.Index()
-			if err != nil {
-				return err
-			}
-			reverseIndex.SetExtendedRetentionPeriod(ns.Options().RetentionOptions().RetentionPeriod())
-			readOnlyIndex := storage.NewReadOnlyIndexProxy(reverseIndex)
+type aggregateTilesNamespaceHooks struct {
+	srcNs, trgNs namespace.Metadata
+}
 
-			return ns.SetIndex(readOnlyIndex)
+func (h *aggregateTilesNamespaceHooks) OnCreatedNamespace(ns storage.Namespace, get storage.GetNamespaceFn) error {
+	if ns.ID() == h.trgNs.ID() {
+		// Share reverse index between source and target namespaces.
+		otherNs, ok := get(h.srcNs.ID())
+		if !ok {
+			return fmt.Errorf("source namespace %s for sharing reverse index not found", h.srcNs.ID())
 		}
-		return nil
+		reverseIndex, err := otherNs.Index()
+		if err != nil {
+			return err
+		}
+		reverseIndex.SetExtendedRetentionPeriod(ns.Options().RetentionOptions().RetentionPeriod())
+		readOnlyIndex := storage.NewReadOnlyIndexProxy(reverseIndex)
+
+		return ns.SetIndex(readOnlyIndex)
 	}
+	return nil
 }
