@@ -97,6 +97,13 @@ type Writer interface {
 		snapshotInterval time.Duration,
 	) error
 
+	WriteIndexSnapshot(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+		snapshotInterval time.Duration,
+	) error
+
 	// WriteDataWithPredicate writes all data that passes the predicate test as data files.
 	WriteDataWithPredicate(
 		nsCtx ns.Context,
@@ -136,6 +143,12 @@ type Options interface {
 
 	// BlockSize returns the blockSize.
 	BlockSize() time.Duration
+
+	// SetIndexBlockSize sets the index blockSize.
+	SetIndexBlockSize(value time.Duration) Options
+
+	// IndexBlockSize returns the index blockSize.
+	IndexBlockSize() time.Duration
 
 	// SetFilePathPrefix sets the file path prefix for sharded TSDB files.
 	SetFilePathPrefix(value string) Options

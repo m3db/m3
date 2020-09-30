@@ -28,6 +28,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -67,6 +72,16 @@ func (w *writer) WriteSnapshot(
 ) error {
 	return w.WriteSnapshotWithPredicate(
 		nsCtx, shardSet, seriesMaps, volume, WriteAllPredicate, snapshotInterval)
+}
+
+func (w *writer) WriteIndexSnapshot(
+	nsCtx ns.Context,
+	shardSet sharding.ShardSet,
+	seriesMaps SeriesBlocksByStart,
+	snapshotInterval time.Duration,
+) error {
+	return w.writeIndexSnapshotWithPredicate(
+		nsCtx, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
@@ -148,6 +163,75 @@ func (w *writer) writeWithPredicate(
 		}
 	}
 
+	return nil
+}
+
+func (w *writer) writeIndexSnapshotWithPredicate(
+	nsCtx ns.Context,
+	shardSet sharding.ShardSet,
+	seriesMaps SeriesBlocksByStart,
+	pred WriteDatapointPredicate,
+	snapshotInterval time.Duration,
+) error {
+	gOpts := w.opts
+	writer, err := fs.NewIndexWriter(fs.NewOptions().
+		SetFilePathPrefix(gOpts.FilePathPrefix()).
+		SetWriterBufferSize(gOpts.WriterBufferSize()).
+		SetNewFileMode(gOpts.NewFileMode()).
+		SetNewDirectoryMode(gOpts.NewDirectoryMode()))
+	if err != nil {
+		return err
+	}
+	shardsMap := make(map[uint32]struct{})
+	for _, shard := range shardSet.AllIDs() {
+		shardsMap[shard] = struct{}{}
+	}
+	// Convert series maps to series per block after applying predicate.
+	docsPerBlockStart := make(map[xtime.UnixNano][]doc.Document)
+	for start, data := range seriesMaps {
+		for _, series := range data {
+			var found bool
+			for _, dp := range series.Data {
+				if pred(dp) {
+					found = true
+					break
+				}
+			}
+			if found {
+				doc, err := convert.FromSeriesIDAndTags(series.ID, series.Tags)
+				if err != nil {
+					return err
+				}
+				docsPerBlockStart[start] = append(docsPerBlockStart[start], doc)
+			}
+		}
+	}
+
+	var (
+		indexBlockSize = gOpts.IndexBlockSize()
+		currStart      = xtime.ToUnixNano(gOpts.ClockOptions().NowFn()().Truncate(indexBlockSize))
+	)
+	for start, docs := range docsPerBlockStart {
+		indexVolumeType := idxpersist.SnapshotColdIndexVolumeType
+		if start.Equal(currStart) || start.After(currStart) {
+			indexVolumeType = idxpersist.SnapshotWarmIndexVolumeType
+		}
+		if err := writeIndexSnapshotToDisk(
+			nsCtx,
+			writer,
+			shardsMap,
+			indexBlockSize,
+			start.ToTime(),
+			snapshotInterval,
+			gOpts.FilePathPrefix(),
+			indexVolumeType,
+			docs,
+		); err != nil {
+			return err
+		}
+	}
+
+	// No-op for empty start periods since commit log bootstrap fulfills all requested ranges if successful.
 	return nil
 }
 
@@ -234,4 +318,63 @@ func writeToDiskWithPredicate(
 	}
 
 	return nil
+}
+
+func writeIndexSnapshotToDisk(
+	nsCtx ns.Context,
+	writer fs.IndexFileSetWriter,
+	shardsMap map[uint32]struct{},
+	blockSize time.Duration,
+	start time.Time,
+	snapshotInterval time.Duration,
+	filePathPrefix string,
+	indexVolumeType idxpersist.IndexVolumeType,
+	docs []doc.Document,
+) error {
+	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
+		filePathPrefix,
+		nsCtx.ID,
+		start,
+	)
+	if err != nil {
+		return err
+	}
+	writerOpts := fs.IndexWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   nsCtx.ID,
+			BlockStart:  start,
+			VolumeIndex: volumeIndex,
+		},
+		FileSetType:     persist.FileSetSnapshotType,
+		BlockSize:       blockSize,
+		Shards:          shardsMap,
+		IndexVolumeType: indexVolumeType,
+		Snapshot: fs.IndexWriterSnapshotOptions{
+			SnapshotTime: start.Add(snapshotInterval),
+		},
+	}
+	if err := writer.Open(writerOpts); err != nil {
+		return err
+	}
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter(fst.WriterOptions{})
+	if err != nil {
+		return err
+	}
+	builder, err := builder.NewBuilderFromDocuments(builder.NewOptions())
+	for _, doc := range docs {
+		_, err = builder.Insert(doc)
+		if err != nil {
+			return err
+		}
+	}
+	if err := segmentWriter.Reset(builder); err != nil {
+		return err
+	}
+	if err := writer.WriteSegmentFileSet(segmentWriter); err != nil {
+		return err
+	}
+	if err := builder.Close(); err != nil {
+		return err
+	}
+	return writer.Close()
 }

@@ -36,6 +36,9 @@ const (
 	// defaultBlockSize is the default block size
 	defaultBlockSize = 2 * time.Hour
 
+	// defaultIndexBlockSize is the default index block size
+	defaultIndexBlockSize = 2 * time.Hour
+
 	// defaultWriterBufferSize is the default buffer size for writing TSDB files
 	defaultWriterBufferSize = 65536
 
@@ -61,6 +64,7 @@ type options struct {
 	clockOpts        clock.Options
 	retentionPeriod  time.Duration
 	blockSize        time.Duration
+	indexBlockSize   time.Duration
 	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
@@ -82,6 +86,7 @@ func NewOptions() Options {
 		clockOpts:        clock.NewOptions(),
 		retentionPeriod:  defaultRetentionPeriod,
 		blockSize:        defaultBlockSize,
+		indexBlockSize:   defaultIndexBlockSize,
 		filePathPrefix:   defaultFilePathPrefix,
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
@@ -120,6 +125,16 @@ func (o *options) SetBlockSize(value time.Duration) Options {
 
 func (o *options) BlockSize() time.Duration {
 	return o.blockSize
+}
+
+func (o *options) SetIndexBlockSize(value time.Duration) Options {
+	opts := *o
+	opts.indexBlockSize = value
+	return &opts
+}
+
+func (o *options) IndexBlockSize() time.Duration {
+	return o.indexBlockSize
 }
 
 func (o *options) SetFilePathPrefix(value string) Options {

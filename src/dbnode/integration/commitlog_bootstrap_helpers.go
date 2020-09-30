@@ -156,7 +156,7 @@ func writeCommitLogDataBase(
 		shardSet       = s.ShardSet()
 		tagEncoderPool = opts.FilesystemOptions().TagEncoderPool()
 		tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
-		writes int
+		writes         int
 	)
 
 	// Write out commit log data.
@@ -218,16 +218,26 @@ func writeCommitLogDataBase(
 func writeSnapshotsWithPredicate(
 	t *testing.T,
 	s TestSetup,
-	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	volume int,
 	namespace namespace.Metadata,
-	specifiedTS *time.Time,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) {
 	// Write out snapshots
 	err := writeTestSnapshotsToDiskWithPredicate(
 		namespace, s, data, volume, pred, snapshotInterval)
+	require.NoError(t, err)
+}
+
+func writeIndexSnapshots(
+	t *testing.T,
+	s TestSetup,
+	data generate.SeriesBlocksByStart,
+	namespace namespace.Metadata,
+) {
+	// Write out snapshots
+	err := writeTestIndexSnapshotsToDisk(
+		namespace, s, data)
 	require.NoError(t, err)
 }

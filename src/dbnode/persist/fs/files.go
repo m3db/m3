@@ -51,6 +51,7 @@ var (
 
 	errSnapshotTimeAndIDZero = errors.New("tried to read snapshot time and ID of zero value")
 	errNonSnapshotFileset    = errors.New("tried to determine snapshot time and id of non-snapshot")
+	errInvalidContentType    = errors.New("invalid content type")
 )
 
 const (
@@ -626,12 +627,19 @@ func snapshotTimeAndID(
 }
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
+	var dir string
+	switch id.FileSetContentType {
+	case persist.FileSetDataContentType:
+		dir = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+	case persist.FileSetIndexContentType:
+		dir = NamespaceIndexSnapshotDirPath(filePathPrefix, id.Namespace)
+	default:
+		return nil, errInvalidContentType
+	}
 	var (
-		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
-		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
-
-		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
-		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+		checkpointFilePath = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
+		digestFilePath     = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
+		infoFilePath       = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
 	)
 
 	checkpointFd, err := os.Open(checkpointFilePath)
