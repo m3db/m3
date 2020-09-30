@@ -153,7 +153,7 @@ func (e mockEngine) FetchByQuery(
 }
 
 func (e mockEngine) Storage() storage.Storage {
-	return e.storage
+	return nil
 }
 
 func TestVariadicSumSeries(t *testing.T) {
