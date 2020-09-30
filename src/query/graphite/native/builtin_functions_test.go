@@ -134,6 +134,44 @@ func TestExcludeErr(t *testing.T) {
 	require.Nil(t, results.Values)
 }
 
+func TestGrep(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 5, 10)
+
+	series1 := ts.NewSeries(ctx, "collectd.test-db1.load.value", now, values)
+	series2 := ts.NewSeries(ctx, "collectd.test-db2.load.value", now, values)
+	series3 := ts.NewSeries(ctx, "collectd.test-db3.load.value", now, values)
+	series4 := ts.NewSeries(ctx, "collectd.test-db4.load.value", now, values)
+
+	testInputs := []*ts.Series{series1, series2, series3, series4}
+	expectedOutput := []common.TestSeries{
+		{
+			Name: "collectd.test-db1.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+		{
+			Name: "collectd.test-db2.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+	}
+
+	results, err := grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, ".*db[12]")
+	require.Nil(t, err)
+	require.NotNil(t, results)
+	common.CompareOutputsAndExpected(t, 10, now, expectedOutput, results.Values)
+
+	// error case
+	_, err = grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, "+++++")
+	require.NotNil(t, err)
+}
+
 func TestSortByName(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -189,6 +227,10 @@ func TestSortByTotal(t *testing.T) {
 
 func TestSortByMaxima(t *testing.T) {
 	testSortingFuncs(t, sortByMaxima, []int{4, 0, 3, 2, 1})
+}
+
+func TestSortByMinima(t *testing.T) {
+	testSortingFuncs(t, sortByMinima, []int{1, 3, 2, 4, 0})
 }
 
 func TestAbsolute(t *testing.T) {
@@ -3072,6 +3114,39 @@ func TestConsolidateBy(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestCumulative(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	stepSize := 10000
+	input := struct {
+		name        string
+		startTime   time.Time
+		stepInMilli int
+		values      []float64
+	}{
+		"foo",
+		ctx.StartTime,
+		stepSize,
+		[]float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+	}
+
+	series := ts.NewSeries(
+		ctx,
+		input.name,
+		input.startTime,
+		common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
+	)
+
+	results, err := cumulative(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	})
+	expected := common.TestSeries{Name: `consolidateBy(foo,"sum")`, Data: input.values}
+	require.Nil(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+}
+
 func TestOffsetToZero(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3320,6 +3395,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"consolidateBy",
 		"constantLine",
 		"countSeries",
+		"cumulative",
 		"currentAbove",
 		"currentBelow",
 		"dashed",
@@ -3331,6 +3407,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"exclude",
 		"exponentialMovingAverage",
 		"fallbackSeries",
+		"grep",
 		"group",
 		"groupByNode",
 		"groupByNodes",
@@ -3384,6 +3461,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"scale",
 		"scaleToSeconds",
 		"sortByMaxima",
+		"sortByMinima",
 		"sortByName",
 		"sortByTotal",
 		"squareRoot",

@@ -94,6 +94,11 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 	return highestMax(ctx, series, len(series.Values))
 }
 
+// sortByMinima sorts timeseries by the minimum value across the time period specified.
+func sortByMinima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+	return lowest(ctx, series, len(series.Values), "min")
+}
+
 type valueComparator func(v, threshold float64) bool
 
 func compareByFunction(
@@ -197,6 +202,26 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 
 	r := ts.SeriesList(series)
 	r.Values = series.Values[0:upperBound]
+	return r, nil
+}
+
+// grep takes a metric or a wildcard seriesList, followed by a regular
+// expression in double quotes. Excludes metrics that don’t match the regular expression.
+func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.SeriesList, error) {
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	filtered := seriesList.Values[:0]
+	for _, series := range seriesList.Values {
+		if re.MatchString(series.Name()) {
+			filtered = append(filtered, series)
+		}
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = filtered
 	return r, nil
 }
 
@@ -2137,6 +2162,11 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	return r, nil
 }
 
+// cumulative is an alias for consolidateBy(series, 'sum')
+func cumulative(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return consolidateBy(ctx, seriesList, "sum")
+}
+
 // offsetToZero offsets a metric or wildcard seriesList by subtracting the minimum
 // value in the series from each data point.
 func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
@@ -2239,6 +2269,7 @@ func init() {
 	MustRegisterFunction(consolidateBy)
 	MustRegisterFunction(constantLine)
 	MustRegisterFunction(countSeries)
+	MustRegisterFunction(cumulative)
 	MustRegisterFunction(currentAbove)
 	MustRegisterFunction(currentBelow)
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
@@ -2252,6 +2283,7 @@ func init() {
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
 	MustRegisterFunction(groupByNodes)
@@ -2322,6 +2354,7 @@ func init() {
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortByMaxima)
+	MustRegisterFunction(sortByMinima)
 	MustRegisterFunction(sortByName)
 	MustRegisterFunction(sortByTotal)
 	MustRegisterFunction(squareRoot)

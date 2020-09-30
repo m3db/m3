@@ -27,6 +27,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -45,7 +46,7 @@ type crossBlockReader struct {
 	iOpts instrument.Options
 
 	id          ident.BytesID
-	encodedTags []byte
+	encodedTags ts.EncodedTags
 	records     []BlockRecord
 	err         error
 }
@@ -140,7 +141,7 @@ func (r *crossBlockReader) Next() bool {
 	return true
 }
 
-func (r *crossBlockReader) Current() (ident.BytesID, []byte, []BlockRecord) {
+func (r *crossBlockReader) Current() (ident.BytesID, ts.EncodedTags, []BlockRecord) {
 	return r.id, r.encodedTags, r.records
 }
 
