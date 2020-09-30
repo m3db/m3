@@ -22,6 +22,7 @@ package fs
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -536,9 +537,8 @@ func (s *fileSystemSource) read(
 		}
 		if res == nil {
 			res = newResult
-		} else {
-			res = res.mergedResult(newResult)
 		}
+		res = res.mergedResult(newResult)
 	}
 
 	if run == bootstrapDataRunType {
@@ -575,6 +575,7 @@ func (s *fileSystemSource) read(
 			// We may have less we need to read
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
+			log.Println("subtract ->", r.fulfilled)
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
@@ -615,6 +616,12 @@ func (s *fileSystemSource) read(
 	case bootstrapIndexRunType:
 		// NB(bodu): We no longer persist index blocks for TSDB blocks missing persisted index blocks.
 		// See bootstrapper README section on "TSDB data on disk missing index data" for more details.
+		// We just mark these shard time ranges as unfulfilled. The commitlog bootstrapper should later
+		// mark any initialized shards as fulfilled, leaving only non-initialized shards for the peers
+		// bootstrapper to fulfill.
+		result := newRunResult()
+		result.index.SetUnfulfilled(shardTimeRanges)
+		setOrMergeResult(result)
 	default:
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}

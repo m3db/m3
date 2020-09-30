@@ -199,20 +199,6 @@ func testShardTimeRanges() result.ShardTimeRanges {
 	return result.NewShardTimeRanges().Set(testShard, testTimeRanges())
 }
 
-func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
-	// NB: since index files are not corrupted on this run, it's expected that
-	// `testBlockSize` values should be fulfilled in the index block. This is
-	// `testBlockSize` rather than `testIndexSize` since the files generated
-	// by this test use 2 hour (which is `testBlockSize`) reader blocks.
-	return result.NewShardTimeRanges().Set(
-		testShard,
-		xtime.NewRanges(xtime.Range{
-			Start: testStart.Add(testBlockSize),
-			End:   testStart.Add(11 * time.Hour),
-		}),
-	)
-}
-
 func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
 	writeGoodFilesWithFsOpts(t, namespace, shard, newTestFsOptions(dir))
 }
@@ -611,8 +597,7 @@ func TestReadDataCorruptionErrorNoIndex(t *testing.T) {
 }
 
 func TestReadDataCorruptionErrorWithIndex(t *testing.T) {
-	expectedIndex := testBootstrappingIndexShardTimeRanges()
-	testReadDataCorruptionErrorWithIndexEnabled(t, true, expectedIndex)
+	testReadDataCorruptionErrorWithIndexEnabled(t, true, testShardTimeRanges())
 }
 
 func testReadDataCorruptionErrorWithIndexEnabled(
@@ -676,8 +661,7 @@ func TestReadValidateErrorNoIndex(t *testing.T) {
 }
 
 func TestReadValidateErrorWithIndex(t *testing.T) {
-	expectedIndex := testBootstrappingIndexShardTimeRanges()
-	testReadValidateErrorWithIndexEnabled(t, true, expectedIndex)
+	testReadValidateErrorWithIndexEnabled(t, true, testShardTimeRanges())
 }
 
 func testReadValidateErrorWithIndexEnabled(
@@ -754,8 +738,7 @@ func TestReadOpenErrorNoIndex(t *testing.T) {
 }
 
 func TestReadOpenErrorWithIndex(t *testing.T) {
-	expectedIndex := testBootstrappingIndexShardTimeRanges()
-	testReadOpenError(t, true, expectedIndex)
+	testReadOpenError(t, true, testShardTimeRanges())
 }
 
 func testReadOpenError(
@@ -854,10 +837,6 @@ func TestReadDeleteOnError(t *testing.T) {
 	}
 
 	reader.EXPECT().Open(rOpts).Return(nil).AnyTimes()
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("foo"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), nil)
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("bar"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), errors.New("foo"))
 
 	reader.EXPECT().
 		Range().
