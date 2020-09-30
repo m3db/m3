@@ -2852,9 +2852,11 @@ READER:
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		if err = s.writingIsFinished(opts.Start, nextVolume); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: opts.Start,
+		}, block.LeaseState{Volume: nextVolume})
 	}
 
 	closed = true
@@ -2905,48 +2907,6 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
-func (s *dbShard) writingIsFinished(startTime time.Time, nextVersion int) error {
-	// After writing the full block successfully update the ColdVersionFlushed number. This will
-	// allow the SeekerManager to open a lease on the latest version of the fileset files because
-	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
-	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
-	// evicted (which is the desired behavior because we haven't updated the open leases yet which
-	// means the newly written data is not available for querying via the SeekerManager yet.)
-	s.setFlushStateColdVersionFlushed(startTime, nextVersion)
-
-	// Notify all block leasers that a new volume for the namespace/shard/blockstart
-	// has been created. This will block until all leasers have relinquished their
-	// leases.
-	_, err := s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
-		Namespace:  s.namespace.ID(),
-		Shard:      s.ID(),
-		BlockStart: startTime,
-	}, block.LeaseState{Volume: nextVersion})
-	// After writing the full block successfully **and** propagating the new lease to the
-	// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
-	// completes concurrent ticks will be able to evict the data from memory that was just flushed
-	// (which is now safe to do since the SeekerManager has been notified of the presence of new
-	// files).
-	//
-	// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
-	// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
-	// which would increase the complexity of the code to address a situation that is probably not
-	// recoverable (failure to UpdateOpenLeases is an invariant violated error).
-	s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
-	if err != nil {
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
-			l.With(
-				zap.String("namespace", s.namespace.ID().String()),
-				zap.Uint32("shard", s.ID()),
-				zap.Time("blockStart", startTime),
-				zap.Int("nextVersion", nextVersion),
-			).Error("failed to update open leases after updating flush state cold version")
-		})
-		return err
-	}
-	return nil
-}
-
 type shardColdFlushDone struct {
 	startTime   time.Time
 	nextVersion int
@@ -2968,10 +2928,44 @@ func (s shardColdFlush) Done() error {
 			multiErr = multiErr.Add(err)
 			continue
 		}
+		// After writing the full block successfully update the ColdVersionFlushed number. This will
+		// allow the SeekerManager to open a lease on the latest version of the fileset files because
+		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
+		// evicted (which is the desired behavior because we haven't updated the open leases yet which
+		// means the newly written data is not available for querying via the SeekerManager yet.)
+		s.shard.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
-		err := s.shard.writingIsFinished(startTime, nextVersion)
+		// Notify all block leasers that a new volume for the namespace/shard/blockstart
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		_, err := s.shard.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+			Namespace:  s.shard.namespace.ID(),
+			Shard:      s.shard.ID(),
+			BlockStart: startTime,
+		}, block.LeaseState{Volume: nextVersion})
+		// After writing the full block successfully **and** propagating the new lease to the
+		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+		// completes concurrent ticks will be able to evict the data from memory that was just flushed
+		// (which is now safe to do since the SeekerManager has been notified of the presence of new
+		// files).
+		//
+		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
+		// which would increase the complexity of the code to address a situation that is probably not
+		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+		s.shard.setFlushStateColdVersionRetrievable(startTime, nextVersion)
 		if err != nil {
+			instrument.EmitAndLogInvariantViolation(s.shard.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.With(
+					zap.String("namespace", s.shard.namespace.ID().String()),
+					zap.Uint32("shard", s.shard.ID()),
+					zap.Time("blockStart", startTime),
+					zap.Int("nextVersion", nextVersion),
+				).Error("failed to update open leases after updating flush state cold version")
+			})
 			multiErr = multiErr.Add(err)
+			continue
 		}
 	}
 	return multiErr.FinalError()
