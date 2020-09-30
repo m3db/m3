@@ -2852,7 +2852,7 @@ READER:
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		if err = s.writingIsFinished(opts.Start, nextVolume); err != nil {
+		if err = s.finishWriting(opts.Start, nextVolume); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -2905,7 +2905,7 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
-func (s *dbShard) writingIsFinished(startTime time.Time, nextVersion int) error {
+func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
 	// allow the SeekerManager to open a lease on the latest version of the fileset files because
 	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
@@ -2969,7 +2969,7 @@ func (s shardColdFlush) Done() error {
 			continue
 		}
 
-		err := s.shard.writingIsFinished(startTime, nextVersion)
+		err := s.shard.finishWriting(startTime, nextVersion)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
