@@ -134,6 +134,44 @@ func TestExcludeErr(t *testing.T) {
 	require.Nil(t, results.Values)
 }
 
+func TestGrep(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 5, 10)
+
+	series1 := ts.NewSeries(ctx, "collectd.test-db1.load.value", now, values)
+	series2 := ts.NewSeries(ctx, "collectd.test-db2.load.value", now, values)
+	series3 := ts.NewSeries(ctx, "collectd.test-db3.load.value", now, values)
+	series4 := ts.NewSeries(ctx, "collectd.test-db4.load.value", now, values)
+
+	testInputs := []*ts.Series{series1, series2, series3, series4}
+	expectedOutput := []common.TestSeries{
+		{
+			Name: "collectd.test-db1.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+		{
+			Name: "collectd.test-db2.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+	}
+
+	results, err := grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, ".*db[12]")
+	require.Nil(t, err)
+	require.NotNil(t, results)
+	common.CompareOutputsAndExpected(t, 10, now, expectedOutput, results.Values)
+
+	// error case
+	_, err = grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, "+++++")
+	require.NotNil(t, err)
+}
+
 func TestSortByName(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3312,6 +3350,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"exclude",
 		"exponentialMovingAverage",
 		"fallbackSeries",
+		"grep",
 		"group",
 		"groupByNode",
 		"groupByNodes",
