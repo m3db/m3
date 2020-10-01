@@ -175,8 +175,10 @@ func TestParseTimeReferenceErrors(t *testing.T) {
 		"random",
 		":",
 		"8:5",
-		"10:00pm6am",
 		"99pm",
+		"12:77pm",
+		"23:00pm",
+		"10:00pm6am",
 	}
 
 	for _, test := range tests {

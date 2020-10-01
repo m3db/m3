@@ -35,7 +35,9 @@ var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
-var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
+var rePM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])pm)$`) // 8pm, 12pm
+var reAM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])am)$`) // 2am, 11am
+var reTimeOfDayWithColon = regexp.MustCompile(`(?i)^(([0-1]?)([0-9]):([0-5])([0-9])((am|pm)?))$`) // 8:12pm, 11:20am, 2:00am
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,
@@ -184,6 +186,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		refDate time.Time
 	)
 
+	ref = strings.ToLower(ref)
 	if ref == "" || ref == "now" {
 		return now, nil
 	}
@@ -198,9 +201,9 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 
 	rawRef := ref
 
-	// Time of Day Reference
-	i := strings.Index(ref, ":")
-	if 0 < i && i < 3 {
+	// Time of Day Reference (8:12pm, 11:20am, 2:00am, etc.)
+	if reTimeOfDayWithColon.MatchString(rawRef) {
+		i := strings.Index(ref, ":")
 		newHour, err := strconv.ParseInt(ref[:i], 10, 0)
 		if err != nil {
 			return time.Time{}, err
@@ -212,6 +215,9 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 				return time.Time{}, err
 			}
 			minute = int(newMinute)
+			if minute > 59 {
+				return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown time reference %s", rawRef))
+			}
 			ref = ref[i+3:]
 		}
 
@@ -226,8 +232,8 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	}
 
 	// Xam or XXam
-	i = strings.Index(ref, "am")
-	if 0 < i && i < 3 {
+	if reAM.MatchString(rawRef) {
+		i := strings.Index(ref, "am")
 		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
 		if err != nil {
 			return time.Time{}, err
@@ -238,8 +244,8 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	}
 
 	// Xpm or XXpm
-	i = strings.Index(ref, "pm")
-	if 0 < i && i < 3 {
+	if rePM.MatchString(rawRef) {
+		i := strings.Index(ref, "pm")
 		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
 		if err != nil {
 			return time.Time{}, err
@@ -252,13 +258,13 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		ref = ref[i+2:]
 	}
 
-	if strings.HasPrefix(ref, "noon") {
+	if strings.HasPrefix(rawRef, "noon") {
 		hour, minute = 12, 0
 		ref = ref[4:]
-	} else if strings.HasPrefix(ref, "midnight") {
+	} else if strings.HasPrefix(rawRef, "midnight") {
 		hour, minute = 0, 0
 		ref = ref[8:]
-	} else if strings.HasPrefix(ref, "teatime") {
+	} else if strings.HasPrefix(rawRef, "teatime") {
 		hour, minute = 16, 0
 		ref = ref[7:]
 	}
@@ -266,13 +272,13 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	refDate = time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 
 	// Day reference
-	if ref == "yesterday" {
+	if rawRef == "yesterday" {
 		refDate = refDate.Add(time.Hour * -24)
-	} else if ref == "tomorrow" {
+	} else if rawRef == "tomorrow" {
 		refDate = refDate.Add(time.Hour * 24)
-	} else if ref == "today" {
+	} else if rawRef == "today" {
 		return refDate, nil
-	} else if reMonthAndDay.MatchString(ref) { // monthDay (january10, may6, may06 etc.)
+	} else if reMonthAndDay.MatchString(rawRef) { // monthDay (january10, may6, may06 etc.)
 		day := 0
 		monthString := ""
 		if val, err := strconv.ParseInt(ref[len(ref)-2:], 10, 64); err == nil {
@@ -285,7 +291,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 			return refDate, errors.NewInvalidParamsError(fmt.Errorf("day of month required after month name"))
 		}
 		refDate = time.Date(refDate.Year(), time.Month(months[monthString]), day, hour, minute, 0, 0, refDate.Location())
-	} else if reDayOfWeek.MatchString(ref) { // DayOfWeek (Monday, etc)
+	} else if reDayOfWeek.MatchString(rawRef) { // DayOfWeek (Monday, etc)
 		refDate = refDate.Add(getWeekDayOffset(ref, refDate))
 	} else if ref != "" {
 		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown time reference %s", rawRef))
