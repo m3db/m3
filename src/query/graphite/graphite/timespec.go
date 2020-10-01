@@ -140,12 +140,16 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 	ref, offset := s, ""
 	if strings.Contains(s, "+") {
 		stringSlice := strings.Split(s, "+")
-		ref, offset = stringSlice[0], stringSlice[1]
-		offset = "+" + offset
+		if len(stringSlice) == 2 {
+		     ref, offset = stringSlice[0], stringSlice[1]
+		     offset = "+" + offset
+		}
 	} else if strings.Contains(s, "-") {
 		stringSlice := strings.Split(s, "-")
-		ref, offset = stringSlice[0], stringSlice[1]
-		offset = "-" + offset
+		if len(stringSlice) == 2 {
+	               ref, offset = stringSlice[0], stringSlice[1]
+		      offset = "-" + offset
+		}
 	}
 	parsedReference, err := ParseTimeReference(ref, now)
 	if err == nil {
