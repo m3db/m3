@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
+	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -200,6 +201,11 @@ type HandlerOptions interface {
 	InstantQueryRouter() QueryRouter
 	// SetInstantQueryRouter sets query router for instant queries.
 	SetInstantQueryRouter(value QueryRouter) HandlerOptions
+
+	// GraphiteStorageOptions returns the Graphite storage options.
+	GraphiteStorageOptions() graphite.M3WrappedStorageOptions
+	// SetGraphiteStorageOptions sets the Graphite storage options.
+	SetGraphiteStorageOptions(value graphite.M3WrappedStorageOptions) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -226,6 +232,7 @@ type handlerOptions struct {
 	nowFn                 clock.NowFn
 	queryRouter           QueryRouter
 	instantQueryRouter    QueryRouter
+	graphiteStorageOpts   graphite.M3WrappedStorageOptions
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -255,6 +262,7 @@ func NewHandlerOptions(
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
+	graphiteStorageOpts graphite.M3WrappedStorageOptions,
 ) (HandlerOptions, error) {
 	timeout := cfg.Query.TimeoutOrDefault()
 	if embeddedDbCfg != nil &&
@@ -286,8 +294,9 @@ func NewHandlerOptions(
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
-		queryRouter:        queryRouter,
-		instantQueryRouter: instantQueryRouter,
+		queryRouter:         queryRouter,
+		instantQueryRouter:  instantQueryRouter,
+		graphiteStorageOpts: graphiteStorageOpts,
 	}, nil
 }
 
@@ -527,5 +536,15 @@ func (o *handlerOptions) InstantQueryRouter() QueryRouter {
 func (o *handlerOptions) SetInstantQueryRouter(value QueryRouter) HandlerOptions {
 	opts := *o
 	opts.instantQueryRouter = value
+	return &opts
+}
+
+func (o *handlerOptions) GraphiteStorageOptions() graphite.M3WrappedStorageOptions {
+	return o.graphiteStorageOpts
+}
+
+func (o *handlerOptions) SetGraphiteStorageOptions(value graphite.M3WrappedStorageOptions) HandlerOptions {
+	opts := *o
+	opts.graphiteStorageOpts = value
 	return &opts
 }

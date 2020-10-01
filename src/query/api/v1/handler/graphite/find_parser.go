@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
-	graphiteStorage "github.com/m3db/m3/src/query/graphite/storage"
+	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
@@ -97,7 +97,7 @@ func parseFindParamsToQueries(r *http.Request) (
 				http.StatusBadRequest)
 	}
 
-	matchers, err := graphiteStorage.TranslateQueryToMatchersWithTerminator(query)
+	matchers, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, nil, "",
 			xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
