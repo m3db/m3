@@ -59,7 +59,7 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
-	validExtendedOpts = newTestExtendedOptionsProto("foo")
+	validExtendedOpts = newTestExtendedOptionsProto(1)
 
 	validAggregationOpts = nsproto.AggregationOptions{
 		Aggregations: []*nsproto.Aggregation{
@@ -134,40 +134,42 @@ var (
 )
 
 type testExtendedOptions struct {
-	value string
+	enabled        bool
+	blockSizeNanos int64
 }
 
-func newTestExtendedOptionsProto(s string) *protobuftypes.Any {
-	strMsg := &protobuftypes.StringValue{Value: s}
-	serializedMsg, _ := proto.Marshal(strMsg)
+func newTestExtendedOptionsProto(value int64) *protobuftypes.Any {
+	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
+	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
+	serializedMsg, _ := proto.Marshal(msg)
 
 	return &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(strMsg),
+		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
 		Value:   serializedMsg,
 	}
 }
 
 func (o *testExtendedOptions) ToProto() (proto.Message, string) {
-	return &protobuftypes.StringValue{Value: o.value}, testTypeUrlPrefix
+	return &nsproto.IndexOptions{Enabled: o.enabled, BlockSizeNanos: o.blockSizeNanos}, testTypeUrlPrefix
 }
 
 func (o *testExtendedOptions) Validate() error {
-	if o.value == "invalid" {
+	if o.blockSizeNanos == 44 {
 		return errors.New("invalid ExtendedOptions")
 	}
 	return nil
 }
 
-func convertProtobufStringValue(message proto.Message) (namespace.ExtendedOptions, error) {
-	strVal := message.(*protobuftypes.StringValue)
-	if strVal.Value == "error" {
+func convertProtobufIndexOptions(message proto.Message) (namespace.ExtendedOptions, error) {
+	value := message.(*nsproto.IndexOptions)
+	if value.BlockSizeNanos == 55 {
 		return nil, errors.New("error in converter")
 	}
-	return &testExtendedOptions{strVal.Value}, nil
+	return &testExtendedOptions{value.Enabled, value.BlockSizeNanos}, nil
 }
 
 func init() {
-	namespace.RegisterExtendedOptionsConverter(testTypeUrlPrefix, &protobuftypes.StringValue{}, convertProtobufStringValue)
+	namespace.RegisterExtendedOptionsConverter(testTypeUrlPrefix, &nsproto.IndexOptions{}, convertProtobufIndexOptions)
 }
 
 func TestNamespaceToRetentionValid(t *testing.T) {
@@ -358,11 +360,11 @@ func TestInvalidExtendedOptions(t *testing.T) {
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
 	assert.Equal(t, errors.New("dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value"), err)
 
-	invalidExtendedOptsConverterFailure := newTestExtendedOptionsProto("error")
+	invalidExtendedOptsConverterFailure := newTestExtendedOptionsProto(55)
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
 	assert.Equal(t, errors.New("error in converter"), err)
 
-	invalidExtendedOpts := newTestExtendedOptionsProto("invalid")
+	invalidExtendedOpts := newTestExtendedOptionsProto(44)
 	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
 	assert.Equal(t, errors.New("invalid ExtendedOptions"), err)
 }
@@ -444,11 +446,11 @@ func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, obs
 		return
 	}
 
-	var stringValue = &protobuftypes.StringValue{}
-	err := protobuftypes.UnmarshalAny(expectedProto, stringValue)
+	var value = &nsproto.IndexOptions{}
+	err := protobuftypes.UnmarshalAny(expectedProto, value)
 	require.NoError(t, err)
 
-	expected, err := convertProtobufStringValue(stringValue)
+	expected, err := convertProtobufIndexOptions(value)
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, observed)
