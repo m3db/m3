@@ -615,13 +615,6 @@ func (s *m3storage) Write(
 	ctx context.Context,
 	query *storage.WriteQuery,
 ) error {
-	// Check if the query was interrupted.
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
 	if query == nil {
 		return errors.ErrNilWriteQuery
 	}
