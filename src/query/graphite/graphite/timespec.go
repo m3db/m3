@@ -177,7 +177,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	for _, format := range formats {
 		t, err := time.Parse(format, ref)
 		if err == nil {
-			return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, 0, 0, now.Location()), nil
+			return t, nil
 		}
 	}
 
