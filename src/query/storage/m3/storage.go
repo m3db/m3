@@ -346,7 +346,7 @@ func (s *m3storage) fetchCompressed(
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, m3query, ctx.Err()
+		return nil, index.Query{}, ctx.Err()
 	default:
 	}
 
