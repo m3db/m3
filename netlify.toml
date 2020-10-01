@@ -7,8 +7,8 @@
   # the build. This is relative to the base directory if one has been set, or the
   # root directory if a base has not been set. This sample publishes the
   # directory located at the absolute path "root/project/build-output"
-  publish = "docs/public"
+  publish = "public"
 
-[context."chrischinch/hugo_switch"]
-  command = "hugo"  
+# [context."chrischinch/hugo_switch"]
+  command = "hugo --gc --minify"
   HUGO_VERSION = "0.75.1"
