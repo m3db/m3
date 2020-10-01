@@ -210,7 +210,7 @@ func (s *m3storage) FetchCompressed(
 		_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 			tracepoint.FetchCompressedInspectSeries)
 		iters := result.SeriesIterators()
-		if err := processor.InspectSeries(ctx, *query, iters); err != nil {
+		if err := processor.InspectSeries(ctx, *query, queryOptions, iters); err != nil {
 			s.logger.Error("error inspecting series", zap.Error(err))
 		}
 		if sampled {

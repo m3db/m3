@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -108,6 +109,7 @@ type SeriesIteratorProcessor interface {
 	InspectSeries(
 		ctx context.Context,
 		query storage.FetchQuery,
+		queryOpts index.QueryOptions,
 		seriesIterators []encoding.SeriesIterator,
 	) error
 }
