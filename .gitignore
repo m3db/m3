@@ -39,8 +39,6 @@ coverage/
 # Release directory
 dist/
 
-# Docs directory
-site/
 
 # Node
 node_modules/
@@ -63,3 +61,5 @@ m3db.io/openapi
 #docs ignores
 docs-beta/public
 docs/public
+docs/site
+site
