@@ -29,51 +29,50 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	xclock "github.com/m3db/m3/src/x/clock"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
 )
 
-var (
-	testBackgroundProcessExecuted atomic.Bool
-	testBackgroundProcessInstance storage.BackgroundProcess = &testBackgroundProcess{}
-)
-
 type testBackgroundProcess struct {
-	stopped atomic.Bool
-}
-
-func newTestBackgroundProcess(storage.Database, storage.Options) (storage.BackgroundProcess, error) {
-	return testBackgroundProcessInstance, nil
+	executed, reported, stopped atomic.Int32
 }
 
 func (p *testBackgroundProcess) Run() {
-	testBackgroundProcessExecuted.Store(true)
-	for !p.stopped.Load() {
-		time.Sleep(time.Second)
-	}
+	xclock.WaitUntil(func() bool {
+		return p.reported.Load() > 0
+	}, time.Minute)
+	p.executed.Inc()
+	xclock.WaitUntil(func() bool {
+		return p.stopped.Load() > 0
+	}, time.Minute)
 }
 
 func (p *testBackgroundProcess) Stop() {
-	p.stopped.Store(true)
+	p.stopped.Inc()
 	return
 }
 
 func (p *testBackgroundProcess) Report() {
+	p.reported.Inc()
 	return
 }
 
 func TestRunCustomBackgroundProcess(t *testing.T) {
-	testOpts := NewTestOptions(t)
+	testOpts := NewTestOptions(t).SetReportInterval(time.Millisecond)
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
 	defer testSetup.Close()
 
+	backgroundProcess := &testBackgroundProcess{}
+
 	storageOpts := testSetup.StorageOpts().
-		SetBackgroundProcessFns([]storage.NewBackgroundProcessFn{newTestBackgroundProcess})
+		SetBackgroundProcessFns([]storage.NewBackgroundProcessFn{
+			func(storage.Database, storage.Options) (storage.BackgroundProcess, error) {
+				return backgroundProcess, nil
+			}})
 	testSetup.SetStorageOpts(storageOpts)
 
 	log := storageOpts.InstrumentOptions().Logger()
-
-	require.False(t, testBackgroundProcessExecuted.Load())
 
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
@@ -82,12 +81,14 @@ func TestRunCustomBackgroundProcess(t *testing.T) {
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
+		assert.Equal(t, int32(1), backgroundProcess.stopped.Load(), "failed to stop")
 	}()
 
 	log.Info("waiting for the custom background process to execute")
-	executed := xclock.WaitUntil(func() bool {
-		return testBackgroundProcessExecuted.Load()
+	xclock.WaitUntil(func() bool {
+		return backgroundProcess.executed.Load() > 0
 	}, time.Minute)
 
-	require.True(t, executed)
+	assert.Equal(t, int32(1), backgroundProcess.executed.Load(), "failed to execute")
+	assert.True(t, backgroundProcess.reported.Load() > 0, "failed to report")
 }
