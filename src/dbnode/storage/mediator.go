@@ -185,11 +185,9 @@ func (m *mediator) Report() {
 	m.databaseFileSystemManager.Report()
 	m.databaseColdFlushManager.Report()
 
-	m.Lock()
 	for _, process := range m.backgroundProcesses {
 		process.Report()
 	}
-	m.Unlock()
 }
 
 func (m *mediator) Close() error {
