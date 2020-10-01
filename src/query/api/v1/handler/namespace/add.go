@@ -152,7 +152,12 @@ func (h *AddHandler) Add(
 		}
 	}
 
-	nsMap, err := namespace.NewMap(append(currentMetadata, md))
+	newMDs := append(currentMetadata, md)
+	if err = validateNamespaceAggregationOptions(newMDs); err != nil {
+		return emptyReg, err
+	}
+
+	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
 		return emptyReg, err
 	}
