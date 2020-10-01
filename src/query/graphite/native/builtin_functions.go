@@ -205,6 +205,26 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	return r, nil
 }
 
+// grep takes a metric or a wildcard seriesList, followed by a regular
+// expression in double quotes. Excludes metrics that don’t match the regular expression.
+func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.SeriesList, error) {
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	filtered := seriesList.Values[:0]
+	for _, series := range seriesList.Values {
+		if re.MatchString(series.Name()) {
+			filtered = append(filtered, series)
+		}
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = filtered
+	return r, nil
+}
+
 // timeShift draws the selected metrics shifted in time. If no sign is given, a minus sign ( - ) is
 // implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
 // be shifted forward in time
@@ -1049,6 +1069,64 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 
 	r := ts.SeriesList(input)
 	r.Values = results
+	return r, nil
+}
+
+// interpolate takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// to skip over. Continues the line with the last received value when gaps (‘None’ values)
+// appear in your data, rather than breaking your line.
+//
+// interpolate will not interpolate at the beginning or end of a series, only in the middle
+func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
+	output := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		var (
+			consecutiveNaNs = 0
+			numSteps        = series.Len()
+			vals            = ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstNonNan     = false
+		)
+
+		for i := 0; i < numSteps; i++ {
+			value := series.ValueAt(i)
+			vals.SetValueAt(i, value)
+
+			if math.IsNaN(value) {
+				if !firstNonNan {
+					continue
+				}
+
+				consecutiveNaNs++
+				if limit >= 0 && consecutiveNaNs > limit {
+					consecutiveNaNs = 0
+				}
+
+				continue
+			} else {
+				firstNonNan = true
+			}
+
+			if consecutiveNaNs == 0 {
+				// have a value but no need to interpolate
+				continue
+			}
+
+			interpolated := series.ValueAt(i - consecutiveNaNs - 1)
+			interpolateStep := (value - interpolated) / float64(consecutiveNaNs+1)
+			for index := i - consecutiveNaNs; index < i; index++ {
+				interpolated = interpolated + interpolateStep
+				vals.SetValueAt(index, interpolated)
+			}
+
+			consecutiveNaNs = 0
+		}
+
+		name := fmt.Sprintf("interpolate(%s)", series.Name())
+		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		output = append(output, newSeries)
+	}
+	r := ts.SeriesList(input)
+	r.Values = output
 	return r, nil
 }
 
@@ -2205,6 +2283,7 @@ func init() {
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
 	MustRegisterFunction(groupByNodes)
@@ -2222,6 +2301,9 @@ func init() {
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
 	MustRegisterFunction(integralByInterval)
+	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // limit
+	})
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit

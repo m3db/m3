@@ -23,34 +23,24 @@
 package integration
 
 import (
-	"fmt"
 	"io"
-	"strconv"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -150,116 +140,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.StringID("aab"),
 		dpTimeStart, nowFn(),
 		expectedDps)
-
-	log.Info("waiting until index filesets are on disk")
-	start = time.Now()
-	completed := xclock.WaitUntil(func() bool {
-		filesets, err := fs.IndexFileSetsAt(testSetup.FilesystemOpts().FilePathPrefix(), srcNs.ID(), dpTimeStart)
-		require.NoError(t, err)
-		return len(filesets) == 1
-	}, time.Minute)
-	require.True(t, completed)
-
-	query := index.Query{Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
-	computedNSResults, _, err := session.FetchTagged(
-		trgNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
-	require.NoError(t, err)
-	assert.Equal(t, 2, computedNSResults.Len(), "read through the reverse index")
-}
-
-var (
-	iterationCount      = 10
-	testSeriesCount     = 5000
-	testDataPointsCount = int(blockSizeT.Hours()) * 100
-)
-
-func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
-	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
-	storageOpts := testSetup.StorageOpts()
-	log := storageOpts.InstrumentOptions().Logger()
-
-	// Stop the server.
-	defer func() {
-		require.NoError(t, testSetup.StopServer())
-		log.Debug("server is now down")
-		testSetup.Close()
-		_ = closer.Close()
-	}()
-
-	nowFn := testSetup.NowFn()
-	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-2 * blockSizeT)
-	writeTestData(t, testSetup, log, reporter, dpTimeStart, srcNs.ID())
-
-	aggOpts, err := storage.NewAggregateTilesOptions(
-		dpTimeStart, dpTimeStart.Add(blockSizeT),
-		10*time.Minute, false)
-	require.NoError(t, err)
-
-	log.Info("Starting aggregation loop")
-	start := time.Now()
-
-	inProgress := atomic.NewBool(true)
-	var wg sync.WaitGroup
-	for b := 0; b < 4; b++ {
-
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			query := index.Query{
-				Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
-
-			for inProgress.Load() {
-				session, err := testSetup.M3DBClient().NewSession()
-				require.NoError(t, err)
-				result, _, err := session.FetchTagged(srcNs.ID(), query,
-					index.QueryOptions{
-						StartInclusive: dpTimeStart.Add(-blockSizeT),
-						EndExclusive:   nowFn(),
-					})
-				session.Close()
-				if err != nil {
-					require.NoError(t, err)
-					return
-				}
-				require.Equal(t, testSeriesCount, len(result.Iters()))
-
-				result.Close()
-				time.Sleep(time.Millisecond)
-			}
-		}()
-	}
-
-	var expectedPoints = int64(testDataPointsCount * testSeriesCount / 100 * 6)
-	for a := 0; a < iterationCount; a++ {
-		ctx := storageOpts.ContextPool().Get()
-		processedTileCount, err := testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
-		ctx.BlockingClose()
-		if err != nil {
-			require.NoError(t, err)
-		}
-		require.Equal(t, processedTileCount, expectedPoints)
-	}
-	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
-
-	inProgress.Toggle()
-	wg.Wait()
-	log.Info("Finished parallel querying")
-
-	counters := reporter.Counters()
-	writeErrorsCount, _ := counters["database.writeAggData.errors"]
-	require.Equal(t, int64(0), writeErrorsCount)
-	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(testSeriesCount*iterationCount), seriesWritesCount)
-
-	session, err := testSetup.M3DBClient().NewSession()
-	require.NoError(t, err)
-	_, err = session.Fetch(srcNs.ID(),
-		ident.StringID("foo"+strconv.Itoa(50)),
-		dpTimeStart, dpTimeStart.Add(blockSizeT))
-	session.Close()
-	require.NoError(t, err)
 }
 
 func fetchAndValidate(
@@ -292,9 +172,9 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
 		nsOpts   = namespace.NewOptions().
-			SetRetentionOptions(rOpts).
-			SetIndexOptions(idxOpts).
-			SetColdWritesEnabled(true)
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(idxOpts).
+				SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT)
@@ -321,99 +201,11 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	scope, closer := tally.NewRootScope(
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	storageOpts := testSetup.StorageOpts().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetNamespaceHooks(&aggregateTilesNamespaceHooks{srcNs, trgNs})
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
 	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
 
 	return testSetup, srcNs, trgNs, reporter, closer
-}
-
-func writeTestData(
-	t *testing.T, testSetup TestSetup, log *zap.Logger,
-	reporter xmetrics.TestStatsReporter,
-	dpTimeStart time.Time, ns ident.ID,
-) {
-	dpTime := dpTimeStart
-
-	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
-		pool.NewObjectPoolOptions().SetSize(1))
-	testTagEncodingPool.Init()
-	encoder := testTagEncodingPool.Get()
-	tagsIter := ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1")
-	err := encoder.Encode(tagsIter)
-	require.NoError(t, err)
-
-	encodedTags, ok := encoder.Data()
-	require.True(t, ok)
-	encodedTagsBytes := encodedTags.Bytes()
-
-	start := time.Now()
-	for a := 0; a < testDataPointsCount; a++ {
-		i := 0
-		batchWriter, err := testSetup.DB().BatchWriter(ns, testDataPointsCount)
-		require.NoError(t, err)
-
-		for b := 0; b < testSeriesCount; b++ {
-			tagsIter.Rewind()
-			err := batchWriter.AddTagged(i,
-				ident.StringID("foo"+strconv.Itoa(b)),
-				tagsIter, encodedTagsBytes,
-				dpTime, 42.1+float64(a), xtime.Second, nil)
-			require.NoError(t, err)
-			i++
-		}
-		for r := 0; r < 3; r++ {
-			err = testSetup.DB().WriteTaggedBatch(context.NewContext(), ns, batchWriter, nil)
-			if err != nil && err.Error() == "commit log queue is full" {
-				time.Sleep(time.Second)
-				continue
-			}
-			break
-		}
-		require.NoError(t, err)
-
-		dpTime = dpTime.Add(time.Minute)
-	}
-
-	log.Info("test data written", zap.Duration("took", time.Since(start)))
-
-	log.Info("waiting till data is cold flushed")
-	start = time.Now()
-	flushed := xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		flushes, _ := counters["database.flushIndex.success"]
-		writes, _ := counters["database.series.cold-writes"]
-		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 &&
-			int(writes) >= testDataPointsCount*testSeriesCount &&
-			successFlushes >= 4
-	}, time.Minute)
-	require.True(t, flushed)
-	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
-}
-
-type aggregateTilesNamespaceHooks struct {
-	srcNs, trgNs namespace.Metadata
-}
-
-func (h *aggregateTilesNamespaceHooks) OnCreatedNamespace(ns storage.Namespace, get storage.GetNamespaceFn) error {
-	if ns.ID() == h.trgNs.ID() {
-		// Share reverse index between source and target namespaces.
-		otherNs, ok := get(h.srcNs.ID())
-		if !ok {
-			return fmt.Errorf("source namespace %s for sharing reverse index not found", h.srcNs.ID())
-		}
-		reverseIndex, err := otherNs.Index()
-		if err != nil {
-			return err
-		}
-		reverseIndex.SetExtendedRetentionPeriod(ns.Options().RetentionOptions().RetentionPeriod())
-		readOnlyIndex := storage.NewReadOnlyIndexProxy(reverseIndex)
-
-		return ns.SetIndex(readOnlyIndex)
-	}
-	return nil
 }
