@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
@@ -104,7 +105,11 @@ type Options interface {
 // SeriesIteratorProcessor optionally defines methods to process series iterators.
 type SeriesIteratorProcessor interface {
 	// InspectSeries inspects SeriesIterator slices.
-	InspectSeries(ctx context.Context, seriesIterators []encoding.SeriesIterator) error
+	InspectSeries(
+		ctx context.Context,
+		query storage.FetchQuery,
+		seriesIterators []encoding.SeriesIterator,
+	) error
 }
 
 // IteratorBatchingFn determines how the iterator is split into batches.
