@@ -255,6 +255,9 @@ type Namespace interface {
 	// Shards returns the shard description.
 	Shards() []Shard
 
+	// SetIndex sets and enables reverse index for this namespace.
+	SetIndex(reverseIndex NamespaceIndex) error
+
 	// Index returns the reverse index backing the namespace, if it exists.
 	Index() (NamespaceIndex, error)
 
@@ -390,9 +393,11 @@ type databaseNamespace interface {
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 
-	// BootstrapState captures and returns a snapshot of the namespaces'
-	// bootstrap state.
-	BootstrapState() ShardBootstrapStates
+	// BootstrapState returns namespaces' bootstrap state.
+	BootstrapState() BootstrapState
+
+	// ShardBootstrapState captures and returns a snapshot of the namespaces' shards bootstrap state.
+	ShardBootstrapState() ShardBootstrapStates
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
@@ -697,6 +702,9 @@ type NamespaceIndex interface {
 	// the owned shards of the database. Also returns a callback to be called when
 	// cold flushing completes to perform houskeeping.
 	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
+
+	// SetExtendedRetentionPeriod allows to extend index retention beyond the retention of the namespace it belongs to.
+	SetExtendedRetentionPeriod(period time.Duration)
 
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
@@ -1212,6 +1220,12 @@ type Options interface {
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetNamespaceHooks sets the NamespaceHooks.
+	SetNamespaceHooks(hooks NamespaceHooks) Options
+
+	// NamespaceHooks returns the NamespaceHooks.
+	NamespaceHooks() NamespaceHooks
 }
 
 // MemoryTracker tracks memory.
@@ -1281,3 +1295,11 @@ type AggregateTilesOptions struct {
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool
 }
+
+// NamespaceHooks allows dynamic plugging into the namespace lifecycle.
+type NamespaceHooks interface {
+	// OnCreatedNamespace gets invoked after each namespace is created.
+	OnCreatedNamespace(Namespace, GetNamespaceFn) error
+}
+
+type GetNamespaceFn func (k ident.ID) (databaseNamespace, bool)

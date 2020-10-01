@@ -93,7 +93,7 @@ func (s *m3storage) FetchProm(
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
 	queryOptions := storage.FetchOptionsToM3Options(options, query)
-	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
+	accumulator, _, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -193,7 +193,7 @@ func (s *m3storage) FetchCompressed(
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
 	queryOptions := storage.FetchOptionsToM3Options(options, query)
-	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
+	accumulator, m3query, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return consolidators.SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
@@ -210,7 +210,7 @@ func (s *m3storage) FetchCompressed(
 		_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 			tracepoint.FetchCompressedInspectSeries)
 		iters := result.SeriesIterators()
-		if err := processor.InspectSeries(ctx, iters); err != nil {
+		if err := processor.InspectSeries(ctx, m3query, queryOptions, iters); err != nil {
 			s.logger.Error("error inspecting series", zap.Error(err))
 		}
 		if sampled {
@@ -239,23 +239,23 @@ func (s *m3storage) fetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 	queryOptions index.QueryOptions,
-) (consolidators.MultiFetchResult, error) {
+) (consolidators.MultiFetchResult, index.Query, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
-		return nil, instrument.InvariantErrorf("invalid block type on "+
+		return nil, index.Query{}, instrument.InvariantErrorf("invalid block type on "+
 			"fetch, got: %v with error %v", options.BlockType, err)
 	}
 
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, index.Query{}, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
-		return nil, err
+		return nil, index.Query{}, err
 	}
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -271,7 +271,7 @@ func (s *m3storage) fetchCompressed(
 		options.RestrictQueryOptions,
 	)
 	if err != nil {
-		return nil, err
+		return nil, index.Query{}, err
 	}
 
 	if s.logger.Core().Enabled(zapcore.DebugLevel) {
@@ -300,12 +300,12 @@ func (s *m3storage) fetchCompressed(
 
 	var wg sync.WaitGroup
 	if len(namespaces) == 0 {
-		return nil, errNoNamespacesConfigured
+		return nil, index.Query{}, errNoNamespacesConfigured
 	}
 
 	pools, err := namespaces[0].Session().IteratorPools()
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
+		return nil, index.Query{}, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
@@ -346,11 +346,11 @@ func (s *m3storage) fetchCompressed(
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, index.Query{}, ctx.Err()
 	default:
 	}
 
-	return result, err
+	return result, m3query, err
 }
 
 func (s *m3storage) SearchSeries(

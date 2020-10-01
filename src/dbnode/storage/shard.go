@@ -2646,9 +2646,9 @@ func (s *dbShard) AggregateTiles(
 		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
 	}
 
-	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
-		for _, reader := range blockReadersToClose {
+		for _, reader := range openBlockReaders {
 			reader.Close()
 		}
 	}()
@@ -2668,17 +2668,24 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {
-			s.logger.Error("blockReader.Open", zap.Error(err))
+			if err == fs.ErrCheckpointFileNotFound {
+				// A very recent source block might not have been flushed yet.
+				continue
+			}
+			s.logger.Error("blockReader.Open",
+				zap.Error(err),
+				zap.Time("blockStart", sourceBlockVolume.blockStart),
+				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
 			return 0, err
 		}
 		if blockReader.Entries() > maxEntries {
 			maxEntries = blockReader.Entries()
 		}
 
-		blockReadersToClose = append(blockReadersToClose, blockReader)
+		openBlockReaders = append(openBlockReaders, blockReader)
 	}
 
-	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
+	crossBlockReader, err := fs.NewCrossBlockReader(openBlockReaders, s.opts.InstrumentOptions())
 	if err != nil {
 		s.logger.Error("NewCrossBlockReader", zap.Error(err))
 		return 0, err
@@ -2844,7 +2851,7 @@ READER:
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedBlocks", processedTileCount.Load()))
+		zap.Int64("processedTiles", processedTileCount.Load()))
 
 	return processedTileCount.Load(), nil
 }
