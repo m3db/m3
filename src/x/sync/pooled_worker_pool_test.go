@@ -24,6 +24,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,39 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize*2), count)
+}
+
+func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
+	var (
+		workers = 2
+	)
+
+	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	p.Init()
+
+	var (
+		resultsTrue  = 0
+		resultsFalse = 0
+		wg           sync.WaitGroup
+	)
+	wg.Add(1)
+	for i := 0; i < workers*2; i++ {
+		wg.Add(1)
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		if result {
+			resultsTrue++
+		} else {
+			resultsFalse++
+		}
+	}
+
+	wg.Done()
+
+	require.Equal(t, workers, resultsTrue)
+	require.Equal(t, workers, resultsFalse)
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
