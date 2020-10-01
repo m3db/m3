@@ -1196,9 +1196,9 @@ func NewAggregateTilesOptions(
 	}
 
 	return AggregateTilesOptions{
-		Start: start,
-		End: end,
-		Step: step,
+		Start:               start,
+		End:                 end,
+		Step:                step,
 		HandleCounterResets: handleCounterResets,
 	}, nil
 }

@@ -54,7 +54,7 @@ type snapshotID struct {
 }
 
 func getLatestSnapshotVolumeIndex(
-	filePathPrefix string,
+	fsOpts fs.Options,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
 	blockStart time.Time,
@@ -63,7 +63,7 @@ func getLatestSnapshotVolumeIndex(
 
 	for _, shard := range shardSet.AllIDs() {
 		snapshotFiles, err := fs.SnapshotFiles(
-			filePathPrefix, namespace, shard)
+			fsOpts.FilePathPrefix(), namespace, shard)
 		if err != nil {
 			panic(err)
 		}
@@ -80,7 +80,7 @@ func getLatestSnapshotVolumeIndex(
 }
 
 func waitUntilSnapshotFilesFlushed(
-	filePathPrefix string,
+	fsOpts fs.Options,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
 	expectedSnapshots []snapshotID,
@@ -88,34 +88,61 @@ func waitUntilSnapshotFilesFlushed(
 ) (uuid.UUID, error) {
 	var snapshotID uuid.UUID
 	dataFlushed := func() bool {
+		// NB(bodu): We want to ensure that we have snapshot data that is consistent across
+		// ALL shards on a per block start basis. For each snapshot block start, we expect
+		// the data to exist in at least one shard.
+		expectedSnapshotsSeen := make([]bool, len(expectedSnapshots))
 		for _, shard := range shardSet.AllIDs() {
-			for _, e := range expectedSnapshots {
+			for i, e := range expectedSnapshots {
 				snapshotFiles, err := fs.SnapshotFiles(
-					filePathPrefix, namespace, shard)
+					fsOpts.FilePathPrefix(), namespace, shard)
 				if err != nil {
 					panic(err)
 				}
 
 				latest, ok := snapshotFiles.LatestVolumeForBlock(e.blockStart)
 				if !ok {
-					return false
+					// Each shard may not own data for all block starts.
+					continue
 				}
 
 				if !(latest.ID.VolumeIndex >= e.minVolume) {
-					return false
+					// Cleanup manager can lag behind.
+					continue
 				}
 
-				_, snapshotID, err = latest.SnapshotTimeAndID()
-				if err != nil {
-					panic(err)
-				}
+				// Mark expected snapshot as seen.
+				expectedSnapshotsSeen[i] = true
+			}
+		}
+		// We should have seen each expected snapshot in at least one shard.
+		for _, maybeSeen := range expectedSnapshotsSeen {
+			if !maybeSeen {
+				return false
 			}
 		}
 		return true
 	}
 	if waitUntil(dataFlushed, timeout) {
-		return snapshotID, nil
+		// Use snapshot metadata to get latest snapshotID as the view of snapshotID can be inconsistent
+		// across TSDB blocks.
+		snapshotMetadataFlushed := func() bool {
+			snapshotMetadatas, _, err := fs.SortedSnapshotMetadataFiles(fsOpts)
+			if err != nil {
+				panic(err)
+			}
+
+			if len(snapshotMetadatas) == 0 {
+				return false
+			}
+			snapshotID = snapshotMetadatas[len(snapshotMetadatas)-1].ID.UUID
+			return true
+		}
+		if waitUntil(snapshotMetadataFlushed, timeout) {
+			return snapshotID, nil
+		}
 	}
+
 	return snapshotID, errDiskFlushTimedOut
 }
 
