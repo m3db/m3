@@ -123,12 +123,13 @@ func (q *querier) Select(
 
 	resultMetadataPtr, err := resultMetadata(q.ctx)
 	if err != nil {
-		q.logger.Warn("result metadata not set in context")
-		return seriesSet, warnings, nil
+		q.logger.Error("result metadata not set in context", zap.Error(err))
+		return nil, nil, err
 	}
 	if resultMetadataPtr == nil {
-		q.logger.Warn("result metadata nil for context")
-		return seriesSet, warnings, nil
+		err := errors.New("result metadata nil for context")
+		q.logger.Error(err.Error())
+		return nil, nil, err
 	}
 
 	*resultMetadataPtr = result.Metadata

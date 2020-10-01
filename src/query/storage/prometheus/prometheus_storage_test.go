@@ -39,22 +39,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSelectWithoutMetaInContext(t *testing.T) {
-	ctx := context.WithValue(context.Background(), FetchOptionsContextKey, storage.NewFetchOptions())
-	testSelectWithContext(ctx, t)
-}
-
 func TestSelectWithMetaInContext(t *testing.T) {
-	var res block.ResultMetadata
-	ctx := context.WithValue(context.Background(), FetchOptionsContextKey, storage.NewFetchOptions())
-	ctx = context.WithValue(ctx, BlockResultMetadataKey, &res)
-	testSelectWithContext(ctx, t)
-	assert.Equal(t, []string{"warn_warning"}, res.WarningStrings())
-}
-
-func testSelectWithContext(ctx context.Context, t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
+	var res block.ResultMetadata
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, FetchOptionsContextKey, storage.NewFetchOptions())
+	ctx = context.WithValue(ctx, BlockResultMetadataKey, &res)
 
 	store := storage.NewMockStorage(ctrl)
 	opts := PrometheusOptions{
@@ -158,4 +150,7 @@ func testSelectWithContext(ctx context.Context, t *testing.T) {
 	require.Equal(t, 1, len(warnings))
 	require.EqualError(t, warnings[0], "warn_warning")
 	require.NoError(t, q.Close())
+
+	// NB: assert warnings on context were propagated.
+	assert.Equal(t, []string{"warn_warning"}, res.WarningStrings())
 }
