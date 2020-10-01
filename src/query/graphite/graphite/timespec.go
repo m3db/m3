@@ -35,9 +35,9 @@ var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
-var rePM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])pm)$`) // 8pm, 12pm
-var reAM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])am)$`) // 2am, 11am
-var reTimeOfDayWithColon = regexp.MustCompile(`(?i)^(([0-1]?)([0-9]):([0-5])([0-9])((am|pm)?))$`) // 8:12pm, 11:20am, 2:00am
+var rePM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])pm)$`)                                                            // 8pm, 12pm
+var reAM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])am)$`)                                                            // 2am, 11am
+var reTimeOfDayWithColon = regexp.MustCompile(`(?i)^(([0-1]?)([0-9]):([0-5])([0-9])((am|pm)?))$`)                     // 8:12pm, 11:20am, 2:00am
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,
@@ -117,7 +117,6 @@ func getWeekDayOffset(weekday string, now time.Time) time.Duration {
 
 	return time.Duration(dayOffset) * time.Hour * -24
 }
-
 
 // ParseTime translates a Graphite from/until string into a timestamp relative to the provide time
 func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time, error) {
