@@ -41,18 +41,23 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 		SetBootstrapProcessProvider(nil).
 		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 			return now
-		}))
+		})).
+		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Millisecond))
 
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().OwnedNamespaces().Return(nil, nil).AnyTimes()
 	db.EXPECT().BootstrapState().Return(DatabaseBootstrapState{}).AnyTimes()
+	db.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
 	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
-	var executed atomic.Bool
+	var executed, reported atomic.Bool
 
 	backgroundProcess := NewMockBackgroundProcess(ctrl)
+	backgroundProcess.EXPECT().Report().Do(func() {
+		reported.Store(true)
+	}).AnyTimes()
 	gomock.InOrder(
 		backgroundProcess.EXPECT().Run().Do(func() {
 			executed.Store(true)
@@ -67,10 +72,11 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	require.NoError(t, m.Open())
 	require.Equal(t, errMediatorAlreadyOpen, m.Open())
 
-	hasExecuted := xclock.WaitUntil(func() bool {
-		return executed.Load()
+	xclock.WaitUntil(func() bool {
+		return executed.Load() && reported.Load()
 	}, time.Second)
-	require.True(t, hasExecuted)
+	require.True(t, executed.Load(), "failed to execute")
+	require.True(t, reported.Load(), "failed to report")
 
 	require.NoError(t, m.Close())
 	require.Equal(t, errMediatorAlreadyClosed, m.Close())

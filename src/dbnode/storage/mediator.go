@@ -128,9 +128,8 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 
 func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) {
 	m.Lock()
-	defer m.Unlock()
-
 	m.backgroundProcesses = append(m.backgroundProcesses, process)
+	m.Unlock()
 }
 
 func (m *mediator) Open() error {
@@ -180,12 +179,10 @@ func (m *mediator) Report() {
 	m.databaseColdFlushManager.Report()
 
 	m.Lock()
-	processes := append(make([]BackgroundProcess, 0, len(m.backgroundProcesses)), m.backgroundProcesses...)
-	m.Unlock()
-
-	for _, process := range processes {
+	for _, process := range m.backgroundProcesses {
 		process.Report()
 	}
+	m.Unlock()
 }
 
 func (m *mediator) Close() error {

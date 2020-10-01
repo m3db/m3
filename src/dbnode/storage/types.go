@@ -866,7 +866,7 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// BackgroundProcess is the interface for background processes that are being run by the database.
+// BackgroundProcess is a background process that is run by the database.
 type BackgroundProcess interface {
 	// Run runs the BackgroundProcess (which may block until Stop() is called).
 	// Usually it should be called asynchronously (i.e. go Run()).
@@ -900,7 +900,7 @@ type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
 
-	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator.
+	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator. Must happen before Open().
 	RegisterBackgroundProcess(process BackgroundProcess)
 
 	// IsBootstrapped returns whether the database is bootstrapped.
@@ -1283,7 +1283,7 @@ type newFSMergeWithMemFn func(
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
 
-// NewBackgroundProcessFn is a type of function that creates and returns a new BackgroundProcess.
+// NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
 type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 
 // AggregateTilesOptions is the options for large tile aggregation.
