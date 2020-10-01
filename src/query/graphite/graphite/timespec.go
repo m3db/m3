@@ -34,6 +34,8 @@ var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)  
 var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`) // -3min, +3min, -4d, +4d
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
+var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
+var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,
@@ -103,6 +105,18 @@ func FormatTime(t time.Time) string {
 	return t.Format(formats[0])
 }
 
+func getWeekDayOffset(weekday string, now time.Time) time.Duration {
+	expectedDay := weekdays[weekday]
+	today := int(now.Weekday())
+	dayOffset := today - expectedDay
+	if dayOffset < 0 {
+		dayOffset += 7
+	}
+
+	return time.Duration(dayOffset) * time.Hour * -24
+}
+
+
 // ParseTime translates a Graphite from/until string into a timestamp relative to the provide time
 func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time, error) {
 	if len(s) == 0 {
@@ -141,19 +155,19 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 	if strings.Contains(s, "+") {
 		stringSlice := strings.Split(s, "+")
 		if len(stringSlice) == 2 {
-		     ref, offset = stringSlice[0], stringSlice[1]
-		     offset = "+" + offset
+			ref, offset = stringSlice[0], stringSlice[1]
+			offset = "+" + offset
 		}
 	} else if strings.Contains(s, "-") {
 		stringSlice := strings.Split(s, "-")
 		if len(stringSlice) == 2 {
-	               ref, offset = stringSlice[0], stringSlice[1]
-		      offset = "-" + offset
+			ref, offset = stringSlice[0], stringSlice[1]
+			offset = "-" + offset
 		}
 	}
 	parsedReference, err := ParseTimeReference(ref, now)
 	if err == nil {
-		parsedOffset, err := ParseOffset(offset)
+		parsedOffset, err := ParseOffset(offset, now)
 		if err == nil {
 			return parsedReference.Add(parsedOffset), nil
 		}
@@ -162,6 +176,7 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 	return now, err
 }
 
+// ParseTimeReference takes a Graphite time reference ("8am", "today", "monday") and returns a time.Time
 func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	var (
 		hour    = now.Hour()
@@ -229,6 +244,9 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		if err != nil {
 			return time.Time{}, err
 		}
+		if newHour > 24 {
+			return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown time reference %s", rawRef))
+		}
 		hour = int((newHour + 12) % 24)
 		minute = 0
 		ref = ref[i+2:]
@@ -268,16 +286,9 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		}
 		refDate = time.Date(refDate.Year(), time.Month(months[monthString]), day, hour, minute, 0, 0, refDate.Location())
 	} else if reDayOfWeek.MatchString(ref) { // DayOfWeek (Monday, etc)
-		expectedDay := weekdays[ref]
-		today := int(refDate.Weekday())
-		dayOffset := today - expectedDay
-		if dayOffset < 0 {
-			dayOffset += 7
-		}
-		offSetDuration := time.Duration(dayOffset)
-		refDate = refDate.Add(time.Hour * 24 * -1 * offSetDuration)
+		refDate = refDate.Add(getWeekDayOffset(ref, refDate))
 	} else if ref != "" {
-		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown day reference %s", rawRef))
+		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown time reference %s", rawRef))
 	}
 
 	return refDate, nil
@@ -299,7 +310,7 @@ func ParseDuration(s string) (time.Duration, error) {
 }
 
 // ParseOffset parses a time offset (like a duration, but can be 0 or positive)
-func ParseOffset(s string) (time.Duration, error) {
+func ParseOffset(s string, now time.Time) (time.Duration, error) {
 	if s == "" {
 		return time.Duration(0), nil
 	}
@@ -315,6 +326,9 @@ func ParseOffset(s string) (time.Duration, error) {
 		}
 		period := periods[strings.ToLower(m[3])]
 		return period * time.Duration(timeInteger) * time.Duration(parity), nil
+	} else if m := reDayOfWeekOffset.FindStringSubmatch(s); len(m) != 0 {
+		nameOfWeekday := s[1:]
+		return getWeekDayOffset(nameOfWeekday, now), nil
 	}
 
 	return 0, errors.NewInvalidParamsError(fmt.Errorf("invalid time offset %s", s))

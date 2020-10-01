@@ -50,6 +50,8 @@ func TestParseTime(t *testing.T) {
 		{"midnight", time.Date(2013, time.April, 3, 0, 0, 0, 0, time.UTC)},
 		{"midnight+1h", time.Date(2013, time.April, 3, 1, 0, 0, 0, time.UTC)},
 		{"april08+1d", time.Date(2013, time.April, 9, 4, 5, 0, 0, time.UTC)},
+		{"monday", relativeTo.Add(time.Hour * 24 * -2)},
+		{"9am+monday", relativeTo.Add((time.Hour * 24 * -2) + (time.Hour * 4) + (time.Minute * 55))},
 	}
 
 	for _, test := range tests {
@@ -93,7 +95,7 @@ func TestParseOffset(t *testing.T) {
 
 	for _, test := range tests {
 		s := test.timespec
-		parsed, err := ParseOffset(s)
+		parsed, err := ParseOffset(s, relativeTo)
 		assert.Nil(t, err, "error parsing %s", s)
 		assert.Equal(t, test.expectedDuration, parsed, "incorrect parsed value for %s", s)
 	}
@@ -149,9 +151,9 @@ func TestParseTimeReference(t *testing.T) {
 		{"yesterday", relativeTo.Add(time.Hour * 24 * -1)},
 		{"today", relativeTo},
 		{"tomorrow", relativeTo.Add(time.Hour * 24)},
-		{"04/24/13", relativeTo.Add(time.Hour * 24 * 21)},
-		{"04/24/2013", relativeTo.Add(time.Hour * 24 * 21)},
-		{"20130424", relativeTo.Add(time.Hour * 24 * 21)},
+		{"04/24/13", relativeTo.Add((time.Hour * 24 * 21) + (time.Hour * -4) + (time.Minute * -5))},
+		{"04/24/2013", relativeTo.Add((time.Hour * 24 * 21) + (time.Hour * -4) + (time.Minute * -5))},
+		{"20130424", relativeTo.Add((time.Hour * 24 * 21) + (time.Hour * -4) + (time.Minute * -5))},
 		{"may6", relativeTo.Add(time.Hour * 24 * 33)},
 		{"may06", relativeTo.Add(time.Hour * 24 * 33)},
 		{"december17", relativeTo.Add(time.Hour * 24 * 258)},
@@ -173,6 +175,8 @@ func TestParseTimeReferenceErrors(t *testing.T) {
 		"random",
 		":",
 		"8:5",
+		"10:00pm6am",
+		"99pm",
 	}
 
 	for _, test := range tests {
@@ -191,7 +195,7 @@ func TestParseOffsetErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		parsed, err := ParseOffset(test)
+		parsed, err := ParseOffset(test, relativeTo)
 		assert.Error(t, err)
 		assert.Equal(t, time.Duration(0), parsed)
 	}
