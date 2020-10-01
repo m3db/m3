@@ -65,12 +65,13 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 		backgroundProcess.EXPECT().Stop(),
 	)
 
-	m.RegisterBackgroundProcess(backgroundProcess)
+	require.NoError(t, m.RegisterBackgroundProcess(backgroundProcess))
 
 	require.Equal(t, errMediatorNotOpen, m.Close())
 
 	require.NoError(t, m.Open())
 	require.Equal(t, errMediatorAlreadyOpen, m.Open())
+	require.Equal(t, errMediatorAlreadyOpen, m.RegisterBackgroundProcess(backgroundProcess))
 
 	xclock.WaitUntil(func() bool {
 		return started.Load() && reported.Load()

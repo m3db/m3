@@ -900,7 +900,7 @@ type databaseMediator interface {
 	Open() error
 
 	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator. Must happen before Open().
-	RegisterBackgroundProcess(process BackgroundProcess)
+	RegisterBackgroundProcess(process BackgroundProcess) error
 
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool

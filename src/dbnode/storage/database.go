@@ -242,7 +242,10 @@ func NewDatabase(
 		if err != nil {
 			return nil, err
 		}
-		d.mediator.RegisterBackgroundProcess(d.repairer)
+		err = d.mediator.RegisterBackgroundProcess(d.repairer)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for _, fn := range opts.BackgroundProcessFns() {
@@ -250,7 +253,10 @@ func NewDatabase(
 		if err != nil {
 			return nil, err
 		}
-		d.mediator.RegisterBackgroundProcess(process)
+		err = d.mediator.RegisterBackgroundProcess(process)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return d, nil
@@ -1038,10 +1044,6 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	}
 
 	return true
-}
-
-func (d *db) RegisterBackgroundProcess(process BackgroundProcess) {
-	d.mediator.RegisterBackgroundProcess(process)
 }
 
 func (d *db) Repair() error {

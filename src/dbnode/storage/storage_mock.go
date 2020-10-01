@@ -3172,9 +3172,11 @@ func (mr *MockdatabaseMediatorMockRecorder) Open() *gomock.Call {
 }
 
 // RegisterBackgroundProcess mocks base method
-func (m *MockdatabaseMediator) RegisterBackgroundProcess(process BackgroundProcess) {
+func (m *MockdatabaseMediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RegisterBackgroundProcess", process)
+	ret := m.ctrl.Call(m, "RegisterBackgroundProcess", process)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RegisterBackgroundProcess indicates an expected call of RegisterBackgroundProcess

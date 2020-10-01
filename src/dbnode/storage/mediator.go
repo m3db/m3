@@ -126,10 +126,16 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 	return d, nil
 }
 
-func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) {
+func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	m.Lock()
+	defer m.Unlock()
+
+	if m.state != mediatorNotOpen {
+		return errMediatorAlreadyOpen
+	}
+
 	m.backgroundProcesses = append(m.backgroundProcesses, process)
-	m.Unlock()
+	return nil
 }
 
 func (m *mediator) Open() error {
