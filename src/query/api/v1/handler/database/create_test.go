@@ -1242,7 +1242,8 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					},
 					"testAggregatedNamespace": {
 						"aggregationOptions": {
@@ -1280,7 +1281,8 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null
 					}
 				}
 			}
