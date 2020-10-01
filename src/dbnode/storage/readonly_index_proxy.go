@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -120,7 +121,19 @@ func (r readOnlyIndexProxy) DebugMemorySegments(opts DebugMemorySegmentsOptions)
 }
 
 func (r readOnlyIndexProxy) BlockStatesSnapshot() index.BlockStateSnapshot {
-	return index.BlockStateSnapshot{}
+	return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
+}
+
+func (r readOnlyIndexProxy) SetSnapshotStateVersionFlushed(blockStart time.Time, version int) {}
+
+func (r readOnlyIndexProxy) Snapshot(
+	shards map[uint32]struct{},
+	blockStart,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
+	infoFiles []fs.ReadIndexInfoFileResult,
+) error {
+	return nil
 }
 
 func (r readOnlyIndexProxy) Close() error {
