@@ -22,8 +22,11 @@ package remote
 
 import (
 	"context"
+	goerrors "errors"
 	"io"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -36,9 +39,44 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
+	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+)
+
+const (
+	initResultSize             = 10
+	healthCheckInterval        = 60 * time.Second
+	healthCheckTimeout         = 5 * time.Second
+	healthCheckMetricName      = "health-check"
+	healthCheckMetricResultTag = "result"
+)
+
+var (
+	errAlreadyClosed = goerrors.New("already closed")
+
+	// NB(r): These options tries to ensure we don't let connections go stale
+	// and cause failed RPCs as a result.
+	defaultDialOptions = []grpc.DialOption{
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// After a duration of this time if the client doesn't see any activity it
+			// pings the server to see if the transport is still alive.
+			// If set below 10s, a minimum value of 10s will be used instead.
+			Time: 10 * time.Second,
+			// After having pinged for keepalive check, the client waits for a duration
+			// of Timeout and if no activity is seen even after that the connection is
+			// closed.
+			Timeout: 20 * time.Second,
+			// If true, client sends keepalive pings even with no active RPCs. If false,
+			// when there are no active RPCs, Time and Timeout will be ignored and no
+			// keepalive pings will be sent.
+			PermitWithoutStream: true,
+		}),
+	}
 )
 
 // Client is the remote GRPC client.
@@ -48,6 +86,7 @@ type Client interface {
 }
 
 type grpcClient struct {
+	state       grpcClientState
 	client      rpc.QueryClient
 	connection  *grpc.ClientConn
 	poolWrapper *pools.PoolWrapper
@@ -55,27 +94,65 @@ type grpcClient struct {
 	pools       encoding.IteratorPools
 	poolErr     error
 	opts        m3db.Options
+	logger      *zap.Logger
+	metrics     grpcClientMetrics
 }
 
-const initResultSize = 10
+type grpcClientState struct {
+	sync.RWMutex
+	closed  bool
+	closeCh chan struct{}
+}
+
+type grpcClientMetrics struct {
+	healthCheckSuccess tally.Counter
+	healthCheckError   tally.Counter
+}
+
+func newGRPCClientMetrics(s tally.Scope) grpcClientMetrics {
+	s = s.SubScope("remote-client")
+	return grpcClientMetrics{
+		healthCheckSuccess: s.Tagged(map[string]string{
+			healthCheckMetricResultTag: "success",
+		}).Counter(healthCheckMetricName),
+		healthCheckError: s.Tagged(map[string]string{
+			healthCheckMetricResultTag: "error",
+		}).Counter(healthCheckMetricName),
+	}
+}
 
 // NewGRPCClient creates a new remote GRPC client.
 func NewGRPCClient(
+	name string,
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
 	opts m3db.Options,
+	instrumentOpts instrument.Options,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
 		return nil, errors.ErrNoClientAddresses
 	}
 
+	// Set name if using a named client.
+	if remote := strings.TrimSpace(name); remote != "" {
+		instrumentOpts = instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().Tagged(map[string]string{
+				"remote-name": remote,
+			}))
+	}
+
+	scope := instrumentOpts.MetricsScope()
+	interceptorOpts := xgrpc.InterceptorInstrumentOptions{Scope: scope}
+
 	resolver := newStaticResolver(addresses)
 	balancer := grpc.RoundRobin(resolver)
-	dialOptions := []grpc.DialOption{
+	dialOptions := append([]grpc.DialOption{
 		grpc.WithBalancer(balancer),
 		grpc.WithInsecure(),
-	}
+		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
+		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
+	}, defaultDialOptions...)
 	dialOptions = append(dialOptions, additionalDialOpts...)
 	cc, err := grpc.Dial("", dialOptions...)
 	if err != nil {
@@ -83,12 +160,68 @@ func NewGRPCClient(
 	}
 
 	client := rpc.NewQueryClient(cc)
-	return &grpcClient{
+	c := &grpcClient{
+		state: grpcClientState{
+			closeCh: make(chan struct{}),
+		},
 		client:      client,
 		connection:  cc,
 		poolWrapper: poolWrapper,
 		opts:        opts,
-	}, nil
+		logger:      instrumentOpts.Logger(),
+		metrics:     newGRPCClientMetrics(scope),
+	}
+	go c.healthCheckUntilClosed()
+	return c, nil
+}
+
+func (c *grpcClient) healthCheckUntilClosed() {
+	ticker := time.NewTicker(healthCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		if c.closed() {
+			return // Abort early, closed already.
+		}
+
+		// Perform immediately so first check isn't delayed.
+		err := c.healthCheck()
+
+		if c.closed() {
+			return // Don't report results, closed already.
+		}
+
+		if err != nil {
+			c.metrics.healthCheckError.Inc(1)
+			c.logger.Debug("remote storage client health check failed",
+				zap.Error(err))
+		} else {
+			c.metrics.healthCheckSuccess.Inc(1)
+		}
+
+		select {
+		case <-c.state.closeCh:
+			return
+		case <-ticker.C:
+			// Continue to next check.
+			continue
+		}
+	}
+}
+
+func (c *grpcClient) healthCheck() error {
+	ctx, cancel := context.WithTimeout(context.Background(),
+		healthCheckTimeout)
+	_, err := c.client.Health(ctx, &rpc.HealthRequest{})
+	cancel()
+	return err
+}
+
+func (c *grpcClient) closed() bool {
+	c.state.RLock()
+	closed := c.state.closed
+	c.state.RUnlock()
+	return closed
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -324,5 +457,14 @@ func (c *grpcClient) CompleteTags(
 }
 
 func (c *grpcClient) Close() error {
+	c.state.Lock()
+	defer c.state.Unlock()
+
+	if c.state.closed {
+		return errAlreadyClosed
+	}
+	c.state.closed = true
+
+	close(c.state.closeCh)
 	return c.connection.Close()
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -154,4 +155,38 @@ func RegisterRoutes(
 	schemaResetHandler := wrapped(
 		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
 	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+}
+
+func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
+	resolutionRetentionMap := make(map[resolutionRetentionKey]bool, len(mds))
+
+	for _, md := range mds {
+		aggOpts := md.Options().AggregationOptions()
+		if aggOpts == nil || len(aggOpts.Aggregations()) == 0 {
+			continue
+		}
+
+		retention := md.Options().RetentionOptions().RetentionPeriod()
+		for _, agg := range aggOpts.Aggregations() {
+			if agg.Aggregated {
+				key := resolutionRetentionKey{
+					retention:  retention,
+					resolution: agg.Attributes.Resolution,
+				}
+
+				if resolutionRetentionMap[key] {
+					return fmt.Errorf("resolution and retention combination must be unique. "+
+						"namespace with resolution=%v retention=%v already exists", key.resolution, key.retention)
+				}
+				resolutionRetentionMap[key] = true
+			}
+		}
+	}
+
+	return nil
+}
+
+type resolutionRetentionKey struct {
+	resolution time.Duration
+	retention  time.Duration
 }
