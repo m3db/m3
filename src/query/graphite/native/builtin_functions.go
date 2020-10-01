@@ -1108,6 +1108,64 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 	return r, nil
 }
 
+// interpolate takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// to skip over. Continues the line with the last received value when gaps (‘None’ values)
+// appear in your data, rather than breaking your line.
+//
+// interpolate will not interpolate at the beginning or end of a series, only in the middle
+func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
+	output := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		var (
+			consecutiveNaNs = 0
+			numSteps        = series.Len()
+			vals            = ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstNonNan     = false
+		)
+
+		for i := 0; i < numSteps; i++ {
+			value := series.ValueAt(i)
+			vals.SetValueAt(i, value)
+
+			if math.IsNaN(value) {
+				if !firstNonNan {
+					continue
+				}
+
+				consecutiveNaNs++
+				if limit >= 0 && consecutiveNaNs > limit {
+					consecutiveNaNs = 0
+				}
+
+				continue
+			} else {
+				firstNonNan = true
+			}
+
+			if consecutiveNaNs == 0 {
+				// have a value but no need to interpolate
+				continue
+			}
+
+			interpolated := series.ValueAt(i - consecutiveNaNs - 1)
+			interpolateStep := (value - interpolated) / float64(consecutiveNaNs+1)
+			for index := i - consecutiveNaNs; index < i; index++ {
+				interpolated = interpolated + interpolateStep
+				vals.SetValueAt(index, interpolated)
+			}
+
+			consecutiveNaNs = 0
+		}
+
+		name := fmt.Sprintf("interpolate(%s)", series.Name())
+		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		output = append(output, newSeries)
+	}
+	r := ts.SeriesList(input)
+	r.Values = output
+	return r, nil
+}
+
 // group takes an arbitrary number of pathspecs and adds them to a single timeseries array.
 // This function is used to pass multiple pathspecs to a function which only takes one
 func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
@@ -2279,6 +2337,9 @@ func init() {
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
 	MustRegisterFunction(integralByInterval)
+	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // limit
+	})
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
