@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
+	xjson "github.com/m3db/m3/src/x/json"
 
 	"github.com/gogo/protobuf/proto"
 	protobuftypes "github.com/gogo/protobuf/types"
@@ -142,7 +142,8 @@ func TestMetadata(t *testing.T) {
 }
 
 type testExtendedOptions struct {
-	value string
+	enabled bool
+	blockSizeNanos int64
 }
 
 func (o *testExtendedOptions) Validate() error {
@@ -150,33 +151,34 @@ func (o *testExtendedOptions) Validate() error {
 }
 
 func (o *testExtendedOptions) ToProto() (proto.Message, string) {
-	return &protobuftypes.StringValue{Value: o.value}, testTypeURLPrefix
+	return &nsproto.IndexOptions{Enabled: o.enabled, BlockSizeNanos: o.blockSizeNanos}, testTypeURLPrefix
 }
 
 func convertToTestExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, error) {
-	strVal := msg.(*protobuftypes.StringValue)
-	return &testExtendedOptions{strVal.Value}, nil
+	typedMsg := msg.(*nsproto.IndexOptions)
+	return &testExtendedOptions{typedMsg.Enabled, typedMsg.BlockSizeNanos}, nil
 }
 
 func init() {
-	namespace.RegisterExtendedOptionsConverter(testTypeURLPrefix, &protobuftypes.StringValue{}, convertToTestExtendedOptions)
+	namespace.RegisterExtendedOptionsConverter(testTypeURLPrefix, &nsproto.IndexOptions{}, convertToTestExtendedOptions)
 }
 
-func newTestExtendedOptionsProto(s string) *protobuftypes.Any {
-	// NB: using the stock StringValue message so that we don't have to introduce any new protobuf just for tests.
-	strMsg := &protobuftypes.StringValue{Value: s}
-	serializedMsg, _ := proto.Marshal(strMsg)
+func newTestExtendedOptionsProto(value int64) *protobuftypes.Any {
+	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
+	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
+	serializedMsg, _ := proto.Marshal(msg)
 
 	return &protobuftypes.Any{
-		TypeUrl: testTypeURLPrefix + proto.MessageName(strMsg),
+		TypeUrl: testTypeURLPrefix + proto.MessageName(msg),
 		Value:   serializedMsg,
 	}
 }
 
-func testExtendedOptionsJson(s string) xjson.Map {
+func testExtendedOptionsJson(value int64) xjson.Map {
 	return xjson.Map{
-		"@type": testTypeURLPrefix + "google.protobuf.StringValue",
-		"value": s,
+		"@type": testTypeURLPrefix + "namespace.IndexOptions",
+		"enabled": true,
+		"blockSizeNanos": fmt.Sprint(value),
 	}
 }
 

@@ -64,8 +64,9 @@ const (
 				]
 			},
 			"extendedOptions": {
-				"@type": "testm3.io/google.protobuf.StringValue",
-				"value": "foo"
+				"@type": "testm3.io/namespace.IndexOptions",
+				"enabled": true,
+				"blockSizeNanos": "6"
 			}
 		}
 }
@@ -134,7 +135,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: newTestExtendedOptionsProto("foo"),
+				ExtendedOptions: newTestExtendedOptionsProto(3),
 			},
 		},
 	}
@@ -195,7 +196,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						},
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   testExtendedOptionsJson("foo"),
+						"extendedOptions":   testExtendedOptionsJson(6),
 					},
 				},
 			},
@@ -252,7 +253,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   testExtendedOptionsJson("foo"),
+						"extendedOptions":   testExtendedOptionsJson(3),
 					},
 				},
 			},

@@ -101,7 +101,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: newTestExtendedOptionsProto("foo"),
+				ExtendedOptions: newTestExtendedOptionsProto(5),
 			},
 		},
 	}
@@ -142,7 +142,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
-						"extendedOptions":   testExtendedOptionsJson("foo"),
+						"extendedOptions":   testExtendedOptionsJson(5),
 					},
 				},
 			},
