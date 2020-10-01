@@ -139,6 +139,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		read: func(
 			ctx context.Context,
 			namespaces bootstrap.Namespaces,
+			cache bootstrap.Cache,
 		) (bootstrap.NamespaceResults, error) {
 			<-signalCh
 			// Mark all as unfulfilled so the commitlog bootstrapper will be called after
@@ -147,14 +148,14 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
-			return bs.Bootstrap(ctx, namespaces)
+			return bs.Bootstrap(ctx, namespaces, cache)
 		},
 	}, bootstrapOpts, bs)
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
 		SetOrigin(setup.Origin())
-	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
+	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts, fsOpts)
 	require.NoError(t, err)
 	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 

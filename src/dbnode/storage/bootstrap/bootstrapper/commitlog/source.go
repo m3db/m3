@@ -152,6 +152,7 @@ func newCommitLogSource(
 func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
@@ -160,6 +161,7 @@ func (s *commitLogSource) AvailableData(
 func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
@@ -177,6 +179,7 @@ type readNamespaceResult struct {
 func (s *commitLogSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
 	defer span.Finish()
@@ -226,7 +229,7 @@ func (s *commitLogSource) Read(
 		for shard, tr := range shardTimeRanges.Iter() {
 			err := s.bootstrapShardSnapshots(
 				ns.Metadata, accumulator, shard, tr, blockSize,
-				mostRecentCompleteSnapshotByBlockShard)
+				mostRecentCompleteSnapshotByBlockShard, cache)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
@@ -705,14 +708,16 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
 	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
+	cache bootstrap.Cache,
 ) error {
 	// NB(bodu): We use info files on disk to check if a snapshot should be loaded in as cold or warm.
 	// We do this instead of cross refing blockstarts and current time to handle the case of bootstrapping a
 	// once warm block start after a node has been shut down for a long time. We consider all block starts we
 	// haven't flushed data for yet a warm block start.
-	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
+	readInfoFilesResults, err := cache.InfoFilesForShard(ns, shard)
+	if err != nil {
+		return err
+	}
 	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {

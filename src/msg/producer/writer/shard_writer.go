@@ -203,6 +203,9 @@ func (w *replicatedShardWriter) UpdateInstances(
 		if instance, cw, ok := anyKeyValueInMap(toBeAdded); ok {
 			mw.AddConsumerWriter(cw)
 			mw.RemoveConsumerWriter(id)
+			// a replicated writer only has a single downstream consumer instance at a time so we can update the
+			// metrics with a useful consumer label.
+			mw.SetMetrics(mw.Metrics().withConsumer(instance.ID()))
 			w.updateCutoverCutoffNanos(mw, instance)
 			newMessageWriters[instance.Endpoint()] = mw
 			delete(toBeAdded, instance)
@@ -218,6 +221,7 @@ func (w *replicatedShardWriter) UpdateInstances(
 		w.replicaID++
 		mw := newMessageWriter(replicatedShardID, w.mPool, w.opts, w.m)
 		mw.AddConsumerWriter(cw)
+		mw.SetMetrics(mw.Metrics().withConsumer(instance.ID()))
 		w.updateCutoverCutoffNanos(mw, instance)
 		mw.Init()
 		w.ackRouter.Register(replicatedShardID, mw)

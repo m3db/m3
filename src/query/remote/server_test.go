@@ -52,6 +52,7 @@ import (
 )
 
 var (
+	testName     = "remote_foo"
 	errRead      = errors.New("read error")
 	poolsWrapper = pools.NewPoolsWrapper(
 		pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
@@ -176,7 +177,8 @@ func buildClient(t *testing.T, hosts []string) Client {
 		SetReadWorkerPool(readWorkerPool).
 		SetTagOptions(models.NewTagOptions())
 
-	client, err := NewGRPCClient(hosts, poolsWrapper, opts, grpc.WithBlock())
+	client, err := NewGRPCClient(testName, hosts, poolsWrapper, opts,
+		instrument.NewTestOptions(t), grpc.WithBlock())
 	require.NoError(t, err)
 	return client
 }
@@ -298,7 +300,8 @@ func TestMultipleClientRpc(t *testing.T) {
 func TestEmptyAddressListErrors(t *testing.T) {
 	addresses := []string{}
 	opts := m3db.NewOptions()
-	client, err := NewGRPCClient(addresses, poolsWrapper, opts, grpc.WithBlock())
+	client, err := NewGRPCClient(testName, addresses, poolsWrapper, opts,
+		instrument.NewTestOptions(t), grpc.WithBlock())
 	assert.Nil(t, client)
 	assert.Equal(t, m3err.ErrNoClientAddresses, err)
 }

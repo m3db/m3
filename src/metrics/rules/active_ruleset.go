@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
-	metricID "github.com/m3db/m3/src/metrics/metric/id"
+	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -58,8 +58,8 @@ type activeRuleSet struct {
 	rollupRules     []*rollupRule
 	cutoverTimesAsc []int64
 	tagsFilterOpts  filters.TagsFilterOptions
-	newRollupIDFn   metricID.NewIDFn
-	isRollupIDFn    metricID.MatchIDFn
+	newRollupIDFn   metricid.NewIDFn
+	isRollupIDFn    metricid.MatchIDFn
 }
 
 func newActiveRuleSet(
@@ -67,8 +67,8 @@ func newActiveRuleSet(
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
 	tagsFilterOpts filters.TagsFilterOptions,
-	newRollupIDFn metricID.NewIDFn,
-	isRollupIDFn metricID.MatchIDFn,
+	newRollupIDFn metricid.NewIDFn,
+	isRollupIDFn metricid.MatchIDFn,
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -311,7 +311,7 @@ func (as *activeRuleSet) toRollupResults(
 		multiErr           = xerrors.NewMultiError()
 		pipelines          = make([]metadata.PipelineMetadata, 0, len(targets))
 		newRollupIDResults = make([]idWithMatchResults, 0, len(targets))
-		tagPairs           []metricID.TagPair
+		tagPairs           []metricid.TagPair
 	)
 
 	for _, target := range targets {
@@ -402,7 +402,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	sortedTagPairBytes []byte,
 	newName []byte,
 	rollupTags [][]byte,
-	tagPairs []metricID.TagPair, // buffer for reuse to generate rollup ID across calls
+	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	opts matchRollupTargetOptions,
 ) ([]byte, bool) {
 	var (
@@ -415,7 +415,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		res := bytes.Compare(tagName, rollupTags[currTagIdx])
 		if res == 0 {
 			if opts.generateRollupID {
-				tagPairs = append(tagPairs, metricID.TagPair{Name: tagName, Value: tagVal})
+				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 			}
 			currTagIdx++
 			hasMoreTags = sortedTagIter.Next()
@@ -443,7 +443,7 @@ func (as *activeRuleSet) matchRollupTarget(
 func (as *activeRuleSet) applyIDToPipeline(
 	sortedTagPairBytes []byte,
 	pipeline mpipeline.Pipeline,
-	tagPairs []metricID.TagPair, // buffer for reuse across calls
+	tagPairs []metricid.TagPair, // buffer for reuse across calls
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
