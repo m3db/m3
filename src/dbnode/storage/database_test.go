@@ -785,7 +785,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
@@ -969,7 +969,7 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
@@ -1115,11 +1115,11 @@ func TestDatabaseBootstrapState(t *testing.T) {
 	}()
 
 	ns1 := dbAddNewMockNamespace(ctrl, d, "testns1")
-	ns1.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+	ns1.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{
 		1: Bootstrapping,
 	})
 	ns2 := dbAddNewMockNamespace(ctrl, d, "testns2")
-	ns2.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+	ns2.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{
 		2: Bootstrapped,
 	})
 
@@ -1199,7 +1199,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 		SetWritesToCommitLog(false)
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
