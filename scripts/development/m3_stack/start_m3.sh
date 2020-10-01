@@ -192,6 +192,13 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "indexOptions": {
       "enabled": true,
       "blockSizeDuration": "10m"
+    },
+    "aggregationOptions": {
+      "aggregations": [
+        {
+          "aggregated": false
+        }
+      ]
     }
   }
 }'
@@ -215,7 +222,18 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "indexOptions": {
       "enabled": true,
       "blockSizeDuration": "2h"
+    },
+    "aggregationOptions": {
+      "aggregations": [
+        {
+          "aggregated": true,
+          "attributes": {
+            "resolutionDuration": "30s"
+          }
+        }
+      ]
     }
+
   }
 }'
 echo "Done initializing namespaces"

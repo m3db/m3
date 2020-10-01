@@ -1301,7 +1301,6 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
-		pm         = d.opts.PersistManager()
 		start      = time.Now().Truncate(time.Hour)
 	)
 
@@ -1310,11 +1309,11 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts, pm).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
-	processedBlockCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)
-	assert.Equal(t, int64(4), processedBlockCount)
+	assert.Equal(t, int64(4), processedTileCount)
 }
 
 func TestNewAggregateTilesOptions(t *testing.T) {

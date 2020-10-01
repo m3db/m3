@@ -1126,9 +1126,15 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	// TODO: Create and use a dedicated persist manager
-	pm := d.opts.PersistManager()
-	return targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	if err != nil {
+		d.log.Error("error writing large tiles",
+			zap.String("sourceNs", sourceNsID.String()),
+			zap.String("targetNs", targetNsID.String()),
+			zap.Error(err),
+		)
+	}
+	return processedTileCount, err
 }
 
 func (d *db) nextIndex() uint64 {
@@ -1190,9 +1196,9 @@ func NewAggregateTilesOptions(
 	}
 
 	return AggregateTilesOptions{
-		Start: start,
-		End: end,
-		Step: step,
+		Start:               start,
+		End:                 end,
+		Step:                step,
 		HandleCounterResets: handleCounterResets,
 	}, nil
 }

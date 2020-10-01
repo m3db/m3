@@ -324,11 +324,11 @@ func (mr *MockDataFileSetReaderMockRecorder) StreamingEnabled() *gomock.Call {
 }
 
 // StreamingRead mocks base method
-func (m *MockDataFileSetReader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
+func (m *MockDataFileSetReader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingRead")
 	ret0, _ := ret[0].(ident.BytesID)
-	ret1, _ := ret[1].([]byte)
+	ret1, _ := ret[1].(ts.EncodedTags)
 	ret2, _ := ret[2].([]byte)
 	ret3, _ := ret[3].(uint32)
 	ret4, _ := ret[4].(error)
@@ -1334,11 +1334,11 @@ func (mr *MockCrossBlockReaderMockRecorder) Close() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockCrossBlockReader) Current() (ident.BytesID, []byte, []BlockRecord) {
+func (m *MockCrossBlockReader) Current() (ident.BytesID, ts.EncodedTags, []BlockRecord) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ident.BytesID)
-	ret1, _ := ret[1].([]byte)
+	ret1, _ := ret[1].(ts.EncodedTags)
 	ret2, _ := ret[2].([]BlockRecord)
 	return ret0, ret1, ret2
 }
