@@ -38,7 +38,7 @@ type testBackgroundProcess struct {
 	executed, reported, stopped atomic.Int32
 }
 
-func (p *testBackgroundProcess) Run() {
+func (p *testBackgroundProcess) run() {
 	xclock.WaitUntil(func() bool {
 		return p.reported.Load() > 0
 	}, time.Minute)
@@ -46,6 +46,10 @@ func (p *testBackgroundProcess) Run() {
 	xclock.WaitUntil(func() bool {
 		return p.stopped.Load() > 0
 	}, time.Minute)
+}
+
+func (p *testBackgroundProcess) Start() {
+	go p.run()
 }
 
 func (p *testBackgroundProcess) Stop() {

@@ -2988,16 +2988,16 @@ func (m *MockBackgroundProcess) EXPECT() *MockBackgroundProcessMockRecorder {
 	return m.recorder
 }
 
-// Run mocks base method
-func (m *MockBackgroundProcess) Run() {
+// Start mocks base method
+func (m *MockBackgroundProcess) Start() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Run")
+	m.ctrl.Call(m, "Start")
 }
 
-// Run indicates an expected call of Run
-func (mr *MockBackgroundProcessMockRecorder) Run() *gomock.Call {
+// Start indicates an expected call of Start
+func (mr *MockBackgroundProcessMockRecorder) Start() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockBackgroundProcess)(nil).Run))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockBackgroundProcess)(nil).Start))
 }
 
 // Stop mocks base method
@@ -3047,16 +3047,16 @@ func (m *MockdatabaseRepairer) EXPECT() *MockdatabaseRepairerMockRecorder {
 	return m.recorder
 }
 
-// Run mocks base method
-func (m *MockdatabaseRepairer) Run() {
+// Start mocks base method
+func (m *MockdatabaseRepairer) Start() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Run")
+	m.ctrl.Call(m, "Start")
 }
 
-// Run indicates an expected call of Run
-func (mr *MockdatabaseRepairerMockRecorder) Run() *gomock.Call {
+// Start indicates an expected call of Start
+func (mr *MockdatabaseRepairerMockRecorder) Start() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseRepairer)(nil).Run))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockdatabaseRepairer)(nil).Start))
 }
 
 // Stop mocks base method

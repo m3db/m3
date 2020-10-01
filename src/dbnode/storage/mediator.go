@@ -139,13 +139,14 @@ func (m *mediator) Open() error {
 		return errMediatorAlreadyOpen
 	}
 	m.state = mediatorOpen
+
 	go m.reportLoop()
 	go m.ongoingFileSystemProcesses()
 	go m.ongoingColdFlushProcesses()
 	go m.ongoingTick()
 
 	for _, process := range m.backgroundProcesses {
-		go process.Run()
+		process.Start()
 	}
 
 	return nil

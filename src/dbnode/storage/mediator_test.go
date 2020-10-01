@@ -52,15 +52,15 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)
 
-	var executed, reported atomic.Bool
+	var started, reported atomic.Bool
 
 	backgroundProcess := NewMockBackgroundProcess(ctrl)
 	backgroundProcess.EXPECT().Report().Do(func() {
 		reported.Store(true)
 	}).AnyTimes()
 	gomock.InOrder(
-		backgroundProcess.EXPECT().Run().Do(func() {
-			executed.Store(true)
+		backgroundProcess.EXPECT().Start().Do(func() {
+			started.Store(true)
 		}),
 		backgroundProcess.EXPECT().Stop(),
 	)
@@ -73,9 +73,9 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	require.Equal(t, errMediatorAlreadyOpen, m.Open())
 
 	xclock.WaitUntil(func() bool {
-		return executed.Load() && reported.Load()
+		return started.Load() && reported.Load()
 	}, time.Second)
-	require.True(t, executed.Load(), "failed to execute")
+	require.True(t, started.Load(), "failed to start")
 	require.True(t, reported.Load(), "failed to report")
 
 	require.NoError(t, m.Close())

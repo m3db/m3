@@ -563,7 +563,7 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 	return r, nil
 }
 
-func (r *dbRepairer) Run() {
+func (r *dbRepairer) run() {
 	for {
 		r.closedLock.Lock()
 		closed := r.closed
@@ -589,6 +589,10 @@ func (r *dbRepairer) namespaceRepairTimeRange(ns databaseNamespace) xtime.Range 
 	return xtime.Range{
 		Start: retention.FlushTimeStart(rtopts, now),
 		End:   retention.FlushTimeEnd(rtopts, now)}
+}
+
+func (r *dbRepairer) Start() {
+	go r.run()
 }
 
 func (r *dbRepairer) Stop() {
@@ -752,7 +756,7 @@ type repairerNoOp struct{}
 
 func newNoopDatabaseRepairer() databaseRepairer { return noOpRepairer }
 
-func (r repairerNoOp) Run()          {}
+func (r repairerNoOp) Start()        {}
 func (r repairerNoOp) Stop()         {}
 func (r repairerNoOp) Repair() error { return nil }
 func (r repairerNoOp) Report()       {}
