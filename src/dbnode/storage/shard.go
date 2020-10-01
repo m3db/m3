@@ -277,16 +277,11 @@ type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
 	initialized  bool
-
-	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
-	// going to disk to see if filesets are empty.
-	emptySnapshotOnDiskByTime map[xtime.UnixNano]bool
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime:              make(map[xtime.UnixNano]fileOpState),
-		emptySnapshotOnDiskByTime: make(map[xtime.UnixNano]bool),
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
 }
 
@@ -2421,15 +2416,7 @@ func (s *dbShard) Snapshot(
 	})
 	checkNeedsSnapshotTimer.Stop()
 
-	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
-	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
-	// snapshotting work after a bootstrap since this cached state gets cleared.
-	s.flushState.RLock()
-	// NB(bodu): This always defaults to false if the record does not exist.
-	emptySnapshotOnDisk := s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)]
-	s.flushState.RUnlock()
-
-	if !needsSnapshot && emptySnapshotOnDisk {
+	if !needsSnapshot {
 		return ShardSnapshotResult{}, nil
 	}
 
@@ -2499,19 +2486,6 @@ func (s *dbShard) Snapshot(
 	if err := multiErr.FinalError(); err != nil {
 		return ShardSnapshotResult{}, err
 	}
-
-	// Only update cached snapshot state if we successfully flushed data to disk.
-	s.flushState.Lock()
-	if needsSnapshot {
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = false
-	} else {
-		// NB(bodu): If we flushed an empty snapshot to disk, it means that the previous
-		// snapshot on disk was not empty (or we just bootstrapped and cached state was lost).
-		// The snapshot we just flushed may or may not have data, although whatever data we flushed
-		// would be recoverable from the rotate commit log as well.
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = true
-	}
-	s.flushState.Unlock()
 
 	return ShardSnapshotResult{
 		SeriesPersist: persist,
