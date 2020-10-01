@@ -21,7 +21,7 @@
 package ts
 
 // M3MetricType is the enum for M3 metric types.
-type M3MetricType int
+type M3MetricType uint8
 
 const (
 	// M3MetricTypeGauge is the gauge metric type.
@@ -35,7 +35,7 @@ const (
 )
 
 // PromMetricType is the enum for Prometheus metric types.
-type PromMetricType int
+type PromMetricType uint8
 
 const (
 	// PromMetricTypeUnknown is the unknown Prometheus metric type.
@@ -55,7 +55,7 @@ const (
 )
 
 // PromMetricFamilyType is the enum for Prometheus metric types.
-type PromMetricFamilyType int
+type PromMetricFamilyType uint8
 
 const (
 	// PromMetricFamilyTypeNone indicates that the metric does not belong to a metrics family.
@@ -92,11 +92,7 @@ type SeriesAttributes struct {
 
 // DefaultSeriesAttributes returns a default series attributes.
 func DefaultSeriesAttributes() SeriesAttributes {
-	return SeriesAttributes{
-		M3Type:   M3MetricTypeGauge,
-		PromType: PromMetricTypeUnknown,
-		Source:   SourceTypePrometheus,
-	}
+	return SeriesAttributes{}
 }
 
 // Metadata is metadata associated with a time series.

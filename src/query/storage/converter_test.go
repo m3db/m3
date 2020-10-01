@@ -386,7 +386,7 @@ func TestSeriesAttributesMetricTypeToAnnotationPayload(t *testing.T) {
 		assert.Equal(t, expected, payload.MetricType)
 	}
 
-	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: -1})
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
 	require.Error(t, err)
 }
 
@@ -404,9 +404,9 @@ func TestSeriesAttributesMetricFamilyTypeToAnnotationPayload(t *testing.T) {
 		assert.Equal(t, expected, payload.MetricFamilyType)
 	}
 
-	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: -1})
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
 	require.Error(t, err)
 
-	_, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromFamilyType: -1})
+	_, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromFamilyType: math.MaxUint8})
 	require.Error(t, err)
 }

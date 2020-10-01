@@ -599,6 +599,10 @@ type promTSIter struct {
 }
 
 func (i *promTSIter) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
 	i.idx++
 	if i.idx >= len(i.tags) {
 		return false
@@ -644,6 +648,8 @@ func (i *promTSIter) Current() ingest.IterValue {
 func (i *promTSIter) Reset() error {
 	i.idx = -1
 	i.err = nil
+	i.annotation = nil
+
 	return nil
 }
 

@@ -20,8 +20,8 @@ message TimeSeries {
 
   // NB: These are custom fields that M3 uses. They start at 101 so that they
   // should never clash with prometheus fields.
-  M3Type m3_type = 101;
-  Source source  = 102;
+  M3Type m3_type        = 101;
+  Source source         = 102;
 }
 
 message Label {

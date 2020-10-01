@@ -46,6 +46,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,7 @@ func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
 }
 
 func TestPromWriteParsing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -85,7 +86,7 @@ func TestPromWriteParsing(t *testing.T) {
 }
 
 func TestPromWrite(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -108,7 +109,7 @@ func TestPromWrite(t *testing.T) {
 }
 
 func TestPromWriteError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	multiErr := xerrors.NewMultiError().Add(errors.New("an error"))
@@ -139,7 +140,7 @@ func TestPromWriteError(t *testing.T) {
 }
 
 func TestWriteErrorMetricCount(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -163,7 +164,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 }
 
 func TestWriteDatapointDelayMetric(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -221,7 +222,7 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 }
 
 func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	expectedIngestWriteOptions := ingest.WriteOptions{
@@ -253,7 +254,7 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 }
 
 func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	expectedIngestWriteOptions := ingest.WriteOptions{
@@ -289,7 +290,7 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 }
 
 func TestPromWriteMetricsTypes(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var capturedIter ingest.DownsampleAndWriteIter
@@ -352,7 +353,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 }
 
 func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var capturedIter ingest.DownsampleAndWriteIter
@@ -398,7 +399,7 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 }
 
 func BenchmarkWriteDatapoints(b *testing.B) {
-	ctrl := gomock.NewController(b)
+	ctrl := xtest.NewController(b)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
