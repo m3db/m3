@@ -369,6 +369,8 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 }
 
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
+	createdNamespaces := make([]databaseNamespace, 0, len(namespaces))
+
 	for _, n := range namespaces {
 		// ensure namespace doesn't exist
 		_, ok := d.namespaces.Get(n.ID())
@@ -382,7 +384,17 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+		createdNamespaces = append(createdNamespaces, newNs)
 	}
+
+	hooks := d.Options().NamespaceHooks()
+	for _, ns := range createdNamespaces {
+		err := hooks.OnCreatedNamespace(ns, d.namespaces.Get)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -1047,7 +1059,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 	d.RLock()
 	for _, n := range d.namespaces.Iter() {
 		ns := n.Value()
-		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+		nsBootstrapStates[ns.ID().String()] = ns.ShardBootstrapState()
 	}
 	d.RUnlock()
 
