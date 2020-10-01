@@ -83,6 +83,13 @@ offlineSearch = false
   themeVariant = "blue"
   twitter = "m3db_io"
 
+# Add your release versions here
+[[params.versions]]
+  version = "0.9"
+  url = "https://master.kubeflow.org"
+
+version_menu = "Versions"
+
 # TODO: Do not like doing this really
 [markup]
   [markup.goldmark]
