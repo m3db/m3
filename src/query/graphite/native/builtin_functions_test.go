@@ -3467,6 +3467,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",

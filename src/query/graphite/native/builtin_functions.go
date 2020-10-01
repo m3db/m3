@@ -2362,6 +2362,7 @@ func init() {
 	MustRegisterFunction(stdev).WithDefaultParams(map[uint8]interface{}{
 		3: 0.1, // windowTolerance
 	})
+	MustRegisterFunction(stddevSeries)
 	MustRegisterFunction(substr).WithDefaultParams(map[uint8]interface{}{
 		2: 0, // start
 		3: 0, // stop

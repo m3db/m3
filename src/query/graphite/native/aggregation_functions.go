@@ -121,7 +121,13 @@ func standardDeviationHelper(values []float64) float64 {
 
 	return math.Sqrt(variance)
 }
-func stDevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesList, error) {
+
+// stddevSeries takes a list of series and returns a new series containing the
+// standard deviation at each datapoint
+// At step n, stddevSeries will make a list of every series' nth value,
+// and calculate the standard deviation of that list.
+// The output is a seriesList containing 1 series
+func stddevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesList, error) {
 	if len(seriesList.Values) == 0 {
 		return ts.NewSeriesList(), nil
 	}
@@ -230,6 +236,9 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 
 // aggregate takes a list of series and returns a new series containing the
 // value aggregated across the series at each datapoint using the specified function.
+// This function can be used with aggregation functionsL average (or avg), avg_zero,
+// median, sum (or total), min, max, diff, stddev, count,
+// range (or rangeOf), multiply & last (or current).
 func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.SeriesList, error) {
 	switch fname {
 	case Empty, Sum, SumSeries, Total:
@@ -251,7 +260,7 @@ func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.Ser
 	case Last, Current:
 		return lastSeries(ctx, multiplePathSpecs(series))
 	case Stdev, Stddev:
-		return stDevSeries(ctx, multiplePathSpecs(series))
+		return stddevSeries(ctx, multiplePathSpecs(series))
 	default:
 		// Median: the movingMedian() method already implemented is returning an series non compatible result. skip support for now.
 		// avg_zero is not implemented, skip support for now unless later identified actual use cases.

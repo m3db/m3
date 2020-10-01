@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,6 +133,36 @@ func TestSumSeries(t *testing.T) {
 	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
 		return sumSeries(ctx, series)
 	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
+}
+
+func TestStdDevSeries(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+		}
+	)
+
+	expectedResults := []common.TestSeries{
+		{
+			Name: "stddevSeries(servers.s2,servers.s1)",
+			Data: []float64{40, 30, 20},
+		},
+	}
+	result, err := stddevSeries(ctx, multiplePathSpecs{
+		Values: inputs,
+	})
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, 60000, start, expectedResults, result.Values)
 }
 
 func TestAggregate(t *testing.T) {
