@@ -31,4 +31,5 @@ type StorageOptions struct {
 	ForceColdWritesEnabled bool
 	TChanNodeServerFn      node.NewTChanNodeServerFn
 	BackgroundProcessFns   []storage.NewBackgroundProcessFn
+	NamespaceHooks         storage.NamespaceHooks
 }
