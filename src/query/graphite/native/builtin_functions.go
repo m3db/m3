@@ -1484,6 +1484,7 @@ func combineBootstrapWithOriginal(
 
 	bootstrapList := make([]*ts.Series, 0, len(seriesList.Values))
 	for _, series := range seriesList.Values {
+		startTime := startTime.Truncate(series.Resolution())
 		bs, found := nameToSeries[series.Name()]
 		if !found {
 			numSteps := ts.NumSteps(startTime, endTime, series.MillisPerStep())
