@@ -117,6 +117,10 @@ type Configuration struct {
 
 	// WriteShardsInitializing sets whether or not to write to nodes that are initializing.
 	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
+
+	// ShardsLeavingCountTowardsConsistency sets whether or not to write to leaving shards
+	// count towards consistency, by default they do not.
+	ShardsLeavingCountTowardsConsistency *bool `yaml:"shardsLeavingCountTowardsConsistency"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -424,6 +428,9 @@ func (c Configuration) NewAdminClient(
 
 	if c.WriteShardsInitializing != nil {
 		v = v.SetWriteShardsInitializing(*c.WriteShardsInitializing)
+	}
+	if c.ShardsLeavingCountTowardsConsistency != nil {
+		v = v.SetShardsLeavingCountTowardsConsistency(*c.ShardsLeavingCountTowardsConsistency)
 	}
 
 	// Cast to admin options to apply admin config options.
