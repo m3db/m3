@@ -316,6 +316,16 @@ func TestSessionFetchReadConsistencyLevelAll(t *testing.T) {
 	}
 }
 
+func TestSessionFetchReadConsistencyLevelUnstrictAll(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	for i := 0; i <= 2; i++ {
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictAll, i, outcomeSuccess)
+	}
+	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictAll, 3, outcomeFail)
+}
+
 func TestSessionFetchReadConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
