@@ -78,3 +78,39 @@ func minTime(x, y time.Time) time.Time {
 	}
 	return y
 }
+
+// IntersectingShardTimeRanges gets intersecting shard time ranges across shards
+// for requested shard time ranges and a given block start x block size.
+func IntersectingShardTimeRanges(
+	shardTimeRanges result.ShardTimeRanges,
+	shards []uint32,
+	blockStart time.Time,
+	blockSize time.Duration,
+) result.ShardTimeRanges {
+	blockRange := xtime.Range{
+		Start: blockStart,
+		End:   blockStart.Add(blockSize),
+	}
+	willFulfill := result.NewShardTimeRanges()
+	for _, shard := range shards {
+		tr, ok := shardTimeRanges.Get(shard)
+		if !ok {
+			// No ranges match for this shard.
+			continue
+		}
+		if _, ok := willFulfill.Get(shard); !ok {
+			willFulfill.Set(shard, xtime.NewRanges())
+		}
+
+		iter := tr.Iter()
+		for iter.Next() {
+			curr := iter.Value()
+			intersection, intersects := curr.Intersect(blockRange)
+			if !intersects {
+				continue
+			}
+			willFulfill.GetOrAdd(shard).AddRange(intersection)
+		}
+	}
+	return willFulfill
+}

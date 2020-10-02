@@ -361,11 +361,12 @@ func writeTestIndexSnapshotsToDisk(
 	metadata namespace.Metadata,
 	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
 	return writer.WriteIndexSnapshot(
-		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, time.Duration(0))
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

@@ -693,32 +693,12 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 
 		info := infoFile.Info
 		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
-		indexBlockRange := xtime.Range{
-			Start: indexBlockStart,
-			End:   indexBlockStart.Add(indexBlockSize),
-		}
-		willFulfill := result.NewShardTimeRanges()
-		for _, shard := range info.Shards {
-			tr, ok := shardTimeRanges.Get(shard)
-			if !ok {
-				// No ranges match for this shard.
-				continue
-			}
-			if _, ok := willFulfill.Get(shard); !ok {
-				willFulfill.Set(shard, xtime.NewRanges())
-			}
-
-			iter := tr.Iter()
-			for iter.Next() {
-				curr := iter.Value()
-				intersection, intersects := curr.Intersect(indexBlockRange)
-				if !intersects {
-					continue
-				}
-				willFulfill.GetOrAdd(shard).AddRange(intersection)
-			}
-		}
-
+		willFulfill := bootstrapper.IntersectingShardTimeRanges(
+			shardTimeRanges,
+			info.Shards,
+			indexBlockStart,
+			indexBlockSize,
+		)
 		if willFulfill.IsEmpty() {
 			// No matching shard/time ranges with this block.
 			continue

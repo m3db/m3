@@ -43,15 +43,16 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 
 	// Test setup
 	var (
-		rOpts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
-		blockSize = rOpts.BlockSize()
+		rOpts          = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
+		blockSize      = rOpts.BlockSize()
+		indexBlockSize = 2 * blockSize
 	)
 
 	nsOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(namespace.NewIndexOptions().
 			SetEnabled(true).
-			SetBlockSize(2 * blockSize),
+			SetBlockSize(indexBlockSize),
 		)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
@@ -132,7 +133,8 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 	// For now jut write out all of the series into the snapshots and confirm that we can
 	// bootstrap successfully from index snapshots.
 	writeIndexSnapshots(
-		t, setup, seriesMaps, ns1)
+		// For now, we cover the entire index block w/ the snapshot.
+		t, setup, seriesMaps, ns1, indexBlockSize)
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.

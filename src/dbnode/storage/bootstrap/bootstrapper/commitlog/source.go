@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -739,8 +740,9 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 }
 
 type indexSnapshot struct {
-	fileSet fs.FileSetFile
-	info    index.IndexVolumeInfo
+	fileSet   fs.FileSetFile
+	info      index.IndexVolumeInfo
+	fulfilled result.ShardTimeRanges
 }
 
 // mostRecentCompleteSnapshotByBlock returns a
@@ -782,9 +784,16 @@ func (s *commitLogSource) mostRecentCompleteIndexSnapshotByBlock(
 					// force us to read the entire commit log for that duration.
 					mostRecentSnapshot.CachedSnapshotTime = currBlockStart
 				}
+				fulfilled := bootstrapper.IntersectingShardTimeRanges(
+					shardsTimeRanges,
+					indexVolumeInfo.Shards,
+					currBlockStart,
+					blockSize,
+				)
 				mostRecentIndexSnapshotsByBlock[currBlockUnixNanos] = indexSnapshot{
-					fileSet: mostRecentSnapshot,
-					info:    indexVolumeInfo,
+					fileSet:   mostRecentSnapshot,
+					info:      indexVolumeInfo,
+					fulfilled: fulfilled,
 				}
 			}()
 
@@ -1043,6 +1052,7 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 			indexResult,
 			blockStart.ToTime(),
 			snapshot.fileSet,
+			snapshot.fulfilled,
 			indexVolumeType,
 		); err != nil {
 			return err
@@ -1056,6 +1066,7 @@ func (s *commitLogSource) bootstrapIndexBlockSnapshot(
 	indexResult result.IndexBootstrapResult,
 	blockStart time.Time,
 	mostRecentIndexSnapshot fs.FileSetFile,
+	fulfilled result.ShardTimeRanges,
 	indexVolumeType idxpersist.IndexVolumeType,
 ) error {
 	var (
@@ -1082,8 +1093,9 @@ func (s *commitLogSource) bootstrapIndexBlockSnapshot(
 		// Snapshotted segments have not been persisted to disk yet.
 		snapshottedSegments = append(snapshottedSegments, result.NewSegment(segment, false))
 	}
+
 	indexBlockByVolumeType := result.NewIndexBlockByVolumeType(blockStart)
-	indexBlockByVolumeType.SetBlock(indexVolumeType, result.NewIndexBlock(snapshottedSegments, nil))
+	indexBlockByVolumeType.SetBlock(indexVolumeType, result.NewIndexBlock(snapshottedSegments, fulfilled))
 	indexResult.Add(indexBlockByVolumeType, nil)
 	return nil
 }

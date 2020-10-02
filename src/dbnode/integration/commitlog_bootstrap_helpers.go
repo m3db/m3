@@ -235,9 +235,10 @@ func writeIndexSnapshots(
 	s TestSetup,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
+	snapshotInterval time.Duration,
 ) {
 	// Write out snapshots
 	err := writeTestIndexSnapshotsToDisk(
-		namespace, s, data)
+		namespace, s, data, snapshotInterval)
 	require.NoError(t, err)
 }
