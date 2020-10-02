@@ -33,7 +33,7 @@
 
 theme = "docs-theme"
 
-baseURL = "/"
+# baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
