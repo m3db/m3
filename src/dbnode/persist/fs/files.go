@@ -597,42 +597,76 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 // SnapshotTimeAndID returns the metadata for the snapshot.
 func SnapshotTimeAndID(
 	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
-	decoder := msgpack.NewDecoder(nil)
-	return snapshotTimeAndID(filePathPrefix, id, decoder)
-}
-
-func snapshotTimeAndID(
-	filePathPrefix string,
-	id FileSetFileIdentifier,
-	decoder *msgpack.Decoder,
-) (time.Time, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error reading index snapshot info file: %v", err)
 	}
+	switch id.FileSetContentType {
+	case persist.FileSetDataContentType:
+		decoder := msgpack.NewDecoder(nil)
+		return dataSnapshotTimeAndID(infoBytes, decoder)
+	case persist.FileSetIndexContentType:
+		return indexSnapshotTimeAndID(infoBytes)
+	}
+	return time.Time{}, nil, errInvalidContentType
+}
 
+func dataSnapshotTimeAndID(
+	infoBytes []byte,
+	decoder *msgpack.Decoder,
+) (time.Time, uuid.UUID, error) {
 	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error decoding data snapshot info file: %v", err)
 	}
 
 	var parsedSnapshotID uuid.UUID
 	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from data snapshot info file: %v", err)
+	}
+
+	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
+}
+
+func indexSnapshotTimeAndID(
+	infoBytes []byte,
+) (time.Time, uuid.UUID, error) {
+	var info index.IndexVolumeInfo
+	if err := info.Unmarshal(infoBytes); err != nil {
+		return time.Time{}, nil, err
+	}
+	var parsedSnapshotID uuid.UUID
+	err := parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from index snapshot info file: %v", err)
 	}
 
 	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
 }
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
-	var dir string
+	var (
+		dir                  string
+		infoDigestFromDataFn func(data []byte) (uint32, error)
+	)
 	switch id.FileSetContentType {
 	case persist.FileSetDataContentType:
 		dir = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+		infoDigestFromDataFn = func(data []byte) (uint32, error) {
+			return digest.ToBuffer(data).ReadDigest(), nil
+		}
 	case persist.FileSetIndexContentType:
 		dir = NamespaceIndexSnapshotDirPath(filePathPrefix, id.Namespace)
+		infoDigestFromDataFn = func(data []byte) (uint32, error) {
+			var indexDigest index.IndexDigests
+			if err := indexDigest.Unmarshal(data); err != nil {
+				return 0, err
+			}
+			return indexDigest.InfoDigest, nil
+		}
+
 	default:
 		return nil, errInvalidContentType
 	}
@@ -666,7 +700,10 @@ func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, reade
 	}
 
 	// Read and validate the info file
-	expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+	expectedInfoDigest, err := infoDigestFromDataFn(digestData)
+	if err != nil {
+		return nil, err
+	}
 	return readAndValidate(
 		infoFilePath, readerBufferSize, expectedInfoDigest)
 }
@@ -1322,6 +1359,9 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
+				// FileSetContentType is used to determine which dir to read from
+				// so we populate it here since it is not written to disk.
+				FileSetContentType: args.contentType,
 			}, args.filePathPrefix)
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestVolumeIndex != volumeIndex {
 			filesetFiles = append(filesetFiles, latestFileSetFile)
@@ -1330,6 +1370,9 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
+				// FileSetContentType is used to determine which dir to read from
+				// so we populate it here since it is not written to disk.
+				FileSetContentType: args.contentType,
 			}, args.filePathPrefix)
 		}
 		latestBlockStart = currentFileBlockStart

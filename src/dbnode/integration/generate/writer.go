@@ -341,9 +341,10 @@ func writeIndexSnapshotToDisk(
 	}
 	writerOpts := fs.IndexWriterOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   nsCtx.ID,
-			BlockStart:  start,
-			VolumeIndex: volumeIndex,
+			Namespace:          nsCtx.ID,
+			BlockStart:         start,
+			VolumeIndex:        volumeIndex,
+			FileSetContentType: persist.FileSetIndexContentType,
 		},
 		FileSetType:     persist.FileSetSnapshotType,
 		BlockSize:       blockSize,

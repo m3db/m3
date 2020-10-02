@@ -136,6 +136,9 @@ type indexPersistManager struct {
 	// hooks used for testing
 	newReaderFn            newIndexReaderFn
 	newPersistentSegmentFn newPersistentSegmentFn
+
+	// The ID of the snapshot being prepared. Only used when writing out snapshots.
+	snapshotID uuid.UUID
 }
 
 type newIndexReaderFn func(Options) (IndexFileSetReader, error)
@@ -222,6 +225,7 @@ func (pm *persistManager) reset() {
 	pm.indexPM.writeErr = nil
 	pm.indexPM.initialized = false
 	pm.dataPM.snapshotID = nil
+	pm.indexPM.snapshotID = nil
 }
 
 // StartIndexPersist is called by the databaseFlushManager to begin the persist process for
@@ -338,6 +342,7 @@ func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareSnapshot
 		nsMetadata   = opts.NamespaceMetadata
 		blockStart   = opts.BlockStart
 		snapshotTime = opts.SnapshotTime
+		snapshotID   = pm.indexPM.snapshotID
 		nsID         = opts.NamespaceMetadata.ID()
 		prepared     persist.PreparedIndexSnapshotPersist
 	)
@@ -383,6 +388,7 @@ func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareSnapshot
 		IndexVolumeType: opts.IndexVolumeType,
 		Snapshot: IndexWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
+			SnapshotID:   snapshotID,
 		},
 	}
 
@@ -503,6 +509,7 @@ func (pm *persistManager) StartSnapshotPersist(snapshotID uuid.UUID) (persist.Sn
 	pm.status = persistManagerPersistingSnapshot
 	pm.dataPM.fileSetType = persist.FileSetSnapshotType
 	pm.dataPM.snapshotID = snapshotID
+	pm.indexPM.snapshotID = snapshotID
 
 	return pm, nil
 }

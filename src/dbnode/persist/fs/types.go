@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/pborman/uuid"
 )
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile
@@ -347,6 +348,7 @@ type RetrievableDataBlockSegmentReader interface {
 // IndexWriterSnapshotOptions is a set of options for writing an index file set snapshot.
 type IndexWriterSnapshotOptions struct {
 	SnapshotTime time.Time
+	SnapshotID   uuid.UUID
 }
 
 // IndexWriterOpenOptions is a set of options when opening an index file set writer.

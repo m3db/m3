@@ -13,6 +13,7 @@ message IndexVolumeInfo {
   int64 snapshotTime = 6;
   repeated SegmentInfo segments = 7;
   google.protobuf.StringValue indexVolumeType = 8;
+  bytes snapshotID = 9;
 }
 
 enum SegmentState {
