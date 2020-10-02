@@ -357,16 +357,17 @@ func writeTestSnapshotsToDiskWithPredicate(
 		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
-func writeTestIndexSnapshotsToDisk(
+func writeTestIndexSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
 	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
-	return writer.WriteIndexSnapshot(
-		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, snapshotInterval)
+	return writer.WriteIndexSnapshotWithPredicate(
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

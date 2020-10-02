@@ -230,15 +230,16 @@ func writeSnapshotsWithPredicate(
 	require.NoError(t, err)
 }
 
-func writeIndexSnapshots(
+func writeIndexSnapshotsWithPredicate(
 	t *testing.T,
 	s TestSetup,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
+	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) {
 	// Write out snapshots
-	err := writeTestIndexSnapshotsToDisk(
-		namespace, s, data, snapshotInterval)
+	err := writeTestIndexSnapshotsToDiskWithPredicate(
+		namespace, s, data, pred, snapshotInterval)
 	require.NoError(t, err)
 }

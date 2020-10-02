@@ -132,9 +132,14 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 	// snapshots AND commit logs after we fix series indexing for cold blocks from commit logs.
 	// For now jut write out all of the series into the snapshots and confirm that we can
 	// bootstrap successfully from index snapshots.
-	writeIndexSnapshots(
-		// For now, we cover the entire index block w/ the snapshot.
-		t, setup, seriesMaps, ns1, indexBlockSize)
+	// For now, we cover the entire index block w/ the snapshot.
+	writeIndexSnapshotsWithPredicate(
+		t, setup, seriesMaps, ns1, generate.WriteAllPredicate, indexBlockSize)
+	writeSnapshotsWithPredicate(
+		t, setup, seriesMaps, 0, ns1, generate.WriteAllPredicate, blockSize)
+	writeIndexSnapshotsWithPredicate(t, setup, seriesMaps, ns2, generate.WriteAllPredicate, indexBlockSize)
+	writeSnapshotsWithPredicate(
+		t, setup, seriesMaps, 0, ns2, generate.WriteAllPredicate, blockSize)
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.

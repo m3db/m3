@@ -97,10 +97,11 @@ type Writer interface {
 		snapshotInterval time.Duration,
 	) error
 
-	WriteIndexSnapshot(
+	WriteIndexSnapshotWithPredicate(
 		nsCtx ns.Context,
 		shardSet sharding.ShardSet,
 		seriesMaps SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
 		snapshotInterval time.Duration,
 	) error
 

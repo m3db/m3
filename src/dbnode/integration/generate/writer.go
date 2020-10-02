@@ -74,14 +74,15 @@ func (w *writer) WriteSnapshot(
 		nsCtx, shardSet, seriesMaps, volume, WriteAllPredicate, snapshotInterval)
 }
 
-func (w *writer) WriteIndexSnapshot(
+func (w *writer) WriteIndexSnapshotWithPredicate(
 	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	pred WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	return w.writeIndexSnapshotWithPredicate(
-		nsCtx, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, pred, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
