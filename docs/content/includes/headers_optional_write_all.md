@@ -1,3 +1,7 @@
+---
+headless: true
+---
+
 - `M3-Map-Tags-JSON`:  
  If this header is set it enables dynamically mutating tags in a Prometheus write request. See issue
 [2254](https://github.com/m3db/m3/issues/2254) for further context.<br /><br />

@@ -5,6 +5,8 @@ weight = 4
 chapter = false
 +++
 
+![OpenAPI Doc](/redoc_screenshot.png)
+
 {{< tabs name="tab_with_md" >}}
 {{% tab name="Markdown" %}}
 This is **some markdown.**
@@ -21,7 +23,7 @@ HTML
 
 Include code from elsewhere.
 
-{{% codeinclude file="/static/podtemplate.json" language="json" %}}
+{{% codeinclude file="includes/podtemplate.json" language="json" %}}
 
 {{< /tab >}}
 {{< /tabs >}}

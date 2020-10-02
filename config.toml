@@ -3,12 +3,40 @@
   [[module.imports]]
     path = "github.com/chronosphereio/docs-theme"
 
-# theme = "docs-theme"
+  [[module.mounts]]
+    source = "docs/content"
+    target = "content"
+
+  [[module.mounts]]
+    source = "docs/static"
+    target = "static"
+
+  [[module.mounts]]
+    source = "docs/layouts"
+    target = "layouts"
+
+  [[module.mounts]]
+    source = "docs/data"
+    target = "data"
+
+  [[module.mounts]]
+    source = "docs/assets"
+    target = "assets"
+
+  [[module.mounts]]
+    source = "docs/i18n"
+    target = "i18n"
+
+  [[module.mounts]]
+    source = "docs/archetypes"
+    target = "archetypes"
+
+theme = "docs-theme"
 
 baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
-staticDir = ["static"]
+# staticDir = ["static"]
 
 title = "M3DB Documentation"
 metaDataFormat = "yaml"

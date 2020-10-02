@@ -1,4 +1,8 @@
-{{% fileinclude file="/includes/headers_optional_read_limits.md" %}}
+---
+headless: true
+---
+
+{{% fileinclude file="includes/headers_optional_read_limits.md" %}}
 
 - `M3-Restrict-By-Tags-JSON`:  
  If this header is set it can ensure specific label matching is performed as part
@@ -9,4 +13,3 @@ issued regardless of if they include the label or not in a query and also strip 
 ```
 M3-Restrict-By-Tags-JSON: '{"match":[{"name":"globaltag","type":"EQUAL","value":"somevalue"}],"strip":["globaltag"]}'
 ```
-<br /><br />

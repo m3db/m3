@@ -1,3 +1,7 @@
+---
+headless: true
+---
+
 - `Cluster-Environment-Name`:  
  This header is used to specify the cluster environment name. If not set, the default `default_env` is used. 
 <br />
