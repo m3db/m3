@@ -64,20 +64,9 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 	}
 }
 
-func (o PrometheusOptions) validate() error {
-	if o.Storage == nil {
-		return errors.New("storage is not set")
-	}
-	if o.InstrumentOptions == nil {
-		return errors.New("instrument options not set")
-	}
-	return nil
-}
-
 // Querier returns a prometheus storage Querier.
 func (q *prometheusQueryable) Querier(
-	ctx context.Context,
-	mint, maxt int64,
+	ctx context.Context, _, _ int64,
 ) (promstorage.Querier, error) {
 	return newQuerier(ctx, q.storage, q.logger), nil
 }
@@ -134,7 +123,7 @@ func (q *querier) Select(
 
 	resultMetadataPtr, err := resultMetadata(q.ctx)
 	if err != nil {
-		q.logger.Error("result metadata not set in context")
+		q.logger.Error("result metadata not set in context", zap.Error(err))
 		return nil, nil, err
 	}
 	if resultMetadataPtr == nil {
