@@ -1138,6 +1138,7 @@ func (s *session) writeAttemptWithRLock(
 
 	state := s.pools.writeState.Get()
 	state.consistencyLevel = s.state.writeLevel
+	state.shardsLeavingCountTowardsConsistency = s.shardsLeavingCountTowardsConsistency
 	state.topoMap = s.state.topoMap
 	state.incRef()
 

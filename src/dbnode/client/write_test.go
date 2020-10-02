@@ -123,6 +123,17 @@ func TestShardNotAvailable(t *testing.T) {
 	writeTestTeardown(wState, &writeWg)
 }
 
+func TestShardLeavingWithShardsLeavingCountTowardsConsistency(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, s, host := writeTestSetup(t, &writeWg)
+	wState.shardsLeavingCountTowardsConsistency = true
+	setShardStates(t, s, host, shard.Leaving)
+	wState.completionFn(host, nil)
+	assert.Equal(t, int32(1), wState.success)
+	writeTestTeardown(wState, &writeWg)
+}
+
 // utils
 
 func getWriteState(s *session, w writeStub) *writeState {
