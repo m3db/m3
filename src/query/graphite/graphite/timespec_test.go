@@ -50,8 +50,10 @@ func TestParseTime(t *testing.T) {
 		{"midnight", time.Date(2013, time.April, 3, 0, 0, 0, 0, time.UTC)},
 		{"midnight+1h", time.Date(2013, time.April, 3, 1, 0, 0, 0, time.UTC)},
 		{"april08+1d", time.Date(2013, time.April, 9, 4, 5, 0, 0, time.UTC)},
-		{"monday", relativeTo.Add(time.Hour * 24 * -2)},
-		{"9am+monday", relativeTo.Add((time.Hour * 24 * -2) + (time.Hour * 4) + (time.Minute * 55))},
+		{"monday", time.Date(2013, time.April, 1, 4, 5, 0, 0, time.UTC)},
+		{"9am monday", time.Date(2013, time.April, 1, 9, 0, 0, 0, time.UTC)},
+		{"9am monday +5min", time.Date(2013, time.April, 1, 9, 5, 0, 0, time.UTC)},
+		{"9:00am monday +5min", time.Date(2013, time.April, 1, 9, 5, 0, 0, time.UTC)},
 	}
 
 	for _, test := range tests {
@@ -158,6 +160,9 @@ func TestParseTimeReference(t *testing.T) {
 		{"may06", relativeTo.Add(time.Hour * 24 * 33)},
 		{"december17", relativeTo.Add(time.Hour * 24 * 258)},
 		{"monday", relativeTo.Add(time.Hour * 24 * -2)},
+		// strings have whitespace removed before being passed into ParseTimeReference
+		{"8ammonday", relativeTo.Add((time.Hour * 24 * -2) + (time.Hour * 3) + (time.Minute * 55))},
+		{"10pmyesterday", relativeTo.Add((time.Hour * 17) + (time.Minute * 55) + (time.Hour * 24 * -1))},
 	}
 
 	for _, test := range tests {

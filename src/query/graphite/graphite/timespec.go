@@ -35,9 +35,9 @@ var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
-var rePM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])pm)$`)                                                            // 8pm, 12pm
-var reAM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])am)$`)                                                            // 2am, 11am
-var reTimeOfDayWithColon = regexp.MustCompile(`(?i)^(([0-1]?)([0-9]):([0-5])([0-9])((am|pm)?))$`)                     // 8:12pm, 11:20am, 2:00am
+var rePM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])pm)([[:ascii:]])*$`)                                              // 8pm, 12pm, 8pm monday
+var reAM = regexp.MustCompile(`(?i)^(([0-1]?)([0-9])am)([[:ascii:]])*$`)                                              // 2am, 11am, 7am yesterday
+var reTimeOfDayWithColon = regexp.MustCompile(`(?i)^(([0-1]?)([0-9]):([0-5])([0-9])((am|pm)?))([[:ascii:]])*$`)       // 8:12pm, 11:20am, 2:00am
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,
@@ -152,6 +152,7 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		return time.Unix(n, 0).UTC(), nil
 	}
 
+	s = strings.Replace(strings.Replace(strings.ToLower(s), ",", "", -1), " ", "", -1)
 	ref, offset := s, ""
 	if strings.Contains(s, "+") {
 		stringSlice := strings.Split(s, "+")
@@ -185,7 +186,6 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		refDate time.Time
 	)
 
-	ref = strings.ToLower(ref)
 	if ref == "" || ref == "now" {
 		return now, nil
 	}
@@ -257,13 +257,13 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		ref = ref[i+2:]
 	}
 
-	if strings.HasPrefix(rawRef, "noon") {
+	if strings.HasPrefix(ref, "noon") {
 		hour, minute = 12, 0
 		ref = ref[4:]
-	} else if strings.HasPrefix(rawRef, "midnight") {
+	} else if strings.HasPrefix(ref, "midnight") {
 		hour, minute = 0, 0
 		ref = ref[8:]
-	} else if strings.HasPrefix(rawRef, "teatime") {
+	} else if strings.HasPrefix(ref, "teatime") {
 		hour, minute = 16, 0
 		ref = ref[7:]
 	}
@@ -271,13 +271,13 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	refDate = time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 
 	// Day reference
-	if rawRef == "yesterday" {
+	if ref == "yesterday" {
 		refDate = refDate.Add(time.Hour * -24)
-	} else if rawRef == "tomorrow" {
+	} else if ref == "tomorrow" {
 		refDate = refDate.Add(time.Hour * 24)
-	} else if rawRef == "today" {
+	} else if ref == "today" {
 		return refDate, nil
-	} else if reMonthAndDay.MatchString(rawRef) { // monthDay (january10, may6, may06 etc.)
+	} else if reMonthAndDay.MatchString(ref) { // monthDay (january10, may6, may06 etc.)
 		day := 0
 		monthString := ""
 		if val, err := strconv.ParseInt(ref[len(ref)-2:], 10, 64); err == nil {
@@ -290,7 +290,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 			return refDate, errors.NewInvalidParamsError(fmt.Errorf("day of month required after month name"))
 		}
 		refDate = time.Date(refDate.Year(), time.Month(months[monthString]), day, hour, minute, 0, 0, refDate.Location())
-	} else if reDayOfWeek.MatchString(rawRef) { // DayOfWeek (Monday, etc)
+	} else if reDayOfWeek.MatchString(ref) { // DayOfWeek (Monday, etc)
 		refDate = refDate.Add(getWeekDayOffset(ref, refDate))
 	} else if ref != "" {
 		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unknown time reference %s", rawRef))
@@ -331,9 +331,6 @@ func ParseOffset(s string, now time.Time) (time.Duration, error) {
 		}
 		period := periods[strings.ToLower(m[3])]
 		return period * time.Duration(timeInteger) * time.Duration(parity), nil
-	} else if m := reDayOfWeekOffset.FindStringSubmatch(s); len(m) != 0 {
-		nameOfWeekday := s[1:]
-		return getWeekDayOffset(nameOfWeekday, now), nil
 	}
 
 	return 0, errors.NewInvalidParamsError(fmt.Errorf("invalid time offset %s", s))
