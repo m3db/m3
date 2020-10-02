@@ -320,7 +320,7 @@ func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 	accum = newFetchTaggedResultAccumulator()
 	accum.Clear()
 	accum.Reset(tm.startTime, tm.endTime, tm.topoMap, majority, tm.level)
-	for _, s := range tm.steps {
+	for i, s := range tm.steps {
 		var (
 			done bool
 			err  error
@@ -341,8 +341,8 @@ func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 		default:
 			assert.FailNow(tm.t, "unexpected workflow step", fmt.Sprintf("%+v", s))
 		}
-		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("%+v", s))
-		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("%+v", s))
+		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("i=%d, step=%+v", i, s))
+		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("i=%d, step=%+v, err=%v", i, s, err))
 	}
 	return accum
 }
