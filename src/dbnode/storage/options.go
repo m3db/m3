@@ -166,6 +166,7 @@ type options struct {
 	doNotIndexWithFieldsMap         map[string]string
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval            time.Duration
+	newBackgroundProcessFns			[]NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 }
 
@@ -815,6 +816,16 @@ func (o *options) MediatorTickInterval() time.Duration {
 	return o.mediatorTickInterval
 }
 
+func (o *options) SetBackgroundProcessFns(fns []NewBackgroundProcessFn) Options {
+	opts := *o
+	opts.newBackgroundProcessFns = fns
+	return &opts
+}
+
+func (o *options) BackgroundProcessFns() []NewBackgroundProcessFn {
+	return o.newBackgroundProcessFns
+}
+
 func (o *options) SetNamespaceHooks(value NamespaceHooks) Options {
 	opts := *o
 	opts.namespaceHooks = value
@@ -827,7 +838,7 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 
 type noOpColdFlush struct{}
 
-func (n *noOpColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
+func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 
