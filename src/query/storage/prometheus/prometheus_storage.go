@@ -93,10 +93,10 @@ func (q *querier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
-) (promstorage.SeriesSet, promstorage.Warnings, error) {
+) (promstorage.SeriesSet) {
 	matchers, err := promql.LabelMatchersToModelMatcher(labelMatchers, models.NewTagOptions())
 	if err != nil {
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(errors.Wrap(err, "LabelMatchersToModelMatcher"))
 	}
 
 	query := &storage.FetchQuery{
@@ -111,30 +111,29 @@ func (q *querier) Select(
 	fetchOptions, err := fetchOptions(q.ctx)
 	if err != nil {
 		q.logger.Error("fetch options not provided in context", zap.Error(err))
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(errors.Wrap(err, "fetchOptions"))
 	}
 
 	result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
 	if err != nil {
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(errors.Wrap(err, "FetchProm"))
 	}
-	seriesSet := fromQueryResult(sortSeries, result.PromResult)
 	warnings := fromWarningStrings(result.Metadata.WarningStrings())
-
+	seriesSet := fromQueryResult(sortSeries, result.PromResult,warnings)
 	resultMetadataPtr, err := resultMetadata(q.ctx)
 	if err != nil {
 		q.logger.Error("result metadata not set in context", zap.Error(err))
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(errors.Wrap(err, "resultMetadata"))
 	}
 	if resultMetadataPtr == nil {
 		err := errors.New("result metadata nil for context")
 		q.logger.Error(err.Error())
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(errors.Wrap(err, "resultMetadataNil"))
 	}
 
 	*resultMetadataPtr = result.Metadata
 
-	return seriesSet, warnings, err
+	return seriesSet
 }
 
 func (q *querier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
@@ -163,7 +162,7 @@ func fromWarningStrings(warnings []string) []error {
 
 // This is a copy of the prometheus remote.FromQueryResult method. Need to
 // copy so that this can understand m3 prompb struct.
-func fromQueryResult(sortSeries bool, res *prompb.QueryResult) promstorage.SeriesSet {
+func fromQueryResult(sortSeries bool, res *prompb.QueryResult,warnings []error) promstorage.SeriesSet {
 	series := make([]promstorage.Series, 0, len(res.Timeseries))
 	for _, ts := range res.Timeseries {
 		labels := labelProtosToLabels(ts.Labels)
@@ -182,6 +181,7 @@ func fromQueryResult(sortSeries bool, res *prompb.QueryResult) promstorage.Serie
 	}
 	return &concreteSeriesSet{
 		series: series,
+		warnings: warnings,
 	}
 }
 
@@ -220,10 +220,15 @@ func (e errSeriesSet) Err() error {
 	return e.err
 }
 
+func (errSeriesSet) Warnings() promstorage.Warnings {
+	return nil
+}
+
 // concreteSeriesSet implements storage.SeriesSet.
 type concreteSeriesSet struct {
 	cur    int
 	series []promstorage.Series
+	warnings promstorage.Warnings
 }
 
 func (c *concreteSeriesSet) Next() bool {
@@ -239,6 +244,9 @@ func (c *concreteSeriesSet) Err() error {
 	return nil
 }
 
+func (c *concreteSeriesSet) Warnings() promstorage.Warnings {
+	return c.warnings
+}
 // concreteSeries implements storage.Series.
 type concreteSeries struct {
 	labels  labels.Labels
