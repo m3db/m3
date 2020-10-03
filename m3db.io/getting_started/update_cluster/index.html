@@ -15,7 +15,7 @@
     
     
       
-        <title>Monitoring - M3DB Operator Documentation</title>
+        <title>Updating a Cluster - M3DB Operator Documentation</title>
       
     
     
@@ -49,7 +49,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#monitoring" class="md-skip">
+        <a href="#updating-a-cluster" class="md-skip">
           Skip to content
         </a>
       
@@ -77,7 +77,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              Monitoring
+              Updating a Cluster
             
           </span>
         </div>
@@ -250,11 +250,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../update_cluster/" title="Updating a Cluster" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+    <a href="./" title="Updating a Cluster" class="md-nav__link md-nav__link--active">
       Updating a Cluster
     </a>
+    
   </li>
 
         
@@ -274,20 +283,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-    <a href="./" title="Monitoring" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../monitoring/" title="Monitoring" class="md-nav__link">
       Monitoring
     </a>
-    
   </li>
 
         
@@ -425,7 +425,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db-operator/edit/master/docs/getting_started/monitoring.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/m3db/m3db-operator/edit/master/docs/getting_started/update_cluster.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -433,14 +433,39 @@
                   
                 
                 
-                <h1 id="monitoring">Monitoring</h1>
-<p>M3DB exposes metrics via a Prometheus endpoint. If using the <a href="https://github.com/coreos/prometheus-operator">Prometheus Operator</a>, you can apply a
-<code>ServiceMonitor</code> to have your M3DB pods automatically scraped by Prometheus:</p>
-<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/prometheus-servicemonitor.yaml
+                <h1 id="updating-a-cluster">Updating a Cluster</h1>
+<p>After your cluster has been running for some time you may decide you want to change the cluster's
+spec. For instance, you may want to upgrade to a newer release of M3DB or modify the cluster's
+config file. The operator can be used to safely rollout such changes so you don't need to do
+anything other than add an annotation to enable updates.</p>
+<p>The first step in updating a cluster is to update the cluster's <code>M3DBCluster</code> CRD with the changes
+you want to make. If you manage your cluster via manifests stored in YAML files then this is as
+simple as updating the manifest and applying your changes:</p>
+<div class="highlight"><pre><span></span><code>kubectl apply -f example/my-cluster.yaml
 </code></pre></div>
 
-<p>You can visit the "targets" page of the Prometheus UI to verify the pods are being scraped. To view these metrics using
-Grafana, follow the <a href="https://docs.m3db.io/integrations/grafana/">M3 docs</a> to install the M3DB Grafana dashboard.</p>
+<p>As a precaution, the operator won't immediately begin updating a cluster after your changes have
+been applied. Instead, you'll need to add the following annotation on each <code>StatefulSet</code> in the
+cluster to indicate to the operator that it is safe to update that <code>StatefulSet</code>:</p>
+<div class="highlight"><pre><span></span><code>kubectl annotate statefulset my-cluster-rep0 operator.m3db.io/update<span class="o">=</span>enabled
+</code></pre></div>
+
+<p>When the operator sees this annotation, it will check if the current state of the <code>StatefulSet</code>
+differs from its desired state as defined by the <code>M3DBCluster</code> CRD. If so, the operator will
+update the <code>StatefulSet</code> to match its desired state, thereby triggering a rollout of the pods in
+the <code>StatefulSet</code>. The operator will also remove the <code>operator.m3db.io/update=enabled</code> annotation
+from the updated <code>StatefulSet</code>.</p>
+<p>If, on the other hand, the operator finds the update annotation on a <code>StatefulSet</code> but it doesn't
+need to be updated then the operator will remove the annotation but perform no other actions.
+Consequently, once you set the update annotation on a <code>StatefulSet</code>, you can watch for the
+annotation to be removed from it to know if the operator has seen and checked for an update.</p>
+<p>Since M3DB rollouts can take longer periods of time, it's often more convenient to set the
+annotation to enable updates on each <code>StatefulSet</code> in the cluster at once, and allow the operator
+to perform the rollout safely. The operator will update only one <code>StatefulSet</code> at a time and then
+wait for it to bootstrap and become healthy again before moving onto the next <code>StatefulSet</code> in the
+cluster so that no two replicas are ever down at the same time.</p>
+<div class="highlight"><pre><span></span><code>kubectl annotate statefulset -l operator.m3db.io/cluster<span class="o">=</span>my-cluster operator.m3db.io/update<span class="o">=</span>enabled
+</code></pre></div>
                 
               
               
@@ -459,7 +484,7 @@ Grafana, follow the <a href="https://docs.m3db.io/integrations/grafana/">M3 docs
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../delete_cluster/" title="Deleting a Cluster" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../create_cluster/" title="Creating a Cluster" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -468,19 +493,19 @@ Grafana, follow the <a href="https://docs.m3db.io/integrations/grafana/">M3 docs
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Deleting a Cluster
+                Creating a Cluster
               </div>
             </div>
           </a>
         
         
-          <a href="../../configuration/configuring_m3db/" title="Configuring M3DB" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../delete_cluster/" title="Deleting a Cluster" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-footer-nav__title">
               <div class="md-ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Configuring M3DB
+                Deleting a Cluster
               </div>
             </div>
             <div class="md-footer-nav__button md-icon">
