@@ -25,6 +25,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/MichaelTJones/pcg"
 	"github.com/uber-go/tally"
@@ -32,6 +33,10 @@ import (
 
 const (
 	numGoroutinesGaugeSampleRate = 1000
+)
+
+var (
+	pooledWorkerPoolGoroutinesCapacity *int
 )
 
 type pooledWorkerPool struct {
@@ -60,7 +65,15 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 
 	workChs := make([]chan Work, numShards)
 	for i := range workChs {
-		workChs[i] = make(chan Work, int64(size)/numShards)
+		if c := pooledWorkerPoolGoroutinesCapacity; c != nil {
+			if *c == 0 {
+				workChs[i] = make(chan Work)
+			} else {
+				workChs[i] = make(chan Work, *c)
+			}
+		} else {
+			workChs[i] = make(chan Work, int64(size)/numShards)
+		}
 	}
 
 	return &pooledWorkerPool{
@@ -86,6 +99,14 @@ func (p *pooledWorkerPool) Init() {
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
+	p.goWithTimeout(work, 0)
+}
+
+func (p *pooledWorkerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
+	return p.goWithTimeout(work, timeout)
+}
+
+func (p *pooledWorkerPool) goWithTimeout(work Work, timeout time.Duration) bool {
 	var (
 		// Use time.Now() to avoid excessive synchronization
 		currTime  = p.nowFn().UnixNano()
@@ -99,8 +120,28 @@ func (p *pooledWorkerPool) Go(work Work) {
 	}
 
 	if !p.growOnDemand {
-		workCh <- work
-		return
+		if timeout <= 0 {
+			workCh <- work
+			return true
+		}
+
+		// Attempt to try writing without allocating a ticker.
+		select {
+		case workCh <- work:
+			return true
+		default:
+		}
+
+		// Now allocate a ticker and attempt a write.
+		ticker := time.NewTicker(timeout)
+		defer ticker.Stop()
+
+		select {
+		case workCh <- work:
+			return true
+		case <-ticker.C:
+			return false
+		}
 	}
 
 	select {
@@ -119,6 +160,7 @@ func (p *pooledWorkerPool) Go(work Work) {
 		// before killing themselves.
 		p.spawnWorker(uint64(currTime), work, workCh, false)
 	}
+	return true
 }
 
 func (p *pooledWorkerPool) spawnWorker(

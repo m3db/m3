@@ -1804,6 +1804,34 @@ func (mr *MockOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockOptions)(nil).WriteShardsInitializing))
 }
 
+// SetShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockOptions) SetShardsLeavingCountTowardsConsistency(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetShardsLeavingCountTowardsConsistency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetShardsLeavingCountTowardsConsistency indicates an expected call of SetShardsLeavingCountTowardsConsistency
+func (mr *MockOptionsMockRecorder) SetShardsLeavingCountTowardsConsistency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockOptions)(nil).SetShardsLeavingCountTowardsConsistency), value)
+}
+
+// ShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockOptions) ShardsLeavingCountTowardsConsistency() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardsLeavingCountTowardsConsistency")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShardsLeavingCountTowardsConsistency indicates an expected call of ShardsLeavingCountTowardsConsistency
+func (mr *MockOptionsMockRecorder) ShardsLeavingCountTowardsConsistency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockOptions)(nil).ShardsLeavingCountTowardsConsistency))
+}
+
 // SetTagEncoderOptions mocks base method
 func (m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	m.ctrl.T.Helper()
@@ -3337,6 +3365,34 @@ func (m *MockAdminOptions) WriteShardsInitializing() bool {
 func (mr *MockAdminOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockAdminOptions)(nil).WriteShardsInitializing))
+}
+
+// SetShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockAdminOptions) SetShardsLeavingCountTowardsConsistency(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetShardsLeavingCountTowardsConsistency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetShardsLeavingCountTowardsConsistency indicates an expected call of SetShardsLeavingCountTowardsConsistency
+func (mr *MockAdminOptionsMockRecorder) SetShardsLeavingCountTowardsConsistency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockAdminOptions)(nil).SetShardsLeavingCountTowardsConsistency), value)
+}
+
+// ShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockAdminOptions) ShardsLeavingCountTowardsConsistency() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardsLeavingCountTowardsConsistency")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShardsLeavingCountTowardsConsistency indicates an expected call of ShardsLeavingCountTowardsConsistency
+func (mr *MockAdminOptionsMockRecorder) ShardsLeavingCountTowardsConsistency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockAdminOptions)(nil).ShardsLeavingCountTowardsConsistency))
 }
 
 // SetTagEncoderOptions mocks base method

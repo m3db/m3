@@ -152,6 +152,71 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 		},
 	}.run()
 
+	// for consistency level unstrict all
+	testFetchStateWorkflow{
+		t:       t,
+		topoMap: topoMap,
+		level:   topology.ReadConsistencyLevelUnstrictAll,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+			},
+			testFetchStateWorklowStep{
+				hostname:          "testhost2",
+				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+			},
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    false,
+			},
+		},
+	}.run()
+	testFetchStateWorkflow{
+		t:       t,
+		topoMap: topoMap,
+		level:   topology.ReadConsistencyLevelUnstrictAll,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
+			},
+			testFetchStateWorklowStep{
+				hostname:          "testhost2",
+				fetchTaggedResult: &testFetchTaggedSuccessResponse,
+			},
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    false,
+			},
+		},
+	}.run()
+	testFetchStateWorkflow{
+		t:       t,
+		topoMap: topoMap,
+		level:   topology.ReadConsistencyLevelUnstrictAll,
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:       "testhost1",
+				fetchTaggedErr: errTestFetchTagged,
+			},
+			testFetchStateWorklowStep{
+				hostname:       "testhost2",
+				fetchTaggedErr: errTestFetchTagged,
+			},
+			testFetchStateWorklowStep{
+				hostname:       "testhost0",
+				fetchTaggedErr: errTestFetchTagged,
+				expectedDone:   true,
+				expectedErr:    true,
+			},
+		},
+	}.run()
+
 	// for consistency level all
 	testFetchStateWorkflow{
 		t:       t,

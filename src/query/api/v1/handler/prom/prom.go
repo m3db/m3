@@ -63,7 +63,8 @@ func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Hand
 	return newReadInstantHandler(opts, hOpts, queryable)
 }
 
-func applyRangeWarnings(
+// ApplyRangeWarnings applies warnings encountered during execution.
+func ApplyRangeWarnings(
 	query string, meta *block.ResultMetadata,
 ) error {
 	expr, err := parser.ParseExpr(query)

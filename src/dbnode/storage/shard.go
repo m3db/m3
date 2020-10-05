@@ -277,16 +277,11 @@ type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
 	initialized  bool
-
-	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
-	// going to disk to see if filesets are empty.
-	emptySnapshotOnDiskByTime map[xtime.UnixNano]bool
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime:              make(map[xtime.UnixNano]fileOpState),
-		emptySnapshotOnDiskByTime: make(map[xtime.UnixNano]bool),
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
 }
 
@@ -2421,15 +2416,7 @@ func (s *dbShard) Snapshot(
 	})
 	checkNeedsSnapshotTimer.Stop()
 
-	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
-	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
-	// snapshotting work after a bootstrap since this cached state gets cleared.
-	s.flushState.RLock()
-	// NB(bodu): This always defaults to false if the record does not exist.
-	emptySnapshotOnDisk := s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)]
-	s.flushState.RUnlock()
-
-	if !needsSnapshot && emptySnapshotOnDisk {
+	if !needsSnapshot {
 		return ShardSnapshotResult{}, nil
 	}
 
@@ -2499,19 +2486,6 @@ func (s *dbShard) Snapshot(
 	if err := multiErr.FinalError(); err != nil {
 		return ShardSnapshotResult{}, err
 	}
-
-	// Only update cached snapshot state if we successfully flushed data to disk.
-	s.flushState.Lock()
-	if needsSnapshot {
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = false
-	} else {
-		// NB(bodu): If we flushed an empty snapshot to disk, it means that the previous
-		// snapshot on disk was not empty (or we just bootstrapped and cached state was lost).
-		// The snapshot we just flushed may or may not have data, although whatever data we flushed
-		// would be recoverable from the rotate commit log as well.
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = true
-	}
-	s.flushState.Unlock()
 
 	return ShardSnapshotResult{
 		SeriesPersist: persist,
@@ -2672,9 +2646,9 @@ func (s *dbShard) AggregateTiles(
 		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
 	}
 
-	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
-		for _, reader := range blockReadersToClose {
+		for _, reader := range openBlockReaders {
 			reader.Close()
 		}
 	}()
@@ -2694,17 +2668,24 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {
-			s.logger.Error("blockReader.Open", zap.Error(err))
+			if err == fs.ErrCheckpointFileNotFound {
+				// A very recent source block might not have been flushed yet.
+				continue
+			}
+			s.logger.Error("blockReader.Open",
+				zap.Error(err),
+				zap.Time("blockStart", sourceBlockVolume.blockStart),
+				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
 			return 0, err
 		}
 		if blockReader.Entries() > maxEntries {
 			maxEntries = blockReader.Entries()
 		}
 
-		blockReadersToClose = append(blockReadersToClose, blockReader)
+		openBlockReaders = append(openBlockReaders, blockReader)
 	}
 
-	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
+	crossBlockReader, err := fs.NewCrossBlockReader(openBlockReaders, s.opts.InstrumentOptions())
 	if err != nil {
 		s.logger.Error("NewCrossBlockReader", zap.Error(err))
 		return 0, err
@@ -2868,7 +2849,7 @@ READER:
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedBlocks", processedTileCount.Load()))
+		zap.Int64("processedTiles", processedTileCount.Load()))
 
 	return processedTileCount.Load(), nil
 }

@@ -62,6 +62,7 @@ func (p *workerPool) GoIfAvailable(work Work) bool {
 }
 
 func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
+	// Attempt to try writing without allocating a ticker.
 	select {
 	case token := <-p.workCh:
 		go func() {
@@ -69,7 +70,21 @@ func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
 			p.workCh <- token
 		}()
 		return true
-	case <-time.After(timeout):
+	default:
+	}
+
+	// Now allocate a ticker and attempt a write.
+	ticker := time.NewTicker(timeout)
+	defer ticker.Stop()
+
+	select {
+	case token := <-p.workCh:
+		go func() {
+			work()
+			p.workCh <- token
+		}()
+		return true
+	case <-ticker.C:
 		return false
 	}
 }
