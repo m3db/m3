@@ -1631,9 +1631,8 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 
 	var currentSnapshotIndex = -1
 	for _, snapshot := range snapshotFiles {
-		if snapshot.ID.BlockStart.Equal(blockStart) {
+		if snapshot.ID.BlockStart.Equal(blockStart) && snapshot.ID.VolumeIndex > currentSnapshotIndex {
 			currentSnapshotIndex = snapshot.ID.VolumeIndex
-			break
 		}
 	}
 
