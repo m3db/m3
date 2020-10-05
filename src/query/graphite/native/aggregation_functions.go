@@ -97,7 +97,7 @@ func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 // lastSeries takes a list of series and returns a new series containing the
 // last value at each datapoint
 func lastSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr(lastFnName, ts.SeriesList(series)), ts.Last)
+	return combineSeries(ctx, series, joinPathExpr(ts.SeriesList(series)), ts.Last)
 }
 
 // standardDeviationHelper returns the standard deviation of a slice of a []float64
