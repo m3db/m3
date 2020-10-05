@@ -48,15 +48,16 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel  topology.ConsistencyLevel
-	topoMap           topology.Map
-	op                writeOp
-	nsID              ident.ID
-	tsID              ident.ID
-	tagEncoder        serialize.TagEncoder
-	majority, pending int32
-	success           int32
-	errors            []error
+	consistencyLevel                     topology.ConsistencyLevel
+	shardsLeavingCountTowardsConsistency bool
+	topoMap                              topology.Map
+	op                                   writeOp
+	nsID                                 ident.ID
+	tsID                                 ident.ID
+	tagEncoder                           serialize.TagEncoder
+	majority, pending                    int32
+	success                              int32
+	errors                               []error
 
 	queues         []hostQueue
 	tagEncoderPool serialize.TagEncoderPool
@@ -128,20 +129,29 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.ShardID()); err != nil {
 		errStr := "missing shard %d in host %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
-	} else if shardState != shard.Available {
-		// NB(bl): only count writes to available shards towards success
-		var errStr string
-		switch shardState {
-		case shard.Initializing:
-			errStr = "shard %d in host %s is not available (initializing)"
-		case shard.Leaving:
-			errStr = "shard %d in host %s not available (leaving)"
-		default:
-			errStr = "shard %d in host %s not available (unknown state)"
-		}
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
-		w.success++
+		available := shardState == shard.Available
+		leaving := shardState == shard.Leaving
+		leavingAndShardsLeavingCountTowardsConsistency := leaving &&
+			w.shardsLeavingCountTowardsConsistency
+		// NB(bl): Only count writes to available shards towards success.
+		// NB(r): If shard is leaving and configured to allow writes to leaving
+		// shards to count towards consistency then allow that to count
+		// to success.
+		if !available && !leavingAndShardsLeavingCountTowardsConsistency {
+			var errStr string
+			switch shardState {
+			case shard.Initializing:
+				errStr = "shard %d in host %s is not available (initializing)"
+			case shard.Leaving:
+				errStr = "shard %d in host %s not available (leaving)"
+			default:
+				errStr = "shard %d in host %s not available (unknown state)"
+			}
+			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+		} else {
+			w.success++
+		}
 	}
 
 	if wErr != nil {

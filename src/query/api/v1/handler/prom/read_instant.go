@@ -117,7 +117,7 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = applyRangeWarnings(query, &resultMetadata)
+	err = ApplyRangeWarnings(query, &resultMetadata)
 	if err != nil {
 		h.logger.Warn("error applying range warnings",
 			zap.Error(err), zap.String("query", query))

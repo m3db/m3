@@ -73,7 +73,7 @@ func (v *leaseVerifier) VerifyLease(
 
 func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.LeaseState, error) {
 	flushState, err := v.flushStateRetriever.FlushState(
-		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
+		descriptor.Namespace, descriptor.Shard, descriptor.BlockStart)
 	if err != nil {
 		return block.LeaseState{}, fmt.Errorf(
 			"err retrieving flushState for LatestState, ns: %s, shard: %d, blockStart: %s, err: %v",
