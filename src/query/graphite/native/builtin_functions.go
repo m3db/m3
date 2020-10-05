@@ -1503,9 +1503,13 @@ func combineBootstrapWithOriginal(
 				return ts.NewSeriesList(), err
 			}
 		}
+		bootstrapEndStep := endTime.Truncate(original.Resolution())
+		if bootstrapEndStep.Before(endTime) {
+			bootstrapEndStep = bootstrapEndStep.Add(original.Resolution())
+		}
 		// NB(braskin): using bootstrap.Len() is incorrect as it will include all
 		// of the steps in the original timeseries, not just the steps up to the new end time
-		bootstrapLength := bootstrap.StepAtTime(endTime)
+		bootstrapLength := bootstrap.StepAtTime(bootstrapEndStep)
 		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()
 		numBootstrapValues := bootstrapLength * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
