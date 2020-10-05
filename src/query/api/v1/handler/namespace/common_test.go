@@ -163,10 +163,11 @@ func init() {
 	namespace.RegisterExtendedOptionsConverter(testTypeURLPrefix, &nsproto.IndexOptions{}, convertToTestExtendedOptions)
 }
 
-func newTestExtendedOptionsProto(value int64) *protobuftypes.Any {
+func newTestExtendedOptionsProto(t *testing.T, value int64) *protobuftypes.Any {
 	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
 	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
-	serializedMsg, _ := proto.Marshal(msg)
+	serializedMsg, err := proto.Marshal(msg)
+	require.NoError(t, err)
 
 	return &protobuftypes.Any{
 		TypeUrl: testTypeURLPrefix + proto.MessageName(msg),

@@ -141,12 +141,7 @@ type testExtendedOptions struct {
 func newTestExtendedOptionsProto(value int64) *protobuftypes.Any {
 	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
 	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
-	serializedMsg, _ := proto.Marshal(msg)
-
-	return &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
-		Value:   serializedMsg,
-	}
+	return newProtobufAny(msg)
 }
 
 func (o *testExtendedOptions) ToProto() (proto.Message, string) {
@@ -344,19 +339,12 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 }
 
 func TestInvalidExtendedOptions(t *testing.T) {
-	invalidExtendedOptsBadValue := &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(&protobuftypes.StringValue{Value: "foo"}),
-		Value:   []byte{1, 2, 3},
-	}
+	invalidExtendedOptsBadValue := newProtobufAny(&nsproto.IndexOptions{})
+	invalidExtendedOptsBadValue.Value = []byte{1, 2, 3}
 	_, err := namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
 	assert.Error(t, err)
 
-	msg := &protobuftypes.Int32Value{}
-	serializedMsg, _ := proto.Marshal(msg)
-	invalidExtendedOptsNoConverterForType := &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
-		Value:   serializedMsg,
-	}
+	invalidExtendedOptsNoConverterForType := newProtobufAny(&protobuftypes.Int32Value{})
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
 	assert.Equal(t, errors.New("dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value"), err)
 
@@ -454,4 +442,12 @@ func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, obs
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, observed)
+}
+
+func newProtobufAny(msg proto.Message) *protobuftypes.Any {
+	serializedMsg, _ := proto.Marshal(msg)
+	return &protobuftypes.Any{
+		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
+		Value:   serializedMsg,
+	}
 }

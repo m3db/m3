@@ -135,7 +135,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: newTestExtendedOptionsProto(3),
+				ExtendedOptions: newTestExtendedOptionsProto(t, 3),
 			},
 		},
 	}
