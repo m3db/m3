@@ -27,7 +27,6 @@ import (
 
 // QueryEngine is the generic engine interface.
 type QueryEngine interface {
-	
 	// FetchByQuery retrieves one or more time series based on a query.
 	FetchByQuery(
 		ctx context.Context,
