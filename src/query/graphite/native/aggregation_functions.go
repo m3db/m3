@@ -23,12 +23,16 @@ package native
 import (
 	"fmt"
 	"math"
+	"runtime"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 func wrapPathExpr(wrapper string, series ts.SeriesList) string {
@@ -373,6 +377,146 @@ func combineSeriesWithWildcards(
 	// any sort order on the incoming series list
 	r.SortApplied = false
 
+	return r, nil
+}
+
+// splits a slice into chunks
+func chunkArrayHelper(slice []string, numChunks int) [][]string {
+	divided := make([][]string, 0, numChunks)
+
+	chunkSize := (len(slice) + numChunks - 1) / numChunks
+
+	for i := 0; i < len(slice); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(slice) {
+			end = len(slice)
+		}
+
+		divided = append(divided, slice[i:end])
+	}
+
+	return divided
+}
+
+func evaluateTarget(ctx *common.Context, target string) (ts.SeriesList, error) {
+	eng := NewEngine(ctx.Engine.Storage())
+	expression, err := eng.Compile(target)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	return expression.Execute(ctx)
+}
+
+/*
+applyByNode takes a seriesList and applies some complicated function (described by a string), replacing templates with unique
+prefixes of keys from the seriesList (the key is all nodes up to the index given as `nodeNum`).
+
+If the `newName` parameter is provided, the name of the resulting series will be given by that parameter, with any
+"%" characters replaced by the unique prefix.
+
+Example:
+
+`applyByNode(servers.*.disk.bytes_free,1,"divideSeries(%.disk.bytes_free,sumSeries(%.disk.bytes_*))")`
+
+Would find all series which match `servers.*.disk.bytes_free`, then trim them down to unique series up to the node
+given by nodeNum, then fill them into the template function provided (replacing % by the prefixes).
+
+Additional Examples:
+
+Given keys of
+
+- `stats.counts.haproxy.web.2XX`
+- `stats.counts.haproxy.web.3XX`
+- `stats.counts.haproxy.web.5XX`
+- `stats.counts.haproxy.microservice.2XX`
+- `stats.counts.haproxy.microservice.3XX`
+- `stats.counts.haproxy.microservice.5XX`
+
+The following will return the rate of 5XX's per service:
+
+`applyByNode(stats.counts.haproxy.*.*XX, 3, "asPercent(%.5XX, sumSeries(%.*XX))", "%.pct_5XX")`
+
+The output series would have keys `stats.counts.haproxy.web.pct_5XX` and `stats.counts.haproxy.microservice.pct_5XX`.
+*/
+func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, templateFunction string, newName string) (ts.SeriesList, error) {
+	// using this as a set
+	prefixMap := map[string]struct{}{}
+	for _, series := range seriesList.Values {
+		var (
+			name = series.Name()
+
+			partsSeen int
+			prefix    string
+		)
+
+		for i, c := range name {
+			if c == '.' {
+				partsSeen++
+				if partsSeen == nodeNum+1 {
+					prefix = name[:i]
+					break
+				}
+			}
+		}
+
+		if len(prefix) == 0 {
+			continue
+		}
+
+		prefixMap[prefix] = struct{}{}
+	}
+
+	// transform to slice
+	var prefixes []string
+	for p := range prefixMap {
+		prefixes = append(prefixes, p)
+	}
+	sort.Strings(prefixes)
+
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+
+		output         = make([]*ts.Series, 0, len(prefixes))
+		maxConcurrency = runtime.NumCPU() / 2
+	)
+	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
+		if multiErr.LastError() != nil {
+			return ts.NewSeriesList(), multiErr.LastError()
+		}
+
+		for _, prefix := range prefixChunk {
+			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+				if err != nil {
+					mu.Lock()
+					multiErr = multiErr.Add(err)
+					mu.Unlock()
+					return
+				}
+
+				mu.Lock()
+				for _, resultSeries := range resultSeriesList.Values {
+					if newName != "" {
+						resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
+					}
+					resultSeries.Specification = prefix
+					output = append(output, resultSeries)
+				}
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = output
 	return r, nil
 }
 
