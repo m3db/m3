@@ -38,7 +38,7 @@ require (
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.1
 	github.com/google/go-jsonnet v0.16.0
-	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f
+	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect

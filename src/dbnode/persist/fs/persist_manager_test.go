@@ -497,6 +497,9 @@ func TestPersistenceManagerPrepareIndexSnapshotSuccess(t *testing.T) {
 		},
 		FileSetType: persist.FileSetSnapshotType,
 		BlockSize:   testBlockSize,
+		Snapshot: IndexWriterSnapshotOptions{
+			SnapshotID: testSnapshotID,
+		},
 	}
 	writer.EXPECT().Open(xtest.CmpMatcher(writerOpts, m3test.IdentTransformer)).Return(nil)
 
