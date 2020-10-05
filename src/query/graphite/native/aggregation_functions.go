@@ -110,7 +110,9 @@ func standardDeviationHelper(values []float64) float64 {
 			count++
 		}
 	}
-	if count == 0 { return math.NaN() }
+	if count == 0 {
+		return math.NaN()
+	}
 	avg := sum / count
 
 	m2 := float64(0)
@@ -142,10 +144,10 @@ func stddevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesL
 	valuesAtTime := make([]float64, 0, numSteps)
 	for i := 0; i < numSteps; i++ {
 		valuesAtTime = valuesAtTime[:0]
-                if l := seriesList.Len(); l != numSteps {
- return nil, fmt.Errorf("mismatched series length, expected %d, got %d", numSteps, l)
-} 
 		for _, series := range seriesList.Values {
+			if l := series.Len(); l != numSteps {
+				return ts.NewSeriesList(), fmt.Errorf("mismatched series length, expected %d, got %d", numSteps, l)
+			}
 			valuesAtTime = append(valuesAtTime, series.ValueAt(i))
 		}
 		values.SetValueAt(i, standardDeviationHelper(valuesAtTime))
