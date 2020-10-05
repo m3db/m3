@@ -70,6 +70,8 @@ func TestReadAggregateWrite(t *testing.T) {
 	// Write test data.
 	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
 	dpTime := dpTimeStart
+	// "aab" ID is stored to the same shard 0 same as "foo", this is important
+	// for a test to store them to the same shard to test data consistency
 	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
 		dpTime, 15, xtime.Second, nil)
@@ -116,6 +118,13 @@ func TestReadAggregateWrite(t *testing.T) {
 	assert.Equal(t, int64(10), processedTileCount)
 
 	log.Info("validating aggregated data")
+
+	// check shard 0 as we wrote both aab and foo to this shard.
+	flushState, err := testSetup.DB().FlushState(trgNs.ID(), 0, dpTimeStart)
+	require.NoError(t, err)
+	require.Equal(t, 1, flushState.ColdVersionRetrievable)
+	require.Equal(t, 1, flushState.ColdVersionFlushed)
+
 	expectedDps := []ts.Datapoint{
 		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
 		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
