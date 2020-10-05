@@ -138,6 +138,9 @@ func stddevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesL
 	valuesAtTime := make([]float64, 0, numSteps)
 	for i := 0; i < numSteps; i++ {
 		valuesAtTime = valuesAtTime[:0]
+                if l := seriesList.Len(); l != numSteps {
+ return nil, fmt.Errorf("mismatched series length, expected %d, got %d", numSteps, l)
+} 
 		for _, series := range seriesList.Values {
 			valuesAtTime = append(valuesAtTime, series.ValueAt(i))
 		}
