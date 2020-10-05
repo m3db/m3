@@ -388,8 +388,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 			return ts.NewSeriesList(), multiErr.LastError()
 		}
 
-		for i, prefix := range prefixChunk {
-			prefix := prefix
+		for _, prefix := range prefixChunk {
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
