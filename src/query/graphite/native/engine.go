@@ -53,7 +53,7 @@ func (e *Engine) Compile(s string) (Expression, error) {
 	return Compile(s)
 }
 
-// Storage returns the engine's Storage object
+// Storage returns the engine's storage object
 func (e *Engine) Storage() storage.Storage {
 	return e.storage
 }
