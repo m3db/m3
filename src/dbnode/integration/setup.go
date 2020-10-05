@@ -450,6 +450,9 @@ func NewTestSetup(
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
 	}
 
+	storageOpts = storageOpts.SetInstrumentOptions(
+		storageOpts.InstrumentOptions().SetReportInterval(opts.ReportInterval()))
+
 	// Set debugging options if environment vars set
 	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)

@@ -59,6 +59,11 @@ type PooledWorkerPool interface {
 	// size when the workload exceeds its capacity and shrink back down to its
 	// original size if/when the burst subsides.
 	Go(work Work)
+
+	// GoWithTimeout waits up to the given timeout for a worker to become
+	// available, returning true if a worker becomes available, or false
+	// otherwise.
+	GoWithTimeout(work Work, timeout time.Duration) bool
 }
 
 // WorkerPool provides a pool for goroutines.
@@ -75,7 +80,7 @@ type WorkerPool interface {
 
 	// GoWithTimeout waits up to the given timeout for a worker to become
 	// available, returning true if a worker becomes available, or false
-	// otherwise
+	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
 }
 

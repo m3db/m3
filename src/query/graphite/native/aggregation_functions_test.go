@@ -32,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
-
+	xgomock "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/golang/mock/gomock"
 )
 
 var (
@@ -152,7 +154,6 @@ func (e mockEngine) FetchByQuery(
 	return e.fn(ctx, query, opts)
 }
 
-// dummy/placeholder function so mockEngine can satisfy the Engine interface
 func (e mockEngine) Storage() storage.Storage {
 	return nil
 }
@@ -321,7 +322,6 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
-
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()
@@ -395,6 +395,107 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 		series := outSeries.Values[i]
 		assert.Equal(t, expected.name, series.Name())
 		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	}
+}
+
+func TestApplyByNode(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{1, 2, 3})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{99, 98, 97})),
+		}
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{99, 98, 97})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+
+	tests := []struct {
+		nodeNum          int
+		templateFunction string
+		newName          string
+		expectedResults  []common.TestSeries
+	}{
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_*))",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_*))",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "%.disk.pct_used",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "servers.s1.disk.pct_used",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "servers.s2.disk.pct_used",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		outSeries, err := applyByNode(
+			ctx,
+			singlePathSpec{
+				Values: inputs,
+			},
+			test.nodeNum,
+			test.templateFunction,
+			test.newName,
+		)
+		require.NoError(t, err)
+		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		common.CompareOutputsAndExpected(t, 60000, start, test.expectedResults, outSeries.Values)
 	}
 }
 
