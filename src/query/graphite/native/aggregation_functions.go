@@ -379,8 +379,8 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
+		output   []*ts.Series
 
-		output         = make([]*ts.Series, len(prefixes))
 		maxConcurrency = runtime.NumCPU() / 2
 	)
 	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
