@@ -1,5 +1,23 @@
 # Changelog
 
+# 0.15.16
+
+## Features
+
+- **M3Query**: Add divideSeriesLists Graphite function ([#2585](https://github.com/m3db/m3/pull/2585))
+- **M3Query**: Add integralByInterval Graphite function ([#2596](https://github.com/m3db/m3/pull/2596))
+- **M3Query**: Add highest, lowest Graphite functions ([#2623](https://github.com/m3db/m3/pull/2623))
+- **M3Query**: Add resolution exceeds query range warning ([#2429](https://github.com/m3db/m3/pull/2429))
+
+## Documentation
+
+- **M3Coordinator**: Added OpenAPI specification for namespace update endpoint ([#2629](https://github.com/m3db/m3/pull/2629))
+
+## Misc
+
+- **M3Coordinator**: Add config option for writes to leaving shards to count towards consistency and read level unstrict all ([#2687](https://github.com/m3db/m3/pull/2687))
+- **All**: Upgrade TChannel to v1.14 ([#2659](https://github.com/m3db/m3/pull/2659))
+
 # 0.15.15
 
 ## Features

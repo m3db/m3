@@ -62,13 +62,13 @@ type Options interface {
 	// when building timers from timer options.
 	SetTimerOptions(value TimerOptions) Options
 
-	// SetTimerOptions returns the metrics timer options to used
+	// TimerOptions returns the metrics timer options to used
 	// when building timers from timer options.
 	TimerOptions() TimerOptions
 
-	// ReportInterval sets the time between reporting metrics within the system.
+	// SetReportInterval sets the time between reporting metrics within the system.
 	SetReportInterval(time.Duration) Options
 
-	// GetReportInterval returns the time between reporting metrics within the system.
+	// ReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
 }

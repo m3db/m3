@@ -51,8 +51,15 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 
 func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	var (
-		workers = 2
+		workers         = 2
+		channelCapacity = 1
 	)
+	// So we can control how empty the worker pool chanel is we
+	// set capacity to be same as num workers.
+	pooledWorkerPoolGoroutinesCapacity = &channelCapacity
+	defer func() {
+		pooledWorkerPoolGoroutinesCapacity = nil
+	}()
 
 	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
@@ -77,8 +84,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 
 	wg.Done()
 
-	require.Equal(t, workers, resultsTrue)
-	require.Equal(t, workers, resultsFalse)
+	require.True(t, resultsFalse > 0)
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
