@@ -116,6 +116,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSON))
 	require.NotNil(t, req)
 
+	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
+
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"testNamespace": {
@@ -134,7 +137,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: xtest.NewExtendedOptionsProto("foo"),
+				ExtendedOptions: extendedOpts,
 			},
 		},
 	}

@@ -57,7 +57,7 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
-	validExtendedOpts = xtest.NewExtendedOptionsProto("foo")
+	validExtendedOpts, _ = xtest.NewExtendedOptionsProto("foo")
 
 	validAggregationOpts = nsproto.AggregationOptions{
 		Aggregations: []*nsproto.Aggregation{
@@ -307,20 +307,24 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 }
 
 func TestInvalidExtendedOptions(t *testing.T) {
-	invalidExtendedOptsBadValue := xtest.NewExtendedOptionsProto("foo")
+	invalidExtendedOptsBadValue, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
 	invalidExtendedOptsBadValue.Value = []byte{1, 2, 3}
-	_, err := namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
 	assert.Error(t, err)
 
-	invalidExtendedOptsNoConverterForType := xtest.NewProtobufAny(&protobuftypes.Int32Value{})
+	invalidExtendedOptsNoConverterForType, err := xtest.NewProtobufAny(&protobuftypes.Int32Value{})
+	require.NoError(t, err)
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
 	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value")
 
-	invalidExtendedOptsConverterFailure := xtest.NewExtendedOptionsProto("error")
+	invalidExtendedOptsConverterFailure, err := xtest.NewExtendedOptionsProto("error")
+	require.NoError(t, err)
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
 	assert.EqualError(t, err, "error in converter")
 
-	invalidExtendedOpts := xtest.NewExtendedOptionsProto("invalid")
+	invalidExtendedOpts, err := xtest.NewExtendedOptionsProto("invalid")
+	require.NoError(t, err)
 	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
 	assert.EqualError(t, err, "invalid ExtendedOptions")
 }

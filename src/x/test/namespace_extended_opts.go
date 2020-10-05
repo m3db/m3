@@ -60,16 +60,19 @@ func ConvertToExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, err
 }
 
 // NewProtobufAny converts a typed protobuf message into protobuf Any type.
-func NewProtobufAny(msg proto.Message) *protobuftypes.Any {
-	serializedMsg, _ := proto.Marshal(msg)
+func NewProtobufAny(msg proto.Message) (*protobuftypes.Any, error) {
+	serializedMsg, err := proto.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
 	return &protobuftypes.Any{
 		TypeUrl: TypeURLPrefix + proto.MessageName(msg),
 		Value:   serializedMsg,
-	}
+	}, nil
 }
 
 // NewExtendedOptionsProto construct a new protobuf Any message with ExtendedOptions.
-func NewExtendedOptionsProto(value string) *protobuftypes.Any {
+func NewExtendedOptionsProto(value string) (*protobuftypes.Any, error) {
 	// NB: using some arbitrary custom protobuf message to avoid well known protobuf types as these work across
 	// gogo/golang implementations.
 	msg := &m3test.PingResponse{Value: value}
