@@ -826,6 +826,8 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
+	opts = opts.SetBackgroundProcessFns(append(opts.BackgroundProcessFns(), runOpts.StorageOptions.BackgroundProcessFns...))
+
 	if runOpts.StorageOptions.NamespaceHooks != nil {
 		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
 	}
