@@ -25,6 +25,7 @@ import (
 
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -62,4 +63,22 @@ type Querier interface {
 		query *genericstorage.CompleteTagsQuery,
 		options *genericstorage.FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+}
+
+// DynamicClusterOptions is the options for a new dynamic Cluster
+type DynamicClusterOptions interface {
+	// Validate validates the DynamicClusterOptions.
+	Validate() error
+
+	// SetDynamicClusterNamespaceConfiguration sets the configuration for the dynamically fetching cluster namespaces.
+	SetDynamicClusterNamespaceConfiguration(value []DynamicClusterNamespaceConfiguration) DynamicClusterOptions
+
+	// SetDynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
+	DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) DynamicClusterOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
 }

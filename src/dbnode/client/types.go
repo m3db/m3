@@ -594,6 +594,12 @@ type Options interface {
 
 	// NewConnectionFn returns the new connection generator function.
 	NewConnectionFn() NewConnectionFn
+
+	// SetNamespaceInitializer sets the NamespaceInitializer for watching namespace definition changes.
+	SetNamespaceInitializer(value namespace.Initializer) Options
+
+	// NamespaceInitializer returns the NamespaceInitializer.
+	NamespaceInitializer() namespace.Initializer
 }
 
 // AdminOptions is a set of administration client options.

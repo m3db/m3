@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/stores/m3db"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -36,6 +37,7 @@ import (
 var (
 	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
 	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
+	errNoNamespaceInitializerSet                  = goerrors.New("no namespace initializer set")
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -167,8 +169,9 @@ type ClustersStaticConfigurationOptions struct {
 	CustomAdminOptions []client.CustomAdminOption
 }
 
-// NewClusters instantiates a new Clusters instance.
-func (c ClustersStaticConfiguration) NewClusters(
+// NewStaticClusters instantiates a new Clusters instance based on
+// static configuration.
+func (c ClustersStaticConfiguration) NewStaticClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
 ) (Clusters, error) {
@@ -312,4 +315,78 @@ func (c ClustersStaticConfiguration) NewClusters(
 
 	return NewClusters(unaggregatedClusterNamespace,
 		aggregatedClusterNamespaces...)
+}
+
+// NewDynamicClusters instantiates a new Clusters instance that pulls
+// cluster information from etcd.
+func (c ClustersStaticConfiguration) NewDynamicClusters(
+	instrumentOpts instrument.Options,
+	opts ClustersStaticConfigurationOptions,
+) (Clusters, error) {
+	clients := make([]client.Client, 0, len(c))
+	for _, clusterCfg := range c {
+		clnt, err := clusterCfg.newClient(client.ConfigurationParameters{
+			InstrumentOptions: instrumentOpts,
+		}, opts.CustomAdminOptions...)
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, clnt)
+	}
+
+	// Connect to all clusters in parallel
+	var (
+		wg   sync.WaitGroup
+		cfgs = make([]DynamicClusterNamespaceConfiguration, len(clients))
+
+		errLock  sync.Mutex
+		multiErr xerrors.MultiError
+	)
+	for i, clnt := range clients {
+		i := i
+		clnt := clnt
+		nsInit := clnt.Options().NamespaceInitializer()
+
+		// TODO(nate): move this validation to client.Options once static configuration of namespaces
+		// is no longer allowed.
+		if nsInit == nil {
+			return nil, errNoNamespaceInitializerSet
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			cfg := cfgs[i]
+			cfg.nsInitializer = nsInit
+			if opts.ProvidedSession != nil {
+				cfg.session = opts.ProvidedSession
+			} else if !opts.AsyncSessions {
+				var err error
+				cfg.session, err = clnt.DefaultSession()
+				if err != nil {
+					errLock.Lock()
+					multiErr = multiErr.Add(err)
+					errLock.Unlock()
+				}
+			} else {
+				cfg.session = m3db.NewAsyncSession(func() (client.Client, error) {
+					return clnt, nil
+				}, nil)
+			}
+		}()
+	}
+
+	// Wait
+	wg.Wait()
+
+	if !multiErr.Empty() {
+		return nil, multiErr.FinalError()
+	}
+
+	dcOpts := NewDynamicClusterOptions().
+		SetDynamicClusterNamespaceConfiguration(cfgs).
+		SetInstrumentOptions(instrumentOpts)
+
+	return NewDynamicClusters(dcOpts)
 }
