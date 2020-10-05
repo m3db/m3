@@ -12,3 +12,7 @@
 [context."braskin/hugo_site"]
   command = "hugo"  
   HUGO_VERSION = "0.75.1"
+
+[[redirects]]
+  from = "/misc/writing_docs/"
+  to = "/"
