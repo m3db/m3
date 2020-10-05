@@ -4,20 +4,15 @@ package annotation;
 
 message Payload {
     MetricType MetricType = 1;
-    MetricFamilyType MetricFamilyType = 2;
 }
 
 enum MetricType {
     UNKNOWN = 0;
     COUNTER = 1;
     GAUGE = 2;
-    INFO = 3;
-    STATESET = 4;
-}
-
-enum MetricFamilyType {
-    NONE = 0;
-    HISTOGRAM = 1;
-    GAUGE_HISTOGRAM = 2;
-    SUMMARY = 3;
+    HISTOGRAM = 3;
+    GAUGE_HISTOGRAM = 4;
+    SUMMARY = 5;
+    INFO = 6;
+    STATESET = 7;
 }

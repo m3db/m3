@@ -34,14 +34,11 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// The default name for the name and bucket tags in Prometheus metrics.
+// This can be overwritten by setting tagOptions in the config.
 var (
-	// The default name for the name and bucket tags in Prometheus metrics.
-	// This can be overwritten by setting tagOptions in the config.
-	promDefaultName        = []byte(model.MetricNameLabel) // __name__
-	promDefaultBucketName  = []byte(model.BucketLabel)     // le
-
-	// The suffix of count metric name in Prometheus histogram/summary metric families.
-	promDefaultCountSuffix = []byte("_count")
+	promDefaultName       = []byte(model.MetricNameLabel) // __name__
+	promDefaultBucketName = []byte(model.BucketLabel)     // le
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -70,13 +67,13 @@ func PromLabelsToM3Tags(
 	return tags.AddTags(tagList)
 }
 
-// PromTimeSeriesToSeriesAttributes extracts the series info from a prometheus timeseries.
+// PromTimeSeriesToSeriesAttributes extracts the series info from a prometheus
+// timeseries.
 func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
 	var (
-		sourceType           ts.SourceType
-		m3MetricType         ts.M3MetricType
-		promMetricType       ts.PromMetricType
-		promMetricFamilyType ts.PromMetricFamilyType
+		sourceType     ts.SourceType
+		m3MetricType   ts.M3MetricType
+		promMetricType ts.PromMetricType
 	)
 
 	switch series.Source {
@@ -89,39 +86,22 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}
 
 	switch series.Type {
-
 	case prompb.MetricType_UNKNOWN:
 		promMetricType = ts.PromMetricTypeUnknown
-
 	case prompb.MetricType_COUNTER:
 		promMetricType = ts.PromMetricTypeCounter
-
 	case prompb.MetricType_GAUGE:
 		promMetricType = ts.PromMetricTypeGauge
-
 	case prompb.MetricType_HISTOGRAM:
-		promMetricFamilyType = ts.PromMetricFamilyTypeHistogram
-		promMetricType = ts.PromMetricTypeCounter
-
+		promMetricType = ts.PromMetricTypeHistogram
 	case prompb.MetricType_GAUGE_HISTOGRAM:
-		promMetricFamilyType = ts.PromMetricFamilyTypeGaugeHistogram
-		name := metricNameFromLabels(series.Labels)
-		if bytes.HasSuffix(name, promDefaultCountSuffix) {
-			promMetricType = ts.PromMetricTypeCounter
-		} else {
-			promMetricType = ts.PromMetricTypeGauge
-		}
-
+		promMetricType = ts.PromMetricTypeGaugeHistogram
 	case prompb.MetricType_SUMMARY:
-		promMetricFamilyType = ts.PromMetricFamilyTypeSummary
-		promMetricType = ts.PromMetricTypeCounter
-
+		promMetricType = ts.PromMetricTypeSummary
 	case prompb.MetricType_INFO:
 		promMetricType = ts.PromMetricTypeInfo
-
 	case prompb.MetricType_STATESET:
 		promMetricType = ts.PromMetricTypeStateSet
-
 	default:
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid Prometheus metric type %v", series.Type)
 	}
@@ -144,21 +124,15 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}
 
 	return ts.SeriesAttributes{
-		M3Type:         m3MetricType,
-		PromType:       promMetricType,
-		PromFamilyType: promMetricFamilyType,
-		Source:         sourceType,
+		M3Type:   m3MetricType,
+		PromType: promMetricType,
+		Source:   sourceType,
 	}, nil
 }
 
 // SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
-func SeriesAttributesToAnnotationPayload(
-	seriesAttributes ts.SeriesAttributes,
-) (annotation.Payload, error) {
-	var (
-		metricType       annotation.MetricType
-		metricFamilyType annotation.MetricFamilyType
-	)
+func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
+	var metricType annotation.MetricType
 
 	switch seriesAttributes.PromType {
 	case ts.PromMetricTypeUnknown:
@@ -167,6 +141,12 @@ func SeriesAttributesToAnnotationPayload(
 		metricType = annotation.MetricType_COUNTER
 	case ts.PromMetricTypeGauge:
 		metricType = annotation.MetricType_GAUGE
+	case ts.PromMetricTypeHistogram:
+		metricType = annotation.MetricType_HISTOGRAM
+	case ts.PromMetricTypeGaugeHistogram:
+		metricType = annotation.MetricType_GAUGE_HISTOGRAM
+	case ts.PromMetricTypeSummary:
+		metricType = annotation.MetricType_SUMMARY
 	case ts.PromMetricTypeInfo:
 		metricType = annotation.MetricType_INFO
 	case ts.PromMetricTypeStateSet:
@@ -175,22 +155,8 @@ func SeriesAttributesToAnnotationPayload(
 		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
 	}
 
-	switch seriesAttributes.PromFamilyType {
-	case ts.PromMetricFamilyTypeNone:
-		metricFamilyType = annotation.MetricFamilyType_NONE
-	case ts.PromMetricFamilyTypeHistogram:
-		metricFamilyType = annotation.MetricFamilyType_HISTOGRAM
-	case ts.PromMetricFamilyTypeGaugeHistogram:
-		metricFamilyType = annotation.MetricFamilyType_GAUGE_HISTOGRAM
-	case ts.PromMetricFamilyTypeSummary:
-		metricFamilyType = annotation.MetricFamilyType_SUMMARY
-	default:
-		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric family type %v", seriesAttributes.PromFamilyType)
-	}
-
 	return annotation.Payload{
-		MetricType:       metricType,
-		MetricFamilyType: metricFamilyType,
+		MetricType: metricType,
 	}, nil
 }
 
@@ -363,13 +329,4 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	}
 
 	return samples
-}
-
-func metricNameFromLabels(labels []prompb.Label) []byte {
-	for _, label := range labels {
-		if bytes.Equal(promDefaultName, label.GetName()) {
-			return label.GetValue()
-		}
-	}
-	return nil
 }

@@ -312,7 +312,6 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 			{Type: prompb.MetricType_UNKNOWN},
 			{Type: prompb.MetricType_COUNTER},
 			{Type: prompb.MetricType_GAUGE},
-			{Type: prompb.MetricType_GAUGE},
 			{Type: prompb.MetricType_SUMMARY},
 			{Type: prompb.MetricType_HISTOGRAM},
 			{Type: prompb.MetricType_GAUGE_HISTOGRAM},
@@ -329,27 +328,21 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	resp := writer.Result()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, annotation.MetricFamilyType_NONE)
-	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, annotation.MetricFamilyType_SUMMARY)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, annotation.MetricFamilyType_HISTOGRAM)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, annotation.MetricFamilyType_GAUGE_HISTOGRAM)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_STATESET, annotation.MetricFamilyType_NONE)
+	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_HISTOGRAM)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE_HISTOGRAM)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_STATESET)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
 
-	assert.Nil(t, firstValue.Annotation, "first annotation invalidated")
-
 	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
-	expectedSecondAnnotationPayload := annotation.Payload{
-		MetricType: annotation.MetricType_COUNTER,
-		MetricFamilyType: annotation.MetricFamilyType_NONE,
-	}
-	assert.Equal(t, expectedSecondAnnotationPayload, secondAnnotationPayload, "second annotation invalidated")
+	assert.Nil(t, firstValue.Annotation, "annotation invalidation")
+	assert.Equal(t, annotation.Payload{MetricType: annotation.MetricType_COUNTER}, secondAnnotationPayload, "annotation invalidated")
 }
 
 func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
@@ -388,11 +381,11 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 	resp := writer.Result()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, annotation.MetricFamilyType_NONE)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, annotation.MetricFamilyType_NONE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -423,16 +416,11 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 	}
 }
 
-func verifyIterValueAnnotation(
-	t *testing.T,
-	iter ingest.DownsampleAndWriteIter,
-	expectedMetricType annotation.MetricType,
-	expectedMetricFamilyType annotation.MetricFamilyType,
-) ingest.IterValue {
+func verifyIterValueAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter, expectedMetricType annotation.MetricType) ingest.IterValue {
 	require.True(t, iter.Next())
 	value := iter.Current()
 
-	expectedPayload := annotation.Payload{MetricType: expectedMetricType, MetricFamilyType: expectedMetricFamilyType}
+	expectedPayload := annotation.Payload{MetricType: expectedMetricType}
 	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
 
 	return value

@@ -47,6 +47,15 @@ const (
 	// PromMetricTypeGauge is the gauge Prometheus metric type.
 	PromMetricTypeGauge
 
+	// PromMetricTypeHistogram is the histogram Prometheus metric type.
+	PromMetricTypeHistogram
+
+	// PromMetricTypeGaugeHistogram is the gauge histogram Prometheus metric type.
+	PromMetricTypeGaugeHistogram
+
+	// PromMetricTypeSummary is the summary Prometheus metric type.
+	PromMetricTypeSummary
+
 	// PromMetricTypeInfo is the info Prometheus metric type.
 	PromMetricTypeInfo
 
@@ -54,25 +63,8 @@ const (
 	PromMetricTypeStateSet
 )
 
-// PromMetricFamilyType is the enum for Prometheus metric types.
-type PromMetricFamilyType uint8
-
-const (
-	// PromMetricFamilyTypeNone indicates that the metric does not belong to a metrics family.
-	PromMetricFamilyTypeNone PromMetricFamilyType = iota
-
-	// PromMetricFamilyTypeHistogram is the histogram Prometheus metric family type.
-	PromMetricFamilyTypeHistogram
-
-	// PromMetricFamilyTypeGaugeHistogram is the gauge histogram Prometheus metric family type.
-	PromMetricFamilyTypeGaugeHistogram
-
-	// PromMetricFamilyTypeSummary is the summary Prometheus metric family type.
-	PromMetricFamilyTypeSummary
-)
-
 // SourceType is the enum for metric source types.
-type SourceType int
+type SourceType uint8
 
 const (
 	// SourceTypePrometheus is the prometheus source type.
@@ -84,10 +76,9 @@ const (
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	M3Type         M3MetricType
-	PromType       PromMetricType
-	PromFamilyType PromMetricFamilyType
-	Source         SourceType
+	M3Type   M3MetricType
+	PromType PromMetricType
+	Source   SourceType
 }
 
 // DefaultSeriesAttributes returns a default series attributes.
