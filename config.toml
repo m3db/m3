@@ -117,14 +117,15 @@ offlineSearch = false
 
 # TODO: Might need to refactor some of the K8s shortcodes later
 # Add your release versions here
-[[params.versions]]
-  version = "1.0"
-  url = "https://master.kubeflow.org"
-  [[params.versions]]
-  version = "0.9"
-  url = "https://master.kubeflow.org"
+# TODO: Enable when ready
+# [[params.versions]]
+#   version = "1.0"
+#   url = "https://master.kubeflow.org"
+#   [[params.versions]]
+#   version = "0.9"
+#   url = "https://master.kubeflow.org"
 
-version_menu = "Versions"
+# version_menu = "Versions"
 
 # TODO: Do not like doing this really
 [markup]
