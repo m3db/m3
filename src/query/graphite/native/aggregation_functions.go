@@ -98,15 +98,15 @@ func lastSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, e
 
 // standardDeviationHelper returns the standard deviation of a slice of a []float64
 func standardDeviationHelper(values []float64) float64 {
-	count := float64(0)
-	sum := float64(0)
+	var count, sum float64
 
 	for _, value := range values {
 		if !math.IsNaN(value) {
 			sum += value
-			count += 1
+			count++
 		}
 	}
+	if count == 0 { return math.NaN() }
 	avg := sum / count
 
 	m2 := float64(0)
@@ -135,8 +135,9 @@ func stddevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesL
 	firstSeries := seriesList.Values[0]
 	numSteps := firstSeries.Len()
 	values := ts.NewValues(ctx, firstSeries.MillisPerStep(), numSteps)
+	valuesAtTime := make([]float64, 0, numSteps)
 	for i := 0; i < numSteps; i++ {
-		valuesAtTime := []float64{}
+		valuesAtTime = valuesAtTime[:0]
 		for _, series := range seriesList.Values {
 			valuesAtTime = append(valuesAtTime, series.ValueAt(i))
 		}
