@@ -76,9 +76,10 @@ const (
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	M3Type   M3MetricType
-	PromType PromMetricType
-	Source   SourceType
+	M3Type            M3MetricType
+	PromType          PromMetricType
+	Source            SourceType
+	HandleValueResets bool
 }
 
 // DefaultSeriesAttributes returns a default series attributes.

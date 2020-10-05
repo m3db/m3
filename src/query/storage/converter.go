@@ -34,11 +34,14 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-// The default name for the name and bucket tags in Prometheus metrics.
-// This can be overwritten by setting tagOptions in the config.
 var (
+	// The default name for the name and bucket tags in Prometheus metrics.
+	// This can be overwritten by setting tagOptions in the config.
 	promDefaultName       = []byte(model.MetricNameLabel) // __name__
 	promDefaultBucketName = []byte(model.BucketLabel)     // le
+
+	// The suffix of count metric name in Prometheus histogram/summary metric families.
+	promDefaultCountSuffix = []byte("_count")
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -71,9 +74,10 @@ func PromLabelsToM3Tags(
 // timeseries.
 func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
 	var (
-		sourceType     ts.SourceType
-		m3MetricType   ts.M3MetricType
-		promMetricType ts.PromMetricType
+		sourceType        ts.SourceType
+		m3MetricType      ts.M3MetricType
+		promMetricType    ts.PromMetricType
+		handleValueResets bool
 	)
 
 	switch series.Source {
@@ -86,22 +90,36 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}
 
 	switch series.Type {
+
 	case prompb.MetricType_UNKNOWN:
 		promMetricType = ts.PromMetricTypeUnknown
+
 	case prompb.MetricType_COUNTER:
 		promMetricType = ts.PromMetricTypeCounter
+		handleValueResets = true
+
 	case prompb.MetricType_GAUGE:
 		promMetricType = ts.PromMetricTypeGauge
+
 	case prompb.MetricType_HISTOGRAM:
 		promMetricType = ts.PromMetricTypeHistogram
+		handleValueResets = true
+
 	case prompb.MetricType_GAUGE_HISTOGRAM:
 		promMetricType = ts.PromMetricTypeGaugeHistogram
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, promDefaultCountSuffix)
+
 	case prompb.MetricType_SUMMARY:
 		promMetricType = ts.PromMetricTypeSummary
+		handleValueResets = true
+
 	case prompb.MetricType_INFO:
 		promMetricType = ts.PromMetricTypeInfo
+
 	case prompb.MetricType_STATESET:
 		promMetricType = ts.PromMetricTypeStateSet
+
 	default:
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid Prometheus metric type %v", series.Type)
 	}
@@ -124,9 +142,10 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}
 
 	return ts.SeriesAttributes{
-		M3Type:   m3MetricType,
-		PromType: promMetricType,
-		Source:   sourceType,
+		M3Type:            m3MetricType,
+		PromType:          promMetricType,
+		Source:            sourceType,
+		HandleValueResets: handleValueResets,
 	}, nil
 }
 
@@ -135,28 +154,38 @@ func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (
 	var metricType annotation.MetricType
 
 	switch seriesAttributes.PromType {
+
 	case ts.PromMetricTypeUnknown:
 		metricType = annotation.MetricType_UNKNOWN
+
 	case ts.PromMetricTypeCounter:
 		metricType = annotation.MetricType_COUNTER
+
 	case ts.PromMetricTypeGauge:
 		metricType = annotation.MetricType_GAUGE
+
 	case ts.PromMetricTypeHistogram:
 		metricType = annotation.MetricType_HISTOGRAM
+
 	case ts.PromMetricTypeGaugeHistogram:
 		metricType = annotation.MetricType_GAUGE_HISTOGRAM
+
 	case ts.PromMetricTypeSummary:
 		metricType = annotation.MetricType_SUMMARY
+
 	case ts.PromMetricTypeInfo:
 		metricType = annotation.MetricType_INFO
+
 	case ts.PromMetricTypeStateSet:
 		metricType = annotation.MetricType_STATESET
+
 	default:
 		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
 	}
 
 	return annotation.Payload{
-		MetricType: metricType,
+		MetricType:        metricType,
+		HandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
 }
 
@@ -329,4 +358,13 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	}
 
 	return samples
+}
+
+func metricNameFromLabels(labels []prompb.Label) []byte {
+	for _, label := range labels {
+		if bytes.Equal(promDefaultName, label.GetName()) {
+			return label.GetValue()
+		}
+	}
+	return nil
 }

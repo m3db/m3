@@ -295,21 +295,45 @@ func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
 }
 
 func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
-	mapping := map[prompb.MetricType]ts.PromMetricType{
-		prompb.MetricType_UNKNOWN:         ts.PromMetricTypeUnknown,
-		prompb.MetricType_COUNTER:         ts.PromMetricTypeCounter,
-		prompb.MetricType_GAUGE:           ts.PromMetricTypeGauge,
-		prompb.MetricType_HISTOGRAM:       ts.PromMetricTypeHistogram,
-		prompb.MetricType_GAUGE_HISTOGRAM: ts.PromMetricTypeGaugeHistogram,
-		prompb.MetricType_SUMMARY:         ts.PromMetricTypeSummary,
-		prompb.MetricType_INFO:            ts.PromMetricTypeInfo,
-		prompb.MetricType_STATESET:        ts.PromMetricTypeStateSet,
+	type prompbMetricTypeWithNameSuffix struct {
+		metricType prompb.MetricType
+		nameSuffix string
+	}
+
+	type promMetricTypeWithBool struct {
+		metricType        ts.PromMetricType
+		handleValueResets bool
+	}
+
+	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
+		{metricType: prompb.MetricType_UNKNOWN}:  {metricType: ts.PromMetricTypeUnknown},
+		{metricType: prompb.MetricType_COUNTER}:  {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
+		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
+		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
+
+		{prompb.MetricType_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeGaugeHistogram},
+
+		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "count"}:    {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "sum"}:      {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
 	}
 
 	for proto, expected := range mapping {
-		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto})
+		var labels []prompb.Label
+		if proto.nameSuffix != "" {
+			labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+		}
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto.metricType, Labels: labels})
 		require.NoError(t, err)
-		assert.Equal(t, expected, attrs.PromType)
+		assert.Equal(t, expected.metricType, attrs.PromType)
+		assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
 	}
 
 	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: -1})
@@ -344,6 +368,7 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.
 		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: proto, Source: prompb.Source_GRAPHITE})
 		require.NoError(t, err)
 		assert.Equal(t, expected, attrs.PromType)
+		assert.False(t, attrs.HandleValueResets)
 	}
 }
 
@@ -367,4 +392,12 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 
 	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
 	require.Error(t, err)
+
+	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: true})
+	require.NoError(t, err)
+	assert.True(t, payload.HandleValueResets)
+
+	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: false})
+	require.NoError(t, err)
+	assert.False(t, payload.HandleValueResets)
 }

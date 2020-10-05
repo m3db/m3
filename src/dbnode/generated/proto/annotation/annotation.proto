@@ -3,7 +3,8 @@ syntax = "proto3";
 package annotation;
 
 message Payload {
-    MetricType MetricType = 1;
+    MetricType metric_type   = 1;
+    bool handle_value_resets = 2;
 }
 
 enum MetricType {
