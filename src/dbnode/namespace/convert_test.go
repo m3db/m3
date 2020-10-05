@@ -131,6 +131,10 @@ var (
 	}
 )
 
+func init() {
+	namespace.RegisterExtendedOptionsConverter(xtest.TypeURLPrefix, &m3test.PingResponse{}, xtest.ConvertToExtendedOptions)
+}
+
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
 	ropts, err := namespace.ToRetention(&validOpts)

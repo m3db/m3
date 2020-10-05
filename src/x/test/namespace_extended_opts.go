@@ -59,10 +59,6 @@ func ConvertToExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, err
 	return &ExtendedOptions{typedMsg.Value}, nil
 }
 
-func init() {
-	namespace.RegisterExtendedOptionsConverter(TypeURLPrefix, &m3test.PingResponse{}, ConvertToExtendedOptions)
-}
-
 // NewProtobufAny converts a typed protobuf message into protobuf Any type.
 func NewProtobufAny(msg proto.Message) *protobuftypes.Any {
 	serializedMsg, _ := proto.Marshal(msg)
