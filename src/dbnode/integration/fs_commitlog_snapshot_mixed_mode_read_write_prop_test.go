@@ -148,7 +148,8 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
 					timesToRestart    = []time.Time{}
 					start             = earliestToCheck
-					filePathPrefix    = setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
+					fsOpts            = setup.StorageOpts().CommitLogOptions().FilesystemOptions()
+					filePathPrefix    = fsOpts.FilePathPrefix()
 				)
 
 				// Generate randomly selected times during which the node will restart
@@ -169,7 +170,10 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					defer ctx.Close()
 
 					log.Info("writing datapoints")
-					var i int
+					var (
+						i              int
+						snapshotBlocks = map[xtime.UnixNano]struct{}{}
+					)
 					for i = lastDatapointsIdx; i < len(datapoints); i++ {
 						var (
 							dp = datapoints[i]
@@ -186,6 +190,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 							log.Warn("error writing series datapoint", zap.Error(err))
 							return false, err
 						}
+						snapshotBlocks[xtime.ToUnixNano(ts.Truncate(ns1BlockSize))] = struct{}{}
 					}
 					lastDatapointsIdx = i
 					log.Info("wrote datapoints")
@@ -219,20 +224,22 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						}
 					}
 
-					if input.waitForSnapshotFiles {
+					// We've written data if we've advanced the datapoints index.
+					dpsWritten := i > 0
+					if input.waitForSnapshotFiles && dpsWritten {
 						log.Info("waiting for snapshot files to be written")
-						now := setup.NowFn()()
-						var snapshotBlock time.Time
-						if now.Add(-bufferPast).Truncate(ns1BlockSize).Equal(now.Truncate(ns1BlockSize)) {
-							snapshotBlock = now.Truncate(ns1BlockSize)
-						} else {
-							snapshotBlock = now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
+						// We only snapshot TSDB blocks that have data in them.
+						expectedSnapshotBlocks := make([]snapshotID, 0, len(snapshotBlocks))
+						for snapshotBlock := range snapshotBlocks {
+							expectedSnapshotBlocks = append(expectedSnapshotBlocks, snapshotID{
+								blockStart: snapshotBlock.ToTime(),
+							})
 						}
 						_, err := waitUntilSnapshotFilesFlushed(
-							filePathPrefix,
+							fsOpts,
 							setup.ShardSet(),
 							nsID,
-							[]snapshotID{{blockStart: snapshotBlock}},
+							expectedSnapshotBlocks,
 							maxFlushWaitTime,
 						)
 						if err != nil {
