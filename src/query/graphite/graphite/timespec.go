@@ -159,12 +159,16 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		if len(stringSlice) == 2 {
 			ref, offset = stringSlice[0], stringSlice[1]
 			offset = "+" + offset
+		} else {
+			return now, errors.NewInvalidParamsError(fmt.Errorf("unknown time string %s", s))
 		}
 	} else if strings.Contains(s, "-") {
 		stringSlice := strings.Split(s, "-")
 		if len(stringSlice) == 2 {
 			ref, offset = stringSlice[0], stringSlice[1]
 			offset = "-" + offset
+		} else {
+			return now, errors.NewInvalidParamsError(fmt.Errorf("unknown time string %s", s))
 		}
 	}
 	parsedReference, err := ParseTimeReference(ref, now)
