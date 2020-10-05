@@ -283,7 +283,7 @@ func combineSeriesWithWildcards(
 
 // splits a slice into chunks
 func chunkArrayHelper(slice []string, numChunks int) [][]string {
-	var divided [][]string
+	divided := make([][]string, 0, numChunks)
 
 	chunkSize := (len(slice) + numChunks - 1) / numChunks
 
@@ -389,7 +389,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		}
 
 		for i, prefix := range prefixChunk {
-			_, prefix := i, prefix
+			prefix := prefix
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
