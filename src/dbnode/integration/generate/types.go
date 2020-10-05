@@ -97,6 +97,19 @@ type Writer interface {
 		snapshotInterval time.Duration,
 	) error
 
+	WriteIndex(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+	) error
+
+	WriteIndexWithPredicate(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
+	) error
+
 	WriteIndexSnapshotWithPredicate(
 		nsCtx ns.Context,
 		shardSet sharding.ShardSet,

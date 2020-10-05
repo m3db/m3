@@ -357,6 +357,16 @@ func writeTestSnapshotsToDiskWithPredicate(
 		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
+func writeTestIndexToDisk(
+	metadata namespace.Metadata,
+	setup TestSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
+	return writer.WriteIndex(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps)
+}
+
 func writeTestIndexSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
 	setup TestSetup,

@@ -21,6 +21,7 @@
 package generate
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -36,6 +37,10 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
+)
+
+var (
+	errInvalidFileSetType = errors.New("invalid file set type")
 )
 
 type writer struct {
@@ -74,6 +79,25 @@ func (w *writer) WriteSnapshot(
 		nsCtx, shardSet, seriesMaps, volume, WriteAllPredicate, snapshotInterval)
 }
 
+func (w *writer) WriteIndex(
+	nsCtx ns.Context,
+	shardSet sharding.ShardSet,
+	seriesMaps SeriesBlocksByStart,
+) error {
+	return w.WriteIndexWithPredicate(
+		nsCtx, shardSet, seriesMaps, WriteAllPredicate)
+}
+
+func (w *writer) WriteIndexWithPredicate(
+	nsCtx ns.Context,
+	shardSet sharding.ShardSet,
+	seriesMaps SeriesBlocksByStart,
+	pred WriteDatapointPredicate,
+) error {
+	return w.writeIndexWithPredicate(
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
+}
+
 func (w *writer) WriteIndexSnapshotWithPredicate(
 	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
@@ -81,8 +105,8 @@ func (w *writer) WriteIndexSnapshotWithPredicate(
 	pred WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
-	return w.writeIndexSnapshotWithPredicate(
-		nsCtx, shardSet, seriesMaps, pred, snapshotInterval)
+	return w.writeIndexWithPredicate(
+		nsCtx, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
@@ -167,11 +191,12 @@ func (w *writer) writeWithPredicate(
 	return nil
 }
 
-func (w *writer) writeIndexSnapshotWithPredicate(
+func (w *writer) writeIndexWithPredicate(
 	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
+	fileSetType persist.FileSetType,
 	snapshotInterval time.Duration,
 ) error {
 	gOpts := w.opts
@@ -213,11 +238,20 @@ func (w *writer) writeIndexSnapshotWithPredicate(
 		currStart      = xtime.ToUnixNano(gOpts.ClockOptions().NowFn()().Truncate(indexBlockSize))
 	)
 	for start, docs := range docsPerBlockStart {
-		indexVolumeType := idxpersist.SnapshotColdIndexVolumeType
-		if start.Equal(currStart) || start.After(currStart) {
-			indexVolumeType = idxpersist.SnapshotWarmIndexVolumeType
+		var indexVolumeType idxpersist.IndexVolumeType
+		switch fileSetType {
+		case persist.FileSetFlushType:
+			indexVolumeType = idxpersist.DefaultIndexVolumeType
+		case persist.FileSetSnapshotType:
+			indexVolumeType = idxpersist.SnapshotColdIndexVolumeType
+			if start.Equal(currStart) || start.After(currStart) {
+				indexVolumeType = idxpersist.SnapshotWarmIndexVolumeType
+			}
+		default:
+			return errInvalidFileSetType
 		}
-		if err := writeIndexSnapshotToDisk(
+
+		if err := writeIndexToDisk(
 			nsCtx,
 			writer,
 			shardsMap,
@@ -226,6 +260,7 @@ func (w *writer) writeIndexSnapshotWithPredicate(
 			snapshotInterval,
 			gOpts.FilePathPrefix(),
 			indexVolumeType,
+			fileSetType,
 			docs,
 		); err != nil {
 			return err
@@ -321,7 +356,7 @@ func writeToDiskWithPredicate(
 	return nil
 }
 
-func writeIndexSnapshotToDisk(
+func writeIndexToDisk(
 	nsCtx ns.Context,
 	writer fs.IndexFileSetWriter,
 	shardsMap map[uint32]struct{},
@@ -330,6 +365,7 @@ func writeIndexSnapshotToDisk(
 	snapshotInterval time.Duration,
 	filePathPrefix string,
 	indexVolumeType idxpersist.IndexVolumeType,
+	fileSetType persist.FileSetType,
 	docs []doc.Document,
 ) error {
 	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
@@ -347,7 +383,7 @@ func writeIndexSnapshotToDisk(
 			VolumeIndex:        volumeIndex,
 			FileSetContentType: persist.FileSetIndexContentType,
 		},
-		FileSetType:     persist.FileSetSnapshotType,
+		FileSetType:     fileSetType,
 		BlockSize:       blockSize,
 		Shards:          shardsMap,
 		IndexVolumeType: indexVolumeType,
