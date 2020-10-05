@@ -327,6 +327,74 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	assertFetchResult(t, results, testTag)
 }
 
+// TestLocalWriteWithExpiredContext ensures that writes are at least attempted
+// even with an expired context, this is so that data is not lost even if
+// the original writer has already disconnected.
+func TestLocalWriteWithExpiredContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	store := setupLocalWrite(t, ctrl)
+	writeQuery := newWriteQuery(t)
+
+	past := time.Now().Add(-time.Minute)
+
+	ctx, cancel := context.WithDeadline(context.Background(), past)
+	defer cancel()
+
+	// Ensure expired.
+	var expired bool
+	select {
+	case <-ctx.Done():
+		expired = true
+	default:
+	}
+	require.True(t, expired, "context expected to be expired")
+
+	err := store.Write(ctx, writeQuery)
+	assert.NoError(t, err)
+	assert.NoError(t, store.Close())
+}
+
+// TestLocalWritesWithExpiredContext ensures that writes are at least attempted
+// even with an expired context, this is so that data is not lost even if
+// the original writer has already disconnected.
+func TestLocalWritesWithExpiredContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	store := setupLocalWrite(t, ctrl)
+	writeQueryOpts := newWriteQuery(t).Options()
+	writeQueryOpts.Datapoints = ts.Datapoints{
+		ts.Datapoint{
+			Timestamp: time.Now(),
+			Value:     42,
+		},
+		ts.Datapoint{
+			Timestamp: time.Now(),
+			Value:     84,
+		},
+	}
+	writeQuery, err := storage.NewWriteQuery(writeQueryOpts)
+	require.NoError(t, err)
+
+	past := time.Now().Add(-time.Minute)
+
+	ctx, cancel := context.WithDeadline(context.Background(), past)
+	defer cancel()
+
+	// Ensure expired.
+	var expired bool
+	select {
+	case <-ctx.Done():
+		expired = true
+	default:
+	}
+	require.True(t, expired, "context expected to be expired")
+
+	err = store.Write(ctx, writeQuery)
+	assert.NoError(t, err)
+	assert.NoError(t, store.Close())
+}
+
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
 	opts.SeriesLimit = 100

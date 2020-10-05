@@ -81,6 +81,9 @@ const (
 
 	// defaultWriteNewSeriesAsync inserts, and index series' synchronously by default.
 	defaultWriteNewSeriesAsync = false
+
+	// defaultReportInterval is the default time interval of reporting metrics within the system.
+	defaultReportInterval = time.Second
 )
 
 var (
@@ -283,6 +286,12 @@ type TestOptions interface {
 
 	// NowFn returns the now fn.
 	NowFn() func() time.Time
+
+	// SetReportInterval sets the time between reporting metrics within the system.
+	SetReportInterval(value time.Duration) TestOptions
+
+	// ReportInterval returns the time between reporting metrics within the system.
+	ReportInterval() time.Duration
 }
 
 type options struct {
@@ -316,6 +325,7 @@ type options struct {
 	protoEncoding                      bool
 	assertEqual                        assertTestDataEqual
 	nowFn                              func() time.Time
+	reportInterval                     time.Duration
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -349,6 +359,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
+		reportInterval:                 defaultReportInterval,
 	}
 }
 
@@ -382,6 +393,7 @@ func (o *options) SetID(value string) TestOptions {
 func (o *options) ID() string {
 	return o.id
 }
+
 func (o *options) SetTickMinimumInterval(value time.Duration) TestOptions {
 	opts := *o
 	opts.tickMinimumInterval = value
@@ -652,4 +664,14 @@ func (o *options) SetNowFn(value func() time.Time) TestOptions {
 
 func (o *options) NowFn() func() time.Time {
 	return o.nowFn
+}
+
+func (o *options) SetReportInterval(value time.Duration) TestOptions {
+	opts := *o
+	opts.reportInterval = value
+	return &opts
+}
+
+func (o *options) ReportInterval() time.Duration {
+	return o.reportInterval
 }

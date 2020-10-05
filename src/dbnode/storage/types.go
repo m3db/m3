@@ -874,19 +874,24 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseRepairer repairs in-memory database data.
-type databaseRepairer interface {
-	// Start starts the repair process.
+// BackgroundProcess is a background process that is run by the database.
+type BackgroundProcess interface {
+	// Start launches the BackgroundProcess to run asynchronously.
 	Start()
 
-	// Stop stops the repair process.
+	// Stop stops the BackgroundProcess.
 	Stop()
-
-	// Repair repairs in-memory data.
-	Repair() error
 
 	// Report reports runtime information.
 	Report()
+}
+
+// databaseRepairer repairs in-memory database data.
+type databaseRepairer interface {
+	BackgroundProcess
+
+	// Repair repairs in-memory data.
+	Repair() error
 }
 
 // databaseTickManager performs periodic ticking.
@@ -901,6 +906,9 @@ type databaseTickManager interface {
 type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
+
+	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator. Must happen before Open().
+	RegisterBackgroundProcess(process BackgroundProcess) error
 
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
@@ -920,9 +928,6 @@ type databaseMediator interface {
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// Repair repairs the database.
-	Repair() error
 
 	// Close closes the mediator.
 	Close() error
@@ -1215,11 +1220,17 @@ type Options interface {
 	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
 	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 
-	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	// SetMediatorTickInterval sets the ticking interval for the mediator.
 	SetMediatorTickInterval(value time.Duration) Options
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
+	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options
+
+	// BackgroundProcessFns returns the list of functions that create background processes for the database.
+	BackgroundProcessFns() []NewBackgroundProcessFn
 
 	// SetNamespaceHooks sets the NamespaceHooks.
 	SetNamespaceHooks(hooks NamespaceHooks) Options
@@ -1284,6 +1295,9 @@ type newFSMergeWithMemFn func(
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
+
+// NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
+type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
