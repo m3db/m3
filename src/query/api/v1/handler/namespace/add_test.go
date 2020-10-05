@@ -61,9 +61,8 @@ const testAddJSON = `
 				"blockSizeNanos": 7200000000000
 			},
 			"extendedOptions": {
-				"@type": "testm3.io/namespace.IndexOptions",
-				"enabled": true,
-				"blockSizeNanos": "2"
+				"@type": "testm3db.io/m3.test.PingResponse",
+				"Value": "foo"
 			}
 		}
 }
@@ -141,7 +140,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   testExtendedOptionsJson(2),
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

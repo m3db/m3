@@ -64,9 +64,8 @@ const (
 				]
 			},
 			"extendedOptions": {
-				"@type": "testm3.io/namespace.IndexOptions",
-				"enabled": true,
-				"blockSizeNanos": "6"
+				"@type": "testm3db.io/m3.test.PingResponse",
+				"Value": "bar"
 			}
 		}
 }
@@ -135,7 +134,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: newTestExtendedOptionsProto(t, 3),
+				ExtendedOptions: xtest.NewExtendedOptionsProto("foo"),
 			},
 		},
 	}
@@ -196,7 +195,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						},
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   testExtendedOptionsJson(6),
+						"extendedOptions":   xtest.NewExtendedOptionsJson("bar"),
 					},
 				},
 			},
@@ -253,7 +252,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
-						"extendedOptions":   testExtendedOptionsJson(3),
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

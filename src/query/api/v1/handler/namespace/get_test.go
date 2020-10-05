@@ -39,8 +39,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testTypeURLPrefix = "testm3.io/"
-
 func setupNamespaceTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *kv.MockStore) {
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
@@ -101,7 +99,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
-				ExtendedOptions: newTestExtendedOptionsProto(t, 5),
+				ExtendedOptions: xtest.NewExtendedOptionsProto("foo"),
 			},
 		},
 	}
@@ -142,7 +140,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
-						"extendedOptions":   testExtendedOptionsJson(5),
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

@@ -31,10 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
-	xjson "github.com/m3db/m3/src/x/json"
 
-	"github.com/gogo/protobuf/proto"
-	protobuftypes "github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,48 +136,6 @@ func TestMetadata(t *testing.T) {
 	assert.Equal(t, 0, version)
 	assert.Len(t, meta, 2)
 	assert.NoError(t, err)
-}
-
-type testExtendedOptions struct {
-	enabled bool
-	blockSizeNanos int64
-}
-
-func (o *testExtendedOptions) Validate() error {
-	return nil
-}
-
-func (o *testExtendedOptions) ToProto() (proto.Message, string) {
-	return &nsproto.IndexOptions{Enabled: o.enabled, BlockSizeNanos: o.blockSizeNanos}, testTypeURLPrefix
-}
-
-func convertToTestExtendedOptions(msg proto.Message) (namespace.ExtendedOptions, error) {
-	typedMsg := msg.(*nsproto.IndexOptions)
-	return &testExtendedOptions{typedMsg.Enabled, typedMsg.BlockSizeNanos}, nil
-}
-
-func init() {
-	namespace.RegisterExtendedOptionsConverter(testTypeURLPrefix, &nsproto.IndexOptions{}, convertToTestExtendedOptions)
-}
-
-func newTestExtendedOptionsProto(t *testing.T, value int64) *protobuftypes.Any {
-	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
-	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
-	serializedMsg, err := proto.Marshal(msg)
-	require.NoError(t, err)
-
-	return &protobuftypes.Any{
-		TypeUrl: testTypeURLPrefix + proto.MessageName(msg),
-		Value:   serializedMsg,
-	}
-}
-
-func testExtendedOptionsJson(value int64) xjson.Map {
-	return xjson.Map{
-		"@type": testTypeURLPrefix + "namespace.IndexOptions",
-		"enabled": true,
-		"blockSizeNanos": fmt.Sprint(value),
-	}
 }
 
 func TestValidateAggregationOptionsUniqueResolutionAndRetention(t *testing.T) {

@@ -21,16 +21,16 @@
 package namespace_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	m3test "github.com/m3db/m3/src/x/generated/proto/test"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/gogo/protobuf/proto"
 	protobuftypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,8 +38,6 @@ import (
 
 var (
 	testSchemaOptions = namespace.GenTestSchemaOptions("mainpkg/main.proto", "testdata")
-
-	testTypeUrlPrefix = "testm3db.io/"
 
 	toNanos = func(mins int64) int64 {
 		return int64(time.Duration(mins) * time.Minute / time.Nanosecond)
@@ -59,7 +57,7 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
-	validExtendedOpts = newTestExtendedOptionsProto(1)
+	validExtendedOpts = xtest.NewExtendedOptionsProto("foo")
 
 	validAggregationOpts = nsproto.AggregationOptions{
 		Aggregations: []*nsproto.Aggregation{
@@ -132,40 +130,6 @@ var (
 		},
 	}
 )
-
-type testExtendedOptions struct {
-	enabled        bool
-	blockSizeNanos int64
-}
-
-func newTestExtendedOptionsProto(value int64) *protobuftypes.Any {
-	// NB: using some arbitrary custom protobuf message so that we don't have to introduce any new protobuf just for tests.
-	msg := &nsproto.IndexOptions{Enabled: true, BlockSizeNanos: value}
-	return newProtobufAny(msg)
-}
-
-func (o *testExtendedOptions) ToProto() (proto.Message, string) {
-	return &nsproto.IndexOptions{Enabled: o.enabled, BlockSizeNanos: o.blockSizeNanos}, testTypeUrlPrefix
-}
-
-func (o *testExtendedOptions) Validate() error {
-	if o.blockSizeNanos == 44 {
-		return errors.New("invalid ExtendedOptions")
-	}
-	return nil
-}
-
-func convertProtobufIndexOptions(message proto.Message) (namespace.ExtendedOptions, error) {
-	value := message.(*nsproto.IndexOptions)
-	if value.BlockSizeNanos == 55 {
-		return nil, errors.New("error in converter")
-	}
-	return &testExtendedOptions{value.Enabled, value.BlockSizeNanos}, nil
-}
-
-func init() {
-	namespace.RegisterExtendedOptionsConverter(testTypeUrlPrefix, &nsproto.IndexOptions{}, convertProtobufIndexOptions)
-}
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
@@ -339,22 +303,22 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 }
 
 func TestInvalidExtendedOptions(t *testing.T) {
-	invalidExtendedOptsBadValue := newProtobufAny(&nsproto.IndexOptions{})
+	invalidExtendedOptsBadValue := xtest.NewExtendedOptionsProto("foo")
 	invalidExtendedOptsBadValue.Value = []byte{1, 2, 3}
 	_, err := namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
 	assert.Error(t, err)
 
-	invalidExtendedOptsNoConverterForType := newProtobufAny(&protobuftypes.Int32Value{})
+	invalidExtendedOptsNoConverterForType := xtest.NewProtobufAny(&protobuftypes.Int32Value{})
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
-	assert.Equal(t, errors.New("dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value"), err)
+	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value")
 
-	invalidExtendedOptsConverterFailure := newTestExtendedOptionsProto(55)
+	invalidExtendedOptsConverterFailure := xtest.NewExtendedOptionsProto("error")
 	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
-	assert.Equal(t, errors.New("error in converter"), err)
+	assert.EqualError(t, err, "error in converter")
 
-	invalidExtendedOpts := newTestExtendedOptionsProto(44)
+	invalidExtendedOpts := xtest.NewExtendedOptionsProto("invalid")
 	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
-	assert.Equal(t, errors.New("invalid ExtendedOptions"), err)
+	assert.EqualError(t, err, "invalid ExtendedOptions")
 }
 
 func TestToAggregationOptions(t *testing.T) {
@@ -434,20 +398,12 @@ func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, obs
 		return
 	}
 
-	var value = &nsproto.IndexOptions{}
+	var value = &m3test.PingResponse{}
 	err := protobuftypes.UnmarshalAny(expectedProto, value)
 	require.NoError(t, err)
 
-	expected, err := convertProtobufIndexOptions(value)
+	expected, err := xtest.ConvertToExtendedOptions(value)
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, observed)
-}
-
-func newProtobufAny(msg proto.Message) *protobuftypes.Any {
-	serializedMsg, _ := proto.Marshal(msg)
-	return &protobuftypes.Any{
-		TypeUrl: testTypeUrlPrefix + proto.MessageName(msg),
-		Value:   serializedMsg,
-	}
 }
