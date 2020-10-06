@@ -21,6 +21,8 @@
 package ts
 
 // M3MetricType is the enum for M3 metric types.
+// NB: the current use case for this is Graphite metrics. Also see PromMetricType (below).
+// In future, it is worth considering a merge of these two enumerations.
 type M3MetricType uint8
 
 const (
