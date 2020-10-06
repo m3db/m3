@@ -43,7 +43,7 @@ const (
 
 	defaultNumConnections            = 4
 	defaultConnectionDialTimeout     = 5 * time.Second
-	defaultConnectionWriteTimeout    = time.Duration(0)
+	defaultConnectionWriteTimeout    = 5 * time.Second
 	defaultConnectionKeepAlivePeriod = 5 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultConnectionFlushInterval   = time.Second
