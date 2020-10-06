@@ -94,6 +94,11 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 	return highestMax(ctx, series, len(series.Values))
 }
 
+// sortByMinima sorts timeseries by the minimum value across the time period specified.
+func sortByMinima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
+	return lowest(ctx, series, len(series.Values), "min")
+}
+
 type valueComparator func(v, threshold float64) bool
 
 func compareByFunction(
@@ -197,6 +202,26 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 
 	r := ts.SeriesList(series)
 	r.Values = series.Values[0:upperBound]
+	return r, nil
+}
+
+// grep takes a metric or a wildcard seriesList, followed by a regular
+// expression in double quotes. Excludes metrics that don’t match the regular expression.
+func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.SeriesList, error) {
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	filtered := seriesList.Values[:0]
+	for _, series := range seriesList.Values {
+		if re.MatchString(series.Name()) {
+			filtered = append(filtered, series)
+		}
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = filtered
 	return r, nil
 }
 
@@ -562,36 +587,52 @@ func takeByFunction(input singlePathSpec, n int, sr ts.SeriesReducer, sort ts.Di
 	return common.Head(r, n)
 }
 
+func getReducer(f string) (ts.SeriesReducer, error) {
+	sa := ts.SeriesReducerApproach(f)
+	r, ok := sa.SafeReducer()
+	if !ok {
+		return r, errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
+	}
+	return r, nil
+}
+
+// highest takes one metric or a wildcard seriesList followed by an integer N and an aggregation function.
+// Out of all metrics passed, draws only the N metrics with the highest
+// aggregated value over the time period specified.
+func highest(_ *common.Context, input singlePathSpec, n int, f string) (ts.SeriesList, error) {
+	reducer, err := getReducer(f)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	return takeByFunction(input, n, reducer, ts.Descending)
+}
+
 // highestSum takes one metric or a wildcard seriesList followed by an integer
 // n.  Out of all metrics passed, draws only the N metrics with the highest
 // total value in the time period specified.
-func highestSum(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerSum.Reducer()
-	return takeByFunction(input, n, sr, ts.Descending)
+func highestSum(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return highest(ctx, input, n, "sum")
 }
 
 // highestMax takes one metric or a wildcard seriesList followed by an integer
 // n.  Out of all metrics passed, draws only the N metrics with the highest
 // maximum value in the time period specified.
-func highestMax(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerMax.Reducer()
-	return takeByFunction(input, n, sr, ts.Descending)
+func highestMax(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return highest(ctx, input, n, "max")
 }
 
 // highestCurrent takes one metric or a wildcard seriesList followed by an
 // integer n.  Out of all metrics passed, draws only the N metrics with the
 // highest value at the end of the time period specified.
-func highestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerLast.Reducer()
-	return takeByFunction(input, n, sr, ts.Descending)
+func highestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return highest(ctx, input, n, "current")
 }
 
 // highestAverage takes one metric or a wildcard seriesList followed by an
 // integer n.  Out of all metrics passed, draws only the top N metrics with the
 // highest average value for the time period specified.
-func highestAverage(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerAvg.Reducer()
-	return takeByFunction(input, n, sr, ts.Descending)
+func highestAverage(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return highest(ctx, input, n, "average")
 }
 
 // fallbackSeries takes one metric or a wildcard seriesList, and a second fallback metric.
@@ -608,25 +649,33 @@ func fallbackSeries(_ *common.Context, input singlePathSpec, fallback singlePath
 // N. Draws the N most deviant metrics.  To find the deviants, the standard
 // deviation (sigma) of each series is taken and ranked.  The top N standard
 // deviations are returned.
-func mostDeviant(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerStdDev.Reducer()
-	return takeByFunction(input, n, sr, ts.Descending)
+func mostDeviant(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return highest(ctx, input, n, "stddev")
+}
+
+// lowest takes one metric or a wildcard seriesList followed by an integer N and an aggregation function.
+// Out of all metrics passed, draws only the N metrics with the lowest
+// aggregated value over the time period specified.
+func lowest(_ *common.Context, input singlePathSpec, n int, f string) (ts.SeriesList, error) {
+	reducer, err := getReducer(f)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	return takeByFunction(input, n, reducer, ts.Ascending)
 }
 
 // lowestAverage takes one metric or a wildcard seriesList followed by an
 // integer n.  Out of all metrics passed, draws only the top N metrics with the
 // lowest average value for the time period specified.
-func lowestAverage(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerAvg.Reducer()
-	return takeByFunction(input, n, sr, ts.Ascending)
+func lowestAverage(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return lowest(ctx, input, n, "average")
 }
 
 // lowestCurrent takes one metric or a wildcard seriesList followed by an
 // integer n.  Out of all metrics passed, draws only the N metrics with the
 // lowest value at the end of the time period specified.
-func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
-	sr := ts.SeriesReducerLast.Reducer()
-	return takeByFunction(input, n, sr, ts.Ascending)
+func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error) {
+	return lowest(ctx, input, n, "current")
 }
 
 // windowSizeFunc calculates window size for moving average calculation
@@ -1023,6 +1072,64 @@ func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesLi
 	return r, nil
 }
 
+// interpolate takes one metric or a wildcard seriesList, and optionally a limit to the number of ‘None’ values
+// to skip over. Continues the line with the last received value when gaps (‘None’ values)
+// appear in your data, rather than breaking your line.
+//
+// interpolate will not interpolate at the beginning or end of a series, only in the middle
+func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.SeriesList, error) {
+	output := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		var (
+			consecutiveNaNs = 0
+			numSteps        = series.Len()
+			vals            = ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstNonNan     = false
+		)
+
+		for i := 0; i < numSteps; i++ {
+			value := series.ValueAt(i)
+			vals.SetValueAt(i, value)
+
+			if math.IsNaN(value) {
+				if !firstNonNan {
+					continue
+				}
+
+				consecutiveNaNs++
+				if limit >= 0 && consecutiveNaNs > limit {
+					consecutiveNaNs = 0
+				}
+
+				continue
+			} else {
+				firstNonNan = true
+			}
+
+			if consecutiveNaNs == 0 {
+				// have a value but no need to interpolate
+				continue
+			}
+
+			interpolated := series.ValueAt(i - consecutiveNaNs - 1)
+			interpolateStep := (value - interpolated) / float64(consecutiveNaNs+1)
+			for index := i - consecutiveNaNs; index < i; index++ {
+				interpolated = interpolated + interpolateStep
+				vals.SetValueAt(index, interpolated)
+			}
+
+			consecutiveNaNs = 0
+		}
+
+		name := fmt.Sprintf("interpolate(%s)", series.Name())
+		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		output = append(output, newSeries)
+	}
+	r := ts.SeriesList(input)
+	r.Values = output
+	return r, nil
+}
+
 // group takes an arbitrary number of pathspecs and adds them to a single timeseries array.
 // This function is used to pass multiple pathspecs to a function which only takes one
 func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
@@ -1396,9 +1503,13 @@ func combineBootstrapWithOriginal(
 				return ts.NewSeriesList(), err
 			}
 		}
+		bootstrapEndStep := endTime.Truncate(original.Resolution())
+		if bootstrapEndStep.Before(endTime) {
+			bootstrapEndStep = bootstrapEndStep.Add(original.Resolution())
+		}
 		// NB(braskin): using bootstrap.Len() is incorrect as it will include all
 		// of the steps in the original timeseries, not just the steps up to the new end time
-		bootstrapLength := bootstrap.StepAtTime(endTime)
+		bootstrapLength := bootstrap.StepAtTime(bootstrapEndStep)
 		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()
 		numBootstrapValues := bootstrapLength * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
@@ -2055,6 +2166,11 @@ func consolidateBy(_ *common.Context, seriesList singlePathSpec, consolidationAp
 	return r, nil
 }
 
+// cumulative is an alias for consolidateBy(series, 'sum')
+func cumulative(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return consolidateBy(ctx, seriesList, "sum")
+}
+
 // offsetToZero offsets a metric or wildcard seriesList by subtracting the minimum
 // value in the series from each data point.
 func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
@@ -2146,6 +2262,9 @@ func init() {
 	MustRegisterFunction(aliasByMetric)
 	MustRegisterFunction(aliasByNode)
 	MustRegisterFunction(aliasSub)
+	MustRegisterFunction(applyByNode).WithDefaultParams(map[uint8]interface{}{
+		4: "", // newName
+	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
 	})
@@ -2157,6 +2276,7 @@ func init() {
 	MustRegisterFunction(consolidateBy)
 	MustRegisterFunction(constantLine)
 	MustRegisterFunction(countSeries)
+	MustRegisterFunction(cumulative)
 	MustRegisterFunction(currentAbove)
 	MustRegisterFunction(currentBelow)
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
@@ -2170,9 +2290,14 @@ func init() {
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
 	MustRegisterFunction(groupByNodes)
+	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
+		2: 1,         // n,
+		3: "average", // f
+	})
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)
@@ -2183,6 +2308,9 @@ func init() {
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
 	MustRegisterFunction(integralByInterval)
+	MustRegisterFunction(interpolate).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // limit
+	})
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit
@@ -2191,6 +2319,10 @@ func init() {
 	MustRegisterFunction(limit)
 	MustRegisterFunction(logarithm).WithDefaultParams(map[uint8]interface{}{
 		2: 10, // base
+	})
+	MustRegisterFunction(lowest).WithDefaultParams(map[uint8]interface{}{
+		2: 1,         // n,
+		3: "average", // f
 	})
 	MustRegisterFunction(lowestAverage)
 	MustRegisterFunction(lowestCurrent)
@@ -2229,6 +2361,7 @@ func init() {
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortByMaxima)
+	MustRegisterFunction(sortByMinima)
 	MustRegisterFunction(sortByName)
 	MustRegisterFunction(sortByTotal)
 	MustRegisterFunction(squareRoot)

@@ -51,6 +51,9 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout.
 	defaultTruncateRequestTimeout = 2 * time.Second
 
+	// defaultFetchRequestTimeout is the default fetch request timeout
+	defaultFetchRequestTimeout = 15 * time.Second
+
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
@@ -78,6 +81,9 @@ const (
 
 	// defaultWriteNewSeriesAsync inserts, and index series' synchronously by default.
 	defaultWriteNewSeriesAsync = false
+
+	// defaultReportInterval is the default time interval of reporting metrics within the system.
+	defaultReportInterval = time.Second
 )
 
 var (
@@ -170,6 +176,12 @@ type TestOptions interface {
 
 	// TruncateRequestTimeout returns the truncate request timeout.
 	TruncateRequestTimeout() time.Duration
+
+	// SetFetchRequestTimeout sets the fetch request timeout.
+	SetFetchRequestTimeout(value time.Duration) TestOptions
+
+	// FetchRequestTimeout returns the fetch request timeout.
+	FetchRequestTimeout() time.Duration
 
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
 	SetWorkerPoolSize(value int) TestOptions
@@ -274,6 +286,12 @@ type TestOptions interface {
 
 	// NowFn returns the now fn.
 	NowFn() func() time.Time
+
+	// SetReportInterval sets the time between reporting metrics within the system.
+	SetReportInterval(value time.Duration) TestOptions
+
+	// ReportInterval returns the time between reporting metrics within the system.
+	ReportInterval() time.Duration
 }
 
 type options struct {
@@ -292,6 +310,7 @@ type options struct {
 	readRequestTimeout                 time.Duration
 	writeRequestTimeout                time.Duration
 	truncateRequestTimeout             time.Duration
+	fetchRequestTimeout                time.Duration
 	workerPoolSize                     int
 	clusterDatabaseTopologyInitializer topology.Initializer
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
@@ -306,6 +325,7 @@ type options struct {
 	protoEncoding                      bool
 	assertEqual                        assertTestDataEqual
 	nowFn                              func() time.Time
+	reportInterval                     time.Duration
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -330,6 +350,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		readRequestTimeout:             defaultReadRequestTimeout,
 		writeRequestTimeout:            defaultWriteRequestTimeout,
 		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		fetchRequestTimeout:            defaultFetchRequestTimeout,
 		workerPoolSize:                 defaultWorkerPoolSize,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
@@ -338,6 +359,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
+		reportInterval:                 defaultReportInterval,
 	}
 }
 
@@ -371,6 +393,7 @@ func (o *options) SetID(value string) TestOptions {
 func (o *options) ID() string {
 	return o.id
 }
+
 func (o *options) SetTickMinimumInterval(value time.Duration) TestOptions {
 	opts := *o
 	opts.tickMinimumInterval = value
@@ -479,6 +502,16 @@ func (o *options) SetTruncateRequestTimeout(value time.Duration) TestOptions {
 
 func (o *options) TruncateRequestTimeout() time.Duration {
 	return o.truncateRequestTimeout
+}
+
+func (o *options) SetFetchRequestTimeout(value time.Duration) TestOptions {
+	opts := *o
+	opts.fetchRequestTimeout = value
+	return &opts
+}
+
+func (o *options) FetchRequestTimeout() time.Duration {
+	return o.fetchRequestTimeout
 }
 
 func (o *options) SetWorkerPoolSize(value int) TestOptions {
@@ -631,4 +664,14 @@ func (o *options) SetNowFn(value func() time.Time) TestOptions {
 
 func (o *options) NowFn() func() time.Time {
 	return o.nowFn
+}
+
+func (o *options) SetReportInterval(value time.Duration) TestOptions {
+	opts := *o
+	opts.reportInterval = value
+	return &opts
+}
+
+func (o *options) ReportInterval() time.Duration {
+	return o.reportInterval
 }

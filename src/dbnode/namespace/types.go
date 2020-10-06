@@ -28,6 +28,8 @@ import (
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 // Options controls namespace behavior
@@ -111,6 +113,18 @@ type Options interface {
 
 	// RuntimeOptions returns the RuntimeOptions.
 	RuntimeOptions() RuntimeOptions
+
+	// SetExtendedOptions sets the ExtendedOptions.
+	SetExtendedOptions(value ExtendedOptions) Options
+
+	// ExtendedOptions returns the dynamically typed ExtendedOptions (requires type check on access).
+	ExtendedOptions() ExtendedOptions
+
+	// SetAggregationOptions sets the aggregation-related options for this namespace.
+	SetAggregationOptions(value AggregationOptions) Options
+
+	// AggregationOptions returns the aggregation-related options for this namespace.
+	AggregationOptions() AggregationOptions
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -293,3 +307,53 @@ type NamespaceWatch interface {
 
 // NamespaceUpdater is a namespace updater function.
 type NamespaceUpdater func(Map) error
+
+// ExtendedOptions is the type for dynamically typed options.
+type ExtendedOptions interface {
+	// ToProto converts ExtendedOptions to the corresponding protobuf message.
+	ToProto() (msg proto.Message, typeURLPrefix string)
+
+	// Validate validates the ExtendedOptions.
+	Validate() error
+}
+
+// AggregationOptions is a set of options for aggregating data
+// within the namespace.
+type AggregationOptions interface {
+	// Equal returns true if the provided value is equal to this one.
+	Equal(value AggregationOptions) bool
+
+	// SetAggregations sets the aggregations for this namespace.
+	SetAggregations(value []Aggregation) AggregationOptions
+
+	// Aggregations returns the aggregations for this namespace.
+	Aggregations() []Aggregation
+}
+
+// Aggregation describes data points within the namespace.
+type Aggregation struct {
+	// Aggregated is true if data points are aggregated, false otherwise.
+	Aggregated bool
+
+	// Attributes specifies how to aggregate data when aggregated is set to true.
+	// This field is ignored when aggregated is false.
+	Attributes AggregatedAttributes
+}
+
+// AggregationAttributes are attributes specifying how data points should be aggregated.
+type AggregatedAttributes struct {
+	// Resolution is the time range to aggregate data across.
+	Resolution time.Duration
+
+	// DownsampleOptions stores options around how data points are downsampled.
+	DownsampleOptions DownsampleOptions
+}
+
+// DownsampleOptions is a set of options related to downsampling data.
+type DownsampleOptions struct {
+	// All indicates whether to send data points to this namespace.
+	// If set to false, this namespace will not receive data points. In this
+	// case, data will need to be sent to the namespace via another mechanism
+	// (e.g. rollup/recording rules).
+	All bool
+}

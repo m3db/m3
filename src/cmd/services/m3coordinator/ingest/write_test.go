@@ -129,13 +129,13 @@ var (
 	testAnnotation2 = []byte("second")
 
 	testAttributesGauge = ts.SeriesAttributes{
-		Type: ts.MetricTypeGauge,
+		M3Type: ts.M3MetricTypeGauge,
 	}
 	testAttributesCounter = ts.SeriesAttributes{
-		Type: ts.MetricTypeCounter,
+		M3Type: ts.M3MetricTypeCounter,
 	}
 	testAttributesTimer = ts.SeriesAttributes{
-		Type: ts.MetricTypeTimer,
+		M3Type: ts.M3MetricTypeTimer,
 	}
 
 	testEntries = []testIterEntry{
@@ -565,11 +565,11 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeCounter}).
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeCounter}).
 		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeTimer}).
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeTimer}).
 		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)

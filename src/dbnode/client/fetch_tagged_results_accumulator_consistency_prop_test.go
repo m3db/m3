@@ -112,6 +112,7 @@ func TestFetchTaggedResultsAccumulatorGenerativeConsistencyCheck(t *testing.T) {
 			topology.ReadConsistencyLevelMajority,
 			topology.ReadConsistencyLevelOne,
 			topology.ReadConsistencyLevelUnstrictMajority,
+			topology.ReadConsistencyLevelUnstrictAll,
 		),
 	))
 
@@ -189,6 +190,7 @@ func TestAggregateResultsAccumulatorGenerativeConsistencyCheck(t *testing.T) {
 			topology.ReadConsistencyLevelMajority,
 			topology.ReadConsistencyLevelOne,
 			topology.ReadConsistencyLevelUnstrictMajority,
+			topology.ReadConsistencyLevelUnstrictAll,
 		),
 	))
 
@@ -218,6 +220,8 @@ func (res topoAndHostResponses) meetsConsistencyCheckForLevel(
 	case topology.ReadConsistencyLevelMajority:
 		requiredNumSuccessResponsePerShard = majority
 	case topology.ReadConsistencyLevelUnstrictMajority:
+		fallthrough
+	case topology.ReadConsistencyLevelUnstrictAll:
 		fallthrough
 	case topology.ReadConsistencyLevelOne:
 		requiredNumSuccessResponsePerShard = 1

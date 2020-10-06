@@ -23,12 +23,15 @@
 package integration
 
 import (
+	"io"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
@@ -41,50 +44,22 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	blockSize  = 2 * time.Hour
+	blockSizeT = 24 * time.Hour
+)
+
 func TestReadAggregateWrite(t *testing.T) {
-	//FIXME
-	t.Skip("Appears to be flaky, reenable after https://github.com/m3db/m3/pull/2599 is merged")
-
-	var (
-		blockSize      = 2 * time.Hour
-		indexBlockSize = 2 * blockSize
-		rOpts          = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
-		idxOpts        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		nsOpts         = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
-				SetColdWritesEnabled(true)
-	)
-
-	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
-	require.NoError(t, err)
-	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
-	require.NoError(t, err)
-
-	testOpts := NewTestOptions(t).
-		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
-		SetWriteNewSeriesAsync(true)
-
-	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
-	defer testSetup.Close()
-
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope(
-		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
-	defer closer.Close()
-	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
-		instrument.NewOptions().SetMetricsScope(scope)))
-
+	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
 	storageOpts := testSetup.StorageOpts()
-
-	// Start the server.
 	log := storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server.
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
+		testSetup.Close()
+		_ = closer.Close()
 	}()
 
 	start := time.Now()
@@ -92,17 +67,24 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
 
-	tags := []ident.Tag{
-		ident.StringTag("__name__", "cpu"),
-		ident.StringTag("job", "job1"),
-	}
-
-	dpTimeStart := nowFn().Truncate(indexBlockSize).Add(-3 * indexBlockSize)
-	dpTime := dpTimeStart
-
 	// Write test data.
-	for a := 0.0; a < 20.0; a++ {
-		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
+	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
+	dpTime := dpTimeStart
+	// "aab" ID is stored to the same shard 0 same as "foo", this is important
+	// for a test to store them to the same shard to test data consistency
+	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
+		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
+		dpTime, 15, xtime.Second, nil)
+
+	testDataPointsCount := 60
+	for a := 0; a < testDataPointsCount; a++ {
+		if a < 10 {
+			dpTime = dpTime.Add(10 * time.Minute)
+			continue
+		}
+		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"),
+			ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
+			dpTime, 42.1+float64(a), xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
 	}
@@ -110,57 +92,129 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
-	expectedNumWrites := int64(20)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= expectedNumWrites && successFlushes >= 4	}, time.Minute)
+		return flushes >= 1 && writes >= 30 && successFlushes >= 4
+	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour, false)
+	aggOpts, err := storage.NewAggregateTilesOptions(
+		dpTimeStart, dpTimeStart.Add(blockSizeT),
+		time.Hour, false)
 	require.NoError(t, err)
 
-	// Retry aggregation as persist manager could be still locked by cold writes.
-	// TODO: Remove retry when a separate persist manager will be implemented.
-	var processedBlockCount int64
-	for retries := 0; retries < 10; retries++ {
-		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
+	log.Info("Starting aggregation")
+	start = time.Now()
+	processedTileCount, err := testSetup.DB().AggregateTiles(
+		storageOpts.ContextPool().Get(),
+		srcNs.ID(), trgNs.ID(),
+		aggOpts)
+	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
+	require.NoError(t, err)
+	assert.Equal(t, int64(10), processedTileCount)
+
+	log.Info("validating aggregated data")
+
+	// check shard 0 as we wrote both aab and foo to this shard.
+	flushState, err := testSetup.DB().FlushState(trgNs.ID(), 0, dpTimeStart)
+	require.NoError(t, err)
+	require.Equal(t, 1, flushState.ColdVersionRetrievable)
+	require.Equal(t, 1, flushState.ColdVersionFlushed)
+
+	expectedDps := []ts.Datapoint{
+		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
+		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
+		{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
+		{Timestamp: dpTimeStart.Add(290 * time.Minute), Value: 71.1},
+		{Timestamp: dpTimeStart.Add(350 * time.Minute), Value: 77.1},
+		{Timestamp: dpTimeStart.Add(410 * time.Minute), Value: 83.1},
+		{Timestamp: dpTimeStart.Add(470 * time.Minute), Value: 89.1},
+		{Timestamp: dpTimeStart.Add(530 * time.Minute), Value: 95.1},
+		{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), processedBlockCount)
 
-	log.Info("fetching aggregated data")
-	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
-	require.NoError(t, err)
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("foo"),
+		dpTimeStart, nowFn(),
+		expectedDps)
 
-	expectedDps := make(map[int64]float64)
-	// TODO: Replace with exact values when aggregation will be implemented.
-	timestamp := dpTimeStart
-	// TODO: now we aggregate only a single block, that's why we do expect
-	// 12 items in place of 20
-	for a := 0; a < 12; a++ {
-		expectedDps[timestamp.Unix()] = 42.1 + float64(a)
-		timestamp = timestamp.Add(10 * time.Minute)
+	expectedDps = []ts.Datapoint{
+		{Timestamp: dpTimeStart, Value: 15},
 	}
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("aab"),
+		dpTimeStart, nowFn(),
+		expectedDps)
+}
 
-	count := 0
+func fetchAndValidate(
+	t *testing.T,
+	session client.Session,
+	nsID ident.ID,
+	id ident.ID,
+	startInclusive, endExclusive time.Time,
+	expected []ts.Datapoint,
+) {
+	series, err := session.Fetch(nsID, id, startInclusive, endExclusive)
+	require.NoError(t, err)
+
+	actual := make([]ts.Datapoint, 0, len(expected))
 	for series.Next() {
 		dp, _, _ := series.Current()
-		value, ok := expectedDps[dp.Timestamp.Unix()]
-		require.True(t, ok,
-			"didn't expect to find timestamp %v in aggregated result",
-			dp.Timestamp.Unix())
-		require.Equal(t, value, dp.Value,
-			"value for timestamp %v doesn't match. Expected %v but got %v",
-			dp.Timestamp.Unix(), value, dp.Value)
-		count++
+		// FIXME: init expected timestamp nano field as well for equality, or use
+		// permissive equality check instead.
+		dp.TimestampNanos = 0
+		actual = append(actual, dp)
 	}
-	require.Equal(t, len(expectedDps), count)
+
+	assert.Equal(t, expected, actual)
+}
+
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
+	var (
+		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
+		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT).SetBufferPast(0)
+		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
+		nsOpts   = namespace.NewOptions().
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(idxOpts).
+				SetColdWritesEnabled(true)
+		nsOptsT = namespace.NewOptions().
+			SetRetentionOptions(rOptsT).
+			SetIndexOptions(idxOptsT)
+
+		fixedNow = time.Now().Truncate(blockSizeT)
+	)
+
+	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	require.NoError(t, err)
+	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
+	require.NoError(t, err)
+
+	testOpts := NewTestOptions(t).
+		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
+		SetWriteNewSeriesAsync(true).
+		SetNumShards(1).
+		SetFetchRequestTimeout(time.Second * 30).
+		SetNowFn(func() time.Time {
+			return fixedNow
+		})
+
+	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(
+		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	storageOpts := testSetup.StorageOpts().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
+	testSetup.SetStorageOpts(storageOpts)
+
+	// Start the server.
+	require.NoError(t, testSetup.StartServer())
+
+	return testSetup, srcNs, trgNs, reporter, closer
 }

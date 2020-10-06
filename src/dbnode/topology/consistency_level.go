@@ -222,6 +222,11 @@ const (
 	// ReadConsistencyLevelMajority corresponds to reading from the majority of nodes
 	ReadConsistencyLevelMajority
 
+	// ReadConsistencyLevelUnstrictAll corresponds to reading from all nodes
+	// but relaxing the constraint when it cannot be met, falling back to returning success when
+	// reading from at least a single node after attempting reading from all of nodes
+	ReadConsistencyLevelUnstrictAll
+
 	// ReadConsistencyLevelAll corresponds to reading from all of the nodes
 	ReadConsistencyLevelAll
 )
@@ -237,6 +242,8 @@ func (l ReadConsistencyLevel) String() string {
 		return unstrictMajority
 	case ReadConsistencyLevelMajority:
 		return majority
+	case ReadConsistencyLevelUnstrictAll:
+		return unstrictAll
 	case ReadConsistencyLevelAll:
 		return all
 	}
@@ -248,6 +255,7 @@ var validReadConsistencyLevels = []ReadConsistencyLevel{
 	ReadConsistencyLevelOne,
 	ReadConsistencyLevelUnstrictMajority,
 	ReadConsistencyLevelMajority,
+	ReadConsistencyLevelUnstrictAll,
 	ReadConsistencyLevelAll,
 }
 
@@ -302,6 +310,7 @@ const (
 	unknown          = "unknown"
 	any              = "any"
 	all              = "all"
+	unstrictAll      = "unstrict_all"
 	one              = "one"
 	none             = "none"
 	majority         = "majority"
@@ -348,7 +357,7 @@ func ReadConsistencyTermination(
 		return success > 0 || doneAll
 	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
 		return success >= majority || doneAll
-	case ReadConsistencyLevelAll:
+	case ReadConsistencyLevelAll, ReadConsistencyLevelUnstrictAll:
 		return doneAll
 	}
 	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
@@ -366,7 +375,7 @@ func ReadConsistencyAchieved(
 		return numSuccess == numPeers // Meets all
 	case ReadConsistencyLevelMajority:
 		return numSuccess >= majority // Meets majority
-	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
+	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority, ReadConsistencyLevelUnstrictAll:
 		return numSuccess > 0 // Meets one
 	case ReadConsistencyLevelNone:
 		return true // Always meets none
@@ -378,7 +387,7 @@ func ReadConsistencyAchieved(
 // satisfy the read consistency.
 func NumDesiredForReadConsistency(level ReadConsistencyLevel, numReplicas, majority int) int {
 	switch level {
-	case ReadConsistencyLevelAll:
+	case ReadConsistencyLevelAll, ReadConsistencyLevelUnstrictAll:
 		return numReplicas
 	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
 		return majority

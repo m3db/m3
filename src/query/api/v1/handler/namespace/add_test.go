@@ -59,6 +59,10 @@ const testAddJSON = `
 			"indexOptions": {
 				"enabled": true,
 				"blockSizeNanos": 7200000000000
+			},
+			"extendedOptions": {
+				"@type": "testm3db.io/m3.test.PingResponse",
+				"Value": "foo"
 			}
 		}
 }
@@ -112,6 +116,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled":          true,
@@ -135,6 +140,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

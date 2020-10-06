@@ -24,6 +24,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,44 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize*2), count)
+}
+
+func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
+	var (
+		workers         = 2
+		channelCapacity = 1
+	)
+	// So we can control how empty the worker pool chanel is we
+	// set capacity to be same as num workers.
+	pooledWorkerPoolGoroutinesCapacity = &channelCapacity
+	defer func() {
+		pooledWorkerPoolGoroutinesCapacity = nil
+	}()
+
+	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	p.Init()
+
+	var (
+		resultsTrue  = 0
+		resultsFalse = 0
+		wg           sync.WaitGroup
+	)
+	wg.Add(1)
+	for i := 0; i < workers*2; i++ {
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		if result {
+			resultsTrue++
+		} else {
+			resultsFalse++
+		}
+	}
+
+	wg.Done()
+
+	require.True(t, resultsFalse > 0)
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {

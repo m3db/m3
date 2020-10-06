@@ -119,6 +119,20 @@ func TestOptionsValidate(t *testing.T) {
 	require.Error(t, o1.Validate())
 }
 
+func TestOptionsValidateWithExtendedOptions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	extendedOpts := NewMockExtendedOptions(ctrl)
+	opts := NewOptions().SetExtendedOptions(extendedOpts)
+
+	extendedOpts.EXPECT().Validate().Return(nil)
+	require.NoError(t, opts.Validate())
+
+	extendedOpts.EXPECT().Validate().Return(fmt.Errorf("test error"))
+	require.Error(t, opts.Validate())
+}
+
 func TestOptionsValidateBlockSizeMustBeMultiple(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

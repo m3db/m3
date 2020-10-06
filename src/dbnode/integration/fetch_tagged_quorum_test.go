@@ -64,7 +64,7 @@ func TestFetchTaggedQuorumNormalOnlyOneUp(t *testing.T) {
 	writeTagged(t, nodes[0])
 
 	testFetch.assertContainsTaggedResult(t,
-		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority)
+		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelUnstrictAll)
 	testFetch.assertFailsTaggedResult(t,
 		topology.ReadConsistencyLevelAll, topology.ReadConsistencyLevelMajority)
 }
@@ -92,7 +92,7 @@ func TestFetchTaggedQuorumNormalOnlyTwoUp(t *testing.T) {
 
 	// succeed to two nodes
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
-		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority)
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelUnstrictAll)
 	testFetch.assertFailsTaggedResult(t, topology.ReadConsistencyLevelAll)
 }
 
@@ -120,8 +120,9 @@ func TestFetchTaggedQuorumNormalAllUp(t *testing.T) {
 
 	// succeed to all nodes
 	testFetch.assertContainsTaggedResult(t,
-		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority,
-		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
+		topology.ReadConsistencyLevelOne,
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority,
+		topology.ReadConsistencyLevelUnstrictAll, topology.ReadConsistencyLevelAll)
 }
 
 func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
@@ -148,8 +149,9 @@ func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 
 	// No fetches succeed to available nodes
 	testFetch.assertFailsTaggedResult(t,
-		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority,
-		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
+		topology.ReadConsistencyLevelOne,
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority,
+		topology.ReadConsistencyLevelUnstrictAll, topology.ReadConsistencyLevelAll)
 }
 
 func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
@@ -177,7 +179,7 @@ func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testin
 
 	// fetches succeed to one available node
 	testFetch.assertContainsTaggedResult(t,
-		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelOne)
+		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelUnstrictAll)
 
 	testFetch.assertFailsTaggedResult(t,
 		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
@@ -209,7 +211,8 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	writeTagged(t, nodes...)
 
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
-		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority)
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority,
+		topology.ReadConsistencyLevelUnstrictAll)
 
 	testFetch.assertFailsTaggedResult(t, topology.ReadConsistencyLevelAll)
 }
