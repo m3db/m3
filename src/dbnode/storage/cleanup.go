@@ -166,7 +166,6 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
 	}
-	// TODO(bodu): Implement deleteInactiveIndexSnapshotFiles.
 
 	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
@@ -379,7 +378,7 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
 func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []databaseNamespace) (finalErr error) {
-	logger := m.logger.With(
+	m.logger.With(
 		zap.String("comment",
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
@@ -447,7 +446,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
-					logger.With(
+					m.logger.With(
 						zap.Error(err),
 						zap.Strings("files", snapshot.AbsoluteFilePaths),
 					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
@@ -474,7 +473,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		logger.With(
+		m.logger.With(
 			zap.Error(errorWithPath.Error),
 			zap.String("metadataFilePath", errorWithPath.MetadataFilePath),
 			zap.String("checkpointFilePath", errorWithPath.CheckpointFilePath),
@@ -525,7 +524,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
-		logger.With(
+		m.logger.With(
 			zap.Error(errorWithPath),
 			zap.String("path", errorWithPath.Path()),
 		).Warn("corrupt commitlog file during cleanup, marking file for deletion")

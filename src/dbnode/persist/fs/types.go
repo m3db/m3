@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/pborman/uuid"
 )
 

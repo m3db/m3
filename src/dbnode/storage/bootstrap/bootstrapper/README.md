@@ -6,8 +6,8 @@ The collection of bootstrappers comprise the task executed when bootstrapping a 
 
 See bootstrapper specific READMEs for more details (if any).
 - `fs`: The filesystem bootstrapper, used to bootstrap as much data as possible from the local filesystem.
-- `commitlog`: The commit log bootstrapper bootstraps both data and index snapshots across all shard time ranges (up to retention). It bootstraps commitlogs only once (commitlog bootstrap results are cached after a single run).
-  - *NOTE*: the commitlog bootstrapper is special cased in that it runs for the *entire* bootstrappable range per shard whereas other bootstrappers fill in the unfulfilled gaps as bootstrapping progresses.
+- `commitlog`: The commit log bootstrapper bootstraps both data and index snapshots across all shard time ranges (up to retention). It bootstraps commit logs only once (commit log bootstrap results are cached after a single run).
+  - *NOTE*: the commit log bootstrapper is special cased in that it runs for the *entire* bootstrappable range per shard whereas other bootstrappers fill in the unfulfilled gaps as bootstrapping progresses.
 - `peers`: The peers bootstrapper bootstraps shard data for initializing shards during topology changes (when a node has received new shards). It also is used to bootstrap any remaining data from peers and for a full node joins.
 
 ## Cache policies

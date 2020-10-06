@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"sort"
 	"sync"
@@ -663,8 +662,6 @@ func (nt *NamespacesTester) TestUnfulfilledForNamespace(
 
 	if md.Options().IndexOptions().Enabled() {
 		actual := ns.IndexResult.Unfulfilled()
-		log.Println("actual:", actual)
-		log.Println("exIdx:", exIdx)
 		require.NoError(nt.t, validateShardTimeRanges(actual, exIdx), "index")
 	}
 }
