@@ -3,8 +3,6 @@ title: "Mapping Rules"
 weight: 13
 ---
 
-## Mapping Rules
-
 Mapping rules are used to configure the storage policy for metrics. The storage policy
 determines how long to store metrics for and at what resolution to keep them at.
 For example, a storage policy of `1m:48h` tells M3 to keep the metrics for `48hrs` at a

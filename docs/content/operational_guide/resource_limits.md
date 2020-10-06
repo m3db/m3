@@ -55,7 +55,7 @@ a 15s lookback.
 
 ### Annotated configuration
 
-```yaml
+```
 limits:
   # If set, will enforce a maximum cap on disk read bytes for time series that
   # resides historically on disk (and are not already in memory).
@@ -126,7 +126,7 @@ and a warning included in the response body.
 
 ### Annotated configuration
 
-```yaml
+```
 limits:
   # If set will override default limits set per query.
   perQuery:
@@ -163,5 +163,6 @@ limits:
 ### Headers
 
 The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
+
 
 {{% fileinclude file="includes/headers_optional_read_limits.md" %}}

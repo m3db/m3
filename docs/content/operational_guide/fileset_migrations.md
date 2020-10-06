@@ -1,4 +1,7 @@
-# Fileset Migrations
+---
+title: "Fileset Migrations"
+weight: 20
+---
 
 Occasionally, changes will be made to the format of fileset files on disk. When those changes need to be applied to already existing filesets, a fileset migration is required. Migrating existing filesets is beneficial so that improvements made in newer releases can be applied to all filesets, not just newly created ones.
 
