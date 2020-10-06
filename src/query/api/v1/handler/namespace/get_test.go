@@ -82,6 +82,9 @@ func TestNamespaceGetHandler(t *testing.T) {
 	req.Header.Set(headers.HeaderClusterEnvironmentName, "test_env")
 	require.NotNil(t, req)
 
+	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
+
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"test": {
@@ -99,6 +102,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				ExtendedOptions: extendedOpts,
 			},
 		},
 	}
@@ -139,6 +143,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},
@@ -221,6 +226,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
+						"extendedOptions":   nil,
 					},
 				},
 			},
