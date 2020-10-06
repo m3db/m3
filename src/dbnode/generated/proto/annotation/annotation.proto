@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package annotation;
+
+message Payload {
+    MetricType metric_type   = 1;
+    bool handle_value_resets = 2;
+}
+
+enum MetricType {
+    UNKNOWN         = 0;
+    COUNTER         = 1;
+    GAUGE           = 2;
+    HISTOGRAM       = 3;
+    GAUGE_HISTOGRAM = 4;
+    SUMMARY         = 5;
+    INFO            = 6;
+    STATESET        = 7;
+}

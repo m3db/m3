@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package namespace;
 
+import "google/protobuf/any.proto";
 import "google/protobuf/wrappers.proto";
 import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
 
@@ -34,6 +35,7 @@ message NamespaceOptions {
     NamespaceRuntimeOptions runtimeOptions          = 11;
     google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
     AggregationOptions aggregationOptions           = 13;
+    google.protobuf.Any extendedOptions             = 14;
 }
 
 // AggregationOptions is a set of options for aggregating data
