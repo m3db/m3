@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -217,6 +218,7 @@ type testIndexSegment struct {
 	minorVersion int
 	metadata     []byte
 	files        []testIndexSegmentFile
+	state        fst.IndexSegmentState
 }
 
 type testIndexSegmentFile struct {
@@ -236,6 +238,7 @@ func writeTestIndexSegments(
 		fileSet.EXPECT().MajorVersion().Return(s.majorVersion)
 		fileSet.EXPECT().MinorVersion().Return(s.minorVersion)
 		fileSet.EXPECT().SegmentMetadata().Return(s.metadata)
+		fileSet.EXPECT().SegmentState().Return(s.state)
 
 		var files []idxpersist.IndexSegmentFileType
 		for _, f := range s.files {

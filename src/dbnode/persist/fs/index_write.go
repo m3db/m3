@@ -174,11 +174,7 @@ func (w *indexWriter) WriteSegmentFileSet(
 		majorVersion: segmentFileSet.MajorVersion(),
 		minorVersion: segmentFileSet.MinorVersion(),
 		metadata:     segmentFileSet.SegmentMetadata(),
-	}
-	// We only store index segment state for snapshotted segments.
-	fstSegmentDataFileSetWriter, ok := segmentFileSet.(idxpersist.FSTSegmentDataFileSetWriter)
-	if ok {
-		seg.segmentState = fstSegmentDataFileSetWriter.SegmentState()
+		segmentState: segmentFileSet.SegmentState(),
 	}
 
 	files := segmentFileSet.Files()

@@ -51,6 +51,7 @@ type IndexSegmentFileSetWriter interface {
 	MajorVersion() int
 	MinorVersion() int
 	SegmentMetadata() []byte
+	SegmentState() fst.IndexSegmentState
 	Files() []IndexSegmentFileType
 	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
 }
@@ -68,9 +69,6 @@ type MutableSegmentFileSetWriter interface {
 // out fst.SegmentData.
 type FSTSegmentDataFileSetWriter interface {
 	IndexSegmentFileSetWriter
-
-	// SegmentState is only required when writing index snapshots to disk.
-	SegmentState() fst.IndexSegmentState
 
 	Reset(fst.SegmentData) error
 }

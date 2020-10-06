@@ -78,6 +78,12 @@ func (w *writer) SegmentMetadata() []byte {
 	return w.fsWriter.Metadata()
 }
 
+func (w *writer) SegmentState() fst.IndexSegmentState {
+	// NB(bodu): Flushed index segments are considered frozen
+	// since they are no longer compactable.
+	return fst.FrozenIndexSegmentState
+}
+
 func (w *writer) Files() []IndexSegmentFileType {
 	// NB(prateek): order is important here. It is the order of files written out,
 	// and needs to be maintained as it is below.

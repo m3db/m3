@@ -151,6 +151,20 @@ func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentMetadata))
 }
 
+// SegmentState mocks base method
+func (m *MockIndexSegmentFileSetWriter) SegmentState() fst.IndexSegmentState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentState")
+	ret0, _ := ret[0].(fst.IndexSegmentState)
+	return ret0
+}
+
+// SegmentState indicates an expected call of SegmentState
+func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentState))
+}
+
 // Files mocks base method
 func (m *MockIndexSegmentFileSetWriter) Files() []IndexSegmentFileType {
 	m.ctrl.T.Helper()
@@ -256,6 +270,20 @@ func (m *MockMutableSegmentFileSetWriter) SegmentMetadata() []byte {
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentMetadata))
+}
+
+// SegmentState mocks base method
+func (m *MockMutableSegmentFileSetWriter) SegmentState() fst.IndexSegmentState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentState")
+	ret0, _ := ret[0].(fst.IndexSegmentState)
+	return ret0
+}
+
+// SegmentState indicates an expected call of SegmentState
+func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentState))
 }
 
 // Files mocks base method
@@ -379,6 +407,20 @@ func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) SegmentMetadata() *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).SegmentMetadata))
 }
 
+// SegmentState mocks base method
+func (m *MockFSTSegmentDataFileSetWriter) SegmentState() fst.IndexSegmentState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentState")
+	ret0, _ := ret[0].(fst.IndexSegmentState)
+	return ret0
+}
+
+// SegmentState indicates an expected call of SegmentState
+func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) SegmentState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).SegmentState))
+}
+
 // Files mocks base method
 func (m *MockFSTSegmentDataFileSetWriter) Files() []IndexSegmentFileType {
 	m.ctrl.T.Helper()
@@ -405,20 +447,6 @@ func (m *MockFSTSegmentDataFileSetWriter) WriteFile(fileType IndexSegmentFileTyp
 func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) WriteFile(fileType, writer interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).WriteFile), fileType, writer)
-}
-
-// SegmentState mocks base method
-func (m *MockFSTSegmentDataFileSetWriter) SegmentState() fst.IndexSegmentState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SegmentState")
-	ret0, _ := ret[0].(fst.IndexSegmentState)
-	return ret0
-}
-
-// SegmentState indicates an expected call of SegmentState
-func (mr *MockFSTSegmentDataFileSetWriterMockRecorder) SegmentState() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockFSTSegmentDataFileSetWriter)(nil).SegmentState))
 }
 
 // Reset mocks base method
