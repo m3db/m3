@@ -604,43 +604,66 @@ func TestPerSecond(t *testing.T) {
 }
 
 func TestTransformNull(t *testing.T) {
-	ctx := common.NewTestContext()
+	var (
+		start         = time.Now()
+		ctx           = common.NewTestContext()
+		millisPerStep = 100
+	)
 	defer ctx.Close()
 
 	tests := []struct {
-		inputs       []float64
+		inputs       []*ts.Series
 		defaultValue float64
-		outputs      []float64
+		outputs      []common.TestSeries
 	}{
 		{
-			[]float64{0, math.NaN(), 2.0, math.NaN(), 3.0}, 42.5,
-			[]float64{0, 42.5, 2.0, 42.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, math.NaN(), 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, 2.0, 6.5, math.NaN()})),
+			},
+			42.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,42.500)",
+					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,42.500)",
+					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
+				},
+			},
 		},
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, -0.5,
-			[]float64{0, 1.0, 2.0, -0.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, 1.0, 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, math.NaN(), 6.5, math.NaN()})),
+			},
+			-0.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,-0.500)",
+					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,-0.500)",
+					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
+				},
+			},
 		},
 	}
 
-	start := time.Now()
 	for _, test := range tests {
-		input := ts.NewSeries(ctx, "foo", start, common.NewTestSeriesValues(ctx, 100, test.inputs))
 		r, err := transformNull(ctx, singlePathSpec{
-			Values: []*ts.Series{input},
+			Values: test.inputs,
 		}, test.defaultValue)
 		require.NoError(t, err)
 
-		outputs := r.Values
-		require.Equal(t, 1, len(outputs))
-		require.Equal(t, 100, outputs[0].MillisPerStep())
-		require.Equal(t, len(test.inputs), outputs[0].Len())
-		require.Equal(t, start, outputs[0].StartTime())
-		assert.Equal(t, fmt.Sprintf("transformNull(foo,"+common.FloatingPointFormat+")", test.defaultValue), outputs[0].Name())
-
-		for step := 0; step < outputs[0].Len(); step++ {
-			v := outputs[0].ValueAt(step)
-			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
-		}
+		common.CompareOutputsAndExpected(t, 100, start,
+			test.outputs, r.Values)
 	}
 }
 
