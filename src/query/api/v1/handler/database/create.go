@@ -469,9 +469,14 @@ func defaultedUnaggregatedNamespaceAddRequest(
 			dbnamespace.NewUnaggregatedAggregation(),
 		}))
 
+	optsProto, err := dbnamespace.OptionsToProto(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &admin.NamespaceAddRequest{
 		Name:    r.NamespaceName,
-		Options: dbnamespace.OptionsToProto(opts),
+		Options: optsProto,
 	}, nil
 }
 
@@ -531,9 +536,14 @@ func defaultedAggregatedNamespaceAddRequest(
 			dbnamespace.NewAggregatedAggregation(attrs),
 		}))
 
+	optsProto, err := dbnamespace.OptionsToProto(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &admin.NamespaceAddRequest{
 		Name:    agg.Name,
-		Options: dbnamespace.OptionsToProto(opts),
+		Options: optsProto,
 	}, nil
 }
 

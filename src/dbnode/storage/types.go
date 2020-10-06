@@ -1316,4 +1316,4 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (k ident.ID) (databaseNamespace, bool)
+type GetNamespaceFn func (id ident.ID) (Namespace, bool)
