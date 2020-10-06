@@ -157,15 +157,18 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	m.metrics.commitLogRotationDuration.Record(m.nowFn().Sub(start))
 	rotateCommitlogSuccess := err == nil
+	// We want to use the same snapshot ID across all both data/index snapshotting and
+	// writing of empty snapshots to disk after a successful index flush.
+	snapshotID := uuid.NewUUID()
 	if rotateCommitlogSuccess {
-		if err = m.dataAndIndexSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
+		if err = m.dataAndIndexSnapshot(namespaces, startTime, rotatedCommitlogID, snapshotID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	} else {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces, startTime, rotateCommitlogSuccess, rotatedCommitlogID); err != nil {
+	if err = m.indexFlush(namespaces, startTime, rotateCommitlogSuccess, rotatedCommitlogID, snapshotID); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -212,8 +215,8 @@ func (m *flushManager) dataAndIndexSnapshot(
 	namespaces []databaseNamespace,
 	startTime time.Time,
 	rotatedCommitlogID persist.CommitLogFile,
+	snapshotID uuid.UUID,
 ) error {
-	snapshotID := uuid.NewUUID()
 
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
@@ -284,6 +287,7 @@ func (m *flushManager) indexFlush(
 	startTime time.Time,
 	rotateCommitlogSuccess bool,
 	rotatedCommitlogID persist.CommitLogFile,
+	snapshotID uuid.UUID,
 ) error {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
@@ -321,6 +325,7 @@ func (m *flushManager) indexFlush(
 			nsResults,
 			startTime,
 			rotatedCommitlogID,
+			snapshotID,
 		))
 	}
 
@@ -341,8 +346,10 @@ func (m *flushManager) writeEmptyIndexSnapshots(
 	// We retain the commitlog ID of the prior data/index snapshot run during this flush
 	// since we haven't actually rotated the commit log again.
 	rotatedCommitlogID persist.CommitLogFile,
+	// We also need to retain the same snapshot ID because the data snapshot cleanup process
+	// relies on the latest snapshot metadata snapshot ID to perform clenaup.
+	snapshotID uuid.UUID,
 ) error {
-	snapshotID := uuid.NewUUID()
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
 		return err

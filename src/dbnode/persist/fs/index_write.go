@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/pborman/uuid"
 
 	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/pborman/uuid"
 )
 
 const (
