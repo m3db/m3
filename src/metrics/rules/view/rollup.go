@@ -97,3 +97,10 @@ func (a RollupRulesByNameAsc) Less(i, j int) bool { return a[i].Name < a[j].Name
 type RollupRuleSnapshots struct {
 	RollupRules []RollupRule `json:"rollupRules"`
 }
+
+// UtilizationRulesByNameAsc sorts utilization rules by name in ascending order.
+type UtilizationRulesByNameAsc []UtilizationRule
+
+func (a UtilizationRulesByNameAsc) Len() int           { return len(a) }
+func (a UtilizationRulesByNameAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a UtilizationRulesByNameAsc) Less(i, j int) bool { return a[i].Name < a[j].Name }
