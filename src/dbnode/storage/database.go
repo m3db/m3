@@ -412,13 +412,17 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 
 	hooks := d.Options().NamespaceHooks()
 	for _, ns := range createdNamespaces {
-		err := hooks.OnCreatedNamespace(ns, d.namespaces.Get)
+		err := hooks.OnCreatedNamespace(ns, d.getNamespaceWithLock)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (d *db) getNamespaceWithLock(id ident.ID) (Namespace, bool) {
+	return d.namespaces.Get(id)
 }
 
 func (d *db) newDatabaseNamespaceWithLock(
