@@ -60,17 +60,20 @@ func DownsampleCounterResets(
 		lastResetPosition            = math.MinInt64
 		adjustedValueBeforeLastReset = 0.0
 	)
+
 	for i := 1; i < len(frameValues); i++ {
 		current := frameValues[i]
 		delta := current - previous
-		if delta >= 0 { // monotonic non-decrease
-			accumulated += delta
-		} else { // a reset
-			adjustedValueBeforeLastReset = accumulated
-			lastResetPosition = i - 1
-			accumulated += current
-		}
 		previous = current
+		if delta >= 0 { 
+			// Monotonic non-decrease.
+			accumulated += delta
+			continue
+		}
+		// A reset.
+		adjustedValueBeforeLastReset = accumulated
+		lastResetPosition = i - 1
+		accumulated += current
 	}
 
 	if lastResetPosition >= 0 && (len(*results) == 0 || (*results)[0].Value != adjustedValueBeforeLastReset) {
@@ -94,6 +97,4 @@ func DownsampleCounterResets(
 
 	// always include the last original datapoint
 	*results = append(*results, DownsampledValue{lastPosition, lastValue})
-
-	return
 }
