@@ -1270,7 +1270,6 @@ type Options interface {
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
 
-<<<<<<< HEAD
 	// SetAdminClient sets the admin client for the database options.
 	SetAdminClient(value client.AdminClient) Options
 
@@ -1359,9 +1358,9 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
+	Step time.Duration
 	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool
@@ -1373,4 +1372,4 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (id ident.ID) (Namespace, bool)
+type GetNamespaceFn func(id ident.ID) (Namespace, bool)
