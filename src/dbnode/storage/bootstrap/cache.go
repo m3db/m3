@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -36,6 +37,8 @@ var (
 )
 
 type cache struct {
+	sync.Once
+
 	fsOpts               fs.Options
 	namespaceDetails     []NamespaceDetails
 	infoFilesByNamespace InfoFilesByNamespace
@@ -81,21 +84,19 @@ func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 }
 
 func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
-	if c.infoFilesByNamespace != nil {
-		return c.infoFilesByNamespace
-	}
+	c.Once.Do(func() {
+		c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
+		for _, finder := range c.namespaceDetails {
+			result := make(InfoFileResultsPerShard, len(finder.Shards))
+			for _, shard := range finder.Shards {
+				result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
+					finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
+					persist.FileSetFlushType)
+			}
 
-	c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
-	for _, finder := range c.namespaceDetails {
-		result := make(InfoFileResultsPerShard, len(finder.Shards))
-		for _, shard := range finder.Shards {
-			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
-				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
-				persist.FileSetFlushType)
+			c.infoFilesByNamespace[finder.Namespace] = result
 		}
-
-		c.infoFilesByNamespace[finder.Namespace] = result
-	}
+	})
 
 	return c.infoFilesByNamespace
 }
