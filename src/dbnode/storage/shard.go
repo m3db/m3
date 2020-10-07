@@ -1152,33 +1152,6 @@ func (s *dbShard) IndexChecksum(
 	useID bool,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
-	s.RLock()
-	// NB: safe to lookup the entry in the cache, but not to add it, since
-	// this path represents operations that are likely to affect the entire
-	// set of series within this shard.
-	entry, _, err := s.lookupEntryWithLock(id)
-	if entry != nil {
-		// NB(r): Ensure readers have consistent view of this series, do
-		// not expire the series while being read from.
-		entry.IncrementReaderWriterCount()
-		defer entry.DecrementReaderWriterCount()
-	}
-	s.RUnlock()
-
-	if err == errShardEntryNotFound {
-		switch s.opts.SeriesCachePolicy() {
-		case series.CacheAll:
-			// No-op, would be in memory if cached
-			return ident.IndexChecksum{}, nil
-		}
-	} else if err != nil {
-		return ident.IndexChecksum{}, err
-	}
-
-	if entry != nil {
-		return entry.Series.IndexChecksum(ctx, start, useID, nsCtx)
-	}
-
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)

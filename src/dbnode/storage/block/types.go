@@ -290,9 +290,8 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream block index checksums for a given id,
-	// shard and start, yielding an index checksum if available, a boolean
-	// indicating if it was found, and any errors encountered.
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if it is available in the shard.
 	StreamIndexChecksum(
 		ctx context.Context,
 		shard uint32,
@@ -316,9 +315,8 @@ type DatabaseShardBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream block index checksums for a given id,
-	// shard and start, yielding an index checksum if available, a boolean
-	// indicating if it was found, and any errors encountered.
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if available.
 	StreamIndexChecksum(
 		ctx context.Context,
 		id ident.ID,

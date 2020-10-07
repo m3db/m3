@@ -1573,7 +1573,7 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	assert.Equal(t, 2, closer.called)
 }
 
-func TestShardStreamIndexChecksum(t *testing.T) {
+func TestShardFetchIndexChecksum(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1582,7 +1582,7 @@ func TestShardStreamIndexChecksum(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().
-		SetSeriesCachePolicy(series.CacheRecentlyRead)
+		SetSeriesCachePolicy(series.CacheAll)
 	fsOpts := opts.CommitLogOptions().FilesystemOptions().
 		SetFilePathPrefix(dir)
 	opts = opts.

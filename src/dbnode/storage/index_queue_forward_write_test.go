@@ -206,6 +206,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 		require.True(t, vMap.Contains(ident.StringID("value")))
 	}
 }
+
 func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

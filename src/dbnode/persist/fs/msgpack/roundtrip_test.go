@@ -100,7 +100,8 @@ var (
 		IndexChecksum: testIndexEntryChecksum,
 		EncodedTags:   []byte("2000"),
 	}
-	// NB: 100 comes from using xtest.NewParseValueHash32("test100")
+
+	// NB: 100 is the expected hash for checksums of `testIndexCheksumEntry`
 	testIndexHashValue = int64(100)
 )
 
@@ -631,7 +632,6 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		iter     = 10000
 		res      interface{}
 		err      error
-		input    []interface{}
 		expected []interface{}
 		output   []interface{}
 	)
@@ -639,27 +639,21 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		switch i % 6 {
 		case 0:
 			require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
-			input = append(input, testIndexInfo)
 			expected = append(expected, testIndexInfo)
 		case 1:
 			require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-			input = append(input, testIndexEntry)
 			expected = append(expected, testIndexEntry)
 		case 2:
 			require.NoError(t, enc.EncodeLogInfo(testLogInfo))
-			input = append(input, testLogInfo)
 			expected = append(expected, testLogInfo)
 		case 3:
 			require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-			input = append(input, testLogEntry)
 			expected = append(expected, testLogEntry)
 		case 4:
 			require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
-			input = append(input, testLogMetadata)
 			expected = append(expected, testLogMetadata)
 		case 5:
 			require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
-			input = append(input, testIndexCheksumEntry)
 			expected = append(expected, testIndexHashValue)
 		}
 	}

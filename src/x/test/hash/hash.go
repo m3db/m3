@@ -60,7 +60,7 @@ func (h *testHash) Sum(b []byte) []byte {
 		return b
 	}
 
-	i, err := strconv.Atoi(string(matched[0]))
+	i, err := strconv.Atoi(matched[0])
 	require.NoError(h.t, err)
 	h.v = h.v + uint32(i)
 	return b

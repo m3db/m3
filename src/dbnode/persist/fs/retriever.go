@@ -687,15 +687,13 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	reqs.queued = reqs.queued[:0]
 }
 
-type emptyIndexChecksum struct{}
+type emptyStreamedChecksum struct{}
 
-var _ block.StreamedChecksum = (*emptyIndexChecksum)(nil)
-
-func (*emptyIndexChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+func (*emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
 	return ident.IndexChecksum{}, nil
 }
 
-var emptyChecksum = &emptyIndexChecksum{}
+var emptyChecksum block.StreamedChecksum = &emptyStreamedChecksum{}
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {

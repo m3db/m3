@@ -262,7 +262,6 @@ func (r *wideResults) releaseOverflow() {
 		}
 
 		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
-		r.batch.IDs = r.batch.IDs[:size]
 		copy(r.idsOverflow, r.idsOverflow[size:])
 		r.idsOverflow = r.idsOverflow[:overflow-size]
 		if incomplete {

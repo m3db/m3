@@ -108,6 +108,11 @@ func TestReadOnlyIndexProxyDelegate(t *testing.T) {
 	assert.Equal(t, testErr, err)
 	assert.Equal(t, aggRes, aRes)
 
+	wideOpts := index.WideQueryOptions{}
+	idx.EXPECT().WideQuery(ctx, query, wideOpts).Return(testErr)
+	err = roIdx.WideQuery(ctx, query, wideOpts)
+	assert.Equal(t, testErr, err)
+
 	idx.EXPECT().BootstrapsDone().Return(uint(3))
 	assert.Equal(t, uint(3), roIdx.BootstrapsDone())
 
