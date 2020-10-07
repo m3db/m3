@@ -725,7 +725,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
-    batchSize: 0
+  wide: null
   tchannel: null
 coordinator: null
 `
