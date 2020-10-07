@@ -197,6 +197,9 @@ func CompressedSeriesFromSeriesIterator(
 		return nil, err
 	}
 
+	if err := itTags.Err(); err != nil {
+		fmt.Println("TAG ERR", err)
+	}
 	return &rpc.Series{
 		Meta: &rpc.SeriesMetadata{
 			Id:        it.ID().Bytes(),
