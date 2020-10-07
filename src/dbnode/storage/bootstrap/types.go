@@ -432,11 +432,16 @@ type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
 // Cache provides a snapshot of info files for use throughout all stages of the bootstrap.
 // This struct is not threadsafe and relies on the single-threaded nature of the bootstrap
 // process.
-type Cache struct {
-	fsOpts               fs.Options
-	namespaceDetails     []NamespaceDetails
-	infoFilesByNamespace InfoFilesByNamespace
-	iOpts                instrument.Options
+type Cache interface {
+	// InfoFilesForNamespace returns the info files grouped by shard for the provided namespace.
+	InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error)
+
+	// InfoFilesForShard returns the info files grouped by shard for the provided namespace.
+	InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error)
+
+	// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
+	// is returned if the info files have already been read.
+	ReadInfoFiles() InfoFilesByNamespace
 }
 
 // CacheOptions represents the options for Cache.
