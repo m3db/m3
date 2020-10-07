@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xtest "github.com/m3db/m3/src/x/test"
+	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +150,7 @@ func TestWideFetch(t *testing.T) {
 
 	require.NoError(t, err)
 	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
-	decOpts := fsOpts.DecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t))
+	decOpts := fsOpts.DecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t))
 	fsOpts = fsOpts.SetDecodingOptions(decOpts)
 
 	testSetup, err := NewTestSetup(t, testOpts, fsOpts,

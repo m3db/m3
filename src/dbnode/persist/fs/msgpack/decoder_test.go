@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	xtest "github.com/m3db/m3/src/x/test"
+	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/stretchr/testify/require"
 )
@@ -286,7 +286,7 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 	var (
 		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))

@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
-	xtest "github.com/m3db/m3/src/x/test"
+	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -402,7 +402,7 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 	var (
 		pool = pool.NewBytesPool(nil, nil)
 		enc  = NewEncoder()
-		dec  = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec  = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 	pool.Init()
 
@@ -416,7 +416,7 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 func TestIndexEntryIntoIndexChecksumRoundtripWithoutBytesPool(t *testing.T) {
 	var (
 		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
@@ -433,7 +433,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 			EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -471,7 +471,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 		opts = LegacyEncodingOptions{
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -509,7 +509,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
@@ -536,7 +536,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2}
 		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xtest.NewParsedIndexHasher(t)))
+		dec  = newDecoder(opts, NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
@@ -626,7 +626,7 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 func TestMultiTypeRoundtripStress(t *testing.T) {
 	var (
 		enc      = NewEncoder()
-		hasher   = xtest.NewParsedIndexHasher(t)
+		hasher   = xhash.NewParsedIndexHasher(t)
 		dec      = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(hasher))
 		iter     = 10000
 		res      interface{}
