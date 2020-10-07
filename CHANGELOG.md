@@ -1,5 +1,18 @@
 # Changelog
 
+# 0.15.17
+
+## Features 
+- **M3Query**: Add divideSeriesLists Graphite function ([#2584](https://github.com/m3db/m3/pull/2584))
+- **M3Query**: Add applyByNode Graphite function ([#2654](https://github.com/m3db/m3/pull/2654)) 
+- **M3Query**: Graphite ParseTime function support greatly expanded to be more in line with Graphite allowances ([#2621](https://github.com/m3db/m3/pull/2621)) 
+
+## Bug Fixes
+
+- **M3DB**: Fix a bug in bootstrap index cache that would cause long bootstrap tmu ([#2703](https://github.com/m3db/m3/pull/2703))
+- **M3Query**: Fix Graphite constantLine() function to return 3 steps ([#2699](https://github.com/m3db/m3/pull/2699))
+- **M3Query**: Fix Graphite limit snapping bug in movingAverage and movingMedian functions ([#2694](https://github.com/m3db/m3/pull/2694))
+
 # 0.15.16
 
 ## Features
