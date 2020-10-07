@@ -9,7 +9,7 @@
 
 ## Bug Fixes
 
-- **M3DB**: Fix a bug in bootstrap index cache that wougitld cause long bootstrap times ([#2703](https://github.com/m3db/m3/pull/2703))
+- **M3DB**: Fix a bug in bootstrap index caching that would cause long bootstrap times ([#2703](https://github.com/m3db/m3/pull/2703))
 - **M3Query**: Fix Graphite constantLine() function to return 3 steps ([#2699](https://github.com/m3db/m3/pull/2699))
 - **M3Query**: Fix Graphite limit snapping bug in movingAverage and movingMedian functions ([#2694](https://github.com/m3db/m3/pull/2694))
 
