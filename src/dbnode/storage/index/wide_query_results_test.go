@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,64 +52,14 @@ func init() {
 	bytesPool.Init()
 }
 
-func buildExpected(
-	t *testing.T,
-	elementCount int,
-	batchSize int,
-) [][]string {
-	exBatches := int(math.Ceil(float64(elementCount) / float64(batchSize)))
-	expected := make([][]string, 0, exBatches)
-	for i := 0; i < exBatches; i++ {
-		batch := make([]string, 0, batchSize)
-		for j := 0; j < batchSize; j++ {
-			val := i*batchSize + j
-			if val < elementCount {
-				batch = append(batch, fmt.Sprintf("foo%d", val))
-			}
-		}
-
-		expected = append(expected, batch)
-	}
-
-	return expected
-}
-
-func assertExpected(
-	t *testing.T,
-	expected [][]string,
-	batchCh <-chan *ident.IDBatch,
-	doneCh chan<- struct{},
-) {
-	go func() {
-		i := 0
-		for batch := range batchCh {
-			batchStr := make([]string, 0, len(batch.IDs))
-			for _, b := range batch.IDs {
-				batchStr = append(batchStr, b.String())
-				b.Finalize()
-			}
-
-			batch.Done()
-			withinIndex := i < len(expected)
-			assert.True(t, withinIndex)
-			if withinIndex {
-				assert.Equal(t, expected[i], batchStr)
-			}
-			i++
-		}
-		assert.Equal(t, len(expected), i)
-		doneCh <- struct{}{}
-	}()
-}
-
-func buildDocs(elementCount int, batchSize int) [][]doc.Document {
-	docBatches := int(math.Ceil(float64(elementCount) / float64(batchSize)))
+func buildDocs(documentCount int, batchSize int) [][]doc.Document {
+	docBatches := int(math.Ceil(float64(documentCount) / float64(batchSize)))
 	docs := make([][]doc.Document, 0, docBatches)
 	for i := 0; i < docBatches; i++ {
 		batch := make([]doc.Document, 0, batchSize)
 		for j := 0; j < batchSize; j++ {
 			val := i*batchSize + j
-			if val < elementCount {
+			if val < documentCount {
 				val := fmt.Sprintf("foo%d", i*batchSize+j)
 				batch = append(batch, doc.Document{
 					ID: []byte(val),
@@ -122,13 +73,56 @@ func buildDocs(elementCount int, batchSize int) [][]doc.Document {
 	return docs
 }
 
+func buildExpected(t *testing.T, docs [][]doc.Document) [][]string {
+	expected := make([][]string, 0, len(docs))
+	for _, batch := range docs {
+		idBatch := make([]string, 0, len(batch))
+		for _, doc := range batch {
+			idBatch = append(idBatch, string(doc.ID))
+		}
+
+		expected = append(expected, idBatch)
+	}
+
+	return expected
+}
+
+// drainAndCheckBatches kicks off a routine to drain incoming batches,
+// comparing them against expected values, and notifying doneCh when all
+// batches have been drained.
+func drainAndCheckBatches(
+	t *testing.T,
+	expected [][]string,
+	batchCh <-chan *ident.IDBatch,
+	doneCh chan<- struct{},
+) {
+	go func() {
+		i := 0
+		for batch := range batchCh {
+			batchStr := make([]string, 0, len(batch.IDs))
+			for _, id := range batch.IDs {
+				batchStr = append(batchStr, id.String())
+				id.Finalize()
+			}
+
+			batch.Done()
+			withinIndex := i < len(expected)
+			assert.True(t, withinIndex)
+			if withinIndex {
+				assert.Equal(t, expected[i], batchStr)
+			}
+			i++
+		}
+
+		assert.Equal(t, len(expected), i)
+		doneCh <- struct{}{}
+	}()
+}
+
 func TestWideSeriesResults(t *testing.T) {
 	// Test many different permutations of element count and batch sizes.
 	max := 31
-	// elementCount := 30
-	// docBatchSize := 20
-	// batchSize := 10
-	for elementCount := 0; elementCount < max; elementCount++ {
+	for documentCount := 0; documentCount < max; documentCount++ {
 		for docBatchSize := 1; docBatchSize < max; docBatchSize++ {
 			for batchSize := 1; batchSize < max; batchSize++ {
 				var (
@@ -136,25 +130,31 @@ func TestWideSeriesResults(t *testing.T) {
 					doneCh  = make(chan struct{})
 				)
 
-				docs := buildDocs(elementCount, docBatchSize)
-				expected := buildExpected(t, elementCount, batchSize)
-				assertExpected(t, expected, batchCh, doneCh)
+				docs := buildDocs(documentCount, docBatchSize)
+				// NB: expected should have docs split by `batchSize`
+				expected := buildExpected(t, buildDocs(documentCount, batchSize))
+				drainAndCheckBatches(t, expected, batchCh, doneCh)
 
 				wideQueryOptions, err := NewWideQueryOptions(
 					time.Now(), batchSize, time.Hour*2, batchCh, nil, IterationOptions{})
 
 				require.NoError(t, err)
 				wideRes := NewWideQueryResults(testNs, testIDPool, nil, wideQueryOptions)
+				var runningSize, batchDocCount int
 				for _, docBatch := range docs {
 					size, docsCount, err := wideRes.AddDocuments(docBatch)
-					assert.Equal(t, 0, size)
-					assert.Equal(t, 0, docsCount)
+
+					runningSize = (runningSize + len(docBatch)) % batchSize
+					batchDocCount += len(docBatch)
+
+					assert.Equal(t, runningSize, size)
+					assert.Equal(t, batchDocCount, docsCount)
 					assert.NoError(t, err)
 				}
 
 				wideRes.Finalize()
-				assert.Equal(t, 0, wideRes.TotalDocsCount())
 				assert.Equal(t, 0, wideRes.Size())
+				assert.Equal(t, batchDocCount, wideRes.TotalDocsCount())
 				assert.Equal(t, "ns", wideRes.Namespace().String())
 				<-doneCh
 			}
@@ -164,19 +164,29 @@ func TestWideSeriesResults(t *testing.T) {
 
 func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 	var (
-		elementCount = 100
-		docBatchSize = 10
-		batchSize    = 3
+		documentCount = 100
+		docBatchSize  = 10
+		batchSize     = 3
+
+		// This shard is part of the shard set being queried, but it will be
+		// flagged as not being owned by this node in the filter function, thus
+		// it should not appear in the result.
+		notOwnedShard = 7
+
+		// After reading the last queried shard, add documents should
+		// short-circuit future shards by returning shard exhausted error.
+		lastQueriedShard           = 42
+		batchesReadBeforeExhausted = lastQueriedShard / docBatchSize
 
 		batchCh = make(chan *ident.IDBatch)
 		doneCh  = make(chan struct{})
 	)
 
-	docs := buildDocs(elementCount, docBatchSize)
+	docs := buildDocs(documentCount, docBatchSize)
 	// NB: feed these in out of order to ensure WideQueryOptions sorts them.
-	shards := []uint32{41, 1, 21, 33, 52}
-	expected := [][]string{{"foo1", "foo21", "foo33"}, {"foo41"}}
-	assertExpected(t, expected, batchCh, doneCh)
+	shards := []uint32{21, uint32(notOwnedShard), 41, uint32(lastQueriedShard), 1}
+	expected := [][]string{{"foo1", "foo21", "foo41"}, {"foo42"}}
+	drainAndCheckBatches(t, expected, batchCh, doneCh)
 
 	wideQueryOptions, err := NewWideQueryOptions(
 		time.Now(), batchSize, time.Hour*2, batchCh, shards, IterationOptions{})
@@ -184,25 +194,47 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 	filter := func(id ident.ID) (uint32, bool) {
 		i, err := strconv.Atoi(strings.TrimPrefix(id.String(), "foo"))
 		require.NoError(t, err)
-		// mark shard 52 as not owned by this node; should not appear in result
-		return uint32(i), i != 52
+		// mark this shard as not owned by this node; should not appear in result
+		owned := i != notOwnedShard
+		return uint32(i), owned
 	}
 
 	wideRes := NewWideQueryResults(testNs, testIDPool, filter, wideQueryOptions)
+	assert.False(t, wideRes.EnforceLimits())
+
+	var runningSize, batchDocCount int
 	for i, docBatch := range docs {
+		// NB: work out how many values this batch is expected to add.
+		minInclusive := i * docBatchSize
+		maxExclusive := minInclusive + docBatchSize
+		for _, shard := range shards {
+			if int(shard) == notOwnedShard {
+				continue
+			}
+
+			if minInclusive <= int(shard) && int(shard) < maxExclusive {
+				batchDocCount++
+				runningSize = (runningSize + 1) % batchSize
+			}
+		}
+
 		size, docsCount, err := wideRes.AddDocuments(docBatch)
-		assert.Equal(t, 0, size)
-		assert.Equal(t, 0, docsCount)
-		if i < 52/docBatchSize {
+		if i < batchesReadBeforeExhausted {
+			// NB: doc count and size should only increment while the results have
+			// not been exhausted.
 			assert.NoError(t, err)
 		} else {
-			// NB: after doc `foo52` is added, wide result accumulation is exhausted.
+			// NB: after an element with the last shard is added,
+			// wide result accumulation is exhausted.
 			assert.Equal(t, ErrWideQueryResultsExhausted, err)
 		}
+
+		require.Equal(t, runningSize, size)
+		assert.Equal(t, batchDocCount, docsCount)
 	}
 
 	wideRes.Finalize()
-	assert.Equal(t, 0, wideRes.TotalDocsCount())
+	assert.Equal(t, batchDocCount, wideRes.TotalDocsCount())
 	assert.Equal(t, 0, wideRes.Size())
 	assert.Equal(t, "ns", wideRes.Namespace().String())
 	<-doneCh

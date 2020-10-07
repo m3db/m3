@@ -70,6 +70,8 @@ func NewQueryResults(
 	}
 }
 
+func (r *results) EnforceLimits() bool { return true }
+
 func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	r.Lock()
 

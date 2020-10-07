@@ -157,7 +157,7 @@ type BaseResults interface {
 	TotalDocsCount() int
 
 	// EnforceLimits returns whether this should enforce and increment limits.
-	// EnforceLimits() bool
+	EnforceLimits() bool
 
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be

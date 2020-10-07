@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func newTestWriter(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestWriterFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	_, w := newTestWriter(t, ctrl)
 	require.Equal(t, w.Files(), []IndexSegmentFileType{
@@ -54,7 +55,7 @@ func TestWriterFiles(t *testing.T) {
 }
 
 func TestWriterWriteFile(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var iow io.Writer

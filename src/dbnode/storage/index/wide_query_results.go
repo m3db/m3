@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
@@ -36,6 +37,10 @@ var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide que
 type shardFilterFn func(ident.ID) (uint32, bool)
 
 type wideResults struct {
+	sync.RWMutex
+	size           int
+	totalDocsCount int
+
 	nsID   ident.ID
 	idPool ident.Pool
 
@@ -86,56 +91,44 @@ func NewWideQueryResults(
 	return results
 }
 
+func (r *wideResults) EnforceLimits() bool { return false }
+
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	var size, totalDocsCount int
+	r.RLock()
+	size, totalDocsCount = r.size, r.totalDocsCount
+	r.RUnlock()
+
 	if r.closed || r.pastLastShard {
-		return 0, 0, ErrWideQueryResultsExhausted
+		return size, totalDocsCount, ErrWideQueryResultsExhausted
 	}
 
+	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
+	size, totalDocsCount = r.size, r.totalDocsCount
+	r.Unlock()
+
+	if err != nil && err != ErrWideQueryResultsExhausted {
+		// NB: if exhausted, drain the current batch and overflows.
+		return size, totalDocsCount, err
+	}
+
 	release := len(r.batch.IDs) == r.batchSize
 	if release {
 		r.releaseAndWait()
-		r.releaseOverflow(false)
+		r.releaseOverflow()
 	}
 
-	return 0, 0, err
-}
+	r.RLock()
+	size = r.size
+	r.RUnlock()
 
-func (r *wideResults) releaseOverflow(forceRelease bool) {
-	var (
-		incomplete bool
-		size       int
-		overflow   int
-	)
-	for {
-		size = r.batchSize
-		overflow = len(r.idsOverflow)
-		if overflow == 0 {
-			// NB: no overflow elements.
-			return
-		}
-
-		if overflow < size {
-			size = overflow
-			incomplete = true
-		}
-
-		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
-		r.batch.IDs = r.batch.IDs[:size]
-		copy(r.idsOverflow, r.idsOverflow[size:])
-		r.idsOverflow = r.idsOverflow[:overflow-size]
-		if !forceRelease && incomplete {
-			return
-		}
-
-		r.releaseAndWait()
-	}
+	return size, totalDocsCount, err
 }
 
 func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
 	for i := range batch {
-		err := r.addDocumentWithLock(batch[i])
-		if err != nil {
+		if err := r.addDocumentWithLock(batch[i]); err != nil {
 			return err
 		}
 	}
@@ -153,18 +146,18 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 	// Need to apply filter if set first.
 	if r.shardFilter != nil {
 		filteringShard := r.shards[r.shardIdx]
-		shard, shardOwned := r.shardFilter(tsID)
+		documentShard, documentShardOwned := r.shardFilter(tsID)
 		// NB: Check to see if shard is exceeded first (to short circuit earlier if
 		// the current shard is not owned by this node, but shard exceeds filtered).
-		if filteringShard > shard {
-			// this element is from a shard lower than the next shard allowed.
+		if filteringShard > documentShard {
+			// this document is from a shard lower than the next shard allowed.
 			return nil
 		}
 
-		for filteringShard < shard {
-			// this element is from a shard higher than the next shard allowed;
+		for filteringShard < documentShard {
+			// this document is from a shard higher than the next shard allowed;
 			// advance to the next shard, then try again.
-			r.shardIdx = r.shardIdx + 1
+			r.shardIdx++
 			if r.shardIdx >= len(r.shards) {
 				// shard is past the final shard allowed by filter, no more results
 				// will be accepted.
@@ -173,16 +166,19 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 			}
 
 			filteringShard = r.shards[r.shardIdx]
-			if filteringShard > shard {
-				// this element is from a shard lower than the next shard allowed.
+			if filteringShard > documentShard {
+				// this document is from a shard lower than the next shard allowed.
 				return nil
 			}
 		}
 
-		if !shardOwned {
+		if !documentShardOwned {
 			return nil
 		}
 	}
+
+	r.size++
+	r.totalDocsCount++
 
 	// Pool IDs after filter is passed.
 	tsID = r.idPool.Clone(tsID)
@@ -200,11 +196,17 @@ func (r *wideResults) Namespace() ident.ID {
 }
 
 func (r *wideResults) Size() int {
-	return 0
+	r.RLock()
+	v := r.size
+	r.RUnlock()
+	return v
 }
 
 func (r *wideResults) TotalDocsCount() int {
-	return 0
+	r.RLock()
+	v := r.totalDocsCount
+	r.RUnlock()
+	return v
 }
 
 // NB: Finalize should be called after all documents have been consumed.
@@ -228,4 +230,45 @@ func (r *wideResults) releaseAndWait() {
 	r.batchCh <- r.batch
 	r.batch.Wait()
 	r.batch.IDs = r.batch.IDs[:0]
+
+	r.Lock()
+	r.size = len(r.idsOverflow)
+	r.Unlock()
+}
+
+func (r *wideResults) releaseOverflow() {
+	if len(r.batch.IDs) != 0 {
+		// If still some IDs in the batch, noop.
+		return
+	}
+
+	var (
+		incomplete bool
+		size       int
+		overflow   int
+	)
+
+	for {
+		size = r.batchSize
+		overflow = len(r.idsOverflow)
+		if overflow == 0 {
+			// NB: no overflow elements.
+			return
+		}
+
+		if overflow < size {
+			size = overflow
+			incomplete = true
+		}
+
+		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
+		r.batch.IDs = r.batch.IDs[:size]
+		copy(r.idsOverflow, r.idsOverflow[size:])
+		r.idsOverflow = r.idsOverflow[:overflow-size]
+		if incomplete {
+			return
+		}
+
+		r.releaseAndWait()
+	}
 }

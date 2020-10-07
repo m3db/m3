@@ -535,8 +535,10 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.docsLimit.Inc(len(batch)); err != nil {
-		return batch, 0, 0, err
+	if results.EnforceLimits() {
+		if err := b.docsLimit.Inc(len(batch)); err != nil {
+			return batch, 0, 0, err
+		}
 	}
 
 	// checkout the lifetime of the query before adding results.
@@ -795,8 +797,10 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.docsLimit.Inc(len(batch)); err != nil {
-		return batch, 0, 0, err
+	if results.EnforceLimits() {
+		if err := b.docsLimit.Inc(len(batch)); err != nil {
+			return batch, 0, 0, err
+		}
 	}
 
 	// checkout the lifetime of the query before adding results.
