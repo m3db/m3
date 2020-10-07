@@ -62,10 +62,9 @@ func buildExpectedChecksumsByShard(
 	shardSet sharding.ShardSet,
 ) []ident.IndexChecksum {
 	shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
-	count := 0
 	for i, id := range ids {
 		checksum := ident.IndexChecksum{ID: []byte(id), Checksum: int64(i)}
-		shard := shardSet.Lookup(ident.BytesID([]byte(id)))
+		shard := shardSet.Lookup(ident.StringID(id))
 
 		if len(allowedShards) > 0 {
 			shardInUse := false
@@ -96,7 +95,6 @@ func buildExpectedChecksumsByShard(
 			continue
 		}
 
-		count++
 		shardedChecksums = append(shardedChecksums, shardedIndexChecksum{
 			shard:     shard,
 			checksums: []ident.IndexChecksum{checksum},
@@ -107,7 +105,7 @@ func buildExpectedChecksumsByShard(
 		return shardedChecksums[i].shard < shardedChecksums[j].shard
 	})
 
-	checksums := make([]ident.IndexChecksum, 0, count)
+	var checksums []ident.IndexChecksum
 	for _, sharded := range shardedChecksums {
 		checksums = append(checksums, sharded.checksums...)
 	}
@@ -124,7 +122,7 @@ func TestWideFetch(t *testing.T) {
 		batchSize     = 7
 		seriesCount   = 100
 		blockSize     = time.Hour * 2
-		verifyTimeout = 2 * time.Minute
+		verifyTimeout = time.Minute * 2
 	)
 
 	// Test setup
@@ -179,14 +177,7 @@ func TestWideFetch(t *testing.T) {
 	indexWrites := make(TestIndexWrites, 0, seriesCount)
 	ids := make([]string, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
-		// Keep in lex order.
-		padCount := i / 10
-		pad := ""
-		for i := 0; i < padCount; i++ {
-			pad = fmt.Sprintf("%so", pad)
-		}
-
-		id := fmt.Sprintf("foo%s-%d", pad, i)
+		id := fmt.Sprintf("foo-%05d", i)
 		ids = append(ids, id)
 		indexWrites = append(indexWrites, testIndexWrite{
 			id:    ident.StringID(id),

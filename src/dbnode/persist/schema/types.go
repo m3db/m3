@@ -72,7 +72,7 @@ type IndexEntry struct {
 	Offset        int64
 	DataChecksum  int64
 	EncodedTags   []byte
-	IndexChecksum uint32
+	IndexChecksum int64
 }
 
 // IndexEntryHasher hashes an index entry.

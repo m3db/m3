@@ -57,10 +57,17 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
+	errUnsetRequestType                  = errors.New("request type unset")
 )
+
+type streamReqType uint8
 
 const (
 	defaultRetrieveRequestQueueCapacity = 4096
+
+	streamInvalidReq streamReqType = iota
+	streamDataReq
+	streamIdxChecksumReq
 )
 
 type blockRetrieverStatus int
@@ -326,14 +333,19 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 
-	// NB: filter out stream hash requests, as these are handled seperately.
+	// NB: filter out stream checksum requests, as these are handled seperately.
 	streamReqs := reqs[:0]
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	var limitErr error
 	for _, req := range reqs {
+		if req.streamReqType == streamInvalidReq {
+			req.onError(errUnsetRequestType)
+			continue
+		}
+
 		// NB: index checksum queries should ignore limits.
-		if req.reqType == streamIdxChecksumReq {
+		if req.streamReqType == streamIdxChecksumReq {
 			r.processIndexChecksumRequest(req, seeker, seekerResources)
 			continue
 		}
@@ -363,7 +375,7 @@ func (r *blockRetriever) fetchBatch(
 		req.indexEntry = entry
 	}
 
-	reqs = streamReqs[:len(streamReqs)]
+	reqs = streamReqs
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
@@ -465,7 +477,7 @@ func (r *blockRetriever) Stream(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
-	req.reqType = streamReq
+	req.streamReqType = streamDataReq
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -525,7 +537,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	useID bool,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (block.StreamedChecksum, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -534,7 +546,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
-	req.reqType = streamIdxChecksumReq
+	req.streamReqType = streamIdxChecksumReq
 	req.useID = useID
 	req.resultWg.Add(1)
 
@@ -547,24 +559,24 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return ident.IndexChecksum{}, false, errNoSeekerMgr
+		return emptyChecksum, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return ident.IndexChecksum{}, false, err
+		return emptyChecksum, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		return ident.IndexChecksum{}, false, nil
+		return emptyChecksum, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return ident.IndexChecksum{}, false, err
+		return emptyChecksum, err
 	}
 
 	reqs.Lock()
@@ -583,16 +595,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// the data. This means that even though we're returning nil for error
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
-	checksum, err := req.waitForIndexChecksum()
-	if err != nil {
-		if err == errSeekIDNotFound {
-			return ident.IndexChecksum{}, false, nil
-		}
-
-		return ident.IndexChecksum{}, false, err
-	}
-
-	return checksum, true, nil
+	return req, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -684,12 +687,15 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	reqs.queued = reqs.queued[:0]
 }
 
-type reqType uint8
+type emptyIndexChecksum struct{}
 
-const (
-	streamReq reqType = iota
-	streamIdxChecksumReq
-)
+var _ block.StreamedChecksum = (*emptyIndexChecksum)(nil)
+
+func (*emptyIndexChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+	return ident.IndexChecksum{}, nil
+}
+
+var emptyChecksum = &emptyIndexChecksum{}
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
@@ -704,7 +710,7 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 
-	reqType       reqType
+	streamReqType streamReqType
 	indexEntry    IndexEntry
 	indexChecksum ident.IndexChecksum
 	useID         bool
@@ -730,7 +736,7 @@ func (req *retrieveRequest) onIndexChecksumCompleted(
 	}
 }
 
-func (req *retrieveRequest) waitForIndexChecksum() (ident.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
 		return ident.IndexChecksum{}, req.err
@@ -754,8 +760,9 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	if atomic.AddUint32(&req.finalizes, 1) != 2 {
 		return
 	}
-	// NB: streamHashIndexReq ids are used to sort the resultant list.
-	if req.reqType == streamReq {
+	// NB: streamIdxChecksumReq ids are used to sort the resultant list,
+	// so they should not be finalized here.
+	if req.streamReqType == streamDataReq {
 		req.id.Finalize()
 	}
 	req.id = nil
@@ -837,7 +844,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.start = time.Time{}
 	req.blockSize = 0
 	req.onRetrieve = nil
-	req.reqType = streamReq
+	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = ident.IndexChecksum{}
 	req.reader = nil

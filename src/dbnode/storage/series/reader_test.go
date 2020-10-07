@@ -88,6 +88,30 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	}
 }
 
+func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	retriever := NewMockQueryableBlockRetriever(ctrl)
+	reader := NewReaderUsingRetriever(
+		ident.StringID("foo"), retriever, nil, nil, opts)
+
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).
+		Return(false, errors.New("err"))
+	_, err := reader.IndexChecksum(ctx, time.Now(), false, namespace.Context{})
+	assert.EqualError(t, err, "err")
+
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
+	c, err := reader.IndexChecksum(ctx, time.Now(), false, namespace.Context{})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), c.Checksum)
+	assert.Equal(t, 0, len(c.ID))
+}
+
 func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -96,31 +120,39 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	ropts := opts.RetentionOptions()
 
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
-	start := end.Add(-2 * ropts.BlockSize())
+	alignedStart := end.Add(-2 * ropts.BlockSize())
 
 	retriever := NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
+	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
 
-	indexChecksum := ident.IndexChecksum{
-		ID:       []byte("foo"),
+	checksum := ident.IndexChecksum{
 		Checksum: 5,
+		ID:       []byte("foo"),
 	}
+
+	indexChecksum := block.NewMockStreamedChecksum(ctrl)
 
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	retriever.EXPECT().
 		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
-			true, start, gomock.Any()).
-		Return(indexChecksum, true, nil)
+			true, alignedStart, gomock.Any()).
+		Return(indexChecksum, nil).Times(2)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
+	retrieveStart := alignedStart.Add(time.Minute)
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
+	_, err := reader.IndexChecksum(ctx, retrieveStart, true, namespace.Context{})
+	assert.EqualError(t, err, "err")
+
 	// Check reads as expected
-	r, err := reader.IndexChecksum(ctx, start, true, namespace.Context{})
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
+	r, err := reader.IndexChecksum(ctx, retrieveStart, true, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, indexChecksum, r)
+	assert.Equal(t, checksum, r)
 }
 
 type readTestCase struct {

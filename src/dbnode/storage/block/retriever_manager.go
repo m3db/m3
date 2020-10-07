@@ -118,7 +118,7 @@ func (r *shardBlockRetriever) StreamIndexChecksum(
 	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (StreamedChecksum, error) {
 	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id, useID,
 		blockStart, nsCtx)
 }

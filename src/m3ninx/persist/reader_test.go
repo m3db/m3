@@ -26,13 +26,13 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/mmap"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReaderValidateType(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -43,7 +43,7 @@ func TestReaderValidateType(t *testing.T) {
 }
 
 func TestReaderValidateErrorCloses(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	file := NewMockIndexSegmentFile(ctrl)
@@ -56,7 +56,7 @@ func TestReaderValidateErrorCloses(t *testing.T) {
 }
 
 func TestReaderValidateDataSlices(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -71,7 +71,7 @@ func TestReaderValidateDataSlices(t *testing.T) {
 }
 
 func TestReaderValidateByteAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -91,7 +91,7 @@ func TestReaderValidateByteAccess(t *testing.T) {
 }
 
 func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -117,7 +117,7 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 }
 
 func TestReaderValidateSegmentFileType(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -136,7 +136,7 @@ func TestReaderValidateSegmentFileType(t *testing.T) {
 }
 
 func TestReaderValidateAllByteAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)

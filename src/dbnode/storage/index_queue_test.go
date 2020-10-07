@@ -408,8 +408,10 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	assert.NoError(t, err)
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
-	queryOpts := index.NewWideQueryOptions(time.Now(), 5, collector,
-		time.Hour*2, nil, index.IterationOptions{})
+	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5,
+		time.Hour*2, collector, nil, index.IterationOptions{})
+	require.NoError(t, err)
+
 	expectedBatchIDs := [][]string{{"foo"}}
 	go func() {
 		i := 0
@@ -454,8 +456,9 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	collector := make(chan *ident.IDBatch)
 	shard := testShardSet.Lookup(ident.StringID("foo"))
 	offShard := shard + 1
-	queryOpts := index.NewWideQueryOptions(time.Now(), 5, collector,
-		time.Hour*2, []uint32{offShard}, index.IterationOptions{})
+	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5, time.Hour*2,
+		collector, []uint32{offShard}, index.IterationOptions{})
+	require.NoError(t, err)
 
 	go func() {
 		i := 0

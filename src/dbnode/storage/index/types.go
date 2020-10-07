@@ -156,6 +156,9 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
+	// EnforceLimits returns whether this should enforce and increment limits.
+	// EnforceLimits() bool
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.

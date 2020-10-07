@@ -468,8 +468,8 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 
 	// Decode checksum field originally added in V3
 	v := dec.decodeVarint()
-	indexEntry.IndexChecksum = uint32(v)
-	if indexEntry.IndexChecksum != actualChecksum {
+	indexEntry.IndexChecksum = v
+	if indexEntry.IndexChecksum != int64(actualChecksum) {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
 

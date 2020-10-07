@@ -140,9 +140,10 @@ func TestWideSeriesResults(t *testing.T) {
 				expected := buildExpected(t, elementCount, batchSize)
 				assertExpected(t, expected, batchCh, doneCh)
 
-				wideQueryOptions := NewWideQueryOptions(
-					time.Now(), batchSize, batchCh, time.Hour*2, nil, IterationOptions{})
+				wideQueryOptions, err := NewWideQueryOptions(
+					time.Now(), batchSize, time.Hour*2, batchCh, nil, IterationOptions{})
 
+				require.NoError(t, err)
 				wideRes := NewWideQueryResults(testNs, testIDPool, nil, wideQueryOptions)
 				for _, docBatch := range docs {
 					size, docsCount, err := wideRes.AddDocuments(docBatch)
@@ -177,9 +178,9 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 	expected := [][]string{{"foo1", "foo21", "foo33"}, {"foo41"}}
 	assertExpected(t, expected, batchCh, doneCh)
 
-	wideQueryOptions := NewWideQueryOptions(
-		time.Now(), batchSize, batchCh, time.Hour*2, shards, IterationOptions{})
-
+	wideQueryOptions, err := NewWideQueryOptions(
+		time.Now(), batchSize, time.Hour*2, batchCh, shards, IterationOptions{})
+	require.NoError(t, err)
 	filter := func(id ident.ID) (uint32, bool) {
 		i, err := strconv.Atoi(strings.TrimPrefix(id.String(), "foo"))
 		require.NoError(t, err)

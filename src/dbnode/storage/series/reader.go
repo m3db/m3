@@ -242,16 +242,13 @@ func (r Reader) indexChecksum(
 	} else if !isRetrievable {
 		return ident.IndexChecksum{}, nil
 	}
-	streamedBlock, found, err := r.retriever.StreamIndexChecksum(ctx,
+	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
 		r.id, useID, alignedStart, nsCtx)
 	if err != nil {
 		return ident.IndexChecksum{}, err
 	}
-	if !found {
-		return ident.IndexChecksum{}, nil
-	}
 
-	return streamedBlock, nil
+	return streamedBlock.RetrieveIndexChecksum()
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

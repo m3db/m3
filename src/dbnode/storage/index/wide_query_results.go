@@ -28,8 +28,8 @@ import (
 )
 
 // ErrWideQueryResultsExhausted is used to short circuit additional document
-// entries being added if theese wide results will no longer accept documents,
-// e.g. if the results are closed, or if no further docuemnts will pass the
+// entries being added if these wide results will no longer accept documents,
+// e.g. if the results are closed, or if no further documents will pass the
 // shard filter.
 var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide query results")
 

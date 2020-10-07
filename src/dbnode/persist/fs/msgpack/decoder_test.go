@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,7 +148,7 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	checksum := int64(digest.Checksum(enc.Bytes()))
 	require.NoError(t, enc.enc.EncodeInt64(checksum))
 	expected := testIndexEntry
-	expected.IndexChecksum = uint32(checksum)
+	expected.IndexChecksum = checksum
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
@@ -292,20 +291,24 @@ func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
 	data := enc.Bytes()
-	dec.Reset(NewByteDecoderStream(data))
-	res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte("test100"), nil)
-	require.NoError(t, err)
-	require.Equal(t, status, Match)
-	require.Equal(t, testIndexHashValue, res)
-	dec.Reset(NewByteDecoderStream(data))
-	idBeforeTestEntry := []byte("aaa")
-	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idBeforeTestEntry, nil)
-	require.NoError(t, err)
-	assert.Equal(t, NotFound, status)
 
-	dec.Reset(NewByteDecoderStream(data))
-	idAfterTestEntry := []byte("zzzz")
-	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idAfterTestEntry, nil)
-	require.NoError(t, err)
-	assert.Equal(t, Mismatch, status)
+	tests := []struct {
+		id         string
+		exStatus   IndexChecksumLookupStatus
+		exChecksum int64
+	}{
+		{id: "aaa", exStatus: NotFound},
+		{id: "test100", exStatus: Match, exChecksum: testIndexHashValue},
+		{id: "zzz", exStatus: Mismatch},
+	}
+
+	for _, tt := range tests {
+		dec.Reset(NewByteDecoderStream(data))
+		res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), nil)
+		require.NoError(t, err)
+		require.Equal(t, tt.exStatus, status)
+		if tt.exStatus == Match {
+			require.Equal(t, tt.exChecksum, res)
+		}
+	}
 }

@@ -53,7 +53,7 @@ var (
 		MinorVersion: schema.MinorVersion,
 	}
 
-	testIndexEntryChecksum = uint32(2611877657)
+	testIndexEntryChecksum = int64(2611877657)
 	testIndexEntry         = schema.IndexEntry{
 		Index:         234,
 		ID:            []byte("testIndexEntry"),

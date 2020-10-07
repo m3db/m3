@@ -31,16 +31,16 @@ type adlerHasher struct {
 	hash hash.Hash32
 }
 
-// NewAdlerHash returns an IndexEntryHasher utilizing adler32 hashing.
-func NewAdlerHash() IndexEntryHasher {
+// NewAdlerHasher returns an IndexEntryHasher utilizing adler32 hashing.
+func NewAdlerHasher() IndexEntryHasher {
 	return &adlerHasher{hash: adler32.New()}
 }
 
 func (h *adlerHasher) HashIndexEntry(e IndexEntry) int64 {
 	h.Lock()
 	h.hash.Reset()
-	h.hash.Sum(e.ID)
-	h.hash.Sum(e.EncodedTags)
+	h.hash.Write(e.ID)
+	h.hash.Write(e.EncodedTags)
 	// TODO: investigate performance of this; also may be neecessary to add
 	// other fields to this hash. Also subrtacting a computed value from the hash
 	// may lead to more collision prone values.

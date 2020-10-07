@@ -21,6 +21,8 @@
 package index
 
 import (
+	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -48,15 +50,33 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 
+var (
+	errInvalidBatchSize = "non-positive batch size (%d) for wide query"
+	errInvalidBlockSize = "non-positive block size (%v) for wide query"
+	errNoCollector      = errors.New("no batch collector set")
+)
+
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
 func NewWideQueryOptions(
 	queryStart time.Time,
 	batchSize int,
-	collector chan *ident.IDBatch,
 	blockSize time.Duration,
+	collector chan *ident.IDBatch,
 	shards []uint32,
 	iterOpts IterationOptions,
-) WideQueryOptions {
+) (WideQueryOptions, error) {
+	if batchSize <= 0 {
+		return WideQueryOptions{}, fmt.Errorf(errInvalidBatchSize, batchSize)
+	}
+
+	if blockSize <= 0 {
+		return WideQueryOptions{}, fmt.Errorf(errInvalidBlockSize, blockSize)
+	}
+
+	if collector == nil {
+		return WideQueryOptions{}, errNoCollector
+	}
+
 	start := queryStart.Truncate(blockSize)
 	end := start.Add(blockSize)
 
@@ -72,7 +92,7 @@ func NewWideQueryOptions(
 		IndexBatchCollector: collector,
 		IterationOptions:    iterOpts,
 		ShardsQueried:       shards,
-	}
+	}, nil
 }
 
 // ToQueryOptions converts a WideQueryOptions to appropriate QueryOptions that

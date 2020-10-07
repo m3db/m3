@@ -832,6 +832,44 @@ func (mr *MockOnReadBlockMockRecorder) OnReadBlock(b interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnReadBlock", reflect.TypeOf((*MockOnReadBlock)(nil).OnReadBlock), b)
 }
 
+// MockStreamedChecksum is a mock of StreamedChecksum interface
+type MockStreamedChecksum struct {
+	ctrl     *gomock.Controller
+	recorder *MockStreamedChecksumMockRecorder
+}
+
+// MockStreamedChecksumMockRecorder is the mock recorder for MockStreamedChecksum
+type MockStreamedChecksumMockRecorder struct {
+	mock *MockStreamedChecksum
+}
+
+// NewMockStreamedChecksum creates a new mock instance
+func NewMockStreamedChecksum(ctrl *gomock.Controller) *MockStreamedChecksum {
+	mock := &MockStreamedChecksum{ctrl: ctrl}
+	mock.recorder = &MockStreamedChecksumMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockStreamedChecksum) EXPECT() *MockStreamedChecksumMockRecorder {
+	return m.recorder
+}
+
+// RetrieveIndexChecksum mocks base method
+func (m *MockStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetrieveIndexChecksum")
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RetrieveIndexChecksum indicates an expected call of RetrieveIndexChecksum
+func (mr *MockStreamedChecksumMockRecorder) RetrieveIndexChecksum() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrieveIndexChecksum", reflect.TypeOf((*MockStreamedChecksum)(nil).RetrieveIndexChecksum))
+}
+
 // MockDatabaseBlockRetriever is a mock of DatabaseBlockRetriever interface
 type MockDatabaseBlockRetriever struct {
 	ctrl     *gomock.Controller
@@ -885,13 +923,12 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (StreamedChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, shard, id, useID, startTime, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(StreamedChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum
@@ -951,13 +988,12 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (StreamedChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, id, useID, blockStart, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(StreamedChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum

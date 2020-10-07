@@ -408,7 +408,7 @@ func (s *dbShard) StreamIndexChecksum(
 	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, bool, error) {
+) (block.StreamedChecksum, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		useID, blockStart, nsCtx)
 }

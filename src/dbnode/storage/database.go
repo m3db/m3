@@ -904,7 +904,7 @@ func (d *db) WideQuery(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	start time.Time,
+	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
 ) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
@@ -914,11 +914,22 @@ func (d *db) WideQuery(
 		return nil, err
 	}
 
-	batchSize := d.opts.WideBatchSize()
-	doneCh := make(chan struct{})
-	collector := make(chan *ident.IDBatch)
-	blockSize := n.Options().IndexOptions().BlockSize()
-	opts := index.NewWideQueryOptions(start, batchSize, collector, blockSize, shards, iterOpts)
+	var (
+		doneCh = make(chan struct{})
+
+		batchSize = d.opts.WideBatchSize()
+		blockSize = n.Options().IndexOptions().BlockSize()
+
+		collector          = make(chan *ident.IDBatch)
+		collectedChecksums = make([]ident.IndexChecksum, 0, 10)
+		collectorErr       error
+	)
+
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, collector, shards, iterOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	start, end := opts.StartInclusive, opts.EndExclusive
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
 	if sampled {
@@ -933,12 +944,6 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
-	var (
-		c            ident.IndexChecksum
-		collected    = make([]ident.IndexChecksum, 0, 10)
-		collectorErr error
-	)
-
 	// Setup consumer
 	go func() {
 		for batch := range collector {
@@ -947,12 +952,13 @@ func (d *db) WideQuery(
 				continue
 			}
 
+			var checksum ident.IndexChecksum
 			for i, id := range batch.IDs {
 				useID := i == len(batch.IDs)-1
-				c, collectorErr = d.indexChecksum(ctx, namespace, n, id, start, useID)
+				checksum, collectorErr = d.fetchIndexChecksum(ctx, n, id, start, useID)
 				if collectorErr == nil {
 					// TODO: use index checksum value
-					collected = append(collected, c)
+					collectedChecksums = append(collectedChecksums, checksum)
 				}
 			}
 
@@ -971,12 +977,11 @@ func (d *db) WideQuery(
 		return nil, collectorErr
 	}
 
-	return collected, nil
+	return collectedChecksums, nil
 }
 
-func (d *db) indexChecksum(
+func (d *db) fetchIndexChecksum(
 	ctx context.Context,
-	namespace ident.ID,
 	n databaseNamespace,
 	id ident.ID,
 	start time.Time,
@@ -985,7 +990,7 @@ func (d *db) indexChecksum(
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.String("id", id.String()),
 			opentracinglog.Bool("useID", useID),
 			xopentracing.Time("start", start),
@@ -1292,9 +1297,9 @@ func NewAggregateTilesOptions(
 	}
 
 	return AggregateTilesOptions{
-		Start: start,
-		End: end,
-		Step: step,
+		Start:               start,
+		End:                 end,
+		Step:                step,
 		HandleCounterResets: handleCounterResets,
 	}, nil
 }

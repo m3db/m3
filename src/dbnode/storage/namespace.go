@@ -702,7 +702,7 @@ func (n *dbNamespace) WriteTagged(
 	annotation []byte,
 ) (SeriesWrite, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceIndexingDisabled
 	}
@@ -724,7 +724,7 @@ func (n *dbNamespace) WriteTagged(
 func (n *dbNamespace) WritePendingIndexInserts(
 	pending []writes.PendingIndexInsert,
 ) error {
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		return errNamespaceIndexingDisabled
 	}
 	return n.reverseIndex.WritePending(pending)
@@ -769,7 +769,7 @@ func (n *dbNamespace) QueryIDs(
 	defer sp.Finish()
 
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errNamespaceIndexingDisabled
 		sp.LogFields(opentracinglog.Error(err))
@@ -811,7 +811,7 @@ func (n *dbNamespace) WideQueryIDs(
 	defer sp.Finish()
 
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.wideQuery.ReportError(n.nowFn().Sub(callStart))
 		err := errNamespaceIndexingDisabled
 		sp.LogFields(opentracinglog.Error(err))
@@ -840,7 +840,7 @@ func (n *dbNamespace) AggregateQuery(
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}

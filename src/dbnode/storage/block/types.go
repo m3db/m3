@@ -267,6 +267,13 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
+// StreamedChecksum yields an ident.IndexChecksum value asynchronously,
+// and any errors encountered during execution.
+type StreamedChecksum interface {
+	// RetrieveIndexChecksum retrieves the index checksum.
+	RetrieveIndexChecksum() (ident.IndexChecksum, error)
+}
+
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
 	// CacheShardIndices will pre-parse the indexes for given shards
@@ -283,9 +290,9 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream block index checksums for a given id and
-	// start, yielding an index checksum if available, a boolean indicating if it
-	// was found, and any errors encountered.
+	// StreamIndexChecksum will stream block index checksums for a given id,
+	// shard and start, yielding an index checksum if available, a boolean
+	// indicating if it was found, and any errors encountered.
 	StreamIndexChecksum(
 		ctx context.Context,
 		shard uint32,
@@ -293,7 +300,7 @@ type DatabaseBlockRetriever interface {
 		useID bool,
 		startTime time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksum, bool, error)
+	) (StreamedChecksum, error)
 
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -309,16 +316,16 @@ type DatabaseShardBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream block index checksums for a given id and
-	// start, yielding an index checksum if available, a boolean indicating if
-	// it was found, and any errors encountered.
+	// StreamIndexChecksum will stream block index checksums for a given id,
+	// shard and start, yielding an index checksum if available, a boolean
+	// indicating if it was found, and any errors encountered.
 	StreamIndexChecksum(
 		ctx context.Context,
 		id ident.ID,
 		useID bool,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksum, bool, error)
+	) (StreamedChecksum, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

@@ -507,16 +507,15 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 			continue
 		}
 
-		// Safe to return resources to the pool because the hash already exists.
-		bl := ident.IndexChecksum{
+		indexChecksum := ident.IndexChecksum{
 			Checksum: checksum,
 		}
 
 		if withID {
-			bl.ID = idBytes
+			indexChecksum.ID = idBytes
 		}
 
-		return bl, nil
+		return indexChecksum, nil
 	}
 }
 

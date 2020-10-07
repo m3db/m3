@@ -21,27 +21,39 @@
 package schema
 
 import (
-	"hash/adler32"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func adler(e IndexEntry) int64 {
-	h := adler32.New()
-	h.Reset()
-	h.Sum(e.ID)
-	h.Sum(e.EncodedTags)
-	return int64(h.Sum32()) - e.DataChecksum
-}
+func b(s string) []byte { return []byte(s) }
 
 func TestIndexEntryHash(t *testing.T) {
-	id, tags := []byte("a100"), []byte("b12")
-	e := IndexEntry{ID: id, EncodedTags: tags, DataChecksum: -8}
+	// NB: expected values are verified independently on an online Adler hasher.
+	tests := []struct {
+		entry    IndexEntry
+		expected int64
+	}{
+		{
+			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("bar")},
+			expected: 145425018,
+		},
+		{
+			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("bar"), DataChecksum: 8},
+			expected: 145425010,
+		},
+		{
+			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("baz")},
+			expected: 145949314,
+		},
+		{
+			entry:    IndexEntry{ID: b("zoo"), EncodedTags: b("bar")},
+			expected: 153289358,
+		},
+	}
 
-	expected := adler(e)
-	hasher := NewAdlerHash()
-	assert.Equal(t, expected, hasher.HashIndexEntry(e))
-	// NB: ensure hash is reset between calculations.
-	assert.Equal(t, expected, hasher.HashIndexEntry(e))
+	hasher := NewAdlerHasher()
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, hasher.HashIndexEntry(tt.entry))
+	}
 }

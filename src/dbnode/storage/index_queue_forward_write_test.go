@@ -248,8 +248,11 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 			doneCh <- struct{}{}
 		}()
 
-		err := idx.WideQuery(ctx, index.Query{Query: reQuery}, index.NewWideQueryOptions(
-			ts, 5, collector, time.Hour*2, nil, index.IterationOptions{}))
+		opts, err := index.NewWideQueryOptions(
+			ts, 5, time.Hour*2, collector, nil, index.IterationOptions{})
+		require.NoError(t, err)
+
+		err = idx.WideQuery(ctx, index.Query{Query: reQuery}, opts)
 		assert.NoError(t, err)
 		<-doneCh
 	}

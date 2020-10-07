@@ -1380,22 +1380,13 @@ func (i *nsIndex) WideQuery(
 	ctx.RegisterFinalizer(results)
 	queryOpts := opts.ToQueryOptions()
 
-	closed := false
-	defer func() {
-		if !closed {
-			// Drain any remaining results and close.
-			results.Finalize()
-		}
-	}()
-
+	defer results.Finalize()
 	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return err
 	}
 
-	closed = true
-	results.Finalize()
 	return nil
 }
 

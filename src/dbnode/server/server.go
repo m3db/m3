@@ -909,8 +909,8 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetSchemaRegistry(schemaRegistry)
 	opts.SetAdminClient(m3dbClient)
-	if cfg.Limits.BatchSize > 0 {
-		opts = opts.SetWideBatchSize(cfg.Limits.BatchSize)
+	if cfg.WideConfig != nil && cfg.WideConfig.BatchSize > 0 {
+		opts = opts.SetWideBatchSize(cfg.WideConfig.BatchSize)
 	}
 
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)

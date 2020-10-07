@@ -69,9 +69,9 @@ var (
 	defaultTestNs1ID         = ident.StringID("testns1")
 	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
@@ -251,7 +251,7 @@ func TestDatabaseTerminate(t *testing.T) {
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 
-func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
+func TestDatabaseReadEncodedNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -262,11 +262,12 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"),
+		ident.StringID("foo"), time.Now(), time.Now())
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
+func TestDatabaseReadEncoded(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -291,7 +292,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	require.Nil(t, err)
 }
 
-func TestDatabaseWideQueryNamespaceNotOwned(t *testing.T) {
+func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -307,7 +308,7 @@ func TestDatabaseWideQueryNamespaceNotOwned(t *testing.T) {
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseIndexChecksumNamespaceOwned(t *testing.T) {
+func TestDatabaseIndexChecksum(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -319,29 +320,29 @@ func TestDatabaseIndexChecksumNamespaceOwned(t *testing.T) {
 		close(mapCh)
 	}()
 
-	ns := ident.StringID("testns1")
-	id := ident.StringID("bar")
+	nsID := ident.StringID("testns1")
+	seriesID := ident.StringID("bar")
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().IndexChecksum(ctx, id, start, true).
+	mockNamespace.EXPECT().IndexChecksum(ctx, seriesID, start, true).
 		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
-	mockNamespace.EXPECT().IndexChecksum(ctx, id, start, false).
+	mockNamespace.EXPECT().IndexChecksum(ctx, seriesID, start, false).
 		Return(ident.IndexChecksum{Checksum: 7}, nil)
-	d.namespaces.Set(ns, mockNamespace)
+	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.indexChecksum(ctx, ns, mockNamespace, id, start, true)
-	require.Equal(t, "foo", string(res.ID))
-	require.Equal(t, 5, int(res.Checksum))
-	require.Nil(t, err)
+	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start, true)
+	require.NoError(t, err)
+	assert.Equal(t, "foo", string(res.ID))
+	assert.Equal(t, 5, int(res.Checksum))
 
-	res, err = d.indexChecksum(ctx, ns, mockNamespace, id, start, false)
-	require.Equal(t, 7, int(res.Checksum))
-	require.Equal(t, 0, len(res.ID))
-	require.Nil(t, err)
+	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start, false)
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(res.ID))
+	assert.Equal(t, 7, int(res.Checksum))
 }
 
-func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
+func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -360,7 +361,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
-func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
+func TestDatabaseFetchBlocks(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -880,15 +881,6 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		aggOpts = index.AggregationOptions{}
 		aggRes  = index.AggregateQueryResult{}
 		err     error
-
-		now      = time.Now()
-		iterOpts = index.IterationOptions{}
-		wideOpts = index.WideQueryOptions{
-			StartInclusive:   now.Truncate(2 * time.Hour),
-			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
-			IterationOptions: iterOpts,
-			BatchSize:        1024,
-		}
 	)
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 	ns.EXPECT().QueryIDs(gomock.Any(), q, opts).Return(res, nil)
@@ -907,6 +899,71 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		Return(aggRes, fmt.Errorf("random err"))
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.Error(t, err)
+
+	ns.EXPECT().Close().Return(nil)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
+	require.NoError(t, d.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+	exSpans := []string{
+		tracepoint.DBQueryIDs,
+		tracepoint.DBQueryIDs,
+		tracepoint.DBAggregateQuery,
+		tracepoint.DBAggregateQuery,
+		"root",
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
+}
+
+func TestWideQuery(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	commitlog := d.commitLog
+	d.commitLog = nil
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	require.NoError(t, d.Open())
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	var (
+		q = index.Query{
+			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+		}
+		err error
+
+		now      = time.Now()
+		iterOpts = index.IterationOptions{}
+		wideOpts = index.WideQueryOptions{
+			StartInclusive:   now.Truncate(2 * time.Hour),
+			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
+			IterationOptions: iterOpts,
+			BatchSize:        1024,
+		}
+	)
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	ns.EXPECT().IndexChecksum(gomock.Any(),
 		ident.StringID("foo"), wideOpts.StartInclusive, true).
@@ -931,14 +988,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 	require.NoError(t, err)
 
-	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ index.Query, opts index.WideQueryOptions) error {
-			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
-			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
-			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
-			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
-			return fmt.Errorf("random err")
-		})
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).Return(fmt.Errorf("random err"))
 	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
 	require.Error(t, err)
 
@@ -955,10 +1005,6 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		spanStrs = append(spanStrs, s.OperationName)
 	}
 	exSpans := []string{
-		tracepoint.DBQueryIDs,
-		tracepoint.DBQueryIDs,
-		tracepoint.DBAggregateQuery,
-		tracepoint.DBAggregateQuery,
 		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,

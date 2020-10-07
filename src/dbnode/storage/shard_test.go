@@ -195,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -273,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -331,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1606,18 +1606,25 @@ func TestShardStreamIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	indexChecksum := ident.IndexChecksum{
+	checksum := ident.IndexChecksum{
 		Checksum: 5,
 		ID:       []byte("foo"),
 	}
 
+	indexChecksum := block.NewMockStreamedChecksum(ctrl)
 	retriever.EXPECT().
 		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"), true,
-			start, gomock.Any()).Return(indexChecksum, true, nil)
+			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
 
-	// Check reads as expected
+	// First call to RetrieveIndexChecksum is expected to error on retrieval
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
+	_, err = shard.IndexChecksum(ctx, ident.StringID("foo"), start, true, namespace.Context{})
+	assert.EqualError(t, err, "err")
+
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
 	r, err := shard.IndexChecksum(ctx, ident.StringID("foo"), start, true, namespace.Context{})
 	require.NoError(t, err)
+	assert.Equal(t, checksum, r)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)
@@ -1628,8 +1635,6 @@ func TestShardStreamIndexChecksum(t *testing.T) {
 
 	require.Equal(t, err, errShardEntryNotFound)
 	require.Nil(t, entry)
-
-	assert.Equal(t, indexChecksum, r)
 }
 
 func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {

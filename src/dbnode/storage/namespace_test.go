@@ -1212,14 +1212,17 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 	err := ns.WideQueryIDs(ctx, query, opts)
 	require.NoError(t, err)
 
-	idx.EXPECT().Close().Return(nil)
-	require.NoError(t, ns.Close())
-
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
 	assert.Equal(t, tracepoint.NSWideQueryIDs, spans[0].OperationName)
 	assert.Equal(t, "root", spans[1].OperationName)
+
+	// NB: assert no panic occurs without an index.
+	noIdxNs, noIdxCloser := newTestNamespaceWithIndex(t, nil)
+	err = noIdxNs.WideQueryIDs(ctx, query, opts)
+	assert.EqualError(t, err, errNamespaceIndexingDisabled.Error())
+	noIdxCloser()
 }
 
 func TestNamespaceAggregateQuery(t *testing.T) {

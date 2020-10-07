@@ -457,13 +457,12 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (ident.IndexChecksum, bool, error) {
+func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (block.StreamedChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(block.StreamedChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum

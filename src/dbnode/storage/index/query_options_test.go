@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestQueryOptions(t *testing.T) {
@@ -50,14 +52,44 @@ func TestQueryOptions(t *testing.T) {
 	assert.True(t, opts.exhaustive(19, 9))
 }
 
+func TestInvalidWideQueryOptions(t *testing.T) {
+	var (
+		now      = time.Now()
+		iterOpts = IterationOptions{}
+
+		batchSize int
+		collector chan *ident.IDBatch
+		blockSize time.Duration
+	)
+
+	_, err := NewWideQueryOptions(now, batchSize, blockSize, collector, nil, iterOpts)
+	require.EqualError(t, err, "non-positive batch size (0) for wide query")
+
+	batchSize = 1
+	_, err = NewWideQueryOptions(now, batchSize, blockSize, collector, nil, iterOpts)
+	require.EqualError(t, err, "non-positive block size (0s) for wide query")
+
+	blockSize = time.Minute
+	_, err = NewWideQueryOptions(now, batchSize, blockSize, collector, nil, iterOpts)
+	require.EqualError(t, err, "no batch collector set")
+
+	collector = make(chan *ident.IDBatch)
+	_, err = NewWideQueryOptions(now, batchSize, blockSize, collector, nil, iterOpts)
+	require.NoError(t, err)
+}
+
 func TestWideQueryOptions(t *testing.T) {
-	now := time.Now()
-	batchSize := 100
-	collector := make(chan *ident.IDBatch)
-	blockSize := time.Hour * 2
-	iterOpts := IterationOptions{}
-	shards := []uint32{100, 23, 1}
-	opts := NewWideQueryOptions(now, batchSize, collector, blockSize, shards, iterOpts)
+	var (
+		now       = time.Now()
+		batchSize = 100
+		collector = make(chan *ident.IDBatch)
+		blockSize = time.Hour * 2
+		iterOpts  = IterationOptions{}
+		shards    = []uint32{100, 23, 1}
+	)
+
+	opts, err := NewWideQueryOptions(now, batchSize, blockSize, collector, shards, iterOpts)
+	require.NoError(t, err)
 	assert.Equal(t, WideQueryOptions{
 		StartInclusive:      now.Truncate(blockSize),
 		EndExclusive:        now.Truncate(blockSize).Add(blockSize),
