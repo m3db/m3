@@ -300,8 +300,7 @@ func (r *blockRetriever) processIndexChecksumRequest(
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
-	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
-		req.useID, seekerResources)
+	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
 	if err != nil {
 		req.onError(err)
 		return
@@ -317,13 +316,6 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
-	if err := r.queryLimits.AnyExceeded(); err != nil {
-		for _, req := range reqs {
-			req.onError(err)
-		}
-		return
-	}
-
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -333,12 +325,26 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 
+	defer func() {
+		err = seekerMgr.Return(shard, blockStart, seeker)
+		if err != nil {
+			r.logger.Error("err returning seeker for shard",
+				zap.Uint32("shard", shard),
+				zap.Int64("blockStart", blockStart.Unix()),
+				zap.Error(err),
+			)
+		}
+	}()
+
 	// NB: filter out stream checksum requests, as these are handled seperately.
-	streamReqs := reqs[:0]
+	// Rebuild reqs so the wrong reference is less likely to be used later.
+	reqsPreProcessing := reqs
+	reqs = reqs[:0]
+
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	var limitErr error
-	for _, req := range reqs {
+	for _, req := range reqsPreProcessing {
 		if req.streamReqType == streamInvalidReq {
 			req.onError(errUnsetRequestType)
 			continue
@@ -350,7 +356,18 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		streamReqs = append(streamReqs, req)
+		reqs = append(reqs, req)
+	}
+
+	// NB: remaining requests must be within query limits.
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		for _, req := range reqs {
+			req.onError(err)
+		}
+		return
+	}
+
+	for _, req := range reqs {
 		if limitErr != nil {
 			req.onError(limitErr)
 			continue
@@ -375,7 +392,6 @@ func (r *blockRetriever) fetchBatch(
 		req.indexEntry = entry
 	}
 
-	reqs = streamReqs
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
@@ -449,15 +465,6 @@ func (r *blockRetriever) fetchBatch(
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
 			r.onCallerOrRetrieverDone()
 		}(req)
-	}
-
-	err = seekerMgr.Return(shard, blockStart, seeker)
-	if err != nil {
-		r.logger.Error("err returning seeker for shard",
-			zap.Uint32("shard", shard),
-			zap.Int64("blockStart", blockStart.Unix()),
-			zap.Error(err),
-		)
 	}
 }
 
@@ -534,7 +541,6 @@ func (r *blockRetriever) StreamIndexChecksum(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	useID bool,
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (block.StreamedChecksum, error) {
@@ -547,7 +553,6 @@ func (r *blockRetriever) StreamIndexChecksum(
 	req.blockSize = r.blockSize
 
 	req.streamReqType = streamIdxChecksumReq
-	req.useID = useID
 	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
@@ -689,11 +694,11 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 
 type emptyStreamedChecksum struct{}
 
-func (*emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
 	return ident.IndexChecksum{}, nil
 }
 
-var emptyChecksum block.StreamedChecksum = &emptyStreamedChecksum{}
+var emptyChecksum block.StreamedChecksum = emptyStreamedChecksum{}
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
@@ -711,7 +716,6 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	indexChecksum ident.IndexChecksum
-	useID         bool
 	reader        xio.SegmentReader
 
 	err error

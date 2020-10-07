@@ -1613,16 +1613,16 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 
 	indexChecksum := block.NewMockStreamedChecksum(ctrl)
 	retriever.EXPECT().
-		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"), true,
+		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
 
 	// First call to RetrieveIndexChecksum is expected to error on retrieval
 	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
-	_, err = shard.IndexChecksum(ctx, ident.StringID("foo"), start, true, namespace.Context{})
+	_, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	assert.EqualError(t, err, "err")
 
 	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
-	r, err := shard.IndexChecksum(ctx, ident.StringID("foo"), start, true, namespace.Context{})
+	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, checksum, r)
 

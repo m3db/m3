@@ -1,5 +1,5 @@
 // +build integration
-//
+
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -60,6 +60,7 @@ func buildExpectedChecksumsByShard(
 	ids []string,
 	allowedShards []uint32,
 	shardSet sharding.ShardSet,
+	batchSize int,
 ) []ident.IndexChecksum {
 	shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
 	for i, id := range ids {
@@ -108,6 +109,20 @@ func buildExpectedChecksumsByShard(
 	var checksums []ident.IndexChecksum
 	for _, sharded := range shardedChecksums {
 		checksums = append(checksums, sharded.checksums...)
+	}
+
+	// NB: IDs should only be included for documents that conclude a batch.
+	l := len(checksums)
+	if l == 0 {
+		return checksums
+	}
+
+	// NB: only look at the last `l-1` elements, as the last element should
+	// always have its ID.
+	for i, checksum := range checksums[:l-1] {
+		if (i+1)%batchSize != 0 {
+			checksums[i].ID = checksum.ID[:0]
+		}
 	}
 
 	return checksums
@@ -240,10 +255,11 @@ func TestWideFetch(t *testing.T) {
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
 
-			expected := buildExpectedChecksumsByShard(ids, tt.shards, testSetup.ShardSet())
+			expected := buildExpectedChecksumsByShard(ids, tt.shards,
+				testSetup.ShardSet(), batchSize)
 			require.Equal(t, len(expected), len(chk))
-			for i, c := range chk {
-				assert.Equal(t, expected[i].Checksum, c.Checksum)
+			for i, checksum := range chk {
+				assert.Equal(t, expected[i], checksum)
 			}
 		})
 	}
@@ -293,7 +309,8 @@ func TestWideFetch(t *testing.T) {
 	var multiErr xerrors.MultiError
 	for i := 0; i < runtime.NumCPU(); i++ {
 		q := index.Query{Query: idx.NewAllQuery()}
-		expected := buildExpectedChecksumsByShard(ids, nil, testSetup.ShardSet())
+		expected := buildExpectedChecksumsByShard(
+			ids, nil, testSetup.ShardSet(), batchSize)
 		wg.Add(1)
 		go func() {
 			var runError error
@@ -307,13 +324,15 @@ func TestWideFetch(t *testing.T) {
 				}
 
 				if len(expected) != len(chk) {
-					runError = fmt.Errorf("expected %d results, got %d", len(expected), len(chk))
+					runError = fmt.Errorf("expected %d results, got %d",
+						len(expected), len(chk))
 					break
 				}
 
 				for i, c := range chk {
 					if expected[i].Checksum != c.Checksum {
-						runError = fmt.Errorf("expected %d checksum, got %d", expected[i].Checksum, c.Checksum)
+						runError = fmt.Errorf("expected %d checksum, got %d",
+							expected[i].Checksum, c.Checksum)
 						break
 					}
 				}

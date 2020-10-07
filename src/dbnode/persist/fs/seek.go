@@ -473,7 +473,6 @@ func (s *seeker) SeekIndexEntry(
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntryToIndexChecksum(
 	id ident.ID,
-	withID bool,
 	resources ReusableSeekerResources,
 ) (ident.IndexChecksum, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
@@ -517,10 +516,7 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 			Checksum: checksum,
 		}
 
-		if withID {
-			indexChecksum.ID = idBytes
-		}
-
+		indexChecksum.ID = idBytes
 		return indexChecksum, nil
 	}
 }

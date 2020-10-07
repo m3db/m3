@@ -103,8 +103,6 @@ type WideQueryOptions struct {
 	EndExclusive time.Time
 	// BatchSize controls IndexChecksumQuery batch size.
 	BatchSize int
-	// IndexBatchCollector collects ID batches in an asynchronous fashion.
-	IndexBatchCollector chan *ident.IDBatch
 	// ShardsQueried are the shards to query. These must be in ascending order.
 	// If empty, all shards are queried.
 	ShardsQueried []uint32

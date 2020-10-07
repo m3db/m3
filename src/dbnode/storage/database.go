@@ -964,7 +964,7 @@ func (d *db) WideQuery(
 		collectorErr       error
 	)
 
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, collector, shards, iterOpts)
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -993,10 +993,14 @@ func (d *db) WideQuery(
 
 			var checksum ident.IndexChecksum
 			for i, id := range batch.IDs {
-				useID := i == len(batch.IDs)-1
-				checksum, collectorErr = d.fetchIndexChecksum(ctx, n, id, start, useID)
+				checksum, collectorErr = d.fetchIndexChecksum(ctx, n, id, start)
 				if collectorErr == nil {
 					// TODO: use index checksum value
+					useID := i == len(batch.IDs)-1
+					if !useID {
+						checksum.ID = checksum.ID[:0]
+					}
+
 					collectedChecksums = append(collectedChecksums, checksum)
 				}
 			}
@@ -1006,7 +1010,7 @@ func (d *db) WideQuery(
 		doneCh <- struct{}{}
 	}()
 
-	err = n.WideQueryIDs(ctx, query, opts)
+	err = n.WideQueryIDs(ctx, query, collector, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1024,20 +1028,18 @@ func (d *db) fetchIndexChecksum(
 	n databaseNamespace,
 	id ident.ID,
 	start time.Time,
-	useID bool,
 ) (ident.IndexChecksum, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.String("id", id.String()),
-			opentracinglog.Bool("useID", useID),
 			xopentracing.Time("start", start),
 		)
 	}
 
 	defer sp.Finish()
-	return n.IndexChecksum(ctx, id, start, useID)
+	return n.FetchIndexChecksum(ctx, id, start)
 }
 
 func (d *db) FetchBlocks(

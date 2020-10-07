@@ -409,7 +409,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
 	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5,
-		time.Hour*2, collector, nil, index.IterationOptions{})
+		time.Hour*2, nil, index.IterationOptions{})
 	require.NoError(t, err)
 
 	expectedBatchIDs := [][]string{{"foo"}}
@@ -433,7 +433,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 		doneCh <- struct{}{}
 	}()
 
-	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, queryOpts)
+	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, collector, queryOpts)
 	assert.NoError(t, err)
 	<-doneCh
 }
@@ -457,7 +457,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	shard := testShardSet.Lookup(ident.StringID("foo"))
 	offShard := shard + 1
 	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5, time.Hour*2,
-		collector, []uint32{offShard}, index.IterationOptions{})
+		[]uint32{offShard}, index.IterationOptions{})
 	require.NoError(t, err)
 
 	go func() {
@@ -471,7 +471,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 		doneCh <- struct{}{}
 	}()
 
-	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, queryOpts)
+	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, collector, queryOpts)
 	require.NoError(t, err)
 	<-doneCh
 }

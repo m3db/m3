@@ -296,7 +296,6 @@ type DatabaseBlockRetriever interface {
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
-		useID bool,
 		startTime time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
@@ -320,7 +319,6 @@ type DatabaseShardBlockRetriever interface {
 	StreamIndexChecksum(
 		ctx context.Context,
 		id ident.ID,
-		useID bool,
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)

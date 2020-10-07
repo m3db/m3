@@ -203,20 +203,18 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
-// IndexChecksum reads index checksum blocks using just a block retriever.
-func (r Reader) IndexChecksum(
+// FetchIndexChecksum reads index checksum blocks using just a block retriever.
+func (r Reader) FetchIndexChecksum(
 	ctx context.Context,
-	start time.Time,
-	useID bool,
+	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
-	return r.indexChecksum(ctx, start, useID, nsCtx)
+	return r.fetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
-func (r Reader) indexChecksum(
+func (r Reader) fetchIndexChecksum(
 	ctx context.Context,
-	start time.Time,
-	useID bool,
+	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
 	var (
@@ -224,7 +222,7 @@ func (r Reader) indexChecksum(
 		now          = nowFn()
 		ropts        = r.opts.RetentionOptions()
 		size         = ropts.BlockSize()
-		alignedStart = start.Truncate(size)
+		alignedStart = blockStart.Truncate(size)
 	)
 	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
 	earliest := retention.FlushTimeStart(ropts, now)
@@ -243,7 +241,7 @@ func (r Reader) indexChecksum(
 		return ident.IndexChecksum{}, nil
 	}
 	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
-		r.id, useID, alignedStart, nsCtx)
+		r.id, alignedStart, nsCtx)
 	if err != nil {
 		return ident.IndexChecksum{}, err
 	}

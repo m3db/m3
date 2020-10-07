@@ -402,15 +402,14 @@ func (s *dbSeries) ReadEncoded(
 	return r, err
 }
 
-func (s *dbSeries) IndexChecksum(
+func (s *dbSeries) FetchIndexChecksum(
 	ctx context.Context,
-	start time.Time,
-	useID bool,
+	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.IndexChecksum(ctx, start, useID, nsCtx)
+	r, err := reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 	s.RUnlock()
 	return r, err
 }

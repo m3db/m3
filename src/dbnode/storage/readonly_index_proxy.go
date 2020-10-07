@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -76,9 +77,10 @@ func (r readOnlyIndexProxy) AggregateQuery(
 func (r readOnlyIndexProxy) WideQuery(
 	ctx context.Context,
 	query index.Query,
+	collector chan *ident.IDBatch,
 	opts index.WideQueryOptions,
 ) error {
-	return r.underlying.WideQuery(ctx, query, opts)
+	return r.underlying.WideQuery(ctx, query, collector, opts)
 }
 
 func (r readOnlyIndexProxy) Bootstrap(bootstrapResults result.IndexResults) error {

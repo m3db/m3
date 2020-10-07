@@ -1357,6 +1357,7 @@ func (i *nsIndex) Query(
 func (i *nsIndex) WideQuery(
 	ctx context.Context,
 	query index.Query,
+	collector chan *ident.IDBatch,
 	opts index.WideQueryOptions,
 ) error {
 	logFields := []opentracinglog.Field{
@@ -1375,6 +1376,7 @@ func (i *nsIndex) WideQuery(
 		i.nsMetadata.ID(),
 		i.opts.IdentifierPool(),
 		i.shardForID(),
+		collector,
 		opts,
 	)
 

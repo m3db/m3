@@ -325,18 +325,18 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().IndexChecksum(ctx, seriesID, start, true).
+	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
-	mockNamespace.EXPECT().IndexChecksum(ctx, seriesID, start, false).
+	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(ident.IndexChecksum{Checksum: 7}, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start, true)
+	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", string(res.ID))
 	assert.Equal(t, 5, int(res.Checksum))
 
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start, false)
+	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(res.ID))
 	assert.Equal(t, 7, int(res.Checksum))
@@ -965,13 +965,18 @@ func TestWideQuery(t *testing.T) {
 	)
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	ns.EXPECT().IndexChecksum(gomock.Any(),
-		ident.StringID("foo"), wideOpts.StartInclusive, true).
+	ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+		ident.StringID("foo"), wideOpts.StartInclusive).
 		Return(ident.IndexChecksum{}, nil)
 
 	shards := []uint32{1, 2, 3}
-	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ index.Query, opts index.WideQueryOptions) error {
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ index.Query,
+			collector chan *ident.IDBatch,
+			opts index.WideQueryOptions,
+		) error {
 			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
 			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
 			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
@@ -980,15 +985,16 @@ func TestWideQuery(t *testing.T) {
 			go func() {
 				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
 				batch.Add(1)
-				opts.IndexBatchCollector <- batch
-				close(opts.IndexBatchCollector)
+				collector <- batch
+				close(collector)
 			}()
 			return nil
 		})
 	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 	require.NoError(t, err)
 
-	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any()).Return(fmt.Errorf("random err"))
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("random err"))
 	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
 	require.Error(t, err)
 

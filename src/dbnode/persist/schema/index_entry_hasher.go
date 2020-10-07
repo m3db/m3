@@ -21,30 +21,20 @@
 package schema
 
 import (
-	"hash"
-	"hash/adler32"
-	"sync"
+	"github.com/cespare/xxhash/v2"
 )
 
-type adlerHasher struct {
-	sync.Mutex
-	hash hash.Hash32
+type xxHasher struct{}
+
+// NewXXHasher returns an IndexEntryHasher utilizing xxHash hashing.
+func NewXXHasher() IndexEntryHasher {
+	return xxHasher{}
 }
 
-// NewAdlerHasher returns an IndexEntryHasher utilizing adler32 hashing.
-func NewAdlerHasher() IndexEntryHasher {
-	return &adlerHasher{hash: adler32.New()}
-}
-
-func (h *adlerHasher) HashIndexEntry(e IndexEntry) int64 {
-	h.Lock()
-	h.hash.Reset()
-	h.hash.Write(e.ID)
-	h.hash.Write(e.EncodedTags)
-	// TODO: investigate performance of this; also may be neecessary to add
-	// other fields to this hash. Also subrtacting a computed value from the hash
-	// may lead to more collision prone values.
-	hash := int64(h.hash.Sum32()) - e.DataChecksum
-	h.Unlock()
-	return hash
+func (h xxHasher) HashIndexEntry(e IndexEntry) int64 {
+	hash := uint64(7)
+	hash = 31*hash + xxhash.Sum64(e.ID)
+	hash = 31*hash + xxhash.Sum64(e.EncodedTags)
+	hash = 31*hash + uint64(e.DataChecksum)
+	return int64(hash)
 }

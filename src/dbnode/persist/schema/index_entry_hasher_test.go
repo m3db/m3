@@ -28,31 +28,42 @@ import (
 
 func b(s string) []byte { return []byte(s) }
 
+var (
+	// NB: expected values are verified independently on an online hasher.
+	foo int64 = 3728699739546630719
+	bar int64 = 5234164152756840025
+	zoo int64 = -2222873007118002058
+	baz int64 = 4781007452221240324
+)
+
 func TestIndexEntryHash(t *testing.T) {
-	// NB: expected values are verified independently on an online Adler hasher.
 	tests := []struct {
 		entry    IndexEntry
 		expected int64
 	}{
 		{
 			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("bar")},
-			expected: 145425018,
+			expected: (((7)*31+foo)*31+bar)*31 + 0,
 		},
 		{
-			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("bar"), DataChecksum: 8},
-			expected: 145425010,
+			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("bar"), DataChecksum: 4},
+			expected: (((7)*31+foo)*31+bar)*31 + 4,
 		},
 		{
 			entry:    IndexEntry{ID: b("foo"), EncodedTags: b("baz")},
-			expected: 145949314,
+			expected: (((7)*31+foo)*31+baz)*31 + 0,
 		},
 		{
 			entry:    IndexEntry{ID: b("zoo"), EncodedTags: b("bar")},
-			expected: 153289358,
+			expected: (((7)*31+zoo)*31+bar)*31 + 0,
+		},
+		{
+			entry:    IndexEntry{ID: b("zoo"), EncodedTags: b("baz"), DataChecksum: 100},
+			expected: (((7)*31+zoo)*31+baz)*31 + 100,
 		},
 	}
 
-	hasher := NewAdlerHasher()
+	hasher := NewXXHasher()
 	for _, tt := range tests {
 		assert.Equal(t, tt.expected, hasher.HashIndexEntry(tt.entry))
 	}

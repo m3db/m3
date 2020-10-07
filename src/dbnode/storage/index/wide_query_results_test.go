@@ -136,10 +136,10 @@ func TestWideSeriesResults(t *testing.T) {
 				drainAndCheckBatches(t, expected, batchCh, doneCh)
 
 				wideQueryOptions, err := NewWideQueryOptions(
-					time.Now(), batchSize, time.Hour*2, batchCh, nil, IterationOptions{})
+					time.Now(), batchSize, time.Hour*2, nil, IterationOptions{})
 
 				require.NoError(t, err)
-				wideRes := NewWideQueryResults(testNs, testIDPool, nil, wideQueryOptions)
+				wideRes := NewWideQueryResults(testNs, testIDPool, nil, batchCh, wideQueryOptions)
 				var runningSize, batchDocCount int
 				for _, docBatch := range docs {
 					size, docsCount, err := wideRes.AddDocuments(docBatch)
@@ -189,7 +189,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 	drainAndCheckBatches(t, expected, batchCh, doneCh)
 
 	wideQueryOptions, err := NewWideQueryOptions(
-		time.Now(), batchSize, time.Hour*2, batchCh, shards, IterationOptions{})
+		time.Now(), batchSize, time.Hour*2, shards, IterationOptions{})
 	require.NoError(t, err)
 	filter := func(id ident.ID) (uint32, bool) {
 		i, err := strconv.Atoi(strings.TrimPrefix(id.String(), "foo"))
@@ -199,7 +199,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 		return uint32(i), owned
 	}
 
-	wideRes := NewWideQueryResults(testNs, testIDPool, filter, wideQueryOptions)
+	wideRes := NewWideQueryResults(testNs, testIDPool, filter, batchCh, wideQueryOptions)
 	assert.False(t, wideRes.EnforceLimits())
 
 	var runningSize, batchDocCount int

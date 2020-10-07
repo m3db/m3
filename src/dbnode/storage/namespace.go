@@ -796,6 +796,7 @@ func (n *dbNamespace) QueryIDs(
 func (n *dbNamespace) WideQueryIDs(
 	ctx context.Context,
 	query index.Query,
+	collector chan *ident.IDBatch,
 	opts index.WideQueryOptions,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSWideQueryIDs)
@@ -826,7 +827,7 @@ func (n *dbNamespace) WideQueryIDs(
 		return xerrors.NewRetryableError(err)
 	}
 
-	err := n.reverseIndex.WideQuery(ctx, query, opts)
+	err := n.reverseIndex.WideQuery(ctx, query, collector, opts)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -911,11 +912,10 @@ func (n *dbNamespace) ReadEncoded(
 	return res, err
 }
 
-func (n *dbNamespace) IndexChecksum(
+func (n *dbNamespace) FetchIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	start time.Time,
-	useID bool,
+	blockStart time.Time,
 ) (ident.IndexChecksum, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -923,7 +923,7 @@ func (n *dbNamespace) IndexChecksum(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return ident.IndexChecksum{}, err
 	}
-	res, err := shard.IndexChecksum(ctx, id, start, useID, nsCtx)
+	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

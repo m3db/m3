@@ -21,12 +21,9 @@
 package index
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"time"
-
-	"github.com/m3db/m3/src/x/ident"
 )
 
 // SeriesLimitExceeded returns whether a given size exceeds the
@@ -53,7 +50,6 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 var (
 	errInvalidBatchSize = "non-positive batch size (%d) for wide query"
 	errInvalidBlockSize = "non-positive block size (%v) for wide query"
-	errNoCollector      = errors.New("no batch collector set")
 )
 
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
@@ -61,7 +57,6 @@ func NewWideQueryOptions(
 	queryStart time.Time,
 	batchSize int,
 	blockSize time.Duration,
-	collector chan *ident.IDBatch,
 	shards []uint32,
 	iterOpts IterationOptions,
 ) (WideQueryOptions, error) {
@@ -73,10 +68,6 @@ func NewWideQueryOptions(
 		return WideQueryOptions{}, fmt.Errorf(errInvalidBlockSize, blockSize)
 	}
 
-	if collector == nil {
-		return WideQueryOptions{}, errNoCollector
-	}
-
 	start := queryStart.Truncate(blockSize)
 	end := start.Add(blockSize)
 
@@ -86,12 +77,11 @@ func NewWideQueryOptions(
 	})
 
 	return WideQueryOptions{
-		StartInclusive:      start,
-		EndExclusive:        end,
-		BatchSize:           batchSize,
-		IndexBatchCollector: collector,
-		IterationOptions:    iterOpts,
-		ShardsQueried:       shards,
+		StartInclusive:   start,
+		EndExclusive:     end,
+		BatchSize:        batchSize,
+		IterationOptions: iterOpts,
+		ShardsQueried:    shards,
 	}, nil
 }
 

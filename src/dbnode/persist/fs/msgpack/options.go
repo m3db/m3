@@ -54,7 +54,7 @@ type decodingOptions struct {
 func NewDecodingOptions() DecodingOptions {
 	return &decodingOptions{
 		allocDecodedBytes: defaultAllocDecodedBytes,
-		indexEntryHasher:  schema.NewAdlerHasher(),
+		indexEntryHasher:  schema.NewXXHasher(),
 	}
 }
 

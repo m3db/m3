@@ -1208,8 +1208,9 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 	}
 	opts := index.WideQueryOptions{}
 
-	idx.EXPECT().WideQuery(gomock.Any(), query, opts)
-	err := ns.WideQueryIDs(ctx, query, opts)
+	ch := make(chan *ident.IDBatch)
+	idx.EXPECT().WideQuery(gomock.Any(), query, ch, opts)
+	err := ns.WideQueryIDs(ctx, query, ch, opts)
 	require.NoError(t, err)
 
 	sp.Finish()
@@ -1220,9 +1221,10 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 
 	// NB: assert no panic occurs without an index.
 	noIdxNs, noIdxCloser := newTestNamespaceWithIndex(t, nil)
-	err = noIdxNs.WideQueryIDs(ctx, query, opts)
+	err = noIdxNs.WideQueryIDs(ctx, query, ch, opts)
 	assert.EqualError(t, err, errNamespaceIndexingDisabled.Error())
 	noIdxCloser()
+	close(ch)
 }
 
 func TestNamespaceAggregateQuery(t *testing.T) {

@@ -1373,17 +1373,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface
 }
 
 // WideQueryIDs mocks base method
-func (m *MockdatabaseNamespace) WideQueryIDs(ctx context.Context, query index.Query, opts index.WideQueryOptions) error {
+func (m *MockdatabaseNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, opts)
+	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WideQueryIDs indicates an expected call of WideQueryIDs
-func (mr *MockdatabaseNamespaceMockRecorder) WideQueryIDs(ctx, query, opts interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).WideQueryIDs), ctx, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
 }
 
 // AggregateQuery mocks base method
@@ -1416,19 +1416,19 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
-// IndexChecksum mocks base method
-func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, idBatch ident.ID, start time.Time, useID bool) (ident.IndexChecksum, error) {
+// FetchIndexChecksum mocks base method
+func (m *MockdatabaseNamespace) FetchIndexChecksum(ctx context.Context, idBatch ident.ID, blockStart time.Time) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, idBatch, start, useID)
+	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, idBatch, blockStart)
 	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockdatabaseNamespaceMockRecorder) IndexChecksum(ctx, idBatch, start, useID interface{}) *gomock.Call {
+// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
+func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, idBatch, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).IndexChecksum), ctx, idBatch, start, useID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, idBatch, blockStart)
 }
 
 // FetchBlocks mocks base method
@@ -1939,19 +1939,19 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
 }
 
-// IndexChecksum mocks base method
-func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, start time.Time, useID bool, nsCtx namespace.Context) (ident.IndexChecksum, error) {
+// FetchIndexChecksum mocks base method
+func (m *MockdatabaseShard) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, start, useID, nsCtx)
+	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart, nsCtx)
 	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockdatabaseShardMockRecorder) IndexChecksum(ctx, id, start, useID, nsCtx interface{}) *gomock.Call {
+// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
+func (mr *MockdatabaseShardMockRecorder) FetchIndexChecksum(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).IndexChecksum), ctx, id, start, useID, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).FetchIndexChecksum), ctx, id, blockStart, nsCtx)
 }
 
 // FetchBlocks mocks base method
@@ -2362,17 +2362,17 @@ func (mr *MockNamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *g
 }
 
 // WideQuery mocks base method
-func (m *MockNamespaceIndex) WideQuery(ctx context.Context, query index.Query, opts index.WideQueryOptions) error {
+func (m *MockNamespaceIndex) WideQuery(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, query, opts)
+	ret := m.ctrl.Call(m, "WideQuery", ctx, query, collector, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WideQuery indicates an expected call of WideQuery
-func (mr *MockNamespaceIndexMockRecorder) WideQuery(ctx, query, opts interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) WideQuery(ctx, query, collector, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).WideQuery), ctx, query, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockNamespaceIndex)(nil).WideQuery), ctx, query, collector, opts)
 }
 
 // AggregateQuery mocks base method

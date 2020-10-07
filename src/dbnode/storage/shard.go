@@ -400,12 +400,11 @@ func (s *dbShard) Stream(
 func (s *dbShard) StreamIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (block.StreamedChecksum, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
-		useID, blockStart, nsCtx)
+		blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1145,17 +1144,16 @@ func (s *dbShard) ReadEncoded(
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
-func (s *dbShard) IndexChecksum(
+func (s *dbShard) FetchIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	start time.Time,
-	useID bool,
+	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.IndexChecksum(ctx, start, useID, nsCtx)
+	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

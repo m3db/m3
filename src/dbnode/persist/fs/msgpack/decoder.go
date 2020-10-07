@@ -499,10 +499,11 @@ func (dec *Decoder) decodeIndexChecksum(
 	}
 
 	if compare > 0 {
-		// seekID should appear after the current entry.
+		// compareID can still exist after the current entry.ID
 		return 0, Mismatch
 	} else if compare < 0 {
-		// current entry is not in the index.
+		// compareID must have been before the curret entry.ID, so this
+		// ID will not be matched.
 		return 0, NotFound
 	}
 

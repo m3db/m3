@@ -149,6 +149,21 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksMetadata), arg0, arg1, arg2, arg3)
 }
 
+// FetchIndexChecksum mocks base method
+func (m *MockDatabaseSeries) FetchIndexChecksum(arg0 context.Context, arg1 time.Time, arg2 namespace.Context) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchIndexChecksum", arg0, arg1, arg2)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
+func (mr *MockDatabaseSeriesMockRecorder) FetchIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchIndexChecksum), arg0, arg1, arg2)
+}
+
 // ID mocks base method
 func (m *MockDatabaseSeries) ID() ident.ID {
 	m.ctrl.T.Helper()
@@ -161,21 +176,6 @@ func (m *MockDatabaseSeries) ID() ident.ID {
 func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
-}
-
-// IndexChecksum mocks base method
-func (m *MockDatabaseSeries) IndexChecksum(arg0 context.Context, arg1 time.Time, arg2 bool, arg3 namespace.Context) (ident.IndexChecksum, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexChecksum", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(ident.IndexChecksum)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IndexChecksum indicates an expected call of IndexChecksum
-func (mr *MockDatabaseSeriesMockRecorder) IndexChecksum(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockDatabaseSeries)(nil).IndexChecksum), arg0, arg1, arg2, arg3)
 }
 
 // IsBufferEmptyAtBlockStart mocks base method
@@ -457,16 +457,16 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (block.StreamedChecksum, error) {
+func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 namespace.Context) (block.StreamedChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.StreamedChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StreamIndexChecksum indicates an expected call of StreamIndexChecksum
-func (mr *MockQueryableBlockRetrieverMockRecorder) StreamIndexChecksum(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamIndexChecksum(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamIndexChecksum), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamIndexChecksum), arg0, arg1, arg2, arg3)
 }

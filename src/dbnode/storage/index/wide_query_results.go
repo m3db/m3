@@ -68,6 +68,7 @@ func NewWideQueryResults(
 	namespaceID ident.ID,
 	idPool ident.Pool,
 	shardFilter shardFilterFn,
+	collector chan *ident.IDBatch,
 	opts WideQueryOptions,
 ) BaseResults {
 	batchSize := opts.BatchSize
@@ -79,7 +80,7 @@ func NewWideQueryResults(
 		batch: &ident.IDBatch{
 			IDs: make([]ident.ID, 0, batchSize),
 		},
-		batchCh: opts.IndexBatchCollector,
+		batchCh: collector,
 		shards:  opts.ShardsQueried,
 	}
 

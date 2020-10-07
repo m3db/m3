@@ -341,6 +341,7 @@ type databaseNamespace interface {
 	WideQueryIDs(
 		ctx context.Context,
 		query index.Query,
+		collector chan *ident.IDBatch,
 		opts index.WideQueryOptions,
 	) error
 
@@ -358,13 +359,12 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// IndexChecksum retrieves the index checksum for an ID batch for the block
-	// at time start.
-	IndexChecksum(
+	// FetchIndexChecksum retrieves the index checksum for an ID batch for the
+	// block at time start.
+	FetchIndexChecksum(
 		ctx context.Context,
 		idBatch ident.ID,
-		start time.Time,
-		useID bool,
+		blockStart time.Time,
 	) (ident.IndexChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -527,12 +527,11 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
-	// IndexChecksum retrieves the index checksum for an ID.
-	IndexChecksum(
+	// FetchIndexChecksum retrieves the index checksum for an ID.
+	FetchIndexChecksum(
 		ctx context.Context,
 		id ident.ID,
-		start time.Time,
-		useID bool,
+		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (ident.IndexChecksum, error)
 
@@ -706,6 +705,7 @@ type NamespaceIndex interface {
 	WideQuery(
 		ctx context.Context,
 		query index.Query,
+		collector chan *ident.IDBatch,
 		opts index.WideQueryOptions,
 	) error
 
