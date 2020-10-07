@@ -79,7 +79,6 @@ type fileSystemSource struct {
 
 type fileSystemSourceMetrics struct {
 	persistedIndexBlocksRead    tally.Counter
-	persistedIndexBlocksWrite   tally.Counter
 	persistedIndexSnapshotsRead tally.Counter
 }
 
@@ -102,7 +101,6 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		newReaderFn: fs.NewReader,
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:    scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite:   scope.Counter("persist-index-blocks-write"),
 			persistedIndexSnapshotsRead: scope.Counter("persist-index-snapshots-read"),
 		},
 		readIndexInfoFilesFn: fs.ReadIndexInfoFiles,
