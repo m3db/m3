@@ -3322,6 +3322,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
@@ -3409,6 +3410,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",
