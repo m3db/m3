@@ -1,4 +1,4 @@
-site_name: M3 Documentation
+site_name: M3 Test Documentation
 
 theme:
   # Provide source
@@ -57,8 +57,8 @@ markdown_extensions:
   - admonition
 
 pages:
-  - "Introduction": "index.md"
-  - "Overview":
+  - "Introduction (Test)": "index.md"
+  - "Overview (Tes)":
     - "Components": "overview/components.md"
     - "Motivation": "overview/motivation.md"
     - "Media":      "overview/media.md"
