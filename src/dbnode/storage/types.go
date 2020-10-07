@@ -267,6 +267,9 @@ type Namespace interface {
 	// Shards returns the shard description.
 	Shards() []Shard
 
+	// SetIndex sets and enables reverse index for this namespace.
+	SetIndex(reverseIndex NamespaceIndex) error
+
 	// Index returns the reverse index backing the namespace, if it exists.
 	Index() (NamespaceIndex, error)
 
@@ -418,9 +421,11 @@ type databaseNamespace interface {
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 
-	// BootstrapState captures and returns a snapshot of the namespaces'
-	// bootstrap state.
-	BootstrapState() ShardBootstrapStates
+	// BootstrapState returns namespaces' bootstrap state.
+	BootstrapState() BootstrapState
+
+	// ShardBootstrapState captures and returns a snapshot of the namespaces' shards bootstrap state.
+	ShardBootstrapState() ShardBootstrapStates
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
@@ -742,6 +747,9 @@ type NamespaceIndex interface {
 	// cold flushing completes to perform houskeeping.
 	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
 
+	// SetExtendedRetentionPeriod allows to extend index retention beyond the retention of the namespace it belongs to.
+	SetExtendedRetentionPeriod(period time.Duration)
+
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
 
@@ -910,19 +918,24 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseRepairer repairs in-memory database data.
-type databaseRepairer interface {
-	// Start starts the repair process.
+// BackgroundProcess is a background process that is run by the database.
+type BackgroundProcess interface {
+	// Start launches the BackgroundProcess to run asynchronously.
 	Start()
 
-	// Stop stops the repair process.
+	// Stop stops the BackgroundProcess.
 	Stop()
-
-	// Repair repairs in-memory data.
-	Repair() error
 
 	// Report reports runtime information.
 	Report()
+}
+
+// databaseRepairer repairs in-memory database data.
+type databaseRepairer interface {
+	BackgroundProcess
+
+	// Repair repairs in-memory data.
+	Repair() error
 }
 
 // databaseTickManager performs periodic ticking.
@@ -937,6 +950,9 @@ type databaseTickManager interface {
 type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
+
+	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator. Must happen before Open().
+	RegisterBackgroundProcess(process BackgroundProcess) error
 
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
@@ -956,9 +972,6 @@ type databaseMediator interface {
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// Repair repairs the database.
-	Repair() error
 
 	// Close closes the mediator.
 	Close() error
@@ -1251,12 +1264,13 @@ type Options interface {
 	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
 	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 
-	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	// SetMediatorTickInterval sets the ticking interval for the mediator.
 	SetMediatorTickInterval(value time.Duration) Options
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
 
+<<<<<<< HEAD
 	// SetAdminClient sets the admin client for the database options.
 	SetAdminClient(value client.AdminClient) Options
 
@@ -1268,6 +1282,18 @@ type Options interface {
 
 	// WideBatchSize returns batch size for wide operations.
 	WideBatchSize() int
+
+	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
+	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options
+
+	// BackgroundProcessFns returns the list of functions that create background processes for the database.
+	BackgroundProcessFns() []NewBackgroundProcessFn
+
+	// SetNamespaceHooks sets the NamespaceHooks.
+	SetNamespaceHooks(hooks NamespaceHooks) Options
+
+	// NamespaceHooks returns the NamespaceHooks.
+	NamespaceHooks() NamespaceHooks
 }
 
 // MemoryTracker tracks memory.
@@ -1327,6 +1353,9 @@ type newFSMergeWithMemFn func(
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
 
+// NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
+type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
+
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
@@ -1337,3 +1366,11 @@ type AggregateTilesOptions struct {
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool
 }
+
+// NamespaceHooks allows dynamic plugging into the namespace lifecycle.
+type NamespaceHooks interface {
+	// OnCreatedNamespace gets invoked after each namespace is created.
+	OnCreatedNamespace(Namespace, GetNamespaceFn) error
+}
+
+type GetNamespaceFn func (id ident.ID) (Namespace, bool)

@@ -52,6 +52,20 @@ const (
 			},
 			"runtimeOptions": {
 				"writeIndexingPerCPUConcurrency": 16
+			},
+			"aggregationOptions": {
+				"aggregations": [
+					{
+						"aggregated": true,
+						"attributes": {
+							"resolutionDuration": "5m"
+						}
+					}
+				]
+			},
+			"extendedOptions": {
+				"@type": "testm3db.io/m3.test.PingResponse",
+				"Value": "bar"
 			}
 		}
 }
@@ -102,6 +116,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSON))
 	require.NotNil(t, req)
 
+	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
+
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"testNamespace": {
@@ -120,6 +137,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				ExtendedOptions: extendedOpts,
 			},
 		},
 	}
@@ -141,6 +159,19 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions": xjson.Map{
+							"aggregations": xjson.Array{
+								xjson.Map{
+									"aggregated": true,
+									"attributes": xjson.Map{
+										"resolutionNanos": "300000000000",
+										"downsampleOptions": xjson.Map{
+											"all": true,
+										},
+									},
+								},
+							},
+						},
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled":          true,
@@ -167,6 +198,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						},
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("bar"),
 					},
 				},
 			},
@@ -199,6 +231,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled":          true,
@@ -222,6 +255,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

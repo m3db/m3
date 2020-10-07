@@ -103,6 +103,7 @@ type db struct {
 
 	state    databaseState
 	mediator databaseMediator
+	repairer databaseRepairer
 
 	created    uint64
 	bootstraps int
@@ -229,12 +230,34 @@ func NewDatabase(
 			zap.Error(err))
 	}
 
-	mediator, err := newMediator(
+	d.mediator, err = newMediator(
 		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
 	}
-	d.mediator = mediator
+
+	d.repairer = newNoopDatabaseRepairer()
+	if opts.RepairEnabled() {
+		d.repairer, err = newDatabaseRepairer(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		err = d.mediator.RegisterBackgroundProcess(d.repairer)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, fn := range opts.BackgroundProcessFns() {
+		process, err := fn(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		err = d.mediator.RegisterBackgroundProcess(process)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return d, nil
 }
@@ -369,6 +392,8 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 }
 
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
+	createdNamespaces := make([]databaseNamespace, 0, len(namespaces))
+
 	for _, n := range namespaces {
 		// ensure namespace doesn't exist
 		_, ok := d.namespaces.Get(n.ID())
@@ -382,8 +407,22 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+		createdNamespaces = append(createdNamespaces, newNs)
 	}
+
+	hooks := d.Options().NamespaceHooks()
+	for _, ns := range createdNamespaces {
+		err := hooks.OnCreatedNamespace(ns, d.getNamespaceWithLock)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (d *db) getNamespaceWithLock(id ident.ID) (Namespace, bool) {
+	return d.namespaces.Get(id)
 }
 
 func (d *db) newDatabaseNamespaceWithLock(
@@ -1125,7 +1164,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 }
 
 func (d *db) Repair() error {
-	return d.mediator.Repair()
+	return d.repairer.Repair()
 }
 
 func (d *db) Truncate(namespace ident.ID) (int64, error) {
@@ -1148,7 +1187,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 	d.RLock()
 	for _, n := range d.namespaces.Iter() {
 		ns := n.Value()
-		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+		nsBootstrapStates[ns.ID().String()] = ns.ShardBootstrapState()
 	}
 	d.RUnlock()
 

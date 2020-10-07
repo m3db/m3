@@ -114,6 +114,7 @@ pages:
     - "Upgrading M3": "operational_guide/upgrading_m3.md"
     - "Repairs": "operational_guide/repairs.md"
     - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
+    - "Fileset Migrations": "operational_guide/fileset_migrations.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

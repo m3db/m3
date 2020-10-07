@@ -27,9 +27,12 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	m3test "github.com/m3db/m3/src/x/generated/proto/test"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,6 +57,14 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
+	validExtendedOpts, _ = xtest.NewExtendedOptionsProto("foo")
+
+	validAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{Aggregated: false},
+		},
+	}
+
 	validNamespaceOpts = []nsproto.NamespaceOptions{
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:      true,
@@ -64,6 +75,7 @@ var (
 			CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: false},
 			RetentionOptions:      &validRetentionOpts,
 			SchemaOptions:         testSchemaOptions,
+			ExtendedOptions:       validExtendedOpts,
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -72,8 +84,9 @@ var (
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			// Explicitly not setting CacheBlocksOnRetrieve here to test defaulting to true when not set.
-			RetentionOptions: &validRetentionOpts,
-			IndexOptions:     &validIndexOpts,
+			RetentionOptions:   &validRetentionOpts,
+			IndexOptions:       &validIndexOpts,
+			AggregationOptions: &validAggregationOpts,
 		},
 	}
 
@@ -104,7 +117,23 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 	}
+
+	invalidAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{
+				Aggregated: true,
+				Attributes: &nsproto.AggregatedAttributes{
+					ResolutionNanos:   -10,
+					DownsampleOptions: &nsproto.DownsampleOptions{All: true},
+				},
+			},
+		},
+	}
 )
+
+func init() {
+	namespace.RegisterExtendedOptionsConverter(xtest.TypeURLPrefix, &m3test.PingResponse{}, xtest.ConvertToExtendedOptions)
+}
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
@@ -182,7 +211,8 @@ func TestToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 2)
 
 	// NB(prateek): expected/observed are inverted here
@@ -222,7 +252,8 @@ func TestSchemaToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
@@ -247,7 +278,8 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md})
 	require.NoError(t, err)
 
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 	require.Equal(t,
 		!namespace.NewOptions().SnapshotEnabled(),
@@ -274,6 +306,66 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
+func TestInvalidExtendedOptions(t *testing.T) {
+	invalidExtendedOptsBadValue, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
+	invalidExtendedOptsBadValue.Value = []byte{1, 2, 3}
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsBadValue)
+	assert.Error(t, err)
+
+	invalidExtendedOptsNoConverterForType, err := xtest.NewProtobufAny(&protobuftypes.Int32Value{})
+	require.NoError(t, err)
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
+	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for protobuf type testm3db.io/google.protobuf.Int32Value")
+
+	invalidExtendedOptsConverterFailure, err := xtest.NewExtendedOptionsProto("error")
+	require.NoError(t, err)
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
+	assert.EqualError(t, err, "error in converter")
+
+	invalidExtendedOpts, err := xtest.NewExtendedOptionsProto("invalid")
+	require.NoError(t, err)
+	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
+	assert.EqualError(t, err, "invalid ExtendedOptions")
+}
+
+func TestToAggregationOptions(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(aggOpts.Aggregations()))
+
+	aggregation := aggOpts.Aggregations()[0]
+	require.Equal(t, false, aggregation.Aggregated)
+	require.Equal(t, namespace.AggregatedAttributes{}, aggregation.Attributes)
+}
+
+func TestToAggregationOptionsInvalid(t *testing.T) {
+	_, err := namespace.ToAggregationOptions(&invalidAggregationOpts)
+	require.Error(t, err)
+}
+
+func TestAggregationOptsToProto(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	// make ns map
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
+		namespace.NewOptions().SetAggregationOptions(aggOpts))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// convert to nsproto map
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
+	require.Len(t, reg.Namespaces, 1)
+
+	nsOpts := *reg.Namespaces["ns1"]
+
+	require.Equal(t, validAggregationOpts, *nsOpts.AggregationOptions)
+}
+
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
@@ -295,6 +387,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaHistory()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
+	assertEqualExtendedOpts(t, expected.ExtendedOptions, opts.ExtendedOptions())
 }
 
 func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, observed retention.Options) {
@@ -305,4 +398,20 @@ func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, obse
 	require.Equal(t, expected.BlockDataExpiry, observed.BlockDataExpiry())
 	require.Equal(t, expected.BlockDataExpiryAfterNotAccessPeriodNanos,
 		observed.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
+}
+
+func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, observed namespace.ExtendedOptions) {
+	if expectedProto == nil {
+		assert.Nil(t, observed)
+		return
+	}
+
+	var value = &m3test.PingResponse{}
+	err := protobuftypes.UnmarshalAny(expectedProto, value)
+	require.NoError(t, err)
+
+	expected, err := xtest.ConvertToExtendedOptions(value)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, observed)
 }

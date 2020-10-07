@@ -382,7 +382,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 			},
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
-			MetricType: ts.MetricTypeCounter,
+			MetricType: ts.M3MetricTypeCounter,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -436,7 +436,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilterNoMatch(t *t
 			},
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
-			MetricType: ts.MetricTypeGauge,
+			MetricType: ts.M3MetricTypeGauge,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},

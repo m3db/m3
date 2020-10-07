@@ -1293,6 +1293,16 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 }
 
 func TestNamespaceBootstrapState(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	require.Equal(t, BootstrapNotStarted, ns.BootstrapState())
+
+	ns.bootstrapState = Bootstrapped
+	require.Equal(t, Bootstrapped, ns.BootstrapState())
+}
+
+func TestNamespaceShardBootstrapState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1312,7 +1322,7 @@ func TestNamespaceBootstrapState(t *testing.T) {
 	require.Equal(t, ShardBootstrapStates{
 		0: Bootstrapped,
 		1: Bootstrapping,
-	}, ns.BootstrapState())
+	}, ns.ShardBootstrapState())
 }
 
 func TestNamespaceFlushState(t *testing.T) {
@@ -1337,7 +1347,7 @@ func TestNamespaceFlushState(t *testing.T) {
 	require.Equal(t, expectedFlushState, flushState)
 }
 
-func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
+func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
@@ -1351,9 +1361,13 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
-	targetNs.bootstrapState = Bootstrapping
 
 	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
+
+	sourceNs.bootstrapState = Bootstrapped
+
+	_, err = targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
@@ -1376,6 +1390,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
 	defer sourceCloser()
+	sourceNs.bootstrapState = Bootstrapped
 	sourceRetentionOpts := sourceNs.nopts.RetentionOptions().SetBlockSize(sourceBlockSize)
 	sourceNs.nopts = sourceNs.nopts.SetRetentionOptions(sourceRetentionOpts)
 

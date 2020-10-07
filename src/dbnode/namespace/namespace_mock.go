@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 )
 
@@ -422,6 +423,62 @@ func (m *MockOptions) RuntimeOptions() RuntimeOptions {
 func (mr *MockOptionsMockRecorder) RuntimeOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptions", reflect.TypeOf((*MockOptions)(nil).RuntimeOptions))
+}
+
+// SetExtendedOptions mocks base method
+func (m *MockOptions) SetExtendedOptions(value ExtendedOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetExtendedOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetExtendedOptions indicates an expected call of SetExtendedOptions
+func (mr *MockOptionsMockRecorder) SetExtendedOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExtendedOptions", reflect.TypeOf((*MockOptions)(nil).SetExtendedOptions), value)
+}
+
+// ExtendedOptions mocks base method
+func (m *MockOptions) ExtendedOptions() ExtendedOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExtendedOptions")
+	ret0, _ := ret[0].(ExtendedOptions)
+	return ret0
+}
+
+// ExtendedOptions indicates an expected call of ExtendedOptions
+func (mr *MockOptionsMockRecorder) ExtendedOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendedOptions", reflect.TypeOf((*MockOptions)(nil).ExtendedOptions))
+}
+
+// SetAggregationOptions mocks base method
+func (m *MockOptions) SetAggregationOptions(value AggregationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregationOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregationOptions indicates an expected call of SetAggregationOptions
+func (mr *MockOptionsMockRecorder) SetAggregationOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregationOptions", reflect.TypeOf((*MockOptions)(nil).SetAggregationOptions), value)
+}
+
+// AggregationOptions mocks base method
+func (m *MockOptions) AggregationOptions() AggregationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregationOptions")
+	ret0, _ := ret[0].(AggregationOptions)
+	return ret0
+}
+
+// AggregationOptions indicates an expected call of AggregationOptions
+func (mr *MockOptionsMockRecorder) AggregationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregationOptions", reflect.TypeOf((*MockOptions)(nil).AggregationOptions))
 }
 
 // MockIndexOptions is a mock of IndexOptions interface
@@ -1332,4 +1389,121 @@ func (m *MockNamespaceWatch) Close() error {
 func (mr *MockNamespaceWatchMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceWatch)(nil).Close))
+}
+
+// MockExtendedOptions is a mock of ExtendedOptions interface
+type MockExtendedOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockExtendedOptionsMockRecorder
+}
+
+// MockExtendedOptionsMockRecorder is the mock recorder for MockExtendedOptions
+type MockExtendedOptionsMockRecorder struct {
+	mock *MockExtendedOptions
+}
+
+// NewMockExtendedOptions creates a new mock instance
+func NewMockExtendedOptions(ctrl *gomock.Controller) *MockExtendedOptions {
+	mock := &MockExtendedOptions{ctrl: ctrl}
+	mock.recorder = &MockExtendedOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockExtendedOptions) EXPECT() *MockExtendedOptionsMockRecorder {
+	return m.recorder
+}
+
+// ToProto mocks base method
+func (m *MockExtendedOptions) ToProto() (proto.Message, string) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToProto")
+	ret0, _ := ret[0].(proto.Message)
+	ret1, _ := ret[1].(string)
+	return ret0, ret1
+}
+
+// ToProto indicates an expected call of ToProto
+func (mr *MockExtendedOptionsMockRecorder) ToProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToProto", reflect.TypeOf((*MockExtendedOptions)(nil).ToProto))
+}
+
+// Validate mocks base method
+func (m *MockExtendedOptions) Validate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (mr *MockExtendedOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockExtendedOptions)(nil).Validate))
+}
+
+// MockAggregationOptions is a mock of AggregationOptions interface
+type MockAggregationOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockAggregationOptionsMockRecorder
+}
+
+// MockAggregationOptionsMockRecorder is the mock recorder for MockAggregationOptions
+type MockAggregationOptionsMockRecorder struct {
+	mock *MockAggregationOptions
+}
+
+// NewMockAggregationOptions creates a new mock instance
+func NewMockAggregationOptions(ctrl *gomock.Controller) *MockAggregationOptions {
+	mock := &MockAggregationOptions{ctrl: ctrl}
+	mock.recorder = &MockAggregationOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAggregationOptions) EXPECT() *MockAggregationOptionsMockRecorder {
+	return m.recorder
+}
+
+// Equal mocks base method
+func (m *MockAggregationOptions) Equal(value AggregationOptions) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Equal", value)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal
+func (mr *MockAggregationOptionsMockRecorder) Equal(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockAggregationOptions)(nil).Equal), value)
+}
+
+// SetAggregations mocks base method
+func (m *MockAggregationOptions) SetAggregations(value []Aggregation) AggregationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregations", value)
+	ret0, _ := ret[0].(AggregationOptions)
+	return ret0
+}
+
+// SetAggregations indicates an expected call of SetAggregations
+func (mr *MockAggregationOptionsMockRecorder) SetAggregations(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregations", reflect.TypeOf((*MockAggregationOptions)(nil).SetAggregations), value)
+}
+
+// Aggregations mocks base method
+func (m *MockAggregationOptions) Aggregations() []Aggregation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Aggregations")
+	ret0, _ := ret[0].([]Aggregation)
+	return ret0
+}
+
+// Aggregations indicates an expected call of Aggregations
+func (mr *MockAggregationOptionsMockRecorder) Aggregations() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregations", reflect.TypeOf((*MockAggregationOptions)(nil).Aggregations))
 }

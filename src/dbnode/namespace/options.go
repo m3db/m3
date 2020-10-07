@@ -57,6 +57,7 @@ var (
 	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
 	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
 	errNamespaceRuntimeOptionsNotSet                = errors.New("namespace runtime options is not set")
+	errAggregationOptionsNotSet                     = errors.New("aggregation options is not set")
 )
 
 type options struct {
@@ -72,6 +73,8 @@ type options struct {
 	indexOpts             IndexOptions
 	schemaHis             SchemaHistory
 	runtimeOpts           RuntimeOptions
+	extendedOpts          ExtendedOptions
+	aggregationOpts       AggregationOptions
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -94,6 +97,7 @@ func NewOptions() Options {
 		indexOpts:             NewIndexOptions(),
 		schemaHis:             NewSchemaHistory(),
 		runtimeOpts:           NewRuntimeOptions(),
+		aggregationOpts:       NewAggregationOptions(),
 	}
 }
 
@@ -101,6 +105,13 @@ func (o *options) Validate() error {
 	if err := o.retentionOpts.Validate(); err != nil {
 		return err
 	}
+
+	if o.extendedOpts != nil {
+		if err := o.extendedOpts.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if !o.indexOpts.Enabled() {
 		return nil
 	}
@@ -122,6 +133,9 @@ func (o *options) Validate() error {
 	if o.runtimeOpts == nil {
 		return errNamespaceRuntimeOptionsNotSet
 	}
+	if o.aggregationOpts == nil {
+		return errAggregationOptionsNotSet
+	}
 	return nil
 }
 
@@ -137,7 +151,8 @@ func (o *options) Equal(value Options) bool {
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
 		o.schemaHis.Equal(value.SchemaHistory()) &&
-		o.runtimeOpts.Equal(value.RuntimeOptions())
+		o.runtimeOpts.Equal(value.RuntimeOptions()) &&
+		o.aggregationOpts.Equal(value.AggregationOptions())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -258,4 +273,24 @@ func (o *options) SetRuntimeOptions(value RuntimeOptions) Options {
 
 func (o *options) RuntimeOptions() RuntimeOptions {
 	return o.runtimeOpts
+}
+
+func (o *options) SetExtendedOptions(value ExtendedOptions) Options {
+	opts := *o
+	opts.extendedOpts = value
+	return &opts
+}
+
+func (o *options) ExtendedOptions() ExtendedOptions {
+	return o.extendedOpts
+}
+
+func (o *options) SetAggregationOptions(value AggregationOptions) Options {
+	opts := *o
+	opts.aggregationOpts = value
+	return &opts
+}
+
+func (o *options) AggregationOptions() AggregationOptions {
+	return o.aggregationOpts
 }

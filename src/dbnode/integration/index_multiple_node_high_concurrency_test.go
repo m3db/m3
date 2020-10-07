@@ -55,6 +55,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 		topology.ReadConsistencyLevelOne,
 		topology.ReadConsistencyLevelUnstrictMajority,
 		topology.ReadConsistencyLevelMajority,
+		topology.ReadConsistencyLevelUnstrictAll,
 		topology.ReadConsistencyLevelAll,
 	}
 	for _, lvl := range levels {
