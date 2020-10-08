@@ -71,4 +71,11 @@ type Options interface {
 
 	// ReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
+
+	// SetCustomBuildTags sets custom tags to be added to build report metrics in
+	// addition to the defaults.
+	SetCustomBuildTags(tags map[string]string) Options
+
+	// CustomBuildTags returns the custom build tags.
+	CustomBuildTags() map[string]string
 }
