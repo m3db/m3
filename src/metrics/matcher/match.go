@@ -85,5 +85,5 @@ func (m *matcher) ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchRe
 
 func (m *matcher) Close() error {
 	m.namespaces.Close()
-	return m.cache.Close()
+	return nil
 }
