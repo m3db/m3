@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -106,7 +107,9 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+	fmt.Println("REWIND2", it.closed, it.idx, it.len)
+	it.idx = 0
+	//it.resetIndex()
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
