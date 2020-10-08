@@ -177,14 +177,16 @@ func NewCache(opts Options) Cache {
 
 func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	c.RLock()
-	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, rules.MatchResult{})
+	res, found, results := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, rules.MatchResult{})
 	c.RUnlock()
 	if found {
 		return res
 	}
 
+	res = results.source.ForwardMatch(id, fromNanos, toNanos)
+
 	c.Lock()
-	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, res)
+	res, _, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, res)
 	c.Unlock()
 
 	return res
@@ -264,12 +266,12 @@ func (c *cache) tryGetWithLock(
 	fromNanos, toNanos int64,
 	setType setType,
 	newRes rules.MatchResult,
-) (rules.MatchResult, bool) {
+) (rules.MatchResult, bool, results) {
 	res := rules.EmptyMatchResult
 	results, exists := c.namespaces.Get(namespace)
 	if !exists {
 		c.metrics.hits.Inc(1)
-		return res, true
+		return res, true, results
 	}
 	entry, exists := results.elems.Get(id)
 	if exists {
@@ -292,18 +294,19 @@ func (c *cache) tryGetWithLock(
 				c.promote(now, elem)
 			}
 			c.metrics.hits.Inc(1)
-			return res, true
+			return res, true, results
 		}
 		c.metrics.expires.Inc(1)
 	}
 	if setType == dontSetIfNotFound {
-		return results.source.ForwardMatch(id, fromNanos, toNanos), false
+		//return results.source.ForwardMatch(id, fromNanos, toNanos), false, results
+		return res, false, results
 	}
 
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
 	c.setWithLock(namespace, id, results, exists, newRes)
-	return newRes, true
+	return newRes, true, results
 }
 
 func (c *cache) setWithLock(
