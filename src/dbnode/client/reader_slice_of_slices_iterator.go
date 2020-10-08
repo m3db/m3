@@ -75,8 +75,10 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	// Set the segment readers to reader from current segment pieces
 	segment := it.segments[it.idx]
 	if segment.Merged != nil {
+		fmt.Println("MERGED", it.idx)
 		it.resetReader(it.blockReaders[0], segment.Merged)
 	} else {
+		fmt.Println("NOT MERGED", it.idx, currLen)
 		for i := 0; i < currLen; i++ {
 			it.resetReader(it.blockReaders[i], segment.Unmerged[i])
 		}
@@ -93,20 +95,20 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	_, start, end := it.CurrentReaders()
 
 	if err != nil {
-		fmt.Println("RESET WINDOW", start, end)
 		r.ResetWindowed(ts.Segment{}, start, end)
 		return
 	}
-	fmt.Println("NO RESET WINDOW", start, end)
 
 	var (
 		head = rseg.Head
 		tail = rseg.Tail
 	)
 	if head == nil {
+		fmt.Println("HEAD NEW")
 		head = checked.NewBytes(seg.Head, nil)
 		head.IncRef()
 	} else {
+		fmt.Println("HEAD RESET")
 		head.Reset(seg.Head)
 	}
 	if tail == nil {
