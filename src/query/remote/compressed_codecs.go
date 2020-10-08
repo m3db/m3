@@ -181,8 +181,8 @@ func CompressedSeriesFromSeriesIterator(
 		// index is set, and therefore we must also call an initial Next here to match that state.
 		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
 		// initial Next move and assert that all iters start w/ Current as nil.
-		readers.Rewind(idx)
-		//readers.Next()
+		readers.Rewind(-1)
+		readers.Next()
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
