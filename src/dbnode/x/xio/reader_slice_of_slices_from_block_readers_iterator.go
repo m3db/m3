@@ -43,8 +43,10 @@ func NewReaderSliceOfSlicesFromBlockReadersIterator(
 
 func (it *readerSliceOfSlicesIterator) Next() bool {
 	if it.idx >= it.len-1 {
+		fmt.Println("NEXT", it.idx, it.len, false)
 		return false
 	}
+	fmt.Println("NEXT", it.idx, it.len, true)
 	it.idx++
 	return true
 }
@@ -107,8 +109,7 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
-	fmt.Println("REWIND2", it.closed, it.idx, it.len)
-	it.idx = 0
+	it.idx = -1
 	//it.resetIndex()
 }
 
