@@ -23,6 +23,8 @@ package m3
 import (
 	"context"
 
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
@@ -65,7 +67,17 @@ type Querier interface {
 	) (*consolidators.CompleteTagsResult, error)
 }
 
-// DynamicClusterOptions is the options for a new dynamic Cluster
+// DynamicClusterNamespaceConfiguration is the configuration for
+// dynamically fetching namespace configuration.
+type DynamicClusterNamespaceConfiguration struct {
+	// session is an active session connected to an M3DB cluster.
+	session client.Session
+
+	// nsInitializer is the initializer used to watch for namespace changes.
+	nsInitializer namespace.Initializer
+}
+
+// DynamicClusterOptions is the options for a new dynamic Cluster.
 type DynamicClusterOptions interface {
 	// Validate validates the DynamicClusterOptions.
 	Validate() error

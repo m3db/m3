@@ -317,21 +317,32 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 		aggregatedClusterNamespaces...)
 }
 
+// NB(nate): exists primarily for testing.
+type newClustersFn func(DynamicClusterOptions) (Clusters, error)
+
 // NewDynamicClusters instantiates a new Clusters instance that pulls
 // cluster information from etcd.
 func (c ClustersStaticConfiguration) NewDynamicClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
 ) (Clusters, error) {
+	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts)
+}
+
+func (c ClustersStaticConfiguration) newDynamicClusters(
+	newFn newClustersFn,
+	instrumentOpts instrument.Options,
+	opts ClustersStaticConfigurationOptions,
+) (Clusters, error) {
 	clients := make([]client.Client, 0, len(c))
 	for _, clusterCfg := range c {
-		clnt, err := clusterCfg.newClient(client.ConfigurationParameters{
+		clusterClient, err := clusterCfg.newClient(client.ConfigurationParameters{
 			InstrumentOptions: instrumentOpts,
 		}, opts.CustomAdminOptions...)
 		if err != nil {
 			return nil, err
 		}
-		clients = append(clients, clnt)
+		clients = append(clients, clusterClient)
 	}
 
 	// Connect to all clusters in parallel
@@ -342,10 +353,10 @@ func (c ClustersStaticConfiguration) NewDynamicClusters(
 		errLock  sync.Mutex
 		multiErr xerrors.MultiError
 	)
-	for i, clnt := range clients {
+	for i, clusterClient := range clients {
 		i := i
-		clnt := clnt
-		nsInit := clnt.Options().NamespaceInitializer()
+		clusterClient := clusterClient
+		nsInit := clusterClient.Options().NamespaceInitializer()
 
 		// TODO(nate): move this validation to client.Options once static configuration of namespaces
 		// is no longer allowed.
@@ -357,30 +368,37 @@ func (c ClustersStaticConfiguration) NewDynamicClusters(
 		go func() {
 			defer wg.Done()
 
-			cfg := cfgs[i]
-			cfg.nsInitializer = nsInit
+			cfgs[i].nsInitializer = nsInit
 			if opts.ProvidedSession != nil {
-				cfg.session = opts.ProvidedSession
+				cfgs[i].session = opts.ProvidedSession
 			} else if !opts.AsyncSessions {
 				var err error
-				cfg.session, err = clnt.DefaultSession()
+				session, err := clusterClient.DefaultSession()
 				if err != nil {
 					errLock.Lock()
 					multiErr = multiErr.Add(err)
 					errLock.Unlock()
 				}
+				cfgs[i].session = session
 			} else {
-				cfg.session = m3db.NewAsyncSession(func() (client.Client, error) {
-					return clnt, nil
+				cfgs[i].session = m3db.NewAsyncSession(func() (client.Client, error) {
+					return clusterClient, nil
 				}, nil)
 			}
 		}()
 	}
 
-	// Wait
 	wg.Wait()
 
 	if !multiErr.Empty() {
+		// Close any created sessions on failure.
+		for _, cfg := range cfgs {
+			if cfg.session != nil {
+				// Returns an error if session is already closed which, in this case,
+				// is fine
+				_ = cfg.session.Close()
+			}
+		}
 		return nil, multiErr.FinalError()
 	}
 
@@ -388,5 +406,5 @@ func (c ClustersStaticConfiguration) NewDynamicClusters(
 		SetDynamicClusterNamespaceConfiguration(cfgs).
 		SetInstrumentOptions(instrumentOpts)
 
-	return NewDynamicClusters(dcOpts)
+	return newFn(dcOpts)
 }

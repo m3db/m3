@@ -21,19 +21,50 @@
 package m3
 
 import (
-	"errors"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
-var (
-	errDynamicClusterNamespaceConfigurationNotSet = errors.New("dynamicClusterNamespaceConfiguration not set")
-	errInstrumentOptionsNotSet                    = errors.New("instrumentOptions not set")
-)
-
-type dynamicCluster struct {
+type dynamicClusterOptions struct {
+	config []DynamicClusterNamespaceConfiguration
+	iOpts  instrument.Options
 }
 
-// NewDynamicClusters creates an implementation of the Clusters interface
-// supports dynamic updating of cluster namespaces.
-func NewDynamicClusters(_ DynamicClusterOptions) (Clusters, error) {
-	return nil, errors.New("dynamic cluster configuration not yet supported")
+// NewDynamicClusterOptions returns new DynamicClusterOptions.
+func NewDynamicClusterOptions() DynamicClusterOptions {
+	return &dynamicClusterOptions{
+		iOpts: instrument.NewOptions(),
+	}
+}
+
+func (d *dynamicClusterOptions) Validate() error {
+	if len(d.config) == 0 {
+		return errDynamicClusterNamespaceConfigurationNotSet
+	}
+	if d.iOpts == nil {
+		return errInstrumentOptionsNotSet
+	}
+
+	return nil
+}
+
+func (d *dynamicClusterOptions) SetDynamicClusterNamespaceConfiguration(
+	value []DynamicClusterNamespaceConfiguration,
+) DynamicClusterOptions {
+	opts := *d
+	opts.config = value
+	return &opts
+}
+
+func (d *dynamicClusterOptions) DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration {
+	return d.config
+}
+
+func (d *dynamicClusterOptions) SetInstrumentOptions(value instrument.Options) DynamicClusterOptions {
+	opts := *d
+	opts.iOpts = value
+	return &opts
+}
+
+func (d *dynamicClusterOptions) InstrumentOptions() instrument.Options {
+	return d.iOpts
 }
