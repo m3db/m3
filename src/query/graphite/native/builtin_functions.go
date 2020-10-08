@@ -1503,9 +1503,13 @@ func combineBootstrapWithOriginal(
 				return ts.NewSeriesList(), err
 			}
 		}
+		bootstrapEndStep := endTime.Truncate(original.Resolution())
+		if bootstrapEndStep.Before(endTime) {
+			bootstrapEndStep = bootstrapEndStep.Add(original.Resolution())
+		}
 		// NB(braskin): using bootstrap.Len() is incorrect as it will include all
 		// of the steps in the original timeseries, not just the steps up to the new end time
-		bootstrapLength := bootstrap.StepAtTime(endTime)
+		bootstrapLength := bootstrap.StepAtTime(bootstrapEndStep)
 		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()
 		numBootstrapValues := bootstrapLength * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
@@ -2251,6 +2255,7 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 func init() {
 	// functions - in alpha ordering
 	MustRegisterFunction(absolute)
+	MustRegisterFunction(aggregate)
 	MustRegisterFunction(aggregateLine).WithDefaultParams(map[uint8]interface{}{
 		2: "avg", // f
 	})
@@ -2258,6 +2263,9 @@ func init() {
 	MustRegisterFunction(aliasByMetric)
 	MustRegisterFunction(aliasByNode)
 	MustRegisterFunction(aliasSub)
+	MustRegisterFunction(applyByNode).WithDefaultParams(map[uint8]interface{}{
+		4: "", // newName
+	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
 	})
@@ -2361,6 +2369,7 @@ func init() {
 	MustRegisterFunction(stdev).WithDefaultParams(map[uint8]interface{}{
 		3: 0.1, // windowTolerance
 	})
+	MustRegisterFunction(stddevSeries)
 	MustRegisterFunction(substr).WithDefaultParams(map[uint8]interface{}{
 		2: 0, // start
 		3: 0, // stop
