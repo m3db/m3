@@ -145,7 +145,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 		if err := n.controller.Process(queryCtx, block); err != nil {
 			block.Close()
 			// Fail on first error
-			return fmt.Errorf("process %w %s", err, reflect.TypeOf(n.controller).Name())
+			return fmt.Errorf("process %w %s", err, reflect.TypeOf(n.controller).String())
 		}
 
 		// TODO: Revisit how and when we close blocks. At the each function step

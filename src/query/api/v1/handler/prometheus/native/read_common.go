@@ -232,7 +232,7 @@ func read(
 	}
 
 	if err := it.Err(); err != nil {
-		return emptyResult, fmt.Errorf("itErr %w %s", err, reflect.TypeOf(it).Name())
+		return emptyResult, fmt.Errorf("itErr %w %s", err, reflect.TypeOf(it).String())
 	}
 
 	seriesList := make([]*ts.Series, 0, len(data))
