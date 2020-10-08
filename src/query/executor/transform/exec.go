@@ -21,6 +21,9 @@
 package transform
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -50,9 +53,10 @@ func ProcessSimpleBlock(
 ) error {
 	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
 	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
+	fmt.Println("process block", reflect.TypeOf(node).String())
 	sp.Finish()
 	if err != nil {
-		return err
+		return fmt.Errorf("processBlock %w", err)
 	}
 
 	// NB: The flow here is a little weird; this kicks off the next block's

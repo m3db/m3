@@ -21,6 +21,9 @@
 package transform
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -41,7 +44,8 @@ func (t *Controller) AddTransform(node OpNode) {
 func (t *Controller) Process(queryCtx *models.QueryContext, block block.Block) error {
 	for _, ts := range t.transforms {
 		if err := ts.Process(queryCtx, t.ID, block); err != nil {
-			return err
+			fmt.Println("NODE", reflect.TypeOf(ts).String())
+			return fmt.Errorf("tcprocess %w", err)
 		}
 	}
 

@@ -21,7 +21,6 @@
 package client
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -75,10 +74,8 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	// Set the segment readers to reader from current segment pieces
 	segment := it.segments[it.idx]
 	if segment.Merged != nil {
-		fmt.Println("MERGED", it.idx)
 		it.resetReader(it.blockReaders[0], segment.Merged)
 	} else {
-		fmt.Println("NOT MERGED", it.idx, currLen)
 		for i := 0; i < currLen; i++ {
 			it.resetReader(it.blockReaders[i], segment.Unmerged[i])
 		}
@@ -104,11 +101,9 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 		tail = rseg.Tail
 	)
 	if head == nil {
-		fmt.Println("HEAD NEW")
 		head = checked.NewBytes(seg.Head, nil)
 		head.IncRef()
 	} else {
-		fmt.Println("HEAD RESET")
 		head.Reset(seg.Head)
 	}
 	if tail == nil {
