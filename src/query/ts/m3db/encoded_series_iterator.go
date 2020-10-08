@@ -72,7 +72,7 @@ func (it *encodedSeriesIter) Current() block.UnconsolidatedSeries {
 }
 
 func (it *encodedSeriesIter) Err() error {
-	return it.err
+	return fmt.Errorf("encoded block %w", it.err)
 }
 
 func (it *encodedSeriesIter) Next() bool {

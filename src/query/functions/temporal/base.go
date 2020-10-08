@@ -23,6 +23,7 @@ package temporal
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -138,6 +139,7 @@ func (c *baseNode) Process(
 	concurrency := runtime.NumCPU()
 	var builder block.Builder
 	batches, err := b.MultiSeriesIter(concurrency)
+	fmt.Println("temporal batches", err)
 	if err != nil {
 		// NB: If the unconsolidated block does not support multi series iteration,
 		// fallback to processing series one by one.
@@ -147,12 +149,12 @@ func (c *baseNode) Process(
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("tbn postprocess %w", err)
 	}
 
 	// NB: safe to close the block here.
 	if err := b.Close(); err != nil {
-		return err
+		return fmt.Errorf("tbn close %w", err)
 	}
 
 	bl := builder.Build()
@@ -339,7 +341,7 @@ func (c *baseNode) singleProcess(
 
 	seriesIter, err := b.SeriesIter()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tbn seriesIter %w", err)
 	}
 
 	// rename series to exclude their __name__ tag as part of function processing.
@@ -356,15 +358,16 @@ func (c *baseNode) singleProcess(
 	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, resultSeriesMeta)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tbn blockbuilder %w", err)
 	}
 
 	err = builder.AddCols(m.steps)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tbn addcols %w", err)
 	}
 
 	p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
+	fmt.Println("temporal iters PRE", reflect.TypeOf(seriesIter).String(), seriesIter.Err())
 	for seriesIter.Next() {
 		var (
 			newVal float64
@@ -397,13 +400,14 @@ func (c *baseNode) singleProcess(
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("tbn appendval %w", err)
 			}
 
 			start += step
 			end += step
 		}
 	}
+	fmt.Println("temporal iters POST", seriesIter.Err())
 
 	return builder, seriesIter.Err()
 }
