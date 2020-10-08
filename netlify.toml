@@ -9,7 +9,7 @@
   # directory located at the absolute path "root/project/build-output"
   publish = "public"
 
-[context."braskin/hugo_site"]
+[context."docs-test"]
   command = "hugo"  
   HUGO_VERSION = "0.75.1"
 
