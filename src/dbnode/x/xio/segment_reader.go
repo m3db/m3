@@ -48,6 +48,7 @@ func (sr *segmentReader) Clone(
 }
 
 func (sr *segmentReader) Read(b []byte) (int, error) {
+	fmt.Println("SEGMENT READ", len(b))
 	if len(b) == 0 {
 		return 0, nil
 	}

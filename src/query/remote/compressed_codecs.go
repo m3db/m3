@@ -63,6 +63,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 	if err != nil {
 		return nil, err
 	}
+	defer br.Reset(segment)
 	return &rpc.M3Segment{
 		Head:      segment.Head.Bytes(),
 		Tail:      segment.Tail.Bytes(),
@@ -160,16 +161,18 @@ func CompressedSeriesFromSeriesIterator(
 		return nil, err
 	}
 
+	fmt.Println("COMPRESS START")
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			// segments, err := compressedSegmentsFromReaders(readers)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// replicaSegments = append(replicaSegments, segments)
+			fmt.Println("COMPRESS NEXT")
+			segments, err := compressedSegmentsFromReaders(readers)
+			if err != nil {
+				return nil, err
+			}
+			replicaSegments = append(replicaSegments, segments)
 		}
 
 		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
@@ -185,6 +188,7 @@ func CompressedSeriesFromSeriesIterator(
 		}
 		compressedReplicas = append(compressedReplicas, r)
 	}
+	fmt.Println("COMPRESS END")
 
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
