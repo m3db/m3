@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"reflect"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -231,7 +232,7 @@ func read(
 	}
 
 	if err := it.Err(); err != nil {
-		return emptyResult, fmt.Errorf("itErr %w", err)
+		return emptyResult, fmt.Errorf("itErr %w %s", err, reflect.TypeOf(it).Name())
 	}
 
 	seriesList := make([]*ts.Series, 0, len(data))

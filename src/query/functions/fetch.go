@@ -22,6 +22,7 @@ package functions
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -144,7 +145,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 		if err := n.controller.Process(queryCtx, block); err != nil {
 			block.Close()
 			// Fail on first error
-			return fmt.Errorf("process %w", err)
+			return fmt.Errorf("process %w %s", err, reflect.TypeOf(n.controller).Name())
 		}
 
 		// TODO: Revisit how and when we close blocks. At the each function step
