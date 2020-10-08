@@ -156,6 +156,16 @@ func TestDownsampleCounterResets(t *testing.T) {
 			given: []float64{1, 1, 1, 1, 1},
 			want:  []DownsampledValue{{4, 1}},
 		},
+		{
+			name:  "five increasing values",
+			given: []float64{1, 2, 3, 4, 5},
+			want:  []DownsampledValue{{0, 1}, {4, 5}},
+		},
+		{
+			name:  "five decreasing values",
+			given: []float64{5, 4, 3, 2, 1},
+			want:  []DownsampledValue{{0, 5}, {3, 5 + 4 + 3 + 2}, {4, 1}},
+		},
 	}
 
 	for _, tt := range tests {
@@ -340,9 +350,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 func downsample(prevFrameLastValue float64, vals []float64) []DownsampledValue {
 	results := make([]DownsampledValue, 0, 4)
 
-	DownsampleCounterResets(prevFrameLastValue, vals, &results)
-
-	return results
+	return DownsampleCounterResets(prevFrameLastValue, vals, results)
 }
 
 func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []DownsampledValue {

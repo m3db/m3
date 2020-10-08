@@ -33,25 +33,28 @@ type DownsampledValue struct {
 }
 
 // DownsampleCounterResets downsamples datapoints in a way that preserves counter invariants:
-// The the last (and the first, if necessary) values stay the same as original (to transfer counter state from tile to tile).
+// The last (and the first, if necessary) values stay the same as original (to transfer counter state from tile to tile).
 // Also, after applying counter reset adjustment logics, all the values would be the same as
 // after applying this logics to the original values.
 // As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in (if available),
 // and then in some cases the first value of this tile may be omitted.
 // If the value for prevFrameLastValue is not available, pass math.Nan() instead.
+// Pass a slice of capacity 4 as results to avoid potential allocations.
 func DownsampleCounterResets(
 	prevFrameLastValue float64,
 	frameValues []float64,
-	results *[]DownsampledValue,
-) {
+	results []DownsampledValue,
+) []DownsampledValue {
+	results = results[:0]
+
 	if len(frameValues) == 0 {
-		return
+		return results
 	}
 
 	firstValue := frameValues[0]
 	if math.IsNaN(prevFrameLastValue) || prevFrameLastValue > firstValue {
 		// include the first original datapoint to handle resets right before this frame
-		*results = append(*results, DownsampledValue{0, firstValue})
+		results = append(results, DownsampledValue{0, firstValue})
 	}
 
 	var (
@@ -76,9 +79,9 @@ func DownsampleCounterResets(
 		accumulated += current
 	}
 
-	if lastResetPosition >= 0 && (len(*results) == 0 || (*results)[0].Value != adjustedValueBeforeLastReset) {
+	if lastResetPosition >= 0 && (len(results) == 0 || results[0].Value != adjustedValueBeforeLastReset) {
 		// include the adjusted value right before the last reset (if it is not equal to the included first value)
-		*results = append(*results, DownsampledValue{lastResetPosition, adjustedValueBeforeLastReset})
+		results = append(results, DownsampledValue{lastResetPosition, adjustedValueBeforeLastReset})
 	}
 
 	lastPosition := len(frameValues) - 1
@@ -87,14 +90,14 @@ func DownsampleCounterResets(
 	positionAfterLastReset := lastResetPosition + 1
 	if lastResetPosition >= 0 && adjustedValueBeforeLastReset <= lastValue {
 		// include the original value right after the last reset (unless it is the last value, which is always included)
-		*results = append(*results, DownsampledValue{positionAfterLastReset, frameValues[positionAfterLastReset]})
+		results = append(results, DownsampledValue{positionAfterLastReset, frameValues[positionAfterLastReset]})
 	}
 
-	if len(*results) == 1 && (*results)[0].Value == lastValue {
+	if len(results) == 1 && results[0].Value == lastValue {
 		// if only the first value was included until now, and it's equal to the last value, it can be discarded
-		*results = (*results)[:0]
+		results = results[:0]
 	}
 
 	// always include the last original datapoint
-	*results = append(*results, DownsampledValue{lastPosition, lastValue})
+	return append(results, DownsampledValue{lastPosition, lastValue})
 }
