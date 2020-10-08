@@ -51,6 +51,9 @@ func TagValueFromEncodedTagsFast(
 			return nil, false, fmt.Errorf("missing size for tag name: index=%d", i)
 		}
 		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
+		if numBytesName <= 0 {
+			return nil, false, errEmptyTagNameLiteral
+		}
 		encodedTags = encodedTags[2:]
 
 		bytesName := encodedTags[:numBytesName]
