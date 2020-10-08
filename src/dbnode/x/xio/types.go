@@ -89,7 +89,10 @@ type ReaderSliceOfSlicesIterator interface {
 
 	// Rewind returns the iterator to the beginning.
 	// This operation is invalid if any of the block readers have been read.
-	Rewind()
+	Rewind(idx int)
+
+	// Index returns index.
+	Index() int
 }
 
 // ReaderSliceOfSlicesFromBlockReadersIterator is an iterator
