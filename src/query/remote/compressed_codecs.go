@@ -182,6 +182,7 @@ func CompressedSeriesFromSeriesIterator(
 		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
 		// initial Next move and assert that all iters start w/ Current as nil.
 		readers.Rewind(-1)
+		fmt.Println("MID IDX", idx, &readers)
 		readers.Next()
 		fmt.Println("END IDX", idx, &readers)
 
