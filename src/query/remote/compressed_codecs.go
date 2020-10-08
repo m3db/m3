@@ -181,7 +181,7 @@ func CompressedSeriesFromSeriesIterator(
 		// initial Next move and assert that all iters start w/ Current as nil.
 		readers.Rewind()
 		readers.Next()
-		fmt.Println("READER", reflect.TypeOf(reader).Name())
+		fmt.Println("READER", reflect.TypeOf(readers).Name())
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
