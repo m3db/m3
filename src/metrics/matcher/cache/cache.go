@@ -177,14 +177,14 @@ func NewCache(opts Options) Cache {
 
 func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	c.RLock()
-	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound)
+	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, rules.MatchResult{})
 	c.RUnlock()
 	if found {
 		return res
 	}
 
 	c.Lock()
-	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound)
+	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, res)
 	c.Unlock()
 
 	return res
@@ -263,6 +263,7 @@ func (c *cache) tryGetWithLock(
 	namespace, id []byte,
 	fromNanos, toNanos int64,
 	setType setType,
+	newRes rules.MatchResult,
 ) (rules.MatchResult, bool) {
 	res := rules.EmptyMatchResult
 	results, exists := c.namespaces.Get(namespace)
@@ -296,26 +297,28 @@ func (c *cache) tryGetWithLock(
 		c.metrics.expires.Inc(1)
 	}
 	if setType == dontSetIfNotFound {
-		return res, false
+		return results.source.ForwardMatch(id, fromNanos, toNanos), false
 	}
+
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
-	return c.setWithLock(namespace, id, fromNanos, toNanos, results, exists), true
+	c.setWithLock(namespace, id, results, exists, newRes)
+	return newRes, true
 }
 
 func (c *cache) setWithLock(
 	namespace, id []byte,
-	fromNanos, toNanos int64,
 	results results,
 	invalidate bool,
-) rules.MatchResult {
+	res rules.MatchResult,
+) {
 	// NB(xichen): if a cached result is invalid, it's very likely that we've reached
 	// a new cutover time and the old cached results are now invalid, therefore it's
 	// preferrable to invalidate everything to save the overhead of multiple invalidations.
 	if invalidate {
 		results = c.invalidateWithLock(namespace, id, results)
 	}
-	res := results.source.ForwardMatch(id, fromNanos, toNanos)
+
 	newElem := newElement(namespace, id, res)
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
 	results.elems.Set(id, newElem)
@@ -326,7 +329,6 @@ func (c *cache) setWithLock(
 		c.notifyEviction()
 	}
 	c.metrics.misses.Inc(1)
-	return res
 }
 
 // refreshWithLock clears the existing cached results for namespace nsHash
