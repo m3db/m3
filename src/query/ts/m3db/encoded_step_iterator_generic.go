@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -111,6 +112,10 @@ func nextForStep(
 			peek.started = true
 			return peek, collector, nil
 		}
+	}
+
+	if err := iter.Err(); err != nil {
+		fmt.Println("encoded iter err", err)
 	}
 
 	peek.finished = true

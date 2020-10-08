@@ -119,6 +119,7 @@ func (it *encodedSeriesIter) Next() bool {
 	}
 
 	if it.err = iter.Err(); it.err != nil {
+		fmt.Println("encoded iter err", iter.Err())
 		return false
 	}
 

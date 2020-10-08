@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -60,6 +61,7 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 
 	nh, nt := len(sr.lazyHead), len(sr.lazyTail)
 	if sr.si >= nh+nt {
+		fmt.Println("SEGREAD1 EOF")
 		return 0, io.EOF
 	}
 	n := 0
@@ -77,6 +79,7 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		n += nRead
 	}
 	if n == 0 {
+		fmt.Println("SEGREAD2 EOF")
 		return 0, io.EOF
 	}
 	return n, nil
