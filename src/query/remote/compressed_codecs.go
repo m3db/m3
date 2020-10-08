@@ -180,7 +180,7 @@ func CompressedSeriesFromSeriesIterator(
 		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
 		// initial Next move and assert that all iters start w/ Current as nil.
 		readers.Rewind()
-		readers.Next()
+		//readers.Next()
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,

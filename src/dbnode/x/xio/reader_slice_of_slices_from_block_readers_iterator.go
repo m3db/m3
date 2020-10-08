@@ -26,10 +26,12 @@ import (
 )
 
 type readerSliceOfSlicesIterator struct {
-	blocks [][]BlockReader
-	idx    int
-	len    int
-	closed bool
+	blocks  [][]BlockReader
+	idx     int
+	initIdx int
+	init    bool
+	len     int
+	closed  bool
 }
 
 // NewReaderSliceOfSlicesFromBlockReadersIterator creates a new reader slice of slices iterator
@@ -42,7 +44,11 @@ func NewReaderSliceOfSlicesFromBlockReadersIterator(
 }
 
 func (it *readerSliceOfSlicesIterator) Next() bool {
-	fmt.Println("NEXT IDX", it.idx, it.len)
+	if !it.init {
+		fmt.Println("INIT", it.idx)
+		it.initIdx = it.idx
+		it.init = true
+	}
 	if it.idx >= it.len-1 {
 		return false
 	}
@@ -108,7 +114,9 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+	//it.resetIndex()
+	fmt.Println("REWIND", it.idx, it.initIdx, it.init)
+	it.idx = it.initIdx
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
