@@ -165,11 +165,11 @@ func CompressedSeriesFromSeriesIterator(
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			segments, err := compressedSegmentsFromReaders(readers)
-			if err != nil {
-				return nil, err
-			}
-			replicaSegments = append(replicaSegments, segments)
+			// segments, err := compressedSegmentsFromReaders(readers)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// replicaSegments = append(replicaSegments, segments)
 		}
 
 		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
@@ -178,7 +178,7 @@ func CompressedSeriesFromSeriesIterator(
 		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
 		// initial Next move and assert that all iters start w/ Current as nil.
 		readers.Rewind()
-		//readers.Next()
+		readers.Next()
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
@@ -189,16 +189,16 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	// itTags := it.Tags()
-	// defer itTags.Rewind()
-	// tags, err := buildTags(itTags, iterPools)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	itTags := it.Tags()
+	defer itTags.Rewind()
+	tags, err := buildTags(itTags, iterPools)
+	if err != nil {
+		return nil, err
+	}
 
-	// if err := itTags.Err(); err != nil {
-	// 	fmt.Println("TAG ERR", err)
-	// }
+	if err := itTags.Err(); err != nil {
+		fmt.Println("TAG ERR", err)
+	}
 	return &rpc.Series{
 		Meta: &rpc.SeriesMetadata{
 			Id:        it.ID().Bytes(),
@@ -207,7 +207,7 @@ func CompressedSeriesFromSeriesIterator(
 		},
 		Value: &rpc.Series_Compressed{
 			Compressed: &rpc.M3CompressedSeries{
-				CompressedTags: []byte{}, //tags,
+				CompressedTags: tags, //[]byte{},
 				Replicas:       compressedReplicas,
 			},
 		},

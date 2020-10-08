@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -195,6 +196,8 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	ip := test.MakeMockIteratorPool()
 	series, err := CompressedSeriesFromSeriesIterator(it, ip)
+
+	fmt.Println("ERR", it.Err())
 
 	require.NoError(t, err)
 	verifyCompressedSeries(t, series)
