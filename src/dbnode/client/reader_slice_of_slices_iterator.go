@@ -212,6 +212,7 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
 	it.idx = 0
+	it.blockReaders = nil
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
