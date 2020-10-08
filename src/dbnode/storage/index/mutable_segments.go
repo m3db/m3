@@ -69,6 +69,7 @@ type mutableSegments struct {
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
 	onDiskSegments     []*readableSeg
+	snapshotSegments   []fst.SegmentData
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -242,6 +243,21 @@ func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.Segment
 
 	// NB(r): This is for debug operations, do not bother about allocations.
 	var results []fst.SegmentData
+	return m.fstSegmentsData(ctx, results)
+}
+
+func (m *mutableSegments) SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.snapshotSegments = m.snapshotSegments[:0]
+	return m.fstSegmentsData(ctx, m.snapshotSegments)
+}
+
+func (m *mutableSegments) fstSegmentsData(
+	ctx context.Context,
+	results []fst.SegmentData,
+) ([]fst.SegmentData, error) {
 	for _, segs := range [][]*readableSeg{
 		m.foregroundSegments,
 		m.backgroundSegments,

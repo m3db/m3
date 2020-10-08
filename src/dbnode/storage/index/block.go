@@ -1122,6 +1122,26 @@ func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, erro
 	return data, nil
 }
 
+func (b *block) SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+	b.RLock()
+	defer b.RUnlock()
+	if b.state == blockStateClosed {
+		return nil, errBlockAlreadyClosed
+	}
+	data, err := b.mutableSegments.SnapshotSegmentsData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, coldSeg := range b.coldMutableSegments {
+		coldData, err := coldSeg.SnapshotSegmentsData(ctx)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, coldData...)
+	}
+	return data, nil
+}
+
 func (b *block) Close() error {
 	b.Lock()
 	defer b.Unlock()

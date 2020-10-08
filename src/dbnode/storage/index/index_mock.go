@@ -943,6 +943,21 @@ func (mr *MockBlockMockRecorder) MemorySegmentsData(ctx interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemorySegmentsData", reflect.TypeOf((*MockBlock)(nil).MemorySegmentsData), ctx)
 }
 
+// SnapshotSegmentsData mocks base method
+func (m *MockBlock) SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SnapshotSegmentsData", ctx)
+	ret0, _ := ret[0].([]fst.SegmentData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SnapshotSegmentsData indicates an expected call of SnapshotSegmentsData
+func (mr *MockBlockMockRecorder) SnapshotSegmentsData(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotSegmentsData", reflect.TypeOf((*MockBlock)(nil).SnapshotSegmentsData), ctx)
+}
+
 // Close mocks base method
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()
