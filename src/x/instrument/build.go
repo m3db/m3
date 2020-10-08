@@ -139,10 +139,8 @@ func (b *buildReporter) report() {
 		"go-version":    goVersion,
 	}
 
-	if bt := b.opts.CustomBuildTags(); bt != nil {
-		for k, v := range bt {
-			tags[k] = v
-		}
+	for k, v := range b.opts.CustomBuildTags() {
+		tags[k] = v
 	}
 
 	scope := b.opts.MetricsScope().Tagged(tags)
