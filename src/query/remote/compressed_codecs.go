@@ -166,14 +166,14 @@ func CompressedSeriesFromSeriesIterator(
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		idx := readers.Index()
-		fmt.Println("COMPRESS IDX", idx)
+		fmt.Println("START IDX", idx, &readers)
 		for next := true; next; next = readers.Next() {
 			fmt.Println("COMPRESS NEXT", reflect.TypeOf(readers).String(), readers.Index())
-			// segments, err := compressedSegmentsFromReaders(readers)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// replicaSegments = append(replicaSegments, segments)
+			segments, err := compressedSegmentsFromReaders(readers)
+			if err != nil {
+				return nil, err
+			}
+			replicaSegments = append(replicaSegments, segments)
 		}
 
 		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
@@ -183,6 +183,7 @@ func CompressedSeriesFromSeriesIterator(
 		// initial Next move and assert that all iters start w/ Current as nil.
 		readers.Rewind(-1)
 		readers.Next()
+		fmt.Println("END IDX", idx, &readers)
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
