@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -92,9 +93,11 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	_, start, end := it.CurrentReaders()
 
 	if err != nil {
+		fmt.Println("RESET WINDOW", start, end)
 		r.ResetWindowed(ts.Segment{}, start, end)
 		return
 	}
+	fmt.Println("NO RESET WINDOW", start, end)
 
 	var (
 		head = rseg.Head
@@ -206,7 +209,7 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+	it.idx = 0
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
