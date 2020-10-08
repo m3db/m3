@@ -22,6 +22,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -148,7 +149,7 @@ func (e *engine) ExecuteExpr(
 
 	if err := state.Execute(queryCtx); err != nil {
 		state.sink.closeWithError(err)
-		return nil, err
+		return nil, fmt.Errorf("EXECUTE %w", err)
 	}
 
 	return state.sink.getValue()

@@ -128,7 +128,7 @@ func (n *baseNode) Process(queryCtx *models.QueryContext,
 	if err != nil {
 		// Clean up any blocks from cache
 		n.cleanup()
-		return err
+		return fmt.Errorf("computeOrCache %w", err)
 	}
 
 	// Both blocks are not ready
@@ -140,7 +140,7 @@ func (n *baseNode) Process(queryCtx *models.QueryContext,
 
 	nextBlock, err := n.processWithTracing(queryCtx, lhs, rhs)
 	if err != nil {
-		return err
+		return fmt.Errorf("processWithTracing %w", err)
 	}
 
 	defer nextBlock.Close()

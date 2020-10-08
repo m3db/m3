@@ -186,7 +186,7 @@ func read(
 	parseOpts := engine.Options().ParseOptions()
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
-		return emptyResult, err
+		return emptyResult, fmt.Errorf("parse %w", err)
 	}
 
 	// Detect clients closing connections.
@@ -199,13 +199,13 @@ func read(
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
-		return emptyResult, err
+		return emptyResult, fmt.Errorf("execute %w", err)
 	}
 
 	resultMeta := bl.Meta().ResultMetadata
 	it, err := bl.StepIter()
 	if err != nil {
-		return emptyResult, err
+		return emptyResult, fmt.Errorf("stepite %w", err)
 	}
 
 	seriesMeta := it.SeriesMeta()
@@ -231,7 +231,7 @@ func read(
 	}
 
 	if err := it.Err(); err != nil {
-		return emptyResult, err
+		return emptyResult, fmt.Errorf("itErr %w", err)
 	}
 
 	seriesList := make([]*ts.Series, 0, len(data))
@@ -246,7 +246,7 @@ func read(
 	}
 
 	if err := bl.Close(); err != nil {
-		return emptyResult, err
+		return emptyResult, fmt.Errorf("close %w", err)
 	}
 
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)

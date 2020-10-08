@@ -128,7 +128,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 	ctx := queryCtx.Ctx
 	blockResult, err := n.fetch(queryCtx)
 	if err != nil {
-		return err
+		return fmt.Errorf("fetch %w", err)
 	}
 
 	for _, block := range blockResult.Blocks {
@@ -144,7 +144,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 		if err := n.controller.Process(queryCtx, block); err != nil {
 			block.Close()
 			// Fail on first error
-			return err
+			return fmt.Errorf("process %w", err)
 		}
 
 		// TODO: Revisit how and when we close blocks. At the each function step
