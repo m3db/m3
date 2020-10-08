@@ -23,6 +23,7 @@ package remote
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"sync"
 	"time"
 
@@ -160,34 +161,32 @@ func CompressedSeriesFromSeriesIterator(
 		return nil, err
 	}
 
-	fmt.Println("COMPRESS START")
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
-	// for _, replica := range replicas {
-	// 	replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
-	// 	//readers := replica.Readers()
-	// 	// for next := true; next; next = readers.Next() {
-	// 	// 	fmt.Println("COMPRESS NEXT")
-	// 	// 	// segments, err := compressedSegmentsFromReaders(readers)
-	// 	// 	// if err != nil {
-	// 	// 	// 	return nil, err
-	// 	// 	// }
-	// 	// 	// replicaSegments = append(replicaSegments, segments)
-	// 	// }
+	for _, replica := range replicas {
+		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
+		readers := replica.Readers()
+		for next := true; next; next = readers.Next() {
+			fmt.Println("COMPRESS NEXT", reflect.TypeOf(readers).String())
+			// segments, err := compressedSegmentsFromReaders(readers)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// replicaSegments = append(replicaSegments, segments)
+		}
 
-	// 	// Rewind the reader state back to beginning to the it can be re-iterated by caller.
-	// 	// These multi-readers are queued up via ResetSliceOfSlices so that the first Current
-	// 	// index is set, and therefore we must also call an initial Next here to match that state.
-	// 	// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
-	// 	// initial Next move and assert that all iters start w/ Current as nil.
-	// 	// readers.Rewind()
-	// 	// readers.Next()
+		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
+		// These multi-readers are queued up via ResetSliceOfSlices so that the first Current
+		// index is set, and therefore we must also call an initial Next here to match that state.
+		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
+		// initial Next move and assert that all iters start w/ Current as nil.
+		readers.Rewind()
+		readers.Next()
 
-	// 	r := &rpc.M3CompressedValuesReplica{
-	// 		Segments: replicaSegments,
-	// 	}
-	// 	compressedReplicas = append(compressedReplicas, r)
-	// }
-	fmt.Println("COMPRESS END")
+		r := &rpc.M3CompressedValuesReplica{
+			Segments: replicaSegments,
+		}
+		compressedReplicas = append(compressedReplicas, r)
+	}
 
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
