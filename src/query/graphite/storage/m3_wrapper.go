@@ -134,17 +134,18 @@ func truncateBoundsToResolution(
 	end time.Time,
 	resolution time.Duration,
 ) (time.Time, time.Time) {
-	truncatedStart := start.Truncate(resolution)
-	// NB: if truncated start matches start, it's already valid.
-	if truncatedStart.Before(start) {
-		start = truncatedStart.Add(resolution)
-	}
-
-	length := float64(end.Sub(truncatedStart))
+	truncatedEnd := end.Truncate(resolution)
+	length := float64(truncatedEnd.Sub(start))
 	steps := math.Floor(length / float64(resolution))
+
 	truncatedLength := time.Duration(steps) * resolution
-	end = start.Add(truncatedLength)
-	return start, end
+	truncatedStart := truncatedEnd.Add(truncatedLength * -1)
+
+	// start one step earlier, unless the start time was already truncated
+	if !truncatedStart.Equal(start) {
+		truncatedStart = truncatedStart.Add(resolution * -1)
+	}
+	return truncatedStart, truncatedEnd
 }
 
 func translateTimeseries(
@@ -155,7 +156,6 @@ func translateTimeseries(
 	if len(result.Blocks) == 0 {
 		return []*ts.Series{}, nil
 	}
-
 	block := result.Blocks[0]
 	defer block.Close()
 
@@ -178,8 +178,9 @@ func translateTimeseries(
 			return nil, errSeriesNoResolution
 		}
 
-		start, end := truncateBoundsToResolution(start, end, resolution)
-		length := int(end.Sub(start) / resolution)
+		startTruncated, endTruncated := truncateBoundsToResolution(start, end, resolution)
+		length := int(endTruncated.Sub(startTruncated) / resolution)
+
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
 
@@ -187,22 +188,24 @@ func translateTimeseries(
 		dps := m3series.Datapoints()
 		for _, datapoint := range dps.Datapoints() {
 			ts := datapoint.Timestamp
-			if ts.Before(start) {
+			if ts.Before(startTruncated) || ts.Equal(startTruncated) {
 				// Outside of range requested.
 				continue
 			}
 
-			if !ts.Before(end) {
+			if !(ts.Before(endTruncated) || ts.Equal(endTruncated)) {
 				// No more valid datapoints.
 				break
 			}
 
-			index := int(datapoint.Timestamp.Sub(start) / resolution)
+			index := length - int(endTruncated.Sub(datapoint.Timestamp) / resolution) - 1
 			values.SetValueAt(index, datapoint.Value)
 		}
 
 		name := string(seriesMetas[idx].Name)
-		series = append(series, ts.NewSeries(ctx, name, start, values))
+		totalDuration := time.Millisecond * time.Duration(millisPerStep) * time.Duration(length - 1)
+		startTime := endTruncated.Add(totalDuration * -1)
+		series = append(series, ts.NewSeries(ctx, name, startTime, values))
 	}
 
 	if err := iter.Err(); err != nil {
@@ -262,6 +265,12 @@ func (s *m3WrappedStore) FetchByQuery(
 	series, err := translateTimeseries(ctx, res, opts.StartTime, opts.EndTime)
 	if err != nil {
 		return nil, err
+	}
+
+	fmt.Println("TRANSLATED SERIES")
+	if len(series) > 0 {
+		fmt.Println(series[0].StartTime(), series[0].EndTime())
+		fmt.Println(series[0].SafeValues())
 	}
 
 	return NewFetchResult(ctx, series, res.Metadata), nil

@@ -140,23 +140,35 @@ func buildResult(
 	}
 }
 
+func TestTruncateBoundsToResolution(t *testing.T) {
+	start := time.Date(2020, time.October, 8, 22, 51, 39, 0, time.UTC)
+	end := time.Date(2020, time.October, 8, 22, 56, 39, 0, time.UTC)
+
+	resolution := 60 * time.Second
+
+	truncatedStart, truncatedEnd := truncateBoundsToResolution(start, end, resolution)
+
+	expectedStart := time.Date(2020, time.October, 8, 22, 51, 00, 0, time.UTC)
+	expectedEnd := time.Date(2020, time.October, 8, 22, 56, 00, 0, time.UTC)
+	assert.Equal(t, truncatedStart, expectedStart)
+	assert.Equal(t, truncatedEnd, expectedEnd)
+}
+
 func TestTranslateTimeseries(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := xctx.New()
-	resolution := 10 * time.Second
-	steps := 3
-	start := time.Now().Truncate(resolution).Add(time.Second)
-	end := start.Add(time.Duration(steps) * resolution).Add(time.Second * -2)
+	resolution := 60 * time.Second
+	steps := 6
+	start := time.Date(2020, time.October, 8, 15, 32, 0, 0, time.UTC)
+	end := time.Date(2020, time.October, 8, 15, 37, 16, 0, time.UTC)
 
-	// NB: truncated steps should have 1 less data point than input series since
-	// the first data point is not valid.
 	truncatedSteps := steps - 1
-	truncated := start.Truncate(resolution).Add(resolution)
-	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
+	truncatedEnd := end.Truncate(resolution).Add(resolution)
+	truncated := truncatedEnd.Add(time.Duration(truncatedSteps) * resolution * -1)
 
-	expected := 5
+	expected := 8
 	result := buildResult(ctrl, resolution, expected, steps, start)
 	translated, err := translateTimeseries(ctx, result, start, end)
 	require.NoError(t, err)
@@ -174,6 +186,7 @@ func TestTranslateTimeseries(t *testing.T) {
 		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
 	}
 }
+
 
 func TestFetchByQuery(t *testing.T) {
 	ctrl := xtest.NewController(t)
