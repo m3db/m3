@@ -586,7 +586,7 @@ data using your Kubernetes cluster's default storage class. For examples of diff
 clusters, see the docs on <a href="../configuration/node_affinity">node affinity</a>.</p>
 <h3 id="etcd">Etcd</h3>
 <p>Create an etcd cluster with persistent volumes:
-<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.9.0/example/etcd/etcd-pd.yaml
+<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.10.0/example/etcd/etcd-pd.yaml
 </code></pre></div></p>
 <p>We recommend modifying the <code>storageClassName</code> in the manifest to one that matches your cloud provider's fastest remote
 storage option, such as <code>pd-ssd</code> on GCP.</p>
@@ -648,7 +648,7 @@ as possible (namely persistent storage). See below for instructions on creating 
 <p>Create an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage
 available, this will create a cluster that will not use persistent storage and will likely become unavailable if any of
 the pods die:</p>
-<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.9.0/example/etcd/etcd-basic.yaml
+<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.10.0/example/etcd/etcd-basic.yaml
 
 # Verify etcd health once pods available
 kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
@@ -657,7 +657,7 @@ kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 
 <p>If you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd
 instead:
-<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.9.0/example/etcd/etcd-pd.yaml
+<div class="highlight"><pre><span></span><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.10.0/example/etcd/etcd-pd.yaml
 </code></pre></div></p>
 <h3 id="m3db_1">M3DB</h3>
 <p>Once etcd is available, you can create an M3DB cluster. An example of a very basic M3DB cluster definition is as
@@ -787,7 +787,7 @@ simple-cluster-rep2-0   1/1     Running   0          37s
     </div>
     
       <script src="../../assets/javascripts/vendor.c3dc8c49.min.js"></script>
-      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.one": "1 matching document", "search.config.separator": "[\\s\\-]+", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.placeholder": "Type to start searching", "search.result.other": "# matching documents", "search.result.none": "No matching documents"}</script>
+      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.one": "1 matching document", "search.config.lang": "en", "search.result.placeholder": "Type to start searching", "search.result.other": "# matching documents", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.none": "No matching documents", "search.config.separator": "[\\s\\-]+", "clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard"}</script>
       
       <script>
         app = initialize({
