@@ -247,6 +247,12 @@ func (it *singleSlicesOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *singleSlicesOfSlicesIterator) Rewind() {
-	it.firstNext = true
+func (it *singleSlicesOfSlicesIterator) Clone() xio.ReaderSliceOfSlicesIterator {
+	return &singleSlicesOfSlicesIterator{
+		readers:   it.readers,
+		firstNext: it.firstNext,
+		closed:    it.closed,
+		start:     it.start,
+		blockSize: it.blockSize,
+	}
 }

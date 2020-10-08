@@ -35,6 +35,12 @@ type readerSliceOfSlicesIterator struct {
 func NewReaderSliceOfSlicesFromBlockReadersIterator(
 	blocks [][]BlockReader,
 ) ReaderSliceOfSlicesFromBlockReadersIterator {
+	return newReaderSliceOfSlicesFromBlockReadersIterator(blocks)
+}
+
+func newReaderSliceOfSlicesFromBlockReadersIterator(
+	blocks [][]BlockReader,
+) *readerSliceOfSlicesIterator {
 	it := &readerSliceOfSlicesIterator{}
 	it.Reset(blocks)
 	return it
@@ -105,8 +111,10 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+func (it *readerSliceOfSlicesIterator) Clone() ReaderSliceOfSlicesIterator {
+	clone := newReaderSliceOfSlicesFromBlockReadersIterator(it.blocks)
+	clone.idx = it.idx
+	return clone
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {

@@ -87,9 +87,9 @@ type ReaderSliceOfSlicesIterator interface {
 	// Size gives the size of bytes in this iterator.
 	Size() (int, error)
 
-	// Rewind returns the iterator to the beginning.
-	// This operation is invalid if any of the block readers have been read.
-	Rewind()
+	// Returns a new copy of the iterator with same internal
+	// so it can be iterated without progressing the original.
+	Clone() ReaderSliceOfSlicesIterator
 }
 
 // ReaderSliceOfSlicesFromBlockReadersIterator is an iterator

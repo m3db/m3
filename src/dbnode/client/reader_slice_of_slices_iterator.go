@@ -205,8 +205,10 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+func (it *readerSliceOfSlicesIterator) Clone() xio.ReaderSliceOfSlicesIterator {
+	clone := newReaderSliceOfSlicesIterator(it.segments, it.pool)
+	clone.idx = it.idx
+	return clone
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
