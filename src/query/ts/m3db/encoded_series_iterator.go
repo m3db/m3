@@ -75,6 +75,7 @@ func (it *encodedSeriesIter) Err() error {
 	if it.err == nil {
 		return nil
 	}
+	fmt.Println("BLOCKERR", it.err)
 	return fmt.Errorf("encoded block %w", it.err)
 }
 

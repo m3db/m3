@@ -188,12 +188,12 @@ func (c *baseNode) batchProcess(
 	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tbn batch builder %w", err)
 	}
 
 	err = builder.AddCols(m.steps)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tbn batch addcols %w", err)
 	}
 
 	numSeries := 0
@@ -309,7 +309,7 @@ func parallelProcess(
 		mu.Unlock()
 		idx++
 		if err != nil {
-			return err
+			return fmt.Errorf("tbn setrow %w", err)
 		}
 	}
 
