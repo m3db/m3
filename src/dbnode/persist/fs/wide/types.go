@@ -38,14 +38,6 @@ type Options interface {
 	// BatchSize returns the batch size.
 	BatchSize() int
 
-	// SetStrict sets strict mode. If strict mode is enabled, computing mismatches
-	// causes an error if entries are not called in lexicographically increasing
-	// ID order. This adds additional overhead.
-	SetStrict(value bool) Options
-
-	// Strict returns the strict setting.
-	Strict() bool
-
 	// SetDecodingOptions sets the decoding options.
 	SetDecodingOptions(value msgpack.DecodingOptions) Options
 
@@ -59,31 +51,29 @@ type Options interface {
 	InstrumentOptions() instrument.Options
 }
 
-// Cleanup is a cleanup function to be called when underlying bytes are
-// no longer necessary.
-type Cleanup func()
-
-// ReadMismatch describes a metric that does not match a given summary,
-// with descriptor of the mismatch.
+// ReadMismatch describes a metric that does not match the expected wide index
+// checksum, with a descriptor of the mismatch. This can indicate both scenarios
+// where the expected checksum was not found, and when there is a mismatch.
 type ReadMismatch struct {
-	// Checksum is the checksum for the mismatched series.
+	// Checksum is the wide index checksum for the mismatched series. All
+	// ReadMismatches will have this set.
 	Checksum int64
-	// EncodedTags are the tags for this query.
-	// NB: only present for entry mismatches.
+	// EncodedTags are the tags for this read mismatch.
+	// NB: This is only present when there is an explicit mismatch, and tags
+	// and IDs have to be returned for quorum reads.
 	EncodedTags []byte
-	// ID is the ID for this query.
-	// NB: only present for entry mismatches.
+	// ID is the ID for this read mismatch.
+	// NB: This is only present when there is an explicit mismatch, and tags
+	// and IDs have to be returned for quorum reads.
 	ID []byte
 }
 
-// IndexChecksumBlockBuffer is a buffer accross IndexChecksumBlocks.
-type IndexChecksumBlockBuffer interface {
+// IndexChecksumBlockReader is a reader accross IndexChecksumBlocks.
+type IndexChecksumBlockReader interface {
 	// Next moves to the next IndexChecksumBlock element.
 	Next() bool
 	// Current yields the current IndexChecksumBlock.
 	Current() ident.IndexChecksumBlock
-	// Close closes the buffer without draining any values.
-	Close()
 }
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.

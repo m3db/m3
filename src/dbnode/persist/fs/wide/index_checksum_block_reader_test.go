@@ -21,48 +21,31 @@
 package wide
 
 import (
+	"testing"
+
 	"github.com/m3db/m3/src/x/ident"
 
-	"go.uber.org/atomic"
+	"github.com/stretchr/testify/assert"
 )
 
-type indexChecksumBlockBuffer struct {
-	closed       *atomic.Bool
-	currentBlock ident.IndexChecksumBlock
-	blocks       chan ident.IndexChecksumBlock
-	buffer       []ident.IndexChecksumBlock
-}
-
-// NewIndexChecksumBlockBuffer creates a new IndexChecksumBlockBuffer.
-func NewIndexChecksumBlockBuffer(
-	blockInput chan ident.IndexChecksumBlock,
-) IndexChecksumBlockBuffer {
-	return &indexChecksumBlockBuffer{
-		closed: atomic.NewBool(false),
-		blocks: blockInput,
-		buffer: make([]ident.IndexChecksumBlock, 0, 10),
-	}
-}
-
-func (b *indexChecksumBlockBuffer) Close() {
-	if !b.closed.Swap(true) {
-		close(b.blocks)
-	}
-}
-
-func (b *indexChecksumBlockBuffer) Current() ident.IndexChecksumBlock {
-	return b.currentBlock
-}
-
-func (b *indexChecksumBlockBuffer) Next() bool {
-	if b.closed.Load() {
-		return false
+func TestIndexChecksumBlockReader(t *testing.T) {
+	ch := make(chan ident.IndexChecksumBlock)
+	buf := NewIndexChecksumBlockReader(ch)
+	bl := ident.IndexChecksumBlock{EndMarker: []byte("foo")}
+	bl2 := ident.IndexChecksumBlock{
+		Checksums: []int64{1, 2, 3},
+		EndMarker: []byte("bar"),
 	}
 
-	if bl, ok := <-b.blocks; ok {
-		b.currentBlock = bl
-		return true
-	}
+	go func() {
+		ch <- bl
+		ch <- bl2
+		close(ch)
+	}()
 
-	return false
+	assert.True(t, buf.Next())
+	assert.Equal(t, bl, buf.Current())
+	assert.True(t, buf.Next())
+	assert.Equal(t, bl2, buf.Current())
+	assert.False(t, buf.Next())
 }

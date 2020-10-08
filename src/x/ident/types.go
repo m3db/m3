@@ -315,6 +315,7 @@ func (t Tags) Equal(other Tags) bool {
 type IndexChecksumBlock struct {
 	// Checksums is the list of index checksums.
 	Checksums []int64
-	// Marker is a batch marker, signifying the ID of the last element in the batch.
-	Marker []byte
+	// EndMarker is a batch marker, signifying the ID of the
+	// last element in the batch.
+	EndMarker []byte
 }

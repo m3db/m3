@@ -35,9 +35,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func buildTestBuffer(bls ...ident.IndexChecksumBlock) IndexChecksumBlockBuffer {
+func buildTestReader(bls ...ident.IndexChecksumBlock) IndexChecksumBlockReader {
 	ch := make(chan ident.IndexChecksumBlock)
-	buffer := NewIndexChecksumBlockBuffer(ch)
+	reader := NewIndexChecksumBlockReader(ch)
 	go func() {
 		for _, bl := range bls {
 			ch <- bl
@@ -45,7 +45,7 @@ func buildTestBuffer(bls ...ident.IndexChecksumBlock) IndexChecksumBlockBuffer {
 
 		close(ch)
 	}()
-	return buffer
+	return reader
 }
 
 // buildOpts builds default test options. Notable here is the xtest.NewHash32()
@@ -70,8 +70,8 @@ func idxEntry(id, tags string) schema.IndexEntry {
 	}
 }
 
-func toEntry(id, tags string, checksum int64) entry {
-	return entry{
+func toEntry(id, tags string, checksum int64) entryWithChecksum {
+	return entryWithChecksum{
 		entry:      idxEntry(id, tags),
 		idChecksum: checksum,
 	}
@@ -101,8 +101,8 @@ func testMismatches(t *testing.T, expected, actual []ReadMismatch) {
 func TestEmitMismatches(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	buffer := buildTestBuffer()
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	reader := buildTestReader()
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	checker, ok := chk.(*entryChecksumMismatchChecker)
 	require.True(t, ok)
 
@@ -125,44 +125,24 @@ func TestEmitMismatches(t *testing.T) {
 	testMismatches(t, expected, mismatches)
 }
 
-func TestComputeMismatchForEntryStrictMode(t *testing.T) {
-	buffer := buildTestBuffer()
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t).SetStrict(true))
-
-	mismatch, err := chk.ComputeMismatchForEntry(idxEntry("foo", "bar"))
-	require.NoError(t, err)
-	testMismatches(t, []ReadMismatch{
-		testEntryMismatch("foo", "bar", 0)}, mismatch,
-	)
-
-	mismatch, err = chk.ComputeMismatchForEntry(idxEntry("zoom", "baz"))
-	require.NoError(t, err)
-	testMismatches(t, []ReadMismatch{
-		testEntryMismatch("zoom", "baz", 0)}, mismatch,
-	)
-
-	_, err = chk.ComputeMismatchForEntry(idxEntry("qux", "bar"))
-	require.Error(t, err)
-}
-
 func TestComputeMismatchInvariant(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1},
-		Marker:    []byte("foo1"),
+		EndMarker: []byte("foo1"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	_, err := chk.ComputeMismatchForEntry(idxEntry("bar1", "bar"))
 	require.Error(t, err)
 }
 
 func TestComputeMismatchInvariantEndOfBlock(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1, 2},
-		Marker:    []byte("foo2"),
+		EndMarker: []byte("foo2"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	_, err := chk.ComputeMismatchForEntry(idxEntry("bar2", "bar"))
 	require.Error(t, err)
 }
@@ -177,23 +157,23 @@ func assertNoMismatch(
 	assert.Equal(t, 0, len(mismatch))
 }
 
-func TestComputeMismatchWithDelayedBuffer(t *testing.T) {
+func TestComputeMismatchWithDelayedReader(t *testing.T) {
 	ch := make(chan ident.IndexChecksumBlock)
-	buffer := NewIndexChecksumBlockBuffer(ch)
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	reader := NewIndexChecksumBlockReader(ch)
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 
 	go func() {
 		time.Sleep(time.Millisecond * 100)
 		ch <- ident.IndexChecksumBlock{
 			Checksums: []int64{1},
-			Marker:    []byte("foo1"),
+			EndMarker: []byte("foo1"),
 		}
 		time.Sleep(time.Millisecond * 200)
 		ch <- ident.IndexChecksumBlock{
 			Checksums: []int64{10},
-			Marker:    []byte("qux10"),
+			EndMarker: []byte("qux10"),
 		}
-		buffer.Close()
+		close(ch)
 	}()
 
 	assertNoMismatch(t, chk, idxEntry("foo1", "bar"))
@@ -202,15 +182,15 @@ func TestComputeMismatchWithDelayedBuffer(t *testing.T) {
 }
 
 func TestComputeMismatchNoMismatch(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1, 2, 3},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{100, 5},
-		Marker:    []byte("zoo5"),
+		EndMarker: []byte("zoo5"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	assertNoMismatch(t, chk, idxEntry("abc1", "aaa"))
 	assertNoMismatch(t, chk, idxEntry("def2", "bbb"))
 	assertNoMismatch(t, chk, idxEntry("foo3", "ccc"))
@@ -220,21 +200,21 @@ func TestComputeMismatchNoMismatch(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesPrimary(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1, 2, 3},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{4, 5},
-		Marker:    []byte("moo5"),
+		EndMarker: []byte("moo5"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{6, 7, 8},
-		Marker:    []byte("qux8"),
+		EndMarker: []byte("qux8"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{9, 10},
-		Marker:    []byte("zzz9"),
+		EndMarker: []byte("zzz9"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 
 	expected := []ReadMismatch{
 		testIdxMismatch(1),
@@ -264,21 +244,21 @@ func TestComputeMismatchMismatchesPrimary(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesSecondary(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{4},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{5},
-		Marker:    []byte("goo5"),
+		EndMarker: []byte("goo5"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{6},
-		Marker:    []byte("moo6"),
+		EndMarker: []byte("moo6"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{7},
-		Marker:    []byte("qux7"),
+		EndMarker: []byte("qux7"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	expected := []ReadMismatch{
 		testEntryMismatch("abc1", "ccc", 1),
 	}
@@ -324,15 +304,15 @@ func TestComputeMismatchMismatchesSecondary(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1, 2, 3},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	}, ident.IndexChecksumBlock{
 		Checksums: []int64{4, 5, 10},
-		Marker:    []byte("goo10"),
+		EndMarker: []byte("goo10"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	expected := []ReadMismatch{
 		testEntryMismatch("abc10", "ccc", 10),
 	}
@@ -359,12 +339,12 @@ func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesSecondarySkipsFirst(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{4},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	expected := []ReadMismatch{
 		testEntryMismatch("foo3", "abc1", 3),
 	}
@@ -377,12 +357,12 @@ func TestComputeMismatchMismatchesSecondarySkipsFirst(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesSecondaryMatchesLast(t *testing.T) {
-	buffer := buildTestBuffer(ident.IndexChecksumBlock{
+	reader := buildTestReader(ident.IndexChecksumBlock{
 		Checksums: []int64{1, 2, 3},
-		Marker:    []byte("foo3"),
+		EndMarker: []byte("foo3"),
 	})
 
-	chk := NewEntryChecksumMismatchChecker(buffer, buildOpts(t))
+	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	expected := []ReadMismatch{
 		testIdxMismatch(1),
 		testIdxMismatch(2),

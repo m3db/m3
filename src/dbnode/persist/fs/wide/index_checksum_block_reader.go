@@ -21,23 +21,40 @@
 package wide
 
 import (
-	"testing"
-
 	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
-func TestIndexChecksumBlockBuffer(t *testing.T) {
-	ch := make(chan ident.IndexChecksumBlock)
-	buf := NewIndexChecksumBlockBuffer(ch)
-	bl := ident.IndexChecksumBlock{Marker: []byte("foo")}
-	go func() {
-		ch <- bl
-		close(ch)
-	}()
+type indexChecksumBlockReader struct {
+	closed       *atomic.Bool
+	currentBlock ident.IndexChecksumBlock
+	blocks       chan ident.IndexChecksumBlock
+}
 
-	assert.True(t, buf.Next())
-	assert.Equal(t, []byte("foo"), buf.Current().Marker)
-	assert.False(t, buf.Next())
+// NewIndexChecksumBlockReader creates a new IndexChecksumBlockReader.
+func NewIndexChecksumBlockReader(
+	blockInput chan ident.IndexChecksumBlock,
+) IndexChecksumBlockReader {
+	return &indexChecksumBlockReader{
+		closed: atomic.NewBool(false),
+		blocks: blockInput,
+	}
+}
+
+func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlock {
+	return b.currentBlock
+}
+
+func (b *indexChecksumBlockReader) Next() bool {
+	if b.closed.Load() {
+		return false
+	}
+
+	if bl, ok := <-b.blocks; ok {
+		b.currentBlock = bl
+		return true
+	}
+
+	return false
 }

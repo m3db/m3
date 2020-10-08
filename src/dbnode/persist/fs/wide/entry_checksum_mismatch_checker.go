@@ -31,20 +31,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type entry struct {
+type entryWithChecksum struct {
 	idChecksum int64
 	entry      schema.IndexEntry
 }
 
 type entryChecksumMismatchChecker struct {
-	blockBuffer  IndexChecksumBlockBuffer
+	blockReader  IndexChecksumBlockReader
 	mismatches   []ReadMismatch
 	strictLastID []byte
 
 	decodeOpts msgpack.DecodingOptions
 	iOpts      instrument.Options
 
-	strict    bool
 	batchIdx  int
 	exhausted bool
 	started   bool
@@ -54,19 +53,18 @@ type entryChecksumMismatchChecker struct {
 // checker, backed by the given block buffer.
 // NB: index entries MUST be checked in lexicographical order by ID.
 func NewEntryChecksumMismatchChecker(
-	blockBuffer IndexChecksumBlockBuffer,
+	blockReader IndexChecksumBlockReader,
 	opts Options,
 ) EntryChecksumMismatchChecker {
 	return &entryChecksumMismatchChecker{
-		blockBuffer: blockBuffer,
+		blockReader: blockReader,
 		mismatches:  make([]ReadMismatch, 0, opts.BatchSize()),
 		decodeOpts:  opts.DecodingOptions(),
 		iOpts:       opts.InstrumentOptions(),
-		strict:      opts.Strict(),
 	}
 }
 
-func (w *entryChecksumMismatchChecker) entryMismatch(e entry) ReadMismatch {
+func entryMismatch(e entryWithChecksum) ReadMismatch {
 	return ReadMismatch{
 		Checksum:    e.idChecksum,
 		EncodedTags: e.entry.EncodedTags,
@@ -74,30 +72,32 @@ func (w *entryChecksumMismatchChecker) entryMismatch(e entry) ReadMismatch {
 	}
 }
 
-func (w *entryChecksumMismatchChecker) entryMismatches(entries ...entry) []ReadMismatch {
+func (c *entryChecksumMismatchChecker) entryMismatches(
+	entries ...entryWithChecksum,
+) []ReadMismatch {
 	for _, e := range entries {
-		w.mismatches = append(w.mismatches, w.entryMismatch(e))
+		c.mismatches = append(c.mismatches, entryMismatch(e))
 	}
 
-	return w.mismatches
+	return c.mismatches
 }
 
-func (w *entryChecksumMismatchChecker) indexMismatches(checksums ...int64) []ReadMismatch {
-	for _, c := range checksums {
-		w.mismatches = append(w.mismatches, ReadMismatch{Checksum: c})
+func (c *entryChecksumMismatchChecker) indexMismatches(checksums ...int64) []ReadMismatch {
+	for _, checksum := range checksums {
+		c.mismatches = append(c.mismatches, ReadMismatch{Checksum: checksum})
 	}
 
-	return w.mismatches
+	return c.mismatches
 }
 
-func (w *entryChecksumMismatchChecker) invariant(
+func (c *entryChecksumMismatchChecker) invariant(
 	marker []byte,
 	checksum int64,
-	entry entry,
+	entry entryWithChecksum,
 ) error {
 	// Checksums match but IDs do not. Treat as invariant violation.
 	err := fmt.Errorf("checksum collision")
-	instrument.EmitAndLogInvariantViolation(w.iOpts, func(l *zap.Logger) {
+	instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
 		l.Error(
 			err.Error(),
 			zap.Int64("checksum", checksum),
@@ -108,111 +108,97 @@ func (w *entryChecksumMismatchChecker) invariant(
 	return err
 }
 
-func (w *entryChecksumMismatchChecker) ComputeMismatchForEntry(
-	e schema.IndexEntry,
+func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
+	indexEntry schema.IndexEntry,
 ) ([]ReadMismatch, error) {
-	if w.strict {
-		if w.strictLastID == nil {
-			w.strictLastID = append(make([]byte, 0, len(e.ID)), e.ID...)
-		} else {
-			if bytes.Compare(w.strictLastID, e.ID) != -1 {
-				return nil, fmt.Errorf("entry ID (%s) must lexicographically "+
-					"follow previous entry ID (%s)", string(e.ID), string(w.strictLastID))
-			}
-
-			w.strictLastID = w.strictLastID[:0]
-			w.strictLastID = append(w.strictLastID, e.ID...)
-		}
-	}
-
-	hash := w.decodeOpts.IndexEntryHasher()
-	checksum := hash.HashIndexEntry(e)
-	entry := entry{entry: e, idChecksum: checksum}
-	w.mismatches = w.mismatches[:0]
-	if w.exhausted {
+	hash := c.decodeOpts.IndexEntryHasher()
+	checksum := hash.HashIndexEntry(indexEntry)
+	entry := entryWithChecksum{entry: indexEntry, idChecksum: checksum}
+	c.mismatches = c.mismatches[:0]
+	if c.exhausted {
 		// NB: no remaining batches in the index checksum block; any further
 		// elements are mismatches (missing from primary).
-		return w.entryMismatches(entry), nil
+		return c.entryMismatches(entry), nil
 	}
 
-	if !w.started {
-		w.started = true
-		if !w.blockBuffer.Next() {
+	if !c.started {
+		c.started = true
+		if !c.blockReader.Next() {
 			// NB: no index checksum blocks available; any further
 			// elements are mismatches (missing from primary).
-			w.exhausted = true
-			return w.entryMismatches(entry), nil
+			c.exhausted = true
+			return c.entryMismatches(entry), nil
 		}
 
-		w.batchIdx = 0
+		c.batchIdx = 0
 	}
 
-	batch := w.blockBuffer.Current()
+	batch := c.blockReader.Current()
 	markerIdx := len(batch.Checksums) - 1
 	for {
-		checksum := batch.Checksums[w.batchIdx]
-		compare := bytes.Compare(batch.Marker, entry.entry.ID)
-		if w.batchIdx == markerIdx {
+		checksum := batch.Checksums[c.batchIdx]
+		compare := bytes.Compare(batch.EndMarker, entry.entry.ID)
+		if c.batchIdx == markerIdx {
 			// NB: this is the last element in the batch. Check ID against MARKER.
 			if entry.idChecksum == checksum {
 				if compare != 0 {
 					// Checksums match but IDs do not. Treat as invariant violation.
-					return nil, w.invariant(batch.Marker, checksum, entry)
+					return nil, c.invariant(batch.EndMarker, checksum, entry)
 				}
 
 				// ID and checksum match. Advance the block iter and return gathered mismatches.
-				if !w.blockBuffer.Next() {
-					w.exhausted = true
+				if !c.blockReader.Next() {
+					c.exhausted = true
 				} else {
-					batch = w.blockBuffer.Current()
+					batch = c.blockReader.Current()
 					markerIdx = len(batch.Checksums) - 1
-					w.batchIdx = 0
+					c.batchIdx = 0
 				}
 
-				return w.mismatches, nil
+				return c.mismatches, nil
 			}
 
 			// Checksum mismatch.
 			if compare == 0 {
 				// IDs match but checksums do not. Advance the block iter and return
 				// mismatch.
-				if !w.blockBuffer.Next() {
-					w.exhausted = true
+				if !c.blockReader.Next() {
+					c.exhausted = true
 				} else {
-					batch = w.blockBuffer.Current()
+					batch = c.blockReader.Current()
 					markerIdx = len(batch.Checksums) - 1
-					w.batchIdx = 0
+					c.batchIdx = 0
 				}
 
-				return w.entryMismatches(entry), nil
+				return c.entryMismatches(entry), nil
 			} else if compare > 0 {
 				// This is a mismatch on primary that appears before the
 				// marker element. Return mismatch but do not advance iter.
-				return w.entryMismatches(entry), nil
+				return c.entryMismatches(entry), nil
 			}
 
 			// The current batch here is exceeded. Emit the current batch marker as
 			// a mismatch on primary, and advance the block iter.
-			w.indexMismatches(checksum)
-			if !w.blockBuffer.Next() {
+			c.indexMismatches(checksum)
+			if !c.blockReader.Next() {
 				// If no further values, add the current entry as a mismatch and return.
-				w.exhausted = true
-				return w.entryMismatches(entry), nil
+				c.exhausted = true
+				return c.entryMismatches(entry), nil
 			}
 
-			batch = w.blockBuffer.Current()
+			batch = c.blockReader.Current()
 			markerIdx = len(batch.Checksums) - 1
-			w.batchIdx = 0
+			c.batchIdx = 0
 			continue
 		}
 
 		if checksum == entry.idChecksum {
 			// Matches: increment batch index and return any gathered mismatches.
-			w.batchIdx = w.batchIdx + 1
-			return w.mismatches, nil
+			c.batchIdx = c.batchIdx + 1
+			return c.mismatches, nil
 		}
 
-		for nextBatchIdx := w.batchIdx + 1; nextBatchIdx < markerIdx; nextBatchIdx++ {
+		for nextBatchIdx := c.batchIdx + 1; nextBatchIdx < markerIdx; nextBatchIdx++ {
 			// NB: read next hashes, checking for index checksum matches.
 			nextChecksum := batch.Checksums[nextBatchIdx]
 			if entry.idChecksum != nextChecksum {
@@ -220,8 +206,8 @@ func (w *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 			}
 
 			// Checksum match. Add previous checksums as mismatches.
-			mismatches := w.indexMismatches(batch.Checksums[w.batchIdx:nextBatchIdx]...)
-			w.batchIdx = nextBatchIdx + 1
+			mismatches := c.indexMismatches(batch.Checksums[c.batchIdx:nextBatchIdx]...)
+			c.batchIdx = nextBatchIdx + 1
 			return mismatches, nil
 		}
 
@@ -230,56 +216,56 @@ func (w *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 		if entry.idChecksum == checksum {
 			if compare != 0 {
 				// Checksums match but IDs do not. Treat as invariant violation.
-				return nil, w.invariant(batch.Marker, checksum, entry)
+				return nil, c.invariant(batch.EndMarker, checksum, entry)
 			}
 
-			w.indexMismatches(batch.Checksums[w.batchIdx:markerIdx]...)
+			c.indexMismatches(batch.Checksums[c.batchIdx:markerIdx]...)
 			// ID and checksum match. Advance the block iter and return empty.
-			if !w.blockBuffer.Next() {
-				w.exhausted = true
+			if !c.blockReader.Next() {
+				c.exhausted = true
 			} else {
-				batch = w.blockBuffer.Current()
+				batch = c.blockReader.Current()
 				markerIdx = len(batch.Checksums) - 1
-				w.batchIdx = 0
+				c.batchIdx = 0
 			}
 
-			return w.mismatches, nil
+			return c.mismatches, nil
 		}
 
 		// Checksums do not match.
 		if compare > 0 {
 			// This is a mismatch on primary that appears before the
 			// marker element. Return mismatch but do not advance iter.
-			return w.entryMismatches(entry), nil
+			return c.entryMismatches(entry), nil
 		}
 
 		// Current value is past the end of this batch. Mark all in batch as
 		// mismatches, and receive next batch.
-		w.indexMismatches(batch.Checksums[w.batchIdx:]...)
-		if !w.blockBuffer.Next() {
+		c.indexMismatches(batch.Checksums[c.batchIdx:]...)
+		if !c.blockReader.Next() {
 			// If no further values, add the current entry as a mismatch and return.
-			w.exhausted = true
-			return w.entryMismatches(entry), nil
+			c.exhausted = true
+			return c.entryMismatches(entry), nil
 		}
 
-		batch = w.blockBuffer.Current()
+		batch = c.blockReader.Current()
 		markerIdx = len(batch.Checksums) - 1
-		w.batchIdx = 0
+		c.batchIdx = 0
 	}
 }
 
-func (w *entryChecksumMismatchChecker) Drain() []ReadMismatch {
-	if w.exhausted {
+func (c *entryChecksumMismatchChecker) Drain() []ReadMismatch {
+	if c.exhausted {
 		return nil
 	}
 
-	w.mismatches = w.mismatches[:0]
-	curr := w.blockBuffer.Current()
-	w.indexMismatches(curr.Checksums[w.batchIdx:]...)
-	for w.blockBuffer.Next() {
-		curr := w.blockBuffer.Current()
-		w.indexMismatches(curr.Checksums...)
+	c.mismatches = c.mismatches[:0]
+	curr := c.blockReader.Current()
+	c.indexMismatches(curr.Checksums[c.batchIdx:]...)
+	for c.blockReader.Next() {
+		curr := c.blockReader.Current()
+		c.indexMismatches(curr.Checksums...)
 	}
 
-	return w.mismatches
+	return c.mismatches
 }

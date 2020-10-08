@@ -39,14 +39,13 @@ var (
 )
 
 type options struct {
-	strict          bool
 	batchSize       int
 	bytesPool       pool.BytesPool
 	decodingOptions msgpack.DecodingOptions
 	instrumentOpts  instrument.Options
 }
 
-// NewOptions creates a new set of object pool options
+// NewOptions creates a new set of wide query options.
 func NewOptions() Options {
 	return &options{
 		batchSize:      defaultbatchSize,
@@ -67,16 +66,6 @@ func (o *options) Validate() error {
 func (o *options) SetBatchSize(value int) Options {
 	opts := *o
 	opts.batchSize = value
-	return &opts
-}
-
-func (o *options) Strict() bool {
-	return o.strict
-}
-
-func (o *options) SetStrict(value bool) Options {
-	opts := *o
-	opts.strict = value
 	return &opts
 }
 

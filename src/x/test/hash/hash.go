@@ -24,10 +24,10 @@ import (
 	"hash"
 	"regexp"
 	"strconv"
-	"sync"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/tj/assert"
 
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +60,7 @@ func (h *testHash) Sum(b []byte) []byte {
 		return b
 	}
 
-	i, err := strconv.Atoi(string(matched[0]))
+	i, err := strconv.Atoi(matched[0])
 	require.NoError(h.t, err)
 	h.v = h.v + uint32(i)
 	return b
@@ -76,21 +76,26 @@ func NewParseValueHash32(t *testing.T) hash.Hash32 {
 }
 
 type parsedIndexHasher struct {
-	sync.Mutex
-	hash hash.Hash32
+	t  *testing.T
+	re *regexp.Regexp
 }
 
 // NewParsedIndexHasher builds a new test IndexEntryHasher, hashing IndexEntries
 // to the parsed value of their IDs.
 func NewParsedIndexHasher(t *testing.T) schema.IndexEntryHasher {
-	return &parsedIndexHasher{hash: NewParseValueHash32(t)}
+	re, err := regexp.Compile(`\d[\d,]*[\.]?[\d{2}]*`)
+	require.NoError(t, err)
+
+	return &parsedIndexHasher{t: t, re: re}
 }
 
 func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
-	h.Lock()
-	h.hash.Reset()
-	h.hash.Sum(e.ID)
-	hash := int64(h.hash.Sum32())
-	h.Unlock()
-	return hash
+	matched := h.re.FindAllString(string(e.ID), -1)
+	if len(matched) == 0 {
+		return 0
+	}
+
+	i, err := strconv.Atoi(matched[0])
+	assert.NoError(h.t, err)
+	return int64(i)
 }
