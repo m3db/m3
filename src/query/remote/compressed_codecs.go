@@ -190,16 +190,16 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	itTags := it.Tags().Duplicate()
-	defer itTags.Rewind()
-	tags, err := buildTags(itTags, iterPools)
-	if err != nil {
-		return nil, err
-	}
+	// itTags := it.Tags()
+	// defer itTags.Rewind()
+	// tags, err := buildTags(itTags, iterPools)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	if err := itTags.Err(); err != nil {
-		fmt.Println("TAG ERR", err)
-	}
+	// if err := itTags.Err(); err != nil {
+	// 	fmt.Println("TAG ERR", err)
+	// }
 	return &rpc.Series{
 		Meta: &rpc.SeriesMetadata{
 			Id:        it.ID().Bytes(),
@@ -208,7 +208,7 @@ func CompressedSeriesFromSeriesIterator(
 		},
 		Value: &rpc.Series_Compressed{
 			Compressed: &rpc.M3CompressedSeries{
-				CompressedTags: tags,
+				CompressedTags: []byte{}, //tags,
 				Replicas:       compressedReplicas,
 			},
 		},
