@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -112,6 +113,7 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Clone() ReaderSliceOfSlicesIterator {
+	fmt.Println("START IDX", it.idx)
 	clone := newReaderSliceOfSlicesFromBlockReadersIterator(it.blocks)
 	clone.idx = it.idx
 	return clone
