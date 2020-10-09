@@ -118,11 +118,19 @@ func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error
 		return nil, err
 	}
 
+	m3EndTime := opts.EndTime
+	if m3EndTime.Second() == 0 {
+		// Graphite is end-time inclusive, so we won't fetch
+		// The last datapoint unless we add this extra minute
+		offset := time.Minute
+		m3EndTime = m3EndTime.Add(offset)
+	}
+	
 	return &storage.FetchQuery{
 		Raw:         query,
 		TagMatchers: matchers,
 		Start:       opts.StartTime,
-		End:         opts.EndTime,
+		End:         m3EndTime,
 		// NB: interval is not used for initial consolidation step from the storage
 		// so it's fine to use default here.
 		Interval: time.Duration(0),
