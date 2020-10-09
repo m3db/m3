@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
@@ -2756,7 +2757,6 @@ func (s *dbShard) AggregateTiles(
 	for readerIter.Next() {
 		var (
 			seriesIter, id, encodedTags = readerIter.Current()
-			dp                          ts.Datapoint
 			prevFrameLastValue          = math.NaN()
 			writeErr                    error
 		)
@@ -2786,37 +2786,14 @@ func (s *dbShard) AggregateTiles(
 					downsampledValues = tile.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
 				} else {
 					// Plain last value per frame.
-					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValue := tile.DownsampledValue{
+						FrameIndex: lastIdx,
+						Value: frameValues[lastIdx],
+					}
 					downsampledValues = append(downsampledValues, downsampledValue)
 				}
 
-				for _, downsampled := range downsampledValues {
-					dp.Value = downsampled.Value
-					dp.Timestamp = frame.Timestamps()[downsampled.FrameIndex]
-
-					// TODO: what happens if unit has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					unit, err := frame.Units().Value(downsampled.FrameIndex)
-					if err != nil {
-						writeErr = err
-						break
-					}
-
-					// TODO: what happens if annotation has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					annot, err := frame.Annotations().Value(downsampled.FrameIndex)
-					if err != nil {
-						writeErr = err
-						break
-					}
-
-					err = encoder.Encode(dp, unit, annot)
-					if err != nil {
-						writeErr = err
-						break
-					}
-				}
-
+				writeErr = encodeDownsampledValues(downsampledValues, frame, encoder)
 				if writeErr != nil {
 					break
 				}
@@ -2888,6 +2865,40 @@ func (s *dbShard) AggregateTiles(
 		zap.Int64("processedTiles", processedTileCount.Load()))
 
 	return processedTileCount.Load(), nil
+}
+
+func encodeDownsampledValues(
+	downsampledValues []tile.DownsampledValue,
+	frame tile.SeriesBlockFrame,
+	encoder encoding.Encoder,
+) error {
+	for _, downsampled := range downsampledValues {
+		dp := ts.Datapoint{
+			Value:     downsampled.Value,
+			Timestamp: frame.Timestamps()[downsampled.FrameIndex],
+		}
+
+		// TODO: what happens if unit has changed mid-tile?
+		// Write early and then do the remaining values separately?
+		unit, err := frame.Units().Value(downsampled.FrameIndex)
+		if err != nil {
+			return err
+		}
+
+		// TODO: what happens if annotation has changed mid-tile?
+		// Write early and then do the remaining values separately?
+		annot, err := frame.Annotations().Value(downsampled.FrameIndex)
+		if err != nil {
+			return err
+		}
+
+		err = encoder.Encode(dp, unit, annot)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
