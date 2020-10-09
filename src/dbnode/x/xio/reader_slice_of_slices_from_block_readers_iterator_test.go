@@ -61,9 +61,10 @@ func TestRewind(t *testing.T) {
 	}
 
 	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	idx := iter.Index()
 	validateIterReaders(t, iter, readers)
 
-	iter.Rewind()
+	iter.Rewind(idx)
 	validateIterReaders(t, iter, readers)
 }
 

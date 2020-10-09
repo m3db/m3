@@ -165,6 +165,7 @@ func CompressedSeriesFromSeriesIterator(
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
+		idx := readers.Index()
 		for next := true; next; next = readers.Next() {
 			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {
@@ -173,13 +174,12 @@ func CompressedSeriesFromSeriesIterator(
 			replicaSegments = append(replicaSegments, segments)
 		}
 
-		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
-		// These multi-readers are queued up via ResetSliceOfSlices so that the first Current
-		// index is set, and therefore we must also call an initial Next here to match that state.
-		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
-		// initial Next move and assert that all iters start w/ Current as nil.
-		readers.Rewind()
-		readers.Next()
+		// Restore the original index of the reader so the caller can resume
+		// the iterator at the expected state. This is safe because we do not
+		// consume any of the internal block readers within the iterator.
+		// It cannot be asserted that iters are passed in here at idx 0 which is
+		// why we make sure to rewind to the specific original index.
+		readers.Rewind(idx)
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,

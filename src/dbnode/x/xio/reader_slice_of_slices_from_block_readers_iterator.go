@@ -105,8 +105,12 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+func (it *readerSliceOfSlicesIterator) Rewind(idx int) {
+	it.idx = idx
+}
+
+func (it *readerSliceOfSlicesIterator) Index() int {
+	return it.idx
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {
