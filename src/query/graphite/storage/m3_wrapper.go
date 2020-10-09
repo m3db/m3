@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -47,6 +49,7 @@ var (
 type m3WrappedStore struct {
 	m3             storage.Storage
 	enforcer       cost.ChainedEnforcer
+	m3dbOpts       m3db.Options
 	instrumentOpts instrument.Options
 	opts           M3WrappedStorageOptions
 }
@@ -54,6 +57,16 @@ type m3WrappedStore struct {
 // M3WrappedStorageOptions is the graphite storage options.
 type M3WrappedStorageOptions struct {
 	AggregateNamespacesAllData bool
+	ShiftTimeStart             time.Duration
+	ShiftTimeEnd               time.Duration
+	ShiftStepsStart            int
+	ShiftStepsEnd              int
+	RenderPartialStart         bool
+	RenderPartialEnd           bool
+}
+
+type seriesMetadata struct {
+	Resolution time.Duration
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
@@ -61,6 +74,7 @@ type M3WrappedStorageOptions struct {
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
 	enforcer cost.ChainedEnforcer,
+	m3dbOpts m3db.Options,
 	instrumentOpts instrument.Options,
 	opts M3WrappedStorageOptions,
 ) Storage {
@@ -71,6 +85,7 @@ func NewM3WrappedStorage(
 	return &m3WrappedStore{
 		m3:             m3storage,
 		enforcer:       enforcer,
+		m3dbOpts:       m3dbOpts,
 		instrumentOpts: instrumentOpts,
 		opts:           opts,
 	}
@@ -112,38 +127,71 @@ func GetQueryTerminatorTagName(query string) []byte {
 	return graphite.TagName(metricLength)
 }
 
-func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error) {
+func translateQuery(
+	query string,
+	fetchOpts FetchOptions,
+	opts M3WrappedStorageOptions,
+) (*storage.FetchQuery, error) {
 	matchers, err := TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, err
 	}
 
+	if shift := opts.ShiftTimeStart; shift != 0 {
+		fetchOpts.StartTime = fetchOpts.StartTime.Add(shift)
+	}
+	if shift := opts.ShiftTimeEnd; shift != 0 {
+		fetchOpts.EndTime = fetchOpts.EndTime.Add(shift)
+	}
+
 	return &storage.FetchQuery{
 		Raw:         query,
 		TagMatchers: matchers,
-		Start:       opts.StartTime,
-		End:         opts.EndTime,
+		Start:       fetchOpts.StartTime,
+		End:         fetchOpts.EndTime,
 		// NB: interval is not used for initial consolidation step from the storage
 		// so it's fine to use default here.
 		Interval: time.Duration(0),
 	}, nil
 }
 
+type truncateBoundsToResolutionOptions struct {
+	shiftStepsStart    int
+	shiftStepsEnd      int
+	renderPartialStart bool
+	renderPartialEnd   bool
+}
+
 func truncateBoundsToResolution(
 	start time.Time,
 	end time.Time,
 	resolution time.Duration,
+	opts truncateBoundsToResolutionOptions,
 ) (time.Time, time.Time) {
 	truncatedStart := start.Truncate(resolution)
 	// NB: if truncated start matches start, it's already valid.
-	if truncatedStart.Before(start) {
+	if !opts.renderPartialStart || truncatedStart.Before(start) {
+		// Otherwise move it forward
 		start = truncatedStart.Add(resolution)
 	}
 
 	length := float64(end.Sub(truncatedStart))
-	steps := math.Floor(length / float64(resolution))
+	round := math.Floor
+	if opts.renderPartialEnd {
+		round = math.Ceil
+	}
+	steps := round(length / float64(resolution))
 	truncatedLength := time.Duration(steps) * resolution
 	end = start.Add(truncatedLength)
+
+	if shiftSteps := opts.shiftStepsStart; shiftSteps != 0 {
+		start = start.Add(time.Duration(shiftSteps) * resolution)
+	}
+
+	if shiftSteps := opts.shiftStepsEnd; shiftSteps != 0 {
+		end = end.Add(time.Duration(shiftSteps) * resolution)
+	}
+
 	return start, end
 }
 
@@ -151,34 +199,94 @@ func translateTimeseries(
 	ctx xctx.Context,
 	result block.Result,
 	start, end time.Time,
+	m3dbOpts m3db.Options,
+	truncateOpts truncateBoundsToResolutionOptions,
 ) ([]*ts.Series, error) {
 	if len(result.Blocks) == 0 {
 		return []*ts.Series{}, nil
 	}
 
-	block := result.Blocks[0]
-	defer block.Close()
+	bl := result.Blocks[0]
+	defer bl.Close()
 
-	iter, err := block.SeriesIter()
+	iter, err := bl.SeriesIter()
 	if err != nil {
 		return nil, err
 	}
 
-	seriesMetas := iter.SeriesMeta()
 	resolutions := result.Metadata.Resolutions
+	seriesMetas := iter.SeriesMeta()
 	if len(seriesMetas) != len(resolutions) {
 		return nil, fmt.Errorf("number of timeseries %d does not match number of "+
 			"resolutions %d", len(seriesMetas), len(resolutions))
 	}
 
+	seriesMetadataMap := newSeriesMetadataMap(seriesMetadataMapOptions{
+		InitialSize: iter.SeriesCount(),
+	})
+
+	for i, meta := range seriesMetas {
+		seriesMetadataMap.SetUnsafe(meta.Name, seriesMetadata{
+			Resolution: resolutions[i],
+		}, seriesMetadataMapSetUnsafeOptions{
+			NoCopyKey:     true,
+			NoFinalizeKey: true,
+		})
+	}
+
+	var (
+		results     []*ts.Series
+		resultsLock sync.Mutex
+	)
+	processor := m3dbOpts.BlockSeriesProcessor()
+	err = processor.Process(bl, m3dbOpts, m3db.BlockSeriesProcessorFn(func(
+		iter block.SeriesIter,
+	) error {
+		series, err := translateTimeseriesFromIter(ctx, iter,
+			start, end, seriesMetadataMap, truncateOpts)
+		if err != nil {
+			return err
+		}
+
+		resultsLock.Lock()
+		defer resultsLock.Unlock()
+
+		if len(results) == 0 {
+			// Don't grow slice, can just take ref.
+			results = series
+		} else {
+			results = append(results, series...)
+		}
+
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func translateTimeseriesFromIter(
+	ctx xctx.Context,
+	iter block.SeriesIter,
+	queryStart, queryEnd time.Time,
+	seriesMetadataMap *seriesMetadataMap,
+	opts truncateBoundsToResolutionOptions,
+) ([]*ts.Series, error) {
+	seriesMetas := iter.SeriesMeta()
 	series := make([]*ts.Series, 0, len(seriesMetas))
 	for idx := 0; iter.Next(); idx++ {
-		resolution := time.Duration(resolutions[idx])
+		meta, ok := seriesMetadataMap.Get(seriesMetas[idx].Name)
+		if !ok {
+			return nil, fmt.Errorf("series meta for series missing: %s", seriesMetas[idx].Name)
+		}
+
+		resolution := time.Duration(meta.Resolution)
 		if resolution <= 0 {
 			return nil, errSeriesNoResolution
 		}
 
-		start, end := truncateBoundsToResolution(start, end, resolution)
+		start, end := truncateBoundsToResolution(queryStart, queryEnd, resolution, opts)
 		length := int(end.Sub(start) / resolution)
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
@@ -213,9 +321,9 @@ func translateTimeseries(
 }
 
 func (s *m3WrappedStore) FetchByQuery(
-	ctx xctx.Context, query string, opts FetchOptions,
+	ctx xctx.Context, query string, fetchOpts FetchOptions,
 ) (*FetchResult, error) {
-	m3query, err := translateQuery(query, opts)
+	m3query, err := translateQuery(query, fetchOpts, s.opts)
 	if err != nil {
 		// NB: error here implies the query cannot be translated; empty set expected
 		// rather than propagating an error.
@@ -228,10 +336,10 @@ func (s *m3WrappedStore) FetchByQuery(
 		}, nil
 	}
 
-	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
+	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), fetchOpts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
-	fetchOptions.SeriesLimit = opts.Limit
+	fetchOptions.SeriesLimit = fetchOpts.Limit
 	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
 	defer perQueryEnforcer.Close()
 
@@ -259,7 +367,15 @@ func (s *m3WrappedStore) FetchByQuery(
 		return nil, fmt.Errorf("expected at most one block, received %d", blockCount)
 	}
 
-	series, err := translateTimeseries(ctx, res, opts.StartTime, opts.EndTime)
+	truncateOpts := truncateBoundsToResolutionOptions{
+		shiftStepsStart:    s.opts.ShiftStepsStart,
+		shiftStepsEnd:      s.opts.ShiftStepsEnd,
+		renderPartialStart: s.opts.RenderPartialStart,
+		renderPartialEnd:   s.opts.RenderPartialEnd,
+	}
+
+	series, err := translateTimeseries(ctx, res,
+		fetchOpts.StartTime, fetchOpts.EndTime, s.m3dbOpts, truncateOpts)
 	if err != nil {
 		return nil, err
 	}

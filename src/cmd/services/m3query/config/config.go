@@ -420,6 +420,14 @@ type CarbonConfiguration struct {
 	// on the query range whether a single namespace can fulfill the
 	// entire query and if so to only fetch from that one aggregated namespace.
 	AggregateNamespacesAllData bool `yaml:"aggregateNamespacesAllData"`
+	// ShiftTimeStart sets a constant time to shift start by.
+	ShiftTimeStart time.Duration `yaml:"shiftTimeStart"`
+	// ShiftTimeEnd sets a constant time to shift end by.
+	ShiftTimeEnd time.Duration `yaml:"shiftTimeEnd"`
+	// ShiftStepsStart sets a constant set of steps to shift start by.
+	ShiftStepsStart int `yaml:"shiftStepsStart"`
+	// ShiftStepsEnd sets a constant set of steps to shift end by.
+	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.

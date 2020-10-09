@@ -90,6 +90,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetBlockSeriesProcessor set the graphite block iterators function.
+	SetBlockSeriesProcessor(value BlockSeriesProcessor) Options
+	// BlockSeriesProcessor returns the graphite block iterators function.
+	BlockSeriesProcessor() BlockSeriesProcessor
 	// SetCustomAdminOptions sets custom admin options.
 	SetCustomAdminOptions([]client.CustomAdminOption) Options
 	// CustomAdminOptions gets custom admin options.
@@ -120,6 +124,11 @@ type IteratorBatchingFn func(
 	seriesMetas []block.SeriesMeta,
 	meta block.Metadata,
 	opts Options,
+) ([]block.SeriesIterBatch, error)
+
+// GraphiteBlockIteratorsFn returns block iterators for graphite decoding.
+type GraphiteBlockIteratorsFn func(
+	block.Block,
 ) ([]block.SeriesIterBatch, error)
 
 type peekValue struct {

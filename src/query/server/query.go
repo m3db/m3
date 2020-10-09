@@ -473,6 +473,10 @@ func Run(runOpts RunOptions) {
 	if cfg.Carbon != nil {
 		graphiteStorageOpts.AggregateNamespacesAllData =
 			cfg.Carbon.AggregateNamespacesAllData
+		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
+		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
+		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
+		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
 	}
 
 	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
