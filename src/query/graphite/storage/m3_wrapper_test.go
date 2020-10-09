@@ -56,7 +56,7 @@ func TestTranslateQuery(t *testing.T) {
 
 	translated, err := translateQuery(query, opts)
 	assert.NoError(t, err)
-	assert.Equal(t, end, translated.End)
+	assert.Equal(t, end.Add(time.Minute), translated.End)
 	assert.Equal(t, start, translated.Start)
 	assert.Equal(t, time.Duration(0), translated.Interval)
 	assert.Equal(t, query, translated.Raw)
