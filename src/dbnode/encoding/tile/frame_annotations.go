@@ -22,6 +22,7 @@ package tile
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 )
@@ -38,58 +39,56 @@ func newAnnotationRecorder() *annotationRecorder {
 	return &annotationRecorder{}
 }
 
-func (a *annotationRecorder) SingleValue() (ts.Annotation, bool) {
-	return a.a, a.count > 0 && len(a.as) == 0
-}
-
-func (a *annotationRecorder) Values() []ts.Annotation {
-	if len(a.as) == 0 {
-		if a.as == nil {
-			a.as = make([]ts.Annotation, 0, a.count)
-		}
-
-		for i := 0; i < a.count; i++ {
-			a.as = append(a.as, a.a)
-		}
+func (r *annotationRecorder) Value(idx int) (ts.Annotation, error) {
+	if idx < 0 || idx >= r.count {
+		return nil, fmt.Errorf("annotationRecorder.Value index (%d) out of bounds [0; %d)", idx, r.count)
 	}
 
-	return a.as
+	if r.singleValue() {
+		return r.a, nil
+	}
+
+	return r.as[idx], nil
 }
 
-func (a *annotationRecorder) record(annotation ts.Annotation) {
-	a.count++
-	if a.count == 1 {
-		a.a = annotation
+func (r *annotationRecorder) singleValue() bool {
+	return r.count > 0 && len(r.as) == 0
+}
+
+func (r *annotationRecorder) record(annotation ts.Annotation) {
+	r.count++
+	if r.count == 1 {
+		r.a = annotation
 		return
 	}
 
 	// NB: annotation has already changed in this dataset.
-	if len(a.as) > 0 {
-		a.as = append(a.as, annotation)
+	if len(r.as) > 0 {
+		r.as = append(r.as, annotation)
 		return
 	}
 
 	// NB: same annotation as previously recorded; skip.
-	if bytes.Equal(a.a, annotation) {
+	if bytes.Equal(r.a, annotation) {
 		return
 	}
 
-	if a.as == nil {
-		a.as = make([]ts.Annotation, 0, a.count)
+	if r.as == nil {
+		r.as = make([]ts.Annotation, 0, r.count)
 	}
 
-	for i := 0; i < a.count-1; i++ {
-		a.as = append(a.as, a.a)
+	for i := 0; i < r.count-1; i++ {
+		r.as = append(r.as, r.a)
 	}
 
-	a.as = append(a.as, annotation)
+	r.as = append(r.as, annotation)
 }
 
-func (a *annotationRecorder) reset() {
-	a.count = 0
-	for i := range a.as {
-		a.as[i] = nil
+func (r *annotationRecorder) reset() {
+	r.count = 0
+	for i := range r.as {
+		r.as[i] = nil
 	}
 
-	a.as = a.as[:0]
+	r.as = r.as[:0]
 }

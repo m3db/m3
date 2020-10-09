@@ -1769,7 +1769,6 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		ctx             = context.NewContext()
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
@@ -1819,14 +1818,13 @@ func TestShardAggregateTiles(t *testing.T) {
 	}
 
 	processedTileCount, err := targetShard.AggregateTiles(
-		ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
+		sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), processedTileCount)
 }
 
 func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	var (
-		ctx     = context.NewContext()
 		srcNsID = ident.StringID("src")
 		start   = time.Now()
 	)
@@ -1838,7 +1836,7 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	sourceBlockVolumes := []shardBlockVolume{{start, 0}}
 
 	_, err := targetShard.AggregateTiles(
-		ctx, srcNsID, 1, blockReaders, sourceBlockVolumes, AggregateTilesOptions{}, nil)
+		srcNsID, 1, blockReaders, sourceBlockVolumes, AggregateTilesOptions{}, nil)
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 

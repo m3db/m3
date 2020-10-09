@@ -1624,19 +1624,17 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 }
 
 func (n *dbNamespace) AggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
@@ -1690,7 +1688,7 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		if err != nil {

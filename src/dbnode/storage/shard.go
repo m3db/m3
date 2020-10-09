@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding/tile"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -2634,7 +2635,6 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	ctx context.Context,
 	sourceNsID ident.ID,
 	sourceShardID uint32,
 	blockReaders []fs.DataFileSetReader,
@@ -2747,53 +2747,89 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedTileCount atomic.Int64
 		multiErr           xerrors.MultiError
-		dp                 ts.Datapoint
+		annotationPayload  annotation.Payload
+		downsampledValues  = make([]tile.DownsampledValue, 0, 4)
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
 	)
 
-READER:
 	for readerIter.Next() {
-		seriesIter, id, encodedTags := readerIter.Current()
+		var (
+			seriesIter, id, encodedTags = readerIter.Current()
+			dp                          ts.Datapoint
+			prevFrameLastValue          = math.NaN()
+			writeErr                    error
+		)
 
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
-			unit, singleUnit := frame.Units().SingleValue()
-			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
+				annotationPayload.Reset()
+				firstAnnotation, err := frame.Annotations().Value(0)
+				if err != nil {
+					writeErr = err
+					break
+				}
+
+				handleValueResets := false
+				if annotationPayload.Unmarshal(firstAnnotation) == nil {
+					// Ignore the error???
+					handleValueResets = annotationPayload.HandleValueResets
+				}
+
+				downsampledValues = downsampledValues[:0]
 				lastIdx := len(frameValues) - 1
 
-				value := frameValues[lastIdx]
-				timestamp := frame.Timestamps()[lastIdx]
+				if handleValueResets {
+					// Last value plus possible few more datapoints to preserve counter semantics.
+					downsampledValues = tile.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
+				} else {
+					// Plain last value per frame.
+					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValues = append(downsampledValues, downsampledValue)
+				}
 
-				if !singleUnit {
+				for _, downsampled := range downsampledValues {
+					dp.Value = downsampled.Value
+					dp.Timestamp = frame.Timestamps()[downsampled.FrameIndex]
+
 					// TODO: what happens if unit has changed mid-tile?
 					// Write early and then do the remaining values separately?
-					if lastIdx < len(frame.Units().Values()) {
-						unit = frame.Units().Values()[lastIdx]
+					unit, err := frame.Units().Value(downsampled.FrameIndex)
+					if err != nil {
+						writeErr = err
+						break
 					}
-				}
 
-				if !singleAnnotation {
 					// TODO: what happens if annotation has changed mid-tile?
 					// Write early and then do the remaining values separately?
-					if lastIdx < len(frame.Annotations().Values()) {
-						annotation = frame.Annotations().Values()[lastIdx]
+					annot, err := frame.Annotations().Value(downsampled.FrameIndex)
+					if err != nil {
+						writeErr = err
+						break
+					}
+
+					err = encoder.Encode(dp, unit, annot)
+					if err != nil {
+						writeErr = err
+						break
 					}
 				}
 
-				dp.Timestamp = timestamp
-				dp.Value = value
-				err = encoder.Encode(dp, unit, annotation)
-				if err != nil {
-					s.metrics.largeTilesWriteErrors.Inc(1)
-					multiErr = multiErr.Add(err)
-					break READER
+				if writeErr != nil {
+					break
 				}
 
+				prevFrameLastValue = frameValues[lastIdx]
 				processedTileCount.Inc()
 			}
+		}
+
+		if writeErr != nil {
+			s.metrics.largeTilesWriteErrors.Inc(1)
+			multiErr = multiErr.Add(writeErr)
+			break
 		}
 
 		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)

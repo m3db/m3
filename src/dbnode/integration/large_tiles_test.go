@@ -102,9 +102,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(
-		dpTimeStart, dpTimeStart.Add(blockSizeT),
-		time.Hour, false)
+	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation")

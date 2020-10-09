@@ -32,30 +32,14 @@ import (
 
 // SeriesFrameUnits describes units in this series frame.
 type SeriesFrameUnits interface {
-	// SingleValue returns the last unit seen, and a boolean indicating if
-	// that unit is constant for all datapoints accross the series frame.
-	SingleValue() (xtime.Unit, bool)
-
-	// Values returns all values seen.
-	// NB: if this is called on a recorder with a constant unit, this will
-	// generate a full slice filled with that unit, corresponding to the
-	// number of units added to the recorder. It is recommended to call
-	// SingleValue first to avoid unnecessary allocs if SingleValue is true.
-	Values() []xtime.Unit
+	// Value returns the annotation at the given frame index (or an error if index is out of bounds).
+	Value(idx int) (xtime.Unit, error)
 }
 
 // SeriesFrameAnnotations describes annotations in this series frame.
 type SeriesFrameAnnotations interface {
-	// SingleValue returns the last annotation seen, and a boolean indicating if
-	// that annotation is constant for all datapoints accross the series frame.
-	SingleValue() (ts.Annotation, bool)
-
-	// Values returns all values seen.
-	// NB: if this is called on a recorder with a constant annotation, this will
-	// generate a full slice filled with that annotation, corresponding to the
-	// number of annotations added to the recorder. It is recommended to call
-	// SingleValue first to avoid unnecessary allocs if SingleValue is true.
-	Values() []ts.Annotation
+	// Value returns the annotation at the given frame index (or an error if index is out of bounds).
+	Value(idx int) (ts.Annotation, error)
 }
 
 // SeriesFrameIterator is a frame-wise iterator across a series block.
