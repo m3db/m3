@@ -943,6 +943,20 @@ func (mr *MockBlockMockRecorder) MemorySegmentsData(ctx, results interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemorySegmentsData", reflect.TypeOf((*MockBlock)(nil).MemorySegmentsData), ctx, results)
 }
 
+// NumSegments mocks base method
+func (m *MockBlock) NumSegments() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumSegments")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// NumSegments indicates an expected call of NumSegments
+func (mr *MockBlockMockRecorder) NumSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSegments", reflect.TypeOf((*MockBlock)(nil).NumSegments))
+}
+
 // Close mocks base method
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()

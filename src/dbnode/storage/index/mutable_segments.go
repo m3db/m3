@@ -69,7 +69,6 @@ type mutableSegments struct {
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
 	onDiskSegments     []*readableSeg
-	snapshotSegments   []fst.SegmentData
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -356,14 +355,8 @@ func (m *mutableSegments) Close() {
 	}
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
+	m.cleanupOnDiskSegmentsWithLock()
 	m.optsListener.Close()
-	for _, seg := range m.onDiskSegments {
-		if err := seg.Segment().Close(); err != nil {
-			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-				l.Error("error closing on disk index segment", zap.Error(err))
-			})
-		}
-	}
 }
 
 func (m *mutableSegments) addOnDiskSegments(segments []result.Segment) error {
@@ -376,6 +369,16 @@ func (m *mutableSegments) addOnDiskSegments(segments []result.Segment) error {
 		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(s.Segment(), m.opts))
 	}
 	return nil
+}
+
+func (m *mutableSegments) cleanupOnDiskSegmentsWithLock() {
+	// Check if need to close all the compacted segments due to
+	// mutableSegments being closed.
+	if !m.shouldEvictCompactedSegmentsWithLock() {
+		return
+	}
+	m.closeCompactedSegmentsWithLock(m.onDiskSegments)
+	m.onDiskSegments = nil
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {

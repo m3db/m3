@@ -1319,11 +1319,16 @@ func (i *nsIndex) Snapshot(
 	// that we may snapshot data that's out of retention which is fine.
 	block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		// Do nothing if there is no data to snapshot.
+		// Do nothing if there is no index block to snapshot.
 		i.state.RUnlock()
 		return nil
 	}
 	i.state.RUnlock()
+
+	if block.NumSegments() == 0 {
+		// Do nothing if no index segments to snapshot.
+		return
+	}
 
 	// NB(bodu): There is a time window between when a block is sealed and when it is
 	// flushed that we are accumulating data in cold segments but we will snapshot to disk as

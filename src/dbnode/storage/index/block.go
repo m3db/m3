@@ -339,10 +339,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
-	expectedReaders := b.mutableSegments.Len()
-	for _, coldSeg := range b.coldMutableSegments {
-		expectedReaders += coldSeg.Len()
-	}
+	expectedReaders := b.numSegmentsWithRLock()
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		expectedReaders += len(group.segments)
 		return nil
@@ -1123,6 +1120,20 @@ func (b *block) MemorySegmentsData(
 		}
 	}
 	return results, nil
+}
+
+func (b *block) NumSegments() int {
+	b.RLock()
+	defer b.RUnlock()
+	return b.numSegmentsWithRLock()
+}
+
+func (b *block) numSegmentsWithRLock() int {
+	count := b.mutableSegments.Len()
+	for _, coldSeg := range b.coldMutableSegments {
+		count += coldSeg.Len()
+	}
+	return count
 }
 
 func (b *block) Close() error {

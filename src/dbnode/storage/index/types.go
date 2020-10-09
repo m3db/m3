@@ -410,6 +410,9 @@ type Block interface {
 		results []fst.SegmentData,
 	) ([]fst.SegmentData, error)
 
+	// NumSegments returns the number of index segments.
+	NumSegments() int
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
