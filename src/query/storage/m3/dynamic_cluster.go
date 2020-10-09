@@ -47,7 +47,7 @@ type dynamicCluster struct {
 
 	sync.RWMutex
 
-	namespaces              ClusterNamespaces
+	allNamespaces           ClusterNamespaces
 	unaggregatedNamespace   ClusterNamespace
 	aggregatedNamespaces    map[RetentionResolution]ClusterNamespace
 	namespacesByEtcdCluster map[int]clusterNamespaceLookup
@@ -72,7 +72,7 @@ func newDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 		return nil, err
 	}
 
-	cluster := dynamicCluster{
+	cluster := &dynamicCluster{
 		clusterCfgs:             opts.DynamicClusterNamespaceConfiguration(),
 		logger:                  opts.InstrumentOptions().Logger(),
 		iOpts:                   opts.InstrumentOptions(),
@@ -81,17 +81,18 @@ func newDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 
 	if err := cluster.init(); err != nil {
 		if cErr := cluster.Close(); cErr != nil {
+			cluster.logger.Error("failed to initialize namespaces watchers", zap.Error(err))
 			return nil, cErr
 		}
 
 		return nil, err
 	}
 
-	return &cluster, nil
+	return cluster, nil
 }
 
 func (d *dynamicCluster) init() error {
-	d.logger.Info("creating namespaces watches", zap.Int("clusters", len(d.clusterCfgs)))
+	d.logger.Info("creating namespaces watcher", zap.Int("clusters", len(d.clusterCfgs)))
 
 	var (
 		wg       sync.WaitGroup
@@ -122,7 +123,7 @@ func (d *dynamicCluster) init() error {
 	return nil
 }
 
-func (d *dynamicCluster) initNamespaceWatch(etcdClusterId int, cfg DynamicClusterNamespaceConfiguration) error {
+func (d *dynamicCluster) initNamespaceWatch(etcdClusterID int, cfg DynamicClusterNamespaceConfiguration) error {
 	registry, err := cfg.nsInitializer.Init()
 	if err != nil {
 		return err
@@ -135,11 +136,11 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterId int, cfg DynamicCluste
 	}
 
 	// Wait till first namespaces value is received and set the value.
-	d.logger.Info("resolving namespaces with namespace watch", zap.Int("cluster", etcdClusterId))
+	d.logger.Info("resolving namespaces with namespace watch", zap.Int("cluster", etcdClusterID))
 	<-watch.C()
 
 	updater := func(namespaces namespace.Map) error {
-		d.updateNamespaces(etcdClusterId, cfg, namespaces)
+		d.updateNamespaces(etcdClusterID, cfg, namespaces)
 		return nil
 	}
 	nsWatch := namespace.NewNamespaceWatch(updater, watch, d.iOpts)
@@ -148,7 +149,7 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterId int, cfg DynamicCluste
 	}
 
 	nsMap := watch.Get()
-	d.updateNamespaces(etcdClusterId, cfg, nsMap)
+	d.updateNamespaces(etcdClusterID, cfg, nsMap)
 
 	d.Lock()
 	d.nsWatches = append(d.nsWatches, nsWatch)
@@ -158,89 +159,88 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterId int, cfg DynamicCluste
 }
 
 func (d *dynamicCluster) updateNamespaces(
-	etcdClusterId int,
+	etcdClusterID int,
 	clusterCfg DynamicClusterNamespaceConfiguration,
 	newNamespaces namespace.Map,
 ) {
 	if newNamespaces == nil {
-		d.logger.Debug("received empty namespace map. ignoring", zap.Int("cluster", etcdClusterId))
+		d.logger.Debug("ignoring empty namespace map", zap.Int("cluster", etcdClusterID))
 		return
 	}
 
 	d.Lock()
-	defer d.Unlock()
-
-	d.updateNamespacesByEtcdClusterWithLock(etcdClusterId, clusterCfg, newNamespaces)
+	d.updateNamespacesByEtcdClusterWithLock(etcdClusterID, clusterCfg, newNamespaces)
 	d.updateClusterNamespacesWithLock()
+	d.Unlock()
 }
 
 func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
-	etcdClusterId int,
+	etcdClusterID int,
 	clusterCfg DynamicClusterNamespaceConfiguration,
 	newNamespaces namespace.Map,
 ) {
 	// TODO(nate): incorporate checking if new namespace is ready once staging state has landed.
 
 	// Check if existing namespaces still exist or need to be updated.
-	if _, ok := d.namespacesByEtcdCluster[etcdClusterId]; !ok {
-		d.namespacesByEtcdCluster[etcdClusterId] = newClusterNamespaceLookup(len(newNamespaces.IDs()))
+	existing, ok := d.namespacesByEtcdCluster[etcdClusterID]
+	if !ok {
+		existing = newClusterNamespaceLookup(len(newNamespaces.IDs()))
+		d.namespacesByEtcdCluster[etcdClusterID] = existing
 	}
-	existing := d.namespacesByEtcdCluster[etcdClusterId]
 	var (
 		sz      = len(newNamespaces.Metadatas())
 		added   = make([]string, 0, sz)
 		updated = make([]string, 0, sz)
 		removed = make([]string, 0, sz)
 	)
-	for nsId, nsMd := range existing.idToMetadata {
-		newNsMd, err := newNamespaces.Get(ident.StringID(nsId))
+	for nsID, nsMd := range existing.idToMetadata {
+		newNsMd, err := newNamespaces.Get(ident.StringID(nsID))
 		// non-nil error here means namespace is not present (i.e. namespace has been removed)
 		if err != nil {
-			existing.remove(nsId)
-			removed = append(removed, nsId)
+			existing.remove(nsID)
+			removed = append(removed, nsID)
+		}
+
+		if nsMd.Equal(newNsMd) {
+			continue
 		}
 
 		// Namespace options have been updated; regenerate cluster namespaces.
-		if !nsMd.Equal(newNsMd) {
-			// Replace with new metadata and cluster namespaces.
-			newClusterNamespaces, err := toClusterNamespaces(clusterCfg, newNsMd)
-			if err != nil {
-				// Log error, but don't allow singular failed namespace update to fail all namespace updates.
-				d.logger.Error("failed to update namespace", zap.String("namespace", nsId),
-					zap.Error(err))
-				continue
-			}
-			existing.update(nsId, newNsMd, newClusterNamespaces)
-			updated = append(updated, nsId)
+		newClusterNamespaces, err := toClusterNamespaces(clusterCfg, newNsMd)
+		if err != nil {
+			// Log error, but don't allow singular failed namespace update to fail all namespace updates.
+			d.logger.Error("failed to update namespace", zap.String("namespace", nsID),
+				zap.Error(err))
+			continue
 		}
+		// Replace with new metadata and cluster namespaces.
+		existing.update(nsID, newNsMd, newClusterNamespaces)
+		updated = append(updated, nsID)
 	}
 
 	// Check for new namespaces to add.
 	for _, newNsMd := range newNamespaces.Metadatas() {
-		// Namespace has been added.
-		if !existing.exists(newNsMd.ID().String()) {
-			newClusterNamespaces, err := toClusterNamespaces(clusterCfg, newNsMd)
-			if err != nil {
-				// Log error, but don't allow singular failed namespace update to fail all namespace updates.
-				d.logger.Error("failed to update namespace", zap.String("namespace", newNsMd.ID().String()),
-					zap.Error(err))
-				continue
-			}
-			existing.add(newNsMd.ID().String(), newNsMd, newClusterNamespaces)
-			added = append(added, newNsMd.ID().String())
+		if existing.exists(newNsMd.ID().String()) {
+			continue
 		}
+
+		// Namespace has been added.
+		newClusterNamespaces, err := toClusterNamespaces(clusterCfg, newNsMd)
+		if err != nil {
+			// Log error, but don't allow singular failed namespace update to fail all namespace updates.
+			d.logger.Error("failed to update namespace", zap.String("namespace", newNsMd.ID().String()),
+				zap.Error(err))
+			continue
+		}
+		existing.add(newNsMd.ID().String(), newNsMd, newClusterNamespaces)
+		added = append(added, newNsMd.ID().String())
 	}
 
-	if len(added) > 0 {
-		d.logger.Info("added cluster namespaces", zap.Strings("namespaces", added))
-	}
-
-	if len(updated) > 0 {
-		d.logger.Info("updated cluster namespaces", zap.Strings("namespaces", updated))
-	}
-
-	if len(removed) > 0 {
-		d.logger.Info("removed cluster namespaces", zap.Strings("namespaces", removed))
+	if len(added) > 0 || len(updated) > 0 || len(removed) > 0 {
+		d.logger.Info("refreshed cluster namespaces",
+			zap.Strings("added", added),
+			zap.Strings("updated", updated),
+			zap.Strings("removed", removed))
 	}
 }
 
@@ -347,7 +347,7 @@ func (d *dynamicCluster) updateClusterNamespacesWithLock() {
 
 	d.unaggregatedNamespace = newUnaggregatedNamespace
 	d.aggregatedNamespaces = newAggregatedNamespaces
-	d.namespaces = newNamespaces
+	d.allNamespaces = newNamespaces
 }
 
 func (d *dynamicCluster) Close() error {
@@ -376,23 +376,25 @@ func (d *dynamicCluster) Close() error {
 
 func (d *dynamicCluster) ClusterNamespaces() ClusterNamespaces {
 	d.RLock()
-	defer d.RUnlock()
+	allNamespaces := d.allNamespaces
+	d.RUnlock()
 
-	return d.namespaces
+	return allNamespaces
 }
 
 func (d *dynamicCluster) UnaggregatedClusterNamespace() ClusterNamespace {
 	d.RLock()
-	defer d.RUnlock()
+	unaggregatedNamespaces := d.unaggregatedNamespace
+	d.RUnlock()
 
-	return d.unaggregatedNamespace
+	return unaggregatedNamespaces
 }
 
 func (d *dynamicCluster) AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool) {
 	d.RLock()
-	defer d.RUnlock()
-
 	namespace, ok := d.aggregatedNamespaces[attrs]
+	d.RUnlock()
+
 	return namespace, ok
 }
 
@@ -412,25 +414,25 @@ func newClusterNamespaceLookup(size int) clusterNamespaceLookup {
 	}
 }
 
-func (c *clusterNamespaceLookup) exists(nsId string) bool {
-	_, ok := c.idToMetadata[nsId]
+func (c *clusterNamespaceLookup) exists(nsID string) bool {
+	_, ok := c.idToMetadata[nsID]
 	return ok
 }
 
-func (c *clusterNamespaceLookup) add(nsId string, nsMd namespace.Metadata, clusterNamespaces ClusterNamespaces) {
-	c.idToMetadata[nsId] = nsMd
+func (c *clusterNamespaceLookup) add(nsID string, nsMd namespace.Metadata, clusterNamespaces ClusterNamespaces) {
+	c.idToMetadata[nsID] = nsMd
 	c.metadataToClusterNamespaces[nsMd] = clusterNamespaces
 }
 
-func (c *clusterNamespaceLookup) update(nsId string, nsMd namespace.Metadata, clusterNamespaces ClusterNamespaces) {
-	existingMd := c.idToMetadata[nsId]
-	c.idToMetadata[nsId] = nsMd
+func (c *clusterNamespaceLookup) update(nsID string, nsMd namespace.Metadata, clusterNamespaces ClusterNamespaces) {
+	existingMd := c.idToMetadata[nsID]
+	c.idToMetadata[nsID] = nsMd
 	delete(c.metadataToClusterNamespaces, existingMd)
 	c.metadataToClusterNamespaces[nsMd] = clusterNamespaces
 }
 
-func (c *clusterNamespaceLookup) remove(nsId string) {
-	existingMd := c.idToMetadata[nsId]
+func (c *clusterNamespaceLookup) remove(nsID string) {
+	existingMd := c.idToMetadata[nsID]
 	delete(c.metadataToClusterNamespaces, existingMd)
-	delete(c.idToMetadata, nsId)
+	delete(c.idToMetadata, nsID)
 }

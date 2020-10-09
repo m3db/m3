@@ -48,11 +48,8 @@ var (
 					SetBufferPast(10 * time.Minute).
 					SetBlockSize(2 * time.Hour).
 					SetRetentionPeriod(48 * time.Hour)
-	defaultTestNs2RetentionOpts = retention.NewOptions().
-					SetBufferFuture(10 * time.Minute).
-					SetBufferPast(10 * time.Minute).
-					SetBlockSize(4 * time.Hour).
-					SetRetentionPeriod(48 * time.Hour)
+	defaultTestNs2RetentionOpts = defaultTestRetentionOpts.
+					SetBlockSize(4 * time.Hour)
 	defaultTestAggregationOpts = namespace.NewAggregationOptions().
 					SetAggregations([]namespace.Aggregation{namespace.NewUnaggregatedAggregation()})
 	defaultTestNs2AggregationOpts = namespace.NewAggregationOptions().
@@ -79,11 +76,11 @@ func TestDynamicClustersInitialization(t *testing.T) {
 		{nsID: defaultTestNs1ID, nsOpts: defaultTestNs1Opts},
 		{nsID: defaultTestNs2ID, nsOpts: defaultTestNs2Opts},
 	})
-	mockInitializer := newMockNsInitializer(t, ctrl, mapCh)
+	nsInitializer := newFakeNsInitializer(t, ctrl, mapCh)
 
 	cfg := DynamicClusterNamespaceConfiguration{
 		session:       mockSession,
-		nsInitializer: mockInitializer,
+		nsInitializer: nsInitializer,
 	}
 
 	opts := NewDynamicClusterOptions().
@@ -93,7 +90,10 @@ func TestDynamicClustersInitialization(t *testing.T) {
 	clusters, err := newDynamicClusters(opts)
 	require.NoError(t, err)
 
-	defer cleanup(clusters)
+	defer func() {
+		<-nsInitializer.updateCh
+		clusters.Close()
+	}()
 
 	requireClusterNamespace(t, clusters, defaultTestNs2ID, ClusterNamespaceOptions{
 		attributes: storagemetadata.Attributes{
@@ -125,11 +125,11 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 		{nsID: defaultTestNs2ID, nsOpts: defaultTestNs2Opts},
 	})
 	mapCh <- nsMap
-	mockInitializer := newMockNsInitializer(t, ctrl, mapCh)
+	nsInitializer := newFakeNsInitializer(t, ctrl, mapCh)
 
 	cfg := DynamicClusterNamespaceConfiguration{
 		session:       mockSession,
-		nsInitializer: mockInitializer,
+		nsInitializer: nsInitializer,
 	}
 
 	opts := NewDynamicClusterOptions().
@@ -139,7 +139,11 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 	clusters, err := newDynamicClusters(opts)
 	require.NoError(t, err)
 
-	defer cleanup(clusters)
+	defer func() {
+		<-nsInitializer.updateCh
+		<-nsInitializer.updateCh
+		clusters.Close()
+	}()
 
 	// Update resolution of aggregated namespace
 	newOpts := defaultTestNs2Opts.
@@ -158,7 +162,6 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 	// Send update to trigger watch
 	mapCh <- nsMap
 
-done:
 	for {
 		select {
 		case <-time.After(1 * time.Second):
@@ -179,7 +182,7 @@ done:
 
 				requireClusterNamespaceIDs(t, clusters, []ident.ID{defaultTestNs1ID, defaultTestNs2ID})
 
-				break done
+				return
 			}
 		}
 	}
@@ -197,7 +200,7 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 		{nsID: defaultTestNs1ID, nsOpts: defaultTestNs1Opts},
 		{nsID: defaultTestNs2ID, nsOpts: defaultTestNs2Opts},
 	})
-	mockInitializer := newMockNsInitializer(t, ctrl, mapCh)
+	nsInitializer := newFakeNsInitializer(t, ctrl, mapCh)
 
 	fooOpts := defaultTestNs1Opts.
 		SetAggregationOptions(namespace.NewAggregationOptions().
@@ -226,15 +229,15 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 
 	mapCh2 := make(nsMapCh, 10)
 	mapCh2 <- nsMap
-	mockInitializer2 := newMockNsInitializer(t, ctrl, mapCh2)
+	nsInitializer2 := newFakeNsInitializer(t, ctrl, mapCh2)
 
 	cfg := DynamicClusterNamespaceConfiguration{
 		session:       mockSession,
-		nsInitializer: mockInitializer,
+		nsInitializer: nsInitializer,
 	}
 	cfg2 := DynamicClusterNamespaceConfiguration{
 		session:       mockSession2,
-		nsInitializer: mockInitializer2,
+		nsInitializer: nsInitializer2,
 	}
 
 	opts := NewDynamicClusterOptions().
@@ -244,7 +247,11 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 	clusters, err := newDynamicClusters(opts)
 	require.NoError(t, err)
 
-	defer cleanup(clusters)
+	defer func() {
+		<-nsInitializer.updateCh
+		<-nsInitializer2.updateCh
+		clusters.Close()
+	}()
 
 	requireClusterNamespace(t, clusters, defaultTestNs2ID, ClusterNamespaceOptions{
 		attributes: storagemetadata.Attributes{
@@ -295,7 +302,7 @@ func TestDynamicClustersInitFailures(t *testing.T) {
 
 	cfg := DynamicClusterNamespaceConfiguration{
 		session: mockSession,
-		nsInitializer: &mockNsInitializer{
+		nsInitializer: &fakeNsInitializer{
 			registry: reg,
 			updateCh: updateCh,
 		},
@@ -307,15 +314,6 @@ func TestDynamicClustersInitFailures(t *testing.T) {
 
 	_, err := newDynamicClusters(opts)
 	require.Error(t, err)
-}
-
-func cleanup(clusters Clusters) {
-	// Give test a chance to schedule pending goroutines (i.e. goroutine watching for updates)
-	// If this is not done, test may complete and Close() will be called before startWatch goroutine
-	// is invoked which causes a deadlock.
-	time.Sleep(100 * time.Millisecond)
-
-	clusters.Close()
 }
 
 func requireClusterNamespace(t *testing.T, clusters Clusters, expectedID ident.ID, expectedOpts ClusterNamespaceOptions) {
@@ -374,20 +372,20 @@ func testNamespaceMap(t *testing.T, params []mapParams) namespace.Map {
 
 type nsMapCh chan namespace.Map
 
-type mockNsInitializer struct {
+type fakeNsInitializer struct {
 	registry *namespace.MockRegistry
 	updateCh chan struct{}
 }
 
-func (m *mockNsInitializer) Init() (namespace.Registry, error) {
+func (m *fakeNsInitializer) Init() (namespace.Registry, error) {
 	return m.registry, nil
 }
 
-func newMockNsInitializer(
+func newFakeNsInitializer(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	nsMapCh nsMapCh,
-) namespace.Initializer {
+) *fakeNsInitializer {
 	updateCh := make(chan struct{}, 10)
 	watch := xwatch.NewWatchable()
 	go func() {
@@ -409,7 +407,7 @@ func newMockNsInitializer(
 	reg := namespace.NewMockRegistry(ctrl)
 	reg.EXPECT().Watch().Return(nsWatch, nil).AnyTimes()
 
-	return &mockNsInitializer{
+	return &fakeNsInitializer{
 		registry: reg,
 		updateCh: updateCh,
 	}
