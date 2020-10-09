@@ -177,13 +177,6 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 	}
 }
 
-func TestConversionToCompressedData(t *testing.T) {
-	it := buildTestSeriesIterator(t)
-	series, err := CompressedSeriesFromSeriesIterator(it, nil)
-	require.Error(t, err)
-	require.Nil(t, series)
-}
-
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	series, err := CompressedSeriesFromSeriesIterator(it, nil)
@@ -336,6 +329,11 @@ func TestIterablePostCompression(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	ip := test.MakeMockIteratorPool()
 	series, err := CompressedSeriesFromSeriesIterator(it, ip)
+	require.NoError(t, err)
+	require.NotNil(t, series)
+
+	// Should be idempotent.
+	series, err = CompressedSeriesFromSeriesIterator(it, ip)
 	require.NoError(t, err)
 	require.NotNil(t, series)
 

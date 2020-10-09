@@ -87,7 +87,7 @@ type ReaderSliceOfSlicesIterator interface {
 	// Size gives the size of bytes in this iterator.
 	Size() (int, error)
 
-	// Returns a new copy of the iterator with same internal
+	// Returns a new copy of the iterator with same internals
 	// so it can be iterated without progressing the original.
 	Clone() ReaderSliceOfSlicesIterator
 }
