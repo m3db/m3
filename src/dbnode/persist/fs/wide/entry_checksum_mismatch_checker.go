@@ -50,7 +50,7 @@ type entryChecksumMismatchChecker struct {
 }
 
 // NewEntryChecksumMismatchChecker creates a new entry checksum mismatch
-// checker, backed by the given block buffer.
+// checker, backed by the given block reader.
 // NB: index entries MUST be checked in lexicographical order by ID.
 func NewEntryChecksumMismatchChecker(
 	blockReader IndexChecksumBlockReader,
@@ -90,12 +90,12 @@ func (c *entryChecksumMismatchChecker) indexMismatches(checksums ...int64) []Rea
 	return c.mismatches
 }
 
-func (c *entryChecksumMismatchChecker) invariant(
+func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 	marker []byte,
 	checksum int64,
 	entry entryWithChecksum,
 ) error {
-	// Checksums match but IDs do not. Treat as invariant violation.
+	// Checksums match but IDs do not. Treat as an invariant violation.
 	err := fmt.Errorf("checksum collision")
 	instrument.EmitAndLogInvariantViolation(c.iOpts, func(l *zap.Logger) {
 		l.Error(
@@ -108,11 +108,11 @@ func (c *entryChecksumMismatchChecker) invariant(
 	return err
 }
 
-func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
+func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 	indexEntry schema.IndexEntry,
 ) ([]ReadMismatch, error) {
-	hash := c.decodeOpts.IndexEntryHasher()
-	checksum := hash.HashIndexEntry(indexEntry)
+	hasher := c.decodeOpts.IndexEntryHasher()
+	checksum := hasher.HashIndexEntry(indexEntry)
 	entry := entryWithChecksum{entry: indexEntry, idChecksum: checksum}
 	c.mismatches = c.mismatches[:0]
 	if c.exhausted {
@@ -150,13 +150,13 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 		}
 
 		checksum := batch.Checksums[c.batchIdx]
-		compare := bytes.Compare(batch.EndMarker, entry.entry.ID)
+		markerCompare := bytes.Compare(batch.EndMarker, entry.entry.ID)
 		if c.batchIdx == markerIdx {
 			// NB: this is the last element in the batch. Check ID against MARKER.
 			if entry.idChecksum == checksum {
-				if compare != 0 {
-					// Checksums match but IDs do not. Treat as invariant violation.
-					return nil, c.invariant(batch.EndMarker, checksum, entry)
+				if markerCompare != 0 {
+					// Checksums match but IDs do not. Treat as emitInvariantViolation violation.
+					return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
 				}
 
 				// ID and checksum match. Advance the block iter and return gathered mismatches.
@@ -172,7 +172,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 			}
 
 			// Checksum mismatch.
-			if compare == 0 {
+			if markerCompare == 0 {
 				// IDs match but checksums do not. Advance the block iter and return
 				// mismatch.
 				if !c.blockReader.Next() {
@@ -184,7 +184,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 				}
 
 				return c.entryMismatches(entry), nil
-			} else if compare > 0 {
+			} else if markerCompare > 0 {
 				// This is a mismatch on primary that appears before the
 				// marker element. Return mismatch but do not advance iter.
 				return c.entryMismatches(entry), nil
@@ -207,7 +207,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 
 		if checksum == entry.idChecksum {
 			// Matches: increment batch index and return any gathered mismatches.
-			c.batchIdx = c.batchIdx + 1
+			c.batchIdx++
 			return c.mismatches, nil
 		}
 
@@ -227,9 +227,9 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 		checksum = batch.Checksums[markerIdx]
 		// NB: this is the last element in the batch. Check ID against MARKER.
 		if entry.idChecksum == checksum {
-			if compare != 0 {
-				// Checksums match but IDs do not. Treat as invariant violation.
-				return nil, c.invariant(batch.EndMarker, checksum, entry)
+			if markerCompare != 0 {
+				// Checksums match but IDs do not. Treat as emitInvariantViolation violation.
+				return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
 			}
 
 			c.indexMismatches(batch.Checksums[c.batchIdx:markerIdx]...)
@@ -246,7 +246,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 		}
 
 		// Checksums do not match.
-		if compare > 0 {
+		if markerCompare > 0 {
 			// This is a mismatch on primary that appears before the
 			// marker element. Return mismatch but do not advance iter.
 			return c.entryMismatches(entry), nil

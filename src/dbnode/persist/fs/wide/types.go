@@ -21,6 +21,8 @@
 package wide
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/ident"
@@ -51,7 +53,7 @@ type Options interface {
 	InstrumentOptions() instrument.Options
 }
 
-// ReadMismatch describes a metric that does not match the expected wide index
+// ReadMismatch describes a series that does not match the expected wide index
 // checksum, with a descriptor of the mismatch. This can indicate both scenarios
 // where the expected checksum was not found, and when there is a mismatch.
 type ReadMismatch struct {
@@ -68,7 +70,14 @@ type ReadMismatch struct {
 	ID []byte
 }
 
-// IndexChecksumBlockReader is a reader accross IndexChecksumBlocks.
+func (c ReadMismatch) String() string {
+	if len(c.EncodedTags) > 0 {
+		return fmt.Sprintf("{c: %d, e: true}", c.Checksum)
+	}
+	return fmt.Sprintf("{c: %d, e: false}", c.Checksum)
+}
+
+// IndexChecksumBlockReader is a reader across IndexChecksumBlocks.
 type IndexChecksumBlockReader interface {
 	// Next moves to the next IndexChecksumBlock element.
 	Next() bool
@@ -78,8 +87,8 @@ type IndexChecksumBlockReader interface {
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
 type EntryChecksumMismatchChecker interface {
-	// ComputeMismatchForEntry determines if the given index entry is a mismatch.
-	ComputeMismatchForEntry(entry schema.IndexEntry) ([]ReadMismatch, error)
+	// ComputeMismatchesForEntry determines if the given index entry is a mismatch.
+	ComputeMismatchesForEntry(entry schema.IndexEntry) ([]ReadMismatch, error)
 	// Drain returns any unconsumed IndexChecksumBlocks as mismatches.
 	Drain() []ReadMismatch
 }

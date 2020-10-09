@@ -56,5 +56,6 @@ func (b *indexChecksumBlockReader) Next() bool {
 		return true
 	}
 
+	b.closed.Store(true)
 	return false
 }
