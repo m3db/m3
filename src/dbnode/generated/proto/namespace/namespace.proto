@@ -36,6 +36,7 @@ message NamespaceOptions {
     google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
     AggregationOptions aggregationOptions           = 13;
     google.protobuf.Any extendedOptions             = 14;
+    StagingState stagingState                       = 15;
 }
 
 // AggregationOptions is a set of options for aggregating data
@@ -70,6 +71,21 @@ message DownsampleOptions {
     // all indicates whether to send data points to this namespace. If false,
     // data points must be sent via rollup/recording rules. Defaults to true.
     bool all = 1;
+}
+
+// StagingState is state related to the namespace's availability for
+// reads and writes.
+message StagingState {
+    Status status = 1;
+}
+
+// Status represents the current status of the namespace.
+enum Status {
+    UNKNOWN = 0;
+    // Namespace is being initialized and is not ready to receive traffic.
+    INITIALIZING = 1;
+    // Namespace is ready to receive traffic.
+    READY = 2;
 }
 
 message Registry {

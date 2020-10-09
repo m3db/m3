@@ -75,6 +75,7 @@ type options struct {
 	runtimeOpts           RuntimeOptions
 	extendedOpts          ExtendedOptions
 	aggregationOpts       AggregationOptions
+	stagingState          StagingState
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -293,4 +294,14 @@ func (o *options) SetAggregationOptions(value AggregationOptions) Options {
 
 func (o *options) AggregationOptions() AggregationOptions {
 	return o.aggregationOpts
+}
+
+func (o *options) SetStagingState(value StagingState) Options {
+	opts := *o
+	opts.stagingState = value
+	return &opts
+}
+
+func (o *options) StagingState() StagingState {
+	return o.stagingState
 }

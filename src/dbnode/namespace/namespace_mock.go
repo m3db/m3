@@ -481,6 +481,34 @@ func (mr *MockOptionsMockRecorder) AggregationOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregationOptions", reflect.TypeOf((*MockOptions)(nil).AggregationOptions))
 }
 
+// SetStagingState mocks base method
+func (m *MockOptions) SetStagingState(value StagingState) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetStagingState", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetStagingState indicates an expected call of SetStagingState
+func (mr *MockOptionsMockRecorder) SetStagingState(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStagingState", reflect.TypeOf((*MockOptions)(nil).SetStagingState), value)
+}
+
+// StagingState mocks base method
+func (m *MockOptions) StagingState() StagingState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StagingState")
+	ret0, _ := ret[0].(StagingState)
+	return ret0
+}
+
+// StagingState indicates an expected call of StagingState
+func (mr *MockOptionsMockRecorder) StagingState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StagingState", reflect.TypeOf((*MockOptions)(nil).StagingState))
+}
+
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller
@@ -1506,4 +1534,41 @@ func (m *MockAggregationOptions) Aggregations() []Aggregation {
 func (mr *MockAggregationOptionsMockRecorder) Aggregations() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregations", reflect.TypeOf((*MockAggregationOptions)(nil).Aggregations))
+}
+
+// MockStagingState is a mock of StagingState interface
+type MockStagingState struct {
+	ctrl     *gomock.Controller
+	recorder *MockStagingStateMockRecorder
+}
+
+// MockStagingStateMockRecorder is the mock recorder for MockStagingState
+type MockStagingStateMockRecorder struct {
+	mock *MockStagingState
+}
+
+// NewMockStagingState creates a new mock instance
+func NewMockStagingState(ctrl *gomock.Controller) *MockStagingState {
+	mock := &MockStagingState{ctrl: ctrl}
+	mock.recorder = &MockStagingStateMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockStagingState) EXPECT() *MockStagingStateMockRecorder {
+	return m.recorder
+}
+
+// Status mocks base method
+func (m *MockStagingState) Status() Status {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Status")
+	ret0, _ := ret[0].(Status)
+	return ret0
+}
+
+// Status indicates an expected call of Status
+func (mr *MockStagingStateMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockStagingState)(nil).Status))
 }

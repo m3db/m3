@@ -186,6 +186,11 @@ func ToMetadata(
 		return nil, err
 	}
 
+	stagingState, err := ToStagingState(opts.StagingState)
+	if err != nil {
+		return nil, err
+	}
+
 	mOpts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
@@ -199,7 +204,8 @@ func ToMetadata(
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
 		SetRuntimeOptions(runtimeOpts).
 		SetExtendedOptions(extendedOpts).
-		SetAggregationOptions(aggOpts)
+		SetAggregationOptions(aggOpts).
+		SetStagingState(stagingState)
 
 	if opts.CacheBlocksOnRetrieve != nil {
 		mOpts = mOpts.SetCacheBlocksOnRetrieve(opts.CacheBlocksOnRetrieve.Value)
@@ -210,6 +216,15 @@ func ToMetadata(
 	}
 
 	return NewMetadata(ident.StringID(id), mOpts)
+}
+
+// ToStagingState converts nsproto.StagingState to StagingState.
+func ToStagingState(state *nsproto.StagingState) (StagingState, error) {
+	if state == nil {
+		return nil, nil
+	}
+
+	return NewStagingState(Status(state.Status))
 }
 
 // ToAggregationOptions converts nsproto.AggregationOptions to AggregationOptions.
@@ -310,9 +325,18 @@ func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
 		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
 		ExtendedOptions:       extendedOpts,
 		AggregationOptions:    toProtoAggregationOptions(opts.AggregationOptions()),
+		StagingState:          toProtoStagingState(opts.StagingState()),
 	}
 
 	return nsOpts, nil
+}
+
+func toProtoStagingState(state StagingState) *nsproto.StagingState {
+	if state == nil {
+		return nil
+	}
+
+	return &nsproto.StagingState{Status: nsproto.Status(state.Status())}
 }
 
 func toProtoAggregationOptions(aggOpts AggregationOptions) *nsproto.AggregationOptions {

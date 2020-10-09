@@ -133,6 +133,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 							"futureRetentionPeriodNanos":               "0",
 						},
 						"snapshotEnabled": true,
+						"stagingState":    nil,
 						"indexOptions": xjson.Map{
 							"enabled":        true,
 							"blockSizeNanos": "7200000000000",

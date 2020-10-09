@@ -76,6 +76,7 @@ var (
 			RetentionOptions:      &validRetentionOpts,
 			SchemaOptions:         testSchemaOptions,
 			ExtendedOptions:       validExtendedOpts,
+			StagingState:          &nsproto.StagingState{Status: nsproto.Status_INITIALIZING},
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
