@@ -113,7 +113,12 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Clone() ReaderSliceOfSlicesIterator {
-	fmt.Println("START IDX", it.idx)
+	if it.idx > 0 {
+		fmt.Println("START IDX", it.idx, len(it.blocks))
+		for _, b := range it.blocks[it.idx] {
+			fmt.Println("IDX BLOCK", b.IsEmpty())
+		}
+	}
 	clone := newReaderSliceOfSlicesFromBlockReadersIterator(it.blocks)
 	clone.idx = it.idx
 	return clone
