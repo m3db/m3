@@ -181,7 +181,6 @@ func buildExpectedMismatchChecksums(
 		hasChecksumMismatch bool
 
 		checksumsWithMarker []int64
-		isMarkerChecksum    bool
 
 		contiguous = 1
 	)
@@ -192,10 +191,11 @@ func buildExpectedMismatchChecksums(
 		}
 	}
 
-	// fmt.Println("checksums\n", checksumsWithMarker, "\nbefore\n", allMismatchChecksums)
+	fmt.Println("checksums\n", checksumsWithMarker, "\nbefore\n", allMismatchChecksums)
 	fmt.Println(checksumsWithMarker)
 	for idx, mismatchChecksum := range allMismatchChecksums {
 		checksum := mismatchChecksum.checksum
+		isMarkerChecksum := false
 		for _, markerChecksum := range checksumsWithMarker {
 			if markerChecksum == checksum {
 				fmt.Println("CHECKSUM", checksum, "IS A MARKER.")
@@ -204,7 +204,8 @@ func buildExpectedMismatchChecksums(
 			}
 		}
 
-		if checksum == nextChecksum {
+		if !isMarkerChecksum && checksum == nextChecksum {
+			fmt.Println("c", checksum, nextChecksum)
 			// NB: 0 already counted towards contiguous group, and marker checksums
 			// should not be.
 			if nextChecksum != 0 {
@@ -225,21 +226,20 @@ func buildExpectedMismatchChecksums(
 			// to come before index mismatches.
 			// fmt.Println("CHECKSUM", checksum, "MARKER", checksumsWithMarker)
 
-			if !isMarkerChecksum {
-				nextChecksum = checksum + 1
-				continue
-			}
+			nextChecksum = checksum + 1
+			continue
 		}
 
 		// sort any contiguous values only if both entry and checksum mismatches
 		// present in the contiguous group.
 		if contiguous > 1 && hasEntryMismatch && hasChecksumMismatch {
 			end := idx
-			if isMarkerChecksum {
-				end--
-			}
+			// if isMarkerChecksum {
+			// 	end--
+			// }
 
 			contiguousSlice := allMismatchChecksums[end-contiguous : end]
+			fmt.Println("Slice before", contiguousSlice)
 			sort.Slice(contiguousSlice, func(i, j int) bool {
 				iEntry, jEntry := contiguousSlice[i], contiguousSlice[j]
 				if iEntry.entryMismatch {
@@ -260,7 +260,7 @@ func buildExpectedMismatchChecksums(
 				// these should be sorted by lex order
 				return iEntry.checksum < jEntry.checksum
 			})
-			// fmt.Println("Slice after ", contiguousSlice)
+			fmt.Println("Slice after ", contiguousSlice)
 
 		}
 
@@ -283,7 +283,7 @@ func buildExpectedMismatchChecksums(
 		nextChecksum = checksum + 1
 	}
 
-	// fmt.Println("after\n", allMismatchChecksums)
+	fmt.Println("after\n", allMismatchChecksums)
 	return allMismatchChecksums
 }
 
@@ -306,7 +306,6 @@ func TestRawChecksums(t *testing.T) {
 	seed = 1602212654922291000
 	parameters.Rng.Seed(seed)
 	j := 0
-	logRun := 2
 	fmt.Println("Running test with seed", seed)
 	props.Property("Checksum mismatcher detects correctly",
 		prop.ForAll(
@@ -370,17 +369,17 @@ func TestRawChecksums(t *testing.T) {
 				expectedMismatches := buildExpectedMismatchChecksums(
 					genChecksums, genEntries.taking)
 
-				if j == logRun {
-					fmt.Println()
-					fmt.Println("expected")
-					fmt.Println(expectedMismatches)
-					fmt.Println()
-					fmt.Println("actual")
-					fmt.Println(readMismatches)
-					// for i, m := range readMismatches {
-					// 	fmt.Println(i, m)
-					// }
-				}
+				// if j == logRun {
+				fmt.Println()
+				fmt.Println("expected")
+				fmt.Println(expectedMismatches)
+				fmt.Println()
+				fmt.Println("actual")
+				fmt.Println(readMismatches)
+				// for i, m := range readMismatches {
+				// 	fmt.Println(i, m)
+				// }
+				// }
 
 				if len(expectedMismatches) != len(readMismatches) {
 					return false, fmt.Errorf("expected %d expectedMismatches, got %d",
