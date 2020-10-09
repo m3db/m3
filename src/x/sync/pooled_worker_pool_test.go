@@ -29,6 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	disableParallelExecutionLock sync.Mutex
+)
+
 func TestPooledWorkerPoolGo(t *testing.T) {
 	var count uint32
 
@@ -54,11 +58,13 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 		workers         = 2
 		channelCapacity = 1
 	)
-	// So we can control how empty the worker pool chanel is we
+	// So we can control how empty the worker pool channel is we
 	// set capacity to be same as num workers.
+	disableParallelExecutionLock.Lock()
 	pooledWorkerPoolGoroutinesCapacity = &channelCapacity
 	defer func() {
 		pooledWorkerPoolGoroutinesCapacity = nil
+		disableParallelExecutionLock.Unlock()
 	}()
 
 	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())
@@ -74,7 +80,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	for i := 0; i < workers*2; i++ {
 		result := p.GoWithTimeout(func() {
 			wg.Wait()
-		}, 10*time.Millisecond)
+		}, 100*time.Millisecond)
 		if result {
 			resultsTrue++
 		} else {
@@ -82,8 +88,6 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 		}
 	}
 
-	// Yield enough time for the timeout to trigger.
-	time.Sleep(20 * time.Millisecond)
 	wg.Done()
 
 	require.True(t, resultsFalse > 0)
