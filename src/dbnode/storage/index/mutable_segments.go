@@ -199,6 +199,9 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
 	m.RLock()
 	defer m.RUnlock()
+	if m.state == mutableSegmentsStateClosed {
+		return nil, errMutableSegmentsAlreadyClosed
+	}
 
 	var err error
 	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
@@ -243,6 +246,9 @@ func (m *mutableSegments) MemorySegmentsData(
 ) ([]fst.SegmentData, error) {
 	m.RLock()
 	defer m.RUnlock()
+	if m.state == mutableSegmentsStateClosed {
+		return nil, errMutableSegmentsAlreadyClosed
+	}
 
 	for _, segs := range [][]*readableSeg{
 		m.foregroundSegments,
@@ -345,6 +351,9 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 func (m *mutableSegments) Close() {
 	m.Lock()
 	defer m.Unlock()
+	if m.state == mutableSegmentsStateClosed {
+		return
+	}
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
 	m.optsListener.Close()
