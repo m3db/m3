@@ -77,18 +77,18 @@ func (c ReadMismatch) String() string {
 	return fmt.Sprintf("{c: %d, e: false}", c.Checksum)
 }
 
-// IndexChecksumBlockReader is a reader across IndexChecksumBlocks.
-type IndexChecksumBlockReader interface {
-	// Next moves to the next IndexChecksumBlock element.
+// IndexChecksumBlockBatchReader is a reader across IndexChecksumBlockBatches.
+type IndexChecksumBlockBatchReader interface {
+	// Next moves to the next IndexChecksumBlockBatch element.
 	Next() bool
-	// Current yields the current IndexChecksumBlock.
-	Current() ident.IndexChecksumBlock
+	// Current yields the current IndexChecksumBlockBatch.
+	Current() ident.IndexChecksumBlockBatch
 }
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
 type EntryChecksumMismatchChecker interface {
 	// ComputeMismatchesForEntry determines if the given index entry is a mismatch.
 	ComputeMismatchesForEntry(entry schema.IndexEntry) ([]ReadMismatch, error)
-	// Drain returns any unconsumed IndexChecksumBlocks as mismatches.
+	// Drain returns any unconsumed IndexChecksumBlockBatches as mismatches.
 	Drain() []ReadMismatch
 }

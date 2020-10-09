@@ -28,11 +28,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexChecksumBlockReader(t *testing.T) {
-	ch := make(chan ident.IndexChecksumBlock)
-	buf := NewIndexChecksumBlockReader(ch)
-	bl := ident.IndexChecksumBlock{EndMarker: []byte("foo")}
-	bl2 := ident.IndexChecksumBlock{
+func TestIndexChecksumBlockBatchReader(t *testing.T) {
+	ch := make(chan ident.IndexChecksumBlockBatch)
+	buf := NewIndexChecksumBlockBatchReader(ch)
+	bl := ident.IndexChecksumBlockBatch{EndMarker: []byte("foo")}
+	bl2 := ident.IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("bar"),
 	}

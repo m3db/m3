@@ -28,21 +28,21 @@ import (
 
 type indexChecksumBlockReader struct {
 	closed       *atomic.Bool
-	currentBlock ident.IndexChecksumBlock
-	blocks       chan ident.IndexChecksumBlock
+	currentBlock ident.IndexChecksumBlockBatch
+	blocks       chan ident.IndexChecksumBlockBatch
 }
 
-// NewIndexChecksumBlockReader creates a new IndexChecksumBlockReader.
-func NewIndexChecksumBlockReader(
-	blockInput chan ident.IndexChecksumBlock,
-) IndexChecksumBlockReader {
+// NewIndexChecksumBlockBatchReader creates a new IndexChecksumBlockBatchReader.
+func NewIndexChecksumBlockBatchReader(
+	blockInput chan ident.IndexChecksumBlockBatch,
+) IndexChecksumBlockBatchReader {
 	return &indexChecksumBlockReader{
 		closed: atomic.NewBool(false),
 		blocks: blockInput,
 	}
 }
 
-func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlock {
+func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlockBatch {
 	return b.currentBlock
 }
 

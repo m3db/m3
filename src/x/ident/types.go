@@ -319,8 +319,9 @@ type IndexChecksum struct {
 	ID []byte
 }
 
-// IndexChecksumBlock represents a set of index checksums within a series block.
-type IndexChecksumBlock struct {
+// IndexChecksumBlockBatch represents a batch of index checksums originating
+// from a single series block.
+type IndexChecksumBlockBatch struct {
 	// Checksums is the list of index checksums.
 	Checksums []int64
 	// EndMarker is a batch marker, signifying the ID of the

@@ -38,7 +38,7 @@ type entryWithChecksum struct {
 }
 
 type entryChecksumMismatchChecker struct {
-	blockReader  IndexChecksumBlockReader
+	blockReader  IndexChecksumBlockBatchReader
 	mismatches   []ReadMismatch
 	strictLastID []byte
 
@@ -54,7 +54,7 @@ type entryChecksumMismatchChecker struct {
 // checker, backed by the given block reader.
 // NB: index entries MUST be checked in lexicographical order by ID.
 func NewEntryChecksumMismatchChecker(
-	blockReader IndexChecksumBlockReader,
+	blockReader IndexChecksumBlockBatchReader,
 	opts Options,
 ) EntryChecksumMismatchChecker {
 	return &entryChecksumMismatchChecker{
@@ -107,11 +107,11 @@ func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 	return err
 }
 
-func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlock {
+func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockBatch {
 	if !c.blockReader.Next() {
 		c.exhausted = true
 		// NB: this should return false because there are no more available reads.
-		return ident.IndexChecksumBlock{} //, 0
+		return ident.IndexChecksumBlockBatch{} //, 0
 	}
 
 	c.batchIdx = 0

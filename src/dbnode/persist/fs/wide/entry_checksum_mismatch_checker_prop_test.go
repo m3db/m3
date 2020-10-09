@@ -83,7 +83,7 @@ func genEntryTestInput(size int, opts Options) gopter.Gen {
 
 type generatedChecksums struct {
 	taking     []bool
-	blockBatch []ident.IndexChecksumBlock
+	blockBatch []ident.IndexChecksumBlockBatch
 }
 
 // genChecksumTestInput creates index checksum blockBatch of randomized sizes,
@@ -104,7 +104,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 
 			taking         []bool
 			takenChecksums []ident.IndexChecksum
-			checksumBlocks []ident.IndexChecksumBlock
+			checksumBlocks []ident.IndexChecksumBlockBatch
 		)
 
 		for i, chance := range dropChances {
@@ -129,7 +129,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 				take = remaining
 			}
 
-			block := ident.IndexChecksumBlock{
+			block := ident.IndexChecksumBlockBatch{
 				Checksums: make([]int64, 0, take),
 			}
 
@@ -363,11 +363,13 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 		opts         = NewOptions().SetDecodingOptions(decodingOpts)
 
 		size     = 100
-		numTests = 2000
+		numTests = 1000
 	)
 
 	parameters.MinSuccessfulTests = numTests
 	parameters.Rng.Seed(seed)
+
+	// NB: capture seed to be able to replicate failed runs.
 	fmt.Println("Running test with seed", seed)
 	props.Property("Checksum mismatcher detects correctly",
 		prop.ForAll(
@@ -375,8 +377,8 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 				genChecksums generatedChecksums,
 				genEntries generatedEntries,
 			) (bool, error) {
-				inputBlockCh := make(chan ident.IndexChecksumBlock)
-				inputBlockReader := NewIndexChecksumBlockReader(inputBlockCh)
+				inputBlockCh := make(chan ident.IndexChecksumBlockBatch)
+				inputBlockReader := NewIndexChecksumBlockBatchReader(inputBlockCh)
 
 				go func() {
 					for _, bl := range genChecksums.blockBatch {
