@@ -26,8 +26,10 @@ import (
 	"math"
 	"math/rand"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -35,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -92,6 +95,66 @@ func sortByTotal(ctx *common.Context, series singlePathSpec) (ts.SeriesList, err
 // sortByMaxima sorts timeseries by the maximum value across the time period specified.
 func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
 	return highestMax(ctx, series, len(series.Values))
+}
+
+// useSeriesAbove compares the maximum of each series against the given `value`. If the series
+// maximum is greater than `value`, the regular expression search and replace is
+// applied against the series name to plot a related metric.
+//
+// e.g. given useSeriesAbove(ganglia.metric1.reqs,10,'reqs','time'),
+// the response time metric will be plotted only when the maximum value of the
+// corresponding request/s metric is > 10
+// Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		newNames []string
+
+		output         = make([]*ts.Series, 0, len(seriesList.Values))
+		maxConcurrency = runtime.NumCPU() / 2
+	)
+
+	for _, series := range seriesList.Values {
+		if series.SafeMax() > maxAllowedValue {
+			seriesName := strings.Replace(series.Name(), search, replace, -1)
+			newNames = append(newNames, seriesName)
+		}
+	}
+
+	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
+		if multiErr.LastError() != nil {
+			return ts.NewSeriesList(), multiErr.LastError()
+		}
+
+		for _, newTarget := range newNameChunk {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+				if err != nil {
+					mu.Lock()
+					multiErr = multiErr.Add(err)
+					mu.Unlock()
+					return
+				}
+
+				mu.Lock()
+				for _, resultSeries := range resultSeriesList.Values {
+					resultSeries.Specification = newTarget
+					output = append(output, resultSeries)
+				}
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = output
+	return r, nil
 }
 
 // sortByMinima sorts timeseries by the minimum value across the time period specified.
@@ -2399,6 +2462,7 @@ func init() {
 	MustRegisterFunction(transformNull).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // defaultValue
 	})
+	MustRegisterFunction(useSeriesAbove)
 	MustRegisterFunction(weightedAverage)
 
 	// alias functions - in alpha ordering
