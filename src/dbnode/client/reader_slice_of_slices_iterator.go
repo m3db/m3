@@ -205,7 +205,7 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *readerSliceOfSlicesIterator) Rewind(idx int) {
+func (it *readerSliceOfSlicesIterator) RewindToIndex(idx int) {
 	it.idx = idx
 }
 

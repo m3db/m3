@@ -198,7 +198,7 @@ func (it *testReaderSliceOfSlicesIterator) Size() (int, error) {
 	return 0, nil
 }
 
-func (it *testReaderSliceOfSlicesIterator) Rewind(idx int) {
+func (it *testReaderSliceOfSlicesIterator) RewindToIndex(idx int) {
 	it.idx = idx
 }
 

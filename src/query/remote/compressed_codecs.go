@@ -179,7 +179,7 @@ func CompressedSeriesFromSeriesIterator(
 		// consume any of the internal block readers within the iterator.
 		// It cannot be asserted that iters are passed in here at idx 0 which is
 		// why we make sure to rewind to the specific original index.
-		readers.Rewind(idx)
+		readers.RewindToIndex(idx)
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,

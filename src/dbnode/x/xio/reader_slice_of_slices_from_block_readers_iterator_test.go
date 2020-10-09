@@ -64,7 +64,7 @@ func TestRewind(t *testing.T) {
 	idx := iter.Index()
 	validateIterReaders(t, iter, readers)
 
-	iter.Rewind(idx)
+	iter.RewindToIndex(idx)
 	validateIterReaders(t, iter, readers)
 }
 

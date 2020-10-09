@@ -247,7 +247,7 @@ func (it *singleSlicesOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *singleSlicesOfSlicesIterator) Rewind(idx int) {
+func (it *singleSlicesOfSlicesIterator) RewindToIndex(idx int) {
 	it.firstNext = idx <= 0
 }
 
