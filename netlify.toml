@@ -33,3 +33,7 @@
 [[redirects]]
   from = "/talks"
   to = "docs/overview/media"
+
+[[redirects]]
+  from = "/*"
+  to = "https://docs-test.m3db.io/docs/:splat"  
