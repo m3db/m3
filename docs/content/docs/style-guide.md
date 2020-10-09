@@ -23,7 +23,7 @@ HTML
 
 Include code from elsewhere.
 
-{{% codeinclude file="includes/podtemplate.json" language="json" %}}
+{{% codeinclude file="podtemplate.json" language="json" %}}
 
 {{< /tab >}}
 {{< /tabs >}}

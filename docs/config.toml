@@ -1,34 +1,35 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   [[module.imports]]
-    path = "github.com/chronosphereio/docs-theme"
+    # path = "github.com/chronosphereio/docs-theme"
+    path = "../../../docs-theme"
 
   [[module.mounts]]
-    source = "docs/content"
+    source = "content"
     target = "content"
 
   [[module.mounts]]
-    source = "docs/static"
+    source = "static"
     target = "static"
 
   [[module.mounts]]
-    source = "docs/layouts"
+    source = "layouts"
     target = "layouts"
 
   [[module.mounts]]
-    source = "docs/data"
+    source = "data"
     target = "data"
 
   [[module.mounts]]
-    source = "docs/assets"
+    source = "assets"
     target = "assets"
 
   [[module.mounts]]
-    source = "docs/i18n"
+    source = "i18n"
     target = "i18n"
 
   [[module.mounts]]
-    source = "docs/archetypes"
+    source = "archetypes"
     target = "archetypes"
 
 theme = "docs-theme"
@@ -72,7 +73,7 @@ anchor = "smart"
 githubbranch = "master"
 docsbranch = "master"
 deprecated = false
-#currentUrl = "https://kubernetes.io/docs/home/"
+#currentUrl = "https://kubernetes.io/home/"
 #nextUrl = "https://kubernetes-io-vnext-staging.netlify.com/"
 githubWebsiteRepo = "https://github.com/m3db/m3"
 githubWebsiteRaw = "raw.githubusercontent.com/m3db/m3"
