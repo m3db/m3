@@ -886,9 +886,9 @@ func (b *block) addResults(
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		elem := seg.Segment()
-		if immSeg, ok := elem.(segment.ImmutableSegment); ok {
-			// only wrap the immutable segments with a read through cache.
-			elem = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+		if fstSeg, ok := elem.(fst.Segment); ok {
+			// only wrap the fst segments with a read through cache.
+			elem = NewReadThroughSegment(fstSeg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, elem)
 	}
@@ -1102,44 +1102,27 @@ func (b *block) RotateColdMutableSegments() {
 	))
 }
 
-func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+func (b *block) MemorySegmentsData(
+	ctx context.Context,
+	results []fst.SegmentData,
+) ([]fst.SegmentData, error) {
 	b.RLock()
 	defer b.RUnlock()
+	var err error
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
-	data, err := b.mutableSegments.MemorySegmentsData(ctx)
+	results, err = b.mutableSegments.MemorySegmentsData(ctx, results)
 	if err != nil {
 		return nil, err
 	}
 	for _, coldSeg := range b.coldMutableSegments {
-		coldData, err := coldSeg.MemorySegmentsData(ctx)
+		results, err = coldSeg.MemorySegmentsData(ctx, results)
 		if err != nil {
 			return nil, err
 		}
-		data = append(data, coldData...)
 	}
-	return data, nil
-}
-
-func (b *block) SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
-	b.RLock()
-	defer b.RUnlock()
-	if b.state == blockStateClosed {
-		return nil, errBlockAlreadyClosed
-	}
-	data, err := b.mutableSegments.SnapshotSegmentsData(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, coldSeg := range b.coldMutableSegments {
-		coldData, err := coldSeg.SnapshotSegmentsData(ctx)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, coldData...)
-	}
-	return data, nil
+	return results, nil
 }
 
 func (b *block) Close() error {

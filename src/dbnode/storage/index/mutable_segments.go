@@ -237,27 +237,13 @@ func (m *mutableSegments) Len() int {
 	return len(m.foregroundSegments) + len(m.backgroundSegments) + len(m.onDiskSegments)
 }
 
-func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
-	m.RLock()
-	defer m.RUnlock()
-
-	// NB(r): This is for debug operations, do not bother about allocations.
-	var results []fst.SegmentData
-	return m.fstSegmentsData(ctx, results)
-}
-
-func (m *mutableSegments) SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
-	m.Lock()
-	defer m.Unlock()
-
-	m.snapshotSegments = m.snapshotSegments[:0]
-	return m.fstSegmentsData(ctx, m.snapshotSegments)
-}
-
-func (m *mutableSegments) fstSegmentsData(
+func (m *mutableSegments) MemorySegmentsData(
 	ctx context.Context,
 	results []fst.SegmentData,
 ) ([]fst.SegmentData, error) {
+	m.RLock()
+	defer m.RUnlock()
+
 	for _, segs := range [][]*readableSeg{
 		m.foregroundSegments,
 		m.backgroundSegments,
@@ -549,12 +535,12 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	// Add a read through cache for repeated expensive queries against
 	// background compacted segments since they can live for quite some
 	// time and accrue a large set of documents.
-	if immSeg, ok := compacted.(segment.ImmutableSegment); ok {
+	if fstSeg, ok := compacted.(fst.Segment); ok {
 		var (
 			plCache         = m.opts.PostingsListCache()
 			readThroughOpts = m.opts.ReadThroughSegmentOptions()
 		)
-		compacted = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+		compacted = NewReadThroughSegment(fstSeg, plCache, readThroughOpts)
 	}
 
 	// Rotate out the replaced frozen segments and add the compacted one.

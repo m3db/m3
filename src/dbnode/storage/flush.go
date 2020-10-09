@@ -65,7 +65,7 @@ type flushManagerMetrics struct {
 	// is not overly aggressive.
 	maxBlocksSnapshottedByNamespace tally.Gauge
 	dataWarmFlushDuration           tally.Timer
-	dataSnapshotDuration            tally.Timer
+	dataAndIndexSnapshotDuration    tally.Timer
 	indexFlushDuration              tally.Timer
 	commitLogRotationDuration       tally.Timer
 }
@@ -77,7 +77,7 @@ func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
 		isIndexFlushing:                 scope.Gauge("index-flush"),
 		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
 		dataWarmFlushDuration:           scope.Timer("data-warm-flush-duration"),
-		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
+		dataAndIndexSnapshotDuration:    scope.Timer("data-and-index-snapshot-duration"),
 		indexFlushDuration:              scope.Timer("index-flush-duration"),
 		commitLogRotationDuration:       scope.Timer("commit-log-rotation-duration"),
 	}
@@ -278,7 +278,7 @@ func (m *flushManager) dataAndIndexSnapshot(
 	if finalErr == nil {
 		m.lastSuccessfulSnapshotStartTime.Store(int64(xtime.ToUnixNano(startTime)))
 	}
-	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
+	m.metrics.dataAndIndexSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
 }
 

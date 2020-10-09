@@ -27,7 +27,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/pborman/uuid"
 )
@@ -37,9 +39,9 @@ var (
 	errCantCloseClosedSegment         = errors.New("cant close closed segment")
 )
 
-// Ensure FST segment implements ImmutableSegment so can be casted upwards
-// and mmap's can be freed.
-var _ segment.ImmutableSegment = (*ReadThroughSegment)(nil)
+// Ensure ReadThroughSegment implements fst.Segment so it can be casted upwards
+// and mmap's can be freed and we can perform snapshots.
+var _ fst.Segment = (*ReadThroughSegment)(nil)
 
 // ReadThroughSegment wraps a segment with a postings list cache so that
 // queries can be transparently cached in a read through manner. In addition,
@@ -51,7 +53,7 @@ var _ segment.ImmutableSegment = (*ReadThroughSegment)(nil)
 type ReadThroughSegment struct {
 	sync.RWMutex
 
-	segment segment.ImmutableSegment
+	segment fst.Segment
 
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
@@ -72,10 +74,10 @@ type ReadThroughSegmentOptions struct {
 
 // NewReadThroughSegment creates a new read through segment.
 func NewReadThroughSegment(
-	seg segment.ImmutableSegment,
+	seg fst.Segment,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
-) segment.Segment {
+) fst.Segment {
 	return &ReadThroughSegment{
 		segment:           seg,
 		opts:              opts,
@@ -153,6 +155,52 @@ func (r *ReadThroughSegment) FreeMmap() error {
 // postings lists to cache for queries.
 func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
+}
+
+func (r *ReadThroughSegment) SegmentData(ctx context.Context) (fst.SegmentData, error) {
+	return r.segment.SegmentData(ctx)
+}
+
+func (r *ReadThroughSegment) Freeze() {
+	r.segment.Freeze()
+}
+
+func (r *ReadThroughSegment) State() fst.IndexSegmentState {
+	return r.segment.State()
+}
+
+func (s *ReadThroughSegment) AllDocs() (index.IDDocIterator, error) {
+	return s.segment.AllDocs()
+}
+
+func (s *ReadThroughSegment) Doc(id postings.ID) (doc.Document, error) {
+	return s.Doc(id)
+}
+
+func (s *ReadThroughSegment) Docs(pl postings.List) (doc.Iterator, error) {
+	return s.Docs(pl)
+}
+
+func (s *ReadThroughSegment) MatchAll() (postings.MutableList, error) {
+	return s.MatchAll()
+}
+
+func (s *ReadThroughSegment) MatchField(field []byte) (postings.List, error) {
+	return s.MatchField(field)
+}
+
+func (s *ReadThroughSegment) MatchRegexp(
+	field []byte,
+	compiled index.CompiledRegex,
+) (postings.List, error) {
+	return s.MatchRegexp(field, compiled)
+}
+
+func (s *ReadThroughSegment) MatchTerm(
+	field []byte,
+	term []byte,
+) (postings.List, error) {
+	return s.MatchTerm(field, term)
 }
 
 type readThroughSegmentReader struct {

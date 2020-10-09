@@ -52,6 +52,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
@@ -99,6 +100,10 @@ type snapshotState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]index.BlockState
 	initialized  bool
+
+	// segmentsData is used to amortize allocs across the entire index
+	// snapshotting workload
+	segmentsData []fst.SegmentData
 }
 
 func newSnapshotState() snapshotState {
@@ -1349,16 +1354,23 @@ func (i *nsIndex) Snapshot(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	segmentsData, err := block.MemorySegmentsData(ctx)
+	// NB(bodu): Although snapshottng currently happens in a single thread but lock
+	// on the resusable segments data resource to be safe.
+	i.snapshotState.Lock()
+	i.snapshotState.segmentsData = i.snapshotState.segmentsData[:0]
+	i.snapshotState.segmentsData, err = block.MemorySegmentsData(ctx, i.snapshotState.segmentsData)
 	if err != nil {
+		i.snapshotState.Unlock()
 		return err
 	}
-
-	for _, segmentData := range segmentsData {
+	for _, segmentData := range i.snapshotState.segmentsData {
 		if err := prepared.Persist(segmentData); err != nil {
+			i.snapshotState.Unlock()
 			return err
 		}
 	}
+	i.snapshotState.Unlock()
+
 	_, err = prepared.Close()
 	if err == nil {
 		i.SetSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
@@ -2173,13 +2185,14 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 		return err
 	}
 
+	var results []fst.SegmentData
 	for _, block := range i.state.blocksByTime {
-		segmentsData, err := block.MemorySegmentsData(ctx)
+		results, err = block.MemorySegmentsData(ctx, results)
 		if err != nil {
 			return err
 		}
 
-		for numSegment, segmentData := range segmentsData {
+		for numSegment, segmentData := range results {
 
 			indexWriter, err := fs.NewIndexWriter(fsOpts)
 			if err != nil {

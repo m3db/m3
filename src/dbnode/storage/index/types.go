@@ -405,10 +405,10 @@ type Block interface {
 	RotateColdMutableSegments()
 
 	// MemorySegmentsData returns all in memory segments data.
-	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
-
-	// SnapshotSegmentsData all in memory segments data for snapshotting.
-	SnapshotSegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+	MemorySegmentsData(
+		ctx context.Context,
+		results []fst.SegmentData,
+	) ([]fst.SegmentData, error)
 
 	// Close will release any held resources and close the Block.
 	Close() error
