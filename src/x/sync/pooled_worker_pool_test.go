@@ -82,6 +82,8 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 		}
 	}
 
+	// Yield enough time for the timeout to trigger.
+	time.Sleep(20 * time.Millisecond)
 	wg.Done()
 
 	require.True(t, resultsFalse > 0)
