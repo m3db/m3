@@ -287,6 +287,7 @@ type options struct {
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
 	writeTimestampOffset                    time.Duration
+	namespaceInitializer                    namespace.Initializer
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -1072,4 +1073,14 @@ func (o *options) SetWriteTimestampOffset(value time.Duration) AdminOptions {
 
 func (o *options) WriteTimestampOffset() time.Duration {
 	return o.writeTimestampOffset
+}
+
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
+	opts := *o
+	opts.namespaceInitializer = value
+	return &opts
+}
+
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.namespaceInitializer
 }
