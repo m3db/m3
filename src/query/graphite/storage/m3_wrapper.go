@@ -136,12 +136,9 @@ func translateQuery(
 		return nil, err
 	}
 
-	if shift := opts.ShiftTimeStart; shift != 0 {
-		fetchOpts.StartTime = fetchOpts.StartTime.Add(shift)
-	}
-	if shift := opts.ShiftTimeEnd; shift != 0 {
-		fetchOpts.EndTime = fetchOpts.EndTime.Add(shift)
-	}
+	// Apply any shifts.
+	fetchOpts.StartTime = fetchOpts.StartTime.Add(opts.ShiftTimeStart)
+	fetchOpts.EndTime = fetchOpts.EndTime.Add(opts.ShiftTimeEnd)
 
 	return &storage.FetchQuery{
 		Raw:         query,
@@ -190,14 +187,9 @@ func truncateBoundsToResolution(
 		}
 	}
 
-	if shiftSteps := opts.shiftStepsStart; shiftSteps != 0 {
-		start = start.Add(time.Duration(shiftSteps) * resolution)
-	}
-
-	if shiftSteps := opts.shiftStepsEnd; shiftSteps != 0 {
-		end = end.Add(time.Duration(shiftSteps) * resolution)
-	}
-
+	// Apply any shifts.
+	start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)
+	end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)
 	return start, end
 }
 

@@ -90,9 +90,9 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
-	// SetBlockSeriesProcessor set the graphite block iterators function.
+	// SetBlockSeriesProcessor set the block series processor.
 	SetBlockSeriesProcessor(value BlockSeriesProcessor) Options
-	// BlockSeriesProcessor returns the graphite block iterators function.
+	// BlockSeriesProcessor returns the block series processor.
 	BlockSeriesProcessor() BlockSeriesProcessor
 	// SetCustomAdminOptions sets custom admin options.
 	SetCustomAdminOptions([]client.CustomAdminOption) Options
