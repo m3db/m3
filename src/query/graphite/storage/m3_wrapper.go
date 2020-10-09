@@ -267,11 +267,5 @@ func (s *m3WrappedStore) FetchByQuery(
 		return nil, err
 	}
 
-	fmt.Println("TRANSLATED SERIES")
-	if len(series) > 0 {
-		fmt.Println(series[0].StartTime(), series[0].EndTime())
-		fmt.Println(series[0].SafeValues())
-	}
-
 	return NewFetchResult(ctx, series, res.Metadata), nil
 }
