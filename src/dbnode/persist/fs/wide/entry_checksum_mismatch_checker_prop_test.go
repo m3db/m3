@@ -351,7 +351,7 @@ func buildExpectedMismatchChecksums(
 	return gatheredMismatchChecksums
 }
 
-func TestExpectedAndChecksums(t *testing.T) {
+func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
@@ -363,7 +363,7 @@ func TestExpectedAndChecksums(t *testing.T) {
 		opts         = NewOptions().SetDecodingOptions(decodingOpts)
 
 		size     = 100
-		numTests = 1000
+		numTests = 2000
 	)
 
 	parameters.MinSuccessfulTests = numTests

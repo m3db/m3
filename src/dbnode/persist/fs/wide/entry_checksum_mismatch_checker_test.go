@@ -109,9 +109,10 @@ func TestEmitMismatches(t *testing.T) {
 	id2, tags2 := "foo2", "encoded-tags2"
 	id3, tags3 := "foo3", "encoded-tags3"
 	checker.entryMismatches(toEntry(id1, tags1, 0), toEntry(id2, tags2, 1))
-	checker.indexMismatches(100, 200)
+	checker.recordIndexMismatches(100, 200)
 	checker.entryMismatches(toEntry(id3, tags3, 2))
-	mismatches := checker.indexMismatches(300)
+	checker.recordIndexMismatches(300)
+
 	expected := []ReadMismatch{
 		testEntryMismatch(id1, tags1, 0),
 		testEntryMismatch(id2, tags2, 1),
@@ -121,7 +122,7 @@ func TestEmitMismatches(t *testing.T) {
 		testIdxMismatch(300),
 	}
 
-	testMismatches(t, expected, mismatches)
+	testMismatches(t, expected, checker.mismatches)
 }
 
 func TestComputeMismatchInvariant(t *testing.T) {
