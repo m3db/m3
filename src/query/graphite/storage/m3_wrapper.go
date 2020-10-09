@@ -135,16 +135,12 @@ func truncateBoundsToResolution(
 	resolution time.Duration,
 ) (time.Time, time.Time) {
 	truncatedEnd := end.Truncate(resolution)
-	length := float64(truncatedEnd.Sub(start))
+	length := float64(truncatedEnd.Sub(start.Truncate(resolution)))
 	steps := math.Floor(length / float64(resolution))
 
 	truncatedLength := time.Duration(steps) * resolution
 	truncatedStart := truncatedEnd.Add(truncatedLength * -1)
 
-	// start one step earlier, unless the start time was already truncated
-	if !truncatedStart.Equal(start) {
-		truncatedStart = truncatedStart.Add(resolution * -1)
-	}
 	return truncatedStart, truncatedEnd
 }
 
@@ -179,33 +175,37 @@ func translateTimeseries(
 		}
 
 		startTruncated, endTruncated := truncateBoundsToResolution(start, end, resolution)
-		length := int(endTruncated.Sub(startTruncated) / resolution)
+
+		numDatapoints := int(endTruncated.Sub(startTruncated) / resolution)
+		numSteps := numDatapoints - 1
 
 		millisPerStep := int(resolution / time.Millisecond)
-		values := ts.NewValues(ctx, millisPerStep, length)
+		values := ts.NewValues(ctx, millisPerStep, numDatapoints)
+
+		totalDuration := time.Millisecond * time.Duration(millisPerStep) * time.Duration(numSteps)
+		// in M3, there is no datapoint at the endTime of the series, since M3 is start time inclusive and end time exclusive
+		seriesStartTime, seriesEndTime := endTruncated.Add(totalDuration * -1), endTruncated.Add(resolution)
 
 		m3series := iter.Current()
 		dps := m3series.Datapoints()
 		for _, datapoint := range dps.Datapoints() {
 			ts := datapoint.Timestamp
-			if ts.Before(startTruncated) || ts.Equal(startTruncated) {
+			if ts.Before(seriesStartTime) {
 				// Outside of range requested.
 				continue
 			}
 
-			if !(ts.Before(endTruncated) || ts.Equal(endTruncated)) {
+			if !(ts.Before(seriesEndTime) || ts.Equal(seriesEndTime)) {
 				// No more valid datapoints.
 				break
 			}
 
-			index := length - int(endTruncated.Sub(datapoint.Timestamp) / resolution) - 1
+			index := numSteps - int(endTruncated.Sub(ts.Truncate(resolution)) / resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 
 		name := string(seriesMetas[idx].Name)
-		totalDuration := time.Millisecond * time.Duration(millisPerStep) * time.Duration(length - 1)
-		startTime := endTruncated.Add(totalDuration * -1)
-		series = append(series, ts.NewSeries(ctx, name, startTime, values))
+		series = append(series, ts.NewSeries(ctx, name, seriesStartTime, values))
 	}
 
 	if err := iter.Err(); err != nil {

@@ -141,15 +141,16 @@ func buildResult(
 }
 
 func TestTruncateBoundsToResolution(t *testing.T) {
-	start := time.Date(2020, time.October, 8, 22, 51, 39, 0, time.UTC)
-	end := time.Date(2020, time.October, 8, 22, 56, 39, 0, time.UTC)
+	start := time.Date(2020, time.October, 8, 22, 50, 12, 0, time.UTC)
+	end := time.Date(2020, time.October, 8, 22, 55, 39, 0, time.UTC)
+
 
 	resolution := 60 * time.Second
 
 	truncatedStart, truncatedEnd := truncateBoundsToResolution(start, end, resolution)
 
-	expectedStart := time.Date(2020, time.October, 8, 22, 51, 00, 0, time.UTC)
-	expectedEnd := time.Date(2020, time.October, 8, 22, 56, 00, 0, time.UTC)
+	expectedStart := time.Date(2020, time.October, 8, 22, 50, 00, 0, time.UTC)
+	expectedEnd := time.Date(2020, time.October, 8, 22, 55, 00, 0, time.UTC)
 	assert.Equal(t, truncatedStart, expectedStart)
 	assert.Equal(t, truncatedEnd, expectedEnd)
 }
@@ -161,8 +162,8 @@ func TestTranslateTimeseries(t *testing.T) {
 	ctx := xctx.New()
 	resolution := 60 * time.Second
 	steps := 6
-	start := time.Date(2020, time.October, 8, 15, 32, 0, 0, time.UTC)
-	end := time.Date(2020, time.October, 8, 15, 37, 16, 0, time.UTC)
+	start := time.Date(2020, time.October, 8, 15, 30, 00, 0, time.UTC)
+	end := time.Date(2020, time.October, 8, 15, 35, 16, 0, time.UTC)
 
 	truncatedSteps := steps - 1
 	truncatedEnd := end.Truncate(resolution).Add(resolution)
