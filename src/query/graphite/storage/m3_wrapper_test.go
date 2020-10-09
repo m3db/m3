@@ -272,6 +272,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		end                   time.Time
 		shiftStepsStart       int
 		shiftStepsEnd         int
+		renderPartialStart    bool
 		renderPartialEnd      bool
 		numDataPointsFetched  int
 		numDataPointsExpected int
@@ -279,7 +280,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
-			shiftStepsStart:       -1,
+			renderPartialStart:    true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 5,
 		},
@@ -294,7 +295,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
 			numDataPointsFetched:  25,
-			numDataPointsExpected: 5,
+			numDataPointsExpected: 4,
 		},
 		{
 			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
@@ -310,8 +311,10 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			result := buildResult(ctrl, resolution, expected, test.numDataPointsFetched, test.start)
 			translated, err := translateTimeseries(ctx, result, test.start, test.end,
 				testM3DBOpts, truncateBoundsToResolutionOptions{
-					shiftStepsStart: test.shiftStepsStart,
-					shiftStepsEnd:   test.shiftStepsEnd,
+					shiftStepsStart:    test.shiftStepsStart,
+					shiftStepsEnd:      test.shiftStepsEnd,
+					renderPartialStart: test.renderPartialStart,
+					renderPartialEnd:   test.renderPartialEnd,
 				})
 			require.NoError(t, err)
 
@@ -327,14 +330,16 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 
 				expectedStart := test.start.
 					Truncate(resolution).
-					Add(resolution).
 					Add(time.Duration(test.shiftStepsStart) * resolution)
+				if !test.renderPartialStart && !test.start.Equal(test.start.Truncate(resolution)) {
+					expectedStart = expectedStart.Add(resolution)
+				}
 				require.Equal(t, expectedStart, tt.StartTime(), "unexpected start time")
 
 				expectedEnd := test.end.
 					Truncate(resolution).
 					Add(time.Duration(test.shiftStepsEnd) * resolution)
-				if test.renderPartialEnd && !expectedEnd.Equal(test.end.Truncate(resolution)) {
+				if test.renderPartialEnd && !test.end.Equal(test.end.Truncate(resolution)) {
 					expectedEnd = expectedEnd.Add(resolution)
 				}
 				require.Equal(t, expectedEnd, tt.EndTime(), "unexpected end time")

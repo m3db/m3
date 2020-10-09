@@ -428,6 +428,12 @@ type CarbonConfiguration struct {
 	ShiftStepsStart int `yaml:"shiftStepsStart"`
 	// ShiftStepsEnd sets a constant set of steps to shift end by.
 	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// RenderPartialStart sets whether to render partial datapoints when
+	// the start time is between a datapoint's resolution step size.
+	RenderPartialStart bool `yaml:"renderPartialStart"`
+	// RenderPartialEnd sets whether to render partial datapoints when
+	// the end time is between a datapoint's resolution step size.
+	RenderPartialEnd bool `yaml:"renderPartialEnd"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
