@@ -188,12 +188,12 @@ func translateTimeseries(
 
 		totalDuration := time.Millisecond * time.Duration(millisPerStep) * time.Duration(numSteps)
 		// in M3, there is no datapoint at the endTime of the series, since M3 is start time inclusive and end time exclusive
-		seriesStartTime, seriesEndTime := endTruncated.Add(totalDuration*-1), endTruncated.Add(resolution)
+		seriesStartTime, seriesEndTime := endTruncated.Add(totalDuration*-1), endTruncated
 
 		m3series := iter.Current()
 		dps := m3series.Datapoints()
 		for _, datapoint := range dps.Datapoints() {
-			ts := datapoint.Timestamp
+			ts := datapoint.Timestamp.Truncate(resolution)
 			if ts.Before(seriesStartTime) {
 				// Outside of range requested.
 				continue
@@ -204,7 +204,7 @@ func translateTimeseries(
 				break
 			}
 
-			index := numSteps - int(endTruncated.Sub(ts.Truncate(resolution))/resolution)
+			index := numSteps - int(endTruncated.Sub(ts)/resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 

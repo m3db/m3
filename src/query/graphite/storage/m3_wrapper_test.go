@@ -144,7 +144,6 @@ func TestTruncateBoundsToResolution(t *testing.T) {
 	start := time.Date(2020, time.October, 8, 22, 50, 12, 0, time.UTC)
 	end := time.Date(2020, time.October, 8, 22, 55, 39, 0, time.UTC)
 
-
 	resolution := 60 * time.Second
 
 	truncatedStart, truncatedEnd := truncateBoundsToResolution(start, end, resolution)
@@ -156,38 +155,69 @@ func TestTruncateBoundsToResolution(t *testing.T) {
 }
 
 func TestTranslateTimeseries(t *testing.T) {
-	ctrl := xtest.NewController(t)
+	var (
+		ctrl       = xtest.NewController(t)
+		resolution = 60 * time.Second
+		ctx        = xctx.New()
+	)
 	defer ctrl.Finish()
 
-	ctx := xctx.New()
-	resolution := 60 * time.Second
-	steps := 6
-	start := time.Date(2020, time.October, 8, 15, 30, 00, 0, time.UTC)
-	end := time.Date(2020, time.October, 8, 15, 35, 16, 0, time.UTC)
-
-	truncatedSteps := steps - 1
-	truncatedEnd := end.Truncate(resolution).Add(resolution)
-	truncated := truncatedEnd.Add(time.Duration(truncatedSteps) * resolution * -1)
-
-	expected := 8
-	result := buildResult(ctrl, resolution, expected, steps, start)
-	translated, err := translateTimeseries(ctx, result, start, end)
-	require.NoError(t, err)
-
-	require.Equal(t, expected, len(translated))
-	for i, tt := range translated {
-		ex := make([]float64, truncatedSteps)
-		for j := range ex {
-			ex[j] = float64(i)
-		}
-
-		assert.Equal(t, truncated, tt.StartTime())
-		assert.Equal(t, truncatedEnd, tt.EndTime())
-		assert.Equal(t, ex, tt.SafeValues())
-		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
+	tests := []struct {
+		start                 time.Time
+		end                   time.Time
+		numDataPointsFetched  int
+		numDataPointsExpected int
+	}{
+		{
+			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
+			numDataPointsFetched:  7,
+			numDataPointsExpected: 5,
+		},
+		{
+			start:                 time.Date(2020, time.October, 8, 15, 0, 00, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
+			numDataPointsFetched:  7,
+			numDataPointsExpected: 5,
+		},
+		{
+			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
+			numDataPointsFetched:  25,
+			numDataPointsExpected: 5,
+		},
+		{
+			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 0, 0, time.UTC),
+			numDataPointsFetched:  25,
+			numDataPointsExpected: 5,
+		},
 	}
-}
 
+	for _, test := range tests {
+		truncatedEnd := test.end.Truncate(resolution).Add(resolution)
+		truncated := truncatedEnd.Add(time.Duration(test.numDataPointsExpected) * resolution * -1)
+
+		expected := 9
+		result := buildResult(ctrl, resolution, expected, test.numDataPointsFetched, test.start)
+		translated, err := translateTimeseries(ctx, result, test.start, test.end)
+		require.NoError(t, err)
+
+		require.Equal(t, expected, len(translated))
+		for i, tt := range translated {
+			ex := make([]float64, test.numDataPointsExpected)
+			for j := range ex {
+				ex[j] = float64(i)
+			}
+
+			assert.Equal(t, truncated, tt.StartTime())
+			assert.Equal(t, truncatedEnd, tt.EndTime())
+			assert.Equal(t, ex, tt.SafeValues())
+			assert.Equal(t, fmt.Sprint("a", i), tt.Name())
+		}
+	}
+
+}
 
 func TestFetchByQuery(t *testing.T) {
 	ctrl := xtest.NewController(t)
