@@ -70,7 +70,7 @@ func genEntryTestInput(size int, opts Options) gopter.Gen {
 		)
 
 		for i, chance := range dropChances {
-			shouldKeep := chance <= 9
+			shouldKeep := chance <= 8
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
 				takenEntries = append(takenEntries, entries[i])
@@ -108,7 +108,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 		)
 
 		for i, chance := range dropChances {
-			shouldKeep := chance <= 9
+			shouldKeep := chance <= 8
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
 				takenChecksums = append(takenChecksums, ident.IndexChecksum{
@@ -146,47 +146,32 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 	})
 }
 
-func (c mismatchChecksum) String() string {
-	return fmt.Sprintf("{c: %d, e: %v}", c.checksum, c.entryMismatch)
-}
-
 type mismatchChecksumBatch struct {
 	lastElementMarker bool
 	mismatches        []mismatchChecksum
 }
 
-func TestGatherContiguousMismatchValues(t *testing.T) {
-	b := mismatchChecksumBatch{
-		mismatches: []mismatchChecksum{
-			{false, 0, true}, {false, 1, false}, {true, 2, false},
-			{false, 3, true}, {false, 6, false}, {false, 8, false},
-		},
-	}
-
-	b.gatherContiguousMismatchValues()
-	fmt.Println(b)
-}
-
 func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
-	checksumSet := false
-	hasEntryMismatch := false
-	hasChecksumMismatch := false
-	nextContiguous := int64(0)
-	contiguous := 0
+	var (
+		checksumSet         bool
+		hasEntryMismatch    bool
+		hasChecksumMismatch bool
+		contiguousCount     int
+		nextContiguous      int64
+	)
 
-	// fmt.Println("mismatch", b)
-	pr := func(idx int64, a ...interface{}) {
-		// if idx > 90 {
-		// 	fmt.Println(a...)
-		// }
-	}
 	for idx, mismatchChecksum := range b.mismatches {
-		checksum := mismatchChecksum.checksum
-		isLast := idx == len(b.mismatches)-1
-		lastIsContiguous := false
+		var (
+			lastIsContiguous bool
+
+			checksum = mismatchChecksum.checksum
+			isLast   = idx == len(b.mismatches)-1
+		)
+
+		// NB: gather the number of contiguous mismatches. Mismatches are contiguous
+		// if they appear one after another, with no matching entries between them.
 		if !checksumSet || checksum == nextContiguous {
 			checksumSet = true
-			pr(checksum, "checking checksum", checksum, nextContiguous, !isLast, !b.lastElementMarker)
 
 			if mismatchChecksum.entryMismatch {
 				hasEntryMismatch = true
@@ -194,8 +179,9 @@ func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
 				hasChecksumMismatch = true
 			}
 
-			contiguous++
+			contiguousCount++
 			if !isLast {
+				// If this is not the last mismatch, increase the contiguous length.
 				nextContiguous = checksum + 1
 				continue
 			} else {
@@ -203,12 +189,15 @@ func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
 			}
 		}
 
-		pr(checksum, "   contiguous", contiguous, "index", idx, hasEntryMismatch, hasChecksumMismatch)
-		// sort any contiguous values only if both entry and checksum mismatches
-		// present in the contiguous group.
-		// fmt.Println("idx-contiguous", idx, contiguous, idx-contiguous)
-		if contiguous > 1 && hasEntryMismatch && hasChecksumMismatch {
-			firstContiguous := idx - contiguous
+		// A contiguous set of mismatches should be sorted IFF:
+		//  - at least 2 values
+		//  - continguous set contains both entry and checksum mismatches
+		// After sorting, all entry mismatches should appear first, in
+		// increasing order, followed by index mismatches in increasing order.
+		// NB: if the last element of a batch is a mismatch, it is fixed and should
+		// not be sorted.
+		if contiguousCount > 1 && hasEntryMismatch && hasChecksumMismatch {
+			firstContiguous := idx - contiguousCount
 			lastContiguous := idx
 			if lastIsContiguous {
 				firstContiguous++
@@ -216,8 +205,8 @@ func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
 					lastContiguous++
 				}
 			}
+
 			contiguousSlice := b.mismatches[firstContiguous:lastContiguous]
-			pr(checksum, "Slice before", contiguousSlice)
 			sort.Slice(contiguousSlice, func(i, j int) bool {
 				iEntry, jEntry := contiguousSlice[i], contiguousSlice[j]
 				if iEntry.entryMismatch {
@@ -238,11 +227,10 @@ func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
 				// these should be sorted by lex order
 				return iEntry.checksum < jEntry.checksum
 			})
-			pr(checksum, "Slice after ", contiguousSlice)
 		}
 
 		// clear
-		contiguous = 1
+		contiguousCount = 1
 		hasChecksumMismatch = false
 		hasEntryMismatch = false
 		if mismatchChecksum.entryMismatch {
@@ -272,12 +260,16 @@ func allMismatchChecksumsToMismatchesByBatch(
 		var mismatches []mismatchChecksum
 		for _, mismatch := range allMismatchChecksums[allMismatchIdx:] {
 			if mismatch.checksum > lastChecksum {
+				// mismatch past last checksum in batch; append current batch and
+				// start a new one.
 				break
 			}
 
 			mismatches = append(mismatches, mismatch)
 			allMismatchIdx++
 			if mismatch.checksum == lastChecksum {
+				// mismatch is last checksum in batch; append current batch and
+				// start a new one.
 				lastElementMarker = true
 				break
 			}
@@ -287,12 +279,18 @@ func allMismatchChecksumsToMismatchesByBatch(
 			continue
 		}
 
+		// add a mismatch batch; imporant to note if the last element is a mismatch,
+		// since if it is, it should always remain the last element, regardless of
+		// if it forms a contiguous group or not.
 		mismatchBatch = append(mismatchBatch, mismatchChecksumBatch{
 			lastElementMarker: lastElementMarker,
 			mismatches:        mismatches,
 		})
 	}
 
+	// add any remaining mismatch checksums as a separate batch. This is ok
+	// since they will all be entry mismatches, so no additional sorting will be
+	// performed on this batch.
 	if allMismatchIdx < len(allMismatchChecksums) {
 		mismatchBatch = append(mismatchBatch, mismatchChecksumBatch{
 			lastElementMarker: false,
@@ -312,7 +310,6 @@ type mismatchChecksum struct {
 func buildExpectedMismatchChecksums(
 	checksums generatedChecksums,
 	takeEntries []bool,
-	print bool,
 ) []mismatchChecksum {
 	var allMismatchChecksums []mismatchChecksum
 	takeChecksums := checksums.taking
@@ -324,6 +321,8 @@ func buildExpectedMismatchChecksums(
 				entryMismatch: takeEntry,
 			})
 		} else if !takeEntry && !takeChecksums[idx] {
+			// Note checksums missing from both sets; this will be necessary when
+			// checking for congiuous series in gatherContiguousMismatchValues.
 			allMismatchChecksums = append(allMismatchChecksums, mismatchChecksum{
 				missingOnBoth: true,
 				checksum:      int64(idx),
@@ -332,18 +331,13 @@ func buildExpectedMismatchChecksums(
 	}
 
 	var gatheredMismatchChecksums []mismatchChecksum
-	if print {
-		fmt.Println("allMismatchChecksums\n", allMismatchChecksums)
-	}
+	// Gather mismatches to match incoming batches.
 	mismatchesByBatch := allMismatchChecksumsToMismatchesByBatch(checksums, allMismatchChecksums)
-	if print {
-		fmt.Println("mismatchesByBatch")
-		for i, b := range mismatchesByBatch {
-			fmt.Println("", i, b)
-		}
-	}
 	for _, batchMismatches := range mismatchesByBatch {
+		// Sort each batch as will be expected in output.
 		batchMismatches.gatherContiguousMismatchValues()
+
+		// Filter out series which do not appear in either checksum source.
 		filteredMismatches := batchMismatches.mismatches[:0]
 		for _, mismatch := range batchMismatches.mismatches {
 			if !mismatch.missingOnBoth {
@@ -357,26 +351,23 @@ func buildExpectedMismatchChecksums(
 	return gatheredMismatchChecksums
 }
 
-func TestRawChecksums(t *testing.T) {
+func TestExpectedAndChecksums(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
 		props      = gopter.NewProperties(parameters)
 		reporter   = gopter.NewFormatedReporter(true, 80, os.Stdout)
 
-		size = 300
-
 		hasher       = xhash.NewParsedIndexHasher(t)
 		decodingOpts = msgpack.NewDecodingOptions().SetIndexEntryHasher(hasher)
 		opts         = NewOptions().SetDecodingOptions(decodingOpts)
+
+		size     = 100
+		numTests = 1000
 	)
 
-	parameters.MinSuccessfulTests = 2000
-	// size, seed = 300,  1602212654922291000
-	seed = 1602212654922291000
-	// logRun := 0
+	parameters.MinSuccessfulTests = numTests
 	parameters.Rng.Seed(seed)
-	j := 0
 	fmt.Println("Running test with seed", seed)
 	props.Property("Checksum mismatcher detects correctly",
 		prop.ForAll(
@@ -384,26 +375,6 @@ func TestRawChecksums(t *testing.T) {
 				genChecksums generatedChecksums,
 				genEntries generatedEntries,
 			) (bool, error) {
-				// fmt.Println("RUN", j)
-				j++
-				// fmt.Println("taking checksums:")
-				// for i, take := range genChecksums.taking {
-				// 	if !take {
-				// 		fmt.Println(i, take)
-				// 	}
-				// }
-
-				// fmt.Println("taking entries:")
-				// for i, take := range genEntries.taking {
-				// 	if !take {
-				// 		fmt.Println(i, take)
-				// 	}
-				// }
-
-				// for _, bl := range genChecksums.blockBatch {
-				// 	fmt.Println(string(bl.EndMarker), bl.Checksums)
-				// }
-
 				inputBlockCh := make(chan ident.IndexChecksumBlock)
 				inputBlockReader := NewIndexChecksumBlockReader(inputBlockCh)
 
@@ -423,33 +394,12 @@ func TestRawChecksums(t *testing.T) {
 						return false, fmt.Errorf("failed to compute index entry: %v", err)
 					}
 
-					if len(entryMismatches) > 0 {
-						// fmt.Println("ENTRY", entry)
-						// fmt.Println("MISMATCHES", entryMismatches)
-					}
 					readMismatches = append(readMismatches, entryMismatches...)
 				}
 
-				drained := checker.Drain()
-				if len(drained) > 0 {
-					// fmt.Println("DRAINING")
-					// fmt.Println("DRAINED", drained)
-				}
-				readMismatches = append(readMismatches, drained...)
-
+				readMismatches = append(readMismatches, checker.Drain()...)
 				expectedMismatches := buildExpectedMismatchChecksums(
-					genChecksums, genEntries.taking, false)
-
-				// if j > 48 {
-				// 	fmt.Println()
-				// 	fmt.Println(j)
-				// 	fmt.Println()
-				// 	fmt.Println("expected")
-				// 	fmt.Println(expectedMismatches)
-				// 	fmt.Println()
-				// 	fmt.Println("actual")
-				// 	fmt.Println(readMismatches)
-				// }
+					genChecksums, genEntries.taking)
 
 				if len(expectedMismatches) != len(readMismatches) {
 					return false, fmt.Errorf("expected %d expectedMismatches, got %d",
@@ -463,10 +413,6 @@ func TestRawChecksums(t *testing.T) {
 							actual.Checksum, expected.checksum, i)
 					}
 
-					// fmt.Println(i, "mismatch", readMismatches[i], "expected", expected)
-					// if print {
-					// 	fmt.Println("after\n", allMismatchChecksums)
-					// }
 					if expected.entryMismatch {
 						expectedTags := fmt.Sprintf("bar-%03d", actual.Checksum)
 						if acTags := string(actual.EncodedTags); acTags != expectedTags {
