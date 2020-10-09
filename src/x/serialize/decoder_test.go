@@ -61,6 +61,7 @@ func TestEmptyTagNameDecode(t *testing.T) {
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
+	assertFastErr(t, d, "some tag")
 }
 
 func TestEmptyTagValueDecode(t *testing.T) {
@@ -73,10 +74,7 @@ func TestEmptyTagValueDecode(t *testing.T) {
 
 	d := newTagDecoder(testDecodeOpts, nil)
 	d.Reset(wrapAsCheckedBytes(b))
-	require.True(t, d.Next())
-	tag := d.Current()
-	require.Equal(t, "a", tag.Name.String())
-	require.Equal(t, "", tag.Value.String())
+	assertNextTag(t, d, "a", "")
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
 }
@@ -90,6 +88,7 @@ func TestDecodeHeaderMissing(t *testing.T) {
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
+	assertFastErr(t, d, "some tag")
 	d.Close()
 }
 
@@ -113,15 +112,8 @@ func TestDecodeSimple(t *testing.T) {
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
-	require.True(t, d.Next())
-	tag := d.Current()
-	require.Equal(t, "abc", tag.Name.String())
-	require.Equal(t, "defg", tag.Value.String())
-
-	require.True(t, d.Next())
-	tag = d.Current()
-	require.Equal(t, "x", tag.Name.String())
-	require.Equal(t, "bar", tag.Value.String())
+	assertNextTag(t, d, "abc", "defg")
+	assertNextTag(t, d, "x", "bar")
 
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
@@ -143,6 +135,7 @@ func TestDecodeAfterRewind(t *testing.T) {
 		tag := d.Current()
 		acBytes = append(acBytes, tag.Name.Bytes()...)
 		acBytes = append(acBytes, tag.Value.Bytes()...)
+		assertFastDecode(t, d, tag.Name.String(), tag.Value.String())
 	}
 
 	for i := 0; i < count; i++ {
@@ -194,6 +187,7 @@ func TestDecodeMissingTags(t *testing.T) {
 	d := newTestTagDecoder()
 	d.Reset(wrapAsCheckedBytes(b))
 	require.NoError(t, d.Err())
+	assertFastErr(t, d, "some tag")
 
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
@@ -238,9 +232,10 @@ func TestDecodeMissingValue(t *testing.T) {
 	d.Reset(wrapAsCheckedBytes(b))
 	require.NoError(t, d.Err())
 
-	require.True(t, d.Next())
+	assertNextTag(t, d, "abc", "defg")
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
+	assertFastErr(t, d, "x")
 }
 
 func TestDecodeDuplicateLifecycle(t *testing.T) {
@@ -342,6 +337,29 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 	mockBytes.EXPECT().NumRef().Return(0)
 	mockBytes.EXPECT().Finalize()
 	dupe.Close()
+}
+
+// assert the next tag in the iteration. ensures the decoder and faster decoder match.
+func assertNextTag(t *testing.T, d TagDecoder, name, value string) {
+	require.True(t, d.Next())
+	tag := d.Current()
+	require.Equal(t, name, tag.Name.String())
+	require.Equal(t, value, tag.Value.String())
+	assertFastDecode(t, d, name, value)
+}
+
+// assert the faster decoder returns the provided value for the name.
+func assertFastDecode(t *testing.T, d TagDecoder, name, value string) {
+	v, found, err := TagValueFromEncodedTagsFast(d.(*decoder).checkedData.Bytes(), []byte(name))
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, value, string(v))
+}
+
+// assert the fast decoder returns an error for the provided name.
+func assertFastErr(t *testing.T, d TagDecoder, name string) {
+	_, _, err := TagValueFromEncodedTagsFast(d.(*decoder).checkedData.Bytes(), []byte(name))
+	require.Error(t, err)
 }
 
 func newTestTagDecoder() TagDecoder {

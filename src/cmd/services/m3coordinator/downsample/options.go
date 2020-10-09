@@ -972,8 +972,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, pools.metricTagsIteratorPool,
-				nameTag)
+			name, err := resolveEncodedTagsNameTag(id, nameTag)
 			if err != nil && err != errNoMetricNameTag {
 				return nil, nil, err
 			}

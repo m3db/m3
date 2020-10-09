@@ -2318,6 +2318,7 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 func init() {
 	// functions - in alpha ordering
 	MustRegisterFunction(absolute)
+	MustRegisterFunction(aggregate)
 	MustRegisterFunction(aggregateLine).WithDefaultParams(map[uint8]interface{}{
 		2: "avg", // f
 	})
@@ -2431,6 +2432,7 @@ func init() {
 	MustRegisterFunction(stdev).WithDefaultParams(map[uint8]interface{}{
 		3: 0.1, // windowTolerance
 	})
+	MustRegisterFunction(stddevSeries)
 	MustRegisterFunction(substr).WithDefaultParams(map[uint8]interface{}{
 		2: 0, // start
 		3: 0, // stop

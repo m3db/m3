@@ -2259,7 +2259,7 @@ func TestConstantLine(t *testing.T) {
 
 	testSeries := r.Values
 	require.Equal(t, 1, len(testSeries))
-	require.Equal(t, 2, testSeries[0].Len())
+	require.Equal(t, 3, testSeries[0].Len())
 	expectedName := fmt.Sprintf(common.FloatingPointFormat, testValue)
 	require.Equal(t, expectedName, testSeries[0].Name())
 	for i := 0; i < testSeries[0].Len(); i++ {
@@ -2877,7 +2877,7 @@ func testAggregateLineInternal(t *testing.T, f string, expectedName string, expe
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedName, results[0].Name())
-	require.Equal(t, 2, results[0].Len())
+	require.Equal(t, 3, results[0].Len())
 	for i := 0; i < 2; i++ {
 		require.Equal(t, expectedVal, results[0].ValueAt(i))
 	}
@@ -3389,6 +3389,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
@@ -3476,6 +3477,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",

@@ -21,8 +21,6 @@
 package serialize
 
 import (
-	"bytes"
-
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -60,16 +58,10 @@ func (it *metricTagsIter) NumTags() int {
 }
 
 func (it *metricTagsIter) TagValue(tagName []byte) ([]byte, bool) {
-	iter := it.tagDecoder.Duplicate()
-	defer iter.Close()
-
-	for iter.Next() {
-		tag := iter.Current()
-		if bytes.Equal(tagName, tag.Name.Bytes()) {
-			return tag.Value.Bytes(), true
-		}
-	}
-	return nil, false
+	// use the fast decoder (i.e no pools) since this lookup is outside the current iteration.
+	// decoding errors are dropped and the tag is reported as missing.
+	value, found, _ := TagValueFromEncodedTagsFast(it.Bytes(), tagName)
+	return value, found
 }
 
 func (it *metricTagsIter) Next() bool {
