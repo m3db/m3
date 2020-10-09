@@ -38,8 +38,38 @@ type DownsampledValue struct {
 // after applying this logics to the original values.
 // As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in (if available),
 // and then in some cases the first value of this tile may be omitted.
-// If the value for prevFrameLastValue is not available, pass math.Nan() instead.
+// If the value for prevFrameLastValue is not available, pass math.NaN() instead.
 // Pass a slice of capacity 4 as results to avoid potential allocations.
+//
+// Examples:
+//
+// 1. Frame without resets, prevFrameLastValue not provided (x):
+// ... x | 5 6 7 8 9 | ...
+// downsamples to:
+// ... x | 5       9 | ...
+// - we always keep the last value (9), and also need to keep the first value (5) because there might have been
+// a reset between the previous frame and the current one (x -> 5).
+//
+// 2. Frame without resets, prevFrameLastValue provided (2):
+// ... 2 | 5 6 7 8 9 | ...
+// downsamples to:
+// ... 2 |         9 | ...
+// - we always keep the last value (9), and we can drop the first value (5) because we know there was no reset
+// between the previous frame and the current one (2 -> 5).
+//
+// 3. Frame with one reset (6 -> 1):
+// ... 2 | 5 6 1 3 9 | ...
+// downsamples to:
+// ... 2 |   6 1   9 | ...
+// - we always keep the last value (9), and also include two datapoints around the reset (6 -> 1).
+//
+// 4. Frame with two resets (5 -> 1, 3 -> 0):
+// ... 2 | 5 1 3 0 9 | ...
+// downsamples to:
+// ... 2 |     8 0 9 | ...
+// - we always keep the last value (9), and also include two datapoints around the last reset (8 -> 0),
+// where 8 is the value accumulated from all resets within the frame (5 + 3 = 8).
+
 func DownsampleCounterResets(
 	prevFrameLastValue float64,
 	frameValues []float64,
