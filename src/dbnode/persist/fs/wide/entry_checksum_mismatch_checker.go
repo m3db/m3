@@ -160,7 +160,27 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 
 		checksum := batch.Checksums[c.batchIdx]
 		markerCompare := bytes.Compare(batch.EndMarker, entry.entry.ID)
-		if c.batchIdx == markerIdx {
+		if c.batchIdx < markerIdx {
+			if checksum == entry.idChecksum {
+				// Matches: increment batch index and return any gathered mismatches.
+				c.batchIdx++
+				return c.mismatches, nil
+			}
+
+			for nextBatchIdx := c.batchIdx + 1; nextBatchIdx < markerIdx; nextBatchIdx++ {
+				// NB: read next hashes, checking for index checksum matches.
+				nextChecksum := batch.Checksums[nextBatchIdx]
+				if entry.idChecksum != nextChecksum {
+					continue
+				}
+
+				// Checksum match. Add previous checksums as mismatches.
+				c.recordIndexMismatches(batch.Checksums[c.batchIdx:nextBatchIdx]...)
+				c.batchIdx = nextBatchIdx + 1
+				return c.mismatches, nil
+			}
+
+			checksum = batch.Checksums[markerIdx]
 			// NB: this is the last element in the batch. Check ID against MARKER.
 			if entry.idChecksum == checksum {
 				if markerCompare != 0 {
@@ -168,55 +188,33 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 					return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
 				}
 
-				// ID and checksum match. Advance the block iter and return gathered mismatches.
+				c.recordIndexMismatches(batch.Checksums[c.batchIdx:markerIdx]...)
+				// ID and checksum match. Advance the block iter and return empty.
 				batch = c.readNextBatch()
 				return c.mismatches, nil
 			}
 
-			// Checksum mismatch.
-			if markerCompare == 0 {
-				// IDs match but checksums do not. Advance the block iter and return
-				// mismatch.
-				batch = c.readNextBatch()
-				return c.entryMismatches(entry), nil
-			} else if markerCompare > 0 {
+			// Checksums do not match.
+			if markerCompare > 0 {
 				// This is a mismatch on primary that appears before the
 				// marker element. Return mismatch but do not advance iter.
 				return c.entryMismatches(entry), nil
 			}
 
-			// The current batch here is exceeded. Emit the current batch marker as
-			// a mismatch on primary, and advance the block iter.
-			c.recordIndexMismatches(checksum)
+			// Current value is past the end of this batch. Mark all in batch as
+			// mismatches, and receive next batch.
+			c.recordIndexMismatches(batch.Checksums[c.batchIdx:]...)
 			batch = c.readNextBatch()
 			if c.exhausted {
 				// If no further values, add the current entry as a mismatch and return.
 				return c.entryMismatches(entry), nil
 			}
 
+			// All mismatches marked for the current batch, check entry against next
+			// batch.
 			continue
 		}
 
-		if checksum == entry.idChecksum {
-			// Matches: increment batch index and return any gathered mismatches.
-			c.batchIdx++
-			return c.mismatches, nil
-		}
-
-		for nextBatchIdx := c.batchIdx + 1; nextBatchIdx < markerIdx; nextBatchIdx++ {
-			// NB: read next hashes, checking for index checksum matches.
-			nextChecksum := batch.Checksums[nextBatchIdx]
-			if entry.idChecksum != nextChecksum {
-				continue
-			}
-
-			// Checksum match. Add previous checksums as mismatches.
-			c.recordIndexMismatches(batch.Checksums[c.batchIdx:nextBatchIdx]...)
-			c.batchIdx = nextBatchIdx + 1
-			return c.mismatches, nil
-		}
-
-		checksum = batch.Checksums[markerIdx]
 		// NB: this is the last element in the batch. Check ID against MARKER.
 		if entry.idChecksum == checksum {
 			if markerCompare != 0 {
@@ -224,22 +222,26 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 				return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
 			}
 
-			c.recordIndexMismatches(batch.Checksums[c.batchIdx:markerIdx]...)
-			// ID and checksum match. Advance the block iter and return empty.
+			// ID and checksum match. Advance the block iter and return gathered mismatches.
 			batch = c.readNextBatch()
 			return c.mismatches, nil
 		}
 
-		// Checksums do not match.
-		if markerCompare > 0 {
+		// Checksum mismatch.
+		if markerCompare == 0 {
+			// IDs match but checksums do not. Advance the block iter and return
+			// mismatch.
+			batch = c.readNextBatch()
+			return c.entryMismatches(entry), nil
+		} else if markerCompare > 0 {
 			// This is a mismatch on primary that appears before the
 			// marker element. Return mismatch but do not advance iter.
 			return c.entryMismatches(entry), nil
 		}
 
-		// Current value is past the end of this batch. Mark all in batch as
-		// mismatches, and receive next batch.
-		c.recordIndexMismatches(batch.Checksums[c.batchIdx:]...)
+		// The current batch here is exceeded. Emit the current batch marker as
+		// a mismatch on primary, and advance the block iter.
+		c.recordIndexMismatches(checksum)
 		batch = c.readNextBatch()
 		if c.exhausted {
 			// If no further values, add the current entry as a mismatch and return.
