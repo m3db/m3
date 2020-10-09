@@ -2378,6 +2378,9 @@ func init() {
 		3: "",    // fname
 		4: false, // alignToFrom
 	})
+	MustRegisterFunction(smartSummarize).WithDefaultParams(map[uint8]interface{}{
+		3: "",    // fname
+	})
 	MustRegisterFunction(sumSeries)
 	MustRegisterFunction(sumSeriesWithWildcards)
 	MustRegisterFunction(aggregateWithWildcards)
@@ -2409,10 +2412,6 @@ func init() {
 	MustRegisterAliasedFunction("max", maxSeries)
 	MustRegisterAliasedFunction("min", minSeries)
 	MustRegisterAliasedFunction("randomWalk", randomWalkFunction)
-	// NB(jayp): Graphite docs say that smartSummarize is the "smarter experimental version of
-	// summarize". Well, I am not sure about smarter, but aliasing satisfies the experimental
-	// aspect.
-	MustRegisterAliasedFunction("smartSummarize", summarize)
 	MustRegisterAliasedFunction("sum", sumSeries)
 	MustRegisterAliasedFunction("time", timeFunction)
 }

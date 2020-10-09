@@ -3404,6 +3404,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"removeEmptySeries",
 		"scale",
 		"scaleToSeconds",
+		"smartSummarize",
 		"sortByMaxima",
 		"sortByMinima",
 		"sortByName",

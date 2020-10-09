@@ -23,6 +23,7 @@ package ts
 import (
 	"errors"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -597,6 +598,20 @@ func Max(a, b float64, count int) float64 { return math.Max(a, b) }
 
 // Last finds the latter of two values.
 func Last(a, b float64, count int) float64 { return b }
+
+// Median finds the median of a slice of values.
+func Median(vals []float64, count int) float64 {
+	if count == 1 {
+		return vals[0]
+	}
+	sort.Float64s(vals)
+	if count%2 != 0 {
+		// if count is odd
+		return vals[(count-1)/2]
+	}
+	// if count is even
+	return (vals[count/2] + vals[(count/2)-1]) / 2.0
+}
 
 // Gcd finds the gcd of two values.
 func Gcd(a, b int64) int64 {
