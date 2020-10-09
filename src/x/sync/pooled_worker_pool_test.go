@@ -74,7 +74,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	for i := 0; i < workers*2; i++ {
 		result := p.GoWithTimeout(func() {
 			wg.Wait()
-		}, 100*time.Millisecond)
+		}, 1*time.Second)
 		if result {
 			resultsTrue++
 		} else {
