@@ -161,6 +161,10 @@ type RunOptions struct {
 
 	// AggregatorServerOptions are server options for aggregator.
 	AggregatorServerOptions []server.AdminOption
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -253,7 +257,8 @@ func Run(runOpts RunOptions) {
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
 		SetLogger(logger).
-		SetTracer(tracer)
+		SetTracer(tracer).
+		SetCustomBuildTags(runOpts.CustomBuildTags)
 
 	if runOpts.InstrumentOptionsReadyCh != nil {
 		runOpts.InstrumentOptionsReadyCh <- InstrumentOptionsReady{
