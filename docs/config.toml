@@ -1,8 +1,8 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   [[module.imports]]
-    # path = "github.com/chronosphereio/docs-theme"
-    path = "../../../docs-theme"
+    path = "github.com/chronosphereio/docs-theme"
+    # path = "../../../docs-theme"
 
   [[module.mounts]]
     source = "content"
@@ -32,7 +32,7 @@
     source = "archetypes"
     target = "archetypes"
 
-theme = "docs-theme"
+# theme = "docs-theme"
 
 # baseURL = "/"
 languageCode = "en-US"
