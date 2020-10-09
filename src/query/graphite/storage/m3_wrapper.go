@@ -118,19 +118,15 @@ func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error
 		return nil, err
 	}
 
-	m3EndTime := opts.EndTime
-	if m3EndTime.Second() == 0 {
-		// Graphite is end-time inclusive, so we won't fetch
-		// The last datapoint unless we add this extra minute
-		offset := time.Minute
-		m3EndTime = m3EndTime.Add(offset)
-	}
-	
+	// Graphite is end-time inclusive, so we won't fetch
+	// The last datapoint unless we add this extra minute
+	opts.EndTime = opts.EndTime.Add(time.Minute)
+
 	return &storage.FetchQuery{
 		Raw:         query,
 		TagMatchers: matchers,
 		Start:       opts.StartTime,
-		End:         m3EndTime,
+		End:         opts.EndTime,
 		// NB: interval is not used for initial consolidation step from the storage
 		// so it's fine to use default here.
 		Interval: time.Duration(0),
@@ -192,7 +188,7 @@ func translateTimeseries(
 
 		totalDuration := time.Millisecond * time.Duration(millisPerStep) * time.Duration(numSteps)
 		// in M3, there is no datapoint at the endTime of the series, since M3 is start time inclusive and end time exclusive
-		seriesStartTime, seriesEndTime := endTruncated.Add(totalDuration * -1), endTruncated.Add(resolution)
+		seriesStartTime, seriesEndTime := endTruncated.Add(totalDuration*-1), endTruncated.Add(resolution)
 
 		m3series := iter.Current()
 		dps := m3series.Datapoints()
@@ -208,7 +204,7 @@ func translateTimeseries(
 				break
 			}
 
-			index := numSteps - int(endTruncated.Sub(ts.Truncate(resolution)) / resolution)
+			index := numSteps - int(endTruncated.Sub(ts.Truncate(resolution))/resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 
