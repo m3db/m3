@@ -136,6 +136,19 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchForEntry(
 	batch := c.blockReader.Current()
 	markerIdx := len(batch.Checksums) - 1
 	for {
+		// NB: If the incoming checksum block is empty, move to the next one.
+		if len(batch.Checksums) == 0 {
+			if !c.blockReader.Next() {
+				c.exhausted = true
+				return c.mismatches, nil
+			}
+
+			batch = c.blockReader.Current()
+			markerIdx = len(batch.Checksums) - 1
+			c.batchIdx = 0
+			continue
+		}
+
 		checksum := batch.Checksums[c.batchIdx]
 		compare := bytes.Compare(batch.EndMarker, entry.entry.ID)
 		if c.batchIdx == markerIdx {

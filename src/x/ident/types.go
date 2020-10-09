@@ -311,6 +311,14 @@ func (t Tags) Equal(other Tags) bool {
 	return true
 }
 
+// IndexChecksum is a wide index checksums for a single entry.
+type IndexChecksum struct {
+	// Checksum is the wide index checksums.
+	Checksum int64
+	// ID is the ID.
+	ID []byte
+}
+
 // IndexChecksumBlock represents a set of index checksums within a series block.
 type IndexChecksumBlock struct {
 	// Checksums is the list of index checksums.

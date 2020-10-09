@@ -21,59 +21,14 @@
 package hash
 
 import (
-	"hash"
 	"regexp"
 	"strconv"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/tj/assert"
 
 	"github.com/stretchr/testify/require"
 )
-
-type testHash struct {
-	t  *testing.T
-	re *regexp.Regexp
-
-	v     uint32
-	count int
-}
-
-func (h *testHash) Reset() {
-	h.v = 0
-	h.count = 0
-}
-
-func (h *testHash) Size() int      { return h.count }
-func (h *testHash) BlockSize() int { return 0 }
-func (h *testHash) Sum32() uint32  { return h.v }
-func (h *testHash) Write(p []byte) (n int, err error) {
-	h.Sum(p)
-	return 0, nil
-}
-
-func (h *testHash) Sum(b []byte) []byte {
-	h.count = h.count + 1
-	matched := h.re.FindAllString(string(b), -1)
-	if len(matched) == 0 {
-		return b
-	}
-
-	i, err := strconv.Atoi(matched[0])
-	require.NoError(h.t, err)
-	h.v = h.v + uint32(i)
-	return b
-}
-
-// NewParseValueHash32 builds a new test hash.Hash32. Given hash value is a sum
-// of all integer values from string representations of input bytes.
-// e.g. testHash.Sum([]byte("foo123")) will increment hash value by 123.
-func NewParseValueHash32(t *testing.T) hash.Hash32 {
-	re, err := regexp.Compile(`\d[\d,]*[\.]?[\d{2}]*`)
-	require.NoError(t, err)
-	return &testHash{t: t, re: re}
-}
 
 type parsedIndexHasher struct {
 	t  *testing.T
@@ -96,6 +51,6 @@ func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
 	}
 
 	i, err := strconv.Atoi(matched[0])
-	assert.NoError(h.t, err)
+	require.NoError(h.t, err)
 	return int64(i)
 }
