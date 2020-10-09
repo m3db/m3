@@ -35,6 +35,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -1769,42 +1770,39 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
+		mockEncoderPool = encoding.NewMockEncoderPool(ctrl)
+		mockEncoder     = encoding.NewMockEncoder(ctrl)
+		testOpts        = DefaultTestOptions().SetEncoderPool(mockEncoderPool)
+		err             error
+
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
-		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: time.Minute}
+		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
+
+		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
+		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
 	)
 
-	sourceShard := testDatabaseShard(t, DefaultTestOptions())
+	sourceShard := testDatabaseShard(t, testOpts)
 	defer sourceShard.Close()
 
-	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
+	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
 	defer targetShard.Close()
 
 	sourceNsID := sourceShard.namespace.ID()
 
-	dataBytes := func() []byte {
-		encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
-		datapointTimestamp := start.Add(10 * time.Second)
-		datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
-		err := encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
-		require.NoError(t, err)
-		m3tszSegment := encoder.Discard()
-		encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
-		m3tszSegment.Finalize()
-		return encodedBytes
-	}
-
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
 	reader0.EXPECT().Entries().Return(2).AnyTimes()
-	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(), uint32(11), nil)
-	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(), uint32(22), nil)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(t, start, nil, 1, 5), uint32(11), nil)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(t, start, counterPayload, 0.5, 1, 2), uint32(22), nil)
 	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
-	reader1.EXPECT().Entries().Return(1).AnyTimes()
-	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(), uint32(33), nil)
+	reader1.EXPECT().Entries().Return(2).AnyTimes()
+	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(t, secondSourceBlockStart, counterPayload, 5, 1, 3, 0, 9), uint32(33), nil)
+	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(t, secondSourceBlockStart, gaugePayload, 4, 3), uint32(44), nil)
 	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
@@ -1817,10 +1815,39 @@ func TestShardAggregateTiles(t *testing.T) {
 		{thirdSourceBlockStart, volume2},
 	}
 
+	mockEncoderPool.EXPECT().Get().Return(mockEncoder)
+
+	var (
+		nano                               = xtime.Nanosecond
+		counterAnnotation, gaugeAnnotation ts.Annotation
+	)
+
+	counterAnnotation, _ = counterPayload.Marshal()
+	gaugeAnnotation, _ = gaugePayload.Marshal()
+
+	someSegment := func() ts.Segment {
+		return dataSegment(t, start, nil, 5)
+	}
+
+	gomock.InOrder(
+		mockEncoder.EXPECT().Reset(start, 0, nil),
+		mockEncoder.EXPECT().Encode(dp(start.Add(time.Minute), 5), nano, nil),
+		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
+		mockEncoder.EXPECT().Encode(dp(start, 0.5), nano, counterAnnotation),
+		mockEncoder.EXPECT().Encode(dp(start.Add(2*time.Minute), 2), nano, counterAnnotation),
+		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(2*time.Minute), 5+3), nano, counterAnnotation),
+		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(3*time.Minute), 0), nano, counterAnnotation),
+		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(4*time.Minute), 9), nano, counterAnnotation),
+		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
+		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(time.Minute), 3), nano, gaugeAnnotation),
+		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
+		mockEncoder.EXPECT().Close(),
+	)
+
 	processedTileCount, err := targetShard.AggregateTiles(
 		sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), processedTileCount)
+	assert.Equal(t, int64(4), processedTileCount)
 }
 
 func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
@@ -1872,4 +1899,42 @@ func getMockReader(
 	}
 
 	return reader, latestSourceVolume
+}
+
+func dataSegment(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) ts.Segment {
+	var (
+		encoder         = m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
+		timestamp       = start
+		annotationBytes ts.Annotation
+		err             error
+	)
+
+	if annotationPayload != nil {
+		annotationBytes, err = annotationPayload.Marshal()
+		require.NoError(t, err)
+	}
+
+	for _, value := range values {
+		err = encoder.Encode(dp(timestamp, value), xtime.Nanosecond, annotationBytes)
+		require.NoError(t, err)
+		timestamp = timestamp.Add(time.Minute)
+	}
+
+	return encoder.Discard()
+}
+
+func dataBytes(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) []byte {
+	m3tszSegment := dataSegment(t, start, annotationPayload, values...)
+	encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
+	m3tszSegment.Finalize()
+
+	return encodedBytes
+}
+
+func dp(timestamp time.Time, value float64) ts.Datapoint {
+	return ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
 }

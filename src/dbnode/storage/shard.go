@@ -2758,6 +2758,7 @@ func (s *dbShard) AggregateTiles(
 		var (
 			seriesIter, id, encodedTags = readerIter.Current()
 			prevFrameLastValue          = math.NaN()
+			hasData                     bool
 			writeErr                    error
 		)
 
@@ -2765,6 +2766,8 @@ func (s *dbShard) AggregateTiles(
 			frame := seriesIter.Current()
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
+				hasData = true
+
 				annotationPayload.Reset()
 				firstAnnotation, err := frame.Annotations().Value(0)
 				if err != nil {
@@ -2788,12 +2791,12 @@ func (s *dbShard) AggregateTiles(
 					// Plain last value per frame.
 					downsampledValue := tile.DownsampledValue{
 						FrameIndex: lastIdx,
-						Value: frameValues[lastIdx],
+						Value:      frameValues[lastIdx],
 					}
 					downsampledValues = append(downsampledValues, downsampledValue)
 				}
 
-				writeErr = encodeDownsampledValues(downsampledValues, frame, encoder)
+				writeErr = encodeDownsampledValues(downsampledValues, frame, firstAnnotation, encoder)
 				if writeErr != nil {
 					break
 				}
@@ -2806,6 +2809,10 @@ func (s *dbShard) AggregateTiles(
 		if writeErr != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
 			multiErr = multiErr.Add(writeErr)
+			break
+		}
+
+		if !hasData {
 			break
 		}
 
@@ -2870,12 +2877,15 @@ func (s *dbShard) AggregateTiles(
 func encodeDownsampledValues(
 	downsampledValues []tile.DownsampledValue,
 	frame tile.SeriesBlockFrame,
+	ant ts.Annotation,
 	encoder encoding.Encoder,
 ) error {
 	for _, downsampled := range downsampledValues {
+		timestamp := frame.Timestamps()[downsampled.FrameIndex]
 		dp := ts.Datapoint{
-			Value:     downsampled.Value,
-			Timestamp: frame.Timestamps()[downsampled.FrameIndex],
+			Timestamp:      timestamp,
+			TimestampNanos: xtime.ToUnixNano(timestamp),
+			Value:          downsampled.Value,
 		}
 
 		// TODO: what happens if unit has changed mid-tile?
@@ -2887,12 +2897,7 @@ func encodeDownsampledValues(
 
 		// TODO: what happens if annotation has changed mid-tile?
 		// Write early and then do the remaining values separately?
-		annot, err := frame.Annotations().Value(downsampled.FrameIndex)
-		if err != nil {
-			return err
-		}
-
-		err = encoder.Encode(dp, unit, annot)
+		err = encoder.Encode(dp, unit, ant)
 		if err != nil {
 			return err
 		}
