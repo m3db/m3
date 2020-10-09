@@ -198,8 +198,12 @@ func (it *testReaderSliceOfSlicesIterator) Size() (int, error) {
 	return 0, nil
 }
 
-func (it *testReaderSliceOfSlicesIterator) Rewind() {
-	it.idx = -1
+func (it *testReaderSliceOfSlicesIterator) Clone() xio.ReaderSliceOfSlicesIterator {
+	return &testReaderSliceOfSlicesIterator{
+		blocks: it.blocks,
+		idx:    it.idx,
+		closed: it.closed,
+	}
 }
 
 func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {
