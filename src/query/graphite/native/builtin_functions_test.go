@@ -302,6 +302,73 @@ func TestScale(t *testing.T) {
 	}
 }
 
+func TestUseSeriesAbove(t *testing.T) {
+	var (
+		ctrl      = xgomock.NewController(t)
+		store     = storage.NewMockStorage(ctrl)
+		now       = time.Now().Truncate(time.Hour)
+		engine    = NewEngine(store)
+		startTime = now.Add(-3 * time.Minute)
+		endTime   = now.Add(-time.Minute)
+		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+		stepSize  = 60000
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.x.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.x.zed")).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed.g", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed.q", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.q.zed.q", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil)
+
+	tests := []struct {
+		target   string
+		expected common.TestSeries
+	}{
+		{
+			"useSeriesAbove(foo.bar.q.zed, -1, 'q', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.g.zed",
+				Data: []float64{1.0, 1.0},
+			},
+		},
+		// two replacements
+		{
+			"useSeriesAbove(foo.bar.g.zed.g, 15, 'g', 'q')",
+			common.TestSeries{
+				Name: "foo.bar.q.zed.q",
+				Data: []float64{1.0, 2.0, 3.0},
+			},
+		},
+		// no replacments
+		{
+			"useSeriesAbove(foo.bar.x.zed, 1, 'p', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.x.zed",
+				Data: []float64{2.0, 2.0},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		expr, err := engine.Compile(test.target)
+		require.NoError(t, err)
+		res, err := expr.Execute(ctx)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, stepSize, startTime,
+			[]common.TestSeries{test.expected}, res.Values)
+	}
+}
+
 func TestPercentileOfSeriesErrors(t *testing.T) {
 	ctx := common.NewTestContext()
 
@@ -3421,6 +3488,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"timeShift",
 		"timeSlice",
 		"transformNull",
+		"useSeriesAbove",
 		"weightedAverage",
 	}
 

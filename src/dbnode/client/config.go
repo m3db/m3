@@ -296,6 +296,7 @@ func (c Configuration) NewAdminClient(
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
+		syncNsInit           namespace.Initializer
 		asyncTopoInits       = []topology.Initializer{}
 		asyncClientOverrides = []environment.ClientOverrides{}
 	)
@@ -316,12 +317,14 @@ func (c Configuration) NewAdminClient(
 			} else {
 				syncTopoInit = envCfg.TopologyInitializer
 				syncClientOverrides = envCfg.ClientOverrides
+				syncNsInit = envCfg.NamespaceInitializer
 			}
 		}
 	}
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
+		SetNamespaceInitializer(syncNsInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetInstrumentOptions(iopts).
 		SetLogErrorSampleRate(c.LogErrorSampleRate)

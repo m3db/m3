@@ -806,14 +806,23 @@ func initClusters(
 		logger      = instrumentOpts.Logger()
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
+		nsCount     int
 		err         error
 	)
 	if len(cfg.Clusters) > 0 {
-		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
-			m3.ClustersStaticConfigurationOptions{
-				AsyncSessions:      true,
-				CustomAdminOptions: customAdminOptions,
-			})
+		for _, clusterCfg := range cfg.Clusters {
+			nsCount += len(clusterCfg.Namespaces)
+		}
+		opts := m3.ClustersStaticConfigurationOptions{
+			AsyncSessions:      true,
+			CustomAdminOptions: customAdminOptions,
+		}
+		if nsCount == 0 {
+			// No namespaces defined in config -- pull namespace data from etcd.
+			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts)
+		} else {
+			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts)
+		}
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -841,7 +850,7 @@ func initClusters(
 			},
 		}
 
-		clusters, err = clustersCfg.NewClusters(instrumentOpts,
+		clusters, err = clustersCfg.NewStaticClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
 				ProvidedSession:    session,
 				CustomAdminOptions: customAdminOptions,
