@@ -1687,8 +1687,13 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
+		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		if err != nil {

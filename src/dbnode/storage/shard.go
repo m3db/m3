@@ -2639,6 +2639,7 @@ func (s *dbShard) AggregateTiles(
 	sourceNsID ident.ID,
 	sourceShardID uint32,
 	blockReaders []fs.DataFileSetReader,
+	writer fs.StreamingWriter,
 	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
 	targetSchemaDescr namespace.SchemaDescr,
@@ -2726,22 +2727,15 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	nextVolume := latestTargetVolume + 1
-	writer, err := fs.NewStreamingWriter(
-		fs.StreamingWriterOptions{
-			NamespaceID:         s.namespace.ID(),
-			ShardID:             s.ID(),
-			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
-			BlockStart:          opts.Start,
-			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
-			VolumeIndex:         nextVolume,
-			PlannedRecordsCount: uint(maxEntries),
-		},
-	)
-	if err != nil {
-		return 0, err
+	writerOpenOpts := fs.StreamingWriterOpenOptions{
+		NamespaceID:         s.namespace.ID(),
+		ShardID:             s.ID(),
+		BlockStart:          opts.Start,
+		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
+		VolumeIndex:         nextVolume,
+		PlannedRecordsCount: uint(maxEntries),
 	}
-
-	if err := writer.Open(); err != nil {
+	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err
 	}
 

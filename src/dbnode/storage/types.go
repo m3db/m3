@@ -601,6 +601,7 @@ type databaseShard interface {
 		sourceNsID ident.ID,
 		sourceShardID uint32,
 		blockReaders []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
 		targetSchemaDesc namespace.SchemaDescr,

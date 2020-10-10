@@ -1844,13 +1844,32 @@ func TestShardAggregateTiles(t *testing.T) {
 		mockEncoder.EXPECT().Close(),
 	)
 
+	writer := fs.NewMockStreamingWriter(ctrl)
+	gomock.InOrder(
+		writer.EXPECT().Open(fs.StreamingWriterOpenOptions{
+			NamespaceID:         targetShard.namespace.ID(),
+			ShardID:             targetShard.shard,
+			BlockStart:          opts.Start,
+			BlockSize:           targetBlockSize,
+			VolumeIndex:         1,
+			PlannedRecordsCount: 2,
+		}),
+		writer.EXPECT().WriteAll(ident.BytesID("id1"), nil, gomock.Any(), gomock.Any()),
+		writer.EXPECT().WriteAll(ident.BytesID("id2"), nil, gomock.Any(), gomock.Any()),
+		writer.EXPECT().WriteAll(ident.BytesID("id3"), nil, gomock.Any(), gomock.Any()),
+		writer.EXPECT().Close(),
+	)
+
 	processedTileCount, err := targetShard.AggregateTiles(
-		sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
+		sourceNsID, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), processedTileCount)
 }
 
 func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		srcNsID = ident.StringID("src")
 		start   = time.Now()
@@ -1862,8 +1881,10 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	var blockReaders []fs.DataFileSetReader
 	sourceBlockVolumes := []shardBlockVolume{{start, 0}}
 
+	writer := fs.NewMockStreamingWriter(ctrl)
+
 	_, err := targetShard.AggregateTiles(
-		srcNsID, 1, blockReaders, sourceBlockVolumes, AggregateTilesOptions{}, nil)
+		srcNsID, 1, blockReaders, writer, sourceBlockVolumes, AggregateTilesOptions{}, nil)
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
