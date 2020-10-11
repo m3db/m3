@@ -23,24 +23,21 @@
 package integration
 
 import (
-	"io"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -50,7 +47,7 @@ var (
 )
 
 func TestReadAggregateWrite(t *testing.T) {
-	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
+	testSetup, srcNs, trgNs := setupServer(t)
 	storageOpts := testSetup.StorageOpts()
 	log := storageOpts.InstrumentOptions().Logger()
 
@@ -59,7 +56,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 		testSetup.Close()
-		_ = closer.Close()
 	}()
 
 	start := time.Now()
@@ -92,12 +88,17 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
+	expectedSourceBlocks := 5
 	flushed := xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		flushes, _ := counters["database.flushIndex.success"]
-		writes, _ := counters["database.series.cold-writes"]
-		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= 30 && successFlushes >= 4
+		for i := 0; i < expectedSourceBlocks; i++ {
+			blockStart := dpTimeStart.Add(time.Duration(i) * blockSize)
+			_, ok, err := fs.FileSetAt(testSetup.FilesystemOpts().FilePathPrefix(), srcNs.ID(), 0, blockStart, 1)
+			require.NoError(t, err)
+			if !ok {
+				return false
+			}
+		}
+		return true
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
@@ -137,6 +138,16 @@ func TestReadAggregateWrite(t *testing.T) {
 		{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
 
+	log.Info("waiting till aggregated data is readable")
+	start = time.Now()
+	readable := xclock.WaitUntil(func() bool {
+		series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
+		require.NoError(t, err)
+		return series.Next()
+	}, time.Minute)
+	require.True(t, readable)
+	log.Info("verified data is readable", zap.Duration("took", time.Since(start)))
+
 	fetchAndValidate(t, session, trgNs.ID(),
 		ident.StringID("foo"),
 		dpTimeStart, nowFn(),
@@ -174,16 +185,16 @@ func fetchAndValidate(
 	assert.Equal(t, expected, actual)
 }
 
-func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT).SetBufferPast(0)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
 		nsOpts   = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
-				SetColdWritesEnabled(true)
+			SetRetentionOptions(rOpts).
+			SetIndexOptions(idxOpts).
+			SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT)
@@ -206,15 +217,9 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		})
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope(
-		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
-	storageOpts := testSetup.StorageOpts().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
-	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
 
-	return testSetup, srcNs, trgNs, reporter, closer
+	return testSetup, srcNs, trgNs
 }
