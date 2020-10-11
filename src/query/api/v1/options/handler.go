@@ -247,6 +247,7 @@ func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
+		m3dbOpts:       m3db.NewOptions(),
 	}
 }
 

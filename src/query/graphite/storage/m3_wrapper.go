@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -164,6 +165,16 @@ func truncateBoundsToResolution(
 	resolution time.Duration,
 	opts truncateBoundsToResolutionOptions,
 ) (time.Time, time.Time) {
+	// First calculate number of datapoints requested.
+	round := math.Floor
+	if opts.renderPartialEnd {
+		round = math.Ceil
+	}
+	// If not matched to resolution then return a partial datapoint, unless
+	// render partial end is requested in which case return the extra datapoint.
+	length := round(float64(end.Sub(start)) / float64(resolution))
+
+	// Now determine start time depending on if in the middle of a step or not.
 	truncatedStart := start.Truncate(resolution)
 	// NB: if truncated start matches start, it's already valid.
 	if !start.Equal(truncatedStart) {
@@ -176,16 +187,8 @@ func truncateBoundsToResolution(
 		}
 	}
 
-	truncatedEnd := end.Truncate(resolution)
-	if !end.Equal(truncatedEnd) {
-		if opts.renderPartialEnd {
-			// Otherwise if we include partial end then set to truncated + 1.
-			end = truncatedEnd.Add(resolution)
-		} else {
-			// Else we snap to the truncated end.
-			end = truncatedEnd
-		}
-	}
+	// Finally calculate end.
+	end = start.Add(time.Duration(length) * resolution)
 
 	// Apply any shifts.
 	start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)

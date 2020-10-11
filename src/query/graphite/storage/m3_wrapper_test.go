@@ -111,36 +111,28 @@ func buildResult(
 	steps int,
 	start time.Time,
 ) block.Result {
+	unconsolidatedSeries := make([]block.UnconsolidatedSeries, 0, size)
 	resos := make([]time.Duration, 0, size)
 	metas := make([]block.SeriesMeta, 0, size)
 	for i := 0; i < size; i++ {
 		resos = append(resos, resolution)
-		metas = append(metas, block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))})
-	}
-
-	var (
-		bl = block.NewMockBlock(ctrl)
-		it = block.NewMockSeriesIter(ctrl)
-	)
-
-	it.EXPECT().SeriesCount().Return(size).AnyTimes()
-	bl.EXPECT().SeriesIter().Return(it, nil).AnyTimes()
-	it.EXPECT().SeriesMeta().Return(metas).AnyTimes()
-
-	orderedOps := make([]*gomock.Call, 0, size*2+7)
-	addOp := func(op *gomock.Call) { orderedOps = append(orderedOps, op) }
-	for i := 0; i < size; i++ {
-		addOp(it.EXPECT().Next().Return(true))
+		meta := block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))}
+		metas = append(metas, meta)
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		c := block.NewUnconsolidatedSeries(vals.Datapoints(), metas[i], block.UnconsolidatedSeriesStats{})
-		addOp(it.EXPECT().Current().Return(c))
+		series := block.NewUnconsolidatedSeries(vals.Datapoints(),
+			meta, block.UnconsolidatedSeriesStats{})
+		unconsolidatedSeries = append(unconsolidatedSeries, series)
 	}
 
-	addOp(it.EXPECT().Next().Return(false))
-	addOp(it.EXPECT().Err().Return(nil))
-	addOp(bl.EXPECT().Close().Return(nil))
+	bl := block.NewMockBlock(ctrl)
+	bl.EXPECT().
+		SeriesIter().
+		DoAndReturn(func() (block.SeriesIter, error) {
+			return block.NewUnconsolidatedSeriesIter(unconsolidatedSeries), nil
+		}).
+		AnyTimes()
+	bl.EXPECT().Close().Return(nil)
 
-	gomock.InOrder(orderedOps...)
 	return block.Result{
 		Blocks: []block.Block{bl},
 		Metadata: block.ResultMetadata{
@@ -281,6 +273,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
 			renderPartialStart:    true,
+			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 5,
 		},
@@ -295,7 +288,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
 			numDataPointsFetched:  25,
-			numDataPointsExpected: 4,
+			numDataPointsExpected: 5,
 		},
 		{
 			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
@@ -336,10 +329,11 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 				}
 				require.Equal(t, expectedStart, tt.StartTime(), "unexpected start time")
 
-				expectedEnd := test.end.
-					Truncate(resolution).
+				queryWindow := test.end.Sub(test.start)
+				expectedDatapoints := queryWindow / resolution
+				expectedEnd := expectedStart.Add(expectedDatapoints * resolution).
 					Add(time.Duration(test.shiftStepsEnd) * resolution)
-				if test.renderPartialEnd && !test.end.Equal(test.end.Truncate(resolution)) {
+				if test.renderPartialEnd && queryWindow != queryWindow.Truncate(resolution) {
 					expectedEnd = expectedEnd.Add(resolution)
 				}
 				require.Equal(t, expectedEnd, tt.EndTime(), "unexpected end time")
