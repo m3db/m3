@@ -473,6 +473,12 @@ func Run(runOpts RunOptions) {
 	if cfg.Carbon != nil {
 		graphiteStorageOpts.AggregateNamespacesAllData =
 			cfg.Carbon.AggregateNamespacesAllData
+		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
+		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
+		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
+		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
+		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
+		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 	}
 
 	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
@@ -482,7 +488,7 @@ func Run(runOpts RunOptions) {
 		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts)
+		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
