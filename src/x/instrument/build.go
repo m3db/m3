@@ -131,13 +131,19 @@ func (b *buildReporter) Start() error {
 }
 
 func (b *buildReporter) report() {
-	scope := b.opts.MetricsScope().Tagged(map[string]string{
+	tags := map[string]string{
 		"revision":      Revision,
 		"branch":        Branch,
 		"build-date":    BuildDate,
 		"build-version": Version,
 		"go-version":    goVersion,
-	})
+	}
+
+	for k, v := range b.opts.CustomBuildTags() {
+		tags[k] = v
+	}
+
+	scope := b.opts.MetricsScope().Tagged(tags)
 	buildInfoGauge := scope.Gauge(buildInfoMetricName)
 	buildAgeGauge := scope.Gauge(buildAgeMetricName)
 	buildInfoGauge.Update(1.0)

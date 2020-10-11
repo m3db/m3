@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/context"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
@@ -300,6 +299,73 @@ func TestScale(t *testing.T) {
 			v := outputs[0].ValueAt(step)
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
+	}
+}
+
+func TestUseSeriesAbove(t *testing.T) {
+	var (
+		ctrl      = xgomock.NewController(t)
+		store     = storage.NewMockStorage(ctrl)
+		now       = time.Now().Truncate(time.Hour)
+		engine    = NewEngine(store)
+		startTime = now.Add(-3 * time.Minute)
+		endTime   = now.Add(-time.Minute)
+		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+		stepSize  = 60000
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.x.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.x.zed")).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed.g", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed.q", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.q.zed.q", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil)
+
+	tests := []struct {
+		target   string
+		expected common.TestSeries
+	}{
+		{
+			"useSeriesAbove(foo.bar.q.zed, -1, 'q', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.g.zed",
+				Data: []float64{1.0, 1.0},
+			},
+		},
+		// two replacements
+		{
+			"useSeriesAbove(foo.bar.g.zed.g, 15, 'g', 'q')",
+			common.TestSeries{
+				Name: "foo.bar.q.zed.q",
+				Data: []float64{1.0, 2.0, 3.0},
+			},
+		},
+		// no replacments
+		{
+			"useSeriesAbove(foo.bar.x.zed, 1, 'p', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.x.zed",
+				Data: []float64{2.0, 2.0},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		expr, err := engine.Compile(test.target)
+		require.NoError(t, err)
+		res, err := expr.Execute(ctx)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, stepSize, startTime,
+			[]common.TestSeries{test.expected}, res.Values)
 	}
 }
 
@@ -742,6 +808,41 @@ func testGeneralFunction(t *testing.T, target, expectedName string, values, outp
 		expected = append(expected, expectedSeries)
 	}
 	common.CompareOutputsAndExpected(t, 60000, testGeneralFunctionStart, expected, res.Values)
+}
+
+func TestCombineBootstrapWithOriginal(t *testing.T) {
+	var (
+		contextStart = time.Date(2020, time.October, 5, 1, 15, 37, 884207922, time.UTC)
+		contextEnd   = time.Date(2020, time.October, 5, 1, 18, 37, 884207922, time.UTC)
+		ctx          = common.NewContext(common.ContextOptions{
+			Start:  contextStart,
+			End:    contextEnd,
+			Engine: NewEngine(&common.MovingFunctionStorage{}),
+		})
+
+		originalStart            = time.Date(2020, time.October, 5, 1, 16, 00, 0, time.UTC)
+		originalValues           = []float64{14, 15, 16, 17, 18}
+		originalSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", originalStart, common.NewTestSeriesValues(ctx, 30000, originalValues))}
+		originalSeriesList       = singlePathSpec{Values: originalSeriesListValues}
+
+		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 00, 0, time.UTC)
+		bootstrappedValues           = []float64{12, 13, 14, 15, 16, 17, 18}
+		bootstrappedSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", bootstrappedStart, common.NewTestSeriesValues(ctx, 30000, bootstrappedValues))}
+		bootstrappedSeriesList       = ts.NewSeriesList()
+
+		bootstrapStartTime = time.Date(2020, time.October, 5, 1, 14, 37, 884207922, time.UTC)
+		bootstrapEndTime   = time.Date(2020, time.October, 5, 1, 15, 37, 884207922, time.UTC)
+
+		expectedValues = []float64{12, 13, 14, 15, 16, 17, 18}
+		expectedSeries = ts.NewSeries(ctx, "original", bootstrapStartTime, common.NewTestSeriesValues(ctx, 30000, expectedValues))
+	)
+	bootstrappedSeriesList.Values = bootstrappedSeriesListValues
+
+	defer ctx.Close()
+
+	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime, bootstrappedSeriesList, originalSeriesList)
+	assert.Equal(t, output.Values[0], expectedSeries)
+	assert.Nil(t, err)
 }
 
 func TestMovingAverageSuccess(t *testing.T) {
@@ -2181,7 +2282,7 @@ func TestConstantLine(t *testing.T) {
 
 	testSeries := r.Values
 	require.Equal(t, 1, len(testSeries))
-	require.Equal(t, 2, testSeries[0].Len())
+	require.Equal(t, 3, testSeries[0].Len())
 	expectedName := fmt.Sprintf(common.FloatingPointFormat, testValue)
 	require.Equal(t, expectedName, testSeries[0].Name())
 	for i := 0; i < testSeries[0].Len(); i++ {
@@ -2799,7 +2900,7 @@ func testAggregateLineInternal(t *testing.T, f string, expectedName string, expe
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedName, results[0].Name())
-	require.Equal(t, 2, results[0].Len())
+	require.Equal(t, 3, results[0].Len())
 	for i := 0; i < 2; i++ {
 		require.Equal(t, expectedVal, results[0].ValueAt(i))
 	}
@@ -2905,97 +3006,6 @@ func TestMovingAverage(t *testing.T) {
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
 		[]common.TestSeries{expected}, res.Values)
-}
-
-func TestMovingMedianInvalidLimits(t *testing.T) {
-	ctrl := xgomock.NewController(t)
-	defer ctrl.Finish()
-
-	store := storage.NewMockStorage(ctrl)
-	now := time.Now().Truncate(time.Hour)
-	engine := NewEngine(store)
-	startTime := now.Add(-3 * time.Minute)
-	endTime := now.Add(-time.Minute)
-	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
-
-	stepSize := 60000
-	target := "movingMedian(foo.bar.q.zed, '1min')"
-	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
-			startTime := opts.StartTime
-			ctx := context.New()
-			numSteps := int(opts.EndTime.Sub(startTime)/time.Millisecond) / stepSize
-			vals := ts.NewConstantValues(ctx, 0, numSteps, stepSize)
-			series := ts.NewSeries(ctx, "foo.bar.q.zed", opts.EndTime, vals)
-			return &storage.FetchResult{SeriesList: []*ts.Series{series}}, nil
-		}).Times(2)
-	expr, err := engine.Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(ctx)
-	require.NoError(t, err)
-	expected := common.TestSeries{
-		Name: "movingMedian(foo.bar.q.zed,\"1min\")",
-		Data: []float64{math.NaN(), 0.0},
-	}
-	common.CompareOutputsAndExpected(t, stepSize, endTime,
-		[]common.TestSeries{expected}, res.Values)
-}
-
-func TestMovingMismatchedLimits(t *testing.T) {
-	// NB: this tests the behavior when query limits do not snap exactly to data
-	// points. When limits do not snap exactly, the first point should be omitted.
-	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum", "movingMax", "movingMin"} {
-		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingFunctionInvalidLimits(t, fn, i)
-		}
-	}
-}
-
-func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
-	ctrl := xgomock.NewController(t)
-	defer ctrl.Finish()
-
-	store := storage.NewMockStorage(ctrl)
-	now := time.Now().Truncate(time.Hour).Add(offset)
-	engine := NewEngine(store)
-	startTime := now.Add(-3 * time.Minute)
-	endTime := now.Add(-time.Minute)
-	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
-
-	stepSize := 60000
-	target := fmt.Sprintf(`%s(timeShift(foo.bar.*.zed, '-1d'), '1min')`, fn)
-	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.g.zed", "foo.bar.x.zed"),
-	).Times(2)
-	expr, err := engine.Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(ctx)
-	require.NoError(t, err)
-
-	expectedStart := startTime
-	expectedDataG := []float64{1, 1}
-	expectedDataX := []float64{2, 2}
-
-	if offset > 0 {
-		expectedStart = expectedStart.Add(time.Minute)
-		expectedDataG[0] = math.NaN()
-		expectedDataX[0] = math.NaN()
-	}
-
-	expected := []common.TestSeries{
-		{
-			Name: fmt.Sprintf(`%s(timeShift(foo.bar.g.zed, -1d),"1min")`, fn),
-			Data: expectedDataG,
-		},
-		{
-			Name: fmt.Sprintf(`%s(timeShift(foo.bar.x.zed, -1d),"1min")`, fn),
-			Data: expectedDataX,
-		},
-	}
-
-	common.CompareOutputsAndExpected(t, stepSize, expectedStart, expected, res.Values)
 }
 
 func TestLegendValue(t *testing.T) {
@@ -3402,6 +3412,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
@@ -3489,6 +3500,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",
@@ -3499,6 +3511,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"timeShift",
 		"timeSlice",
 		"transformNull",
+		"useSeriesAbove",
 		"weightedAverage",
 	}
 
