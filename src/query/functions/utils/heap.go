@@ -34,7 +34,7 @@ type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
 func maxHeapLess(i, j ValueIndexPair) bool {
 	if i.Val == j.Val {
-		return i.Index > j.Index
+		return i.Index < j.Index
 	}
 	return i.Val < j.Val
 }
@@ -121,6 +121,14 @@ func (fh FloatHeap) Push(value float64, index int) {
 	})
 }
 
+func (fh FloatHeap) Pop() (ValueIndexPair, bool) {
+	h := fh.floatHeap.heap
+	if len(h) == 0 {
+		return ValueIndexPair{}, false
+	}
+	return heap.Pop(fh.floatHeap).(ValueIndexPair), true
+}
+
 // Len returns the current length of the heap
 func (fh FloatHeap) Len() int {
 	return fh.floatHeap.Len()
@@ -137,10 +145,23 @@ func (fh *FloatHeap) Reset() {
 }
 
 // Flush flushes the float heap and resets it. Does not guarantee order.
-func (fh FloatHeap) Flush() []ValueIndexPair {
+/*func (fh FloatHeap) Flush() []ValueIndexPair {
 	values := fh.floatHeap.heap
 	fh.Reset()
 	return values
+}*/
+
+// Flush flushes the float heap and resets it. Does not guarantee order.
+func (fh FloatHeap) Flush() []ValueIndexPair {
+	result := make([]ValueIndexPair, len(fh.floatHeap.heap))
+
+	for i := len(result)-1; i >= 0; i-- {
+		if e, ok := fh.Pop(); ok {
+			result[i] = e
+		}
+	}
+
+	return result
 }
 
 // Peek reveals the top value of the heap without mutating the heap.

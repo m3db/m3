@@ -55,7 +55,7 @@ func NewTakeOp(
 	k := int(params.Parameter)
 	if k < 1 {
 		fn = func(values []float64, buckets [][]int) []float64 {
-			return takeNone(values, buckets)
+			return takeNone(values)
 		}
 	} else {
 		heap := utils.NewFloatHeap(takeTop, k)
@@ -158,32 +158,23 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	if err = stepIter.Err(); err != nil {
 		return nil, err
 	}
-
 	return builder.Build(), nil
 }
 
 // shortcut to return empty when taking <= 0 values
-func takeNone(values []float64, buckets [][]int) []float64 {
+func takeNone(values []float64) []float64 {
 	util.Memset(values, math.NaN())
 	return values
 }
 
 func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
-	cap := heap.Cap()
-	for _, bucket := range buckets {
-		// If this bucket's length is less than or equal to the heap's
-		// capacity do not need to clear any values from the input vector,
-		// as they are all included in the output.
-		if len(bucket) <= cap {
-			continue
-		}
-
+	for ix, bucket := range buckets {
 		// Add values from this bucket to heap, clearing them from input vector
 		// after they are in the heap.
 		for _, idx := range bucket {
 			val := values[idx]
 			if !math.IsNaN(val) {
-				heap.Push(values[idx], idx)
+				heap.Push(values[idx], ix)
 			}
 
 			values[idx] = math.NaN()
@@ -191,8 +182,14 @@ func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 
 		// Re-add the val/index pairs from the heap to the input vector
 		valIndexPairs := heap.Flush()
+		//indexPerBucket
+		var idxBucket = make([]int, len(buckets))
+
 		for _, pair := range valIndexPairs {
-			values[pair.Index] = pair.Val
+			var bucket = buckets[pair.Index]
+
+			values[bucket[idxBucket[pair.Index]]] = pair.Val
+			idxBucket[pair.Index]++
 		}
 	}
 

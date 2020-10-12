@@ -1,4 +1,4 @@
-// +build compatibility
+/// build compatibility
 
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -45,7 +45,7 @@ import (
 )
 
 func TestEvaluations(t *testing.T) {
-	files, err := filepath.Glob("testdata/*.test")
+	files, err := filepath.Glob("testdata/aggregators.test")
 	require.NoError(t, err)
 
 	for _, fn := range files {

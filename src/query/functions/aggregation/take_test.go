@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -34,6 +35,54 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPrioQueue(t *testing.T) {
+	maxHeap := utils.NewFloatHeap(true, 3)
+
+	maxHeap.Push(0.1, 0)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(2.1, 2)
+	maxHeap.Push(3.1, 3)
+	maxHeap.Push(3.1, 2)
+
+	actual := maxHeap.Flush()
+	fmt.Println(actual)
+}
+
+func TestMaxHeapTake3(t *testing.T) {
+	maxHeap := utils.NewFloatHeap(true, 3)
+	values := []float64{1.0, 2.0, 0.0, 4.0, 1.1, 3.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4}, {5}}
+	expected := []float64{4.0, 2.0, 1.0, math.NaN(), 1.1, 3.1}
+
+	actual := takeFn(maxHeap, values, buckets)
+
+	test.EqualsWithNans(t, expected, actual)
+}
+
+func TestMaxHeapTake2(t *testing.T) {
+	values := []float64{0.1, 1.1, 2.1, 3.1, 4.1, 5.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4, 5}}
+
+	maxHeap := utils.NewFloatHeap(true, 2)
+
+	expected := []float64{3.1, 2.1, math.NaN(), math.NaN(), 5.1, 4.1}
+	actual := takeFn(maxHeap, values, buckets)
+
+	test.EqualsWithNans(t, expected, actual)
+}
+
+func TestMinHeapTake3(t *testing.T) {
+	values := []float64{1.0, 2.0, 0.0, 4.0, 1.1, 3.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4, 5}}
+
+	minHeap := utils.NewFloatHeap(false, 3)
+
+	expected := []float64{0.0, 1.0, 2.0, math.NaN(), 1.1, 3.1}
+	actual := takeFn(minHeap, values, buckets)
+
+	test.EqualsWithNans(t, expected, actual)
+}
 
 func TestTakeFn(t *testing.T) {
 	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
@@ -98,6 +147,14 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
+
+	//[[0 NaN 2 3 4] {a: 1, d: 4 []}
+	//[NaN 6 7 8 9] {a: 1, d: 4 []}
+	//[10 20 30 40 50] {a: 1, b: 2, d: 4 []}
+	//[50 60 70 80 90] {a: 2, b: 2, d: 4 []}
+	//[100 200 300 400 500] {b: 2, d: 4 []}
+	//[600 700 800 900 1000]] {c: 3, d: 4 []}
+
 	expected := [][]float64{
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -109,6 +166,10 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 		// Taking bottomk(1) of last series, keeping it
 		{600, 700, 800, 900, 1000},
 	}
+
+	fmt.Println(sink)
+	//fmt.Println(sink.Values)
+	//fmt.Println(sink.Metas)
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)

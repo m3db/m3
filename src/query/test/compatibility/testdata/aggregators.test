@@ -161,11 +161,11 @@ load 5m
 	http_requests{job="app-server", instance="1", group="canary"}		0+80x10
 	foo 3+0x10
 
-# FAILING issue #12. All topk and bottomk tests are failing.
-#eval_ordered instant at 50m topk(3, http_requests)
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="production", instance="1", job="app-server"} 600
+# All topk and bottomk tests are failing.
+eval_ordered instant at 50m topk(3, http_requests)
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="production", instance="1", job="app-server"} 600
 
 #eval_ordered instant at 50m topk((3), (http_requests))
 #	http_requests{group="canary", instance="1", job="app-server"} 800
