@@ -62,7 +62,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -2740,79 +2739,29 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	var (
-		processedTileCount atomic.Int64
-		multiErr           xerrors.MultiError
 		annotationPayload  annotation.Payload
-		downsampledValues  = make([]tile.DownsampledValue, 0, 4)
+		downsampledValues  = make([]tile.DownsampledValue, 0, 4 /* Max. number of datapoints per frame for counters. */)
+		processedTileCount int64
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
+		multiErr           xerrors.MultiError
 	)
 
 	for readerIter.Next() {
-		var (
-			seriesIter, id, encodedTags = readerIter.Current()
-			prevFrameLastValue          = math.NaN()
-			hasData                     bool
-			handleValueResets           bool
-			firstAnnotation             ts.Annotation
-			writeErr                    error
-		)
+		seriesIter, id, encodedTags := readerIter.Current()
 
-		for seriesIter.Next() {
-			frame := seriesIter.Current()
-
-			if frameValues := frame.Values(); len(frameValues) > 0 {
-
-				if !hasData {
-					annotationPayload.Reset()
-					firstAnnotation, err = frame.Annotations().Value(0)
-					if err != nil {
-						writeErr = err
-						break
-					}
-
-					if annotationPayload.Unmarshal(firstAnnotation) == nil {
-						// Ignore the error if the annotation does not match the protobuf struct???
-						handleValueResets = annotationPayload.HandleValueResets
-					}
-					hasData = true
-				}
-
-				downsampledValues = downsampledValues[:0]
-				lastIdx := len(frameValues) - 1
-
-				if handleValueResets {
-					// Last value plus possible few more datapoints to preserve counter semantics.
-					downsampledValues = tile.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
-				} else {
-					// Plain last value per frame.
-					downsampledValue := tile.DownsampledValue{
-						FrameIndex: lastIdx,
-						Value:      frameValues[lastIdx],
-					}
-					downsampledValues = append(downsampledValues, downsampledValue)
-				}
-
-				writeErr = encodeDownsampledValues(downsampledValues, frame, firstAnnotation, encoder)
-				if writeErr != nil {
-					break
-				}
-
-				prevFrameLastValue = frameValues[lastIdx]
-				processedTileCount.Inc()
-			}
-		}
-
-		if writeErr != nil {
+		seriesTileCount, err := encodeAggregatedSeries(seriesIter, annotationPayload, downsampledValues, encoder)
+		if err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
-			multiErr = multiErr.Add(writeErr)
+			multiErr = multiErr.Add(err)
 			break
 		}
 
-		if !hasData {
+		if seriesTileCount == 0 {
 			break
 		}
 
+		processedTileCount += seriesTileCount
 		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)
 
 		segmentLen := segment.Len()
@@ -2866,15 +2815,83 @@ func (s *dbShard) AggregateTiles(
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedTiles", processedTileCount.Load()))
+		zap.Int64("processedTiles", processedTileCount))
 
-	return processedTileCount.Load(), nil
+	return processedTileCount, nil
+}
+
+func encodeAggregatedSeries(
+	seriesIter tile.SeriesFrameIterator,
+	annotationPayload annotation.Payload,
+	downsampledValues []tile.DownsampledValue,
+	encoder encoding.Encoder,
+) (int64, error) {
+	var (
+		prevFrameLastValue = math.NaN()
+		processedTileCount int64
+		handleValueResets  bool
+		firstUnit          xtime.Unit
+		firstAnnotation    ts.Annotation
+		err                error
+	)
+
+	for seriesIter.Next() {
+		frame := seriesIter.Current()
+
+		frameValues := frame.Values()
+		if len(frameValues) == 0 {
+			continue
+		}
+
+		if processedTileCount == 0 {
+			firstUnit, err = frame.Units().Value(0)
+			if err != nil {
+				return 0, err
+			}
+
+			annotationPayload.Reset()
+			firstAnnotation, err = frame.Annotations().Value(0)
+			if err != nil {
+				return 0, err
+			}
+
+			if annotationPayload.Unmarshal(firstAnnotation) == nil {
+				// Ignore the error if the annotation does not match the protobuf struct???
+				handleValueResets = annotationPayload.HandleValueResets
+			}
+		}
+
+		downsampledValues = downsampledValues[:0]
+		lastIdx := len(frameValues) - 1
+
+		if handleValueResets {
+			// Last value plus possible few more datapoints to preserve counter semantics.
+			downsampledValues = tile.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
+		} else {
+			// Plain last value per frame.
+			downsampledValue := tile.DownsampledValue{
+				FrameIndex: lastIdx,
+				Value:      frameValues[lastIdx],
+			}
+			downsampledValues = append(downsampledValues, downsampledValue)
+		}
+
+		if err = encodeDownsampledValues(downsampledValues, frame, firstUnit, firstAnnotation, encoder); err != nil {
+			return 0, err
+		}
+
+		prevFrameLastValue = frameValues[lastIdx]
+		processedTileCount++
+	}
+
+	return processedTileCount, nil
 }
 
 func encodeDownsampledValues(
 	downsampledValues []tile.DownsampledValue,
 	frame tile.SeriesBlockFrame,
-	ant ts.Annotation,
+	unit xtime.Unit,
+	annotation ts.Annotation,
 	encoder encoding.Encoder,
 ) error {
 	for _, downsampled := range downsampledValues {
@@ -2885,17 +2902,7 @@ func encodeDownsampledValues(
 			Value:          downsampled.Value,
 		}
 
-		// TODO: what happens if unit has changed mid-tile?
-		// Write early and then do the remaining values separately?
-		unit, err := frame.Units().Value(downsampled.FrameIndex)
-		if err != nil {
-			return err
-		}
-
-		// TODO: what happens if annotation has changed mid-tile?
-		// Write early and then do the remaining values separately?
-		err = encoder.Encode(dp, unit, ant)
-		if err != nil {
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
 			return err
 		}
 	}

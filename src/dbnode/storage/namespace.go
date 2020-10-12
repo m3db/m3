@@ -1641,8 +1641,11 @@ func (n *dbNamespace) aggregateTiles(
 	startedAt := time.Now()
 
 	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
-	blockStart := opts.Start.Truncate(targetBlockSize)
-	if blockStart.Add(targetBlockSize).Before(opts.End) {
+	targetBlockStart := opts.Start.Truncate(targetBlockSize)
+	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
+	lastSourceBlockEnd := opts.End.Truncate(sourceBlockSize)
+
+	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
@@ -1659,8 +1662,7 @@ func (n *dbNamespace) aggregateTiles(
 
 	var blockReaders []fs.DataFileSetReader
 	var sourceBlockStarts []time.Time
-	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
-	for sourceBlockStart := blockStart; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
 		if err != nil {
 			return 0, err
@@ -1703,8 +1705,8 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Time("blockStart", blockStart),
-		zap.Time("end", opts.End),
+		zap.Time("targetBlockStart", targetBlockStart),
+		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd),
 		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
 		zap.Duration("took", time.Now().Sub(startedAt)))

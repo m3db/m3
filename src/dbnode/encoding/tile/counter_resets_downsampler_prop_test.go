@@ -21,14 +21,16 @@
 package tile
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"go.uber.org/zap"
 )
 
 func TestDownsampleCounterResetsInvariants(t *testing.T) {
@@ -55,7 +57,8 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	epsilon := 0.00001
 
 	// NB: capture seed to be able to replicate failed runs.
-	fmt.Printf("Running tests with seed %d, usePrevFrameLastValue=%t", seed, usePrevFrameLastValue)
+	logger := instrument.NewTestOptions(t).Logger()
+	logger.Info("Running tests", zap.Int64("seed", seed), zap.Bool("usePrevFrameLastValue", usePrevFrameLastValue))
 
 	properties.Property("return consistent indices", prop.ForAll(
 		func(v []float64) bool {

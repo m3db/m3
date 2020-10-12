@@ -47,9 +47,12 @@ var (
 )
 
 func TestReadAggregateWrite(t *testing.T) {
-	testSetup, srcNs, trgNs := setupServer(t)
-	storageOpts := testSetup.StorageOpts()
-	log := storageOpts.InstrumentOptions().Logger()
+	var (
+		start                   = time.Now()
+		testSetup, srcNs, trgNs = setupServer(t)
+		storageOpts             = testSetup.StorageOpts()
+		log                     = storageOpts.InstrumentOptions().Logger()
+	)
 
 	// Stop the server.
 	defer func() {
@@ -58,7 +61,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		testSetup.Close()
 	}()
 
-	start := time.Now()
 	session, err := testSetup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
