@@ -647,6 +647,73 @@ func (mr *MockSourceMockRecorder) Read(ctx, namespaces, cache interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), ctx, namespaces, cache)
 }
 
+// MockCache is a mock of Cache interface
+type MockCache struct {
+	ctrl     *gomock.Controller
+	recorder *MockCacheMockRecorder
+}
+
+// MockCacheMockRecorder is the mock recorder for MockCache
+type MockCacheMockRecorder struct {
+	mock *MockCache
+}
+
+// NewMockCache creates a new mock instance
+func NewMockCache(ctrl *gomock.Controller) *MockCache {
+	mock := &MockCache{ctrl: ctrl}
+	mock.recorder = &MockCacheMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockCache) EXPECT() *MockCacheMockRecorder {
+	return m.recorder
+}
+
+// InfoFilesForNamespace mocks base method
+func (m *MockCache) InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InfoFilesForNamespace", ns)
+	ret0, _ := ret[0].(InfoFileResultsPerShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InfoFilesForNamespace indicates an expected call of InfoFilesForNamespace
+func (mr *MockCacheMockRecorder) InfoFilesForNamespace(ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesForNamespace", reflect.TypeOf((*MockCache)(nil).InfoFilesForNamespace), ns)
+}
+
+// InfoFilesForShard mocks base method
+func (m *MockCache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InfoFilesForShard", ns, shard)
+	ret0, _ := ret[0].([]fs.ReadInfoFileResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InfoFilesForShard indicates an expected call of InfoFilesForShard
+func (mr *MockCacheMockRecorder) InfoFilesForShard(ns, shard interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesForShard", reflect.TypeOf((*MockCache)(nil).InfoFilesForShard), ns, shard)
+}
+
+// ReadInfoFiles mocks base method
+func (m *MockCache) ReadInfoFiles() InfoFilesByNamespace {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadInfoFiles")
+	ret0, _ := ret[0].(InfoFilesByNamespace)
+	return ret0
+}
+
+// ReadInfoFiles indicates an expected call of ReadInfoFiles
+func (mr *MockCacheMockRecorder) ReadInfoFiles() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadInfoFiles", reflect.TypeOf((*MockCache)(nil).ReadInfoFiles))
+}
+
 // MockCacheOptions is a mock of CacheOptions interface
 type MockCacheOptions struct {
 	ctrl     *gomock.Controller

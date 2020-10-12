@@ -198,13 +198,13 @@ func ParseInterval(s string) (time.Duration, error) {
 
 // ConstantLine draws a horizontal line at a specified value
 func ConstantLine(ctx *Context, value float64) (*ts.Series, error) {
-	millisPerStep := int(ctx.EndTime.Sub(ctx.StartTime) / time.Millisecond)
+	millisPerStep := int(ctx.EndTime.Sub(ctx.StartTime) / (2 * time.Millisecond))
 	if millisPerStep <= 0 {
 		err := fmt.Errorf("invalid boundary params: startTime=%v, endTime=%v", ctx.StartTime, ctx.EndTime)
 		return nil, err
 	}
 	name := fmt.Sprintf(FloatingPointFormat, value)
-	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, ts.NewConstantValues(ctx, value, 2, millisPerStep))
+	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, ts.NewConstantValues(ctx, value, 3, millisPerStep))
 	return newSeries, nil
 }
 

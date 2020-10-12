@@ -48,31 +48,24 @@ func makeBlockResult(
 	results *storage.FetchResult,
 ) block.Result {
 	size := len(results.SeriesList)
+	unconsolidatedSeries := make([]block.UnconsolidatedSeries, 0, size)
 	metas := make([]block.SeriesMeta, 0, size)
-	for _, series := range results.SeriesList {
-		metas = append(metas, block.SeriesMeta{Name: series.Name()})
+	for _, elem := range results.SeriesList {
+		meta := block.SeriesMeta{Name: elem.Name()}
+		series := block.NewUnconsolidatedSeries(elem.Values().Datapoints(),
+			meta, block.UnconsolidatedSeriesStats{})
+		unconsolidatedSeries = append(unconsolidatedSeries, series)
+		metas = append(metas, meta)
 	}
 
-	var (
-		bl = block.NewMockBlock(ctrl)
-		it = block.NewMockSeriesIter(ctrl)
-	)
-
-	orderedOps := make([]*gomock.Call, 0, size*2+7)
-	addOp := func(op *gomock.Call) { orderedOps = append(orderedOps, op) }
-	addOp(bl.EXPECT().SeriesIter().Return(it, nil))
-	addOp(it.EXPECT().SeriesMeta().Return(metas))
-	for i, series := range results.SeriesList {
-		addOp(it.EXPECT().Next().Return(true))
-		c := block.NewUnconsolidatedSeries(series.Values().Datapoints(), metas[i], block.UnconsolidatedSeriesStats{Enabled: true})
-		addOp(it.EXPECT().Current().Return(c))
-	}
-
-	addOp(it.EXPECT().Next().Return(false))
-	addOp(it.EXPECT().Err().Return(nil))
-	addOp(bl.EXPECT().Close().Return(nil))
-
-	gomock.InOrder(orderedOps...)
+	bl := block.NewMockBlock(ctrl)
+	bl.EXPECT().
+		SeriesIter().
+		DoAndReturn(func() (block.SeriesIter, error) {
+			return block.NewUnconsolidatedSeriesIter(unconsolidatedSeries), nil
+		}).
+		AnyTimes()
+	bl.EXPECT().Close().Return(nil)
 
 	return block.Result{
 		Blocks:   []block.Block{bl},
