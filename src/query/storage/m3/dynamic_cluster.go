@@ -35,6 +35,7 @@ import (
 )
 
 var (
+	errAlreadyInitialized                         = errors.New("instance already initialized")
 	errDynamicClusterNamespaceConfigurationNotSet = errors.New("dynamicClusterNamespaceConfiguration not set")
 	errInstrumentOptionsNotSet                    = errors.New("instrumentOptions not set")
 	errNsWatchAlreadyClosed                       = errors.New("namespace watch already closed")
@@ -52,8 +53,9 @@ type dynamicCluster struct {
 	aggregatedNamespaces    map[RetentionResolution]ClusterNamespace
 	namespacesByEtcdCluster map[int]clusterNamespaceLookup
 
-	nsWatches []namespace.NamespaceWatch
-	closed    bool
+	nsWatches   []namespace.NamespaceWatch
+	closed      bool
+	initialized bool
 }
 
 // NewDynamicClusters creates an implementation of the Clusters interface
@@ -92,6 +94,12 @@ func newDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 }
 
 func (d *dynamicCluster) init() error {
+	if d.initialized {
+		return errAlreadyInitialized
+	}
+
+	d.initialized = true
+
 	d.logger.Info("creating namespaces watcher", zap.Int("clusters", len(d.clusterCfgs)))
 
 	var (
