@@ -48,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/downsampled"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -2740,7 +2741,7 @@ func (s *dbShard) AggregateTiles(
 
 	var (
 		annotationPayload  annotation.Payload
-		downsampledValues  = make([]tile.DownsampledValue, 0, 4 /* Max. number of datapoints per frame for counters. */)
+		downsampledValues  = make([]downsampled.Value, 0, 4 /* Max. number of datapoints per frame for counters. */)
 		processedTileCount int64
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
@@ -2823,7 +2824,7 @@ func (s *dbShard) AggregateTiles(
 func encodeAggregatedSeries(
 	seriesIter tile.SeriesFrameIterator,
 	annotationPayload annotation.Payload,
-	downsampledValues []tile.DownsampledValue,
+	downsampledValues []downsampled.Value,
 	encoder encoding.Encoder,
 ) (int64, error) {
 	var (
@@ -2866,10 +2867,10 @@ func encodeAggregatedSeries(
 
 		if handleValueResets {
 			// Last value plus possible few more datapoints to preserve counter semantics.
-			downsampledValues = tile.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
+			downsampledValues = downsampled.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
 		} else {
 			// Plain last value per frame.
-			downsampledValue := tile.DownsampledValue{
+			downsampledValue := downsampled.Value{
 				FrameIndex: lastIdx,
 				Value:      frameValues[lastIdx],
 			}
@@ -2888,18 +2889,18 @@ func encodeAggregatedSeries(
 }
 
 func encodeDownsampledValues(
-	downsampledValues []tile.DownsampledValue,
+	downsampledValues []downsampled.Value,
 	frame tile.SeriesBlockFrame,
 	unit xtime.Unit,
 	annotation ts.Annotation,
 	encoder encoding.Encoder,
 ) error {
-	for _, downsampled := range downsampledValues {
-		timestamp := frame.Timestamps()[downsampled.FrameIndex]
+	for _, downsampledValue := range downsampledValues {
+		timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
 		dp := ts.Datapoint{
 			Timestamp:      timestamp,
 			TimestampNanos: xtime.ToUnixNano(timestamp),
-			Value:          downsampled.Value,
+			Value:          downsampledValue.Value,
 		}
 
 		if err := encoder.Encode(dp, unit, annotation); err != nil {

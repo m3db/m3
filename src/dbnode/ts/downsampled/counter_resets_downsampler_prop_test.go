@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tile
+package downsampled
 
 import (
 	"math"
@@ -139,7 +139,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	properties.TestingRun(t)
 }
 
-func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []DownsampledValue {
+func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []Value {
 	prevFrameLastValue := math.NaN()
 
 	if usePrevFrameLastValue {
