@@ -130,8 +130,6 @@ type Options interface {
 	SetStagingState(value StagingState) Options
 
 	// StagingState returns the state related to a namespace's availability for use.
-	// Namespaces created before StagingState was added to the namespace API
-	// will return nil. Callers should be prepared to handle this case.
 	StagingState() StagingState
 }
 
@@ -366,20 +364,22 @@ type DownsampleOptions struct {
 	All bool
 }
 
-// Status is the status of the namespace.
-type Status uint8
+// StagingStatus is the status of the namespace.
+type StagingStatus uint8
 
 const (
-	Unknown Status = iota
-	// Initializing means the namespace is in the process of coming online for use.
-	Initializing
-	// Ready means the namespace is ready for use.
-	Ready
+	// UnknownStagingStatus represents an unknown staging status.
+	// Namespaces created before StagingState was added to the namespace API
+	// will return UnknownStagingStatus. Callers should be prepared to handle this case.
+	UnknownStagingStatus StagingStatus = iota
+	// InitializingStagingStatus means the namespace is in the process of coming online for use.
+	InitializingStagingStatus
+	// ReadyStagingStatus means the namespace is ready for use.
+	ReadyStagingStatus
 )
 
-// StagingState is the state associated with a namespace's
-// availability for reads and writes.
-type StagingState interface {
-	// Status returns the status of the namespace.
-	Status() Status
+var validStagingStatuses = []StagingStatus{
+	UnknownStagingStatus,
+	InitializingStagingStatus,
+	ReadyStagingStatus,
 }

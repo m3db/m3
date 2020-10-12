@@ -60,6 +60,9 @@ const testAddJSON = `
 				"enabled": true,
 				"blockSizeNanos": 7200000000000
 			},
+			"stagingState": {
+				"status": "INITIALIZING"
+			},
 			"extendedOptions": {
 				"@type": "testm3db.io/m3.test.PingResponse",
 				"Value": "foo"
@@ -133,7 +136,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 							"futureRetentionPeriodNanos":               "0",
 						},
 						"snapshotEnabled": true,
-						"stagingState":    nil,
+						"stagingState":    xjson.Map{"status": "INITIALIZING"},
 						"indexOptions": xjson.Map{
 							"enabled":        true,
 							"blockSizeNanos": "7200000000000",

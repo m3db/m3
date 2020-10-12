@@ -20,21 +20,32 @@
 
 package namespace
 
-import "fmt"
+import (
+	"fmt"
 
-type stagingState struct {
-	status Status
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+)
+
+// StagingState is the state associated with a namespace's
+// availability for reads and writes.
+type StagingState struct {
+	status StagingStatus
 }
 
-func (s *stagingState) Status() Status {
+// Status returns the StagingStatus for a namespace.
+func (s *StagingState) Status() StagingStatus {
 	return s.status
 }
 
-// NewStagingState creates a new StagingState
-func NewStagingState(status Status) (StagingState, error) {
+// NewStagingState creates a new StagingState.
+func NewStagingState(status nsproto.StagingStatus) (StagingState, error) {
 	switch status {
-	case Initializing, Ready:
-		return &stagingState{status: status}, nil
+	case nsproto.StagingStatus_UNKNOWN:
+		return StagingState{status: UnknownStagingStatus}, nil
+	case nsproto.StagingStatus_INITIALIZING:
+		return StagingState{status: InitializingStagingStatus}, nil
+	case nsproto.StagingStatus_READY:
+		return StagingState{status: ReadyStagingStatus}, nil
 	}
-	return nil, fmt.Errorf("invalid namespace status: %v", status)
+	return StagingState{}, fmt.Errorf("invalid namespace status: %v", status)
 }

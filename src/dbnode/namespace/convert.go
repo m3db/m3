@@ -221,10 +221,10 @@ func ToMetadata(
 // ToStagingState converts nsproto.StagingState to StagingState.
 func ToStagingState(state *nsproto.StagingState) (StagingState, error) {
 	if state == nil {
-		return nil, nil
+		return StagingState{}, nil
 	}
 
-	return NewStagingState(Status(state.Status))
+	return NewStagingState(state.Status)
 }
 
 // ToAggregationOptions converts nsproto.AggregationOptions to AggregationOptions.
@@ -299,6 +299,11 @@ func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
 	ropts := opts.RetentionOptions()
 	iopts := opts.IndexOptions()
 
+	stagingState, err := toProtoStagingState(opts.StagingState())
+	if err != nil {
+		return nil, err
+	}
+
 	nsOpts := &nsproto.NamespaceOptions{
 		BootstrapEnabled:  opts.BootstrapEnabled(),
 		FlushEnabled:      opts.FlushEnabled(),
@@ -325,18 +330,26 @@ func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
 		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
 		ExtendedOptions:       extendedOpts,
 		AggregationOptions:    toProtoAggregationOptions(opts.AggregationOptions()),
-		StagingState:          toProtoStagingState(opts.StagingState()),
+		StagingState:          stagingState,
 	}
 
 	return nsOpts, nil
 }
 
-func toProtoStagingState(state StagingState) *nsproto.StagingState {
-	if state == nil {
-		return nil
+func toProtoStagingState(state StagingState) (*nsproto.StagingState, error) {
+	var protoStatus nsproto.StagingStatus
+	switch state.Status() {
+	case UnknownStagingStatus:
+		protoStatus = nsproto.StagingStatus_UNKNOWN
+	case InitializingStagingStatus:
+		protoStatus = nsproto.StagingStatus_INITIALIZING
+	case ReadyStagingStatus:
+		protoStatus = nsproto.StagingStatus_READY
+	default:
+		return nil, fmt.Errorf("invalid StagingState: %v", state.Status())
 	}
 
-	return &nsproto.StagingState{Status: nsproto.Status(state.Status())}
+	return &nsproto.StagingState{Status: protoStatus}, nil
 }
 
 func toProtoAggregationOptions(aggOpts AggregationOptions) *nsproto.AggregationOptions {

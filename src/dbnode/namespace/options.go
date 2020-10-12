@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/retention"
 )
@@ -137,6 +138,18 @@ func (o *options) Validate() error {
 	if o.aggregationOpts == nil {
 		return errAggregationOptionsNotSet
 	}
+
+	var validStatus bool
+	for _, status := range validStagingStatuses {
+		if status == o.stagingState.Status() {
+			validStatus = true
+			break
+		}
+	}
+	if !validStatus {
+		return fmt.Errorf("staging state status %v is invalid", o.stagingState.Status())
+	}
+
 	return nil
 }
 
@@ -153,7 +166,8 @@ func (o *options) Equal(value Options) bool {
 		o.indexOpts.Equal(value.IndexOptions()) &&
 		o.schemaHis.Equal(value.SchemaHistory()) &&
 		o.runtimeOpts.Equal(value.RuntimeOptions()) &&
-		o.aggregationOpts.Equal(value.AggregationOptions())
+		o.aggregationOpts.Equal(value.AggregationOptions()) &&
+		o.stagingState == value.StagingState()
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {

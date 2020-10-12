@@ -194,3 +194,26 @@ func TestOptionsValidateNoIndexing(t *testing.T) {
 	rOpts.EXPECT().Validate().Return(nil)
 	require.NoError(t, o1.Validate())
 }
+
+func TestOptionsValidateStagingStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
+
+	rOpts.EXPECT().Validate().Return(nil).AnyTimes()
+	rOpts.EXPECT().RetentionPeriod().Return(time.Hour).AnyTimes()
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0)).AnyTimes()
+	rOpts.EXPECT().BlockSize().Return(time.Hour).AnyTimes()
+	iOpts.EXPECT().BlockSize().Return(time.Hour).AnyTimes()
+	require.NoError(t, o1.Validate())
+
+	o1 = o1.SetStagingState(StagingState{status: StagingStatus(12)})
+	require.Error(t, o1.Validate())
+}

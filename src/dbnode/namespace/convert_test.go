@@ -76,7 +76,7 @@ var (
 			RetentionOptions:      &validRetentionOpts,
 			SchemaOptions:         testSchemaOptions,
 			ExtendedOptions:       validExtendedOpts,
-			StagingState:          &nsproto.StagingState{Status: nsproto.Status_INITIALIZING},
+			StagingState:          &nsproto.StagingState{Status: nsproto.StagingStatus_INITIALIZING},
 		},
 		nsproto.NamespaceOptions{
 			BootstrapEnabled:  true,
@@ -201,9 +201,14 @@ func TestFromProto(t *testing.T) {
 }
 
 func TestToProto(t *testing.T) {
+	state, err := namespace.NewStagingState(nsproto.StagingStatus_READY)
+	require.NoError(t, err)
+
 	// make ns map
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
-		namespace.NewOptions().SetBootstrapEnabled(true))
+		namespace.NewOptions().
+			SetBootstrapEnabled(true).
+			SetStagingState(state))
 	require.NoError(t, err)
 	md2, err := namespace.NewMetadata(ident.StringID("ns2"),
 		namespace.NewOptions().SetBootstrapEnabled(false))
@@ -388,6 +393,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaHistory()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
+	assertEqualStagingState(t, expected.StagingState, opts.StagingState())
 	assertEqualExtendedOpts(t, expected.ExtendedOptions, opts.ExtendedOptions())
 }
 
@@ -415,4 +421,16 @@ func assertEqualExtendedOpts(t *testing.T, expectedProto *protobuftypes.Any, obs
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, observed)
+}
+
+func assertEqualStagingState(t *testing.T, expected *nsproto.StagingState, observed namespace.StagingState) {
+	if expected == nil {
+		assert.Equal(t, namespace.StagingState{}, observed)
+		return
+	}
+
+	state, err := namespace.NewStagingState(expected.Status)
+	require.NoError(t, err)
+
+	require.Equal(t, state, observed)
 }

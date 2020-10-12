@@ -76,16 +76,17 @@ message DownsampleOptions {
 // StagingState is state related to the namespace's availability for
 // reads and writes.
 message StagingState {
-    Status status = 1;
+    StagingStatus status = 1;
 }
 
-// Status represents the current status of the namespace.
-enum Status {
-    UNKNOWN = 0;
+// StagingStatus represents the current status of the namespace.
+enum StagingStatus {
+    // Namespace has an unknown staging status.
+    UNKNOWN      = 0;
     // Namespace is being initialized and is not ready to receive traffic.
     INITIALIZING = 1;
     // Namespace is ready to receive traffic.
-    READY = 2;
+    READY        = 2;
 }
 
 message Registry {
