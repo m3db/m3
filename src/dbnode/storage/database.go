@@ -1141,6 +1141,12 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
+	opts.MetricsScope = d.scope.SubScope("computed-namespace").
+		Tagged(map[string]string{"target-namespace": targetNsID.String()})
+	jobInProgress := opts.MetricsScope.Counter("aggregation-in-progress")
+	jobInProgress.Inc(1)
+	defer jobInProgress.Inc(-1)
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1172,6 +1178,9 @@ func (d *db) AggregateTiles(
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
+		opts.MetricsScope.Counter("aggregation.errors").Inc(1)
+	} else {
+		opts.MetricsScope.Counter("aggregation.success").Inc(1)
 	}
 	return processedTileCount, err
 }

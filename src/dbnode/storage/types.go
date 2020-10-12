@@ -52,6 +52,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 // PageToken is an opaque paging token.
@@ -1302,12 +1303,13 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
+	Step time.Duration
 	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
 	// TODO: remove once we have metrics type stored in the metadata.
 	HandleCounterResets bool
+	MetricsScope        tally.Scope
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
