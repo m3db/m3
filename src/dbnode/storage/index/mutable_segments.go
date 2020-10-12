@@ -46,8 +46,7 @@ import (
 )
 
 var (
-	// ErrMutableSegmentsAlreadyClosed is returned when mutable segments are already closed.
-	ErrMutableSegmentsAlreadyClosed            = errors.New("mutable segments already closed")
+	errMutableSegmentsAlreadyClosed            = errors.New("mutable segments already closed")
 	errUnableToWriteBlockConcurrent            = errors.New("unable to write, index block is being written to already")
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
@@ -147,7 +146,7 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	m.Lock()
 	if m.state == mutableSegmentsStateClosed {
-		return ErrMutableSegmentsAlreadyClosed
+		return errMutableSegmentsAlreadyClosed
 	}
 
 	if m.compact.compactingForeground {
@@ -200,7 +199,7 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 	m.RLock()
 	defer m.RUnlock()
 	if m.state == mutableSegmentsStateClosed {
-		return nil, ErrMutableSegmentsAlreadyClosed
+		return nil, nil
 	}
 
 	var err error
@@ -247,7 +246,6 @@ func (m *mutableSegments) MemorySegmentsData(
 	m.RLock()
 	defer m.RUnlock()
 	if m.state == mutableSegmentsStateClosed {
-		// No data if already closed, no need to return an error in this case.
 		return nil, nil
 	}
 
@@ -365,7 +363,7 @@ func (m *mutableSegments) addOnDiskSegments(segments []result.Segment) error {
 	m.Lock()
 	defer m.Unlock()
 	if m.state == mutableSegmentsStateClosed {
-		return ErrMutableSegmentsAlreadyClosed
+		return errMutableSegmentsAlreadyClosed
 	}
 	for _, s := range segments {
 		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(s.Segment(), m.opts))
