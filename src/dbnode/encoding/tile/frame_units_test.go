@@ -29,14 +29,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (r *unitRecorder) assertValue(t *testing.T, expected xtime.Unit, idx int) {
-	actual, err := r.Value(idx)
+func (u *unitRecorder) assertValue(t *testing.T, expected xtime.Unit, idx int) {
+	actual, err := u.Value(idx)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "index %d", idx)
 }
 
-func (r *unitRecorder) assertError(t *testing.T, idx int) {
-	_, err := r.Value(idx)
+func (u *unitRecorder) assertError(t *testing.T, idx int) {
+	_, err := u.Value(idx)
 	assert.Error(t, err, "index %d", idx)
 }
 

@@ -38,52 +38,52 @@ func newUnitRecorder() *unitRecorder {
 	return &unitRecorder{}
 }
 
-func (r *unitRecorder) Value(idx int) (xtime.Unit, error) {
-	if idx < 0 || idx >= r.count {
-		return 0, fmt.Errorf("unitRecorder.Value index (%d) out of bounds [0; %d)", idx, r.count)
+func (u *unitRecorder) Value(idx int) (xtime.Unit, error) {
+	if idx < 0 || idx >= u.count {
+		return 0, fmt.Errorf("unitRecorder.Value index (%d) out of bounds [0; %d)", idx, u.count)
 	}
 
-	if r.singleValue() {
-		return r.u, nil
+	if u.singleValue() {
+		return u.u, nil
 	}
 
-	return r.us[idx], nil
+	return u.us[idx], nil
 }
 
-func (r *unitRecorder) singleValue() bool {
-	return r.count > 0 && len(r.us) == 0
+func (u *unitRecorder) singleValue() bool {
+	return u.count > 0 && len(u.us) == 0
 }
 
-func (r *unitRecorder) record(unit xtime.Unit) {
-	r.count++
-	if r.count == 1 {
-		r.u = unit
+func (u *unitRecorder) record(unit xtime.Unit) {
+	u.count++
+	if u.count == 1 {
+		u.u = unit
 		return
 	}
 
 	// NB: unit has already changed in this dataset.
-	if len(r.us) > 0 {
-		r.us = append(r.us, unit)
+	if len(u.us) > 0 {
+		u.us = append(u.us, unit)
 		return
 	}
 
 	// NB: same unit as previously recorded; skip.
-	if r.u == unit {
+	if u.u == unit {
 		return
 	}
 
-	if r.us == nil {
-		r.us = make([]xtime.Unit, 0, r.count)
+	if u.us == nil {
+		u.us = make([]xtime.Unit, 0, u.count)
 	}
 
-	for i := 0; i < r.count-1; i++ {
-		r.us = append(r.us, r.u)
+	for i := 0; i < u.count-1; i++ {
+		u.us = append(u.us, u.u)
 	}
 
-	r.us = append(r.us, unit)
+	u.us = append(u.us, unit)
 }
 
-func (r *unitRecorder) reset() {
-	r.count = 0
-	r.us = r.us[:0]
+func (u *unitRecorder) reset() {
+	u.count = 0
+	u.us = u.us[:0]
 }

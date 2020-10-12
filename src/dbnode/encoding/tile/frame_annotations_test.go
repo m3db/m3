@@ -31,14 +31,14 @@ import (
 
 func a(s string) ts.Annotation { return ts.Annotation(s) }
 
-func (r *annotationRecorder) assertValue(t *testing.T, expected string, idx int) {
-	actual, err := r.Value(idx)
+func (a *annotationRecorder) assertValue(t *testing.T, expected string, idx int) {
+	actual, err := a.Value(idx)
 	require.NoError(t, err)
 	assert.Equal(t, expected, string(actual), "index %d", idx)
 }
 
-func (r *annotationRecorder) assertError(t *testing.T, idx int) {
-	_, err := r.Value(idx)
+func (a *annotationRecorder) assertError(t *testing.T, idx int) {
+	_, err := a.Value(idx)
 	assert.Error(t, err, "index %d", idx)
 }
 

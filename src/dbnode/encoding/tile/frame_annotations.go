@@ -39,56 +39,56 @@ func newAnnotationRecorder() *annotationRecorder {
 	return &annotationRecorder{}
 }
 
-func (r *annotationRecorder) Value(idx int) (ts.Annotation, error) {
-	if idx < 0 || idx >= r.count {
-		return nil, fmt.Errorf("annotationRecorder.Value index (%d) out of bounds [0; %d)", idx, r.count)
+func (a *annotationRecorder) Value(idx int) (ts.Annotation, error) {
+	if idx < 0 || idx >= a.count {
+		return nil, fmt.Errorf("annotationRecorder.Value index (%d) out of bounds [0; %d)", idx, a.count)
 	}
 
-	if r.singleValue() {
-		return r.a, nil
+	if a.singleValue() {
+		return a.a, nil
 	}
 
-	return r.as[idx], nil
+	return a.as[idx], nil
 }
 
-func (r *annotationRecorder) singleValue() bool {
-	return r.count > 0 && len(r.as) == 0
+func (a *annotationRecorder) singleValue() bool {
+	return a.count > 0 && len(a.as) == 0
 }
 
-func (r *annotationRecorder) record(annotation ts.Annotation) {
-	r.count++
-	if r.count == 1 {
-		r.a = annotation
+func (a *annotationRecorder) record(annotation ts.Annotation) {
+	a.count++
+	if a.count == 1 {
+		a.a = annotation
 		return
 	}
 
 	// NB: annotation has already changed in this dataset.
-	if len(r.as) > 0 {
-		r.as = append(r.as, annotation)
+	if len(a.as) > 0 {
+		a.as = append(a.as, annotation)
 		return
 	}
 
 	// NB: same annotation as previously recorded; skip.
-	if bytes.Equal(r.a, annotation) {
+	if bytes.Equal(a.a, annotation) {
 		return
 	}
 
-	if r.as == nil {
-		r.as = make([]ts.Annotation, 0, r.count)
+	if a.as == nil {
+		a.as = make([]ts.Annotation, 0, a.count)
 	}
 
-	for i := 0; i < r.count-1; i++ {
-		r.as = append(r.as, r.a)
+	for i := 0; i < a.count-1; i++ {
+		a.as = append(a.as, a.a)
 	}
 
-	r.as = append(r.as, annotation)
+	a.as = append(a.as, annotation)
 }
 
-func (r *annotationRecorder) reset() {
-	r.count = 0
-	for i := range r.as {
-		r.as[i] = nil
+func (a *annotationRecorder) reset() {
+	a.count = 0
+	for i := range a.as {
+		a.as[i] = nil
 	}
 
-	r.as = r.as[:0]
+	a.as = a.as[:0]
 }
