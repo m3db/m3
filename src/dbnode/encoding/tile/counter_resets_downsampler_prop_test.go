@@ -21,15 +21,26 @@
 package tile
 
 import (
+	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 )
 
+func TestDownsampleCounterResetsInvariants(t *testing.T) {
+	testDownsampleCounterResetsInvariants(t, false)
+}
+
+func TestDownsampleCounterResetsInvariantsWithPrevFrameLastValue(t *testing.T) {
+	testDownsampleCounterResetsInvariants(t, true)
+}
+
 func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue bool) {
+	seed := time.Now().UnixNano()
 	params := gopter.DefaultTestParameters()
 	params.MinSize = 1
 	if usePrevFrameLastValue {
@@ -37,10 +48,14 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	}
 	params.MinSuccessfulTests = 10000
 	params.MaxShrinkCount = 0
+	params.Rng.Seed(seed)
 	properties := gopter.NewProperties(params)
 	generator := gen.SliceOf(gen.Float64Range(0, 100))
 
 	epsilon := 0.00001
+
+	// NB: capture seed to be able to replicate failed runs.
+	fmt.Printf("Running tests with seed %d, usePrevFrameLastValue=%t", seed, usePrevFrameLastValue)
 
 	properties.Property("return consistent indices", prop.ForAll(
 		func(v []float64) bool {

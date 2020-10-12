@@ -244,14 +244,6 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 	}
 }
 
-func TestDownsampleCounterResetsInvariants(t *testing.T) {
-	testDownsampleCounterResetsInvariants(t, false)
-}
-
-func TestDownsampleCounterResetsInvariantsWithPrevFrameLastValue(t *testing.T) {
-	testDownsampleCounterResetsInvariants(t, true)
-}
-
 func downsample(prevFrameLastValue float64, vals []float64) []DownsampledValue {
 	results := make([]DownsampledValue, 0, 4)
 
