@@ -35,8 +35,10 @@ message NamespaceOptions {
     NamespaceRuntimeOptions runtimeOptions          = 11;
     google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
     AggregationOptions aggregationOptions           = 13;
-    google.protobuf.Any extendedOptions             = 14;
-    StagingState stagingState                       = 15;
+    StagingState stagingState                       = 14;
+
+    // Use larger field ID to ensure new fields are always added before extended options.
+    google.protobuf.Any extendedOptions             = 1000;
 }
 
 // AggregationOptions is a set of options for aggregating data
