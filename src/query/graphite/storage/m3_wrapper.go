@@ -63,6 +63,7 @@ type M3WrappedStorageOptions struct {
 	ShiftStepsEnd              int
 	RenderPartialStart         bool
 	RenderPartialEnd           bool
+	RenderSeriesAllNaNs        bool
 }
 
 type seriesMetadata struct {
