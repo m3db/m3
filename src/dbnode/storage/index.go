@@ -1327,7 +1327,7 @@ func (i *nsIndex) Snapshot(
 
 	if block.NumSegments() == 0 {
 		// Do nothing if no index segments to snapshot.
-		return
+		return nil
 	}
 
 	// NB(bodu): There is a time window between when a block is sealed and when it is
