@@ -18,10 +18,11 @@ genny-all: genny-map-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all:                 \
-	genny-map-multi-fetch-result
+genny-map-all:                    \
+	genny-map-multi-fetch-result  \
+	genny-map-series-metadata-map \
 
-# Map generation rule for query/storage/m3/consolidators/mutliFetchResultMap
+# Map generation rule for query/storage/m3/consolidators/multiFetchResultMap
 .PHONY: genny-map-multi-fetch-result
 genny-map-multi-fetch-result:
 	cd $(m3x_package_path) && make hashmap-gen     \
@@ -33,3 +34,18 @@ genny-map-multi-fetch-result:
 		rename_type_prefix=fetchResult
 	# Rename generated map file
 	mv -f $(consolidators_package_path)/map_gen.go $(consolidators_package_path)/fetch_result_map_gen.go
+
+# Map generation rule for query/graphite/storage/seriesMetadataMap
+.PHONY: genny-map-series-metadata-map
+genny-map-series-metadata-map:
+	cd $(m3x_package_path) && make byteshashmap-gen          \
+		pkg=storage                                            \
+		value_type=seriesMetadata                              \
+		target_package=$(query_package)/graphite/storage       \
+		rename_nogen_key=true                                  \
+		rename_type_prefix=seriesMetadata                      \
+		rename_constructor=newSeriesMetadataMap                \
+		rename_constructor_options=seriesMetadataMapOptions
+	# Rename generated map file
+	mv -f $(query_package_path)/graphite/storage/map_gen.go $(query_package_path)/graphite/storage/series_metadata_map_gen.go
+	mv -f $(query_package_path)/graphite/storage/new_map_gen.go $(query_package_path)/graphite/storage/series_metadata_map_new.go

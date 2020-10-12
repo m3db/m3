@@ -339,5 +339,10 @@ func TestIterablePostCompression(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, series)
 
+	// Should be idempotent.
+	series, err = CompressedSeriesFromSeriesIterator(it, ip)
+	require.NoError(t, err)
+	require.NotNil(t, series)
+
 	validateSeries(t, it)
 }
