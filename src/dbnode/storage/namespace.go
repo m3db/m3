@@ -1703,9 +1703,11 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Int("shards", len(targetShards)),
+		zap.Time("blockStart", blockStart),
+		zap.Time("end", opts.End),
+		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
-		zap.Duration("duration", time.Now().Sub(startedAt)))
+		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
 }
