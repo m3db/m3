@@ -601,9 +601,9 @@ func Last(a, b float64, count int) float64 { return b }
 
 // Median finds the median of a slice of values.
 func Median(vals []float64, count int) float64 {
-        if count < 1 {
+	if count < 1 {
 		return math.NaN()
-        }
+	}
 	if count == 1 {
 		return vals[0]
 	}
