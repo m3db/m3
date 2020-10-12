@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -1770,15 +1771,21 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		mockEncoderPool = encoding.NewMockEncoderPool(ctrl)
-		mockEncoder     = encoding.NewMockEncoder(ctrl)
-		testOpts        = DefaultTestOptions().SetEncoderPool(mockEncoderPool)
-		err             error
+		testOpts = DefaultTestOptions()
+		err      error
 
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
 		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
+
+		id1 = ident.BytesID("id1")
+		id2 = ident.BytesID("id2")
+		id3 = ident.BytesID("id3")
+
+		tags1 = ts.EncodedTags("tags1")
+		tags2 = ts.EncodedTags("tags2")
+		tags3 = ts.EncodedTags("tags3")
 
 		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
 		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
@@ -1794,15 +1801,15 @@ func TestShardAggregateTiles(t *testing.T) {
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
 	reader0.EXPECT().Entries().Return(2).AnyTimes()
-	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(t, start, nil, 1, 5), uint32(11), nil)
-	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(t, start, counterPayload, 0.5, 1, 2), uint32(22), nil)
+	reader0.EXPECT().StreamingRead().Return(id1, tags1, dataBytes(t, start, nil, 1, 5), uint32(11), nil)
+	reader0.EXPECT().StreamingRead().Return(id2, tags2, dataBytes(t, start, counterPayload, 0.5, 1, 2), uint32(22), nil)
 	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
 	reader1.EXPECT().Entries().Return(2).AnyTimes()
-	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(t, secondSourceBlockStart, counterPayload, 5, 1, 3, 0, 9), uint32(33), nil)
-	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(t, secondSourceBlockStart, gaugePayload, 4, 3), uint32(44), nil)
+	reader1.EXPECT().StreamingRead().Return(id2, tags2, dataBytes(t, secondSourceBlockStart, counterPayload, 5, 1, 3, 0, 9), uint32(33), nil)
+	reader1.EXPECT().StreamingRead().Return(id3, tags3, dataBytes(t, secondSourceBlockStart, gaugePayload, 4, 3), uint32(44), nil)
 	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
@@ -1815,34 +1822,21 @@ func TestShardAggregateTiles(t *testing.T) {
 		{thirdSourceBlockStart, volume2},
 	}
 
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder)
+	write1 := newWrittenDataMatcher(t, []ts.Datapoint{
+		dp(start.Add(time.Minute), 5),
+	}, xtime.Nanosecond, nil)
 
-	var (
-		nano                               = xtime.Nanosecond
-		counterAnnotation, gaugeAnnotation ts.Annotation
-	)
+	write2 := newWrittenDataMatcher(t, []ts.Datapoint{
+		dp(start, 0.5),
+		dp(start.Add(2*time.Minute), 2),
+		dp(secondSourceBlockStart.Add(2*time.Minute), 5+3),
+		dp(secondSourceBlockStart.Add(3*time.Minute), 0),
+		dp(secondSourceBlockStart.Add(4*time.Minute), 9),
+	}, xtime.Nanosecond, counterPayload)
 
-	counterAnnotation, _ = counterPayload.Marshal()
-	gaugeAnnotation, _ = gaugePayload.Marshal()
-
-	someSegment := func() ts.Segment {
-		return dataSegment(t, start, nil, 5)
-	}
-
-	gomock.InOrder(
-		mockEncoder.EXPECT().Reset(start, 0, nil),
-		mockEncoder.EXPECT().Encode(dp(start.Add(time.Minute), 5), nano, nil),
-		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
-		mockEncoder.EXPECT().Encode(dp(start, 0.5), nano, counterAnnotation),
-		mockEncoder.EXPECT().Encode(dp(start.Add(2*time.Minute), 2), nano, counterAnnotation),
-		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(2*time.Minute), 5+3), nano, counterAnnotation),
-		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(3*time.Minute), 0), nano, counterAnnotation),
-		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(4*time.Minute), 9), nano, counterAnnotation),
-		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
-		mockEncoder.EXPECT().Encode(dp(secondSourceBlockStart.Add(time.Minute), 3), nano, gaugeAnnotation),
-		mockEncoder.EXPECT().DiscardReset(start, gomock.Any(), nil).Return(someSegment()),
-		mockEncoder.EXPECT().Close(),
-	)
+	write3 := newWrittenDataMatcher(t, []ts.Datapoint{
+		dp(secondSourceBlockStart.Add(time.Minute), 3),
+	}, xtime.Nanosecond, gaugePayload)
 
 	writer := fs.NewMockStreamingWriter(ctrl)
 	gomock.InOrder(
@@ -1854,9 +1848,9 @@ func TestShardAggregateTiles(t *testing.T) {
 			VolumeIndex:         1,
 			PlannedRecordsCount: 2,
 		}),
-		writer.EXPECT().WriteAll(ident.BytesID("id1"), nil, gomock.Any(), gomock.Any()),
-		writer.EXPECT().WriteAll(ident.BytesID("id2"), nil, gomock.Any(), gomock.Any()),
-		writer.EXPECT().WriteAll(ident.BytesID("id3"), nil, gomock.Any(), gomock.Any()),
+		writer.EXPECT().WriteAll(id1, tags1, write1, gomock.Any()),
+		writer.EXPECT().WriteAll(id2, tags2, write2, gomock.Any()),
+		writer.EXPECT().WriteAll(id3, tags3, write3, gomock.Any()),
 		writer.EXPECT().Close(),
 	)
 
@@ -1922,7 +1916,7 @@ func getMockReader(
 	return reader, latestSourceVolume
 }
 
-func dataSegment(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) ts.Segment {
+func dataBytes(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) []byte {
 	var (
 		encoder         = m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
 		timestamp       = start
@@ -1941,11 +1935,7 @@ func dataSegment(t *testing.T, start time.Time, annotationPayload *annotation.Pa
 		timestamp = timestamp.Add(time.Minute)
 	}
 
-	return encoder.Discard()
-}
-
-func dataBytes(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) []byte {
-	m3tszSegment := dataSegment(t, start, annotationPayload, values...)
+	m3tszSegment := encoder.Discard()
 	encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
 	m3tszSegment.Finalize()
 
@@ -1958,4 +1948,48 @@ func dp(timestamp time.Time, value float64) ts.Datapoint {
 		TimestampNanos: xtime.ToUnixNano(timestamp),
 		Value:          value,
 	}
+}
+
+type writtenDataMatcher struct {
+	*testing.T
+	expectedDPs               []ts.Datapoint
+	expectedUnit              xtime.Unit
+	expectedAnnotationPayload *annotation.Payload
+}
+
+func newWrittenDataMatcher(
+	t *testing.T,
+	expectedDPs []ts.Datapoint,
+	expectedUnit xtime.Unit,
+	expectedAnnotationPayload *annotation.Payload) *writtenDataMatcher {
+	return &writtenDataMatcher{t, expectedDPs, expectedUnit, expectedAnnotationPayload}
+}
+
+func (w writtenDataMatcher) Matches(x interface{}) bool {
+	actual, ok := x.([][]byte)
+	require.True(w, ok)
+	decoder := m3tsz.NewDecoder(true, encoding.NewOptions())
+	iter := decoder.Decode(bytes.NewBuffer(append(actual[0], actual[1]...)))
+	for i, expectedDP := range w.expectedDPs {
+		require.True(w, iter.Next())
+		dp, unit, annot := iter.Current()
+		assert.Equal(w, expectedDP, dp)
+		assert.Equal(w, w.expectedUnit, unit)
+		if i == 0 {
+			var annotPayload *annotation.Payload
+			if annot != nil {
+				annotPayload = &annotation.Payload{}
+				require.NoError(w, annotPayload.Unmarshal(annot))
+			}
+			assert.Equal(w, w.expectedAnnotationPayload, annotPayload)
+		}
+	}
+	assert.False(w, iter.Next())
+	require.NoError(w, iter.Err())
+
+	return true
+}
+
+func (w writtenDataMatcher) String() string {
+	return fmt.Sprint(w.expectedDPs)
 }

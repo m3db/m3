@@ -2753,6 +2753,8 @@ func (s *dbShard) AggregateTiles(
 			seriesIter, id, encodedTags = readerIter.Current()
 			prevFrameLastValue          = math.NaN()
 			hasData                     bool
+			handleValueResets           bool
+			firstAnnotation             ts.Annotation
 			writeErr                    error
 		)
 
@@ -2760,19 +2762,20 @@ func (s *dbShard) AggregateTiles(
 			frame := seriesIter.Current()
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
-				hasData = true
 
-				annotationPayload.Reset()
-				firstAnnotation, err := frame.Annotations().Value(0)
-				if err != nil {
-					writeErr = err
-					break
-				}
+				if !hasData {
+					annotationPayload.Reset()
+					firstAnnotation, err = frame.Annotations().Value(0)
+					if err != nil {
+						writeErr = err
+						break
+					}
 
-				handleValueResets := false
-				if annotationPayload.Unmarshal(firstAnnotation) == nil {
-					// Ignore the error???
-					handleValueResets = annotationPayload.HandleValueResets
+					if annotationPayload.Unmarshal(firstAnnotation) == nil {
+						// Ignore the error if the annotation does not match the protobuf struct???
+						handleValueResets = annotationPayload.HandleValueResets
+					}
+					hasData = true
 				}
 
 				downsampledValues = downsampledValues[:0]
