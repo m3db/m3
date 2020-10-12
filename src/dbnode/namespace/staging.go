@@ -37,6 +37,22 @@ func (s *StagingState) Status() StagingStatus {
 	return s.status
 }
 
+// Validate validates the StagingState object.
+func (s *StagingState) Validate() error {
+	var validStatus bool
+	for _, status := range validStagingStatuses {
+		if status == s.Status() {
+			validStatus = true
+			break
+		}
+	}
+	if !validStatus {
+		return fmt.Errorf("staging state status %v is invalid", s.Status())
+	}
+
+	return nil
+}
+
 // NewStagingState creates a new StagingState.
 func NewStagingState(status nsproto.StagingStatus) (StagingState, error) {
 	switch status {
