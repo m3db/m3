@@ -2850,12 +2850,12 @@ func encodeAggregatedSeries(
 				return 0, err
 			}
 
-			annotationPayload.Reset()
 			firstAnnotation, err = frame.Annotations().Value(0)
 			if err != nil {
 				return 0, err
 			}
 
+			annotationPayload.Reset()
 			if annotationPayload.Unmarshal(firstAnnotation) == nil {
 				// Ignore the error if the annotation does not match the protobuf struct???
 				handleValueResets = annotationPayload.HandleValueResets
