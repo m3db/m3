@@ -48,7 +48,7 @@ func buildTestReader(bls ...ident.IndexChecksumBlockBatch) IndexChecksumBlockBat
 	return reader
 }
 
-// buildOpts builds default test options. The xhash.NewParsedIndexHasher sets
+// buildOpts builds default test options. The NewParsedIndexHasher sets
 // the hash value for a schema.IndexEntry as any string represented integer
 // values in the entry ID + entry tags.
 func buildOpts(t *testing.T) Options {

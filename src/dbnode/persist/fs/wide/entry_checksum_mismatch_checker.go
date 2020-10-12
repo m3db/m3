@@ -110,8 +110,9 @@ func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockBatch {
 	if !c.blockReader.Next() {
 		c.exhausted = true
-		// NB: this should return false because there are no more available reads.
-		return ident.IndexChecksumBlockBatch{} //, 0
+		// NB: set exhausted to true and return an empty since there are no
+		// more available checksum blocks.
+		return ident.IndexChecksumBlockBatch{}
 	}
 
 	c.batchIdx = 0
@@ -122,9 +123,12 @@ func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockB
 func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 	indexEntry schema.IndexEntry,
 ) ([]ReadMismatch, error) {
-	hasher := c.decodeOpts.IndexEntryHasher()
-	checksum := hasher.HashIndexEntry(indexEntry)
-	entry := entryWithChecksum{entry: indexEntry, idChecksum: checksum}
+	var (
+		hasher   = c.decodeOpts.IndexEntryHasher()
+		checksum = hasher.HashIndexEntry(indexEntry)
+		entry    = entryWithChecksum{entry: indexEntry, idChecksum: checksum}
+	)
+
 	c.mismatches = c.mismatches[:0]
 	if c.exhausted {
 		// NB: no remaining batches in the index checksum block; any further

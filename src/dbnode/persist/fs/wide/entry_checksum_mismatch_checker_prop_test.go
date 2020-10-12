@@ -41,8 +41,8 @@ func generateRawEntries(size int) []schema.IndexEntry {
 	entries := make([]schema.IndexEntry, size)
 	for i := range entries {
 		entries[i] = schema.IndexEntry{
-			ID:          []byte(fmt.Sprintf("foo-%03d", i)),
-			EncodedTags: []byte(fmt.Sprintf("bar-%03d", i)),
+			ID:          []byte(fmt.Sprintf("id-%03d", i)),
+			EncodedTags: []byte(fmt.Sprintf("tags-%03d", i)),
 		}
 	}
 
@@ -55,22 +55,22 @@ type generatedEntries struct {
 }
 
 // genEntryTestInput creates a list of indexEntries, dropping a certain percentage.
-func genEntryTestInput(size int, opts Options) gopter.Gen {
+func genEntryTestInput(size int) gopter.Gen {
 	entries := generateRawEntries(size)
 
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
-		gen.SliceOfN(len(entries), gen.IntRange(0, 10)),
+		gen.SliceOfN(len(entries), gen.IntRange(0, 100)),
 	).Map(func(val []interface{}) generatedEntries {
 		var (
-			dropChances = val[0].([]int)
+			dropChancePercent = val[0].([]int)
 
 			taking       []bool
 			takenEntries []schema.IndexEntry
 		)
 
-		for i, chance := range dropChances {
-			shouldKeep := chance <= 8
+		for i, chance := range dropChancePercent {
+			shouldKeep := chance <= 80
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
 				takenEntries = append(takenEntries, entries[i])
@@ -94,21 +94,21 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 	indexHasher := opts.DecodingOptions().IndexEntryHasher()
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
-		gen.SliceOfN(len(entries), gen.IntRange(0, 10)),
+		gen.SliceOfN(len(entries), gen.IntRange(0, 100)),
 		// NB: This generator controls how large each batch will be
 		gen.SliceOfN(len(entries), gen.IntRange(1, len(entries))),
 	).Map(func(val []interface{}) generatedChecksums {
 		var (
-			dropChances = val[0].([]int)
-			blockSizes  = val[0].([]int)
+			dropChancePercent = val[0].([]int)
+			blockSizes        = val[1].([]int)
 
 			taking         []bool
 			takenChecksums []ident.IndexChecksum
 			checksumBlocks []ident.IndexChecksumBlockBatch
 		)
 
-		for i, chance := range dropChances {
-			shouldKeep := chance <= 8
+		for i, chance := range dropChancePercent {
+			shouldKeep := chance <= 80
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
 				takenChecksums = append(takenChecksums, ident.IndexChecksum{
@@ -191,7 +191,7 @@ func (b *mismatchChecksumBatch) gatherContiguousMismatchValues() {
 
 		// A contiguous set of mismatches should be sorted IFF:
 		//  - at least 2 values
-		//  - continguous set contains both entry and checksum mismatches
+		//  - contiguous set contains both entry and checksum mismatches
 		// After sorting, all entry mismatches should appear first, in
 		// increasing order, followed by index mismatches in increasing order.
 		// NB: if the last element of a batch is a mismatch, it is fixed and should
@@ -416,20 +416,29 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 					}
 
 					if expected.entryMismatch {
-						expectedTags := fmt.Sprintf("bar-%03d", actual.Checksum)
+						expectedTags := fmt.Sprintf("tags-%03d", actual.Checksum)
 						if acTags := string(actual.EncodedTags); acTags != expectedTags {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedTags, acTags)
 						}
+
+						expectedID := fmt.Sprintf("id-%03d", actual.Checksum)
+						if acID := string(actual.ID); acID != expectedID {
+							return false, fmt.Errorf("expected tags %s, got %s",
+								expectedID, acID)
+						}
 					} else {
 						if len(actual.EncodedTags) > 0 {
-							return false, fmt.Errorf("expected mismatch checksum only mismatch")
+							return false, fmt.Errorf("index mismatch should not have tags")
+						}
+						if len(actual.ID) > 0 {
+							return false, fmt.Errorf("index mismatch should not have id")
 						}
 					}
 				}
 
 				return true, nil
-			}, genChecksumTestInput(size, opts), genEntryTestInput(size, opts)))
+			}, genChecksumTestInput(size, opts), genEntryTestInput(size)))
 
 	if !props.Run(reporter) {
 		t.Errorf("failed with initial seed: %d", seed)
