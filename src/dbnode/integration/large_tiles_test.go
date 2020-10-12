@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -44,6 +45,9 @@ import (
 var (
 	blockSize  = 2 * time.Hour
 	blockSizeT = 24 * time.Hour
+
+	gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
+	counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
 )
 
 func TestReadAggregateWrite(t *testing.T) {
@@ -68,11 +72,12 @@ func TestReadAggregateWrite(t *testing.T) {
 	// Write test data.
 	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
 	dpTime := dpTimeStart
+
 	// "aab" ID is stored to the same shard 0 same as "foo", this is important
 	// for a test to store them to the same shard to test data consistency
 	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
-		dpTime, 15, xtime.Second, nil)
+		dpTime, 15, xtime.Second, annotationBytes(t, gaugePayload))
 
 	testDataPointsCount := 60
 	for a := 0; a < testDataPointsCount; a++ {
@@ -82,7 +87,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		}
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"),
 			ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
-			dpTime, 42.1+float64(a), xtime.Second, nil)
+			dpTime, 42.1+float64(a), xtime.Nanosecond, annotationBytes(t, counterPayload))
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
 	}
@@ -126,7 +131,26 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.Equal(t, 1, flushState.ColdVersionRetrievable)
 	require.Equal(t, 1, flushState.ColdVersionFlushed)
 
+	log.Info("waiting till aggregated data is readable")
+	start = time.Now()
+	readable := xclock.WaitUntil(func() bool {
+		series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
+		require.NoError(t, err)
+		return series.Next()
+	}, time.Minute)
+	require.True(t, readable)
+	log.Info("verified data is readable", zap.Duration("took", time.Since(start)))
+
 	expectedDps := []ts.Datapoint{
+		{Timestamp: dpTimeStart, Value: 15},
+	}
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("aab"),
+		dpTimeStart, nowFn(),
+		expectedDps, xtime.Second, gaugePayload)
+
+	expectedDps = []ts.Datapoint{
+		{Timestamp: dpTimeStart.Add(100 * time.Minute), Value: 52.1},
 		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
 		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
 		{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
@@ -138,28 +162,10 @@ func TestReadAggregateWrite(t *testing.T) {
 		{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
 
-	log.Info("waiting till aggregated data is readable")
-	start = time.Now()
-	readable := xclock.WaitUntil(func() bool {
-		series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
-		require.NoError(t, err)
-		return series.Next()
-	}, time.Minute)
-	require.True(t, readable)
-	log.Info("verified data is readable", zap.Duration("took", time.Since(start)))
-
 	fetchAndValidate(t, session, trgNs.ID(),
 		ident.StringID("foo"),
 		dpTimeStart, nowFn(),
-		expectedDps)
-
-	expectedDps = []ts.Datapoint{
-		{Timestamp: dpTimeStart, Value: 15},
-	}
-	fetchAndValidate(t, session, trgNs.ID(),
-		ident.StringID("aab"),
-		dpTimeStart, nowFn(),
-		expectedDps)
+		expectedDps, xtime.Nanosecond, counterPayload)
 }
 
 func fetchAndValidate(
@@ -168,21 +174,27 @@ func fetchAndValidate(
 	nsID ident.ID,
 	id ident.ID,
 	startInclusive, endExclusive time.Time,
-	expected []ts.Datapoint,
+	expectedDP []ts.Datapoint,
+	expectedUnit xtime.Unit,
+	expectedAnnotation *annotation.Payload,
 ) {
 	series, err := session.Fetch(nsID, id, startInclusive, endExclusive)
 	require.NoError(t, err)
 
-	actual := make([]ts.Datapoint, 0, len(expected))
+	actual := make([]ts.Datapoint, 0, len(expectedDP))
+	first := true
 	for series.Next() {
-		dp, _, _ := series.Current()
-		// FIXME: init expected timestamp nano field as well for equality, or use
-		// permissive equality check instead.
+		dp, unit, annotation := series.Current()
+		if first {
+			assert.Equal(t, expectedAnnotation, annotationPayload(t, annotation))
+			first = false
+		}
+		assert.Equal(t, expectedUnit, unit)
 		dp.TimestampNanos = 0
 		actual = append(actual, dp)
 	}
 
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expectedDP, actual)
 }
 
 func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata) {
@@ -222,4 +234,22 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	require.NoError(t, testSetup.StartServer())
 
 	return testSetup, srcNs, trgNs
+}
+
+func annotationBytes(t *testing.T, payload *annotation.Payload) ts.Annotation {
+	if payload != nil {
+		annotationBytes, err := payload.Marshal()
+		require.NoError(t, err)
+		return annotationBytes
+	}
+	return nil
+}
+
+func annotationPayload(t *testing.T, annotationBytes ts.Annotation) *annotation.Payload {
+	if annotationBytes != nil {
+		payload := &annotation.Payload{}
+		require.NoError(t, payload.Unmarshal(annotationBytes))
+		return payload
+	}
+	return nil
 }

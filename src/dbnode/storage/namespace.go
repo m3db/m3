@@ -1638,12 +1638,13 @@ func (n *dbNamespace) aggregateTiles(
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	startedAt := time.Now()
-
-	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
-	targetBlockStart := opts.Start.Truncate(targetBlockSize)
-	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
-	lastSourceBlockEnd := opts.End.Truncate(sourceBlockSize)
+	var (
+		startedAt          = time.Now()
+		targetBlockSize    = n.Metadata().Options().RetentionOptions().BlockSize()
+		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
+		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
+		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
+	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
@@ -1658,12 +1659,18 @@ func (n *dbNamespace) aggregateTiles(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	targetShards := n.OwnedShards()
+	var (
+		targetShards      = n.OwnedShards()
+		bytesPool         = sourceNs.StorageOptions().BytesPool()
+		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
+		blockReaders      []fs.DataFileSetReader
+		sourceBlockStarts []time.Time
+	)
 
-	var blockReaders []fs.DataFileSetReader
-	var sourceBlockStarts []time.Time
-	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+	for sourceBlockStart := targetBlockStart;
+		sourceBlockStart.Before(lastSourceBlockEnd);
+		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err
 		}

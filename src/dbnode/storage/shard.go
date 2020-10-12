@@ -2741,7 +2741,8 @@ func (s *dbShard) AggregateTiles(
 
 	var (
 		annotationPayload  annotation.Payload
-		downsampledValues  = make([]downsampled.Value, 0, 4 /* Max. number of datapoints per frame for counters. */)
+		// NB: there is a maximum of 4 datapoints per frame for counters.
+		downsampledValues  = make([]downsampled.Value, 0, 4)
 		processedTileCount int64
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
@@ -2857,7 +2858,9 @@ func encodeAggregatedSeries(
 
 			annotationPayload.Reset()
 			if annotationPayload.Unmarshal(firstAnnotation) == nil {
-				// Ignore the error if the annotation does not match the protobuf struct???
+				// NB: unmarshall error might be a result of some historical annotation data
+				// which is not compatible with protobuf payload struct. This would generally mean
+				// that metrics type is unknown, so we should ignore the error here.
 				handleValueResets = annotationPayload.HandleValueResets
 			}
 		}
