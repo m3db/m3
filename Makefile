@@ -221,7 +221,7 @@ release-snapshot: check-for-goreleaser-github-token
 
 .PHONY: docs-test
 docs-test:
-	docker run --rm -it -v $(PWD):/src klakegg/hugo:ext-alpine
+	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
 	curl https://htmltest.wjdp.uk | bash
 	./bin/htmltest -c site/.htmltest.yml
 
