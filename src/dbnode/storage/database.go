@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -1089,6 +1090,99 @@ func (d *db) fetchIndexChecksum(
 
 	defer sp.Finish()
 	return n.FetchIndexChecksum(ctx, id, start)
+}
+
+func (d *db) ReadMismatches(
+	ctx context.Context,
+	namespace ident.ID,
+	query index.Query,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	queryStart time.Time,
+	shards []uint32,
+	iterOpts index.IterationOptions,
+) ([]wide.ReadMismatch, error) { // TODO: update this type when reader hooked up
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	var (
+		batchSize = d.opts.WideBatchSize()
+		blockSize = n.Options().IndexOptions().BlockSize()
+
+		collectedMismatches = make([]wide.ReadMismatch, 0, 10)
+	)
+
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	start, end := opts.StartInclusive, opts.EndExclusive
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadMismatches)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("readMismatches", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Int("batchSize", batchSize),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+
+	defer sp.Finish()
+
+	streamedMismatches := make([]wide.StreamedMismatchBatch, 0, batchSize)
+	streamMismatchProcessor := func(batch *ident.IDBatch) error {
+		streamedMismatches = streamedMismatches[:0]
+		for _, id := range batch.IDs {
+			streamedMismatch, err := d.fetchReadMismatches(ctx, n, batchReader, id, start)
+			if err != nil {
+				return err
+			}
+
+			streamedMismatches = append(streamedMismatches, streamedMismatch)
+		}
+
+		for _, streamedMismatch := range streamedMismatches {
+			batch, err := streamedMismatch.RetrieveMismatchBatch()
+			if err != nil {
+				return err
+			}
+
+			collectedMismatches = append(collectedMismatches, batch.Mismatches...)
+		}
+
+		return nil
+	}
+
+	err = d.wideID(ctx, n, query, streamMismatchProcessor, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectedMismatches, nil
+}
+
+func (d *db) fetchReadMismatches(
+	ctx context.Context,
+	n databaseNamespace,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	id ident.ID,
+	start time.Time,
+) (wide.StreamedMismatchBatch, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatches)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+		)
+	}
+
+	defer sp.Finish()
+	return n.FetchReadMismatches(ctx, batchReader, id, start)
 }
 
 func (d *db) FetchBlocks(

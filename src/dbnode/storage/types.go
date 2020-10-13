@@ -186,6 +186,16 @@ type Database interface {
 		iterOpts index.IterationOptions,
 	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
 
+	ReadMismatches(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		queryStart time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
+	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(

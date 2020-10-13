@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -977,10 +978,6 @@ func TestWideQuery(t *testing.T) {
 	)
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	ns.EXPECT().FetchIndexChecksum(gomock.Any(),
-		ident.StringID("foo"), wideOpts.StartInclusive).
-		Return(block.EmptyStreamedChecksum, nil)
-
 	shards := []uint32{1, 2, 3}
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
@@ -1002,6 +999,10 @@ func TestWideQuery(t *testing.T) {
 			}()
 			return nil
 		})
+
+	ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+		ident.StringID("foo"), wideOpts.StartInclusive).
+		Return(block.EmptyStreamedChecksum, nil)
 	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 	require.NoError(t, err)
 
@@ -1026,6 +1027,104 @@ func TestWideQuery(t *testing.T) {
 		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
+		"root",
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
+}
+
+func TestReadMismatches(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	commitlog := d.commitLog
+	d.commitLog = nil
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	require.NoError(t, d.Open())
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	var (
+		q = index.Query{
+			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+		}
+		err error
+
+		now      = time.Now()
+		iterOpts = index.IterationOptions{}
+		wideOpts = index.WideQueryOptions{
+			StartInclusive:   now.Truncate(2 * time.Hour),
+			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
+			IterationOptions: iterOpts,
+			BatchSize:        1024,
+		}
+	)
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	shards := []uint32{1, 2, 3}
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ index.Query,
+			collector chan *ident.IDBatch,
+			opts index.WideQueryOptions,
+		) error {
+			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
+			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
+			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
+			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
+			assert.Equal(t, opts.ShardsQueried, shards)
+			go func() {
+				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch.Add(1)
+				collector <- batch
+				close(collector)
+			}()
+			return nil
+		})
+
+	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
+	ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
+		ident.StringID("foo"), wideOpts.StartInclusive).
+		Return(wide.EmptyStreamedMismatchBatch, nil)
+	_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
+	require.NoError(t, err)
+
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("random err"))
+	_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, nil, iterOpts)
+	require.Error(t, err)
+
+	ns.EXPECT().Close().Return(nil)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
+	require.NoError(t, d.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+	exSpans := []string{
+		tracepoint.DBFetchMismatches,
+		tracepoint.DBReadMismatches,
+		tracepoint.DBReadMismatches,
 		"root",
 	}
 
