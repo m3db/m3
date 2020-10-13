@@ -26,11 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	disableParallelExecutionLock sync.Mutex
 )
 
 func TestPooledWorkerPoolGo(t *testing.T) {
@@ -55,42 +52,52 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 
 func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	var (
-		workers         = 2
-		channelCapacity = 1
+		workers = 2
+		opts    = NewPooledWorkerPoolOptions().SetNumShards(int64(workers))
 	)
-	// So we can control how empty the worker pool chanel is we
-	// set capacity to be same as num workers.
-	disableParallelExecutionLock.Lock()
-	pooledWorkerPoolGoroutinesCapacity = &channelCapacity
-	defer func() {
-		pooledWorkerPoolGoroutinesCapacity = nil
-		disableParallelExecutionLock.Unlock()
-	}()
-
-	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())
+	p, err := NewPooledWorkerPool(workers, opts)
 	require.NoError(t, err)
 	p.Init()
 
-	var (
-		resultsTrue  = 0
-		resultsFalse = 0
-		wg           sync.WaitGroup
-	)
+	pooledWorkerPool, ok := p.(*pooledWorkerPool)
+	require.True(t, ok)
+
+	// First fill up all the queues without blocking.
+	var wg sync.WaitGroup
 	wg.Add(1)
-	for i := 0; i < workers*2; i++ {
+
+	// Enqueue workers * 2 since buffered channel will allow workers / shards
+	// (which is 1, since 2 / 2 = 1) which means we need to enqueue two times
+	// the workers.
+	totalEnqueue := workers * 2
+	for i := 0; i < totalEnqueue; i++ {
+		// Set now in such a way that independent shards are selected.
+		now := time.Now().
+			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
+			Add(time.Duration(i) * time.Nanosecond)
+		pooledWorkerPool.nowFn = func() time.Time {
+			return now
+		}
+
 		result := p.GoWithTimeout(func() {
 			wg.Wait()
 		}, 100*time.Millisecond)
-		if result {
-			resultsTrue++
-		} else {
-			resultsFalse++
-		}
+		assert.True(t, result)
 	}
 
-	wg.Done()
+	// Restore the now fn.
+	pooledWorkerPool.nowFn = time.Now
 
-	require.True(t, resultsFalse > 0)
+	// Now ensure all further enqueues time out.
+	for i := 0; i < workers; i++ {
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		assert.False(t, result)
+	}
+
+	// Release goroutines.
+	wg.Done()
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
