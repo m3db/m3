@@ -1149,7 +1149,7 @@ func (s *dbShard) FetchIndexChecksum(
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, error) {
+) (block.StreamedChecksum, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)

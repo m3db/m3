@@ -359,13 +359,13 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID batch for the
+	// FetchIndexChecksum retrieves the index checksum for an ID for the
 	// block at time start.
 	FetchIndexChecksum(
 		ctx context.Context,
-		idBatch ident.ID,
+		id ident.ID,
 		blockStart time.Time,
-	) (ident.IndexChecksum, error)
+	) (block.StreamedChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -533,7 +533,7 @@ type databaseShard interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksum, error)
+	) (block.StreamedChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -1372,4 +1372,5 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
+// GetNamespaceFn will return a namespace for a given ID if present.
 type GetNamespaceFn func(id ident.ID) (Namespace, bool)

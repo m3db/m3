@@ -985,29 +985,54 @@ func (d *db) WideQuery(
 
 	// Setup consumer
 	go func() {
-		for batch := range collector {
+		var abortBatch *ident.IDBatch
+		defer func() {
+			if abortBatch != nil {
+				abortBatch.Done()
+			}
 			if collectorErr != nil {
-				batch.Done()
-				continue
+				for batch := range collector {
+					batch.Done()
+				}
+			}
+			doneCh <- struct{}{}
+		}()
+
+		// Build a buffer of batchSize to feed streamed checksums into, so they
+		// can then be decoded in a tight loop. TODO: pool this.
+		streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+		for batch := range collector {
+			streamedChecksums = streamedChecksums[:0]
+			for _, id := range batch.IDs {
+				streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+				if err != nil {
+					// Set abort vars for cleanup and collector err to report error.
+					abortBatch, collectorErr = batch, err
+					return
+				}
+
+				streamedChecksums = append(streamedChecksums, streamedChecksum)
 			}
 
-			var checksum ident.IndexChecksum
-			for i, id := range batch.IDs {
-				checksum, collectorErr = d.fetchIndexChecksum(ctx, n, id, start)
-				if collectorErr == nil {
-					// TODO: use index checksum value
-					useID := i == len(batch.IDs)-1
-					if !useID {
-						checksum.ID = checksum.ID[:0]
-					}
-
-					collectedChecksums = append(collectedChecksums, checksum)
+			for i, streamedChecksum := range streamedChecksums {
+				checksum, err := streamedChecksum.RetrieveIndexChecksum()
+				if err != nil {
+					// Set abort vars for cleanup and collector err to report error.
+					abortBatch, collectorErr = batch, err
+					return
 				}
+
+				// TODO: use index checksum value
+				useID := i == len(batch.IDs)-1
+				if !useID {
+					checksum.ID = checksum.ID[:0]
+				}
+
+				collectedChecksums = append(collectedChecksums, checksum)
 			}
 
 			batch.Done()
 		}
-		doneCh <- struct{}{}
 	}()
 
 	err = n.WideQueryIDs(ctx, query, collector, opts)
@@ -1028,7 +1053,7 @@ func (d *db) fetchIndexChecksum(
 	n databaseNamespace,
 	id ident.ID,
 	start time.Time,
-) (ident.IndexChecksum, error) {
+) (block.StreamedChecksum, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(

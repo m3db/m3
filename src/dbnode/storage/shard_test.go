@@ -1617,14 +1617,19 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
 
 	// First call to RetrieveIndexChecksum is expected to error on retrieval
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
-	_, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	indexChecksum.EXPECT().RetrieveIndexChecksum().
+		Return(ident.IndexChecksum{}, errors.New("err"))
+	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	_, err = r.RetrieveIndexChecksum()
 	assert.EqualError(t, err, "err")
 
 	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
-	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	r, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, checksum, r)
+	retrieved, err := r.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, checksum, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)

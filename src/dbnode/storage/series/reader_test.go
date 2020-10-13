@@ -108,8 +108,11 @@ func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
 	c, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
 	assert.NoError(t, err)
-	assert.Equal(t, int64(0), c.Checksum)
-	assert.Equal(t, 0, len(c.ID))
+
+	checksum, err := c.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), checksum.Checksum)
+	assert.Equal(t, 0, len(checksum.ID))
 }
 
 func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
@@ -143,16 +146,19 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
-	retrieveStart := alignedStart.Add(time.Minute)
 	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
-	_, err := reader.FetchIndexChecksum(ctx, retrieveStart, namespace.Context{})
+	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	require.NoError(t, err)
+	_, err = streamed.RetrieveIndexChecksum()
 	assert.EqualError(t, err, "err")
 
 	// Check reads as expected
 	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
-	r, err := reader.FetchIndexChecksum(ctx, retrieveStart, namespace.Context{})
+	streamed, err = reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, checksum, r)
+	actual, err := streamed.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, checksum, actual)
 }
 
 type readTestCase struct {

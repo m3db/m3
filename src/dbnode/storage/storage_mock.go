@@ -1417,18 +1417,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 }
 
 // FetchIndexChecksum mocks base method
-func (m *MockdatabaseNamespace) FetchIndexChecksum(ctx context.Context, idBatch ident.ID, blockStart time.Time) (ident.IndexChecksum, error) {
+func (m *MockdatabaseNamespace) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time) (block.StreamedChecksum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, idBatch, blockStart)
-	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart)
+	ret0, _ := ret[0].(block.StreamedChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchIndexChecksum indicates an expected call of FetchIndexChecksum
-func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, idBatch, blockStart interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, id, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, idBatch, blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, id, blockStart)
 }
 
 // FetchBlocks mocks base method
@@ -1940,10 +1940,10 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 }
 
 // FetchIndexChecksum mocks base method
-func (m *MockdatabaseShard) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
+func (m *MockdatabaseShard) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (block.StreamedChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret0, _ := ret[0].(block.StreamedChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

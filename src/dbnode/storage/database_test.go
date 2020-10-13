@@ -324,22 +324,34 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	seriesID := ident.StringID("bar")
 	end := time.Now()
 	start := end.Add(-time.Hour)
+
+	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
+	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
+		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+		Return(indexChecksumWithID, nil)
+
+	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
+	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
 		Return(ident.IndexChecksum{Checksum: 7}, nil)
+	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
 	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
-	assert.Equal(t, "foo", string(res.ID))
-	assert.Equal(t, 5, int(res.Checksum))
+	checksum, err := res.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, "foo", string(checksum.ID))
+	assert.Equal(t, 5, int(checksum.Checksum))
 
 	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	checksum, err = res.RetrieveIndexChecksum()
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(res.ID))
-	assert.Equal(t, 7, int(res.Checksum))
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(checksum.ID))
+	assert.Equal(t, 7, int(checksum.Checksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
@@ -967,7 +979,7 @@ func TestWideQuery(t *testing.T) {
 
 	ns.EXPECT().FetchIndexChecksum(gomock.Any(),
 		ident.StringID("foo"), wideOpts.StartInclusive).
-		Return(ident.IndexChecksum{}, nil)
+		Return(block.EmptyStreamedChecksum, nil)
 
 	shards := []uint32{1, 2, 3}
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).

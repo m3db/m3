@@ -564,24 +564,24 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return emptyChecksum, errNoSeekerMgr
+		return block.EmptyStreamedChecksum, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return emptyChecksum, err
+		return block.EmptyStreamedChecksum, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		return emptyChecksum, nil
+		return block.EmptyStreamedChecksum, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return emptyChecksum, err
+		return block.EmptyStreamedChecksum, err
 	}
 
 	reqs.Lock()
@@ -691,14 +691,6 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	}
 	reqs.queued = reqs.queued[:0]
 }
-
-type emptyStreamedChecksum struct{}
-
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
-	return ident.IndexChecksum{}, nil
-}
-
-var emptyChecksum block.StreamedChecksum = emptyStreamedChecksum{}
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {

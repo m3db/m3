@@ -150,10 +150,10 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // FetchIndexChecksum mocks base method
-func (m *MockDatabaseSeries) FetchIndexChecksum(arg0 context.Context, arg1 time.Time, arg2 namespace.Context) (ident.IndexChecksum, error) {
+func (m *MockDatabaseSeries) FetchIndexChecksum(arg0 context.Context, arg1 time.Time, arg2 namespace.Context) (block.StreamedChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchIndexChecksum", arg0, arg1, arg2)
-	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret0, _ := ret[0].(block.StreamedChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
