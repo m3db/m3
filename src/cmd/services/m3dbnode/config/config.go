@@ -292,10 +292,6 @@ type CommitLogPolicy struct {
 	// works in most cases because the default size of the QueueChannel should be large
 	// enough for almost all workloads assuming a reasonable batch size is used.
 	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
-
-	// Deprecated. Left in struct to keep old YAMLs parseable.
-	// TODO(V1): remove
-	DeprecatedBlockSize *time.Duration `yaml:"blockSize"`
 }
 
 // CalculationType is a type of configuration parameter.

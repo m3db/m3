@@ -49,10 +49,6 @@ var (
 
 // BootstrapConfiguration specifies the config for bootstrappers.
 type BootstrapConfiguration struct {
-	// Bootstrappers is the list of bootstrappers, ordered by precedence in
-	// descending order.
-	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
-
 	// Filesystem bootstrapper configuration.
 	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
 

@@ -117,7 +117,12 @@ func deprecationCheck(cfg interface{}, df []string) []string {
 			df = deprecationCheck(v.Interface(), df)
 		}
 		name := reflect.TypeOf(cfg).Field(i).Name
-		if strings.HasPrefix(name, deprecatedPrefix) {
+		if strings.HasPrefix(name, deprecatedPrefix) && !v.IsZero() {
+			// TODO: Add test to only warn on deprecation field
+			// if the value is actually set.
+			// Before it was appearing even if the value wasn't set
+			// so any struct with a deprecated field at all
+			// was causing deprecated fields to show up.
 			df = append(df, name)
 		}
 	}

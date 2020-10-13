@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
-	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -151,15 +150,6 @@ type Configuration struct {
 	// Experimental is the configuration for the experimental API group.
 	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
 
-	// Cache configurations.
-	//
-	// Deprecated: cache configurations are no longer supported. Remove from file
-	// when we can make breaking changes.
-	// (If/when removed it will make existing configurations with the cache
-	// stanza not able to startup the binary since we parse YAML in strict mode
-	// by default).
-	DeprecatedCache CacheConfiguration `yaml:"cache"`
-
 	// MultiProcess is the multi-process configuration.
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 }
@@ -188,17 +178,6 @@ type FilterConfiguration struct {
 	Read         Filter `yaml:"read"`
 	Write        Filter `yaml:"write"`
 	CompleteTags Filter `yaml:"completeTags"`
-}
-
-// CacheConfiguration contains the cache configurations.
-type CacheConfiguration struct {
-	// Deprecated: remove from config.
-	DeprecatedQueryConversion *DeprecatedQueryConversionCacheConfiguration `yaml:"queryConversion"`
-}
-
-// DeprecatedQueryConversionCacheConfiguration is deprecated: remove from config.
-type DeprecatedQueryConversionCacheConfiguration struct {
-	Size *int `yaml:"size"`
 }
 
 // ResultOptions are the result options for query.
@@ -297,41 +276,6 @@ func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
 type LimitsConfiguration struct {
 	// PerQuery configures limits which apply to each query individually.
 	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
-
-	// Global configures limits which apply across all queries running on this
-	// instance.
-	Global GlobalLimitsConfiguration `yaml:"global"`
-
-	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// MaxComputedDatapoints is a getter providing backwards compatibility between
-// LimitsConfiguration.DeprecatedMaxComputedDatapoints and
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
-// the semantics.
-func (lc LimitsConfiguration) MaxComputedDatapoints() int {
-	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
-		return lc.PerQuery.PrivateMaxComputedDatapoints
-	}
-
-	return lc.DeprecatedMaxComputedDatapoints
-}
-
-// GlobalLimitsConfiguration represents limits on resource usage across a query
-// instance. Zero or negative values imply no limit.
-type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by all queries at any point in time, this is applied at the query
-	// service after the result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
 // PerQueryLimitsConfiguration represents limits on resource usage within a
@@ -349,26 +293,6 @@ type PerQueryLimitsConfiguration struct {
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive bool `yaml:"requireExhaustive"`
-
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by a given query, this is applied at the query service after the
-	// result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-
-	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
-	// returned by a query. It's determined purely
-	// from the size of the time range and the step size (end - start / step).
-	//
-	// N.B.: the hacky "Private" prefix is to indicate that callers should use
-	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
-	// this field directly.
-	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
 // AsFetchOptionsBuilderLimitsOptions converts this configuration to
@@ -389,13 +313,6 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		DocsLimit:         int(docsLimit),
 		RequireExhaustive: l.RequireExhaustive,
 	}
-}
-
-func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
-	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
-		Threshold: cost.Cost(limit),
-		Enabled:   limit > 0,
-	})
 }
 
 // IngestConfiguration is the configuration for ingestion server.
@@ -441,12 +358,9 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	// Deprecated: simply use the logger debug level, this has been deprecated
-	// in favor of setting the log level to debug.
-	DeprecatedDebug bool                              `yaml:"debug"`
-	ListenAddress   string                            `yaml:"listenAddress"`
-	MaxConcurrency  int                               `yaml:"maxConcurrency"`
-	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	ListenAddress  string                            `yaml:"listenAddress"`
+	MaxConcurrency int                               `yaml:"maxConcurrency"`
+	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration

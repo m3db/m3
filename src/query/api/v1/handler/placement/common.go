@@ -411,23 +411,6 @@ func applyMiddleware(
 	).ServeHTTP
 }
 
-func applyDeprecatedMiddleware(
-	f func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
-	defaults []handleroptions.ServiceOptionsDefault,
-	instrumentOpts instrument.Options,
-) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			svc := handleroptions.ServiceNameAndDefaults{
-				ServiceName: handleroptions.M3DBServiceName,
-				Defaults:    defaults,
-			}
-			f(svc, w, r)
-		},
-		instrumentOpts,
-	).ServeHTTP
-}
-
 func parseServiceMiddleware(
 	next func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
 	defaults []handleroptions.ServiceOptionsDefault,

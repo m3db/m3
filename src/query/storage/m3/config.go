@@ -35,9 +35,8 @@ import (
 )
 
 var (
-	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
-	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
-	errNoNamespaceInitializerSet                  = goerrors.New("no namespace initializer set")
+	errNotAggregatedClusterNamespace = goerrors.New("not an aggregated cluster namespace")
+	errNoNamespaceInitializerSet     = goerrors.New("no namespace initializer set")
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -87,12 +86,6 @@ type ClusterStaticNamespaceConfiguration struct {
 	// Downsample is the configuration for downsampling options to use with
 	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
-
-	// StorageMetricsType is the namespace type.
-	//
-	// Deprecated: Use "Type" field when specifying config instead, it is
-	// invalid to use both.
-	StorageMetricsType storagemetadata.MetricsType `yaml:"storageMetricsType"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
