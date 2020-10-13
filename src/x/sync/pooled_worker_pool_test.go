@@ -70,13 +70,14 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	// (which is 1, since 2 / 2 = 1) which means we need to enqueue two times
 	// the workers.
 	totalEnqueue := workers * 2
+	now := time.Now()
 	for i := 0; i < totalEnqueue; i++ {
 		// Set now in such a way that independent shards are selected.
-		now := time.Now().
+		shardNowSelect := now.
 			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
 			Add(time.Duration(i) * time.Nanosecond)
 		pooledWorkerPool.nowFn = func() time.Time {
-			return now
+			return shardNowSelect
 		}
 
 		result := p.GoWithTimeout(func() {
