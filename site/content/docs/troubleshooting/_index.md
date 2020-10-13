@@ -56,24 +56,24 @@ Now, you will have the following files, which you can use for troubleshooting us
 
 **cpuSource**
 
-    go tool pprof -http=:16000 cpuSource
+    go tool pprof -http=:16000 cpu.prof
 
 **heapSource**
 
-    go tool pprof -http=:16000 heapSource
+    go tool pprof -http=:16000 heap.prof
 
 **goroutineProfile**
 
-    less goroutineProfile
+    less goroutine.prof
 
 **hostSource**
 
-    less hostSource | jq .
+    less host.json | jq .
 
 **namespaceSource**
 
-    less namespaceSource | jq .
+    less namespace.json | jq .
 
 **placementSource**
 
-    less placementSource | jq .
+    less placement-m3db.json | jq .
