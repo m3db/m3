@@ -44,7 +44,7 @@ If your Kubernetes cluster spans multiple availability zones, it's important to 
 
 ### Kernel Configuration
 
-We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
+We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][/docs/operational_guide/kernel_configuration] docs
 for more.
 
 Note that our default StatefulSet spec will give the M3DB container `CAP_SYS_RESOURCE` so it may raise its file limits.
@@ -281,7 +281,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement -d '{
 
 ### Prometheus
 
-As mentioned in our integrations [guide](/integrations/prometheus), M3DB can be used as a [remote read/write
+As mentioned in our integrations [guide](/docs/integrations/prometheus), M3DB can be used as a [remote read/write
 endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E) for Prometheus.
 
 If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:

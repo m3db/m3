@@ -1,0 +1,13 @@
+DirectoryPath: site/public
+IgnoreDirectoryMissingTrailingSlash: true
+CheckExternal: true
+IgnoreAltMissing: false
+CheckImages: false
+CheckScripts: false
+CheckMeta: false
+CheckMetaRefresh: false
+CheckLinks: false
+EnforceHTML5: false
+EnforceHTTPS: false
+IgnoreInternalEmptyHash: true
+IgnoreEmptyHref: true

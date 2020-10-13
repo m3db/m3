@@ -15,22 +15,22 @@ other supporting infrastructure.
 
 M3 has several features, provided as discrete components, which make it an ideal platform for time series data at scale:
 
--   A distributed time series database, [M3DB](m3db/), that provides scalable storage for time series data and a reverse index.
--   A sidecar process, [M3Coordinator](integrations/prometheus), that allows M3DB to act as the long-term storage for Prometheus.
--   A distributed query engine, [M3Query](query_engine), with native support for PromQL and Graphite (M3QL coming soon).
+-   A distributed time series database, [M3DB](/docs/m3db/), that provides scalable storage for time series data and a reverse index.
+-   A sidecar process, [M3Coordinator](/docs/integrations/prometheus), that allows M3DB to act as the long-term storage for Prometheus.
+-   A distributed query engine, [M3Query](/docs/m3query), with native support for PromQL and Graphite (M3QL coming soon).
     <!-- Add M3Aggregator link -->
 -   An aggregation tier, M3Aggregator, that runs as a dedicated metrics aggregator/downsampler allowing metrics to be stored at various retentions at different resolutions.
 
 ## Getting Started
 
-**Note:** Make sure to read our [Operational Guides](operational_guide) before running in production!
+**Note:** Make sure to read our [Operational Guides](/docs/operational_guide) before running in production!
 
 Getting started with M3 is as easy as following one of the How-To guides.
 
--   [Single M3DB node deployment](how_to/single_node)
--   [Clustered M3DB deployment](how_to/cluster_hard_way)
--   [M3DB on Kubernetes](how_to/kubernetes)
--   [Isolated M3Query on deployment](how_to/query)
+-   [Single M3DB node deployment](/docs/how_to/single_node)
+-   [Clustered M3DB deployment](/docs/how_to/cluster_hard_way)
+-   [M3DB on Kubernetes](/docs/how_to/kubernetes)
+-   [Isolated M3Query on deployment](/docs/how_to/query)
 
 ## Support
 
@@ -38,6 +38,5 @@ For support with any issues, questions about M3 or its operation, or to leave an
 reached in a variety of ways:
 
 -   [Slack (main chat channel)](http://bit.ly/m3slack)
--   [Gitter (old chat channel)](https://gitter.im/m3db/Lobby)
 -   [Email](https://groups.google.com/forum/#!forum/m3db)
 -   [Github issues](https://github.com/m3db/m3/issues)
