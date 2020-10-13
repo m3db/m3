@@ -939,6 +939,61 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
+func (d *db) wideID(
+	ctx context.Context,
+	n databaseNamespace,
+	query index.Query,
+	batchProcessor IDBatchProcessor,
+	opts index.WideQueryOptions,
+) error {
+	// Build collector
+	var (
+		mu           sync.Mutex
+		collectorErr error
+
+		collector = make(chan *ident.IDBatch)
+		doneCh    = make(chan struct{})
+	)
+
+	// Setup consumer
+	go func() {
+		var (
+			abortBatch *ident.IDBatch
+		)
+
+		defer func() {
+			if abortBatch != nil {
+				abortBatch.Done()
+			}
+
+			if collectorErr != nil {
+				for batch := range collector {
+					batch.Done()
+				}
+			}
+
+			doneCh <- struct{}{}
+		}()
+
+		for batch := range collector {
+			mu.Lock()
+			collectorErr = batchProcessor(batch)
+			mu.Unlock()
+			if collectorErr != nil {
+				abortBatch = batch
+			}
+		}
+	}()
+
+	err := n.WideQueryIDs(ctx, query, collector, opts)
+	if err != nil {
+		return err
+	}
+
+	<-doneCh
+	return collectorErr
+}
+
 func (d *db) WideQuery(
 	ctx context.Context,
 	namespace ident.ID,
@@ -954,14 +1009,10 @@ func (d *db) WideQuery(
 	}
 
 	var (
-		doneCh = make(chan struct{})
-
 		batchSize = d.opts.WideBatchSize()
 		blockSize = n.Options().IndexOptions().BlockSize()
 
-		collector          = make(chan *ident.IDBatch)
 		collectedChecksums = make([]ident.IndexChecksum, 0, 10)
-		collectorErr       error
 	)
 
 	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
@@ -983,66 +1034,39 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
-	// Setup consumer
-	go func() {
-		var abortBatch *ident.IDBatch
-		defer func() {
-			if abortBatch != nil {
-				abortBatch.Done()
-			}
-			if collectorErr != nil {
-				for batch := range collector {
-					batch.Done()
-				}
-			}
-			doneCh <- struct{}{}
-		}()
-
-		// Build a buffer of batchSize to feed streamed checksums into, so they
-		// can then be decoded in a tight loop. TODO: pool this.
-		streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
-		for batch := range collector {
-			streamedChecksums = streamedChecksums[:0]
-			for _, id := range batch.IDs {
-				streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
-				if err != nil {
-					// Set abort vars for cleanup and collector err to report error.
-					abortBatch, collectorErr = batch, err
-					return
-				}
-
-				streamedChecksums = append(streamedChecksums, streamedChecksum)
+	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+	indexChecksumProcessor := func(batch *ident.IDBatch) error {
+		streamedChecksums = streamedChecksums[:0]
+		for _, id := range batch.IDs {
+			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+			if err != nil {
+				return err
 			}
 
-			for i, streamedChecksum := range streamedChecksums {
-				checksum, err := streamedChecksum.RetrieveIndexChecksum()
-				if err != nil {
-					// Set abort vars for cleanup and collector err to report error.
-					abortBatch, collectorErr = batch, err
-					return
-				}
-
-				// TODO: use index checksum value
-				useID := i == len(batch.IDs)-1
-				if !useID {
-					checksum.ID = checksum.ID[:0]
-				}
-
-				collectedChecksums = append(collectedChecksums, checksum)
-			}
-
-			batch.Done()
+			streamedChecksums = append(streamedChecksums, streamedChecksum)
 		}
-	}()
 
-	err = n.WideQueryIDs(ctx, query, collector, opts)
-	if err != nil {
-		return nil, err
+		for i, streamedChecksum := range streamedChecksums {
+			checksum, err := streamedChecksum.RetrieveIndexChecksum()
+			if err != nil {
+				return err
+			}
+
+			// TODO: use index checksum value to call downstreams.
+			useID := i == len(batch.IDs)-1
+			if !useID {
+				checksum.ID = checksum.ID[:0]
+			}
+
+			collectedChecksums = append(collectedChecksums, checksum)
+		}
+
+		return nil
 	}
 
-	<-doneCh
-	if collectorErr != nil {
-		return nil, collectorErr
+	err = d.wideID(ctx, n, query, indexChecksumProcessor, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	return collectedChecksums, nil

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -64,6 +65,9 @@ type PageToken []byte
 type IndexedErrorHandler interface {
 	HandleError(index int, err error)
 }
+
+// IDBatchProcessor is a function that processes a batch.
+type IDBatchProcessor func(batch *ident.IDBatch) error
 
 // Database is a time series database.
 type Database interface {
@@ -367,6 +371,15 @@ type databaseNamespace interface {
 		blockStart time.Time,
 	) (block.StreamedChecksum, error)
 
+	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatches(
+		ctx context.Context,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		id ident.ID,
+		blockStart time.Time,
+	) (wide.StreamedMismatchBatch, error)
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -530,6 +543,16 @@ type databaseShard interface {
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (block.StreamedChecksum, error)
+
+	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatches(
+		ctx context.Context,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatchBatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
