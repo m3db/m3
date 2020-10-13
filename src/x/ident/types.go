@@ -336,19 +336,3 @@ type IndexChecksumBlockBatch struct {
 	// last element in the batch.
 	EndMarker []byte
 }
-
-// StreamedChecksum yields an IndexChecksum value asynchronously,
-// and any errors encountered during execution.
-type StreamedChecksum interface {
-	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (IndexChecksum, error)
-}
-
-type emptyStreamedChecksum struct{}
-
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (IndexChecksum, error) {
-	return IndexChecksum{}, nil
-}
-
-// EmptyStreamedChecksum is an empty streamed checksum.
-var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}

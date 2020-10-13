@@ -958,15 +958,7 @@ func (d *db) wideID(
 
 	// Setup consumer
 	go func() {
-		var (
-			abortBatch *ident.IDBatch
-		)
-
 		defer func() {
-			if abortBatch != nil {
-				abortBatch.Done()
-			}
-
 			if collectorErr != nil {
 				for batch := range collector {
 					batch.Done()
@@ -980,9 +972,8 @@ func (d *db) wideID(
 			mu.Lock()
 			collectorErr = batchProcessor(batch)
 			mu.Unlock()
-			if collectorErr != nil {
-				abortBatch = batch
-			}
+
+			batch.Done()
 		}
 	}()
 
