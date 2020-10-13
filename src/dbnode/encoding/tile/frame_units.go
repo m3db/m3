@@ -21,6 +21,8 @@
 package tile
 
 import (
+	"fmt"
+
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -36,22 +38,20 @@ func newUnitRecorder() *unitRecorder {
 	return &unitRecorder{}
 }
 
-func (u *unitRecorder) SingleValue() (xtime.Unit, bool) {
-	return u.u, u.count > 0 && len(u.us) == 0
-}
-
-func (u *unitRecorder) Values() []xtime.Unit {
-	if len(u.us) == 0 {
-		if u.us == nil {
-			u.us = make([]xtime.Unit, 0, u.count)
-		}
-
-		for i := 0; i < u.count; i++ {
-			u.us = append(u.us, u.u)
-		}
+func (u *unitRecorder) Value(idx int) (xtime.Unit, error) {
+	if idx < 0 || idx >= u.count {
+		return 0, fmt.Errorf("unitRecorder.Value index (%d) out of bounds [0; %d)", idx, u.count)
 	}
 
-	return u.us
+	if u.singleValue() {
+		return u.u, nil
+	}
+
+	return u.us[idx], nil
+}
+
+func (u *unitRecorder) singleValue() bool {
+	return u.count > 0 && len(u.us) == 0
 }
 
 func (u *unitRecorder) record(unit xtime.Unit) {

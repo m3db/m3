@@ -1293,7 +1293,7 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),
@@ -1352,7 +1352,6 @@ func (m metadatas) String() (string, error) {
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
-	handleCounterResets bool,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1363,9 +1362,8 @@ func NewAggregateTilesOptions(
 	}
 
 	return AggregateTilesOptions{
-		Start:               start,
-		End:                 end,
-		Step:                step,
-		HandleCounterResets: handleCounterResets,
+		Start: start,
+		End:   end,
+		Step:  step,
 	}, nil
 }

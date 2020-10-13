@@ -434,6 +434,9 @@ type CarbonConfiguration struct {
 	// RenderPartialEnd sets whether to render partial datapoints when
 	// the end time is between a datapoint's resolution step size.
 	RenderPartialEnd bool `yaml:"renderPartialEnd"`
+	// RenderSeriesAllNaNs will render series that have only NaNs for entire
+	// output instead of returning an empty array of datapoints.
+	RenderSeriesAllNaNs bool `yaml:"renderSeriesAllNaNs"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.

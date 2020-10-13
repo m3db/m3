@@ -479,6 +479,7 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
 		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
+		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
 	}
 
 	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,

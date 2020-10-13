@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,18 +20,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tile
+package downsample
 
 import (
 	"math"
 	"testing"
+	"time"
+
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"go.uber.org/zap"
 )
 
+func TestDownsampleCounterResetsInvariants(t *testing.T) {
+	testDownsampleCounterResetsInvariants(t, false)
+}
+
+func TestDownsampleCounterResetsInvariantsWithPrevFrameLastValue(t *testing.T) {
+	testDownsampleCounterResetsInvariants(t, true)
+}
+
 func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue bool) {
+	seed := time.Now().UnixNano()
 	params := gopter.DefaultTestParameters()
 	params.MinSize = 1
 	if usePrevFrameLastValue {
@@ -37,10 +52,15 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	}
 	params.MinSuccessfulTests = 10000
 	params.MaxShrinkCount = 0
+	params.Rng.Seed(seed)
 	properties := gopter.NewProperties(params)
 	generator := gen.SliceOf(gen.Float64Range(0, 100))
 
 	epsilon := 0.00001
+
+	// NB: capture seed to be able to replicate failed runs.
+	logger := instrument.NewTestOptions(t).Logger()
+	logger.Info("Running tests", zap.Int64("seed", seed), zap.Bool("usePrevFrameLastValue", usePrevFrameLastValue))
 
 	properties.Property("return consistent indices", prop.ForAll(
 		func(v []float64) bool {
@@ -121,7 +141,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	properties.TestingRun(t)
 }
 
-func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []DownsampledValue {
+func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []Value {
 	prevFrameLastValue := math.NaN()
 
 	if usePrevFrameLastValue {

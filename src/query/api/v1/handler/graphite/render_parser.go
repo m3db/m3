@@ -53,6 +53,7 @@ func WriteRenderResponse(
 	w http.ResponseWriter,
 	series ts.SeriesList,
 	format string,
+	opts renderResultsJSONOptions,
 ) error {
 	if format == pickleFormat {
 		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeOctetStream)
@@ -61,7 +62,7 @@ func WriteRenderResponse(
 
 	// NB: return json unless requesting specifically `pickleFormat`
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	return renderResultsJSON(w, series.Values)
+	return renderResultsJSON(w, series.Values, opts)
 }
 
 const (
@@ -195,7 +196,15 @@ func ParseRenderRequest(r *http.Request) (RenderRequest, error) {
 	return p, nil
 }
 
-func renderResultsJSON(w io.Writer, series []*ts.Series) error {
+type renderResultsJSONOptions struct {
+	renderSeriesAllNaNs bool
+}
+
+func renderResultsJSON(
+	w io.Writer,
+	series []*ts.Series,
+	opts renderResultsJSONOptions,
+) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 	for _, s := range series {
@@ -205,7 +214,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) error {
 		jw.BeginObjectField("datapoints")
 		jw.BeginArray()
 
-		if !s.AllNaN() {
+		if !s.AllNaN() || opts.renderSeriesAllNaNs {
 			for i := 0; i < s.Len(); i++ {
 				timestamp, val := s.StartTimeForStep(i), s.ValueAt(i)
 				jw.BeginArray()
