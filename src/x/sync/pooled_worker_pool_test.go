@@ -29,6 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	disableParallelExecutionLock sync.Mutex
+)
+
 func TestPooledWorkerPoolGo(t *testing.T) {
 	var count uint32
 
@@ -56,9 +60,11 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	)
 	// So we can control how empty the worker pool chanel is we
 	// set capacity to be same as num workers.
+	disableParallelExecutionLock.Lock()
 	pooledWorkerPoolGoroutinesCapacity = &channelCapacity
 	defer func() {
 		pooledWorkerPoolGoroutinesCapacity = nil
+		disableParallelExecutionLock.Unlock()
 	}()
 
 	p, err := NewPooledWorkerPool(workers, NewPooledWorkerPoolOptions())

@@ -20,11 +20,9 @@
 
 package msgpack
 
-import (
-	"github.com/m3db/m3/src/dbnode/persist/schema"
-)
+import "github.com/m3db/m3/src/dbnode/persist/schema"
 
-// DecodingOptions provide a set of options for decoding data.
+// DecodingOptions provides a set of options for decoding data.
 type DecodingOptions interface {
 	// SetAllocDecodedBytes sets whether we allocate new space when decoding
 	// a byte slice.

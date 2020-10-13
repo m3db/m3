@@ -21,10 +21,8 @@
 package hash
 
 import (
-	"hash"
 	"regexp"
 	"strconv"
-	"sync"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -32,65 +30,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testHash struct {
+type parsedIndexHasher struct {
 	t  *testing.T
 	re *regexp.Regexp
-
-	v     uint32
-	count int
-}
-
-func (h *testHash) Reset() {
-	h.v = 0
-	h.count = 0
-}
-
-func (h *testHash) Size() int      { return h.count }
-func (h *testHash) BlockSize() int { return 0 }
-func (h *testHash) Sum32() uint32  { return h.v }
-func (h *testHash) Write(p []byte) (n int, err error) {
-	h.Sum(p)
-	return 0, nil
-}
-
-func (h *testHash) Sum(b []byte) []byte {
-	h.count = h.count + 1
-	matched := h.re.FindAllString(string(b), -1)
-	if len(matched) == 0 {
-		return b
-	}
-
-	i, err := strconv.Atoi(matched[0])
-	require.NoError(h.t, err)
-	h.v = h.v + uint32(i)
-	return b
-}
-
-// NewParseValueHash32 builds a new test hash.Hash32. Given hash value is a sum
-// of all integer values from string representations of input bytes.
-// e.g. testHash.Sum([]byte("foo123")) will increment hash value by 123.
-func NewParseValueHash32(t *testing.T) hash.Hash32 {
-	re, err := regexp.Compile(`\d[\d,]*[\.]?[\d{2}]*`)
-	require.NoError(t, err)
-	return &testHash{t: t, re: re}
-}
-
-type parsedIndexHasher struct {
-	sync.Mutex
-	hash hash.Hash32
 }
 
 // NewParsedIndexHasher builds a new test IndexEntryHasher, hashing IndexEntries
 // to the parsed value of their IDs.
 func NewParsedIndexHasher(t *testing.T) schema.IndexEntryHasher {
-	return &parsedIndexHasher{hash: NewParseValueHash32(t)}
+	re, err := regexp.Compile(`\d[\d,]*[\.]?[\d{2}]*`)
+	require.NoError(t, err)
+
+	return &parsedIndexHasher{t: t, re: re}
 }
 
 func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
-	h.Lock()
-	h.hash.Reset()
-	h.hash.Sum(e.ID)
-	hash := int64(h.hash.Sum32())
-	h.Unlock()
-	return hash
+	matched := h.re.FindAllString(string(e.ID), -1)
+	if len(matched) == 0 {
+		return 0
+	}
+
+	i, err := strconv.Atoi(matched[0])
+	require.NoError(h.t, err)
+	return int64(i)
 }

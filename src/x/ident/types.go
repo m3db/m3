@@ -319,14 +319,6 @@ type IDBatch struct {
 	IDs []ID
 }
 
-// IndexChecksumBlock represents a set of index checksums within a series block.
-type IndexChecksumBlock struct {
-	// Checksums is the list of index checksums.
-	Checksums []int64
-	// Marker is a batch marker, signifying the ID of the last element in the batch.
-	Marker []byte
-}
-
 // IndexChecksum represents an index checksums within a series block.
 type IndexChecksum struct {
 	// Checksum is the index checksum.
@@ -335,6 +327,12 @@ type IndexChecksum struct {
 	ID []byte
 }
 
-func (i *IndexChecksum) String() string {
-	return fmt.Sprintf("%d%s", i.Checksum, string(i.ID))
+// IndexChecksumBlockBatch represents a batch of index checksums originating
+// from a single series block.
+type IndexChecksumBlockBatch struct {
+	// Checksums is the list of index checksums.
+	Checksums []int64
+	// EndMarker is a batch marker, signifying the ID of the
+	// last element in the batch.
+	EndMarker []byte
 }

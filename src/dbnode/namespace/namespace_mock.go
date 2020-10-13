@@ -481,6 +481,34 @@ func (mr *MockOptionsMockRecorder) AggregationOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregationOptions", reflect.TypeOf((*MockOptions)(nil).AggregationOptions))
 }
 
+// SetStagingState mocks base method
+func (m *MockOptions) SetStagingState(value StagingState) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetStagingState", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetStagingState indicates an expected call of SetStagingState
+func (mr *MockOptionsMockRecorder) SetStagingState(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStagingState", reflect.TypeOf((*MockOptions)(nil).SetStagingState), value)
+}
+
+// StagingState mocks base method
+func (m *MockOptions) StagingState() StagingState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StagingState")
+	ret0, _ := ret[0].(StagingState)
+	return ret0
+}
+
+// StagingState indicates an expected call of StagingState
+func (mr *MockOptionsMockRecorder) StagingState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StagingState", reflect.TypeOf((*MockOptions)(nil).StagingState))
+}
+
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller
