@@ -92,7 +92,11 @@ func NewWideQueryResults(
 	return results
 }
 
-func (r *wideResults) EnforceLimits() bool { return false }
+func (r *wideResults) EnforceLimits() bool {
+	// NB: wide results should not enforce limits, as they may span an entire
+	// block in a memory constrained batch-wise fashion.
+	return false
+}
 
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	var size, totalDocsCount int
@@ -105,10 +109,10 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	}
 
 	r.Lock()
+	defer r.Unlock()
+
 	err := r.addDocumentsBatchWithLock(batch)
 	size, totalDocsCount = r.size, r.totalDocsCount
-	r.Unlock()
-
 	if err != nil && err != ErrWideQueryResultsExhausted {
 		// NB: if exhausted, drain the current batch and overflows.
 		return size, totalDocsCount, err
@@ -116,14 +120,11 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 
 	release := len(r.batch.IDs) == r.batchSize
 	if release {
-		r.releaseAndWait()
-		r.releaseOverflow()
+		r.releaseAndWaitWithLock()
+		r.releaseOverflowWithLock()
 	}
 
-	r.RLock()
 	size = r.size
-	r.RUnlock()
-
 	return size, totalDocsCount, err
 }
 
@@ -186,6 +187,7 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 	if len(r.batch.IDs) < r.batchSize {
 		r.batch.IDs = append(r.batch.IDs, tsID)
 	} else {
+		// NB: Add any IDs overflowing the batch size to the overflow slice.
 		r.idsOverflow = append(r.idsOverflow, tsID)
 	}
 
@@ -212,17 +214,20 @@ func (r *wideResults) TotalDocsCount() int {
 
 // NB: Finalize should be called after all documents have been consumed.
 func (r *wideResults) Finalize() {
+	r.Lock()
+	defer r.Unlock()
+
 	if r.closed {
 		return
 	}
 
 	// NB: release current
-	r.releaseAndWait()
+	r.releaseAndWaitWithLock()
 	r.closed = true
 	close(r.batchCh)
 }
 
-func (r *wideResults) releaseAndWait() {
+func (r *wideResults) releaseAndWaitWithLock() {
 	if r.closed || len(r.batch.IDs) == 0 {
 		return
 	}
@@ -231,15 +236,14 @@ func (r *wideResults) releaseAndWait() {
 	r.batchCh <- r.batch
 	r.batch.Wait()
 	r.batch.IDs = r.batch.IDs[:0]
-
-	r.Lock()
 	r.size = len(r.idsOverflow)
-	r.Unlock()
 }
 
-func (r *wideResults) releaseOverflow() {
+func (r *wideResults) releaseOverflowWithLock() {
 	if len(r.batch.IDs) != 0 {
-		// If still some IDs in the batch, noop.
+		// If still some IDs in the batch, noop. Theoretically this should not
+		// happen, since releaseAndWaitWithLock should be called before
+		// releaseOverflowWithLock, which should drain the channel.
 		return
 	}
 
@@ -262,13 +266,16 @@ func (r *wideResults) releaseOverflow() {
 			incomplete = true
 		}
 
+		// NB: move overflow IDs to the batch itself.
 		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
 		copy(r.idsOverflow, r.idsOverflow[size:])
 		r.idsOverflow = r.idsOverflow[:overflow-size]
 		if incomplete {
+			// NB: not enough overflow IDs to create a new batch; seed the existing
+			// batch and return.
 			return
 		}
 
-		r.releaseAndWait()
+		r.releaseAndWaitWithLock()
 	}
 }

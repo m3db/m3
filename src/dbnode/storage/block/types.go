@@ -274,6 +274,15 @@ type StreamedChecksum interface {
 	RetrieveIndexChecksum() (ident.IndexChecksum, error)
 }
 
+type emptyStreamedChecksum struct{}
+
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+	return ident.IndexChecksum{}, nil
+}
+
+// EmptyStreamedChecksum is an empty streamed checksum.
+var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
 	// CacheShardIndices will pre-parse the indexes for given shards

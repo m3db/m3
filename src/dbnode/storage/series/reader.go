@@ -208,7 +208,7 @@ func (r Reader) FetchIndexChecksum(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, error) {
+) (block.StreamedChecksum, error) {
 	return r.fetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
@@ -216,37 +216,37 @@ func (r Reader) fetchIndexChecksum(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksum, error) {
+) (block.StreamedChecksum, error) {
 	var (
-		nowFn        = r.opts.ClockOptions().NowFn()
-		now          = nowFn()
-		ropts        = r.opts.RetentionOptions()
-		size         = ropts.BlockSize()
-		alignedStart = blockStart.Truncate(size)
+		nowFn = r.opts.ClockOptions().NowFn()
+		now   = nowFn()
+		ropts = r.opts.RetentionOptions()
 	)
-	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
+
 	earliest := retention.FlushTimeStart(ropts, now)
-	if alignedStart.Before(earliest) {
-		alignedStart = earliest
+	if blockStart.Before(earliest) {
+		// NB: this block is falling out of retention; return empty result rather
+		// than iterating over it.
+		return block.EmptyStreamedChecksum, nil
 	}
 
 	if r.retriever == nil {
-		return ident.IndexChecksum{}, nil
+		return block.EmptyStreamedChecksum, nil
 	}
 	// Try to stream from disk
-	isRetrievable, err := r.retriever.IsBlockRetrievable(alignedStart)
+	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
 	if err != nil {
-		return ident.IndexChecksum{}, err
+		return block.EmptyStreamedChecksum, err
 	} else if !isRetrievable {
-		return ident.IndexChecksum{}, nil
+		return block.EmptyStreamedChecksum, nil
 	}
 	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
-		r.id, alignedStart, nsCtx)
+		r.id, blockStart, nsCtx)
 	if err != nil {
-		return ident.IndexChecksum{}, err
+		return block.EmptyStreamedChecksum, err
 	}
 
-	return streamedBlock.RetrieveIndexChecksum()
+	return streamedBlock, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

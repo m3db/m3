@@ -1740,6 +1740,8 @@ func (i *nsIndex) execBlockWideQueryFn(
 		sp.LogFields(opentracinglog.Error(err))
 		state.multiErr = state.multiErr.Add(err)
 	}
+
+	// NB: wide queries are always exhaustive.
 	state.exhaustive = true
 }
 
