@@ -2700,7 +2700,6 @@ func (s *dbShard) AggregateTiles(
 		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	// TODO: these should probably be pooled
 	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		s.logger.Error("error when creating new series block iterator", zap.Error(err))
@@ -2776,14 +2775,13 @@ func (s *dbShard) AggregateTiles(
 		writerData[1] = segment.Tail.Bytes()
 		checksum := segment.CalculateChecksum()
 
-		if err := writer.WriteAll(id.Bytes(), encodedTags, writerData, checksum); err != nil {
+		if err := writer.WriteAll(id, encodedTags, writerData, checksum); err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
 			multiErr = multiErr.Add(err)
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
 
-		id.Finalize()
 		segment.Finalize()
 	}
 
