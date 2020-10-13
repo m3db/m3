@@ -25,12 +25,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	graphiteStorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -332,6 +334,59 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			assert.Equal(t, tt.header, actual)
 		})
 	}
+}
+
+func TestParseQueryResultsAllNaN(t *testing.T) {
+	resolution := 10 * time.Second
+	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	start := truncateStart.Add(time.Second)
+	vals := ts.NewFixedStepValues(resolution, 3, math.NaN(), start)
+	tags := models.NewTags(0, nil)
+	seriesList := ts.SeriesList{
+		ts.NewSeries([]byte("series_name"), vals, tags),
+	}
+
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []time.Duration{resolution}
+	fr := &storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	blockResult := makeBlockResult(ctrl, fr)
+	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(blockResult, nil)
+
+	graphiteStorageOpts := graphiteStorage.M3WrappedStorageOptions{
+		RenderSeriesAllNaNs: true,
+	}
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetQueryContextOptions(models.QueryContextOptions{}).SetGraphiteStorageOptions(graphiteStorageOpts)
+	handler := NewRenderHandler(opts)
+
+	req := newGraphiteReadHTTPRequest(t)
+	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
+		start.Unix(), start.Unix()+30)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	res := recorder.Result()
+	assert.Equal(t, 200, res.StatusCode)
+
+	buf, err := ioutil.ReadAll(res.Body)
+	require.NoError(t, err)
+	exTimestamp := truncateStart.Unix() + 10
+	expected := fmt.Sprintf(
+		`[{"target":"series_name","datapoints":[[null,%d],`+
+			`[null,%d],[null,%d]],"step_size_ms":%d}]`,
+		exTimestamp, exTimestamp+10, exTimestamp+20, resolution/time.Millisecond)
+
+	require.Equal(t, expected, string(buf))
 }
 
 func newGraphiteReadHTTPRequest(t *testing.T) *http.Request {
