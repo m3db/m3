@@ -48,7 +48,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/ts/downsampled"
+	"github.com/m3db/m3/src/dbnode/ts/downsample"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -2742,7 +2742,7 @@ func (s *dbShard) AggregateTiles(
 	var (
 		annotationPayload  annotation.Payload
 		// NB: there is a maximum of 4 datapoints per frame for counters.
-		downsampledValues  = make([]downsampled.Value, 0, 4)
+		downsampledValues  = make([]downsample.Value, 0, 4)
 		processedTileCount int64
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
@@ -2825,7 +2825,7 @@ func (s *dbShard) AggregateTiles(
 func encodeAggregatedSeries(
 	seriesIter tile.SeriesFrameIterator,
 	annotationPayload annotation.Payload,
-	downsampledValues []downsampled.Value,
+	downsampledValues []downsample.Value,
 	encoder encoding.Encoder,
 ) (int64, error) {
 	var (
@@ -2870,10 +2870,10 @@ func encodeAggregatedSeries(
 
 		if handleValueResets {
 			// Last value plus possible few more datapoints to preserve counter semantics.
-			downsampledValues = downsampled.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
+			downsampledValues = downsample.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
 		} else {
 			// Plain last value per frame.
-			downsampledValue := downsampled.Value{
+			downsampledValue := downsample.Value{
 				FrameIndex: lastIdx,
 				Value:      frameValues[lastIdx],
 			}
@@ -2892,7 +2892,7 @@ func encodeAggregatedSeries(
 }
 
 func encodeDownsampledValues(
-	downsampledValues []downsampled.Value,
+	downsampledValues []downsample.Value,
 	frame tile.SeriesBlockFrame,
 	unit xtime.Unit,
 	annotation ts.Annotation,
