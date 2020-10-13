@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -72,6 +74,8 @@ type ProcessNamespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Indexer handles reverse indexing of series.
+	Indexer NamespaceIndexer
 	// Hooks is a set of namespace bootstrap hooks.
 	Hooks NamespaceHooks
 }
@@ -209,6 +213,8 @@ type Namespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Indexer handles reverse indexing of series.
+	Indexer NamespaceIndexer
 	// Hooks is a set of namespace bootstrap hooks.
 	Hooks NamespaceHooks
 	// DataTargetRange is the data target bootstrap range.
@@ -276,6 +282,21 @@ type NamespaceDataAccumulator interface {
 	Close() error
 }
 
+// NamespaceIndexer handles reverse indexing of series during commitlog bootstrap.
+type NamespaceIndexer interface {
+	Index(
+		blockStart time.Time,
+		doc doc.Document,
+	) error
+
+	NeedsIndex(
+		blockStart time.Time,
+		docID ident.ID,
+	) bool
+
+	BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano
+}
+
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
 	// Series is the series for the checkout operation.
@@ -284,6 +305,8 @@ type CheckoutSeriesResult struct {
 	Shard uint32
 	// UniqueIndex is the unique index for the series.
 	UniqueIndex uint64
+	// OnIndexSeries is used for optional indexing of a series.
+	OnIndexSeries index.OnIndexSeries
 }
 
 // NamespaceResults is the result of a bootstrap process.

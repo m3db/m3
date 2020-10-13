@@ -62,9 +62,10 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 
 	a.needsRelease = append(a.needsRelease, ref.ReleaseReadWriteRef)
 	return bootstrap.CheckoutSeriesResult{
-		Series:      ref.Series,
-		Shard:       ref.Shard,
-		UniqueIndex: ref.UniqueIndex,
+		Series:        ref.Series,
+		Shard:         ref.Shard,
+		UniqueIndex:   ref.UniqueIndex,
+		OnIndexSeries: ref.OnIndexSeries,
 	}, true, nil
 }
 

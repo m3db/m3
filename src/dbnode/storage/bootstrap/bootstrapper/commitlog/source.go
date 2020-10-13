@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -88,6 +89,7 @@ type bootstrapNamespace struct {
 	namespaceContext        namespace.Context
 	dataBlockSize           time.Duration
 	accumulator             bootstrap.NamespaceDataAccumulator
+	indexer                 bootstrap.NamespaceIndexer
 }
 
 type seriesMap map[seriesMapKey]*seriesMapEntry
@@ -101,6 +103,7 @@ type seriesMapEntry struct {
 	shardNoLongerOwned bool
 	namespace          *bootstrapNamespace
 	series             bootstrap.CheckoutSeriesResult
+	bootstrapping      bool
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
@@ -283,7 +286,7 @@ func (s *commitLogSource) Read(
 type commitLogResult struct {
 	shouldReturnUnfulfilled bool
 	// ensures we only read the commit log once
-	read                    bool
+	read bool
 }
 
 func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span opentracing.Span) (commitLogResult, error) {
@@ -446,9 +449,11 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		if !ok {
 			// Resolve the namespace.
 			var (
-				nsID      = entry.Series.Namespace
-				nsIDBytes = nsID.Bytes()
-				ns        *bootstrapNamespace
+				nsID         = entry.Series.Namespace
+				nsIDBytes    = nsID.Bytes()
+				ns           *bootstrapNamespace
+				nsIndex      storage.NamespaceIndex
+				indexEnabled bool
 			)
 			for _, elem := range commitLogNamespaces {
 				if bytes.Equal(elem.namespaceID, nsIDBytes) {
@@ -479,10 +484,15 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 						namespaceContext:        namespace.NewContextFrom(nsMetadata),
 						dataBlockSize:           nsMetadata.Options().RetentionOptions().BlockSize(),
 						accumulator:             nsResult.namespace.DataAccumulator,
+						indexer:                 nsResult.namespace.Indexer,
 					}
 				}
 				// Append for quick re-lookup with other series.
 				commitLogNamespaces = append(commitLogNamespaces, ns)
+				// Check if indexing is enabled
+				if nsResult.namespace.Metadata.Options().IndexOptions().Enabled() {
+					indexEnabled = true
+				}
 			}
 			if !ns.bootstrapping {
 				// NB(r): Just set the series map entry to the memoized
@@ -523,13 +533,36 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 					return commitLogResult{}, err
 				}
 
+				if indexEnabled {
+
+				}
 				seriesEntry = seriesMapEntry{
-					namespace: ns,
-					series:    series,
+					namespace:     ns,
+					series:        series,
+					bootstrapping: true,
 				}
 			}
 
 			commitLogSeries[seriesKey] = seriesEntry
+		}
+
+		// NB(bodu): The bootstrapper is now responsible for reverse indexing which
+		// means we need to reverse any series in the commit log writes that we have
+		// not already indexed.
+		if seriesEntry.bootstrapping &&
+			!seriesEntry.shardNoLongerOwned &&
+			seriesEntry.namespace.indexer != nil {
+			idx := seriesEntry.namespace.indexer
+			series := seriesEntry.series
+			blockStart := idx.BlockStartForWriteTime(entry.Datapoint.Timestamp)
+			needsIndex := idx.NeedsIndex(blockStart.ToTime(), series.Series.ID())
+			if needsIndex {
+				// Increment ref count so series metadata stays valid while indexing.
+				series.OnIndexSeries.Prepare()
+				if err := idx.Index(blockStart.ToTime(), series.Series.Metadata()); err != nil {
+					return commitLogResult{}, err
+				}
+			}
 		}
 
 		// If series is no longer owned, then we can safely skip trying to
@@ -859,6 +892,9 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
+		// NB(bodu): The bootstrapper is now responsible for reverse indexing but we do
+		// not need to do any work when loading snapshots as the invariant is that
+		// the index snapshots have captured all series in the data snapshots.
 		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
 			if !owned {

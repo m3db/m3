@@ -1043,7 +1043,6 @@ func (s *dbShard) writeAndIndex(
 func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
-	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, _, err := s.tryRetrieveWritableSeries(id)
@@ -1058,6 +1057,7 @@ func (s *dbShard) SeriesReadWriteRef(
 			Shard:               s.shard,
 			UniqueIndex:         entry.Index,
 			ReleaseReadWriteRef: entry,
+			OnIndexSeries:       entry,
 		}, nil
 	}
 
@@ -1076,14 +1076,10 @@ func (s *dbShard) SeriesReadWriteRef(
 	// lock is still contended but at least series writes due to commit log
 	// bootstrapping do not interrupt normal writes waiting for ability
 	// to write to an individual series.
-	at := s.nowFn()
 	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType:      insertSyncIncReaderWriterCount,
-		hasPendingIndex: opts.ReverseIndex,
-		pendingIndex: dbShardPendingIndex{
-			timestamp:  at,
-			enqueuedAt: at,
-		},
+		insertType: insertSyncIncReaderWriterCount,
+		// NB(bodu): It is up to the caller to handle reverse indexing.
+		hasPendingIndex: false,
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
@@ -1094,6 +1090,7 @@ func (s *dbShard) SeriesReadWriteRef(
 		Shard:               s.shard,
 		UniqueIndex:         entry.Index,
 		ReleaseReadWriteRef: entry,
+		OnIndexSeries:       entry,
 	}, nil
 }
 

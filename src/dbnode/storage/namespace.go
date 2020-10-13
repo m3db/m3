@@ -740,11 +740,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 		return SeriesReadWriteRef{}, owned, err
 	}
 
-	opts := ShardSeriesReadWriteRefOptions{
-		ReverseIndex: n.reverseIndex != nil,
-	}
-
-	res, err := shard.SeriesReadWriteRef(id, tags, opts)
+	res, err := shard.SeriesReadWriteRef(id, tags)
 	return res, true, err
 }
 

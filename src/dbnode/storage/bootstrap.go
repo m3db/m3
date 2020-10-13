@@ -321,11 +321,20 @@ func (m *bootstrapManager) bootstrap() error {
 		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)
 		accmulators = append(accmulators, accumulator)
 
+		var indexer bootstrap.NamespaceIndexer
+		if ns.namespace.Metadata().Options().IndexOptions().Enabled() {
+			idx, err := ns.namespace.Index()
+			if err != nil {
+				return err
+			}
+			indexer = NewDatabaseNamespaceIndexer(idx)
+		}
 		targets = append(targets, bootstrap.ProcessNamespace{
 			Metadata:        ns.namespace.Metadata(),
 			Shards:          bootstrapShards,
 			Hooks:           hooks,
 			DataAccumulator: accumulator,
+			Indexer:         indexer,
 		})
 	}
 

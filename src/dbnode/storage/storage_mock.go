@@ -2082,18 +2082,18 @@ func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator, opts ShardSeriesReadWriteRefOptions) (SeriesReadWriteRef, error) {
+func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags, opts)
+	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags, opts interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags)
 }
 
 // DocRef mocks base method

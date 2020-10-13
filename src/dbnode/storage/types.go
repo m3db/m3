@@ -434,6 +434,10 @@ type SeriesReadWriteRef struct {
 	// to release the reference count to the series so it can
 	// be expired by the owning shard eventually.
 	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
+	// OnIndexSeries is used for optional indexing, its used to increment
+	// a ref count to ensure any borrowed document metadata lives throughout
+	// the indexing period.
+	OnIndexSeries index.OnIndexSeries
 }
 
 // Shard is a time series database shard.
@@ -590,7 +594,6 @@ type databaseShard interface {
 	SeriesReadWriteRef(
 		id ident.ID,
 		tags ident.TagIterator,
-		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
@@ -620,12 +623,6 @@ type ShardSnapshotResult struct {
 // by persisting data and updating shard state/block leases.
 type ShardColdFlush interface {
 	Done() error
-}
-
-// ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
-// for the shard.
-type ShardSeriesReadWriteRefOptions struct {
-	ReverseIndex bool
 }
 
 // NamespaceIndex indexes namespace writes.
@@ -1298,9 +1295,9 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
+	Step time.Duration
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
@@ -1309,4 +1306,5 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (id ident.ID) (Namespace, bool)
+// GetNamespaceFn returns a namespace given an ID.
+type GetNamespaceFn func(id ident.ID) (Namespace, bool)
