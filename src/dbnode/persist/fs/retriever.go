@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -68,6 +69,7 @@ const (
 	streamInvalidReq streamReqType = iota
 	streamDataReq
 	streamIdxChecksumReq
+	streamReadMismatchReq
 )
 
 type blockRetrieverStatus int
@@ -537,6 +539,14 @@ func (r *blockRetriever) Stream(
 	return req.toBlock(), nil
 }
 
+func (req *retrieveRequest) toBlock() xio.BlockReader {
+	return xio.BlockReader{
+		SegmentReader: req,
+		Start:         req.start,
+		BlockSize:     req.blockSize,
+	}
+}
+
 func (r *blockRetriever) StreamIndexChecksum(
 	ctx context.Context,
 	shard uint32,
@@ -603,12 +613,71 @@ func (r *blockRetriever) StreamIndexChecksum(
 	return req, nil
 }
 
-func (req *retrieveRequest) toBlock() xio.BlockReader {
-	return xio.BlockReader{
-		SegmentReader: req,
-		Start:         req.start,
-		BlockSize:     req.blockSize,
+func (r *blockRetriever) StreamReadMismatches(
+	ctx context.Context,
+	shard uint32,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	id ident.ID,
+	startTime time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatchBatch, error) {
+	req := r.reqPool.Get()
+	req.shard = shard
+	// NB(r): Clone the ID as we're not positive it will stay valid throughout
+	// the lifecycle of the async request.
+	req.id = r.idPool.Clone(id)
+	req.start = startTime
+	req.blockSize = r.blockSize
+
+	req.streamReqType = streamReadMismatchReq
+	req.resultWg.Add(1)
+
+	// Ensure to finalize at the end of request
+	ctx.RegisterFinalizer(req)
+
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	r.RLock()
+	// This should never happen unless caller tries to use Stream() before Open()
+	if r.seekerMgr == nil {
+		r.RUnlock()
+		return wide.EmptyStreamedMismatchBatch, errNoSeekerMgr
 	}
+	r.RUnlock()
+
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
+	if err != nil {
+		return wide.EmptyStreamedMismatchBatch, err
+	}
+
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately.
+	if !idExists {
+		return wide.EmptyStreamedMismatchBatch, nil
+	}
+
+	reqs, err := r.shardRequests(shard)
+	if err != nil {
+		return wide.EmptyStreamedMismatchBatch, err
+	}
+
+	reqs.Lock()
+	reqs.queued = append(reqs.queued, req)
+	reqs.Unlock()
+
+	// Notify fetch loop
+	select {
+	case r.notifyFetch <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
+
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
+	return req, nil
 }
 
 func (r *blockRetriever) shardRequests(
@@ -708,6 +777,7 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	indexChecksum ident.IndexChecksum
+	mismatchBatch wide.ReadMismatchBatch
 	reader        xio.SegmentReader
 
 	err error
@@ -736,6 +806,14 @@ func (req *retrieveRequest) RetrieveIndexChecksum() (ident.IndexChecksum, error)
 		return ident.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
+}
+
+func (req *retrieveRequest) RetrieveMismatchBatch() (wide.ReadMismatchBatch, error) {
+	req.resultWg.Wait()
+	if req.err != nil {
+		return wide.ReadMismatchBatch{}, req.err
+	}
+	return req.mismatchBatch, nil
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -841,6 +919,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = ident.IndexChecksum{}
+	req.mismatchBatch = wide.ReadMismatchBatch{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

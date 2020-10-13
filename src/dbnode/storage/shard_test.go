@@ -1676,38 +1676,35 @@ func TestShardFetchReadMismatches(t *testing.T) {
 	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-	r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
+
+	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	shard.setBlockRetriever(retriever)
+
+	mismatchBatch := wide.ReadMismatchBatch{
+		Mismatches: []wide.ReadMismatch{{Checksum: 1}},
+	}
+
+	streamedBatch := wide.NewMockStreamedMismatchBatch(ctrl)
+	retriever.EXPECT().
+		StreamReadMismatches(ctx, shard.shard, batchReader, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(streamedBatch, nil).Times(2)
+
+	// First call to RetrieveMismatchBatch is expected to error on retrieval
+	streamedBatch.EXPECT().RetrieveMismatchBatch().
+		Return(wide.ReadMismatchBatch{}, errors.New("err"))
+	r, err := shard.FetchReadMismatches(ctx, batchReader,
+		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	batch, err := r.RetrieveMismatchBatch()
+	_, err = r.RetrieveMismatchBatch()
+	assert.EqualError(t, err, "err")
+
+	streamedBatch.EXPECT().RetrieveMismatchBatch().Return(mismatchBatch, nil)
+	r, err = shard.StreamReadMismatches(ctx, batchReader,
+		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(batch.Mismatches))
-
-	// TODO: enable when reader is added.
-	// retriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	// shard.setBlockRetriever(retriever)
-
-	// mismatchBatch := wide.ReadMismatchBatch{
-	// 	Mismatches: []wide.ReadMismatch{{Checksum: 1}},
-	// }
-
-	// streamedBatch := wide.NewMockStreamedMismatchBatch(ctrl)
-	// retriever.EXPECT().
-	// 	FetchReadMismatches(ctx, batchReader, shard.shard, ident.NewIDMatcher("foo"),
-	// 		start, gomock.Any()).Return(streamedBatch, nil).Times(2)
-
-	// First call to RetrieveIndexChecksum is expected to error on retrieval
-	// streamedBatch.EXPECT().RetrieveMismatchBatch().Return(wide.ReadMismatchBatch{}, errors.New("err"))
-	// r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
-	// require.NoError(t, err)
-	// _, err = r.RetrieveMismatchBatch()
-	// assert.EqualError(t, err, "err")
-
-	// indexChecksum.EXPECT().RetrieveMismatchBatch().Return(mismatchBatch, nil)
-	// r, err = shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
-	// require.NoError(t, err)
-	// retrieved, err := r.RetrieveMismatchBatch()
-	// require.NoError(t, err)
-	// assert.Equal(t, mismatchBatch, retrieved)
+	retrieved, err := r.RetrieveMismatchBatch()
+	require.NoError(t, err)
+	assert.Equal(t, mismatchBatch, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)

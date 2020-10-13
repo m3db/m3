@@ -410,6 +410,18 @@ func (s *dbShard) StreamIndexChecksum(
 		blockStart, nsCtx)
 }
 
+// StreamReadMismatches implements series.QueryableBlockRetriever
+func (s *dbShard) StreamReadMismatches(
+	ctx context.Context,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatchBatch, error) {
+	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard, batchReader,
+		id, blockStart, nsCtx)
+}
+
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) (bool, error) {
 	return s.hasWarmFlushed(blockStart)
