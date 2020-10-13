@@ -360,6 +360,21 @@ func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
 }
 
+// ReadMismatches mocks base method
+func (m *MockDatabase) ReadMismatches(ctx context.Context, namespace ident.ID, query index.Query, batchReader wide.IndexChecksumBlockBatchReader, queryStart time.Time, shards []uint32, iterOpts index.IterationOptions) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadMismatches", ctx, namespace, query, batchReader, queryStart, shards, iterOpts)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadMismatches indicates an expected call of ReadMismatches
+func (mr *MockDatabaseMockRecorder) ReadMismatches(ctx, namespace, query, batchReader, queryStart, shards, iterOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMismatches", reflect.TypeOf((*MockDatabase)(nil).ReadMismatches), ctx, namespace, query, batchReader, queryStart, shards, iterOpts)
+}
+
 // FetchBlocks mocks base method
 func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -783,6 +798,21 @@ func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query 
 func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+}
+
+// ReadMismatches mocks base method
+func (m *Mockdatabase) ReadMismatches(ctx context.Context, namespace ident.ID, query index.Query, batchReader wide.IndexChecksumBlockBatchReader, queryStart time.Time, shards []uint32, iterOpts index.IterationOptions) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadMismatches", ctx, namespace, query, batchReader, queryStart, shards, iterOpts)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadMismatches indicates an expected call of ReadMismatches
+func (mr *MockdatabaseMockRecorder) ReadMismatches(ctx, namespace, query, batchReader, queryStart, shards, iterOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMismatches", reflect.TypeOf((*Mockdatabase)(nil).ReadMismatches), ctx, namespace, query, batchReader, queryStart, shards, iterOpts)
 }
 
 // FetchBlocks mocks base method
