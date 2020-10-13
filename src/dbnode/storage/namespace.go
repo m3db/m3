@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -928,6 +929,23 @@ func (n *dbNamespace) FetchIndexChecksum(
 	return res, err
 }
 
+func (n *dbNamespace) FetchReadMismatches(
+	ctx context.Context,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	id ident.ID,
+	blockStart time.Time,
+) (wide.StreamedMismatchBatch, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return wide.EmptyStreamedMismatchBatch, err
+	}
+	res, err := shard.FetchReadMismatches(ctx, batchReader, id, blockStart, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
 func (n *dbNamespace) FetchBlocks(
 	ctx context.Context,
 	shardID uint32,
@@ -1727,9 +1745,7 @@ func (n *dbNamespace) aggregateTiles(
 		sourceBlockStarts []time.Time
 	)
 
-	for sourceBlockStart := targetBlockStart;
-		sourceBlockStart.Before(lastSourceBlockEnd);
-		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err
