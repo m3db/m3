@@ -22,6 +22,7 @@ package tile
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 )
@@ -38,22 +39,20 @@ func newAnnotationRecorder() *annotationRecorder {
 	return &annotationRecorder{}
 }
 
-func (a *annotationRecorder) SingleValue() (ts.Annotation, bool) {
-	return a.a, a.count > 0 && len(a.as) == 0
-}
-
-func (a *annotationRecorder) Values() []ts.Annotation {
-	if len(a.as) == 0 {
-		if a.as == nil {
-			a.as = make([]ts.Annotation, 0, a.count)
-		}
-
-		for i := 0; i < a.count; i++ {
-			a.as = append(a.as, a.a)
-		}
+func (a *annotationRecorder) Value(idx int) (ts.Annotation, error) {
+	if idx < 0 || idx >= a.count {
+		return nil, fmt.Errorf("annotationRecorder.Value index (%d) out of bounds [0; %d)", idx, a.count)
 	}
 
-	return a.as
+	if a.singleValue() {
+		return a.a, nil
+	}
+
+	return a.as[idx], nil
+}
+
+func (a *annotationRecorder) singleValue() bool {
+	return a.count > 0 && len(a.as) == 0
 }
 
 func (a *annotationRecorder) record(annotation ts.Annotation) {

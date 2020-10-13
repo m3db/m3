@@ -23,46 +23,48 @@
 package integration
 
 import (
-	"io"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
 var (
 	blockSize  = 2 * time.Hour
 	blockSizeT = 24 * time.Hour
+
+	gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
+	counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
 )
 
 func TestReadAggregateWrite(t *testing.T) {
-	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
-	storageOpts := testSetup.StorageOpts()
-	log := storageOpts.InstrumentOptions().Logger()
+	var (
+		start                   = time.Now()
+		testSetup, srcNs, trgNs = setupServer(t)
+		storageOpts             = testSetup.StorageOpts()
+		log                     = storageOpts.InstrumentOptions().Logger()
+	)
 
 	// Stop the server.
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 		testSetup.Close()
-		_ = closer.Close()
 	}()
 
-	start := time.Now()
 	session, err := testSetup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
@@ -70,11 +72,12 @@ func TestReadAggregateWrite(t *testing.T) {
 	// Write test data.
 	dpTimeStart := nowFn().Truncate(blockSizeT).Add(-blockSizeT)
 	dpTime := dpTimeStart
+
 	// "aab" ID is stored to the same shard 0 same as "foo", this is important
 	// for a test to store them to the same shard to test data consistency
 	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
-		dpTime, 15, xtime.Second, nil)
+		dpTime, 15, xtime.Second, annotationBytes(t, gaugePayload))
 
 	testDataPointsCount := 60
 	for a := 0; a < testDataPointsCount; a++ {
@@ -84,7 +87,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		}
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"),
 			ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
-			dpTime, 42.1+float64(a), xtime.Second, nil)
+			dpTime, 42.1+float64(a), xtime.Nanosecond, annotationBytes(t, counterPayload))
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
 	}
@@ -92,19 +95,22 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
+	expectedSourceBlocks := 5
 	flushed := xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		flushes, _ := counters["database.flushIndex.success"]
-		writes, _ := counters["database.series.cold-writes"]
-		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= 30 && successFlushes >= 4
+		for i := 0; i < expectedSourceBlocks; i++ {
+			blockStart := dpTimeStart.Add(time.Duration(i) * blockSize)
+			_, ok, err := fs.FileSetAt(testSetup.FilesystemOpts().FilePathPrefix(), srcNs.ID(), 0, blockStart, 1)
+			require.NoError(t, err)
+			if !ok {
+				return false
+			}
+		}
+		return true
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(
-		dpTimeStart, dpTimeStart.Add(blockSizeT),
-		time.Hour, false)
+	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation")
@@ -125,7 +131,26 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.Equal(t, 1, flushState.ColdVersionRetrievable)
 	require.Equal(t, 1, flushState.ColdVersionFlushed)
 
+	log.Info("waiting till aggregated data is readable")
+	start = time.Now()
+	readable := xclock.WaitUntil(func() bool {
+		series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
+		require.NoError(t, err)
+		return series.Next()
+	}, time.Minute)
+	require.True(t, readable)
+	log.Info("verified data is readable", zap.Duration("took", time.Since(start)))
+
 	expectedDps := []ts.Datapoint{
+		{Timestamp: dpTimeStart, Value: 15},
+	}
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("aab"),
+		dpTimeStart, nowFn(),
+		expectedDps, xtime.Second, gaugePayload)
+
+	expectedDps = []ts.Datapoint{
+		{Timestamp: dpTimeStart.Add(100 * time.Minute), Value: 52.1},
 		{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
 		{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
 		{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
@@ -140,15 +165,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	fetchAndValidate(t, session, trgNs.ID(),
 		ident.StringID("foo"),
 		dpTimeStart, nowFn(),
-		expectedDps)
-
-	expectedDps = []ts.Datapoint{
-		{Timestamp: dpTimeStart, Value: 15},
-	}
-	fetchAndValidate(t, session, trgNs.ID(),
-		ident.StringID("aab"),
-		dpTimeStart, nowFn(),
-		expectedDps)
+		expectedDps, xtime.Nanosecond, counterPayload)
 }
 
 func fetchAndValidate(
@@ -157,33 +174,39 @@ func fetchAndValidate(
 	nsID ident.ID,
 	id ident.ID,
 	startInclusive, endExclusive time.Time,
-	expected []ts.Datapoint,
+	expectedDP []ts.Datapoint,
+	expectedUnit xtime.Unit,
+	expectedAnnotation *annotation.Payload,
 ) {
 	series, err := session.Fetch(nsID, id, startInclusive, endExclusive)
 	require.NoError(t, err)
 
-	actual := make([]ts.Datapoint, 0, len(expected))
+	actual := make([]ts.Datapoint, 0, len(expectedDP))
+	first := true
 	for series.Next() {
-		dp, _, _ := series.Current()
-		// FIXME: init expected timestamp nano field as well for equality, or use
-		// permissive equality check instead.
+		dp, unit, annotation := series.Current()
+		if first {
+			assert.Equal(t, expectedAnnotation, annotationPayload(t, annotation))
+			first = false
+		}
+		assert.Equal(t, expectedUnit, unit)
 		dp.TimestampNanos = 0
 		actual = append(actual, dp)
 	}
 
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expectedDP, actual)
 }
 
-func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT).SetBufferPast(0)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
 		nsOpts   = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
-				SetColdWritesEnabled(true)
+			SetRetentionOptions(rOpts).
+			SetIndexOptions(idxOpts).
+			SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT)
@@ -206,15 +229,27 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		})
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope(
-		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
-	storageOpts := testSetup.StorageOpts().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
-	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
 
-	return testSetup, srcNs, trgNs, reporter, closer
+	return testSetup, srcNs, trgNs
+}
+
+func annotationBytes(t *testing.T, payload *annotation.Payload) ts.Annotation {
+	if payload != nil {
+		annotationBytes, err := payload.Marshal()
+		require.NoError(t, err)
+		return annotationBytes
+	}
+	return nil
+}
+
+func annotationPayload(t *testing.T, annotationBytes ts.Annotation) *annotation.Payload {
+	if annotationBytes != nil {
+		payload := &annotation.Payload{}
+		require.NoError(t, payload.Unmarshal(annotationBytes))
+		return payload
+	}
+	return nil
 }

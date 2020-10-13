@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -35,22 +36,30 @@ var (
 	errInstrumentOptsNotSet = errors.New("instrumentOptions not set")
 )
 
+type cache struct {
+	sync.Once
+
+	fsOpts               fs.Options
+	namespaceDetails     []NamespaceDetails
+	infoFilesByNamespace InfoFilesByNamespace
+	iOpts                instrument.Options
+}
+
 // NewCache creates a cache specifically to be used during the bootstrap process.
 // Primarily a mechanism for passing info files along without needing to re-read them at each
 // stage of the bootstrap process.
 func NewCache(options CacheOptions) (Cache, error) {
 	if err := options.Validate(); err != nil {
-		return Cache{}, err
+		return nil, err
 	}
-	return Cache{
+	return &cache{
 		fsOpts:           options.FilesystemOptions(),
 		namespaceDetails: options.NamespaceDetails(),
 		iOpts:            options.InstrumentOptions(),
 	}, nil
 }
 
-// InfoFilesForNamespace returns the info files grouped by shard for the provided namespace.
-func (c *Cache) InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error) {
+func (c *cache) InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error) {
 	infoFilesByShard, ok := c.ReadInfoFiles()[ns]
 	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
 	if !ok {
@@ -60,8 +69,7 @@ func (c *Cache) InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPer
 	return infoFilesByShard, nil
 }
 
-// InfoFilesForShard returns the info files grouped by shard for the provided namespace.
-func (c *Cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error) {
+func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error) {
 	infoFilesByShard, err := c.InfoFilesForNamespace(ns)
 	if err != nil {
 		return nil, err
@@ -75,24 +83,20 @@ func (c *Cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 	return infoFileResults, nil
 }
 
-// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
-// is returned if the info files have already been read.
-func (c *Cache) ReadInfoFiles() InfoFilesByNamespace {
-	if c.infoFilesByNamespace != nil {
-		return c.infoFilesByNamespace
-	}
+func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
+	c.Once.Do(func() {
+		c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
+		for _, finder := range c.namespaceDetails {
+			result := make(InfoFileResultsPerShard, len(finder.Shards))
+			for _, shard := range finder.Shards {
+				result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
+					finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
+					persist.FileSetFlushType)
+			}
 
-	c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
-	for _, finder := range c.namespaceDetails {
-		result := make(InfoFileResultsPerShard, len(finder.Shards))
-		for _, shard := range finder.Shards {
-			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
-				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
-				persist.FileSetFlushType)
+			c.infoFilesByNamespace[finder.Namespace] = result
 		}
-
-		c.infoFilesByNamespace[finder.Namespace] = result
-	}
+	})
 
 	return c.infoFilesByNamespace
 }

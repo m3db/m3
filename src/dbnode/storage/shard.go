@@ -30,7 +30,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/tile"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -46,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/downsample"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -60,7 +63,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -2634,10 +2636,10 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	ctx context.Context,
 	sourceNsID ident.ID,
 	sourceShardID uint32,
 	blockReaders []fs.DataFileSetReader,
+	writer fs.StreamingWriter,
 	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
 	targetSchemaDescr namespace.SchemaDescr,
@@ -2725,77 +2727,43 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	nextVolume := latestTargetVolume + 1
-	writer, err := fs.NewStreamingWriter(
-		fs.StreamingWriterOptions{
-			NamespaceID:         s.namespace.ID(),
-			ShardID:             s.ID(),
-			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
-			BlockStart:          opts.Start,
-			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
-			VolumeIndex:         nextVolume,
-			PlannedRecordsCount: uint(maxEntries),
-		},
-	)
-	if err != nil {
-		return 0, err
+	writerOpenOpts := fs.StreamingWriterOpenOptions{
+		NamespaceID:         s.namespace.ID(),
+		ShardID:             s.ID(),
+		BlockStart:          opts.Start,
+		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
+		VolumeIndex:         nextVolume,
+		PlannedRecordsCount: uint(maxEntries),
 	}
-
-	if err := writer.Open(); err != nil {
+	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err
 	}
 
 	var (
-		processedTileCount atomic.Int64
-		multiErr           xerrors.MultiError
-		dp                 ts.Datapoint
+		annotationPayload  annotation.Payload
+		// NB: there is a maximum of 4 datapoints per frame for counters.
+		downsampledValues  = make([]downsample.Value, 0, 4)
+		processedTileCount int64
 		segmentCapacity    int
 		writerData         = make([][]byte, 2)
+		multiErr           xerrors.MultiError
 	)
 
-READER:
 	for readerIter.Next() {
 		seriesIter, id, encodedTags := readerIter.Current()
 
-		for seriesIter.Next() {
-			frame := seriesIter.Current()
-			unit, singleUnit := frame.Units().SingleValue()
-			annotation, singleAnnotation := frame.Annotations().SingleValue()
-
-			if frameValues := frame.Values(); len(frameValues) > 0 {
-				lastIdx := len(frameValues) - 1
-
-				value := frameValues[lastIdx]
-				timestamp := frame.Timestamps()[lastIdx]
-
-				if !singleUnit {
-					// TODO: what happens if unit has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					if lastIdx < len(frame.Units().Values()) {
-						unit = frame.Units().Values()[lastIdx]
-					}
-				}
-
-				if !singleAnnotation {
-					// TODO: what happens if annotation has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					if lastIdx < len(frame.Annotations().Values()) {
-						annotation = frame.Annotations().Values()[lastIdx]
-					}
-				}
-
-				dp.Timestamp = timestamp
-				dp.Value = value
-				err = encoder.Encode(dp, unit, annotation)
-				if err != nil {
-					s.metrics.largeTilesWriteErrors.Inc(1)
-					multiErr = multiErr.Add(err)
-					break READER
-				}
-
-				processedTileCount.Inc()
-			}
+		seriesTileCount, err := encodeAggregatedSeries(seriesIter, annotationPayload, downsampledValues, encoder)
+		if err != nil {
+			s.metrics.largeTilesWriteErrors.Inc(1)
+			multiErr = multiErr.Add(err)
+			break
 		}
 
+		if seriesTileCount == 0 {
+			break
+		}
+
+		processedTileCount += seriesTileCount
 		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)
 
 		segmentLen := segment.Len()
@@ -2849,9 +2817,101 @@ READER:
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedTiles", processedTileCount.Load()))
+		zap.Int64("processedTiles", processedTileCount))
 
-	return processedTileCount.Load(), nil
+	return processedTileCount, nil
+}
+
+func encodeAggregatedSeries(
+	seriesIter tile.SeriesFrameIterator,
+	annotationPayload annotation.Payload,
+	downsampledValues []downsample.Value,
+	encoder encoding.Encoder,
+) (int64, error) {
+	var (
+		prevFrameLastValue = math.NaN()
+		processedTileCount int64
+		handleValueResets  bool
+		firstUnit          xtime.Unit
+		firstAnnotation    ts.Annotation
+		err                error
+	)
+
+	for seriesIter.Next() {
+		frame := seriesIter.Current()
+
+		frameValues := frame.Values()
+		if len(frameValues) == 0 {
+			continue
+		}
+
+		if processedTileCount == 0 {
+			firstUnit, err = frame.Units().Value(0)
+			if err != nil {
+				return 0, err
+			}
+
+			firstAnnotation, err = frame.Annotations().Value(0)
+			if err != nil {
+				return 0, err
+			}
+
+			annotationPayload.Reset()
+			if annotationPayload.Unmarshal(firstAnnotation) == nil {
+				// NB: unmarshall error might be a result of some historical annotation data
+				// which is not compatible with protobuf payload struct. This would generally mean
+				// that metrics type is unknown, so we should ignore the error here.
+				handleValueResets = annotationPayload.HandleValueResets
+			}
+		}
+
+		downsampledValues = downsampledValues[:0]
+		lastIdx := len(frameValues) - 1
+
+		if handleValueResets {
+			// Last value plus possible few more datapoints to preserve counter semantics.
+			downsampledValues = downsample.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
+		} else {
+			// Plain last value per frame.
+			downsampledValue := downsample.Value{
+				FrameIndex: lastIdx,
+				Value:      frameValues[lastIdx],
+			}
+			downsampledValues = append(downsampledValues, downsampledValue)
+		}
+
+		if err = encodeDownsampledValues(downsampledValues, frame, firstUnit, firstAnnotation, encoder); err != nil {
+			return 0, err
+		}
+
+		prevFrameLastValue = frameValues[lastIdx]
+		processedTileCount++
+	}
+
+	return processedTileCount, nil
+}
+
+func encodeDownsampledValues(
+	downsampledValues []downsample.Value,
+	frame tile.SeriesBlockFrame,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+	encoder encoding.Encoder,
+) error {
+	for _, downsampledValue := range downsampledValues {
+		timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
+		dp := ts.Datapoint{
+			Timestamp:      timestamp,
+			TimestampNanos: xtime.ToUnixNano(timestamp),
+			Value:          downsampledValue.Value,
+		}
+
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

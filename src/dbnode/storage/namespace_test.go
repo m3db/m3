@@ -1314,7 +1314,6 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
 		start      = time.Now().Truncate(time.Hour)
 		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
@@ -1325,12 +1324,12 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 
-	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	_, err := targetNs.AggregateTiles(sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 
 	sourceNs.bootstrapState = Bootstrapped
 
-	_, err = targetNs.AggregateTiles(ctx, sourceNs, opts)
+	_, err = targetNs.AggregateTiles(sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
@@ -1341,7 +1340,6 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID                    = ident.StringID("source")
 		targetNsID                    = ident.StringID("target")
-		ctx                           = context.NewContext()
 		sourceBlockSize               = time.Hour
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
@@ -1390,10 +1388,10 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
 
-	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)

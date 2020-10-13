@@ -40,6 +40,36 @@ var (
 	functions = map[string]*Function{}
 )
 
+// list of graphite function name strings. (not whole list, update on-demand)
+const (
+	averageFnName        = "average"
+	averageSeriesFnName  = "averageSeries"
+	avgFnName            = "avg"
+	countFnName          = "count"
+	countSeriesFnName    = "countSeries"
+	currentFnName        = "current"
+	diffFnName           = "diff"
+	diffSeriesFnName     = "diffSeries"
+	emptyFnName          = ""
+	lastFnName           = "last"
+	lastSeriesFnName     = "lastSeries"
+	maxFnName            = "max"
+	maxSeriesFnName      = "maxSeries"
+	minFnName            = "min"
+	minSeriesFnName      = "minSeries"
+	multiplyFnName       = "multiply"
+	multiplySeriesFnName = "multiplySeries"
+	rangeFnName          = "range"
+	rangeOfFnName        = "rangeOf"
+	rangeOfSeriesFnName  = "rangeOfSeries"
+	stdevFnName           = "stdev"
+	stddevFnName         = "stddev"
+	stddevSeriesFnName   = "stddevSeries"
+	sumFnName            = "sum"
+	sumSeriesFnName      = "sumSeries"
+	totalFnName          = "total"
+)
+
 // registerFunction is used to register a function under a specific name
 func registerFunction(f interface{}) (*Function, error) {
 	fn, err := buildFunction(f)
