@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pprof"
 	xserver "github.com/m3db/m3/src/x/server"
 )
 
@@ -71,9 +70,7 @@ func (s *server) ListenAndServe() error {
 }
 
 func (s *server) Serve(l net.Listener) error {
-	mux := http.NewServeMux()
-	registerHandlers(mux, s.aggregator)
-	pprof.RegisterHandler(mux)
+	registerHandlers(http.DefaultServeMux, s.aggregator)
 
 	// create and register debug handler
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
