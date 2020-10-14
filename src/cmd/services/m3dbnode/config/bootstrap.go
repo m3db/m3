@@ -143,12 +143,17 @@ type BootstrapPeersConfiguration struct {
 	// for historical data being streamed between peers (historical blocks).
 	// Defaults to: numCPU / 2.
 	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
+	// StreamPersistShardFlushConcurrency controls how many shards in parallel to flush
+	// for historical data being streamed between peers (historical blocks).
+	// Defaults to: 1.
+	StreamPersistShardFlushConcurrency int `yaml:"streamPersistShardFlushConcurrency"`
 }
 
 func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
 	return BootstrapPeersConfiguration{
-		StreamShardConcurrency:        peers.DefaultShardConcurrency,
-		StreamPersistShardConcurrency: peers.DefaultShardPersistenceConcurrency,
+		StreamShardConcurrency:             peers.DefaultShardConcurrency,
+		StreamPersistShardConcurrency:      peers.DefaultShardPersistenceConcurrency,
+		StreamPersistShardFlushConcurrency: peers.DefaultShardPersistenceFlushConcurrency,
 	}
 }
 
@@ -256,7 +261,8 @@ func (bsc BootstrapConfiguration) New(
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool()).
 				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
-				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency)
+				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency).
+				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency)
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}
