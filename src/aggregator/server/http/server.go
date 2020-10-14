@@ -70,8 +70,7 @@ func (s *server) ListenAndServe() error {
 }
 
 func (s *server) Serve(l net.Listener) error {
-	mux := http.NewServeMux()
-	registerHandlers(mux, s.aggregator)
+	registerHandlers(s.opts.Mux(), s.aggregator)
 
 	// create and register debug handler
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
@@ -82,12 +81,12 @@ func (s *server) Serve(l net.Listener) error {
 		return fmt.Errorf("unable to create debug writer: %v", err)
 	}
 
-	if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
+	if err := debugWriter.RegisterHandler(xdebug.DebugURL, s.opts.Mux()); err != nil {
 		return fmt.Errorf("unable to register debug writer endpoint: %v", err)
 	}
 
 	server := http.Server{
-		Handler:      mux,
+		Handler:      s.opts.Mux(),
 		ReadTimeout:  s.opts.ReadTimeout(),
 		WriteTimeout: s.opts.WriteTimeout(),
 	}
