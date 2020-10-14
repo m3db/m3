@@ -266,6 +266,17 @@ func (e MultiError) FinalError() error {
 	if e.err == nil {
 		return nil
 	}
+	allInvalidParamsErr := true
+	for _, containedErr := range e.errors {
+		if !IsInvalidParams(containedErr) {
+			allInvalidParamsErr = false
+			break
+		}
+	}
+	if allInvalidParamsErr {
+		// Make sure to correctly wrap this error as an invalid params error.
+		return NewInvalidParamsError(e)
+	}
 	return e
 }
 
