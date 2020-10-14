@@ -49,3 +49,19 @@ message NamespaceSchemaResetRequest {
 
 message NamespaceSchemaResetResponse {
 }
+
+// NamespaceMarkReadyRequest is the request for transitioning a namespace
+// to the ready state.
+message NamespaceMarkReadyRequest {
+  // Name is the namespace name.
+  string name = 1;
+  // Force forces the StagingStatus of the namespace
+  // to be moved to the ready state.
+  bool force  = 2;
+}
+
+// NamespaceMarkReadyResponse is the response from a request for transitioning
+// a namespace to the ready state.
+message NamespaceMarkReadyResponse {
+  bool ready = 1;
+}

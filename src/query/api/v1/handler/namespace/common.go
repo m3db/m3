@@ -32,6 +32,7 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -69,6 +70,7 @@ type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck
 	client         clusterclient.Client
+	clusters       m3.Clusters
 	instrumentOpts instrument.Options
 }
 
@@ -103,6 +105,7 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 func RegisterRoutes(
 	r *mux.Router,
 	client clusterclient.Client,
+	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) {
@@ -155,6 +158,12 @@ func RegisterRoutes(
 	schemaResetHandler := wrapped(
 		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
 	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+
+	// Mark M3DB namespace as ready.
+	markReadyHandler := wrapped(
+		applyMiddleware(NewMarkReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(M3DBMarkReadyURL, markReadyHandler.ServeHTTP).Methods(MarkReadyHTTPMethod)
+
 }
 
 func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
