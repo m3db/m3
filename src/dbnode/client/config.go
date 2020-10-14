@@ -115,8 +115,13 @@ type Configuration struct {
 	// from the remote peer. Defaults to 4096.
 	FetchSeriesBlocksBatchSize *int `yaml:"fetchSeriesBlocksBatchSize"`
 
-	// WriteShardsInitializing sets whether or not to write to nodes that are initializing.
+	// WriteShardsInitializing sets whether or not writes to leaving shards
+	// count towards consistency, by default they do not.
 	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
+
+	// ShardsLeavingCountTowardsConsistency sets whether or not writes to leaving shards
+	// count towards consistency, by default they do not.
+	ShardsLeavingCountTowardsConsistency *bool `yaml:"shardsLeavingCountTowardsConsistency"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -291,6 +296,7 @@ func (c Configuration) NewAdminClient(
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
+		syncNsInit           namespace.Initializer
 		asyncTopoInits       = []topology.Initializer{}
 		asyncClientOverrides = []environment.ClientOverrides{}
 	)
@@ -311,12 +317,14 @@ func (c Configuration) NewAdminClient(
 			} else {
 				syncTopoInit = envCfg.TopologyInitializer
 				syncClientOverrides = envCfg.ClientOverrides
+				syncNsInit = envCfg.NamespaceInitializer
 			}
 		}
 	}
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
+		SetNamespaceInitializer(syncNsInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetInstrumentOptions(iopts).
 		SetLogErrorSampleRate(c.LogErrorSampleRate)
@@ -424,6 +432,9 @@ func (c Configuration) NewAdminClient(
 
 	if c.WriteShardsInitializing != nil {
 		v = v.SetWriteShardsInitializing(*c.WriteShardsInitializing)
+	}
+	if c.ShardsLeavingCountTowardsConsistency != nil {
+		v = v.SetShardsLeavingCountTowardsConsistency(*c.ShardsLeavingCountTowardsConsistency)
 	}
 
 	// Cast to admin options to apply admin config options.

@@ -12912,7 +12912,6 @@ func (p *Query) String() string {
 //  - RangeStart
 //  - RangeEnd
 //  - Step
-//  - RemoveResets
 //  - RangeType
 type AggregateTilesRequest struct {
 	SourceNamespace string   `thrift:"sourceNamespace,1,required" db:"sourceNamespace" json:"sourceNamespace"`
@@ -12920,8 +12919,7 @@ type AggregateTilesRequest struct {
 	RangeStart      int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd        int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
 	Step            string   `thrift:"step,5,required" db:"step" json:"step"`
-	RemoveResets    bool     `thrift:"removeResets,6" db:"removeResets" json:"removeResets"`
-	RangeType       TimeType `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
+	RangeType       TimeType `thrift:"rangeType,6" db:"rangeType" json:"rangeType,omitempty"`
 }
 
 func NewAggregateTilesRequest() *AggregateTilesRequest {
@@ -12948,10 +12946,6 @@ func (p *AggregateTilesRequest) GetRangeEnd() int64 {
 
 func (p *AggregateTilesRequest) GetStep() string {
 	return p.Step
-}
-
-func (p *AggregateTilesRequest) GetRemoveResets() bool {
-	return p.RemoveResets
 }
 
 var AggregateTilesRequest_RangeType_DEFAULT TimeType = 0
@@ -13010,10 +13004,6 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			issetStep = true
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
-				return err
-			}
-		case 7:
-			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
 		default:
@@ -13092,17 +13082,8 @@ func (p *AggregateTilesRequest) ReadField5(iprot thrift.TProtocol) error {
 }
 
 func (p *AggregateTilesRequest) ReadField6(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBool(); err != nil {
-		return thrift.PrependError("error reading field 6: ", err)
-	} else {
-		p.RemoveResets = v
-	}
-	return nil
-}
-
-func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI32(); err != nil {
-		return thrift.PrependError("error reading field 7: ", err)
+		return thrift.PrependError("error reading field 6: ", err)
 	} else {
 		temp := TimeType(v)
 		p.RangeType = temp
@@ -13131,9 +13112,6 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField6(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField7(oprot); err != nil {
 			return err
 		}
 	}
@@ -13212,28 +13190,15 @@ func (p *AggregateTilesRequest) writeField5(oprot thrift.TProtocol) (err error) 
 }
 
 func (p *AggregateTilesRequest) writeField6(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("removeResets", thrift.BOOL, 6); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:removeResets: ", p), err)
-	}
-	if err := oprot.WriteBool(bool(p.RemoveResets)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.removeResets (6) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 6:removeResets: ", p), err)
-	}
-	return err
-}
-
-func (p *AggregateTilesRequest) writeField7(oprot thrift.TProtocol) (err error) {
 	if p.IsSetRangeType() {
-		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 7); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:rangeType: ", p), err)
+		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:rangeType: ", p), err)
 		}
 		if err := oprot.WriteI32(int32(p.RangeType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeType (7) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.rangeType (6) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:rangeType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:rangeType: ", p), err)
 		}
 	}
 	return err
@@ -13247,24 +13212,24 @@ func (p *AggregateTilesRequest) String() string {
 }
 
 // Attributes:
-//  - ProcessedBlockCount
+//  - ProcessedTileCount
 type AggregateTilesResult_ struct {
-	ProcessedBlockCount int64 `thrift:"processedBlockCount,1,required" db:"processedBlockCount" json:"processedBlockCount"`
+	ProcessedTileCount int64 `thrift:"processedTileCount,1,required" db:"processedTileCount" json:"processedTileCount"`
 }
 
 func NewAggregateTilesResult_() *AggregateTilesResult_ {
 	return &AggregateTilesResult_{}
 }
 
-func (p *AggregateTilesResult_) GetProcessedBlockCount() int64 {
-	return p.ProcessedBlockCount
+func (p *AggregateTilesResult_) GetProcessedTileCount() int64 {
+	return p.ProcessedTileCount
 }
 func (p *AggregateTilesResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetProcessedBlockCount bool = false
+	var issetProcessedTileCount bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -13279,7 +13244,7 @@ func (p *AggregateTilesResult_) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetProcessedBlockCount = true
+			issetProcessedTileCount = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -13292,8 +13257,8 @@ func (p *AggregateTilesResult_) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetProcessedBlockCount {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ProcessedBlockCount is not set"))
+	if !issetProcessedTileCount {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ProcessedTileCount is not set"))
 	}
 	return nil
 }
@@ -13302,7 +13267,7 @@ func (p *AggregateTilesResult_) ReadField1(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.ProcessedBlockCount = v
+		p.ProcessedTileCount = v
 	}
 	return nil
 }
@@ -13326,14 +13291,14 @@ func (p *AggregateTilesResult_) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *AggregateTilesResult_) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("processedBlockCount", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:processedBlockCount: ", p), err)
+	if err := oprot.WriteFieldBegin("processedTileCount", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:processedTileCount: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.ProcessedBlockCount)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.processedBlockCount (1) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.ProcessedTileCount)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.processedTileCount (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:processedBlockCount: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:processedTileCount: ", p), err)
 	}
 	return err
 }

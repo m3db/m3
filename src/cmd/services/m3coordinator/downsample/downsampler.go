@@ -58,7 +58,7 @@ type SamplesAppenderResult struct {
 type SampleAppenderOptions struct {
 	Override      bool
 	OverrideRules SamplesAppenderOverrideRules
-	MetricType    ts.MetricType
+	MetricType    ts.M3MetricType
 }
 
 // SamplesAppenderOverrideRules provides override rules to

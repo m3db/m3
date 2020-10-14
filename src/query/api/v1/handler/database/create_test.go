@@ -30,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv/fake"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -151,6 +153,14 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -173,7 +183,11 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -315,6 +329,14 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -337,7 +359,11 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -376,6 +402,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
+
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -431,6 +458,14 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -453,7 +488,11 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -553,6 +592,14 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -575,7 +622,11 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -805,6 +856,14 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -827,7 +886,11 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -950,6 +1013,14 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
 						"cacheBlocksOnRetrieve": true,
 						"flushEnabled": true,
@@ -972,7 +1043,11 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -1095,4 +1170,178 @@ func TestBadType(t *testing.T) {
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
+}
+
+func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	fakeKV := fake.NewStore()
+	mockClient.EXPECT().Store(gomock.Any()).Return(fakeKV, nil).AnyTimes()
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+		"aggregatedNamespace": xjson.Map{
+			"name":          "testAggregatedNamespace",
+			"resolution":    "5m",
+			"retentionTime": "2440h",
+		},
+	}
+
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             "m3db_local",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
+						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
+						},
+						"snapshotEnabled": true,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						},
+						"runtimeOptions": null,
+						"schemaOptions": null,
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
+					},
+					"testAggregatedNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": true,
+									"attributes": {
+										"resolutionNanos": "300000000000",
+										"downsampleOptions": {
+											"all": true
+										}
+									}
+								}
+							]
+						},
+						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "8784000000000000",
+							"blockSizeNanos": "86400000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
+						},
+						"snapshotEnabled": true,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "86400000000000"
+						},
+						"runtimeOptions": null,
+						"schemaOptions": null,
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"m3db_local": {
+						"id": "m3db_local",
+						"isolationGroup": "local",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://localhost:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "localhost",
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
+		}
+	}
+	`
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }

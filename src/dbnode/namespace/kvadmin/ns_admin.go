@@ -119,7 +119,12 @@ func (as *adminService) Add(name string, options *nsproto.NamespaceOptions) erro
 		return err
 	}
 
-	_, err = as.store.CheckAndSet(as.key, currentVersion, namespace.ToProto(newMap))
+	protoMap, err := namespace.ToProto(newMap)
+	if err != nil {
+		return err
+	}
+
+	_, err = as.store.CheckAndSet(as.key, currentVersion, protoMap)
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to add namespace %v", name)
 	}

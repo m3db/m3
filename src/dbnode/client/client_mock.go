@@ -1804,6 +1804,34 @@ func (mr *MockOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockOptions)(nil).WriteShardsInitializing))
 }
 
+// SetShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockOptions) SetShardsLeavingCountTowardsConsistency(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetShardsLeavingCountTowardsConsistency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetShardsLeavingCountTowardsConsistency indicates an expected call of SetShardsLeavingCountTowardsConsistency
+func (mr *MockOptionsMockRecorder) SetShardsLeavingCountTowardsConsistency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockOptions)(nil).SetShardsLeavingCountTowardsConsistency), value)
+}
+
+// ShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockOptions) ShardsLeavingCountTowardsConsistency() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardsLeavingCountTowardsConsistency")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShardsLeavingCountTowardsConsistency indicates an expected call of ShardsLeavingCountTowardsConsistency
+func (mr *MockOptionsMockRecorder) ShardsLeavingCountTowardsConsistency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockOptions)(nil).ShardsLeavingCountTowardsConsistency))
+}
+
 // SetTagEncoderOptions mocks base method
 func (m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	m.ctrl.T.Helper()
@@ -2558,6 +2586,34 @@ func (m *MockOptions) NewConnectionFn() NewConnectionFn {
 func (mr *MockOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockOptions)(nil).NewConnectionFn))
+}
+
+// SetNamespaceInitializer mocks base method
+func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
+func (mr *MockOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).SetNamespaceInitializer), value)
+}
+
+// NamespaceInitializer mocks base method
+func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceInitializer")
+	ret0, _ := ret[0].(namespace.Initializer)
+	return ret0
+}
+
+// NamespaceInitializer indicates an expected call of NamespaceInitializer
+func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
 }
 
 // MockAdminOptions is a mock of AdminOptions interface
@@ -3339,6 +3395,34 @@ func (mr *MockAdminOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockAdminOptions)(nil).WriteShardsInitializing))
 }
 
+// SetShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockAdminOptions) SetShardsLeavingCountTowardsConsistency(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetShardsLeavingCountTowardsConsistency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetShardsLeavingCountTowardsConsistency indicates an expected call of SetShardsLeavingCountTowardsConsistency
+func (mr *MockAdminOptionsMockRecorder) SetShardsLeavingCountTowardsConsistency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockAdminOptions)(nil).SetShardsLeavingCountTowardsConsistency), value)
+}
+
+// ShardsLeavingCountTowardsConsistency mocks base method
+func (m *MockAdminOptions) ShardsLeavingCountTowardsConsistency() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardsLeavingCountTowardsConsistency")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ShardsLeavingCountTowardsConsistency indicates an expected call of ShardsLeavingCountTowardsConsistency
+func (mr *MockAdminOptionsMockRecorder) ShardsLeavingCountTowardsConsistency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardsLeavingCountTowardsConsistency", reflect.TypeOf((*MockAdminOptions)(nil).ShardsLeavingCountTowardsConsistency))
+}
+
 // SetTagEncoderOptions mocks base method
 func (m *MockAdminOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	m.ctrl.T.Helper()
@@ -4093,6 +4177,34 @@ func (m *MockAdminOptions) NewConnectionFn() NewConnectionFn {
 func (mr *MockAdminOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).NewConnectionFn))
+}
+
+// SetNamespaceInitializer mocks base method
+func (m *MockAdminOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
+func (mr *MockAdminOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockAdminOptions)(nil).SetNamespaceInitializer), value)
+}
+
+// NamespaceInitializer mocks base method
+func (m *MockAdminOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceInitializer")
+	ret0, _ := ret[0].(namespace.Initializer)
+	return ret0
+}
+
+// NamespaceInitializer indicates an expected call of NamespaceInitializer
+func (mr *MockAdminOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockAdminOptions)(nil).NamespaceInitializer))
 }
 
 // SetOrigin mocks base method

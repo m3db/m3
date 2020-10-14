@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
 
 	"github.com/uber-go/tally"
@@ -125,7 +126,7 @@ func newConsumer(
 		decoder: proto.NewDecoder(
 			conn, opts.DecoderOptions(), opts.ConnectionReadBufferSize(),
 		),
-		w:      writerFn(conn, wOpts),
+		w:      writerFn(newConnWithTimeout(conn, opts.ConnectionWriteTimeout(), time.Now), wOpts),
 		conn:   conn,
 		closed: false,
 		doneCh: make(chan struct{}),
@@ -262,4 +263,26 @@ func resetProto(m *msgpb.Message) {
 	m.Metadata.Id = 0
 	m.Metadata.Shard = 0
 	m.Value = m.Value[:0]
+}
+
+type connWithTimeout struct {
+	net.Conn
+
+	timeout time.Duration
+	nowFn   clock.NowFn
+}
+
+func newConnWithTimeout(conn net.Conn, timeout time.Duration, nowFn clock.NowFn) connWithTimeout {
+	return connWithTimeout{
+		Conn:    conn,
+		timeout: timeout,
+		nowFn:   nowFn,
+	}
+}
+
+func (conn connWithTimeout) Write(p []byte) (int, error) {
+	if conn.timeout > 0 {
+		conn.SetWriteDeadline(conn.nowFn().Add(conn.timeout))
+	}
+	return conn.Conn.Write(p)
 }

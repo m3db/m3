@@ -24,7 +24,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +48,57 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize*2), count)
+}
+
+func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
+	var (
+		workers = 2
+		opts    = NewPooledWorkerPoolOptions().SetNumShards(int64(workers))
+	)
+	p, err := NewPooledWorkerPool(workers, opts)
+	require.NoError(t, err)
+	p.Init()
+
+	pooledWorkerPool, ok := p.(*pooledWorkerPool)
+	require.True(t, ok)
+
+	// First fill up all the queues without blocking.
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Enqueue workers * 2 since buffered channel will allow workers / shards
+	// (which is 1, since 2 / 2 = 1) which means we need to enqueue two times
+	// the workers.
+	totalEnqueue := workers * 2
+	now := time.Now()
+	for i := 0; i < totalEnqueue; i++ {
+		// Set now in such a way that independent shards are selected.
+		shardNowSelect := now.
+			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
+			Add(time.Duration(i) * time.Nanosecond)
+		pooledWorkerPool.nowFn = func() time.Time {
+			return shardNowSelect
+		}
+
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		assert.True(t, result)
+	}
+
+	// Restore the now fn.
+	pooledWorkerPool.nowFn = time.Now
+
+	// Now ensure all further enqueues time out.
+	for i := 0; i < workers; i++ {
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		assert.False(t, result)
+	}
+
+	// Release goroutines.
+	wg.Done()
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {

@@ -411,6 +411,7 @@ func TestConfiguration(t *testing.T) {
     fetchSeriesBlocksBatchConcurrency: null
     fetchSeriesBlocksBatchSize: null
     writeShardsInitializing: null
+    shardsLeavingCountTowardsConsistency: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -718,8 +719,8 @@ func TestConfiguration(t *testing.T) {
       reconnect_period: 0s
       meta_event_reporting_enabled: false
   limits:
-    maxRecentlyQueriedSeriesBlocks: null
     maxRecentlyQueriedSeriesDiskBytesRead: null
+    maxRecentlyQueriedSeriesBlocks: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0

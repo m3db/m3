@@ -450,6 +450,9 @@ func NewTestSetup(
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
 	}
 
+	storageOpts = storageOpts.SetInstrumentOptions(
+		storageOpts.InstrumentOptions().SetReportInterval(opts.ReportInterval()))
+
 	// Set debugging options if environment vars set
 	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
@@ -952,7 +955,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(ts).
 		SetOrigin(ts.Origin())
-	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts, fsOpts)
 	if err != nil {
 		return err
 	}
@@ -983,20 +986,21 @@ func newClients(
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
 		clientOpts = defaultClientOptions(topoInit).
-				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit).
-				SetUseV2BatchAPIs(true)
+			SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
+			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+			SetTopologyInitializer(topoInit).
+			SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
 		adminOpts = clientOpts.(client.AdminOptions).
-				SetOrigin(origin).
-				SetSchemaRegistry(schemaReg)
+			SetOrigin(origin).
+			SetSchemaRegistry(schemaReg)
 		verificationAdminOpts = adminOpts.
-					SetOrigin(verificationOrigin).
-					SetSchemaRegistry(schemaReg)
+			SetOrigin(verificationOrigin).
+			SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {

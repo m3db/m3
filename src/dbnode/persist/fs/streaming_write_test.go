@@ -54,8 +54,12 @@ func newTestStreamingWriter(
 	nextVersion int,
 	plannedEntries uint,
 ) StreamingWriter {
-	writer, err := NewStreamingWriter(
-		StreamingWriterOptions{
+	writer, err := NewStreamingWriter(testDefaultOpts.
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+
+	writerOpenOpts := StreamingWriterOpenOptions{
 			NamespaceID: testNs1ID,
 			ShardID:     shard,
 			BlockStart:  timestamp,
@@ -63,12 +67,10 @@ func newTestStreamingWriter(
 
 			VolumeIndex:         nextVersion,
 			PlannedRecordsCount: plannedEntries,
-			Options: testDefaultOpts.
-				SetFilePathPrefix(filePathPrefix).
-				SetWriterBufferSize(testWriterBufferSize),
-		},
-	)
+		}
+	err = writer.Open(writerOpenOpts)
 	require.NoError(t, err)
+
 	return writer
 }
 
@@ -182,6 +184,29 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, nil)
 }
 
+func TestStreamingWriterAbort(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	err := streamingWriteTestData(t, w, testWriterStart, nil)
+	require.NoError(t, err)
+	err = w.Abort()
+	require.NoError(t, err)
+
+	r := newTestReader(t, filePathPrefix)
+	rOpenOpts := DataReaderOpenOptions{
+		Identifier: FileSetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = r.Open(rOpenOpts)
+	require.Equal(t, ErrCheckpointFileNotFound, err)
+}
+
 func streamingWriteTestData(
 	t *testing.T,
 	w StreamingWriter,
@@ -197,9 +222,6 @@ func streamingWriteWithVolume(
 	blockStart time.Time,
 	entries []testStreamingEntry,
 ) error {
-	if err := w.Open(); err != nil {
-		return err
-	}
 	ctx := context.NewContext()
 
 	encoder := m3tsz.NewEncoder(blockStart, nil, true, encoding.NewOptions())

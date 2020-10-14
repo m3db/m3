@@ -27,6 +27,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -40,12 +41,13 @@ var (
 type crossBlockReader struct {
 	dataFileSetReaders   []DataFileSetReader
 	pendingReaderIndices []int
+	preAllocatedEntries  []*minHeapEntry
 	minHeap              minHeap
 
 	iOpts instrument.Options
 
 	id          ident.BytesID
-	encodedTags []byte
+	encodedTags ts.EncodedTags
 	records     []BlockRecord
 	err         error
 }
@@ -68,14 +70,17 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrumen
 	}
 
 	pendingReaderIndices := make([]int, len(dataFileSetReaders))
+	preAllocatedEntries := make([]*minHeapEntry, len(dataFileSetReaders))
 	for i := range dataFileSetReaders {
 		pendingReaderIndices[i] = i
+		preAllocatedEntries[i] = &minHeapEntry{}
 	}
 
 	return &crossBlockReader{
 		dataFileSetReaders:   dataFileSetReaders,
 		pendingReaderIndices: pendingReaderIndices,
-		minHeap:              make([]minHeapEntry, 0, len(dataFileSetReaders)),
+		minHeap:              make([]*minHeapEntry, 0, len(dataFileSetReaders)),
+		preAllocatedEntries:  preAllocatedEntries,
 		records:              make([]BlockRecord, 0, len(dataFileSetReaders)),
 		iOpts:                iOpts,
 	}, nil
@@ -98,8 +103,9 @@ func (r *crossBlockReader) Next() bool {
 		return false
 	}
 
+	var err error
 	for _, readerIndex := range r.pendingReaderIndices {
-		entry, err := r.readFromDataFileSet(readerIndex)
+		*r.preAllocatedEntries[readerIndex], err = r.readFromDataFileSet(readerIndex)
 		if err == io.EOF {
 			// Will no longer read from this one.
 			continue
@@ -107,7 +113,7 @@ func (r *crossBlockReader) Next() bool {
 			r.err = err
 			return false
 		} else {
-			heap.Push(&r.minHeap, entry)
+			heap.Push(&r.minHeap, r.preAllocatedEntries[readerIndex])
 		}
 	}
 
@@ -117,7 +123,7 @@ func (r *crossBlockReader) Next() bool {
 		return false
 	}
 
-	firstEntry := heap.Pop(&r.minHeap).(minHeapEntry)
+	firstEntry := heap.Pop(&r.minHeap).(*minHeapEntry)
 
 	r.id = firstEntry.id
 	r.encodedTags = firstEntry.encodedTags
@@ -129,7 +135,7 @@ func (r *crossBlockReader) Next() bool {
 
 	// As long as id stays the same across the blocks, accumulate records for this id/tags.
 	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
-		nextEntry := heap.Pop(&r.minHeap).(minHeapEntry)
+		nextEntry := heap.Pop(&r.minHeap).(*minHeapEntry)
 
 		r.records = append(r.records, BlockRecord{nextEntry.data, nextEntry.checksum})
 
@@ -140,7 +146,7 @@ func (r *crossBlockReader) Next() bool {
 	return true
 }
 
-func (r *crossBlockReader) Current() (ident.BytesID, []byte, []BlockRecord) {
+func (r *crossBlockReader) Current() (ident.BytesID, ts.EncodedTags, []BlockRecord) {
 	return r.id, r.encodedTags, r.records
 }
 
@@ -178,9 +184,8 @@ func (r *crossBlockReader) Close() error {
 	}
 	r.records = r.records[:0]
 
-	var emptyEntry minHeapEntry
 	for i := range r.minHeap {
-		r.minHeap[i] = emptyEntry
+		r.minHeap[i] = nil
 	}
 	r.minHeap = r.minHeap[:0]
 
@@ -197,7 +202,7 @@ type minHeapEntry struct {
 
 var _ heap.Interface = (*minHeap)(nil)
 
-type minHeap []minHeapEntry
+type minHeap []*minHeapEntry
 
 func (h minHeap) Len() int {
 	return len(h)
@@ -216,14 +221,14 @@ func (h minHeap) Swap(i, j int) {
 }
 
 func (h *minHeap) Push(x interface{}) {
-	*h = append(*h, x.(minHeapEntry))
+	*h = append(*h, x.(*minHeapEntry))
 }
 
 func (h *minHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	x := old[n-1]
-	old[n-1] = minHeapEntry{}
+	old[n-1] = nil
 	*h = old[0 : n-1]
 	return x
 }

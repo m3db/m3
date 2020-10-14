@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -162,7 +163,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 				blockHasError = true
 			} else {
 				id := ident.BytesID(strID)
-				tags := []byte(fmt.Sprintf("tags for %s", strID))
+				tags := ts.EncodedTags(fmt.Sprintf("tags for %s", strID))
 				data := []byte(strconv.Itoa(i))
 
 				checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions

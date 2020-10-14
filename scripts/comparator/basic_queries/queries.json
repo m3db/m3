@@ -54,9 +54,9 @@
   {
     "queryGroup":"aggregation",
     "queries":[
-      "sum({foobar=\"qux\"})",
-      "sum({foobar=\"qux\"}) - 1",
-      "sum({foobar=\"qux\"} offset 1m)"
+      "sum(foobar{foobar=\"qux\"})",
+      "sum(foobar{foobar=\"qux\"}) - 1",
+      "sum(foobar{foobar=\"qux\"} offset 1m)"
     ],
     "steps" : [
       "15s",
@@ -69,8 +69,8 @@
     "queries":[
       "clamp_max(quail, 0.5)",
       "clamp_min(quail offset 60s, 0.5)",
-      "sum({foobar=\"qux\"}) - 1",
-      "sum({foobar=\"qux\"} offset 1m)"
+      "sum(foobar{foobar=\"qux\"}) - 1",
+      "sum(foobar{foobar=\"qux\"} offset 1m)"
     ],
     "steps" : [
       "15s",

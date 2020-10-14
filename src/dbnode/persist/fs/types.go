@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -153,7 +154,7 @@ type DataFileSetReader interface {
 	// or error, will return io.EOF at end of volume.
 	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
 	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
-	StreamingRead() (id ident.BytesID, encodedTags []byte, data []byte, checksum uint32, err error)
+	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -669,7 +670,7 @@ type CrossBlockReader interface {
 	// Current returns distinct series id and encodedTags, plus a slice with data and checksums from all
 	// blocks corresponding to that series (in temporal order).
 	// id, encodedTags, records slice and underlying data are being invalidated on each call to Next().
-	Current() (id ident.BytesID, encodedTags []byte, records []BlockRecord)
+	Current() (id ident.BytesID, encodedTags ts.EncodedTags, records []BlockRecord)
 }
 
 // CrossBlockIterator iterates across BlockRecords.
@@ -679,9 +680,3 @@ type CrossBlockIterator interface {
 	// Reset resets the iterator to the given block records.
 	Reset(records []BlockRecord)
 }
-
-// InfoFileResultsPerShard maps shards to info files.
-type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
-
-// InfoFilesByNamespace maps a namespace to info files grouped by shard.
-type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard

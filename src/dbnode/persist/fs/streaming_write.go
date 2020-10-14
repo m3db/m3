@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"time"
 
@@ -36,14 +37,21 @@ import (
 // StreamingWriter writes into data fileset without intermediate buffering.
 // Writes must be lexicographically ordered by the id.
 type StreamingWriter interface {
-	Open() error
+	io.Closer
+
+	// Open opens the files for writing data to the given shard in the given namespace.
+	Open(opts StreamingWriterOpenOptions) error
+
+	// WriteAll will write the id and all byte slices and returns an error on a write error.
+	// Callers should call this method with strictly lexicographically increasing ID values.
 	WriteAll(id ident.BytesID, encodedTags ts.EncodedTags, data [][]byte, dataChecksum uint32) error
-	Close() error
+
+	// Abort closes the file descriptors without writing out a checkpoint file.
+	Abort() error
 }
 
-// StreamingWriterOptions in the options for the StreamingWriter.
-type StreamingWriterOptions struct {
-	Options             Options
+// StreamingWriterOpenOptions in the options for the StreamingWriter.
+type StreamingWriterOpenOptions struct {
 	NamespaceID         ident.ID
 	ShardID             uint32
 	BlockStart          time.Time
@@ -53,9 +61,8 @@ type StreamingWriterOptions struct {
 }
 
 type streamingWriter struct {
-	opts         StreamingWriterOptions
 	writer       *writer
-	writerOpts   DataWriterOpenOptions
+	options      Options
 	currIdx      int64
 	prevIDBytes  []byte
 	summaryEvery int64
@@ -64,12 +71,16 @@ type streamingWriter struct {
 	summaries    int
 }
 
-func NewStreamingWriter(opts StreamingWriterOptions) (StreamingWriter, error) {
-	w, err := NewWriter(opts.Options)
+func NewStreamingWriter(opts Options) (StreamingWriter, error) {
+	w, err := NewWriter(opts)
 	if err != nil {
 		return nil, err
 	}
 
+	return &streamingWriter{writer: w.(*writer), options: opts}, nil
+}
+
+func (w *streamingWriter) Open(opts StreamingWriterOpenOptions) error {
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: opts.BlockSize,
 		Identifier: FileSetFileIdentifier{
@@ -87,27 +98,17 @@ func NewStreamingWriter(opts StreamingWriterOptions) (StreamingWriter, error) {
 	}
 	m, k := bloom.EstimateFalsePositiveRate(
 		plannedRecordsCount,
-		opts.Options.IndexBloomFilterFalsePositivePercent(),
+		w.options.IndexBloomFilterFalsePositivePercent(),
 	)
-	bloomFilter := bloom.NewBloomFilter(m, k)
+	w.bloomFilter = bloom.NewBloomFilter(m, k)
 
-	summariesApprox := float64(opts.PlannedRecordsCount) * opts.Options.IndexSummariesPercent()
-	summaryEvery := 0
+	summariesApprox := float64(opts.PlannedRecordsCount) * w.options.IndexSummariesPercent()
+	w.summaryEvery = 0
 	if summariesApprox > 0 {
-		summaryEvery = int(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
+		w.summaryEvery = int64(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
 	}
 
-	return &streamingWriter{
-		opts:         opts,
-		writer:       w.(*writer),
-		writerOpts:   writerOpts,
-		summaryEvery: int64(summaryEvery),
-		bloomFilter:  bloomFilter,
-	}, nil
-}
-
-func (w *streamingWriter) Open() error {
-	if err := w.writer.Open(w.writerOpts); err != nil {
+	if err := w.writer.Open(writerOpts); err != nil {
 		return err
 	}
 	w.indexOffset = 0
@@ -171,7 +172,7 @@ func (w *streamingWriter) writeData(
 
 func (w *streamingWriter) writeIndexRelated(
 	id ident.BytesID,
-	encodedTags []byte,
+	encodedTags ts.EncodedTags,
 	entry indexEntry,
 ) error {
 	// Add to the bloom filter, note this must be zero alloc or else this will
@@ -203,8 +204,6 @@ func (w *streamingWriter) writeIndexRelated(
 }
 
 func (w *streamingWriter) Close() error {
-	w.prevIDBytes = nil
-
 	// Write the bloom filter bitset out
 	if err := w.writer.writeBloomFilterFileContents(w.bloomFilter); err != nil {
 		return err
@@ -213,6 +212,8 @@ func (w *streamingWriter) Close() error {
 	if err := w.writer.writeInfoFileContents(w.bloomFilter, w.summaries, w.currIdx); err != nil {
 		return err
 	}
+
+	w.bloomFilter = nil
 
 	err := w.writer.closeWOIndex()
 	if err != nil {
@@ -228,6 +229,16 @@ func (w *streamingWriter) Close() error {
 		w.writer.digestBuf,
 		w.writer.newFileMode,
 	); err != nil {
+		w.writer.err = err
+		return err
+	}
+
+	return nil
+}
+
+func (w *streamingWriter) Abort() error {
+	err := w.writer.closeWOIndex()
+	if err != nil {
 		w.writer.err = err
 		return err
 	}

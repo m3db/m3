@@ -500,12 +500,11 @@ struct AggregateTilesRequest {
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required string step
-	6: bool removeResets // FIXME: temporary, remove after metrics type metadata is available.
-	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	6: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct AggregateTilesResult {
-	1: required i64 processedBlockCount
+	1: required i64 processedTileCount
 }
 
 struct DebugProfileStartRequest {

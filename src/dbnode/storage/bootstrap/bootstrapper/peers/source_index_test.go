@@ -272,7 +272,8 @@ func TestBootstrapIndex(t *testing.T) {
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, shardTimeRanges, nsMetadata)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, testDefaultRunOpts, shardTimeRanges,
+		opts.FilesystemOptions(), nsMetadata)
 	defer tester.Finish()
 	tester.TestReadWith(src)
 

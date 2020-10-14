@@ -20,6 +20,8 @@
 
 package msgpack
 
+import "github.com/m3db/m3/src/dbnode/persist/schema"
+
 // DecodingOptions provide a set of options for decoding data
 type DecodingOptions interface {
 	// SetAllocDecodedBytes sets whether we allocate new space when decoding
@@ -29,6 +31,12 @@ type DecodingOptions interface {
 	// AllocDecodedBytes determines whether we allocate new space when decoding
 	// a byte slice
 	AllocDecodedBytes() bool
+
+	// SetIndexEntryHasher sets the indexEntryHasher method for this decoder.
+	SetIndexEntryHasher(value schema.IndexEntryHasher) DecodingOptions
+
+	// IndexEntryHasher returns the IndexEntryHasher for this decoder.
+	IndexEntryHasher() schema.IndexEntryHasher
 }
 
 const (
@@ -37,6 +45,7 @@ const (
 
 type decodingOptions struct {
 	allocDecodedBytes bool
+	indexEntryHasher  schema.IndexEntryHasher
 }
 
 // NewDecodingOptions creates a new set of decoding options
@@ -54,4 +63,14 @@ func (o *decodingOptions) SetAllocDecodedBytes(value bool) DecodingOptions {
 
 func (o *decodingOptions) AllocDecodedBytes() bool {
 	return o.allocDecodedBytes
+}
+
+func (o *decodingOptions) SetIndexEntryHasher(value schema.IndexEntryHasher) DecodingOptions {
+	opts := *o
+	opts.indexEntryHasher = value
+	return &opts
+}
+
+func (o *decodingOptions) IndexEntryHasher() schema.IndexEntryHasher {
+	return o.indexEntryHasher
 }

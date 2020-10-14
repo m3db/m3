@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/context"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
@@ -134,6 +133,44 @@ func TestExcludeErr(t *testing.T) {
 	require.Nil(t, results.Values)
 }
 
+func TestGrep(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 5, 10)
+
+	series1 := ts.NewSeries(ctx, "collectd.test-db1.load.value", now, values)
+	series2 := ts.NewSeries(ctx, "collectd.test-db2.load.value", now, values)
+	series3 := ts.NewSeries(ctx, "collectd.test-db3.load.value", now, values)
+	series4 := ts.NewSeries(ctx, "collectd.test-db4.load.value", now, values)
+
+	testInputs := []*ts.Series{series1, series2, series3, series4}
+	expectedOutput := []common.TestSeries{
+		{
+			Name: "collectd.test-db1.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+		{
+			Name: "collectd.test-db2.load.value",
+			Data: []float64{10.0, 10.0, 10.0, 10.0, 10.0},
+		},
+	}
+
+	results, err := grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, ".*db[12]")
+	require.Nil(t, err)
+	require.NotNil(t, results)
+	common.CompareOutputsAndExpected(t, 10, now, expectedOutput, results.Values)
+
+	// error case
+	_, err = grep(nil, singlePathSpec{
+		Values: testInputs,
+	}, "+++++")
+	require.NotNil(t, err)
+}
+
 func TestSortByName(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -189,6 +226,10 @@ func TestSortByTotal(t *testing.T) {
 
 func TestSortByMaxima(t *testing.T) {
 	testSortingFuncs(t, sortByMaxima, []int{4, 0, 3, 2, 1})
+}
+
+func TestSortByMinima(t *testing.T) {
+	testSortingFuncs(t, sortByMinima, []int{1, 3, 2, 4, 0})
 }
 
 func TestAbsolute(t *testing.T) {
@@ -258,6 +299,73 @@ func TestScale(t *testing.T) {
 			v := outputs[0].ValueAt(step)
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
+	}
+}
+
+func TestUseSeriesAbove(t *testing.T) {
+	var (
+		ctrl      = xgomock.NewController(t)
+		store     = storage.NewMockStorage(ctrl)
+		now       = time.Now().Truncate(time.Hour)
+		engine    = NewEngine(store)
+		startTime = now.Add(-3 * time.Minute)
+		endTime   = now.Add(-time.Minute)
+		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+		stepSize  = 60000
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.x.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.x.zed")).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed.g", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed.q", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.q.zed.q", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil)
+
+	tests := []struct {
+		target   string
+		expected common.TestSeries
+	}{
+		{
+			"useSeriesAbove(foo.bar.q.zed, -1, 'q', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.g.zed",
+				Data: []float64{1.0, 1.0},
+			},
+		},
+		// two replacements
+		{
+			"useSeriesAbove(foo.bar.g.zed.g, 15, 'g', 'q')",
+			common.TestSeries{
+				Name: "foo.bar.q.zed.q",
+				Data: []float64{1.0, 2.0, 3.0},
+			},
+		},
+		// no replacments
+		{
+			"useSeriesAbove(foo.bar.x.zed, 1, 'p', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.x.zed",
+				Data: []float64{2.0, 2.0},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		expr, err := engine.Compile(test.target)
+		require.NoError(t, err)
+		res, err := expr.Execute(ctx)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, stepSize, startTime,
+			[]common.TestSeries{test.expected}, res.Values)
 	}
 }
 
@@ -562,43 +670,66 @@ func TestPerSecond(t *testing.T) {
 }
 
 func TestTransformNull(t *testing.T) {
-	ctx := common.NewTestContext()
+	var (
+		start         = time.Now()
+		ctx           = common.NewTestContext()
+		millisPerStep = 100
+	)
 	defer ctx.Close()
 
 	tests := []struct {
-		inputs       []float64
+		inputs       []*ts.Series
 		defaultValue float64
-		outputs      []float64
+		outputs      []common.TestSeries
 	}{
 		{
-			[]float64{0, math.NaN(), 2.0, math.NaN(), 3.0}, 42.5,
-			[]float64{0, 42.5, 2.0, 42.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, math.NaN(), 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, 2.0, 6.5, math.NaN()})),
+			},
+			42.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,42.500)",
+					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,42.500)",
+					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
+				},
+			},
 		},
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, -0.5,
-			[]float64{0, 1.0, 2.0, -0.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, 1.0, 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, math.NaN(), 6.5, math.NaN()})),
+			},
+			-0.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,-0.500)",
+					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,-0.500)",
+					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
+				},
+			},
 		},
 	}
 
-	start := time.Now()
 	for _, test := range tests {
-		input := ts.NewSeries(ctx, "foo", start, common.NewTestSeriesValues(ctx, 100, test.inputs))
 		r, err := transformNull(ctx, singlePathSpec{
-			Values: []*ts.Series{input},
+			Values: test.inputs,
 		}, test.defaultValue)
 		require.NoError(t, err)
 
-		outputs := r.Values
-		require.Equal(t, 1, len(outputs))
-		require.Equal(t, 100, outputs[0].MillisPerStep())
-		require.Equal(t, len(test.inputs), outputs[0].Len())
-		require.Equal(t, start, outputs[0].StartTime())
-		assert.Equal(t, fmt.Sprintf("transformNull(foo,"+common.FloatingPointFormat+")", test.defaultValue), outputs[0].Name())
-
-		for step := 0; step < outputs[0].Len(); step++ {
-			v := outputs[0].ValueAt(step)
-			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
-		}
+		common.CompareOutputsAndExpected(t, 100, start,
+			test.outputs, r.Values)
 	}
 }
 
@@ -643,8 +774,8 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 }
 
 var (
-	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
-	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
+	testGeneralFunctionStart = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
+	testGeneralFunctionEnd   = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
 )
 
 // testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
@@ -654,8 +785,8 @@ func testGeneralFunction(t *testing.T, target, expectedName string, values, outp
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     60000,
-			Values:         values,
+			StepMillis: 60000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -679,6 +810,41 @@ func testGeneralFunction(t *testing.T, target, expectedName string, values, outp
 	common.CompareOutputsAndExpected(t, 60000, testGeneralFunctionStart, expected, res.Values)
 }
 
+func TestCombineBootstrapWithOriginal(t *testing.T) {
+	var (
+		contextStart = time.Date(2020, time.October, 5, 1, 15, 37, 884207922, time.UTC)
+		contextEnd   = time.Date(2020, time.October, 5, 1, 18, 37, 884207922, time.UTC)
+		ctx          = common.NewContext(common.ContextOptions{
+			Start:  contextStart,
+			End:    contextEnd,
+			Engine: NewEngine(&common.MovingFunctionStorage{}),
+		})
+
+		originalStart            = time.Date(2020, time.October, 5, 1, 16, 00, 0, time.UTC)
+		originalValues           = []float64{14, 15, 16, 17, 18}
+		originalSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", originalStart, common.NewTestSeriesValues(ctx, 30000, originalValues))}
+		originalSeriesList       = singlePathSpec{Values: originalSeriesListValues}
+
+		bootstrappedStart            = time.Date(2020, time.October, 5, 1, 15, 00, 0, time.UTC)
+		bootstrappedValues           = []float64{12, 13, 14, 15, 16, 17, 18}
+		bootstrappedSeriesListValues = []*ts.Series{ts.NewSeries(ctx, "original", bootstrappedStart, common.NewTestSeriesValues(ctx, 30000, bootstrappedValues))}
+		bootstrappedSeriesList       = ts.NewSeriesList()
+
+		bootstrapStartTime = time.Date(2020, time.October, 5, 1, 14, 37, 884207922, time.UTC)
+		bootstrapEndTime   = time.Date(2020, time.October, 5, 1, 15, 37, 884207922, time.UTC)
+
+		expectedValues = []float64{12, 13, 14, 15, 16, 17, 18}
+		expectedSeries = ts.NewSeries(ctx, "original", bootstrapStartTime, common.NewTestSeriesValues(ctx, 30000, expectedValues))
+	)
+	bootstrappedSeriesList.Values = bootstrappedSeriesListValues
+
+	defer ctx.Close()
+
+	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime, bootstrappedSeriesList, originalSeriesList)
+	assert.Equal(t, output.Values[0], expectedSeries)
+	assert.Nil(t, err)
+}
+
 func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
@@ -694,11 +860,11 @@ func TestMovingAverageSuccess(t *testing.T) {
 
 func TestExponentialMovingAverageSuccess(t *testing.T) {
 	tests := []struct {
-		target string
+		target       string
 		expectedName string
-		bootstrap []float64
-		inputs  []float64
-		expected []float64
+		bootstrap    []float64
+		inputs       []float64
+		expected     []float64
 	}{
 		{
 			"exponentialMovingAverage(foo.bar.baz, 3)",
@@ -1090,10 +1256,20 @@ type nIntParamGoldenData struct {
 	outputs []common.TestSeries
 }
 
+// nIntParamGoldenDataWithAgg holds test data for functions that take an additional "n" int parameter
+// It also holds an aggregation function
+type nIntParamGoldenDataWithAgg struct {
+	nIntParamGoldenData
+	aggFunc string
+}
+
 // rankingFunc selects the n lowest or highest series based on certain metric of the
 // series (e.g., maximum, minimum, average).
 type rankingFunc func(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error)
 
+// testRanking can be used to test the ranking alias functions
+// (e.g. lowestAverage, highestMax, highestAverage, lowestCurrent)
+// these functions are all aliases of the "meta-ranking" functions (i.e. highest and lowest)
 func testRanking(t *testing.T, ctx *common.Context, tests []nIntParamGoldenData, f rankingFunc) {
 	start := time.Now()
 	step := 100
@@ -1111,6 +1287,73 @@ func testRanking(t *testing.T, ctx *common.Context, tests []nIntParamGoldenData,
 		common.CompareOutputsAndExpected(t, step, start,
 			test.outputs, outputs.Values)
 	}
+}
+
+// testOrderedAggregationFunc is a helper function for testing lowest and highest
+func testOrderedAggregationFunc(t *testing.T, ctx *common.Context, tests []nIntParamGoldenDataWithAgg, isLowest bool) {
+	f := highest
+	if isLowest {
+		f = lowest
+	}
+
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		input := singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step)}
+		outputs, err := f(ctx, input, test.n, test.aggFunc)
+
+		if test.n < 0 {
+			require.NotNil(t, err)
+			require.Equal(t, "n must be positive", err.Error())
+			assert.Nil(t, outputs.Values, "Nil timeseries should be returned")
+			continue
+		}
+
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			test.outputs, outputs.Values)
+	}
+}
+
+func TestHighest(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []nIntParamGoldenDataWithAgg{
+		{
+			nIntParamGoldenData{
+				testInput,
+				0,
+				nil,
+			},
+			"sum",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				1,
+				[]common.TestSeries{testInput[0]},
+			},
+			"current",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				2,
+				[]common.TestSeries{testInput[4], testInput[2]},
+			},
+			"average",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				len(testInput) + 10, // force sort
+				[]common.TestSeries{testInput[0], testInput[3], testInput[4], testInput[2], testInput[1]},
+			},
+			"last",
+		},
+	}
+	testOrderedAggregationFunc(t, ctx, tests, false)
 }
 
 func TestHighestCurrent(t *testing.T) {
@@ -1281,6 +1524,47 @@ func TestMostDeviant(t *testing.T) {
 		},
 	}
 	testRanking(t, ctx, tests, mostDeviant)
+}
+
+func TestLowest(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []nIntParamGoldenDataWithAgg{
+		{
+			nIntParamGoldenData{
+				testInput,
+				0,
+				nil,
+			},
+			"max",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				2,
+				[]common.TestSeries{testInput[1], testInput[3]},
+			},
+			"sum",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				2,
+				[]common.TestSeries{testInput[1], testInput[2]},
+			},
+			"current",
+		},
+		{
+			nIntParamGoldenData{
+				testInput,
+				3,
+				[]common.TestSeries{testInput[1], testInput[3], testInput[0]},
+			},
+			"average",
+		},
+	}
+	testOrderedAggregationFunc(t, ctx, tests, true)
 }
 
 func TestLowestAverage(t *testing.T) {
@@ -1823,6 +2107,97 @@ func TestIntegral(t *testing.T) {
 	}
 }
 
+func TestInterpolate(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []struct {
+		values []float64
+		output []float64
+		limit  int
+	}{
+		{
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
+		},
+		{
+			[]float64{math.NaN(), 2.0, math.NaN(), 4.0, math.NaN(), 6.0, math.NaN(), 8.0, math.NaN(), 10.0, math.NaN(), 12.0, math.NaN(), 14.0, math.NaN(), 16.0, math.NaN(), 18.0, math.NaN(), 20.0},
+			[]float64{math.NaN(), 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
+		},
+		{
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, math.NaN(), math.NaN(), math.NaN()},
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, math.NaN(), math.NaN(), math.NaN()},
+			-1,
+		},
+		{
+			[]float64{1.0, 2.0, 3.0, 4.0, math.NaN(), 6.0, math.NaN(), math.NaN(), 9.0, 10.0, 11.0, math.NaN(), 13.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 18.0, 19.0, 20.0},
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
+		},
+		{
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			[]float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			-1,
+		},
+		{
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			[]float64{1.0, 2.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, math.NaN(), math.NaN()},
+			3,
+		},
+		{
+			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0},
+			-1,
+		},
+	}
+
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		input := []common.TestSeries{{"foo", test.values}}
+		expected := []common.TestSeries{{"interpolate(foo)", test.output}}
+		timeSeries := generateSeriesList(ctx, start, input, step)
+		output, err := interpolate(ctx, singlePathSpec{
+			Values: timeSeries,
+		}, test.limit)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			expected, output.Values)
+	}
+}
+
+func TestIntegralByInterval(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	invals := []float64{
+		math.NaN(), 1, 2, 3, 4, 5, math.NaN(), 6, 7, 8,
+	}
+
+	outvals := []float64{
+		0, 1, 2, 5, 4, 9, 0, 6, 7, 15,
+	}
+
+	series := ts.NewSeries(ctx, "hello", time.Now(),
+		common.NewTestSeriesValues(ctx, 60000, invals))
+
+	r, err := integralByInterval(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, "2min")
+	require.NoError(t, err)
+
+	output := r.Values
+	require.Equal(t, 1, len(output))
+	assert.Equal(t, "integralByInterval(hello, 2min)", output[0].Name())
+	assert.Equal(t, series.StartTime(), output[0].StartTime())
+	require.Equal(t, len(outvals), output[0].Len())
+	for i, expected := range outvals {
+		xtest.Equalish(t, expected, output[0].ValueAt(i), "incorrect value at %d", i)
+	}
+}
+
 func TestDerivative(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -1907,7 +2282,7 @@ func TestConstantLine(t *testing.T) {
 
 	testSeries := r.Values
 	require.Equal(t, 1, len(testSeries))
-	require.Equal(t, 2, testSeries[0].Len())
+	require.Equal(t, 3, testSeries[0].Len())
 	expectedName := fmt.Sprintf(common.FloatingPointFormat, testValue)
 	require.Equal(t, expectedName, testSeries[0].Name())
 	for i := 0; i < testSeries[0].Len(); i++ {
@@ -2525,7 +2900,7 @@ func testAggregateLineInternal(t *testing.T, f string, expectedName string, expe
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedName, results[0].Name())
-	require.Equal(t, 2, results[0].Len())
+	require.Equal(t, 3, results[0].Len())
 	for i := 0; i < 2; i++ {
 		require.Equal(t, expectedVal, results[0].ValueAt(i))
 	}
@@ -2631,97 +3006,6 @@ func TestMovingAverage(t *testing.T) {
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
 		[]common.TestSeries{expected}, res.Values)
-}
-
-func TestMovingMedianInvalidLimits(t *testing.T) {
-	ctrl := xgomock.NewController(t)
-	defer ctrl.Finish()
-
-	store := storage.NewMockStorage(ctrl)
-	now := time.Now().Truncate(time.Hour)
-	engine := NewEngine(store)
-	startTime := now.Add(-3 * time.Minute)
-	endTime := now.Add(-time.Minute)
-	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
-
-	stepSize := 60000
-	target := "movingMedian(foo.bar.q.zed, '1min')"
-	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
-			startTime := opts.StartTime
-			ctx := context.New()
-			numSteps := int(opts.EndTime.Sub(startTime)/time.Millisecond) / stepSize
-			vals := ts.NewConstantValues(ctx, 0, numSteps, stepSize)
-			series := ts.NewSeries(ctx, "foo.bar.q.zed", opts.EndTime, vals)
-			return &storage.FetchResult{SeriesList: []*ts.Series{series}}, nil
-		}).Times(2)
-	expr, err := engine.Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(ctx)
-	require.NoError(t, err)
-	expected := common.TestSeries{
-		Name: "movingMedian(foo.bar.q.zed,\"1min\")",
-		Data: []float64{math.NaN(), 0.0},
-	}
-	common.CompareOutputsAndExpected(t, stepSize, endTime,
-		[]common.TestSeries{expected}, res.Values)
-}
-
-func TestMovingMismatchedLimits(t *testing.T) {
-	// NB: this tests the behavior when query limits do not snap exactly to data
-	// points. When limits do not snap exactly, the first point should be omitted.
-	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum", "movingMax", "movingMin"} {
-		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingFunctionInvalidLimits(t, fn, i)
-		}
-	}
-}
-
-func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
-	ctrl := xgomock.NewController(t)
-	defer ctrl.Finish()
-
-	store := storage.NewMockStorage(ctrl)
-	now := time.Now().Truncate(time.Hour).Add(offset)
-	engine := NewEngine(store)
-	startTime := now.Add(-3 * time.Minute)
-	endTime := now.Add(-time.Minute)
-	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
-	defer ctx.Close()
-
-	stepSize := 60000
-	target := fmt.Sprintf(`%s(timeShift(foo.bar.*.zed, '-1d'), '1min')`, fn)
-	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.g.zed", "foo.bar.x.zed"),
-	).Times(2)
-	expr, err := engine.Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(ctx)
-	require.NoError(t, err)
-
-	expectedStart := startTime
-	expectedDataG := []float64{1, 1}
-	expectedDataX := []float64{2, 2}
-
-	if offset > 0 {
-		expectedStart = expectedStart.Add(time.Minute)
-		expectedDataG[0] = math.NaN()
-		expectedDataX[0] = math.NaN()
-	}
-
-	expected := []common.TestSeries{
-		{
-			Name: fmt.Sprintf(`%s(timeShift(foo.bar.g.zed, -1d),"1min")`, fn),
-			Data: expectedDataG,
-		},
-		{
-			Name: fmt.Sprintf(`%s(timeShift(foo.bar.x.zed, -1d),"1min")`, fn),
-			Data: expectedDataX,
-		},
-	}
-
-	common.CompareOutputsAndExpected(t, stepSize, expectedStart, expected, res.Values)
 }
 
 func TestLegendValue(t *testing.T) {
@@ -2863,6 +3147,39 @@ func TestConsolidateBy(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestCumulative(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	stepSize := 10000
+	input := struct {
+		name        string
+		startTime   time.Time
+		stepInMilli int
+		values      []float64
+	}{
+		"foo",
+		ctx.StartTime,
+		stepSize,
+		[]float64{1.0, 2.0, 3.0, 4.0, math.NaN()},
+	}
+
+	series := ts.NewSeries(
+		ctx,
+		input.name,
+		input.startTime,
+		common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
+	)
+
+	results, err := cumulative(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	})
+	expected := common.TestSeries{Name: `consolidateBy(foo,"sum")`, Data: input.values}
+	require.Nil(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+}
+
 func TestOffsetToZero(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2983,8 +3300,8 @@ func TestDelay(t *testing.T) {
 }
 
 var (
-	testDelayStart     = time.Now().Truncate(time.Minute)
-	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
+	testDelayStart = time.Now().Truncate(time.Minute)
+	testDelayEnd   = testMovingFunctionEnd.Add(time.Minute)
 )
 
 func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
@@ -2993,8 +3310,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
-			StepMillis:     10000,
-			Values:         values,
+			StepMillis: 10000,
+			Values:     values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -3020,8 +3337,8 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 }
 
 func TestTimeSlice(t *testing.T) {
-	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
-	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
+	values := []float64{math.NaN(), 1.0, 2.0, 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, 8.0, 9.0}
+	expected := []float64{math.NaN(), math.NaN(), math.NaN(), 3.0, math.NaN(), 5.0, 6.0, math.NaN(), 7.0, math.NaN(), math.NaN()}
 
 	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
 }
@@ -3095,6 +3412,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
@@ -3111,6 +3429,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"consolidateBy",
 		"constantLine",
 		"countSeries",
+		"cumulative",
 		"currentAbove",
 		"currentBelow",
 		"dashed",
@@ -3118,12 +3437,15 @@ func TestFunctionsRegistered(t *testing.T) {
 		"derivative",
 		"diffSeries",
 		"divideSeries",
+		"divideSeriesLists",
 		"exclude",
 		"exponentialMovingAverage",
 		"fallbackSeries",
+		"grep",
 		"group",
 		"groupByNode",
 		"groupByNodes",
+		"highest",
 		"highestAverage",
 		"highestCurrent",
 		"highestMax",
@@ -3133,12 +3455,15 @@ func TestFunctionsRegistered(t *testing.T) {
 		"holtWintersForecast",
 		"identity",
 		"integral",
+		"integralByInterval",
+		"interpolate",
 		"isNonNull",
 		"keepLastValue",
 		"legendValue",
 		"limit",
 		"log",
 		"logarithm",
+		"lowest",
 		"lowestAverage",
 		"lowestCurrent",
 		"max",
@@ -3169,11 +3494,14 @@ func TestFunctionsRegistered(t *testing.T) {
 		"removeEmptySeries",
 		"scale",
 		"scaleToSeconds",
+		"smartSummarize",
 		"sortByMaxima",
+		"sortByMinima",
 		"sortByName",
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",
@@ -3184,6 +3512,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"timeShift",
 		"timeSlice",
 		"transformNull",
+		"useSeriesAbove",
 		"weightedAverage",
 	}
 

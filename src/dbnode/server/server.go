@@ -143,6 +143,10 @@ type RunOptions struct {
 
 	// StorageOptions are options to apply to the database storage options.
 	StorageOptions StorageOptions
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
 }
 
 // Run runs the server programmatically given a filename for the
@@ -332,7 +336,8 @@ func Run(runOpts RunOptions) {
 			SetLogger(logger).
 			SetMetricsScope(scope).
 			SetTimerOptions(timerOpts).
-			SetTracer(tracer)
+			SetTracer(tracer).
+			SetCustomBuildTags(runOpts.CustomBuildTags)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
 
@@ -554,10 +559,11 @@ func Run(runOpts RunOptions) {
 			SetBlockLeaseManager(blockLeaseManager).
 			SetQueryLimits(queryLimits)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
-			retrieverOpts = retrieverOpts.
-				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
-			if blockRetrieveCfg.CacheBlocksOnRetrieve != nil {
-				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*blockRetrieveCfg.CacheBlocksOnRetrieve)
+			if v := blockRetrieveCfg.FetchConcurrency; v != nil {
+				retrieverOpts = retrieverOpts.SetFetchConcurrency(*v)
+			}
+			if v := blockRetrieveCfg.CacheBlocksOnRetrieve; v != nil {
+				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*v)
 			}
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
@@ -823,6 +829,12 @@ func Run(runOpts RunOptions) {
 
 	if runOpts.StorageOptions.OnColdFlush != nil {
 		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
+	}
+
+	opts = opts.SetBackgroundProcessFns(append(opts.BackgroundProcessFns(), runOpts.StorageOptions.BackgroundProcessFns...))
+
+	if runOpts.StorageOptions.NamespaceHooks != nil {
+		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

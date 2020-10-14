@@ -23,8 +23,11 @@ package m3
 import (
 	"context"
 
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -62,4 +65,32 @@ type Querier interface {
 		query *genericstorage.CompleteTagsQuery,
 		options *genericstorage.FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+}
+
+// DynamicClusterNamespaceConfiguration is the configuration for
+// dynamically fetching namespace configuration.
+type DynamicClusterNamespaceConfiguration struct {
+	// session is an active session connected to an M3DB cluster.
+	session client.Session
+
+	// nsInitializer is the initializer used to watch for namespace changes.
+	nsInitializer namespace.Initializer
+}
+
+// DynamicClusterOptions is the options for a new dynamic Cluster.
+type DynamicClusterOptions interface {
+	// Validate validates the DynamicClusterOptions.
+	Validate() error
+
+	// SetDynamicClusterNamespaceConfiguration sets the configuration for the dynamically fetching cluster namespaces.
+	SetDynamicClusterNamespaceConfiguration(value []DynamicClusterNamespaceConfiguration) DynamicClusterOptions
+
+	// SetDynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
+	DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) DynamicClusterOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
 }

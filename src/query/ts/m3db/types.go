@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -89,6 +90,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetBlockSeriesProcessor set the block series processor.
+	SetBlockSeriesProcessor(value BlockSeriesProcessor) Options
+	// BlockSeriesProcessor returns the block series processor.
+	BlockSeriesProcessor() BlockSeriesProcessor
 	// SetCustomAdminOptions sets custom admin options.
 	SetCustomAdminOptions([]client.CustomAdminOption) Options
 	// CustomAdminOptions gets custom admin options.
@@ -103,8 +108,13 @@ type Options interface {
 
 // SeriesIteratorProcessor optionally defines methods to process series iterators.
 type SeriesIteratorProcessor interface {
-	// InspectSeries inspects SeriesIterator slices.
-	InspectSeries(ctx context.Context, seriesIterators []encoding.SeriesIterator) error
+	// InspectSeries inspects SeriesIterator slices for a given query.
+	InspectSeries(
+		ctx context.Context,
+		query index.Query,
+		queryOpts index.QueryOptions,
+		seriesIterators []encoding.SeriesIterator,
+	) error
 }
 
 // IteratorBatchingFn determines how the iterator is split into batches.
@@ -114,6 +124,11 @@ type IteratorBatchingFn func(
 	seriesMetas []block.SeriesMeta,
 	meta block.Metadata,
 	opts Options,
+) ([]block.SeriesIterBatch, error)
+
+// GraphiteBlockIteratorsFn returns block iterators for graphite decoding.
+type GraphiteBlockIteratorsFn func(
+	block.Block,
 ) ([]block.SeriesIterBatch, error)
 
 type peekValue struct {

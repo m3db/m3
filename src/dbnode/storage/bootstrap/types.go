@@ -26,12 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -390,7 +392,7 @@ type Bootstrapper interface {
 	// A bootstrapper should only return an error should it want to entirely
 	// cancel the bootstrapping of the node, i.e. non-recoverable situation
 	// like not being able to read from the filesystem.
-	Bootstrap(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
+	Bootstrap(ctx context.Context, namespaces Namespaces, cache Cache) (NamespaceResults, error)
 }
 
 // Source represents a bootstrap source. Note that a source can and will be reused so
@@ -401,6 +403,7 @@ type Source interface {
 	AvailableData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		cache Cache,
 		runOpts RunOptions,
 	) (result.ShardTimeRanges, error)
 
@@ -408,6 +411,7 @@ type Source interface {
 	AvailableIndex(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		cache Cache,
 		opts RunOptions,
 	) (result.ShardTimeRanges, error)
 
@@ -416,5 +420,56 @@ type Source interface {
 	// A bootstrapper source should only return an error should it want to
 	// entirely cancel the bootstrapping of the node, i.e. non-recoverable
 	// situation like not being able to read from the filesystem.
-	Read(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
+	Read(ctx context.Context, namespaces Namespaces, cache Cache) (NamespaceResults, error)
+}
+
+// InfoFileResultsPerShard maps shards to info files.
+type InfoFileResultsPerShard map[uint32][]fs.ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
+
+// Cache provides a snapshot of info files for use throughout all stages of the bootstrap.
+type Cache interface {
+	// InfoFilesForNamespace returns the info files grouped by namespace.
+	InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error)
+
+	// InfoFilesForShard returns the info files grouped by shard for the provided namespace.
+	InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error)
+
+	// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
+	// is returned if the info files have already been read.
+	ReadInfoFiles() InfoFilesByNamespace
+}
+
+// CacheOptions represents the options for Cache.
+type CacheOptions interface {
+	// Validate will validate the options and return an error if not valid.
+	Validate() error
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) CacheOptions
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
+
+	// SetNamespaceDetails sets the namespaces to cache information for.
+	SetNamespaceDetails(value []NamespaceDetails) CacheOptions
+
+	// NamespaceDetails returns the namespaces to cache information for.
+	NamespaceDetails() []NamespaceDetails
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) CacheOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+}
+
+// NamespaceDetails are used to lookup info files for the given combination of namespace and shards.
+type NamespaceDetails struct {
+	// Namespace is the namespace to retrieve info files for.
+	Namespace namespace.Metadata
+	// Shards are the shards to retrieve info files for in the specified namespace.
+	Shards []uint32
 }

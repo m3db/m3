@@ -48,11 +48,12 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
 	"github.com/m3db/m3/src/query/executor"
+	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/pools"
-	tsdbRemote "github.com/m3db/m3/src/query/remote"
+	tsdbremote "github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -160,6 +161,10 @@ type RunOptions struct {
 
 	// AggregatorServerOptions are server options for aggregator.
 	AggregatorServerOptions []server.AdminOption
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -252,7 +257,8 @@ func Run(runOpts RunOptions) {
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
 		SetLogger(logger).
-		SetTracer(tracer)
+		SetTracer(tracer).
+		SetCustomBuildTags(runOpts.CustomBuildTags)
 
 	if runOpts.InstrumentOptionsReadyCh != nil {
 		runOpts.InstrumentOptionsReadyCh <- InstrumentOptionsReady{
@@ -463,13 +469,27 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	var graphiteStorageOpts graphite.M3WrappedStorageOptions
+	if cfg.Carbon != nil {
+		graphiteStorageOpts.AggregateNamespacesAllData =
+			cfg.Carbon.AggregateNamespacesAllData
+		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
+		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
+		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
+		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
+		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
+		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
+		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
+	}
+
 	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
 		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
-		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter())
+		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
+		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
@@ -793,14 +813,23 @@ func initClusters(
 		logger      = instrumentOpts.Logger()
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
+		nsCount     int
 		err         error
 	)
 	if len(cfg.Clusters) > 0 {
-		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
-			m3.ClustersStaticConfigurationOptions{
-				AsyncSessions:      true,
-				CustomAdminOptions: customAdminOptions,
-			})
+		for _, clusterCfg := range cfg.Clusters {
+			nsCount += len(clusterCfg.Namespaces)
+		}
+		opts := m3.ClustersStaticConfigurationOptions{
+			AsyncSessions:      true,
+			CustomAdminOptions: customAdminOptions,
+		}
+		if nsCount == 0 {
+			// No namespaces defined in config -- pull namespace data from etcd.
+			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts)
+		} else {
+			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts)
+		}
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -828,7 +857,7 @@ func initClusters(
 			},
 		}
 
-		clusters, err = clustersCfg.NewClusters(instrumentOpts,
+		clusters, err = clustersCfg.NewStaticClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
 				ProvidedSession:    session,
 				CustomAdminOptions: customAdminOptions,
@@ -953,18 +982,15 @@ func remoteZoneStorage(
 	zone config.Remote,
 	poolWrapper *pools.PoolWrapper,
 	opts tsdb.Options,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, error) {
 	if len(zone.Addresses) == 0 {
 		// No addresses; skip.
 		return nil, nil
 	}
 
-	client, err := tsdbRemote.NewGRPCClient(
-		zone.Addresses,
-		poolWrapper,
-		opts,
-	)
-
+	client, err := tsdbremote.NewGRPCClient(zone.Name, zone.Addresses,
+		poolWrapper, opts, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -994,7 +1020,8 @@ func remoteClient(
 			zap.Strings("addresses", zone.Addresses),
 		)
 
-		remote, err := remoteZoneStorage(zone, poolWrapper, opts)
+		remote, err := remoteZoneStorage(zone, poolWrapper, opts,
+			instrumentOpts)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1015,7 +1042,7 @@ func startGRPCServer(
 	logger := instrumentOpts.Logger()
 
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.NewGRPCServer(storage,
+	server := tsdbremote.NewGRPCServer(storage,
 		queryContextOptions, poolWrapper, instrumentOpts)
 
 	if opts.ReflectionEnabled() {

@@ -37,6 +37,7 @@ type Configuration struct {
 	AckBufferSize             *int                      `yaml:"ackBufferSize"`
 	ConnectionWriteBufferSize *int                      `yaml:"connectionWriteBufferSize"`
 	ConnectionReadBufferSize  *int                      `yaml:"connectionReadBufferSize"`
+	ConnectionWriteTimeout    *time.Duration            `yaml:"connectionWriteTimeout"`
 }
 
 // MessagePoolConfiguration is the message pool configuration
@@ -91,6 +92,9 @@ func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
 	}
 	if c.ConnectionReadBufferSize != nil {
 		opts = opts.SetConnectionReadBufferSize(*c.ConnectionReadBufferSize)
+	}
+	if c.ConnectionWriteTimeout != nil {
+		opts = opts.SetConnectionWriteTimeout(*c.ConnectionWriteTimeout)
 	}
 	return opts
 }

@@ -419,6 +419,14 @@ type Options interface {
 	// initializing or not.
 	WriteShardsInitializing() bool
 
+	// SetShardsLeavingCountTowardsConsistency sets whether to count shards
+	// that are leaving or not towards consistency level calculations.
+	SetShardsLeavingCountTowardsConsistency(value bool) Options
+
+	// ShardsLeavingCountTowardsConsistency returns whether to count shards
+	// that are leaving or not towards consistency level calculations.
+	ShardsLeavingCountTowardsConsistency() bool
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 
@@ -586,6 +594,13 @@ type Options interface {
 
 	// NewConnectionFn returns the new connection generator function.
 	NewConnectionFn() NewConnectionFn
+
+	// SetNamespaceInitializer sets the NamespaceInitializer used to generate a namespace.Registry object
+	// that can be used to watch namespaces.
+	SetNamespaceInitializer(value namespace.Initializer) Options
+
+	// NamespaceInitializer returns the NamespaceInitializer.
+	NamespaceInitializer() namespace.Initializer
 }
 
 // AdminOptions is a set of administration client options.
