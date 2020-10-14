@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -59,11 +60,19 @@ var (
 				DownsampleOptions: namespace.NewDownsampleOptions(true),
 			}),
 		})
-	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts).
+	defaultTestNs1Opts = newNamespaceOptions().SetRetentionOptions(defaultTestRetentionOpts).
 				SetAggregationOptions(defaultTestAggregationOpts)
-	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts).
+	defaultTestNs2Opts = newNamespaceOptions().SetRetentionOptions(defaultTestNs2RetentionOpts).
 				SetAggregationOptions(defaultTestNs2AggregationOpts)
 )
+
+func newNamespaceOptions() namespace.Options {
+	state, err := namespace.NewStagingState(nsproto.StagingStatus_READY)
+	if err != nil {
+		panic("error creating staging state")
+	}
+	return namespace.NewOptions().SetStagingState(state)
+}
 
 func TestDynamicClustersInitialization(t *testing.T) {
 	ctrl := xtest.NewController(t)
@@ -87,7 +96,7 @@ func TestDynamicClustersInitialization(t *testing.T) {
 		SetDynamicClusterNamespaceConfiguration([]DynamicClusterNamespaceConfiguration{cfg}).
 		SetInstrumentOptions(instrument.NewOptions())
 
-	clusters, err := newDynamicClusters(opts)
+	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -136,7 +145,7 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 		SetDynamicClusterNamespaceConfiguration([]DynamicClusterNamespaceConfiguration{cfg}).
 		SetInstrumentOptions(instrument.NewOptions())
 
-	clusters, err := newDynamicClusters(opts)
+	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -244,7 +253,7 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 		SetDynamicClusterNamespaceConfiguration([]DynamicClusterNamespaceConfiguration{cfg, cfg2}).
 		SetInstrumentOptions(instrument.NewOptions())
 
-	clusters, err := newDynamicClusters(opts)
+	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -290,6 +299,52 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 		fooNsID, barNsID})
 }
 
+func TestDynamicClustersNotReadyNamespace(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockSession := client.NewMockSession(ctrl)
+
+	state, err := namespace.NewStagingState(nsproto.StagingStatus_INITIALIZING)
+	require.NoError(t, err)
+
+	state2, err := namespace.NewStagingState(nsproto.StagingStatus_UNKNOWN)
+	require.NoError(t, err)
+
+	mapCh := make(nsMapCh, 10)
+	mapCh <- testNamespaceMap(t, []mapParams{
+		{nsID: defaultTestNs1ID, nsOpts: defaultTestNs1Opts},
+		{nsID: defaultTestNs2ID, nsOpts: defaultTestNs2Opts.SetStagingState(state)},
+		{nsID: ident.StringID("foo"), nsOpts: defaultTestNs2Opts.SetStagingState(state2)},
+	})
+	nsInitializer := newFakeNsInitializer(t, ctrl, mapCh)
+
+	cfg := DynamicClusterNamespaceConfiguration{
+		session:       mockSession,
+		nsInitializer: nsInitializer,
+	}
+
+	opts := NewDynamicClusterOptions().
+		SetDynamicClusterNamespaceConfiguration([]DynamicClusterNamespaceConfiguration{cfg}).
+		SetInstrumentOptions(instrument.NewOptions())
+
+	clusters, err := NewDynamicClusters(opts)
+	require.NoError(t, err)
+
+	defer func() {
+		<-nsInitializer.updateCh
+		clusters.Close()
+	}()
+
+	requireClusterNamespace(t, clusters, defaultTestNs1ID, ClusterNamespaceOptions{
+		attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Retention:   48 * time.Hour,
+		}})
+
+	requireClusterNamespaceIDs(t, clusters, []ident.ID{defaultTestNs1ID})
+}
+
 func TestDynamicClustersInitFailures(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -312,7 +367,7 @@ func TestDynamicClustersInitFailures(t *testing.T) {
 		SetDynamicClusterNamespaceConfiguration([]DynamicClusterNamespaceConfiguration{cfg}).
 		SetInstrumentOptions(instrument.NewOptions())
 
-	_, err := newDynamicClusters(opts)
+	_, err := NewDynamicClusters(opts)
 	require.Error(t, err)
 }
 

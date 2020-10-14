@@ -60,16 +60,7 @@ type dynamicCluster struct {
 
 // NewDynamicClusters creates an implementation of the Clusters interface
 // supports dynamic updating of cluster namespaces.
-func NewDynamicClusters(_ DynamicClusterOptions) (Clusters, error) {
-	return nil, errors.New("dynamic cluster configuration not yet supported")
-}
-
-// TODO(nate): Replace constructor above with this method
-// once namespace staging is complete.
-//
-// newDynamicClusters creates an implementation of the Clusters interface
-// supports dynamic updating of cluster namespaces.
-func newDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
+func NewDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -187,8 +178,6 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 	clusterCfg DynamicClusterNamespaceConfiguration,
 	newNamespaces namespace.Map,
 ) {
-	// TODO(nate): incorporate checking if new namespace is ready once staging state has landed.
-
 	// Check if existing namespaces still exist or need to be updated.
 	existing, ok := d.namespacesByEtcdCluster[etcdClusterID]
 	if !ok {
@@ -229,6 +218,18 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 	// Check for new namespaces to add.
 	for _, newNsMd := range newNamespaces.Metadatas() {
 		if existing.exists(newNsMd.ID().String()) {
+			continue
+		}
+
+		stagingState := newNsMd.Options().StagingState()
+		switch stagingState.Status() {
+		case namespace.UnknownStagingStatus:
+			d.logger.Error("namespace has unknown staging status",
+				zap.String("namespace", newNsMd.ID().String()))
+			continue
+		case namespace.InitializingStagingStatus:
+			d.logger.Debug("ignoring namespace while initializing",
+				zap.String("namespace", newNsMd.ID().String()))
 			continue
 		}
 
