@@ -1660,7 +1660,7 @@ func (n *dbNamespace) aggregateTiles(
 	n.RUnlock()
 
 	var (
-	processedShards := opts.MetricsScope.Counter("processed-shards")
+		processedShards   = opts.MetricsScope.Counter("processed-shards")
 		targetShards      = n.OwnedShards()
 		bytesPool         = sourceNs.StorageOptions().BytesPool()
 		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
@@ -1668,9 +1668,7 @@ func (n *dbNamespace) aggregateTiles(
 		sourceBlockStarts []time.Time
 	)
 
-	for sourceBlockStart := targetBlockStart;
-		sourceBlockStart.Before(lastSourceBlockEnd);
-		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err

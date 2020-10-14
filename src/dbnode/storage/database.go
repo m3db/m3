@@ -75,6 +75,7 @@ var (
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
+	aggregationsInProgress              int32
 )
 
 type databaseState int
@@ -1141,11 +1142,13 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	opts.MetricsScope = d.scope.SubScope("computed-namespace").
-		Tagged(map[string]string{"target-namespace": targetNsID.String()})
-	jobInProgress := opts.MetricsScope.Counter("aggregation-in-progress")
-	jobInProgress.Inc(1)
-	defer jobInProgress.Inc(-1)
+	jobInProgress := opts.MetricsScope.Gauge("aggregations-in-progress")
+	atomic.AddInt32(&aggregationsInProgress, 1)
+	jobInProgress.Update(float64(aggregationsInProgress))
+	defer func() {
+		atomic.AddInt32(&aggregationsInProgress, -1)
+		jobInProgress.Update(float64(aggregationsInProgress))
+	}()
 
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
@@ -1233,6 +1236,8 @@ func (m metadatas) String() (string, error) {
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
+	targetNsID ident.ID,
+	scope tally.Scope,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1246,5 +1251,7 @@ func NewAggregateTilesOptions(
 		Start: start,
 		End:   end,
 		Step:  step,
+		MetricsScope: scope.SubScope("computed-namespace").
+			Tagged(map[string]string{"target-namespace": targetNsID.String()}),
 	}, nil
 }
