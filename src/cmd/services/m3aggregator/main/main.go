@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
 	"github.com/m3db/m3/src/aggregator/server"
@@ -48,6 +49,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
 	}
+
+	cfg.Debug.SetMutexProfileFraction()
 
 	server.Run(server.RunOptions{
 		Config: cfg,

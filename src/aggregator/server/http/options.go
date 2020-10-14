@@ -20,7 +20,10 @@
 
 package http
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 const (
 	defaultReadTimeout  = 10 * time.Second
@@ -40,11 +43,20 @@ type Options interface {
 
 	// WriteTimeout returns the write timeout.
 	WriteTimeout() time.Duration
+
+	// Mux returns the http mux for the server.
+	Mux() *http.ServeMux
+
+	// SetMux sets the http mux for the server.
+	// This option exists to allow overriding in tests. Prod code should not set this and use the
+	// http.DefaultServerMux instead. std pkgs like pprof assume the default mux.
+	SetMux(value *http.ServeMux) Options
 }
 
 type options struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	mux          *http.ServeMux
 }
 
 // NewOptions creates a new set of server options.
@@ -52,6 +64,7 @@ func NewOptions() Options {
 	return &options{
 		readTimeout:  defaultReadTimeout,
 		writeTimeout: defaultWriteTimeout,
+		mux:          http.DefaultServeMux,
 	}
 }
 
@@ -73,4 +86,15 @@ func (o *options) SetWriteTimeout(value time.Duration) Options {
 
 func (o *options) WriteTimeout() time.Duration {
 	return o.writeTimeout
+}
+
+func (o *options) Mux() *http.ServeMux {
+	return o.mux
+}
+
+func (o *options) SetMux(value *http.ServeMux) Options {
+	opts := *o
+	opts.mux = value
+	return &opts
+
 }

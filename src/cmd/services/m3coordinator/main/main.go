@@ -50,6 +50,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	cfg.Debug.SetMutexProfileFraction()
+
 	server.Run(server.RunOptions{
 		Config: cfg,
 	})
