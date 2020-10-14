@@ -24,7 +24,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +46,7 @@ func newTime(n int) xtime.UnixNano {
 }
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := NewEntry(lookup.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	require.Equal(t, 3, cap(e.reverseIndex.states))
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
@@ -54,4 +59,53 @@ func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
 		ti := newTime(i)
 		require.False(t, e.NeedsIndexUpdate(ti))
 	}
+}
+
+func TestEntryIndexSeriesRef(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	now := time.Now()
+	blockStart := newTime(0)
+	mockIndexWriter := NewMockIndexWriter(ctrl)
+	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart.ToTime()).Return(blockStart)
+
+	mockSeries := series.NewMockDatabaseSeries(ctrl)
+	mockSeries.EXPECT().Metadata().Return(doc.Document{})
+	mockSeries.EXPECT().Write(
+		context.NewContext(),
+		blockStart.ToTime(),
+		1.0,
+		xtime.Second,
+		nil,
+		series.WriteOptions{},
+	).Return(true, series.WarmWrite, nil)
+
+	e := NewEntry(NewEntryOptions{
+		Series:      mockSeries,
+		IndexWriter: mockIndexWriter,
+		NowFn: func() time.Time {
+			return now
+		},
+	})
+
+	mockIndexWriter.EXPECT().WritePending([]writes.PendingIndexInsert{
+		{
+			Entry: index.WriteBatchEntry{
+				Timestamp:     blockStart.ToTime(),
+				OnIndexSeries: e,
+				EnqueuedAt:    now,
+			},
+			Document: doc.Document{},
+		},
+	}).Return(nil)
+
+	ok, _, err := e.Write(
+		context.NewContext(),
+		blockStart.ToTime(),
+		1.0,
+		xtime.Second,
+		nil,
+		series.WriteOptions{},
+	)
+	require.True(t, ok)
+	require.NoError(t, err)
 }

@@ -211,21 +211,8 @@ func (entry *Entry) Write(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (bool, series.WriteType, error) {
-	if idx := entry.indexWriter; idx != nil {
-		if entry.NeedsIndexUpdate(idx.BlockStartForWriteTime(timestamp)) {
-			entry.pendingIndexBatchSizeOne[0] = writes.PendingIndexInsert{
-				Entry: index.WriteBatchEntry{
-					Timestamp:     timestamp,
-					OnIndexSeries: entry,
-					EnqueuedAt:    entry.nowFn(),
-				},
-				Document: entry.Series.Metadata(),
-			}
-			entry.OnIndexPrepare()
-			if err := idx.WritePending(entry.pendingIndexBatchSizeOne); err != nil {
-				return false, 0, err
-			}
-		}
+	if err := entry.maybeIndex(timestamp); err != nil {
+		return false, 0, err
 	}
 	return entry.Series.Write(
 		ctx,
@@ -242,7 +229,32 @@ func (entry *Entry) LoadBlock(
 	block block.DatabaseBlock,
 	writeType series.WriteType,
 ) error {
+	// TODO(bodu): We can remove this once we have index snapshotting as index snapshots will
+	// contained snapshooted index segments that cover snapshotted data.
+	if err := entry.maybeIndex(block.StartTime()); err != nil {
+		return err
+	}
 	return entry.Series.LoadBlock(block, writeType)
+}
+
+func (entry *Entry) maybeIndex(timestamp time.Time) error {
+	if idx := entry.indexWriter; idx != nil {
+		if entry.NeedsIndexUpdate(idx.BlockStartForWriteTime(timestamp)) {
+			entry.pendingIndexBatchSizeOne[0] = writes.PendingIndexInsert{
+				Entry: index.WriteBatchEntry{
+					Timestamp:     timestamp,
+					OnIndexSeries: entry,
+					EnqueuedAt:    entry.nowFn(),
+				},
+				Document: entry.Series.Metadata(),
+			}
+			entry.OnIndexPrepare()
+			if err := idx.WritePending(entry.pendingIndexBatchSizeOne); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard
