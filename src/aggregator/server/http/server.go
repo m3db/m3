@@ -70,7 +70,8 @@ func (s *server) ListenAndServe() error {
 }
 
 func (s *server) Serve(l net.Listener) error {
-	registerHandlers(http.DefaultServeMux, s.aggregator)
+	mux := http.DefaultServeMux
+	registerHandlers(mux, s.aggregator)
 
 	// create and register debug handler
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
