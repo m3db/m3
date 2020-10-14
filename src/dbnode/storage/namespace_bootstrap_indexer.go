@@ -24,8 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -33,9 +32,7 @@ type namespaceIndexer struct {
 	index NamespaceIndex
 }
 
-// NewDatabaseNamespaceIndexer creates an indexer
-// the namespace.
-func NewDatabaseNamespaceIndexer(
+func newDatabaseNamespaceIndexer(
 	index NamespaceIndex,
 ) bootstrap.NamespaceIndexer {
 	return &namespaceIndexer{
@@ -43,20 +40,12 @@ func NewDatabaseNamespaceIndexer(
 	}
 }
 
-func (i *namespaceIndexer) Index(
-	blockStart time.Time,
-	doc doc.Document,
+func (i *namespaceIndexer) WritePending(
+	writes []writes.PendingIndexInsert,
 ) error {
-	return nil
+	return i.index.WritePending(writes)
 }
 
-func (i *namespaceIndexer) NeedsIndex(
-	blockStart time.Time,
-	docID ident.ID,
-) bool {
-	return false
-}
-
-func (i *namespaceIndexer) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
-	return i.index.BlockStartForWriteTime(writeTime)
+func (i *namespaceIndexer) BlockStartForWriteTime(ts time.Time) xtime.UnixNano {
+	return i.index.BlockStartForWriteTime(ts)
 }

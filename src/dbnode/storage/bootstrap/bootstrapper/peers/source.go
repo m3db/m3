@@ -417,7 +417,12 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			for _, elem := range shardResult.AllSeries().Iter() {
 				entry := elem.Value()
 				tagsIter.Reset(entry.Tags)
-				ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+				ref, owned, err := accumulator.CheckoutSeriesWithLock(
+					shard,
+					entry.ID,
+					tagsIter,
+					bootstrap.CheckoutSeriesOptions{},
+				)
 				if err != nil {
 					if !owned {
 						// Only if we own this shard do we care consider this an

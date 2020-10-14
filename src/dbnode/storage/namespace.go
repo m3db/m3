@@ -732,6 +732,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	opts bootstrap.CheckoutSeriesOptions,
 ) (SeriesReadWriteRef, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
@@ -740,7 +741,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 		return SeriesReadWriteRef{}, owned, err
 	}
 
-	res, err := shard.SeriesReadWriteRef(id, tags)
+	res, err := shard.SeriesReadWriteRef(id, tags, opts)
 	return res, true, err
 }
 

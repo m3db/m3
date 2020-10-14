@@ -1575,9 +1575,9 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart inte
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, bool, error) {
+func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator, opts bootstrap.CheckoutSeriesOptions) (SeriesReadWriteRef, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags)
+	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags, opts)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -1585,9 +1585,9 @@ func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, 
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(shardID, id, tags interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(shardID, id, tags, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), shardID, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), shardID, id, tags, opts)
 }
 
 // WritePendingIndexInserts mocks base method
@@ -2082,18 +2082,18 @@ func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
+func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator, opts bootstrap.CheckoutSeriesOptions) (SeriesReadWriteRef, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags)
+	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags, opts)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags, opts)
 }
 
 // DocRef mocks base method

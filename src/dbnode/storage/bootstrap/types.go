@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -265,6 +265,7 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
+		opts CheckoutSeriesOptions,
 	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// CheckoutSeriesWithLock is the "with lock" version of
@@ -275,6 +276,7 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
+		opts CheckoutSeriesOptions,
 	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// Close will close the data accumulator and will release
@@ -284,17 +286,25 @@ type NamespaceDataAccumulator interface {
 
 // NamespaceIndexer handles reverse indexing of series during commitlog bootstrap.
 type NamespaceIndexer interface {
-	Index(
-		blockStart time.Time,
-		doc doc.Document,
+	WritePending(
+		pending []writes.PendingIndexInsert,
 	) error
 
-	NeedsIndex(
-		blockStart time.Time,
-		docID ident.ID,
-	) bool
+	// BlockStartForWriteTime returns the index block start
+	// time for the given writeTime.
+	BlockStartForWriteTime(
+		writeTime time.Time,
+	) xtime.UnixNano
+}
 
-	BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano
+// CheckoutSeriesOptions supplies options when checking out a series ref.
+type CheckoutSeriesOptions struct {
+	// CheckNeedsIndexing specifies whether or not to check if a series needs
+	// indexing or not at a particular block start.
+	CheckNeedsIndexing bool
+	// Timestamp is used to resolve to an index block start to check if a series
+	// needs indexing or not.
+	Timestamp time.Time
 }
 
 // CheckoutSeriesResult is the result of a checkout series operation.
@@ -307,6 +317,9 @@ type CheckoutSeriesResult struct {
 	UniqueIndex uint64
 	// OnIndexSeries is used for optional indexing of a series.
 	OnIndexSeries index.OnIndexSeries
+	// NeedsIndexing specifies whether this series needs indexing for
+	// the timestamp of the write when requesting a series ref.
+	NeedsIndexing bool
 }
 
 // NamespaceResults is the result of a bootstrap process.

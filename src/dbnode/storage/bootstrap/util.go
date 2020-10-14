@@ -187,6 +187,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	_ CheckoutSeriesOptions,
 ) (CheckoutSeriesResult, bool, error) {
 	a.Lock()
 	defer a.Unlock()
@@ -200,6 +201,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	_ CheckoutSeriesOptions,
 ) (CheckoutSeriesResult, bool, error) {
 	return a.checkoutSeriesWithLock(shardID, id, tags)
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -1043,6 +1044,7 @@ func (s *dbShard) writeAndIndex(
 func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
+	opts bootstrap.CheckoutSeriesOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, _, err := s.tryRetrieveWritableSeries(id)
@@ -1052,13 +1054,17 @@ func (s *dbShard) SeriesReadWriteRef(
 
 	if entry != nil {
 		// The read/write ref is already incremented.
-		return SeriesReadWriteRef{
+		ref := SeriesReadWriteRef{
 			Series:              entry.Series,
 			Shard:               s.shard,
 			UniqueIndex:         entry.Index,
 			ReleaseReadWriteRef: entry,
 			OnIndexSeries:       entry,
-		}, nil
+		}
+		if opts.CheckNeedsIndexing {
+			ref.NeedsIndexing = entry.NeedsIndexUpdate(xtime.ToUnixNano(opts.Timestamp))
+		}
+		return ref, nil
 	}
 
 	// NB(r): Insert synchronously so caller has access to the series
@@ -1085,13 +1091,17 @@ func (s *dbShard) SeriesReadWriteRef(
 		return SeriesReadWriteRef{}, err
 	}
 
-	return SeriesReadWriteRef{
+	ref := SeriesReadWriteRef{
 		Series:              entry.Series,
 		Shard:               s.shard,
 		UniqueIndex:         entry.Index,
 		ReleaseReadWriteRef: entry,
 		OnIndexSeries:       entry,
-	}, nil
+	}
+	if opts.CheckNeedsIndexing {
+		ref.NeedsIndexing = entry.NeedsIndexUpdate(xtime.ToUnixNano(opts.Timestamp))
+	}
+	return ref, nil
 }
 
 func (s *dbShard) ReadEncoded(

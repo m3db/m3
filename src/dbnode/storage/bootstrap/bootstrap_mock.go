@@ -32,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -202,9 +204,9 @@ func (m *MockNamespaceDataAccumulator) EXPECT() *MockNamespaceDataAccumulatorMoc
 }
 
 // CheckoutSeriesWithoutLock mocks base method
-func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(shardID uint32, id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, bool, error) {
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(shardID uint32, id ident.ID, tags ident.TagIterator, opts CheckoutSeriesOptions) (CheckoutSeriesResult, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckoutSeriesWithoutLock", shardID, id, tags)
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithoutLock", shardID, id, tags, opts)
 	ret0, _ := ret[0].(CheckoutSeriesResult)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -212,15 +214,15 @@ func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(shardID uint32,
 }
 
 // CheckoutSeriesWithoutLock indicates an expected call of CheckoutSeriesWithoutLock
-func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithoutLock(shardID, id, tags interface{}) *gomock.Call {
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithoutLock(shardID, id, tags, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithoutLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithoutLock), shardID, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithoutLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithoutLock), shardID, id, tags, opts)
 }
 
 // CheckoutSeriesWithLock mocks base method
-func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(shardID uint32, id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, bool, error) {
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(shardID uint32, id ident.ID, tags ident.TagIterator, opts CheckoutSeriesOptions) (CheckoutSeriesResult, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckoutSeriesWithLock", shardID, id, tags)
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithLock", shardID, id, tags, opts)
 	ret0, _ := ret[0].(CheckoutSeriesResult)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -228,9 +230,9 @@ func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(shardID uint32, id
 }
 
 // CheckoutSeriesWithLock indicates an expected call of CheckoutSeriesWithLock
-func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithLock(shardID, id, tags interface{}) *gomock.Call {
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithLock(shardID, id, tags, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithLock), shardID, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithLock), shardID, id, tags, opts)
 }
 
 // Close mocks base method
@@ -245,6 +247,57 @@ func (m *MockNamespaceDataAccumulator) Close() error {
 func (mr *MockNamespaceDataAccumulatorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).Close))
+}
+
+// MockNamespaceIndexer is a mock of NamespaceIndexer interface
+type MockNamespaceIndexer struct {
+	ctrl     *gomock.Controller
+	recorder *MockNamespaceIndexerMockRecorder
+}
+
+// MockNamespaceIndexerMockRecorder is the mock recorder for MockNamespaceIndexer
+type MockNamespaceIndexerMockRecorder struct {
+	mock *MockNamespaceIndexer
+}
+
+// NewMockNamespaceIndexer creates a new mock instance
+func NewMockNamespaceIndexer(ctrl *gomock.Controller) *MockNamespaceIndexer {
+	mock := &MockNamespaceIndexer{ctrl: ctrl}
+	mock.recorder = &MockNamespaceIndexerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockNamespaceIndexer) EXPECT() *MockNamespaceIndexerMockRecorder {
+	return m.recorder
+}
+
+// WritePending mocks base method
+func (m *MockNamespaceIndexer) WritePending(pending []writes.PendingIndexInsert) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePending", pending)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePending indicates an expected call of WritePending
+func (mr *MockNamespaceIndexerMockRecorder) WritePending(pending interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePending", reflect.TypeOf((*MockNamespaceIndexer)(nil).WritePending), pending)
+}
+
+// BlockStartForWriteTime mocks base method
+func (m *MockNamespaceIndexer) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
+	ret0, _ := ret[0].(time0.UnixNano)
+	return ret0
+}
+
+// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
+func (mr *MockNamespaceIndexerMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MockNamespaceIndexer)(nil).BlockStartForWriteTime), writeTime)
 }
 
 // MockProcessOptions is a mock of ProcessOptions interface

@@ -67,7 +67,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	gomock.InOrder(
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil),
-		ns.EXPECT().Metadata().Return(meta),
+		ns.EXPECT().Metadata().Return(meta).Times(2),
 		ns.EXPECT().ID().Return(id),
 		ns.EXPECT().
 			Bootstrap(gomock.Any(), gomock.Any()).

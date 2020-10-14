@@ -56,7 +56,7 @@ func checkoutWithLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	res, _, err := acc.CheckoutSeriesWithLock(shardID, id, tags)
+	res, _, err := acc.CheckoutSeriesWithLock(shardID, id, tags, bootstrap.CheckoutSeriesOptions{})
 	return res, err
 }
 
@@ -66,7 +66,7 @@ func checkoutWithoutLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	res, _, err := acc.CheckoutSeriesWithoutLock(shardID, id, tags)
+	res, _, err := acc.CheckoutSeriesWithoutLock(shardID, id, tags, bootstrap.CheckoutSeriesOptions{})
 	return res, err
 }
 
@@ -84,7 +84,7 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	var (
 		ns      = NewMockdatabaseNamespace(ctrl)
 		series  = series.NewMockDatabaseSeries(ctrl)
-		acc     = NewDatabaseNamespaceDataAccumulator(ns)
+		acc     = newDatabaseNamespaceDataAccumulator(ns)
 		shardID = uint32(7)
 
 		release = &releaser{}
@@ -96,8 +96,9 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
-	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter, bootstrap.CheckoutSeriesOptions{}).
+		Return(ref, true, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter, bootstrap.CheckoutSeriesOptions{}).
 		Return(SeriesReadWriteRef{}, false, errors.New("err"))
 
 	_, err := checkoutFn(acc, shardID, idErr, tagIter)
@@ -132,7 +133,7 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 	var (
 		err     error
 		ns      = NewMockdatabaseNamespace(ctrl)
-		acc     = NewDatabaseNamespaceDataAccumulator(ns)
+		acc     = newDatabaseNamespaceDataAccumulator(ns)
 		shardID = uint32(1337)
 
 		release = &releaser{}
@@ -143,7 +144,8 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter, bootstrap.CheckoutSeriesOptions{}).
+		Return(ref, true, nil)
 	_, err = checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 

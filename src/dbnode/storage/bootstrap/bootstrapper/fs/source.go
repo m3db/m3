@@ -687,7 +687,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("error reading data file: %v", err)
 	}
 
-	ref, owned, err := accumulator.CheckoutSeriesWithLock(shardID, id, tagsIter)
+	ref, owned, err := accumulator.CheckoutSeriesWithLock(
+		shardID,
+		id,
+		tagsIter,
+		bootstrap.CheckoutSeriesOptions{},
+	)
 	if err != nil {
 		if !owned {
 			// Ignore if we no longer own the shard for this series.

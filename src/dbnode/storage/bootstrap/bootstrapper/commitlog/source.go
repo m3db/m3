@@ -33,13 +33,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -423,7 +424,10 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 
 	// Read and accumulate all the log entries in the commit log that we need
 	// to read.
-	var lastFileReadID uint64
+	var (
+		lastFileReadID           uint64
+		pendingIndexBatchSizeOne = make([]writes.PendingIndexInsert, 0, 1)
+	)
 	for iter.Next() {
 		s.metrics.commitLogEntriesRead.Inc(1)
 		entry := iter.Current()
@@ -449,11 +453,9 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		if !ok {
 			// Resolve the namespace.
 			var (
-				nsID         = entry.Series.Namespace
-				nsIDBytes    = nsID.Bytes()
-				ns           *bootstrapNamespace
-				nsIndex      storage.NamespaceIndex
-				indexEnabled bool
+				nsID      = entry.Series.Namespace
+				nsIDBytes = nsID.Bytes()
+				ns        *bootstrapNamespace
 			)
 			for _, elem := range commitLogNamespaces {
 				if bytes.Equal(elem.namespaceID, nsIDBytes) {
@@ -489,10 +491,6 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 				}
 				// Append for quick re-lookup with other series.
 				commitLogNamespaces = append(commitLogNamespaces, ns)
-				// Check if indexing is enabled
-				if nsResult.namespace.Metadata.Options().IndexOptions().Enabled() {
-					indexEnabled = true
-				}
 			}
 			if !ns.bootstrapping {
 				// NB(r): Just set the series map entry to the memoized
@@ -520,7 +518,15 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
-					tagIter)
+					tagIter,
+					bootstrap.CheckoutSeriesOptions{
+						// NB(bodu): For commit log writes, we need to check
+						// whether or not we need to index the seriees given the
+						// write ts.
+						CheckNeedsIndexing: true,
+						Timestamp:          entry.Datapoint.Timestamp,
+					},
+				)
 				if err != nil {
 					if !owned {
 						// If we encounter a log entry for a shard that we're
@@ -533,9 +539,6 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 					return commitLogResult{}, err
 				}
 
-				if indexEnabled {
-
-				}
 				seriesEntry = seriesMapEntry{
 					namespace:     ns,
 					series:        series,
@@ -555,11 +558,20 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 			idx := seriesEntry.namespace.indexer
 			series := seriesEntry.series
 			blockStart := idx.BlockStartForWriteTime(entry.Datapoint.Timestamp)
-			needsIndex := idx.NeedsIndex(blockStart.ToTime(), series.Series.ID())
-			if needsIndex {
+			if series.NeedsIndexing {
 				// Increment ref count so series metadata stays valid while indexing.
-				series.OnIndexSeries.Prepare()
-				if err := idx.Index(blockStart.ToTime(), series.Series.Metadata()); err != nil {
+				series.OnIndexSeries.OnIndexPrepare()
+				// NB(bodu): Currently commitlog bootstrap happens in a single thread so
+				// there is little lock contention from writing batches of one.
+				pendingIndexBatchSizeOne[0] = writes.PendingIndexInsert{
+					Entry: index.WriteBatchEntry{
+						Timestamp:     blockStart.ToTime(),
+						EnqueuedAt:    s.nowFn(),
+						OnIndexSeries: series.OnIndexSeries,
+					},
+					Document: series.Series.Metadata(),
+				}
+				if err := idx.WritePending(pendingIndexBatchSizeOne); err != nil {
 					return commitLogResult{}, err
 				}
 			}
@@ -895,7 +907,12 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		// NB(bodu): The bootstrapper is now responsible for reverse indexing but we do
 		// not need to do any work when loading snapshots as the invariant is that
 		// the index snapshots have captured all series in the data snapshots.
-		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(
+			shard,
+			id,
+			tags,
+			bootstrap.CheckoutSeriesOptions{},
+		)
 		if err != nil {
 			if !owned {
 				// Skip bootstrapping this series if we don't own it.

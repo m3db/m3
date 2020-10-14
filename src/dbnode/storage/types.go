@@ -409,6 +409,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
+		opts bootstrap.CheckoutSeriesOptions,
 	) (result SeriesReadWriteRef, owned bool, err error)
 
 	// WritePendingIndexInserts will write any pending index inserts.
@@ -438,6 +439,9 @@ type SeriesReadWriteRef struct {
 	// a ref count to ensure any borrowed document metadata lives throughout
 	// the indexing period.
 	OnIndexSeries index.OnIndexSeries
+	// NeedsIndexing specifies whether this series needs indexing for
+	// the timestamp of the write when requesting a series ref.
+	NeedsIndexing bool
 }
 
 // Shard is a time series database shard.
@@ -594,6 +598,7 @@ type databaseShard interface {
 	SeriesReadWriteRef(
 		id ident.ID,
 		tags ident.TagIterator,
+		opts bootstrap.CheckoutSeriesOptions,
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
