@@ -38,6 +38,7 @@ type shardFilterFn func(ident.ID) (uint32, bool)
 
 type wideResults struct {
 	sync.RWMutex
+	size           int
 	totalDocsCount int
 
 	nsID   ident.ID
@@ -100,7 +101,7 @@ func (r *wideResults) EnforceLimits() bool {
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	var size, totalDocsCount int
 	r.RLock()
-	size, totalDocsCount = r.sizeWithLock(), r.totalDocsCount
+	size, totalDocsCount = r.size, r.totalDocsCount
 	r.RUnlock()
 
 	if r.closed || r.pastLastShard {
@@ -111,7 +112,7 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	defer r.Unlock()
 
 	err := r.addDocumentsBatchWithLock(batch)
-	size, totalDocsCount = r.sizeWithLock(), r.totalDocsCount
+	size, totalDocsCount = r.size, r.totalDocsCount
 	if err != nil && err != ErrWideQueryResultsExhausted {
 		// NB: if exhausted, drain the current batch and overflows.
 		return size, totalDocsCount, err
@@ -119,9 +120,11 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 
 	release := len(r.batch.IDs) == r.batchSize
 	if release {
-		r.releaseAndWaitWithOverflowWithLock(false)
+		r.releaseAndWaitWithLock()
+		r.releaseOverflowWithLock()
 	}
 
+	size = r.size
 	return size, totalDocsCount, err
 }
 
@@ -176,6 +179,7 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 		}
 	}
 
+	r.size++
 	r.totalDocsCount++
 
 	// Pool IDs after filter is passed.
@@ -196,7 +200,7 @@ func (r *wideResults) Namespace() ident.ID {
 
 func (r *wideResults) Size() int {
 	r.RLock()
-	v := r.sizeWithLock()
+	v := r.size
 	r.RUnlock()
 	return v
 }
@@ -218,32 +222,45 @@ func (r *wideResults) Finalize() {
 	}
 
 	// NB: release current
-	r.releaseAndWaitWithOverflowWithLock(true)
+	r.releaseAndWaitWithLock()
 	r.closed = true
 	close(r.batchCh)
 }
 
-func (r *wideResults) sizeWithLock() int {
-	return len(r.batch.IDs) + len(r.idsOverflow)
+func (r *wideResults) releaseAndWaitWithLock() {
+	if r.closed || len(r.batch.IDs) == 0 {
+		return
+	}
+
+	r.batch.Add(1)
+	r.batchCh <- r.batch
+	r.batch.Wait()
+	r.batch.IDs = r.batch.IDs[:0]
+	r.size = len(r.idsOverflow)
 }
 
-func (r *wideResults) releaseAndWaitWithOverflowWithLock(flushIncomplete bool) {
-	for {
-		if len(r.batch.IDs) > 0 {
-			r.batch.Add(1)
-			r.batchCh <- r.batch
-			r.batch.Wait()
-			r.batch.IDs = r.batch.IDs[:0]
-		}
+func (r *wideResults) releaseOverflowWithLock() {
+	if len(r.batch.IDs) != 0 {
+		// If still some IDs in the batch, noop. Theoretically this should not
+		// happen, since releaseAndWaitWithLock should be called before
+		// releaseOverflowWithLock, which should drain the channel.
+		return
+	}
 
-		size := r.batchSize
-		overflow := len(r.idsOverflow)
+	var (
+		incomplete bool
+		size       int
+		overflow   int
+	)
+
+	for {
+		size = r.batchSize
+		overflow = len(r.idsOverflow)
 		if overflow == 0 {
 			// NB: no overflow elements.
 			return
 		}
 
-		incomplete := false
 		if overflow < size {
 			size = overflow
 			incomplete = true
@@ -253,10 +270,12 @@ func (r *wideResults) releaseAndWaitWithOverflowWithLock(flushIncomplete bool) {
 		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
 		copy(r.idsOverflow, r.idsOverflow[size:])
 		r.idsOverflow = r.idsOverflow[:overflow-size]
-		if incomplete && !flushIncomplete {
+		if incomplete {
 			// NB: not enough overflow IDs to create a new batch; seed the existing
 			// batch and return.
 			return
 		}
+
+		r.releaseAndWaitWithLock()
 	}
 }
