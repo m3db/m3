@@ -592,7 +592,7 @@ func (s *service) aggregateTiles(
 	opts, err := storage.NewAggregateTilesOptions(
 		start, end, step,
 		sourceNsID,
-		s.opts.InstrumentOptions().MetricsScope())
+		s.opts.InstrumentOptions())
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}
