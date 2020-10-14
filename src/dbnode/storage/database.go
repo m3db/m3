@@ -1247,11 +1247,13 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
+	scope = scope.SubScope("computed-namespace").
+		Tagged(map[string]string{"target-namespace": targetNsID.String()})
+
 	return AggregateTilesOptions{
-		Start: start,
-		End:   end,
-		Step:  step,
-		MetricsScope: scope.SubScope("computed-namespace").
-			Tagged(map[string]string{"target-namespace": targetNsID.String()}),
+		Start:        start,
+		End:          end,
+		Step:         step,
+		MetricsScope: scope,
 	}, nil
 }

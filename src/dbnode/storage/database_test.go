@@ -68,9 +68,9 @@ var (
 	defaultTestNs1ID         = ident.StringID("testns1")
 	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
@@ -1304,8 +1304,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		start      = time.Now().Truncate(time.Hour)
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions().MetricsScope())
 	require.Error(t, err)
+	opts.MetricsScope = d.opts.InstrumentOptions().MetricsScope()
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
@@ -1318,19 +1319,21 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 func TestNewAggregateTilesOptions(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
+	targetNs := ident.StringID("target")
+	scope := tally.NewTestScope("", nil)
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, scope)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, scope)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, scope)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, scope)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, scope)
 	assert.NoError(t, err)
 }

@@ -1343,11 +1343,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		sourceBlockSize               = time.Hour
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
-		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
 		sourceShard0ID         uint32 = 10
 		sourceShard1ID         uint32 = 20
+		scope                         = tally.NewTestScope("", nil)
 	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, scope)
+	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
 	defer sourceCloser()
