@@ -58,7 +58,7 @@ func (opts *Options) Register() {
 func (opts *Options) RegisterFlagSet(cmd *flag.FlagSet) {
 	opts.cmd = cmd
 
-	cmd.Var(&opts.ConfigFiles, "f", "DebugConfiguration files to load")
+	cmd.Var(&opts.ConfigFiles, "f", "Configuration files to load")
 	cmd.BoolVar(&opts.ShouldDumpConfigAndExit, "d", false, "Dump configuration and exit")
 }
 

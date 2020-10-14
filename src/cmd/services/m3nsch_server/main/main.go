@@ -47,7 +47,7 @@ import (
 
 func main() {
 	var (
-		configFile = getopt.StringLong("config-file", 'f', "", "DebugConfiguration file")
+		configFile = getopt.StringLong("config-file", 'f', "", "Configuration file")
 	)
 	getopt.Parse()
 	if len(*configFile) == 0 {

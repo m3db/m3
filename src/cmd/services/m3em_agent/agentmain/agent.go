@@ -46,7 +46,7 @@ import (
 // Run runs a m3em_agent process
 func Run() {
 	var (
-		configFile = getopt.StringLong("config-file", 'f', "", "DebugConfiguration file")
+		configFile = getopt.StringLong("config-file", 'f', "", "Configuration file")
 	)
 	getopt.Parse()
 	if len(*configFile) == 0 {
