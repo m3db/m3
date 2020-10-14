@@ -795,7 +795,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 }
 
 // movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
 		return nil, nil
 	}
@@ -839,6 +839,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			sum := 0.0
 			num := 0
+			nans := 0
 			firstPoint := false
 			for i := 0; i < numSteps; i++ {
 				// NB: skip if the number of points received is less than the number
@@ -854,6 +855,8 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						if !math.IsNaN(v) {
 							sum += v
 							num++
+						} else {
+							nans++
 						}
 					}
 				} else {
@@ -862,16 +865,20 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						if !math.IsNaN(prev) {
 							sum -= prev
 							num--
+						} else {
+							nans--
 						}
 					}
 					next := bootstrap.ValueAt(i + offset - 1)
 					if !math.IsNaN(next) {
 						sum += next
 						num++
+					} else {
+						nans++
 					}
 				}
 
-				if num > 0 {
+				if num > 0 && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
@@ -1972,13 +1979,13 @@ func windowPointsLength(series *ts.Series, interval time.Duration) int {
 	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
 }
 
-type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int)
+type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int, xFilesFactor float64)
 
 // movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
-func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	nans := common.SafeSort(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
 		index := (windowPoints - nans) / 2
 		median := window[nans+index]
 		vals.SetValueAt(i, median)
@@ -1986,28 +1993,28 @@ func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints in
 }
 
 // movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
-func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	sum, nans := common.SafeSum(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
 		vals.SetValueAt(i, sum)
 	}
 }
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
-func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	max, nans := common.SafeMax(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
 		vals.SetValueAt(i, max)
 	}
 }
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
-func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	min, nans := common.SafeMin(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor {
 		vals.SetValueAt(i, min)
 	}
 }
@@ -2017,6 +2024,7 @@ func newMovingBinaryTransform(
 	input singlePathSpec,
 	windowSizeValue genericInterface,
 	movingFunctionName string,
+	xFilesFactor float64,
 	impl movingImplementationFn,
 ) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
@@ -2089,7 +2097,7 @@ func newMovingBinaryTransform(
 
 						window[idx] = bootstrap.ValueAt(j)
 					}
-					impl(window, vals, currWindowPoints, i)
+					impl(window, vals, currWindowPoints, i, xFilesFactor)
 				}
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
 				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
@@ -2103,23 +2111,23 @@ func newMovingBinaryTransform(
 }
 
 // movingMedian calculates the moving median of a metric (or metrics) over a time interval.
-func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", movingMedianHelper)
+func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor, movingMedianHelper)
 }
 
 // movingSum calculates the moving sum of a metric (or metrics) over a time interval.
-func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", movingSumHelper)
+func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor, movingSumHelper)
 }
 
 // movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
-func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", movingMaxHelper)
+func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor, movingMaxHelper)
 }
 
 // movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
-func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
+func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor, movingMinHelper)
 }
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
@@ -2395,11 +2403,21 @@ func init() {
 	MustRegisterFunction(minSeries)
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
-	MustRegisterFunction(movingAverage)
-	MustRegisterFunction(movingMedian)
-	MustRegisterFunction(movingSum)
-	MustRegisterFunction(movingMax)
-	MustRegisterFunction(movingMin)
+	MustRegisterFunction(movingAverage).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMedian).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingSum).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMax).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMin).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
