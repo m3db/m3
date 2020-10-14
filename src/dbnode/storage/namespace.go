@@ -1660,7 +1660,7 @@ func (n *dbNamespace) aggregateTiles(
 	n.RUnlock()
 
 	var (
-		processedShards   = opts.MetricsScope.Counter("processed-shards")
+		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
 		targetShards      = n.OwnedShards()
 		bytesPool         = sourceNs.StorageOptions().BytesPool()
 		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()

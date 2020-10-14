@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -1304,9 +1305,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		start      = time.Now().Truncate(time.Hour)
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions().MetricsScope())
+	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions())
 	require.Error(t, err)
-	opts.MetricsScope = d.opts.InstrumentOptions().MetricsScope()
+	opts.InsOptions = d.opts.InstrumentOptions()
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
@@ -1320,20 +1321,20 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 func TestNewAggregateTilesOptions(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	targetNs := ident.StringID("target")
-	scope := tally.NewTestScope("", nil)
+	insOpts := instrument.NewOptions()
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, scope)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, scope)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, scope)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, scope)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, scope)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, insOpts)
 	assert.NoError(t, err)
 }

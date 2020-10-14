@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1142,7 +1143,7 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	jobInProgress := opts.MetricsScope.Gauge("aggregations-in-progress")
+	jobInProgress := opts.InsOptions.MetricsScope().Gauge("aggregations-in-progress")
 	atomic.AddInt32(&aggregationsInProgress, 1)
 	jobInProgress.Update(float64(aggregationsInProgress))
 	defer func() {
@@ -1181,9 +1182,9 @@ func (d *db) AggregateTiles(
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
-		opts.MetricsScope.Counter("aggregation.errors").Inc(1)
+		opts.InsOptions.MetricsScope().Counter("aggregation.errors").Inc(1)
 	} else {
-		opts.MetricsScope.Counter("aggregation.success").Inc(1)
+		opts.InsOptions.MetricsScope().Counter("aggregation.success").Inc(1)
 	}
 	return processedTileCount, err
 }
@@ -1237,7 +1238,7 @@ func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
 	targetNsID ident.ID,
-	scope tally.Scope,
+	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1247,13 +1248,13 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	scope = scope.SubScope("computed-namespace").
-		Tagged(map[string]string{"target-namespace": targetNsID.String()})
+	scope := insOpts.MetricsScope().SubScope("computed-namespace")
+	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{"target-namespace": targetNsID.String()}))
 
 	return AggregateTilesOptions{
-		Start:        start,
-		End:          end,
-		Step:         step,
-		MetricsScope: scope,
+		Start:      start,
+		End:        end,
+		Step:       step,
+		InsOptions: insOpts,
 	}, nil
 }

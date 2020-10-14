@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1346,10 +1347,10 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
 		sourceShard0ID         uint32 = 10
 		sourceShard1ID         uint32 = 20
-		scope                         = tally.NewTestScope("", nil)
+		insOpts                       = instrument.NewOptions()
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, scope)
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
 	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())

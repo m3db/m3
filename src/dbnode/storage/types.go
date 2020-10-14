@@ -52,7 +52,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 )
 
 // PageToken is an opaque paging token.
@@ -1301,8 +1300,8 @@ type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
 	Start, End time.Time
 	// Step is the downsampling step.
-	Step time.Duration
-	MetricsScope        tally.Scope
+	Step       time.Duration
+	InsOptions instrument.Options
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
@@ -1311,4 +1310,4 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (id ident.ID) (Namespace, bool)
+type GetNamespaceFn func(id ident.ID) (Namespace, bool)
