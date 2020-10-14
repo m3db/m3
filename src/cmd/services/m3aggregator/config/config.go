@@ -21,6 +21,7 @@
 package config
 
 import (
+	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/log"
 )
@@ -53,4 +54,7 @@ type Configuration struct {
 
 	// Aggregator configuration.
 	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+
+	// Debug configuration.
+	Debug debug.Configuration `yaml:"debug"`
 }
