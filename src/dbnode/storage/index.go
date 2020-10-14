@@ -1380,10 +1380,12 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
+	// NB: result channel should be closed here, regardless of outcome
+	// to prevent deadlocking while waiting on channel close.
+	defer results.Close()
 	ctx.RegisterFinalizer(results)
 	queryOpts := opts.ToQueryOptions()
 
-	defer results.Finalize()
 	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))

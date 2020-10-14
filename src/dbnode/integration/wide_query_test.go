@@ -28,7 +28,6 @@ import (
 	"runtime"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -154,8 +153,7 @@ func TestWideFetch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up file path prefix
-	postfix := atomic.AddUint64(&created, 1) - 1
-	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", postfix))
+	filePathPrefix, err := ioutil.TempDir("", "wide-query-test")
 	require.NoError(t, err)
 
 	testOpts := NewTestOptions(t).
@@ -234,7 +232,6 @@ func TestWideFetch(t *testing.T) {
 	log.Info("filesets found on disk")
 
 	var (
-		ctx      = context.NewContext()
 		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte("abc"), []byte("def.*"))}
 		iterOpts = index.IterationOptions{}
 	)
@@ -251,6 +248,7 @@ func TestWideFetch(t *testing.T) {
 
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.NewContext()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
@@ -261,6 +259,8 @@ func TestWideFetch(t *testing.T) {
 			for i, checksum := range chk {
 				assert.Equal(t, expected[i], checksum)
 			}
+
+			ctx.Close()
 		})
 	}
 
@@ -288,6 +288,7 @@ func TestWideFetch(t *testing.T) {
 
 	for _, tt := range exactShardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.NewContext()
 			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
@@ -299,6 +300,8 @@ func TestWideFetch(t *testing.T) {
 				assert.Equal(t, int64(1), chk[0].Checksum)
 				assert.Equal(t, []byte(exactID), chk[0].ID)
 			}
+
+			ctx.Close()
 		})
 	}
 
@@ -315,6 +318,7 @@ func TestWideFetch(t *testing.T) {
 		go func() {
 			var runError error
 			for j := 0; j < runs; j++ {
+				ctx := context.NewContext()
 				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
 					now, nil, iterOpts)
 
@@ -336,6 +340,8 @@ func TestWideFetch(t *testing.T) {
 						break
 					}
 				}
+
+				ctx.Close()
 			}
 
 			if runError != nil {

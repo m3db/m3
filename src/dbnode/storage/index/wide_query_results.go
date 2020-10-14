@@ -70,7 +70,7 @@ func NewWideQueryResults(
 	shardFilter shardFilterFn,
 	collector chan *ident.IDBatch,
 	opts WideQueryOptions,
-) BaseResults {
+) WideQueryResults {
 	batchSize := opts.BatchSize
 	results := &wideResults{
 		nsID:        namespaceID,
@@ -212,8 +212,8 @@ func (r *wideResults) TotalDocsCount() int {
 	return v
 }
 
-// NB: Finalize should be called after all documents have been consumed.
-func (r *wideResults) Finalize() {
+// NB: Close should be called after all documents have been consumed.
+func (r *wideResults) Close() {
 	r.Lock()
 	defer r.Unlock()
 
@@ -225,6 +225,12 @@ func (r *wideResults) Finalize() {
 	r.releaseAndWaitWithLock()
 	r.closed = true
 	close(r.batchCh)
+}
+
+func (r *wideResults) Finalize() {
+	// NB: no additional cleanup is needed at the moment; closing
+	// input batch here is sufficient.
+	r.Close()
 }
 
 func (r *wideResults) releaseAndWaitWithLock() {
