@@ -156,6 +156,125 @@ func (mr *MockBaseResultsMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockBaseResults)(nil).Finalize))
 }
 
+// MockWideQueryResults is a mock of WideQueryResults interface
+type MockWideQueryResults struct {
+	ctrl     *gomock.Controller
+	recorder *MockWideQueryResultsMockRecorder
+}
+
+// MockWideQueryResultsMockRecorder is the mock recorder for MockWideQueryResults
+type MockWideQueryResultsMockRecorder struct {
+	mock *MockWideQueryResults
+}
+
+// NewMockWideQueryResults creates a new mock instance
+func NewMockWideQueryResults(ctrl *gomock.Controller) *MockWideQueryResults {
+	mock := &MockWideQueryResults{ctrl: ctrl}
+	mock.recorder = &MockWideQueryResultsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockWideQueryResults) EXPECT() *MockWideQueryResultsMockRecorder {
+	return m.recorder
+}
+
+// Namespace mocks base method
+func (m *MockWideQueryResults) Namespace() ident.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Namespace")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+// Namespace indicates an expected call of Namespace
+func (mr *MockWideQueryResultsMockRecorder) Namespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockWideQueryResults)(nil).Namespace))
+}
+
+// Size mocks base method
+func (m *MockWideQueryResults) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (mr *MockWideQueryResultsMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockWideQueryResults)(nil).Size))
+}
+
+// TotalDocsCount mocks base method
+func (m *MockWideQueryResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockWideQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockWideQueryResults)(nil).TotalDocsCount))
+}
+
+// EnforceLimits mocks base method
+func (m *MockWideQueryResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockWideQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockWideQueryResults)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockWideQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockWideQueryResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockWideQueryResults)(nil).AddDocuments), batch)
+}
+
+// Finalize mocks base method
+func (m *MockWideQueryResults) Finalize() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (mr *MockWideQueryResultsMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockWideQueryResults)(nil).Finalize))
+}
+
+// Close mocks base method
+func (m *MockWideQueryResults) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockWideQueryResultsMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWideQueryResults)(nil).Close))
+}
+
 // MockQueryResults is a mock of QueryResults interface
 type MockQueryResults struct {
 	ctrl     *gomock.Controller
