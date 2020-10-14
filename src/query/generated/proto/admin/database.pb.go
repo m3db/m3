@@ -43,8 +43,8 @@
 		NamespaceSchemaAddResponse
 		NamespaceSchemaResetRequest
 		NamespaceSchemaResetResponse
-		NamespaceMarkReadyRequest
-		NamespaceMarkReadyResponse
+		NamespaceReadyRequest
+		NamespaceReadyResponse
 		PlacementInitRequest
 		PlacementGetResponse
 		PlacementAddRequest

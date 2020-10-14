@@ -42,7 +42,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNamespaceMarkReadyHandler(t *testing.T) {
+func TestNamespaceReadyHandler(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -61,7 +61,7 @@ func TestNamespaceMarkReadyHandler(t *testing.T) {
 	mockSession.EXPECT().FetchTaggedIDs(testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).Return(nil, client.FetchResponseMetadata{}, nil)
 
-	markReadyHandler := NewMarkReadyHandler(mockClient, &testClusters, instrument.NewOptions())
+	readyHandler := NewReadyHandler(mockClient, &testClusters, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -73,7 +73,7 @@ func TestNamespaceMarkReadyHandler(t *testing.T) {
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
-	markReadyHandler.ServeHTTP(svcDefaults, w, req)
+	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -88,14 +88,14 @@ func TestNamespaceMarkReadyHandler(t *testing.T) {
 	require.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
-func TestNamespaceMarkReadyHandlerWithForce(t *testing.T) {
+func TestNamespaceReadyHandlerWithForce(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockKV, _ := testSetup(t, ctrl)
 	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
 
-	markReadyHandler := NewMarkReadyHandler(mockClient, nil, instrument.NewOptions())
+	readyHandler := NewReadyHandler(mockClient, nil, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -108,7 +108,7 @@ func TestNamespaceMarkReadyHandlerWithForce(t *testing.T) {
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
-	markReadyHandler.ServeHTTP(svcDefaults, w, req)
+	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -123,13 +123,13 @@ func TestNamespaceMarkReadyHandlerWithForce(t *testing.T) {
 	require.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
-func TestNamespaceMarkReadyFailIfNoClusters(t *testing.T) {
+func TestNamespaceReadyFailIfNoClusters(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, _, _ := testSetup(t, ctrl)
 
-	markReadyHandler := NewMarkReadyHandler(mockClient, nil, instrument.NewOptions())
+	readyHandler := NewReadyHandler(mockClient, nil, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -141,19 +141,19 @@ func TestNamespaceMarkReadyFailIfNoClusters(t *testing.T) {
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
-	markReadyHandler.ServeHTTP(svcDefaults, w, req)
+	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-func TestNamespaceMarkReadyFailIfNamespaceMissing(t *testing.T) {
+func TestNamespaceReadyFailIfNamespaceMissing(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, _, _ := testSetup(t, ctrl)
 
-	markReadyHandler := NewMarkReadyHandler(mockClient, nil, instrument.NewOptions())
+	readyHandler := NewReadyHandler(mockClient, nil, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -165,7 +165,7 @@ func TestNamespaceMarkReadyFailIfNamespaceMissing(t *testing.T) {
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
-	markReadyHandler.ServeHTTP(svcDefaults, w, req)
+	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)

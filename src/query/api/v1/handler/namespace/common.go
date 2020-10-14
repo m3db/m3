@@ -160,9 +160,9 @@ func RegisterRoutes(
 	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 
 	// Mark M3DB namespace as ready.
-	markReadyHandler := wrapped(
-		applyMiddleware(NewMarkReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBMarkReadyURL, markReadyHandler.ServeHTTP).Methods(MarkReadyHTTPMethod)
+	readyHandler := wrapped(
+		applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(M3DBReadyURL, readyHandler.ServeHTTP).Methods(ReadyHTTPMethod)
 
 }
 

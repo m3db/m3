@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -40,44 +40,34 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
 var (
-	// M3DBMarkReadyURL is the url for the M3DB namespace add handler.
-	M3DBMarkReadyURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName, "mark_ready")
+	// M3DBReadyURL is the url for the M3DB namespace mark_ready handler.
+	M3DBReadyURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName, "ready")
 
-	// MarkReadyHTTPMethod is the HTTP method used with this resource.
-	MarkReadyHTTPMethod = http.MethodPost
-
-	fetchRetryConfig = retry.Configuration{
-		InitialBackoff: time.Millisecond * 500,
-		MaxBackoff:     time.Second * 2,
-		BackoffFactor:  2,
-		MaxRetries:     2,
-	}
+	// ReadyHTTPMethod is the HTTP method used with this resource.
+	ReadyHTTPMethod = http.MethodPost
 )
 
-// MarkReadyHandler is the handler for marking namespaces ready.
-type MarkReadyHandler Handler
+// ReadyHandler is the handler for marking namespaces ready.
+type ReadyHandler Handler
 
-// NewMarkReadyHandler returns a new instance of MarkReadyHandler.
-func NewMarkReadyHandler(
+// NewReadyHandler returns a new instance of ReadyHandler.
+func NewReadyHandler(
 	client clusterclient.Client,
 	clusters m3.Clusters,
 	instrumentOpts instrument.Options,
-) *MarkReadyHandler {
-	return &MarkReadyHandler{
+) *ReadyHandler {
+	return &ReadyHandler{
 		client:         client,
 		clusters:       clusters,
 		instrumentOpts: instrumentOpts,
 	}
 }
 
-func (h *MarkReadyHandler) ServeHTTP(
+func (h *ReadyHandler) ServeHTTP(
 	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -93,24 +83,24 @@ func (h *MarkReadyHandler) ServeHTTP(
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	ready, err := h.MarkReady(req, opts)
+	ready, err := h.Ready(req, opts)
 	if err != nil {
 		logger.Error("unable to mark namespace as ready", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	resp := &admin.NamespaceMarkReadyResponse{
+	resp := &admin.NamespaceReadyResponse{
 		Ready: ready,
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *MarkReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceMarkReadyRequest, *xhttp.ParseError) {
+func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 
-	req := new(admin.NamespaceMarkReadyRequest)
+	req := new(admin.NamespaceReadyRequest)
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -118,7 +108,7 @@ func (h *MarkReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceMarkRe
 	return req, nil
 }
 
-func (h *MarkReadyHandler) MarkReady(req *admin.NamespaceMarkReadyRequest, opts handleroptions.ServiceOptions) (bool, error) {
+func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptions.ServiceOptions) (bool, error) {
 	// Fetch existing namespace metadata.
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
@@ -183,7 +173,7 @@ func (h *MarkReadyHandler) MarkReady(req *admin.NamespaceMarkReadyRequest, opts 
 	return true, nil
 }
 
-func (h *MarkReadyHandler) checkDBNodes(namespace string) error {
+func (h *ReadyHandler) checkDBNodes(namespace string) error {
 	if h.clusters == nil {
 		return fmt.Errorf("coordinator is not connected to dbnodes. cannot check namespace %v"+
 			" for readiness. set force = true to make namespaces ready without checking dbnodes", namespace)
@@ -204,23 +194,13 @@ func (h *MarkReadyHandler) checkDBNodes(namespace string) error {
 		return fmt.Errorf("could not find db session for namespace %v", namespace)
 	}
 
-	retryOpts := fetchRetryConfig.NewOptions(
-		h.instrumentOpts.MetricsScope().SubScope("mark-ready-fetch-retry"),
-	)
-	fetchRetrier := retry.NewRetrier(retryOpts)
-
-	if err := fetchRetrier.Attempt(func() error {
-		// Do a simple quorum read. A non-error indicates most dbnodes have the namespace.
-		_, _, err := session.FetchTaggedIDs(id,
-			index.Query{Query: idx.NewAllQuery()},
-			index.QueryOptions{SeriesLimit: 1, DocsLimit: 1})
-		// We treat any error here as a proxy for namespace readiness.
-		if err != nil {
-			return fmt.Errorf("namepace %v not yet ready, err: %w", namespace, err)
-		}
-		return nil
-	}); err != nil {
-		return err
+	// Do a simple quorum read. A non-error indicates most dbnodes have the namespace.
+	_, _, err := session.FetchTaggedIDs(id,
+		index.Query{Query: idx.NewAllQuery()},
+		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1})
+	// We treat any error here as a proxy for namespace readiness.
+	if err != nil {
+		return fmt.Errorf("namepace %v not yet ready, err: %w", namespace, err)
 	}
 
 	return nil
