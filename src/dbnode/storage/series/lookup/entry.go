@@ -23,9 +23,15 @@ package lookup
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -34,14 +40,31 @@ const (
 	maxInt64  = int64(maxUint64 >> 1)
 )
 
+// IndexWriter accepts index inserts.
+type IndexWriter interface {
+	// WritePending indexes the provided pending entries.
+	WritePending(
+		pending []writes.PendingIndexInsert,
+	) error
+
+	// BlockStartForWriteTime returns the index block start
+	// time for the given writeTime.
+	BlockStartForWriteTime(
+		writeTime time.Time,
+	) xtime.UnixNano
+}
+
 // Entry is the entry in the shard ident.ID -> series map. It has additional
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
-	Series         series.DatabaseSeries
-	Index          uint64
-	curReadWriters int32
-	reverseIndex   entryIndexState
+	Series                   series.DatabaseSeries
+	Index                    uint64
+	indexWriter              IndexWriter
+	curReadWriters           int32
+	reverseIndex             entryIndexState
+	nowFn                    clock.NowFn
+	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
 // OnReleaseReadWriteRef is a callback that can release
@@ -56,11 +79,29 @@ var _ OnReleaseReadWriteRef = &Entry{}
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &Entry{}
 
+// ensure Entry satisfies the `bootstrap.SeriesRef` interface.
+var _ bootstrap.SeriesRef = &Entry{}
+
+// NewEntryOptions supplies options for a new entry.
+type NewEntryOptions struct {
+	Series      series.DatabaseSeries
+	Index       uint64
+	IndexWriter IndexWriter
+	NowFn       clock.NowFn
+}
+
 // NewEntry returns a new Entry.
-func NewEntry(series series.DatabaseSeries, index uint64) *Entry {
+func NewEntry(opts NewEntryOptions) *Entry {
+	nowFn := time.Now
+	if opts.NowFn != nil {
+		nowFn = opts.NowFn
+	}
 	entry := &Entry{
-		Series: series,
-		Index:  index,
+		Series:                   opts.Series,
+		Index:                    opts.Index,
+		indexWriter:              opts.IndexWriter,
+		nowFn:                    nowFn,
+		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
 	}
 	entry.reverseIndex.states = entry.reverseIndex._staticAloc[:0]
 	return entry
@@ -159,6 +200,49 @@ func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Unlock()
 	// indicate the index has released held reference for provided write
 	entry.DecrementReaderWriterCount()
+}
+
+// Write writes a new value.
+func (entry *Entry) Write(
+	ctx context.Context,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+	wOpts series.WriteOptions,
+) (bool, series.WriteType, error) {
+	if idx := entry.indexWriter; idx != nil {
+		if entry.NeedsIndexUpdate(idx.BlockStartForWriteTime(timestamp)) {
+			entry.pendingIndexBatchSizeOne[0] = writes.PendingIndexInsert{
+				Entry: index.WriteBatchEntry{
+					Timestamp:     timestamp,
+					OnIndexSeries: entry,
+					EnqueuedAt:    entry.nowFn(),
+				},
+				Document: entry.Series.Metadata(),
+			}
+			entry.OnIndexPrepare()
+			if err := idx.WritePending(entry.pendingIndexBatchSizeOne); err != nil {
+				return false, 0, err
+			}
+		}
+	}
+	return entry.Series.Write(
+		ctx,
+		timestamp,
+		value,
+		unit,
+		annotation,
+		wOpts,
+	)
+}
+
+// LoadBlock loads a single block into the series.
+func (entry *Entry) LoadBlock(
+	block block.DatabaseBlock,
+	writeType series.WriteType,
+) error {
+	return entry.Series.LoadBlock(block, writeType)
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

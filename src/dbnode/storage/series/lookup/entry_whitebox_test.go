@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ func newTime(n int) xtime.UnixNano {
 }
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := NewEntry(nil, 0)
+	e := NewEntry(lookup.NewEntryOptions{})
 	require.Equal(t, 3, cap(e.reverseIndex.states))
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
