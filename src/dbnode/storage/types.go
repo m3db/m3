@@ -186,6 +186,8 @@ type Database interface {
 		iterOpts index.IterationOptions,
 	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
 
+	// ReadMismatches performs a wide blockwise query that applies a received
+	// index checksum block batch.
 	ReadMismatches(
 		ctx context.Context,
 		namespace ident.ID,

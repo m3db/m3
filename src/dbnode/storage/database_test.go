@@ -836,7 +836,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -916,7 +916,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ns.EXPECT().Close().Return(nil)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 
 	sp.Finish()
@@ -936,93 +936,28 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	assert.Equal(t, exSpans, spanStrs)
 }
 
+type wideQueryTestFn func(
+	ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+	ns *MockdatabaseNamespace, d *db, q index.Query,
+	now time.Time, shards []uint32, iterOpts index.IterationOptions,
+)
+
 func TestWideQuery(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
+	readMismatchTest := func(
+		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+		ns *MockdatabaseNamespace, d *db, q index.Query,
+		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+			ident.StringID("foo"), gomock.Any()).
+			Return(block.EmptyStreamedChecksum, nil)
 
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
-	defer func() {
-		close(mapCh)
-	}()
+		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
+		require.NoError(t, err)
 
-	commitlog := d.commitLog
-	d.commitLog = nil
-	ns := dbAddNewMockNamespace(ctrl, d, "testns")
-	nsOptions := namespace.NewOptions()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
-	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
-	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
-	require.NoError(t, d.Open())
-
-	ctx := context.NewContext()
-	// create initial span from a mock tracer and get ctx
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
-
-	var (
-		q = index.Query{
-			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
-		}
-		err error
-
-		now      = time.Now()
-		iterOpts = index.IterationOptions{}
-		wideOpts = index.WideQueryOptions{
-			StartInclusive:   now.Truncate(2 * time.Hour),
-			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
-			IterationOptions: iterOpts,
-			BatchSize:        1024,
-		}
-	)
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
-
-	shards := []uint32{1, 2, 3}
-	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
-		DoAndReturn(func(
-			_ context.Context,
-			_ index.Query,
-			collector chan *ident.IDBatch,
-			opts index.WideQueryOptions,
-		) error {
-			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
-			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
-			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
-			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
-			assert.Equal(t, opts.ShardsQueried, shards)
-			go func() {
-				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
-				batch.Add(1)
-				collector <- batch
-				close(collector)
-			}()
-			return nil
-		})
-
-	ns.EXPECT().FetchIndexChecksum(gomock.Any(),
-		ident.StringID("foo"), wideOpts.StartInclusive).
-		Return(block.EmptyStreamedChecksum, nil)
-	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
-	require.NoError(t, err)
-
-	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
-		Return(fmt.Errorf("random err"))
-	_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
-	require.Error(t, err)
-
-	ns.EXPECT().Close().Return(nil)
-
-	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
-	require.NoError(t, d.Close())
-
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-	spanStrs := make([]string, 0, len(spans))
-	for _, s := range spans {
-		spanStrs = append(spanStrs, s.OperationName)
+		_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+		require.Error(t, err)
 	}
+
 	exSpans := []string{
 		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
@@ -1030,10 +965,37 @@ func TestWideQuery(t *testing.T) {
 		"root",
 	}
 
-	assert.Equal(t, exSpans, spanStrs)
+	testWideFunction(t, readMismatchTest, exSpans)
 }
 
 func TestReadMismatches(t *testing.T) {
+	readMismatchTest := func(
+		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+		ns *MockdatabaseNamespace, d *db, q index.Query,
+		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
+		ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
+			ident.StringID("foo"), gomock.Any()).
+			Return(wide.EmptyStreamedMismatchBatch, nil)
+
+		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
+		require.NoError(t, err)
+
+		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, nil, iterOpts)
+		require.Error(t, err)
+	}
+
+	exSpans := []string{
+		tracepoint.DBFetchMismatches,
+		tracepoint.DBReadMismatches,
+		tracepoint.DBReadMismatches,
+		"root",
+	}
+
+	testWideFunction(t, readMismatchTest, exSpans)
+}
+
+func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -1042,7 +1004,7 @@ func TestReadMismatches(t *testing.T) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	d.commitLog = nil
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	nsOptions := namespace.NewOptions()
@@ -1062,7 +1024,6 @@ func TestReadMismatches(t *testing.T) {
 		q = index.Query{
 			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
 		}
-		err error
 
 		now      = time.Now()
 		iterOpts = index.IterationOptions{}
@@ -1097,22 +1058,13 @@ func TestReadMismatches(t *testing.T) {
 			return nil
 		})
 
-	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-	ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
-		ident.StringID("foo"), wideOpts.StartInclusive).
-		Return(wide.EmptyStreamedMismatchBatch, nil)
-	_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
-	require.NoError(t, err)
-
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
-	_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, nil, iterOpts)
-	require.Error(t, err)
 
+	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
 	ns.EXPECT().Close().Return(nil)
-
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 
 	sp.Finish()
@@ -1120,12 +1072,6 @@ func TestReadMismatches(t *testing.T) {
 	spanStrs := make([]string, 0, len(spans))
 	for _, s := range spans {
 		spanStrs = append(spanStrs, s.OperationName)
-	}
-	exSpans := []string{
-		tracepoint.DBFetchMismatches,
-		tracepoint.DBReadMismatches,
-		tracepoint.DBReadMismatches,
-		"root",
 	}
 
 	assert.Equal(t, exSpans, spanStrs)
@@ -1222,7 +1168,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -1368,7 +1314,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
@@ -1458,7 +1404,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	d.commitLog = nil
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
@@ -1528,7 +1474,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.Equal(t, 2, len(errHandler.errs))
 	require.Equal(t, err, errHandler.errs[0].err)
 	require.Equal(t, err, errHandler.errs[1].err)
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
