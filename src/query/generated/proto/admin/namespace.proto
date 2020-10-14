@@ -51,7 +51,8 @@ message NamespaceSchemaResetResponse {
 }
 
 // NamespaceReadyRequest is the request for transitioning a namespace
-// to the ready state.
+// to the ready state. Calls to this endpoint are idempotent and can
+// be safely retried on error.
 message NamespaceReadyRequest {
   // Name is the namespace name.
   string name = 1;

@@ -202,12 +202,14 @@ func (*NamespaceSchemaResetResponse) Descriptor() ([]byte, []int) {
 }
 
 // NamespaceReadyRequest is the request for transitioning a namespace
-// to the ready state.
+// to the ready state. Calls to this endpoint are idempotent and can
+// be safely retried on error.
 type NamespaceReadyRequest struct {
 	// Name is the namespace name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Force forces the StagingStatus of the namespace
-	// to be moved to the ready state.
+	// Force forces the StagingStatus of the namespace to be moved to the ready state.
+	// If the namespace is still not ready in DB nodes, then the coordinator will receive
+	// errors upon attempted reads or writes until the namespaces is actually ready.
 	Force bool `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
 }
 
