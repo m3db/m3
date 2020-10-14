@@ -585,7 +585,7 @@ func (s *service) aggregateTiles(
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}
-	opts, err := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
+	opts, err := storage.NewAggregateTilesOptions(start, end, step)
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}

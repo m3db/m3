@@ -125,6 +125,12 @@ type Options interface {
 
 	// AggregationOptions returns the aggregation-related options for this namespace.
 	AggregationOptions() AggregationOptions
+
+	// SetStagingState sets the state related to a namespace's availability for use.
+	SetStagingState(value StagingState) Options
+
+	// StagingState returns the state related to a namespace's availability for use.
+	StagingState() StagingState
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -356,4 +362,24 @@ type DownsampleOptions struct {
 	// case, data will need to be sent to the namespace via another mechanism
 	// (e.g. rollup/recording rules).
 	All bool
+}
+
+// StagingStatus is the status of the namespace.
+type StagingStatus uint8
+
+const (
+	// UnknownStagingStatus represents an unknown staging status.
+	// Namespaces created before StagingState was added to the namespace API
+	// will return UnknownStagingStatus. Callers should be prepared to handle this case.
+	UnknownStagingStatus StagingStatus = iota
+	// InitializingStagingStatus means the namespace is in the process of coming online for use.
+	InitializingStagingStatus
+	// ReadyStagingStatus means the namespace is ready for use.
+	ReadyStagingStatus
+)
+
+var validStagingStatuses = []StagingStatus{
+	UnknownStagingStatus,
+	InitializingStagingStatus,
+	ReadyStagingStatus,
 }

@@ -416,11 +416,7 @@ type databaseNamespace interface {
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 
 	// AggregateTiles does large tile aggregation from source namespace into this namespace.
-	AggregateTiles(
-		ctx context.Context,
-		sourceNs databaseNamespace,
-		opts AggregateTilesOptions,
-	) (int64, error)
+	AggregateTiles(sourceNs databaseNamespace, opts AggregateTilesOptions) (int64, error)
 
 	// ReadableShardAt returns a shard of this namespace by shardID.
 	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
@@ -603,10 +599,10 @@ type databaseShard interface {
 
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
-		ctx context.Context,
 		sourceNsID ident.ID,
 		sourceShardID uint32,
 		blockReaders []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
 		targetSchemaDesc namespace.SchemaDescr,
@@ -1306,9 +1302,6 @@ type AggregateTilesOptions struct {
 	Start, End time.Time
 	// Step is the downsampling step.
 	Step time.Duration
-	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
-	// TODO: remove once we have metrics type stored in the metadata.
-	HandleCounterResets bool
 	MetricsScope        tally.Scope
 }
 

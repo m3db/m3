@@ -29,49 +29,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func (u *unitRecorder) assertValue(t *testing.T, expected xtime.Unit, idx int) {
+	actual, err := u.Value(idx)
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual, "index %d", idx)
+}
+
+func (u *unitRecorder) assertError(t *testing.T, idx int) {
+	_, err := u.Value(idx)
+	assert.Error(t, err, "index %d", idx)
+}
+
+func TestSeriesFrameUnitsEmpty(t *testing.T) {
+	rec := newUnitRecorder()
+	rec.assertError(t,-1)
+	rec.assertError(t,0)
+}
+
 func TestSeriesFrameUnitsSingle(t *testing.T) {
 	rec := newUnitRecorder()
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
+	rec.record(xtime.Second)
+	rec.assertValue(t, xtime.Second, 0)
+	rec.assertError(t,1)
 
 	rec.record(xtime.Second)
-	v, ok := rec.SingleValue()
-	assert.True(t, ok)
-	assert.Equal(t, xtime.Second, v)
-
-	rec.record(xtime.Second)
-	v, ok = rec.SingleValue()
-	assert.True(t, ok)
-	assert.Equal(t, xtime.Second, v)
-
-	vals := rec.Values()
-	assert.Equal(t, []xtime.Unit{xtime.Second, xtime.Second}, vals)
+	rec.assertValue(t, xtime.Second, 1)
+	rec.assertError(t,2)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
+	rec.assertError(t,0)
 }
 
 func TestSeriesFrameUnitsMultiple(t *testing.T) {
 	rec := newUnitRecorder()
+
 	rec.record(xtime.Second)
 	rec.record(xtime.Second)
 	rec.record(xtime.Day)
 	rec.record(xtime.Second)
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
-
-	vals := rec.Values()
-	assert.Equal(t, []xtime.Unit{xtime.Second, xtime.Second, xtime.Day, xtime.Second}, vals)
+	rec.assertValue(t, xtime.Second, 0)
+	rec.assertValue(t, xtime.Second, 1)
+	rec.assertValue(t, xtime.Day, 2)
+	rec.assertValue(t, xtime.Second, 3)
+	rec.assertError(t, 4)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
-
-	vals = rec.Values()
-	require.Equal(t, 0, len(vals))
+	rec.assertError(t, 0)
 }
 
 func TestSeriesFrameUnitsMultipleChanges(t *testing.T) {
@@ -80,16 +85,11 @@ func TestSeriesFrameUnitsMultipleChanges(t *testing.T) {
 	rec.record(xtime.Day)
 	rec.record(xtime.Nanosecond)
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
-
-	vals := rec.Values()
-	assert.Equal(t, []xtime.Unit{xtime.Second, xtime.Day, xtime.Nanosecond}, vals)
+	rec.assertValue(t, xtime.Second, 0)
+	rec.assertValue(t, xtime.Day, 1)
+	rec.assertValue(t, xtime.Nanosecond, 2)
+	rec.assertError(t, 3)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
-
-	vals = rec.Values()
-	require.Equal(t, 0, len(vals))
+	rec.assertError(t, 0)
 }

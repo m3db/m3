@@ -1624,27 +1624,29 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 }
 
 func (n *dbNamespace) AggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	startedAt := time.Now()
+	var (
+		startedAt          = time.Now()
+		targetBlockSize    = n.Metadata().Options().RetentionOptions().BlockSize()
+		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
+		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
+		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
+	)
 
-	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
-	blockStart := opts.Start.Truncate(targetBlockSize)
-	if blockStart.Add(targetBlockSize).Before(opts.End) {
+	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
@@ -1657,14 +1659,19 @@ func (n *dbNamespace) aggregateTiles(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	targetShards := n.OwnedShards()
+	var (
 	processedShards := opts.MetricsScope.Counter("processed-shards")
+		targetShards      = n.OwnedShards()
+		bytesPool         = sourceNs.StorageOptions().BytesPool()
+		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
+		blockReaders      []fs.DataFileSetReader
+		sourceBlockStarts []time.Time
+	)
 
-	var blockReaders []fs.DataFileSetReader
-	var sourceBlockStarts []time.Time
-	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
-	for sourceBlockStart := blockStart; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+	for sourceBlockStart := targetBlockStart;
+		sourceBlockStart.Before(lastSourceBlockEnd);
+		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err
 		}
@@ -1690,8 +1697,13 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
+		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)
@@ -1702,9 +1714,11 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Int("shards", len(targetShards)),
+		zap.Time("targetBlockStart", targetBlockStart),
+		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd),
+		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
-		zap.Duration("duration", time.Now().Sub(startedAt)))
+		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
 }
