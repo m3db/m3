@@ -56,11 +56,12 @@ import (
 )
 
 type peersSource struct {
-	opts           Options
-	log            *zap.Logger
-	nowFn          clock.NowFn
-	persistManager *bootstrapper.SharedPersistManager
-	compactor      *bootstrapper.SharedCompactor
+	opts              Options
+	log               *zap.Logger
+	newPersistManager func() (persist.Manager, error)
+	nowFn             clock.NowFn
+	persistManager    *bootstrapper.SharedPersistManager
+	compactor         *bootstrapper.SharedCompactor
 }
 
 type persistenceFlush struct {
@@ -77,8 +78,11 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 
 	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
-		opts:  opts,
-		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		opts: opts,
+		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		newPersistManager: func() (persist.Manager, error) {
+			return fs.NewPersistManager(opts.FilesystemOptions())
+		},
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 		persistManager: &bootstrapper.SharedPersistManager{
 			Mgr: opts.PersistManager(),
@@ -260,7 +264,6 @@ func (s *peersSource) readData(
 
 	var (
 		resultLock              sync.Mutex
-		wg                      sync.WaitGroup
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
@@ -291,7 +294,10 @@ func (s *peersSource) readData(
 		}
 	}
 
-	workers := xsync.NewWorkerPool(concurrency)
+	var (
+		wg      sync.WaitGroup
+		workers = xsync.NewWorkerPool(concurrency)
+	)
 	workers.Init()
 	for shard, ranges := range shardTimeRanges.Iter() {
 		shard, ranges := shard, ranges
@@ -328,7 +334,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) (io.Closer, error) {
-	persistMgr, err := fs.NewPersistManager(s.opts.FilesystemOptions())
+	persistMgr, err := s.newPersistManager()
 	if err != nil {
 		return nil, err
 	}
@@ -368,6 +374,7 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 
 	// If performing a bootstrap with persistence enabled then flush one
 	// at a time as shard results are gathered.
+	fmt.Printf("!! starting persist worker\n")
 	for flush := range persistenceQueue {
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardResult, flush.timeRange, asyncTasks)
@@ -389,6 +396,7 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
+	fmt.Printf("!! finishing persist worker\n")
 }
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
@@ -557,6 +565,7 @@ func (s *peersSource) flush(
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
 	)
+	fmt.Printf("!! flushing shard=%d, tr=%s\n", shard, tr.String())
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
@@ -588,6 +597,7 @@ func (s *peersSource) flush(
 			//    so it is safe to delete on disk data.
 			DeleteIfExists: true,
 		}
+		fmt.Printf("!! prepare data shard=%d, start=%s\n", shard, start.String())
 		prepared, err := flush.PrepareData(prepareOpts)
 		if err != nil {
 			return err
@@ -596,14 +606,17 @@ func (s *peersSource) flush(
 		var blockErr error
 		for _, entry := range shardResult.AllSeries().Iter() {
 			s := entry.Value()
+			fmt.Printf("!! trying persist id=%s\n", s.ID.String())
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
+				fmt.Printf("!! block at missing start=%s\n", start)
 				continue
 			}
 
 			checksum, err := bl.Checksum()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
+				fmt.Printf("!! block err err=%v\n", err)
 				break
 			}
 
@@ -613,6 +626,7 @@ func (s *peersSource) flush(
 			// Remove from map.
 			s.Blocks.RemoveBlockAt(start)
 
+			fmt.Printf("!! REALLY trying persist id=%s, start=%s\n", s.ID.String(), start.String())
 			metadata := persist.NewMetadataFromIDAndTags(s.ID, s.Tags,
 				persist.MetadataOptions{})
 			err = prepared.Persist(metadata, segment, checksum)
