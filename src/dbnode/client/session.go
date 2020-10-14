@@ -68,13 +68,11 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval           = 10 * time.Millisecond
-	blocksMetadataChannelInitialCapacity = 4096
-	gaugeReportInterval                  = 500 * time.Millisecond
-	blockMetadataChBufSize               = 4096
-	shardResultCapacity                  = 4096
-	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
-	hostNotAvailableMaxSleepInterval     = 100 * time.Millisecond
+	clusterConnectWaitInterval       = 10 * time.Millisecond
+	gaugeReportInterval              = 500 * time.Millisecond
+	blockMetadataChBufSize           = 65536
+	hostNotAvailableMinSleepInterval = 1 * time.Millisecond
+	hostNotAvailableMaxSleepInterval = 100 * time.Millisecond
 )
 
 type resultTypeEnum string
@@ -2036,7 +2034,7 @@ func (s *session) fetchBlocksMetadataFromPeers(
 
 	var (
 		metadataCh = make(chan receivedBlockMetadata,
-			blocksMetadataChannelInitialCapacity)
+			blockMetadataChBufSize)
 		errCh = make(chan error, 1)
 		meta  = resultTypeMetadata
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
@@ -3550,7 +3548,7 @@ func newBulkBlocksResult(
 	return &bulkBlocksResult{
 		nsCtx:            nsCtx,
 		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
-		result:           result.NewShardResult(shardResultCapacity, resultOpts),
+		result:           result.NewShardResult(resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
@@ -3654,7 +3652,12 @@ type enqueueCh struct {
 	metrics              *streamFromPeersMetrics
 }
 
-const enqueueChannelDefaultLen = 32768
+// enqueueChannelDefaultLen is the queue length for processing series ready to
+// be fetched from other peers.
+// It was reduced from 32k to 512 since each struct in the queue is quite large
+// and with 32k capacity was using significant memory with high shard
+// concurrency.
+const enqueueChannelDefaultLen = 512
 
 func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
 	c := &enqueueCh{
