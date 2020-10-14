@@ -1,9 +1,9 @@
-package debug
+package config
 
 import "runtime"
 
-// Configuration for the debug package.
-type Configuration struct {
+// DebugConfiguration for the debug package.
+type DebugConfiguration struct {
 
 	// MutexProfileFraction is used to set the runtime.SetMutexProfileFraction to report mutex convention events.
 	// See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the values.
@@ -11,6 +11,6 @@ type Configuration struct {
 }
 
 // SetMutexProfileFraction sets the configured mutex profile fraction for the runtime.
-func (c Configuration) SetMutexProfileFraction() {
+func (c DebugConfiguration) SetMutexProfileFraction() {
 	runtime.SetMutexProfileFraction(c.MutexProfileFraction)
 }

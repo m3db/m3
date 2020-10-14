@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
-	"github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
@@ -61,7 +61,7 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 
 	// Debug configuration.
-	Debug debug.Configuration `yaml:"debug"`
+	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.

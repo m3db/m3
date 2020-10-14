@@ -40,7 +40,7 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
-	"github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/debug/config"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -165,7 +165,7 @@ type Configuration struct {
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 
 	// Debug configuration.
-	Debug debug.Configuration `yaml:"debug"`
+	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
