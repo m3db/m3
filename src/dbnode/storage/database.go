@@ -940,7 +940,10 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-func (d *db) wideID(
+// batchProcessWideQuery runs the given query against the namespace index,
+// iterating in a batchwise fashion across all matching IDs, applying the given
+// IDBatchProcessor batch processing function to each ID discovered.
+func (d *db) batchProcessWideQuery(
 	ctx context.Context,
 	n databaseNamespace,
 	query index.Query,
@@ -949,7 +952,6 @@ func (d *db) wideID(
 ) error {
 	// Build collector
 	var (
-		mu           sync.Mutex
 		collectorErr error
 
 		collector = make(chan *ident.IDBatch)
@@ -969,10 +971,7 @@ func (d *db) wideID(
 		}()
 
 		for batch := range collector {
-			mu.Lock()
 			collectorErr = batchProcessor(batch)
-			mu.Unlock()
-
 			batch.Done()
 		}
 	}()
@@ -1056,7 +1055,7 @@ func (d *db) WideQuery(
 		return nil
 	}
 
-	err = d.wideID(ctx, n, query, indexChecksumProcessor, opts)
+	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1066,21 +1065,21 @@ func (d *db) WideQuery(
 
 func (d *db) fetchIndexChecksum(
 	ctx context.Context,
-	n databaseNamespace,
+	ns databaseNamespace,
 	id ident.ID,
 	start time.Time,
 ) (block.StreamedChecksum, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.String("namespace", ns.ID().String()),
 			opentracinglog.String("id", id.String()),
 			xopentracing.Time("start", start),
 		)
 	}
 
 	defer sp.Finish()
-	return n.FetchIndexChecksum(ctx, id, start)
+	return ns.FetchIndexChecksum(ctx, id, start)
 }
 
 func (d *db) ReadMismatches(
@@ -1148,7 +1147,7 @@ func (d *db) ReadMismatches(
 		return nil
 	}
 
-	err = d.wideID(ctx, n, query, streamMismatchProcessor, opts)
+	err = d.batchProcessWideQuery(ctx, n, query, streamMismatchProcessor, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1158,7 +1157,7 @@ func (d *db) ReadMismatches(
 
 func (d *db) fetchReadMismatches(
 	ctx context.Context,
-	n databaseNamespace,
+	ns databaseNamespace,
 	batchReader wide.IndexChecksumBlockBatchReader,
 	id ident.ID,
 	start time.Time,
@@ -1166,14 +1165,14 @@ func (d *db) fetchReadMismatches(
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatches)
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.String("namespace", ns.ID().String()),
 			opentracinglog.String("id", id.String()),
 			xopentracing.Time("start", start),
 		)
 	}
 
 	defer sp.Finish()
-	return n.FetchReadMismatches(ctx, batchReader, id, start)
+	return ns.FetchReadMismatches(ctx, batchReader, id, start)
 }
 
 func (d *db) FetchBlocks(
