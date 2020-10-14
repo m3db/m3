@@ -43,6 +43,7 @@ import (
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	for _, test := range []testPeersBootstrapHighConcurrencyOptions{
 		{BatchSize: 16, Concurrency: 64, BatchesPerWorker: 8},
+		{BatchSize: 64, Concurrency: 16, BatchesPerWorker: 8},
 	} {
 		name, err := json.Marshal(test)
 		require.NoError(t, err)
