@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,40 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package pprof provides a function for registering a HTTP handler for pprof
-// endpoints.
-package pprof
+package config
 
-import (
-	"net/http"
-	"net/http/pprof"
-	"strings"
-)
+import "runtime"
 
-const (
-	pprofPath = "/debug/pprof/"
-)
+// DebugConfiguration for the debug package.
+type DebugConfiguration struct {
 
-// RegisterHandler registers the pprof handler with the given http mux.
-func RegisterHandler(mux *http.ServeMux) {
-	mux.Handle(pprofPath, handler())
+	// MutexProfileFraction is used to set the runtime.SetMutexProfileFraction to report mutex convention events.
+	// See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the values.
+	MutexProfileFraction int `yaml:"mutexProfileFraction"`
 }
 
-func handler() http.Handler {
-	h := func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(r.URL.Path, pprofPath)
-		switch name {
-		case "cmdline":
-			pprof.Cmdline(w, r)
-		case "profile":
-			pprof.Profile(w, r)
-		case "symbol":
-			pprof.Symbol(w, r)
-		case "trace":
-			pprof.Trace(w, r)
-		default:
-			pprof.Index(w, r)
-		}
-	}
-	return http.HandlerFunc(h)
+// SetMutexProfileFraction sets the configured mutex profile fraction for the runtime.
+func (c DebugConfiguration) SetMutexProfileFraction() {
+	runtime.SetMutexProfileFraction(c.MutexProfileFraction)
 }

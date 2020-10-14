@@ -35,10 +35,6 @@ const (
 	numGoroutinesGaugeSampleRate = 1000
 )
 
-var (
-	pooledWorkerPoolGoroutinesCapacity *int
-)
-
 type pooledWorkerPool struct {
 	sync.Mutex
 	numRoutinesAtomic        int64
@@ -65,15 +61,7 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 
 	workChs := make([]chan Work, numShards)
 	for i := range workChs {
-		if c := pooledWorkerPoolGoroutinesCapacity; c != nil {
-			if *c == 0 {
-				workChs[i] = make(chan Work)
-			} else {
-				workChs[i] = make(chan Work, *c)
-			}
-		} else {
-			workChs[i] = make(chan Work, int64(size)/numShards)
-		}
+		workChs[i] = make(chan Work, int64(size)/numShards)
 	}
 
 	return &pooledWorkerPool{

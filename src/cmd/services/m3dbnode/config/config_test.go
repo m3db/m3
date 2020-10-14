@@ -728,6 +728,8 @@ func TestConfiguration(t *testing.T) {
   wide: null
   tchannel: null
 coordinator: null
+debug:
+  mutexProfileFraction: 0
 `
 
 	actual := string(data)
