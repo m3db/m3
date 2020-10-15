@@ -394,7 +394,19 @@ func (s *dbShard) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id,
+		blockStart, onRetrieve, nsCtx)
+}
+
+// StreamIndexChecksum implements series.QueryableBlockRetriever
+func (s *dbShard) StreamIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
+		blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1132,6 +1144,18 @@ func (s *dbShard) ReadEncoded(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
+}
+
+func (s *dbShard) FetchIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -2700,7 +2724,6 @@ func (s *dbShard) AggregateTiles(
 		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	// TODO: these should probably be pooled
 	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		s.logger.Error("error when creating new series block iterator", zap.Error(err))
@@ -2776,14 +2799,13 @@ func (s *dbShard) AggregateTiles(
 		writerData[1] = segment.Tail.Bytes()
 		checksum := segment.CalculateChecksum()
 
-		if err := writer.WriteAll(id.Bytes(), encodedTags, writerData, checksum); err != nil {
+		if err := writer.WriteAll(id, encodedTags, writerData, checksum); err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
 			multiErr = multiErr.Add(err)
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
 
-		id.Finalize()
 		segment.Finalize()
 	}
 

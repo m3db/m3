@@ -306,7 +306,7 @@ func (h *Handler) RegisterRoutes() error {
 
 		placement.RegisterRoutes(h.router,
 			serviceOptionDefaults, placementOpts)
-		namespace.RegisterRoutes(h.router, clusterClient, serviceOptionDefaults, instrumentOpts)
+		namespace.RegisterRoutes(h.router, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
 		topic.RegisterRoutes(h.router, clusterClient, config, instrumentOpts)
 
 		// Experimental endpoints.

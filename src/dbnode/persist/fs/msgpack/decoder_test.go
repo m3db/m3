@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	xhash "github.com/m3db/m3/src/x/test/hash"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,14 +145,16 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Strip checksum, add new field, add updated checksum
 	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
-	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
+	checksum := int64(digest.Checksum(enc.Bytes()))
+	require.NoError(t, enc.enc.EncodeInt64(checksum))
+	expected := testIndexEntry
+	expected.IndexChecksum = checksum
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-
-	require.Equal(t, testIndexEntry, res)
+	require.Equal(t, expected, res)
 }
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
@@ -277,4 +281,34 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
+}
+
+func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
+	)
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
+	data := enc.Bytes()
+
+	tests := []struct {
+		id         string
+		exStatus   IndexChecksumLookupStatus
+		exChecksum int64
+	}{
+		{id: "aaa", exStatus: NotFound},
+		{id: "test100", exStatus: Match, exChecksum: testIndexHashValue},
+		{id: "zzz", exStatus: Mismatch},
+	}
+
+	for _, tt := range tests {
+		dec.Reset(NewByteDecoderStream(data))
+		res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), nil)
+		require.NoError(t, err)
+		require.Equal(t, tt.exStatus, status)
+		if tt.exStatus == Match {
+			require.Equal(t, tt.exChecksum, res)
+		}
+	}
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pprof
+package schema
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"github.com/cespare/xxhash/v2"
 )
 
-func TestHandler(t *testing.T) {
-	s := httptest.NewServer(handler())
-	url := s.URL + pprofPath
-	defer s.Close()
+type xxHasher struct{}
 
-	for _, endpoint := range []string{
-		"",
-		"cmdline",
-		"symbol",
-		"profile?seconds=1",
-		"trace?seconds=1",
-		"goroutine?debug=2",
-	} {
-		resp, err := http.Get(url + endpoint)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	}
+// NewXXHasher returns an IndexEntryHasher utilizing xxHash hashing.
+func NewXXHasher() IndexEntryHasher {
+	return xxHasher{}
+}
+
+func (h xxHasher) HashIndexEntry(e IndexEntry) int64 {
+	hash := uint64(7)
+	hash = 31*hash + xxhash.Sum64(e.ID)
+	hash = 31*hash + xxhash.Sum64(e.EncodedTags)
+	hash = 31*hash + uint64(e.DataChecksum)
+	return int64(hash)
 }
