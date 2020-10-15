@@ -270,7 +270,18 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		renderPartialEnd                        bool
 		numDataPointsFetched                    int
 		numDataPointsExpected                   int
+		expectedStart                           time.Time
+		expectedEnd                             time.Time
 	}{
+		{
+			name:                  "default behavior",
+			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
+			numDataPointsFetched:  7,
+			numDataPointsExpected: 4,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
+		},
 		{
 			name:                  "render partial start and end",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
@@ -279,6 +290,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
 		},
 		{
 			name:                  "render just end",
@@ -287,6 +300,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 6,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
 			name:                  "no render partial, not truncated by resolution",
@@ -294,6 +309,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
 			name:                  "no render partial, truncated start by resolution",
@@ -301,6 +318,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			end:                   time.Date(2020, time.October, 8, 15, 05, 0, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
 		},
 		{
 			name:                  "constant shift start and end",
@@ -310,6 +329,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			shiftStepsEnd:         1,
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
 			name:                                    "constant shift start and end + boundary shift start and end with start at boundary",
@@ -321,6 +342,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
 			numDataPointsFetched:                    25,
 			numDataPointsExpected:                   4,
+			expectedStart:                           time.Date(2020, time.October, 8, 15, 2, 0, 0, time.UTC),
+			expectedEnd:                             time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
 			name:                                    "constant shift start and end + boundary shift start and end with start and end at boundary",
@@ -332,6 +355,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
 			numDataPointsFetched:                    25,
 			numDataPointsExpected:                   6,
+			expectedStart:                           time.Date(2020, time.October, 8, 15, 2, 0, 0, time.UTC),
+			expectedEnd:                             time.Date(2020, time.October, 8, 15, 8, 0, 0, time.UTC),
 		},
 	}
 
@@ -359,35 +384,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 
 				require.Equal(t, fmt.Sprint("a", i), tt.Name(), "unexpected name")
 				require.Equal(t, ex, tt.SafeValues(), "unexpected values")
-
-				expectedStart := test.start.Truncate(resolution)
-				if !test.renderPartialStart && !test.start.Equal(test.start.Truncate(resolution)) {
-					expectedStart = expectedStart.Add(resolution)
-				}
-				expectedStartPreShift := expectedStart
-				if v := test.shiftStepsStartWhenAtResolutionBoundary; v != nil && test.start.Equal(test.start.Truncate(resolution)) {
-					// Apply boundary shifts which override constant shifts if at boundary.
-					expectedStart = expectedStart.Add(time.Duration(*v) * resolution)
-				} else {
-					// Otherwise shift by constant shift if no override shift effective.
-					expectedStart = expectedStart.Add(time.Duration(test.shiftStepsStart) * resolution)
-				}
-				require.Equal(t, expectedStart, tt.StartTime(), "unexpected start time")
-
-				queryWindow := test.end.Sub(test.start)
-				expectedDatapoints := queryWindow / resolution
-				expectedEnd := expectedStartPreShift.Add(expectedDatapoints * resolution)
-				if test.renderPartialEnd && queryWindow != queryWindow.Truncate(resolution) {
-					expectedEnd = expectedEnd.Add(resolution)
-				}
-				if v := test.shiftStepsEndWhenAtResolutionBoundary; v != nil && test.end.Equal(test.end.Truncate(resolution)) {
-					// Apply boundary shifts which override constant shifts if at boundary.
-					expectedEnd = expectedEnd.Add(time.Duration(*v) * resolution)
-				} else {
-					// Otherwise shift by constant shift if no override shift effective.
-					expectedEnd = expectedEnd.Add(time.Duration(test.shiftStepsEnd) * resolution)
-				}
-				require.Equal(t, expectedEnd, tt.EndTime(), "unexpected end time")
+				require.Equal(t, test.expectedStart, tt.StartTime(), "unexpected start time")
+				require.Equal(t, test.expectedEnd, tt.EndTime(), "unexpected end time")
 			}
 		})
 	}
