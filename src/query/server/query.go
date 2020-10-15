@@ -203,6 +203,8 @@ func Run(runOpts RunOptions) {
 
 	defer logger.Sync()
 
+	cfg.Debug.SetRuntimeValues(logger)
+
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	if cfg.MultiProcess.Enabled {

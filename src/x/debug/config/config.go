@@ -20,17 +20,29 @@
 
 package config
 
-import "runtime"
+import (
+	"fmt"
+	"runtime"
+
+	"go.uber.org/zap"
+)
 
 // DebugConfiguration for the debug package.
 type DebugConfiguration struct {
 
-	// MutexProfileFraction is used to set the runtime.SetMutexProfileFraction to report mutex convention events.
-	// See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the values.
+	// MutexProfileFraction is used to set the runtime.SetMutexProfileFraction to report mutex contention events.
+	// See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the value.
 	MutexProfileFraction int `yaml:"mutexProfileFraction"`
+
+	// BlockProfileRate is used to set the runtime.BlockProfileRate to report blocking events
+	// See https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value.
+	BlockProfileRate int `yaml:"blockProfileRate"`
 }
 
-// SetMutexProfileFraction sets the configured mutex profile fraction for the runtime.
-func (c DebugConfiguration) SetMutexProfileFraction() {
+// SetRuntimeValues sets the configured pprof runtime values.
+func (c DebugConfiguration) SetRuntimeValues(logger *zap.Logger) {
+	logger.Info(fmt.Sprintf("setting MutexProfileFraction: %v", c.MutexProfileFraction))
 	runtime.SetMutexProfileFraction(c.MutexProfileFraction)
+	logger.Info(fmt.Sprintf("setting BlockProfileRate: %v", c.BlockProfileRate))
+	runtime.SetBlockProfileRate(c.BlockProfileRate)
 }
