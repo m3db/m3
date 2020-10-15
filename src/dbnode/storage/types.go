@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -64,6 +65,9 @@ type PageToken []byte
 type IndexedErrorHandler interface {
 	HandleError(index int, err error)
 }
+
+// IDBatchProcessor is a function that processes a batch.
+type IDBatchProcessor func(batch *ident.IDBatch) error
 
 // Database is a time series database.
 type Database interface {
@@ -181,6 +185,18 @@ type Database interface {
 		shards []uint32,
 		iterOpts index.IterationOptions,
 	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
+
+	// ReadMismatches performs a wide blockwise query that applies a received
+	// index checksum block batch.
+	ReadMismatches(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		queryStart time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
+	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -367,6 +383,15 @@ type databaseNamespace interface {
 		blockStart time.Time,
 	) (block.StreamedChecksum, error)
 
+	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatches(
+		ctx context.Context,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		id ident.ID,
+		blockStart time.Time,
+	) (wide.StreamedMismatchBatch, error)
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -530,6 +555,16 @@ type databaseShard interface {
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (block.StreamedChecksum, error)
+
+	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatches(
+		ctx context.Context,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatchBatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -712,13 +747,13 @@ type NamespaceIndex interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// Bootstrap bootstraps the index the provided segments.
+	// Bootstrap bootstraps the index with the provided segments.
 	Bootstrap(
 		bootstrapResults result.IndexResults,
 	) error
 
-	// BootstrapsDone returns the number of completed bootstraps.
-	BootstrapsDone() uint
+	// Bootstrapped is true if the bootstrap has completed.
+	Bootstrapped() bool
 
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.

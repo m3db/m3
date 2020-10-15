@@ -61,6 +61,9 @@ const (
 	// DBWideQuery is the operation name for the db WideQuery path.
 	DBWideQuery = "storage.db.WideQuery"
 
+	// DBReadMismatches is the operation name for the db ReadMismatches path.
+	DBReadMismatches = "storage.db.ReadMismatches"
+
 	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
 
@@ -72,6 +75,9 @@ const (
 
 	// DBIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
 	DBIndexChecksum = "storage.db.IndexChecksum"
+
+	// DBFetchMismatches is the operation name for the tchannelthrift FetchMismatches path.
+	DBFetchMismatches = "storage.db.FetchMismatches"
 
 	// DBAggregateTiles is the operation name for the db AggregateTiles path.
 	DBAggregateTiles = "storage.db.AggregateTiles"

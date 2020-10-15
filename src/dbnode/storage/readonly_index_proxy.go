@@ -87,8 +87,8 @@ func (r readOnlyIndexProxy) Bootstrap(bootstrapResults result.IndexResults) erro
 	return nil
 }
 
-func (r readOnlyIndexProxy) BootstrapsDone() uint {
-	return r.underlying.BootstrapsDone()
+func (r readOnlyIndexProxy) Bootstrapped() bool {
+	return r.underlying.Bootstrapped()
 }
 
 func (r readOnlyIndexProxy) CleanupExpiredFileSets(t time.Time) error {
