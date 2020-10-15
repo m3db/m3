@@ -296,6 +296,7 @@ func timeShift(
 	_ singlePathSpec,
 	timeShiftS string,
 	_ bool,
+	_ bool,
 ) (*unaryContextShifter, error) {
 
 	// TODO: implement resetEnd
@@ -2460,6 +2461,7 @@ func init() {
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
 		3: true, // resetEnd
+		4: false, // alignDst
 	})
 	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
 		3: "now", // endTime
