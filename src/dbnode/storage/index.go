@@ -2179,7 +2179,9 @@ func (i *nsIndex) SetExtendedRetentionPeriod(period time.Duration) {
 	i.state.Lock()
 	defer i.state.Unlock()
 
-	i.extendedRetentionPeriod = period
+	if period > i.extendedRetentionPeriod {
+		i.extendedRetentionPeriod = period
+	}
 }
 
 func (i *nsIndex) effectiveRetentionPeriodWithLock() time.Duration {
