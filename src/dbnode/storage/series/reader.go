@@ -203,6 +203,52 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
+// FetchIndexChecksum reads index checksum blocks using just a block retriever.
+func (r Reader) FetchIndexChecksum(
+	ctx context.Context,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	return r.fetchIndexChecksum(ctx, blockStart, nsCtx)
+}
+
+func (r Reader) fetchIndexChecksum(
+	ctx context.Context,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	var (
+		nowFn = r.opts.ClockOptions().NowFn()
+		now   = nowFn()
+		ropts = r.opts.RetentionOptions()
+	)
+
+	earliest := retention.FlushTimeStart(ropts, now)
+	if blockStart.Before(earliest) {
+		// NB: this block is falling out of retention; return empty result rather
+		// than iterating over it.
+		return block.EmptyStreamedChecksum, nil
+	}
+
+	if r.retriever == nil {
+		return block.EmptyStreamedChecksum, nil
+	}
+	// Try to stream from disk
+	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
+	if err != nil {
+		return block.EmptyStreamedChecksum, err
+	} else if !isRetrievable {
+		return block.EmptyStreamedChecksum, nil
+	}
+	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
+		r.id, blockStart, nsCtx)
+	if err != nil {
+		return block.EmptyStreamedChecksum, err
+	}
+
+	return streamedBlock, nil
+}
+
 // FetchBlocks returns data blocks given a list of block start times using
 // just a block retriever.
 func (r Reader) FetchBlocks(

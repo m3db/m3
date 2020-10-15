@@ -56,6 +56,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	cfg.Debug.SetMutexProfileFraction()
+
 	if err := cfg.InitDefaultsAndValidate(); err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.

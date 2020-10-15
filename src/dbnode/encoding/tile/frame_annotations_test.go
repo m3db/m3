@@ -31,39 +31,36 @@ import (
 
 func a(s string) ts.Annotation { return ts.Annotation(s) }
 
-func annotationEqual(t *testing.T, expected string, actual ts.Annotation) {
-	assert.Equal(t, expected, string(actual))
+func (a *annotationRecorder) assertValue(t *testing.T, expected string, idx int) {
+	actual, err := a.Value(idx)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(actual), "index %d", idx)
 }
 
-func annotationsEqual(t *testing.T, expected []string, actual []ts.Annotation) {
-	require.Equal(t, len(expected), len(actual))
-	for i, ex := range expected {
-		annotationEqual(t, ex, actual[i])
-	}
+func (a *annotationRecorder) assertError(t *testing.T, idx int) {
+	_, err := a.Value(idx)
+	assert.Error(t, err, "index %d", idx)
+}
+
+func TestSeriesFrameAnnotationsEmpty(t *testing.T) {
+	rec := newAnnotationRecorder()
+	rec.assertError(t,-1)
+	rec.assertError(t,0)
 }
 
 func TestSeriesFrameAnnotationsSingle(t *testing.T) {
 	rec := newAnnotationRecorder()
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
+	rec.record(a("foo"))
+	rec.assertValue(t, "foo", 0)
+	rec.assertError(t,1)
 
 	rec.record(a("foo"))
-	v, ok := rec.SingleValue()
-	assert.True(t, ok)
-	annotationEqual(t, "foo", v)
-
-	rec.record(a("foo"))
-	v, ok = rec.SingleValue()
-	assert.True(t, ok)
-	annotationEqual(t, "foo", v)
-
-	vals := rec.Values()
-	annotationsEqual(t, []string{"foo", "foo"}, vals)
+	rec.assertValue(t, "foo", 1)
+	rec.assertError(t,2)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
+	rec.assertError(t,0)
 }
 
 func TestSeriesFrameAnnotationsMultiple(t *testing.T) {
@@ -72,18 +69,13 @@ func TestSeriesFrameAnnotationsMultiple(t *testing.T) {
 	rec.record(a("foo"))
 	rec.record(a("bar"))
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
-
-	vals := rec.Values()
-	annotationsEqual(t, []string{"foo", "foo", "bar"}, vals)
+	rec.assertValue(t, "foo", 0)
+	rec.assertValue(t, "foo", 1)
+	rec.assertValue(t, "bar", 2)
+	rec.assertError(t, 3)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
-
-	vals = rec.Values()
-	require.Equal(t, 0, len(vals))
+	rec.assertError(t,0)
 }
 
 func TestSeriesFrameAnnotationsMultipleChanges(t *testing.T) {
@@ -93,16 +85,12 @@ func TestSeriesFrameAnnotationsMultipleChanges(t *testing.T) {
 	rec.record(a("baz"))
 	rec.record(a("foo"))
 
-	_, ok := rec.SingleValue()
-	assert.False(t, ok)
-
-	vals := rec.Values()
-	annotationsEqual(t, []string{"foo", "bar", "baz", "foo"}, vals)
+	rec.assertValue(t, "foo", 0)
+	rec.assertValue(t, "bar", 1)
+	rec.assertValue(t, "baz", 2)
+	rec.assertValue(t, "foo", 3)
+	rec.assertError(t, 4)
 
 	rec.reset()
-	_, ok = rec.SingleValue()
-	assert.False(t, ok)
-
-	vals = rec.Values()
-	require.Equal(t, 0, len(vals))
+	rec.assertError(t,0)
 }

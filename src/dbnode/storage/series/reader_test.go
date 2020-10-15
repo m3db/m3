@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -39,7 +40,7 @@ import (
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
@@ -85,6 +86,79 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		require.Equal(t, 1, len(readers))
 		assert.Equal(t, blockReaders[i], readers[0])
 	}
+}
+
+func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	retriever := NewMockQueryableBlockRetriever(ctrl)
+	reader := NewReaderUsingRetriever(
+		ident.StringID("foo"), retriever, nil, nil, opts)
+
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).
+		Return(false, errors.New("err"))
+	_, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	assert.EqualError(t, err, "err")
+
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
+	c, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	assert.NoError(t, err)
+
+	checksum, err := c.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), checksum.Checksum)
+	assert.Equal(t, 0, len(checksum.ID))
+}
+
+func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	alignedStart := end.Add(-2 * ropts.BlockSize())
+
+	retriever := NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
+
+	checksum := ident.IndexChecksum{
+		Checksum: 5,
+		ID:       []byte("foo"),
+	}
+
+	indexChecksum := block.NewMockStreamedChecksum(ctrl)
+
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	retriever.EXPECT().
+		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
+			alignedStart, gomock.Any()).
+		Return(indexChecksum, nil).Times(2)
+
+	reader := NewReaderUsingRetriever(
+		ident.StringID("foo"), retriever, nil, nil, opts)
+
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
+	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	require.NoError(t, err)
+	_, err = streamed.RetrieveIndexChecksum()
+	assert.EqualError(t, err, "err")
+
+	// Check reads as expected
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
+	streamed, err = reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	require.NoError(t, err)
+	actual, err := streamed.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, checksum, actual)
 }
 
 type readTestCase struct {
@@ -443,7 +517,7 @@ var robustReaderTestCases = []readTestCase{
 func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (
@@ -535,7 +609,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (

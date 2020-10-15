@@ -302,6 +302,73 @@ func TestScale(t *testing.T) {
 	}
 }
 
+func TestUseSeriesAbove(t *testing.T) {
+	var (
+		ctrl      = xgomock.NewController(t)
+		store     = storage.NewMockStorage(ctrl)
+		now       = time.Now().Truncate(time.Hour)
+		engine    = NewEngine(store)
+		startTime = now.Add(-3 * time.Minute)
+		endTime   = now.Add(-time.Minute)
+		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+		stepSize  = 60000
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed"))
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.x.zed", gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.x.zed")).Times(2)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.g.zed.g", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil)
+	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed.q", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "foo.bar.q.zed.q", startTime,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil)
+
+	tests := []struct {
+		target   string
+		expected common.TestSeries
+	}{
+		{
+			"useSeriesAbove(foo.bar.q.zed, -1, 'q', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.g.zed",
+				Data: []float64{1.0, 1.0},
+			},
+		},
+		// two replacements
+		{
+			"useSeriesAbove(foo.bar.g.zed.g, 15, 'g', 'q')",
+			common.TestSeries{
+				Name: "foo.bar.q.zed.q",
+				Data: []float64{1.0, 2.0, 3.0},
+			},
+		},
+		// no replacments
+		{
+			"useSeriesAbove(foo.bar.x.zed, 1, 'p', 'g')",
+			common.TestSeries{
+				Name: "foo.bar.x.zed",
+				Data: []float64{2.0, 2.0},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		expr, err := engine.Compile(test.target)
+		require.NoError(t, err)
+		res, err := expr.Execute(ctx)
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, stepSize, startTime,
+			[]common.TestSeries{test.expected}, res.Values)
+	}
+}
+
 func TestPercentileOfSeriesErrors(t *testing.T) {
 	ctx := common.NewTestContext()
 
@@ -603,43 +670,66 @@ func TestPerSecond(t *testing.T) {
 }
 
 func TestTransformNull(t *testing.T) {
-	ctx := common.NewTestContext()
+	var (
+		start         = time.Now()
+		ctx           = common.NewTestContext()
+		millisPerStep = 100
+	)
 	defer ctx.Close()
 
 	tests := []struct {
-		inputs       []float64
+		inputs       []*ts.Series
 		defaultValue float64
-		outputs      []float64
+		outputs      []common.TestSeries
 	}{
 		{
-			[]float64{0, math.NaN(), 2.0, math.NaN(), 3.0}, 42.5,
-			[]float64{0, 42.5, 2.0, 42.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, math.NaN(), 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, 2.0, 6.5, math.NaN()})),
+			},
+			42.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,42.500)",
+					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,42.500)",
+					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
+				},
+			},
 		},
 		{
-			[]float64{0, 1.0, 2.0, math.NaN(), 3.0}, -0.5,
-			[]float64{0, 1.0, 2.0, -0.5, 3.0},
+			[]*ts.Series{
+				ts.NewSeries(ctx, "foo1", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{0, 1.0, 2.0, math.NaN(), 3.0})),
+				ts.NewSeries(ctx, "foo2", start,
+					common.NewTestSeriesValues(ctx, millisPerStep, []float64{math.NaN(), 7, math.NaN(), 6.5, math.NaN()})),
+			},
+			-0.5,
+			[]common.TestSeries{
+				common.TestSeries{
+					Name: "transformNull(foo1,-0.500)",
+					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
+				},
+				common.TestSeries{
+					Name: "transformNull(foo2,-0.500)",
+					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
+				},
+			},
 		},
 	}
 
-	start := time.Now()
 	for _, test := range tests {
-		input := ts.NewSeries(ctx, "foo", start, common.NewTestSeriesValues(ctx, 100, test.inputs))
 		r, err := transformNull(ctx, singlePathSpec{
-			Values: []*ts.Series{input},
+			Values: test.inputs,
 		}, test.defaultValue)
 		require.NoError(t, err)
 
-		outputs := r.Values
-		require.Equal(t, 1, len(outputs))
-		require.Equal(t, 100, outputs[0].MillisPerStep())
-		require.Equal(t, len(test.inputs), outputs[0].Len())
-		require.Equal(t, start, outputs[0].StartTime())
-		assert.Equal(t, fmt.Sprintf("transformNull(foo,"+common.FloatingPointFormat+")", test.defaultValue), outputs[0].Name())
-
-		for step := 0; step < outputs[0].Len(); step++ {
-			v := outputs[0].ValueAt(step)
-			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
-		}
+		common.CompareOutputsAndExpected(t, 100, start,
+			test.outputs, r.Values)
 	}
 }
 
@@ -2192,7 +2282,7 @@ func TestConstantLine(t *testing.T) {
 
 	testSeries := r.Values
 	require.Equal(t, 1, len(testSeries))
-	require.Equal(t, 2, testSeries[0].Len())
+	require.Equal(t, 3, testSeries[0].Len())
 	expectedName := fmt.Sprintf(common.FloatingPointFormat, testValue)
 	require.Equal(t, expectedName, testSeries[0].Name())
 	for i := 0; i < testSeries[0].Len(); i++ {
@@ -2810,7 +2900,7 @@ func testAggregateLineInternal(t *testing.T, f string, expectedName string, expe
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedName, results[0].Name())
-	require.Equal(t, 2, results[0].Len())
+	require.Equal(t, 3, results[0].Len())
 	for i := 0; i < 2; i++ {
 		require.Equal(t, expectedVal, results[0].ValueAt(i))
 	}
@@ -3322,6 +3412,7 @@ func TestFunctionsRegistered(t *testing.T) {
 	fnames := []string{
 		"abs",
 		"absolute",
+		"aggregate",
 		"aggregateLine",
 		"alias",
 		"aliasByMetric",
@@ -3403,12 +3494,14 @@ func TestFunctionsRegistered(t *testing.T) {
 		"removeEmptySeries",
 		"scale",
 		"scaleToSeconds",
+		"smartSummarize",
 		"sortByMaxima",
 		"sortByMinima",
 		"sortByName",
 		"sortByTotal",
 		"squareRoot",
 		"stdev",
+		"stddevSeries",
 		"substr",
 		"sum",
 		"sumSeries",
@@ -3419,6 +3512,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"timeShift",
 		"timeSlice",
 		"transformNull",
+		"useSeriesAbove",
 		"weightedAverage",
 	}
 

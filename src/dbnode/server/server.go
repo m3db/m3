@@ -143,6 +143,10 @@ type RunOptions struct {
 
 	// StorageOptions are options to apply to the database storage options.
 	StorageOptions StorageOptions
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
 }
 
 // Run runs the server programmatically given a filename for the
@@ -332,7 +336,8 @@ func Run(runOpts RunOptions) {
 			SetLogger(logger).
 			SetMetricsScope(scope).
 			SetTimerOptions(timerOpts).
-			SetTracer(tracer)
+			SetTracer(tracer).
+			SetCustomBuildTags(runOpts.CustomBuildTags)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
 
@@ -913,7 +918,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create cluster topology watch", zap.Error(err))
 	}
 
-	opts = opts.SetSchemaRegistry(schemaRegistry)
+	opts = opts.SetSchemaRegistry(schemaRegistry).
+		SetAdminClient(m3dbClient)
+	if cfg.WideConfig != nil && cfg.WideConfig.BatchSize > 0 {
+		opts = opts.SetWideBatchSize(cfg.WideConfig.BatchSize)
+	}
+
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))

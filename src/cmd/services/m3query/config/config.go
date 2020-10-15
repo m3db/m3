@@ -40,6 +40,7 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
+	"github.com/m3db/m3/src/x/debug/config"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -162,6 +163,9 @@ type Configuration struct {
 
 	// MultiProcess is the multi-process configuration.
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
+
+	// Debug configuration.
+	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -420,6 +424,23 @@ type CarbonConfiguration struct {
 	// on the query range whether a single namespace can fulfill the
 	// entire query and if so to only fetch from that one aggregated namespace.
 	AggregateNamespacesAllData bool `yaml:"aggregateNamespacesAllData"`
+	// ShiftTimeStart sets a constant time to shift start by.
+	ShiftTimeStart time.Duration `yaml:"shiftTimeStart"`
+	// ShiftTimeEnd sets a constant time to shift end by.
+	ShiftTimeEnd time.Duration `yaml:"shiftTimeEnd"`
+	// ShiftStepsStart sets a constant set of steps to shift start by.
+	ShiftStepsStart int `yaml:"shiftStepsStart"`
+	// ShiftStepsEnd sets a constant set of steps to shift end by.
+	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// RenderPartialStart sets whether to render partial datapoints when
+	// the start time is between a datapoint's resolution step size.
+	RenderPartialStart bool `yaml:"renderPartialStart"`
+	// RenderPartialEnd sets whether to render partial datapoints when
+	// the end time is between a datapoint's resolution step size.
+	RenderPartialEnd bool `yaml:"renderPartialEnd"`
+	// RenderSeriesAllNaNs will render series that have only NaNs for entire
+	// output instead of returning an empty array of datapoints.
+	RenderSeriesAllNaNs bool `yaml:"renderSeriesAllNaNs"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.

@@ -163,6 +163,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks           instrument.MethodMetrics
 	fetchBlocksMetadata   instrument.MethodMetrics
 	queryIDs              instrument.MethodMetrics
+	wideQuery             instrument.MethodMetrics
 	aggregateQuery        instrument.MethodMetrics
 	unfulfilled           tally.Counter
 	bootstrapStart        tally.Counter
@@ -249,6 +250,7 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		wideQuery:             instrument.NewMethodMetrics(scope, "wideQuery", opts),
 		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
 		bootstrapStart:        bootstrapScope.Counter("start"),
@@ -700,7 +702,7 @@ func (n *dbNamespace) WriteTagged(
 	annotation []byte,
 ) (SeriesWrite, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceIndexingDisabled
 	}
@@ -722,7 +724,7 @@ func (n *dbNamespace) WriteTagged(
 func (n *dbNamespace) WritePendingIndexInserts(
 	pending []writes.PendingIndexInsert,
 ) error {
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		return errNamespaceIndexingDisabled
 	}
 	return n.reverseIndex.WritePending(pending)
@@ -767,7 +769,7 @@ func (n *dbNamespace) QueryIDs(
 	defer sp.Finish()
 
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errNamespaceIndexingDisabled
 		sp.LogFields(opentracinglog.Error(err))
@@ -791,13 +793,55 @@ func (n *dbNamespace) QueryIDs(
 	return res, err
 }
 
+func (n *dbNamespace) WideQueryIDs(
+	ctx context.Context,
+	query index.Query,
+	collector chan *ident.IDBatch,
+	opts index.WideQueryOptions,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSWideQueryIDs)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.Int("batchSize", opts.BatchSize),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+	}
+	defer sp.Finish()
+
+	callStart := n.nowFn()
+	if n.reverseIndex == nil {
+		n.metrics.wideQuery.ReportError(n.nowFn().Sub(callStart))
+		err := errNamespaceIndexingDisabled
+		sp.LogFields(opentracinglog.Error(err))
+		return err
+	}
+
+	if n.reverseIndex.BootstrapsDone() < 1 {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		err := errIndexNotBootstrappedToRead
+		sp.LogFields(opentracinglog.Error(err))
+		return xerrors.NewRetryableError(err)
+	}
+
+	err := n.reverseIndex.WideQuery(ctx, query, collector, opts)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
+}
+
 func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
@@ -864,6 +908,22 @@ func (n *dbNamespace) ReadEncoded(
 		return nil, err
 	}
 	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) FetchIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+) (block.StreamedChecksum, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return block.EmptyStreamedChecksum, err
+	}
+	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -1624,27 +1684,29 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 }
 
 func (n *dbNamespace) AggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
-	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	startedAt := time.Now()
+	var (
+		startedAt          = time.Now()
+		targetBlockSize    = n.Metadata().Options().RetentionOptions().BlockSize()
+		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
+		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
+		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
+	)
 
-	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
-	blockStart := opts.Start.Truncate(targetBlockSize)
-	if blockStart.Add(targetBlockSize).Before(opts.End) {
+	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
@@ -1657,13 +1719,18 @@ func (n *dbNamespace) aggregateTiles(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	targetShards := n.OwnedShards()
+	var (
+		targetShards      = n.OwnedShards()
+		bytesPool         = sourceNs.StorageOptions().BytesPool()
+		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
+		blockReaders      []fs.DataFileSetReader
+		sourceBlockStarts []time.Time
+	)
 
-	var blockReaders []fs.DataFileSetReader
-	var sourceBlockStarts []time.Time
-	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
-	for sourceBlockStart := blockStart; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+	for sourceBlockStart := targetBlockStart;
+		sourceBlockStart.Before(lastSourceBlockEnd);
+		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err
 		}
@@ -1689,8 +1756,13 @@ func (n *dbNamespace) aggregateTiles(
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
 		}
 
+		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		if err != nil {
@@ -1700,9 +1772,11 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Int("shards", len(targetShards)),
+		zap.Time("targetBlockStart", targetBlockStart),
+		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd),
+		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
-		zap.Duration("duration", time.Now().Sub(startedAt)))
+		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
 }

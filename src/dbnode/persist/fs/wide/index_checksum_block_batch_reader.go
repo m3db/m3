@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -8,7 +8,7 @@
 // furnished to do so, subject to the following conditions:
 //
 // The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// all copies or substantial portions of the Software
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -16,33 +16,46 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// THE SOFTWARE
 
-package pprof
+package wide
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
+	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
-func TestHandler(t *testing.T) {
-	s := httptest.NewServer(handler())
-	url := s.URL + pprofPath
-	defer s.Close()
+type indexChecksumBlockReader struct {
+	closed       *atomic.Bool
+	currentBlock ident.IndexChecksumBlockBatch
+	blocks       chan ident.IndexChecksumBlockBatch
+}
 
-	for _, endpoint := range []string{
-		"",
-		"cmdline",
-		"symbol",
-		"profile?seconds=1",
-		"trace?seconds=1",
-		"goroutine?debug=2",
-	} {
-		resp, err := http.Get(url + endpoint)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+// NewIndexChecksumBlockBatchReader creates a new IndexChecksumBlockBatchReader.
+func NewIndexChecksumBlockBatchReader(
+	blockInput chan ident.IndexChecksumBlockBatch,
+) IndexChecksumBlockBatchReader {
+	return &indexChecksumBlockReader{
+		closed: atomic.NewBool(false),
+		blocks: blockInput,
 	}
+}
+
+func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlockBatch {
+	return b.currentBlock
+}
+
+func (b *indexChecksumBlockReader) Next() bool {
+	if b.closed.Load() {
+		return false
+	}
+
+	if bl, ok := <-b.blocks; ok {
+		b.currentBlock = bl
+		return true
+	}
+
+	b.closed.Store(true)
+	return false
 }

@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -162,13 +163,24 @@ type Database interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// ReadEncoded retrieves encoded segments for an ID
+	// ReadEncoded retrieves encoded segments for an ID.
 	ReadEncoded(
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// WideQuery performs a wide blockwise query that provides batched results
+	// that can exceed query limits.
+	WideQuery(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		start time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
+	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -325,6 +337,14 @@ type databaseNamespace interface {
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
 
+	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
 		ctx context.Context,
@@ -338,6 +358,14 @@ type databaseNamespace interface {
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// FetchIndexChecksum retrieves the index checksum for an ID for the
+	// block at time start.
+	FetchIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+	) (block.StreamedChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -415,11 +443,7 @@ type databaseNamespace interface {
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 
 	// AggregateTiles does large tile aggregation from source namespace into this namespace.
-	AggregateTiles(
-		ctx context.Context,
-		sourceNs databaseNamespace,
-		opts AggregateTilesOptions,
-	) (int64, error)
+	AggregateTiles(sourceNs databaseNamespace, opts AggregateTilesOptions) (int64, error)
 
 	// ReadableShardAt returns a shard of this namespace by shardID.
 	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
@@ -498,6 +522,14 @@ type databaseShard interface {
 		start, end time.Time,
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
+
+	// FetchIndexChecksum retrieves the index checksum for an ID.
+	FetchIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (block.StreamedChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -602,10 +634,10 @@ type databaseShard interface {
 
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
-		ctx context.Context,
 		sourceNsID ident.ID,
 		sourceShardID uint32,
 		blockReaders []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
 		targetSchemaDesc namespace.SchemaDescr,
@@ -664,6 +696,14 @@ type NamespaceIndex interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
+
+	// WideQuery resolves the given query into known IDs.
+	WideQuery(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
 
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
@@ -1226,6 +1266,18 @@ type Options interface {
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
 
+	// SetAdminClient sets the admin client for the database options.
+	SetAdminClient(value client.AdminClient) Options
+
+	// AdminClient returns the admin client.
+	AdminClient() client.AdminClient
+
+	// SetWideBatchSize sets batch size for wide operations.
+	SetWideBatchSize(value int) Options
+
+	// WideBatchSize returns batch size for wide operations.
+	WideBatchSize() int
+
 	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
 	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options
 
@@ -1302,12 +1354,9 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
-	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
-	// TODO: remove once we have metrics type stored in the metadata.
-	HandleCounterResets bool
+	Step time.Duration
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
@@ -1316,4 +1365,5 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (id ident.ID) (Namespace, bool)
+// GetNamespaceFn will return a namespace for a given ID if present.
+type GetNamespaceFn func(id ident.ID) (Namespace, bool)

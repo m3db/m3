@@ -103,6 +103,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
 				ExtendedOptions: extendedOpts,
+				StagingState:    &nsproto.StagingState{Status: nsproto.StagingStatus_READY},
 			},
 		},
 	}
@@ -142,6 +143,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
+						"stagingState":      xjson.Map{"status": "READY"},
 						"writesToCommitLog": true,
 						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
@@ -186,6 +188,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				StagingState: &nsproto.StagingState{Status: nsproto.StagingStatus_UNKNOWN},
 			},
 		},
 	}
@@ -224,6 +227,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 						},
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
+						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
 						"extendedOptions":   nil,

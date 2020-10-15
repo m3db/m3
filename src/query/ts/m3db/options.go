@@ -46,8 +46,9 @@ var (
 	defaultIterAlloc        = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
-	defaultIteratorBatchingFn = iteratorBatchingFn
-	defaultInstrumented       = true
+	defaultIteratorBatchingFn   = iteratorBatchingFn
+	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
+	defaultInstrumented         = true
 )
 
 type encodedBlockOptions struct {
@@ -63,6 +64,7 @@ type encodedBlockOptions struct {
 	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
 	seriesIteratorProcessor       SeriesIteratorProcessor
 	batchingFn                    IteratorBatchingFn
+	blockSeriesProcessor          BlockSeriesProcessor
 	adminOptions                  []client.CustomAdminOption
 	instrumented                  bool
 }
@@ -93,14 +95,15 @@ func newOptions(
 	iteratorPools encoding.IteratorPools,
 ) Options {
 	return &encodedBlockOptions{
-		lookbackDuration: defaultLookbackDuration,
-		consolidationFn:  defaultConsolidationFn,
-		tagOptions:       models.NewTagOptions(),
-		iterAlloc:        defaultIterAlloc,
-		pools:            iteratorPools,
-		checkedPools:     bytesPool,
-		batchingFn:       defaultIteratorBatchingFn,
-		instrumented:     defaultInstrumented,
+		lookbackDuration:     defaultLookbackDuration,
+		consolidationFn:      defaultConsolidationFn,
+		tagOptions:           models.NewTagOptions(),
+		iterAlloc:            defaultIterAlloc,
+		pools:                iteratorPools,
+		checkedPools:         bytesPool,
+		batchingFn:           defaultIteratorBatchingFn,
+		blockSeriesProcessor: defaultBlockSeriesProcessor,
+		instrumented:         defaultInstrumented,
 		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
 			MatchType: queryconsolidator.MatchIDs,
 		},
@@ -226,6 +229,16 @@ func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Optio
 
 func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
 	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetBlockSeriesProcessor(fn BlockSeriesProcessor) Options {
+	opts := *o
+	opts.blockSeriesProcessor = fn
+	return &opts
+}
+
+func (o *encodedBlockOptions) BlockSeriesProcessor() BlockSeriesProcessor {
+	return o.blockSeriesProcessor
 }
 
 func (o *encodedBlockOptions) SetCustomAdminOptions(

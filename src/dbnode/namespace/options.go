@@ -75,6 +75,7 @@ type options struct {
 	runtimeOpts           RuntimeOptions
 	extendedOpts          ExtendedOptions
 	aggregationOpts       AggregationOptions
+	stagingState          StagingState
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -112,6 +113,10 @@ func (o *options) Validate() error {
 		}
 	}
 
+	if err := o.stagingState.Validate(); err != nil {
+		return err
+	}
+
 	if !o.indexOpts.Enabled() {
 		return nil
 	}
@@ -136,6 +141,7 @@ func (o *options) Validate() error {
 	if o.aggregationOpts == nil {
 		return errAggregationOptionsNotSet
 	}
+
 	return nil
 }
 
@@ -152,7 +158,8 @@ func (o *options) Equal(value Options) bool {
 		o.indexOpts.Equal(value.IndexOptions()) &&
 		o.schemaHis.Equal(value.SchemaHistory()) &&
 		o.runtimeOpts.Equal(value.RuntimeOptions()) &&
-		o.aggregationOpts.Equal(value.AggregationOptions())
+		o.aggregationOpts.Equal(value.AggregationOptions()) &&
+		o.stagingState == value.StagingState()
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -293,4 +300,14 @@ func (o *options) SetAggregationOptions(value AggregationOptions) Options {
 
 func (o *options) AggregationOptions() AggregationOptions {
 	return o.aggregationOpts
+}
+
+func (o *options) SetStagingState(value StagingState) Options {
+	opts := *o
+	opts.stagingState = value
+	return &opts
+}
+
+func (o *options) StagingState() StagingState {
+	return o.stagingState
 }

@@ -49,47 +49,37 @@ func TestSeriesBlockFrame(t *testing.T) {
 		}
 	}
 
-	verify := func(rec SeriesBlockFrame, size int) {
+	verify := func(frame SeriesBlockFrame, size int) {
 		ex := make([]float64, size)
 		for i := range ex {
 			ex[i] = float64(i)
 		}
 
-		vals := rec.Values()
+		vals := frame.Values()
 		require.Equal(t, size, len(vals))
 		for i := 0; i < size; i++ {
 			assert.Equal(t, float64(i), vals[i])
 		}
 
-		assert.Equal(t, ex, rec.Values())
+		assert.Equal(t, ex, frame.Values())
 
-		times := rec.Timestamps()
+		times := frame.Timestamps()
 		require.Equal(t, size, len(times))
 		for i := 0; i < size; i++ {
 			require.Equal(t, timeAt(i), times[i])
 		}
 
-		annotation, isSingle := rec.Annotations().SingleValue()
-		require.True(t, isSingle)
-		assert.Equal(t, ts.Annotation("foobar"), annotation)
-
-		exAnns := make([]ts.Annotation, 0, size)
 		for i := 0; i < size; i++ {
-			exAnns = append(exAnns, ts.Annotation("foobar"))
+			annotation, err := frame.Annotations().Value(i)
+			require.NoError(t, err)
+			assert.Equal(t, ts.Annotation("foobar"), annotation)
 		}
 
-		assert.Equal(t, exAnns, rec.Annotations().Values())
-
-		unit, isSingle := rec.Units().SingleValue()
-		require.True(t, isSingle)
-		assert.Equal(t, xtime.Microsecond, unit)
-
-		exUnits := make([]xtime.Unit, 0, size)
 		for i := 0; i < size; i++ {
-			exUnits = append(exUnits, xtime.Microsecond)
+			units, err := frame.Units().Value(i)
+			require.NoError(t, err)
+			assert.Equal(t, xtime.Microsecond, units)
 		}
-
-		assert.Equal(t, exUnits, rec.Units().Values())
 	}
 
 	size := 5
