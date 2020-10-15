@@ -195,7 +195,7 @@ node _and_ and M3DB node). To perform these steps you will need the `etcdctl` bi
 be downloaded from the [etcd releases](https://github.com/etcd-io/etcd/releases) page.
 
 Many of the instructions here are mentioned in the [etcd operational
-guide](https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/runtime-configuration.md), which we recommend
+guide](https://etcd.io/docs/latest/op-guide/runtime-configuration/), which we recommend
 reading for more context.
 
 To provide some context for the commands below, let's assume your cluster was created with the below configuration, and
