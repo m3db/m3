@@ -148,7 +148,6 @@ type nsIndexState struct {
 	closed         bool
 	closeCh        chan struct{}
 	bootstrapState BootstrapState
-	bootstrapsDone uint
 
 	runtimeOpts nsIndexRuntimeOptions
 
@@ -842,7 +841,6 @@ func (i *nsIndex) Bootstrap(
 		i.state.RUnlock()
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
-		i.state.bootstrapsDone++
 		i.state.Unlock()
 	}()
 
@@ -861,9 +859,9 @@ func (i *nsIndex) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (i *nsIndex) BootstrapsDone() uint {
+func (i *nsIndex) Bootstrapped() bool {
 	i.state.RLock()
-	result := i.state.bootstrapsDone
+	result := i.state.bootstrapState == Bootstrapped
 	i.state.RUnlock()
 	return result
 }
@@ -2181,7 +2179,9 @@ func (i *nsIndex) SetExtendedRetentionPeriod(period time.Duration) {
 	i.state.Lock()
 	defer i.state.Unlock()
 
-	i.extendedRetentionPeriod = period
+	if period > i.extendedRetentionPeriod {
+		i.extendedRetentionPeriod = period
+	}
 }
 
 func (i *nsIndex) effectiveRetentionPeriodWithLock() time.Duration {
