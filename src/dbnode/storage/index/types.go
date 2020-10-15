@@ -169,16 +169,6 @@ type BaseResults interface {
 	Finalize()
 }
 
-// WideQueryResults is a collection of basic results for a generic query, it is
-// synchronized when access to the results set is used as documented by the
-// methods.
-type WideQueryResults interface {
-	BaseResults
-
-	// Close indicates the wide query results will receive no more documents.
-	Close()
-}
-
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {

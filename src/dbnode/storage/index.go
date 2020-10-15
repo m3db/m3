@@ -1380,9 +1380,9 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
-	// NB: result channel should be closed here, regardless of outcome
+	// NB: result should be fina.ized here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
-	defer results.Close()
+	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
 
 	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
