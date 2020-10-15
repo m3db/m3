@@ -45,6 +45,8 @@ func main() {
 		// Youtube has some problematic public rate limits.
 		"youtu.be",
 		"youtube.com",
+		// cassandra has been flakey recently.
+		"cassandra.apache.org",
 	}
 
 	var (
