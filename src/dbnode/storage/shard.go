@@ -394,7 +394,19 @@ func (s *dbShard) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id,
+		blockStart, onRetrieve, nsCtx)
+}
+
+// StreamIndexChecksum implements series.QueryableBlockRetriever
+func (s *dbShard) StreamIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
+		blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1132,6 +1144,18 @@ func (s *dbShard) ReadEncoded(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
+}
+
+func (s *dbShard) FetchIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

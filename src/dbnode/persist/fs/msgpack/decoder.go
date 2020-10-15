@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +38,7 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
+	emptyIndexChecksumEntry     schema.IndexEntry
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -45,8 +47,22 @@ var (
 	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
 
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
-	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes without byte stream decoder")
 	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
+)
+
+// IndexChecksumLookupStatus is the status for an index checksum lookup.
+type IndexChecksumLookupStatus byte
+
+const (
+	// Match indicates the current entry ID matches the requested ID.
+	Match IndexChecksumLookupStatus = iota
+	// Mismatch indicates the current entry ID preceeds the requested ID.
+	Mismatch
+	// NotFound indicates the current entry ID is lexicographically larger than
+	// the requested ID; since the index file is in sorted order, this means the
+	// ID does does not exist in the file.
+	NotFound
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -58,6 +74,7 @@ type Decoder struct {
 	// Wraps original reader with reader that can calculate digest. Digest calculation must be enabled,
 	// otherwise it defaults to off.
 	readerWithDigest  *decoderStreamWithDigest
+	hasher            schema.IndexEntryHasher
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -80,6 +97,7 @@ func newDecoder(legacy LegacyEncodingOptions, opts DecodingOptions) *Decoder {
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
+		hasher:            opts.IndexEntryHasher(),
 		readerWithDigest:  newDecoderStreamWithDigest(nil),
 	}
 }
@@ -116,7 +134,7 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	return indexInfo, nil
 }
 
-// DecodeIndexEntry decodes index entry
+// DecodeIndexEntry decodes index entry.
 func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -132,7 +150,26 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	return indexEntry, nil
 }
 
-// DecodeIndexSummary decodes index summary
+// DecodeIndexEntryToIndexChecksum decodes an index entry into a minimal index entry.
+func (dec *Decoder) DecodeIndexEntryToIndexChecksum(
+	compareID []byte,
+	bytesPool pool.BytesPool,
+) (int64, IndexChecksumLookupStatus, error) {
+	if dec.err != nil {
+		return 0, NotFound, dec.err
+	}
+	dec.readerWithDigest.setDigestReaderEnabled(true)
+	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
+	indexChecksum, status := dec.decodeIndexChecksum(compareID, bytesPool)
+	dec.readerWithDigest.setDigestReaderEnabled(false)
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return 0, NotFound, dec.err
+	}
+	return indexChecksum, status, nil
+}
+
+// DecodeIndexSummary decodes index summary.
 func (dec *Decoder) DecodeIndexSummary() (
 	schema.IndexSummary, IndexSummaryToken, error) {
 	if dec.err != nil {
@@ -147,7 +184,7 @@ func (dec *Decoder) DecodeIndexSummary() (
 	return indexSummary, indexSummaryMetadata, nil
 }
 
-// DecodeLogInfo decodes commit log info
+// DecodeLogInfo decodes commit log info.
 func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
@@ -161,7 +198,7 @@ func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	return logInfo, nil
 }
 
-// DecodeLogEntry decodes commit log entry
+// DecodeLogEntry decodes commit log entry.
 func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
@@ -232,7 +269,7 @@ func (dec *Decoder) DecodeLogEntryRemaining(token DecodeLogEntryRemainingToken, 
 	return logEntry, nil
 }
 
-// DecodeLogMetadata decodes commit log metadata
+// DecodeLogMetadata decodes commit log metadata.
 func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err
@@ -356,7 +393,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
+func (dec *Decoder) checkNumIndexEntryFields() (int, int, bool) {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.DecodeLegacyIndexEntryVersion {
 	case LegacyEncodingIndexEntryVersionV1:
@@ -373,11 +410,16 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 		// V3 is current version, no overrides needed
 		break
 	default:
-		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.DecodeLegacyIndexEntryVersion)
-		return emptyIndexEntry
+		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v",
+			dec.legacy.DecodeLegacyIndexEntryVersion)
+		return 0, 0, false
 	}
 
-	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
+	return dec.checkNumFieldsFor(indexEntryType, opts)
+}
+
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
+	numFieldsToSkip, actual, ok := dec.checkNumIndexEntryFields()
 	if !ok {
 		return emptyIndexEntry
 	}
@@ -425,13 +467,47 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	actualChecksum := dec.readerWithDigest.digest().Sum32()
 
 	// Decode checksum field originally added in V3
-	expectedChecksum := uint32(dec.decodeVarint())
-
-	if expectedChecksum != actualChecksum {
+	v := dec.decodeVarint()
+	indexEntry.IndexChecksum = v
+	if indexEntry.IndexChecksum != int64(actualChecksum) {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
 
 	return indexEntry
+}
+
+func (dec *Decoder) decodeIndexChecksum(
+	compareID []byte,
+	bytesPool pool.BytesPool,
+) (int64, IndexChecksumLookupStatus) {
+	entry := dec.decodeIndexEntry(bytesPool)
+	if dec.err != nil {
+		return 0, NotFound
+	}
+
+	compare := bytes.Compare(compareID, entry.ID)
+	var checksum int64
+	if compare == 0 {
+		// NB: need to compute hash before freeing entry bytes.
+		checksum = dec.hasher.HashIndexEntry(entry)
+	}
+
+	// free elements if pooled.
+	if bytesPool != nil {
+		bytesPool.Put(entry.ID)
+		bytesPool.Put(entry.EncodedTags)
+	}
+
+	if compare > 0 {
+		// compareID can still exist after the current entry.ID
+		return 0, Mismatch
+	} else if compare < 0 {
+		// compareID must have been before the curret entry.ID, so this
+		// ID will not be matched.
+		return 0, NotFound
+	}
+
+	return checksum, Match
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
@@ -560,8 +636,8 @@ type checkNumFieldsOptions struct {
 func (dec *Decoder) checkNumFieldsFor(
 	objType objectType,
 	opts checkNumFieldsOptions,
-) (numToSkip int, actual int, ok bool) {
-	actual = dec.decodeNumObjectFields()
+) (int, int, bool) {
+	actual := dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, 0, false
 	}
@@ -575,7 +651,7 @@ func (dec *Decoder) checkNumFieldsFor(
 		return 0, 0, false
 	}
 
-	numToSkip = actual - curr
+	numToSkip := actual - curr
 	if numToSkip < 0 {
 		numToSkip = 0
 	}

@@ -745,20 +745,6 @@ func (d *db) writeBatch(
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Bool("tagged", tagged),
-		)
-	}
-	defer sp.Finish()
-
-	writes, ok := writer.(writes.WriteBatch)
-	if !ok {
-		return errWriterDoesNotImplementWriteBatch
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		if tagged {
@@ -767,6 +753,20 @@ func (d *db) writeBatch(
 			d.metrics.unknownNamespaceWriteBatch.Inc(1)
 		}
 		return err
+	}
+
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Bool("tagged", tagged),
+		)
+	}
+
+	defer sp.Finish()
+	writes, ok := writer.(writes.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch
 	}
 
 	iter := writes.Iter()
@@ -891,6 +891,12 @@ func (d *db) AggregateQuery(
 	query index.Query,
 	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.AggregateQueryResult{}, err
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateQuery)
 	if sampled {
 		sp.LogFields(
@@ -902,14 +908,8 @@ func (d *db) AggregateQuery(
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.AggregateQueryResult{}, err
-	}
-
 	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 
@@ -919,6 +919,12 @@ func (d *db) ReadEncoded(
 	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.BlockReader, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
 	if sampled {
 		sp.LogFields(
@@ -928,15 +934,137 @@ func (d *db) ReadEncoded(
 			xopentracing.Time("end", end),
 		)
 	}
-	defer sp.Finish()
 
+	defer sp.Finish()
+	return n.ReadEncoded(ctx, id, start, end)
+}
+
+func (d *db) WideQuery(
+	ctx context.Context,
+	namespace ident.ID,
+	query index.Query,
+	queryStart time.Time,
+	shards []uint32,
+	iterOpts index.IterationOptions,
+) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
 	}
 
-	return n.ReadEncoded(ctx, id, start, end)
+	var (
+		doneCh = make(chan struct{})
+
+		batchSize = d.opts.WideBatchSize()
+		blockSize = n.Options().IndexOptions().BlockSize()
+
+		collector          = make(chan *ident.IDBatch)
+		collectedChecksums = make([]ident.IndexChecksum, 0, 10)
+		collectorErr       error
+	)
+
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	start, end := opts.StartInclusive, opts.EndExclusive
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("wideQuery", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Int("batchSize", batchSize),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+
+	defer sp.Finish()
+
+	// Setup consumer
+	go func() {
+		var abortBatch *ident.IDBatch
+		defer func() {
+			if abortBatch != nil {
+				abortBatch.Done()
+			}
+			if collectorErr != nil {
+				for batch := range collector {
+					batch.Done()
+				}
+			}
+			doneCh <- struct{}{}
+		}()
+
+		// Build a buffer of batchSize to feed streamed checksums into, so they
+		// can then be decoded in a tight loop. TODO: pool this.
+		streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+		for batch := range collector {
+			streamedChecksums = streamedChecksums[:0]
+			for _, id := range batch.IDs {
+				streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+				if err != nil {
+					// Set abort vars for cleanup and collector err to report error.
+					abortBatch, collectorErr = batch, err
+					return
+				}
+
+				streamedChecksums = append(streamedChecksums, streamedChecksum)
+			}
+
+			for i, streamedChecksum := range streamedChecksums {
+				checksum, err := streamedChecksum.RetrieveIndexChecksum()
+				if err != nil {
+					// Set abort vars for cleanup and collector err to report error.
+					abortBatch, collectorErr = batch, err
+					return
+				}
+
+				// TODO: use index checksum value
+				useID := i == len(batch.IDs)-1
+				if !useID {
+					checksum.ID = checksum.ID[:0]
+				}
+
+				collectedChecksums = append(collectedChecksums, checksum)
+			}
+
+			batch.Done()
+		}
+	}()
+
+	err = n.WideQueryIDs(ctx, query, collector, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	<-doneCh
+	if collectorErr != nil {
+		return nil, collectorErr
+	}
+
+	return collectedChecksums, nil
+}
+
+func (d *db) fetchIndexChecksum(
+	ctx context.Context,
+	n databaseNamespace,
+	id ident.ID,
+	start time.Time,
+) (block.StreamedChecksum, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+		)
+	}
+
+	defer sp.Finish()
+	return n.FetchIndexChecksum(ctx, id, start)
 }
 
 func (d *db) FetchBlocks(
@@ -946,6 +1074,12 @@ func (d *db) FetchBlocks(
 	id ident.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocks)
 	if sampled {
 		sp.LogFields(
@@ -954,14 +1088,8 @@ func (d *db) FetchBlocks(
 			opentracinglog.String("id", id.String()),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
-		return nil, xerrors.NewInvalidParamsError(err)
-	}
-
 	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
@@ -974,6 +1102,12 @@ func (d *db) FetchBlocksMetadataV2(
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocksMetadataV2)
 	if sampled {
 		sp.LogFields(
@@ -984,14 +1118,8 @@ func (d *db) FetchBlocksMetadataV2(
 			opentracinglog.Int64("limit", limit),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
-		return nil, nil, xerrors.NewInvalidParamsError(err)
-	}
-
 	return n.FetchBlocksMetadataV2(ctx, shardID, start, end, limit,
 		pageToken, opts)
 }

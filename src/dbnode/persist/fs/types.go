@@ -123,7 +123,7 @@ type DataFileSetReaderStatus struct {
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
 	// Identifier allows to identify a FileSetFile.
-	Identifier  FileSetFileIdentifier
+	Identifier FileSetFileIdentifier
 	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
 	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
@@ -219,6 +219,10 @@ type DataFileSetSeeker interface {
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
+	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
+	// instead yields a minimal structure describing a checksum of the series.
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
+
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
 
@@ -245,16 +249,19 @@ type DataFileSetSeeker interface {
 type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
-	// SeekByID is the same as in DataFileSetSeeker
+	// SeekByID is the same as in DataFileSetSeeker.
 	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
-	// SeekByIndexEntry is the same as in DataFileSetSeeker
+	// SeekByIndexEntry is the same as in DataFileSetSeeker.
 	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
-	// SeekIndexEntry is the same as in DataFileSetSeeker
+	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
+	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
+
+	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 

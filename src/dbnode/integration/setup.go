@@ -28,7 +28,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -78,8 +77,6 @@ var (
 	errServerStartTimedOut = errors.New("server took too long to start")
 	errServerStopTimedOut  = errors.New("server took too long to stop")
 	testNamespaces         = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
-
-	created = uint64(0)
 
 	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
@@ -372,11 +369,10 @@ func NewTestSetup(
 	}
 
 	// Set up file path prefix
-	idx := atomic.AddUint64(&created, 1) - 1
 	filePathPrefix := opts.FilePathPrefix()
 	if filePathPrefix == "" {
 		var err error
-		filePathPrefix, err = ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
+		filePathPrefix, err = ioutil.TempDir("", "integration-test")
 		if err != nil {
 			return nil, err
 		}
@@ -986,21 +982,21 @@ func newClients(
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
 		clientOpts = defaultClientOptions(topoInit).
-			SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
-			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-			SetTopologyInitializer(topoInit).
-			SetUseV2BatchAPIs(true)
+				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+				SetFetchRequestTimeout(opts.FetchRequestTimeout()).
+				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+				SetTopologyInitializer(topoInit).
+				SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
 		adminOpts = clientOpts.(client.AdminOptions).
-			SetOrigin(origin).
-			SetSchemaRegistry(schemaReg)
+				SetOrigin(origin).
+				SetSchemaRegistry(schemaReg)
 		verificationAdminOpts = adminOpts.
-			SetOrigin(verificationOrigin).
-			SetSchemaRegistry(schemaReg)
+					SetOrigin(verificationOrigin).
+					SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {
