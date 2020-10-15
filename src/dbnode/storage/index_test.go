@@ -347,10 +347,12 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	start := now.Add(-3 * test.indexBlockSize)
+	end := now.Add(-2 * test.indexBlockSize)
 	// Query non-overlapping range
 	result, err := idx.Query(ctx, query, index.QueryOptions{
-		StartInclusive: now.Add(-3 * test.indexBlockSize),
-		EndExclusive:   now.Add(-2 * test.indexBlockSize),
+		StartInclusive: start,
+		EndExclusive:   end,
 	})
 	require.NoError(t, err)
 	assert.True(t, result.Exhaustive)
@@ -359,13 +361,21 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	// Aggregate query on the non-overlapping range
 	aggResult, err := idx.AggregateQuery(ctx, query, index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			StartInclusive: now.Add(-3 * test.indexBlockSize),
-			EndExclusive:   now.Add(-2 * test.indexBlockSize),
+			StartInclusive: start,
+			EndExclusive:   end,
 		},
 	})
 	require.NoError(t, err)
 	assert.True(t, aggResult.Exhaustive)
 	assert.Equal(t, 0, aggResult.Results.Size())
+
+	// Wide query on the non-overlapping range
+	err = idx.WideQuery(ctx, query, make(chan *ident.IDBatch),
+		index.WideQueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		})
+	require.NoError(t, err)
 }
 
 func TestNamespaceIndexSetExtendedRetentionPeriod(t *testing.T) {
@@ -381,9 +391,9 @@ func TestNamespaceIndexSetExtendedRetentionPeriod(t *testing.T) {
 	idx.SetExtendedRetentionPeriod(longerRetention)
 	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
 
-	shorterRetention := originalRetention - time.Minute
+	shorterRetention := longerRetention - time.Second
 	idx.SetExtendedRetentionPeriod(shorterRetention)
-	assert.Equal(t, originalRetention, idx.effectiveRetentionPeriodWithLock())
+	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
 }
 
 func verifyFlushForShards(

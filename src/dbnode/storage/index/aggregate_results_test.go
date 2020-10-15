@@ -50,6 +50,8 @@ func genDoc(strs ...string) doc.Document {
 
 func TestAggResultsInsertInvalid(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	assert.True(t, res.EnforceLimits())
+
 	dInvalid := doc.Document{Fields: []doc.Field{{}}}
 	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)

@@ -273,8 +273,7 @@ func (r shardRepairer) Repair(
 
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
-	numMismatchSeries := seriesWithChecksumMismatches.Len()
-	results := result.NewShardResult(numMismatchSeries, rsOpts)
+	results := result.NewShardResult(rsOpts)
 	for i, metadatasToFetchBlocksFor := range metadatasToFetchBlocksForPerSession {
 		if len(metadatasToFetchBlocksFor) == 0 {
 			continue
