@@ -11,3 +11,10 @@ EnforceHTML5: false
 EnforceHTTPS: false
 IgnoreInternalEmptyHash: true
 IgnoreEmptyHref: true
+TestFilesConcurrently: false
+DocumentConcurrencyLimit: 64
+HTTPConcurrencyLimit: 8
+IgnoreURLs:
+- "youtu.be"
+- "youtube.com"
+- "cassandra.apache.org"
