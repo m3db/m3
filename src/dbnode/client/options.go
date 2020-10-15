@@ -123,7 +123,7 @@ const (
 	defaultHostQueueOpsArrayPoolSize = 8
 
 	// defaultHostQueueEmitsHealthStatus is false
-	defaultHostQueueEmitsHealthStatus = false
+	defaultHostQueueEmitsHealthStatus = true
 
 	// defaultBackgroundConnectInterval is the default background connect interval
 	defaultBackgroundConnectInterval = 4 * time.Second
