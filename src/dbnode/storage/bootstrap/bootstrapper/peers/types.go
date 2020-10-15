@@ -31,21 +31,21 @@ import (
 	"github.com/m3db/m3/src/x/context"
 )
 
-// Options represents the options for bootstrapping from peers
+// Options represents the options for bootstrapping from peers.
 type Options interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// SetResultOptions sets the instrumentation options
+	// SetResultOptions sets the instrumentation options.
 	SetResultOptions(value result.Options) Options
 
-	// ResultOptions returns the instrumentation options
+	// ResultOptions returns the instrumentation options.
 	ResultOptions() result.Options
 
-	// SetAdminClient sets the admin client
+	// SetAdminClient sets the admin client.
 	SetAdminClient(value client.AdminClient) Options
 
-	// AdminClient returns the admin client
+	// AdminClient returns the admin client.
 	AdminClient() client.AdminClient
 
 	// SetDefaultShardConcurrency sets the concurrency for
@@ -67,6 +67,16 @@ type Options interface {
 	// bootstrapping shards when performing a bootstrap with
 	// persistence enabled.
 	ShardPersistenceConcurrency() int
+
+	// SetShardPersistenceFlushConcurrency sets the flush concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	SetShardPersistenceFlushConcurrency(value int) Options
+
+	// ShardPersistenceFlushConcurrency returns the flush concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	ShardPersistenceFlushConcurrency() int
 
 	// SetPersistenceMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking

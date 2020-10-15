@@ -296,6 +296,7 @@ func timeShift(
 	_ singlePathSpec,
 	timeShiftS string,
 	_ bool,
+	_ bool,
 ) (*unaryContextShifter, error) {
 
 	// TODO: implement resetEnd
@@ -2356,7 +2357,9 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
-	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
+		3: "average", // fname
+	})
 	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
@@ -2458,6 +2461,7 @@ func init() {
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
 		3: true, // resetEnd
+		4: false, // alignDst
 	})
 	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
 		3: "now", // endTime

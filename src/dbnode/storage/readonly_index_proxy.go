@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -57,20 +58,37 @@ func (r readOnlyIndexProxy) WritePending(pending []writes.PendingIndexInsert) er
 	return errNamespaceIndexReadOnly
 }
 
-func (r readOnlyIndexProxy) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResult, error) {
+func (r readOnlyIndexProxy) Query(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) (index.QueryResult, error) {
 	return r.underlying.Query(ctx, query, opts)
 }
 
-func (r readOnlyIndexProxy) AggregateQuery(ctx context.Context, query index.Query, opts index.AggregationOptions) (index.AggregateQueryResult, error) {
+func (r readOnlyIndexProxy) AggregateQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.AggregationOptions,
+) (index.AggregateQueryResult, error) {
 	return r.underlying.AggregateQuery(ctx, query, opts)
+}
+
+func (r readOnlyIndexProxy) WideQuery(
+	ctx context.Context,
+	query index.Query,
+	collector chan *ident.IDBatch,
+	opts index.WideQueryOptions,
+) error {
+	return r.underlying.WideQuery(ctx, query, collector, opts)
 }
 
 func (r readOnlyIndexProxy) Bootstrap(bootstrapResults result.IndexResults) error {
 	return nil
 }
 
-func (r readOnlyIndexProxy) BootstrapsDone() uint {
-	return r.underlying.BootstrapsDone()
+func (r readOnlyIndexProxy) Bootstrapped() bool {
+	return r.underlying.Bootstrapped()
 }
 
 func (r readOnlyIndexProxy) CleanupExpiredFileSets(t time.Time) error {
@@ -105,6 +123,8 @@ func (r readOnlyIndexProxy) Close() error {
 	return nil
 }
 
+// NewReadOnlyIndexProxy builds a new NamespaceIndex that proxies only read
+// operations, and no-ops on write operations.
 func NewReadOnlyIndexProxy(underlying NamespaceIndex) NamespaceIndex {
 	return readOnlyIndexProxy{underlying: underlying}
 }

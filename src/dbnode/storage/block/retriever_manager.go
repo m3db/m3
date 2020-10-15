@@ -112,6 +112,16 @@ func (r *shardBlockRetriever) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
+func (r *shardBlockRetriever) StreamIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (StreamedChecksum, error) {
+	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id,
+		blockStart, nsCtx)
+}
+
 type shardBlockRetrieverManager struct {
 	sync.RWMutex
 	retriever       DatabaseBlockRetriever

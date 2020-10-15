@@ -21,8 +21,6 @@
 package wide
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/ident"
@@ -70,13 +68,6 @@ type ReadMismatch struct {
 	ID []byte
 }
 
-func (c ReadMismatch) String() string {
-	if len(c.EncodedTags) > 0 {
-		return fmt.Sprintf("{c: %d, e: true}", c.Checksum)
-	}
-	return fmt.Sprintf("{c: %d, e: false}", c.Checksum)
-}
-
 // IndexChecksumBlockBatchReader is a reader across IndexChecksumBlockBatches.
 type IndexChecksumBlockBatchReader interface {
 	// Next moves to the next IndexChecksumBlockBatch element.
@@ -92,3 +83,26 @@ type EntryChecksumMismatchChecker interface {
 	// Drain returns any unconsumed IndexChecksumBlockBatches as mismatches.
 	Drain() []ReadMismatch
 }
+
+// ReadMismatchBatch represents a batch of read mismatches originating
+// from a single series block.
+type ReadMismatchBatch struct {
+	// Mismatches is the list of mismatches.
+	Mismatches []ReadMismatch // TODO: this will be a richer type with data.
+}
+
+// StreamedMismatchBatch yields a ReadMismatchBatch value asynchronously,
+// and any errors encountered during execution.
+type StreamedMismatchBatch interface {
+	// RetrieveMismatchBatch retrieves the mismatch batch.
+	RetrieveMismatchBatch() (ReadMismatchBatch, error)
+}
+
+type emptyStreamedMismatchBatch struct{}
+
+func (emptyStreamedMismatchBatch) RetrieveMismatchBatch() (ReadMismatchBatch, error) {
+	return ReadMismatchBatch{}, nil
+}
+
+// EmptyStreamedMismatchBatch is an empty streamed mismatch batch.
+var EmptyStreamedMismatchBatch StreamedMismatchBatch = emptyStreamedMismatchBatch{}

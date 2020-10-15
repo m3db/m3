@@ -58,6 +58,12 @@ const (
 	// DBReadEncoded is the operation name for the db ReadEncoded path.
 	DBReadEncoded = "storage.db.ReadEncoded"
 
+	// DBWideQuery is the operation name for the db WideQuery path.
+	DBWideQuery = "storage.db.WideQuery"
+
+	// DBReadMismatches is the operation name for the db ReadMismatches path.
+	DBReadMismatches = "storage.db.ReadMismatches"
+
 	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
 
@@ -67,11 +73,20 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
+	// DBIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
+	DBIndexChecksum = "storage.db.IndexChecksum"
+
+	// DBFetchMismatches is the operation name for the tchannelthrift FetchMismatches path.
+	DBFetchMismatches = "storage.db.FetchMismatches"
+
 	// DBAggregateTiles is the operation name for the db AggregateTiles path.
 	DBAggregateTiles = "storage.db.AggregateTiles"
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
+
+	// NSWideQueryIDs is the operation name for the dbNamespace WideQueryIDs path.
+	NSWideQueryIDs = "storage.nsIndex.WideQueryIDs"
 
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
@@ -87,6 +102,9 @@ const (
 
 	// NSIdxQuery is the operation name for the nsIndex Query path.
 	NSIdxQuery = "storage.nsIndex.Query"
+
+	// NSIdxWideQuery is the operation name for the nsIndex WideQuery path.
+	NSIdxWideQuery = "storage.nsIndex.WideQuery"
 
 	// NSIdxAggregateQuery is the operation name for the nsIndex AggregateQuery path.
 	NSIdxAggregateQuery = "storage.nsIndex.AggregateQuery"
