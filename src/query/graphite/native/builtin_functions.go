@@ -2357,7 +2357,9 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
-	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
+		3: "average", // fname
+	})
 	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
