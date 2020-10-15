@@ -57,10 +57,17 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
+	errUnsetRequestType                  = errors.New("request type unset")
 )
+
+type streamReqType uint8
 
 const (
 	defaultRetrieveRequestQueueCapacity = 4096
+
+	streamInvalidReq streamReqType = iota
+	streamDataReq
+	streamIdxChecksumReq
 )
 
 type blockRetrieverStatus int
@@ -288,6 +295,20 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
+func (r *blockRetriever) processIndexChecksumRequest(
+	req *retrieveRequest,
+	seeker ConcurrentDataFileSetSeeker,
+	seekerResources ReusableSeekerResources,
+) {
+	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
+	if err != nil {
+		req.onError(err)
+		return
+	}
+
+	req.onIndexChecksumCompleted(entry)
+}
+
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
@@ -295,13 +316,6 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
-	if err := r.queryLimits.AnyExceeded(); err != nil {
-		for _, req := range reqs {
-			req.onError(err)
-		}
-		return
-	}
-
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -311,9 +325,48 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 
+	defer func() {
+		err = seekerMgr.Return(shard, blockStart, seeker)
+		if err != nil {
+			r.logger.Error("err returning seeker for shard",
+				zap.Uint32("shard", shard),
+				zap.Int64("blockStart", blockStart.Unix()),
+				zap.Error(err),
+			)
+		}
+	}()
+
+	// NB: filter out stream checksum requests, as these are handled seperately.
+	// Rebuild reqs so the wrong reference is less likely to be used later.
+	reqsPreProcessing := reqs
+	reqs = reqs[:0]
+
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	var limitErr error
+	for _, req := range reqsPreProcessing {
+		if req.streamReqType == streamInvalidReq {
+			req.onError(errUnsetRequestType)
+			continue
+		}
+
+		// NB: index checksum queries should ignore limits.
+		if req.streamReqType == streamIdxChecksumReq {
+			r.processIndexChecksumRequest(req, seeker, seekerResources)
+			continue
+		}
+
+		reqs = append(reqs, req)
+	}
+
+	// NB: remaining requests must be within query limits.
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		for _, req := range reqs {
+			req.onError(err)
+		}
+		return
+	}
+
 	for _, req := range reqs {
 		if limitErr != nil {
 			req.onError(limitErr)
@@ -335,10 +388,11 @@ func (r *blockRetriever) fetchBatch(
 		if err == errSeekIDNotFound {
 			req.notFound = true
 		}
+
 		req.indexEntry = entry
 	}
-	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
+	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
 	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
@@ -412,15 +466,6 @@ func (r *blockRetriever) fetchBatch(
 			r.onCallerOrRetrieverDone()
 		}(req)
 	}
-
-	err = seekerMgr.Return(shard, blockStart, seeker)
-	if err != nil {
-		r.logger.Error("err returning seeker for shard",
-			zap.Uint32("shard", shard),
-			zap.Int64("blockStart", blockStart.Unix()),
-			zap.Error(err),
-		)
-	}
 }
 
 func (r *blockRetriever) Stream(
@@ -439,6 +484,7 @@ func (r *blockRetriever) Stream(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
+	req.streamReqType = streamDataReq
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -489,6 +535,72 @@ func (r *blockRetriever) Stream(
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
 	return req.toBlock(), nil
+}
+
+func (r *blockRetriever) StreamIndexChecksum(
+	ctx context.Context,
+	shard uint32,
+	id ident.ID,
+	startTime time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	req := r.reqPool.Get()
+	req.shard = shard
+	// NB(r): Clone the ID as we're not positive it will stay valid throughout
+	// the lifecycle of the async request.
+	req.id = r.idPool.Clone(id)
+	req.start = startTime
+	req.blockSize = r.blockSize
+
+	req.streamReqType = streamIdxChecksumReq
+	req.resultWg.Add(1)
+
+	// Ensure to finalize at the end of request
+	ctx.RegisterFinalizer(req)
+
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	r.RLock()
+	// This should never happen unless caller tries to use Stream() before Open()
+	if r.seekerMgr == nil {
+		r.RUnlock()
+		return block.EmptyStreamedChecksum, errNoSeekerMgr
+	}
+	r.RUnlock()
+
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
+	if err != nil {
+		return block.EmptyStreamedChecksum, err
+	}
+
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately.
+	if !idExists {
+		return block.EmptyStreamedChecksum, nil
+	}
+
+	reqs, err := r.shardRequests(shard)
+	if err != nil {
+		return block.EmptyStreamedChecksum, err
+	}
+
+	reqs.Lock()
+	reqs.queued = append(reqs.queued, req)
+	reqs.Unlock()
+
+	// Notify fetch loop
+	select {
+	case r.notifyFetch <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
+
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
+	return req, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -593,8 +705,10 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 
-	indexEntry IndexEntry
-	reader     xio.SegmentReader
+	streamReqType streamReqType
+	indexEntry    IndexEntry
+	indexChecksum ident.IndexChecksum
+	reader        xio.SegmentReader
 
 	err error
 
@@ -605,6 +719,23 @@ type retrieveRequest struct {
 	shard     uint32
 
 	notFound bool
+}
+
+func (req *retrieveRequest) onIndexChecksumCompleted(
+	indexChecksum ident.IndexChecksum) {
+	if req.err == nil {
+		req.indexChecksum = indexChecksum
+		// If there was an error, we've already called done.
+		req.resultWg.Done()
+	}
+}
+
+func (req *retrieveRequest) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+	req.resultWg.Wait()
+	if req.err != nil {
+		return ident.IndexChecksum{}, req.err
+	}
+	return req.indexChecksum, nil
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -623,7 +754,11 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	if atomic.AddUint32(&req.finalizes, 1) != 2 {
 		return
 	}
-	req.id.Finalize()
+	// NB: streamIdxChecksumReq ids are used to sort the resultant list,
+	// so they should not be finalized here.
+	if req.streamReqType == streamDataReq {
+		req.id.Finalize()
+	}
 	req.id = nil
 	if req.tags != nil {
 		req.tags.Close()
@@ -703,7 +838,9 @@ func (req *retrieveRequest) resetForReuse() {
 	req.start = time.Time{}
 	req.blockSize = 0
 	req.onRetrieve = nil
+	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
+	req.indexChecksum = ident.IndexChecksum{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

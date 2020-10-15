@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -108,8 +109,15 @@ func TestReadOnlyIndexProxyDelegate(t *testing.T) {
 	assert.Equal(t, testErr, err)
 	assert.Equal(t, aggRes, aRes)
 
-	idx.EXPECT().BootstrapsDone().Return(uint(3))
-	assert.Equal(t, uint(3), roIdx.BootstrapsDone())
+	wideOpts := index.WideQueryOptions{}
+	ch := make(chan *ident.IDBatch)
+	idx.EXPECT().WideQuery(ctx, query, ch, wideOpts).Return(testErr)
+	err = roIdx.WideQuery(ctx, query, ch, wideOpts)
+	assert.Equal(t, testErr, err)
+	close(ch)
+
+	idx.EXPECT().Bootstrapped().Return(true)
+	assert.True(t, roIdx.Bootstrapped())
 
 	idx.EXPECT().SetExtendedRetentionPeriod(time.Minute)
 	roIdx.SetExtendedRetentionPeriod(time.Minute)
