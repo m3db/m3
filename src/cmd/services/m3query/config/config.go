@@ -432,6 +432,14 @@ type CarbonConfiguration struct {
 	ShiftStepsStart int `yaml:"shiftStepsStart"`
 	// ShiftStepsEnd sets a constant set of steps to shift end by.
 	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// ShiftStepsStartWhenAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the start is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsStartWhenAtResolutionBoundary *int `yaml:"shiftStepsStartWhenAtResolutionBoundary"`
+	// ShiftStepsEndWhenAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the end is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsEndWhenAtResolutionBoundary *int `yaml:"shiftStepsEndWhenAtResolutionBoundary"`
 	// RenderPartialStart sets whether to render partial datapoints when
 	// the start time is between a datapoint's resolution step size.
 	RenderPartialStart bool `yaml:"renderPartialStart"`
