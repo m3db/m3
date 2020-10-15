@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
@@ -35,8 +37,9 @@ import (
 )
 
 type server struct {
-	aggregator aggregator.Aggregator
-	logger     *zap.Logger
+	aggregator     aggregator.Aggregator
+	logger         *zap.Logger
+	consumeMetrics consumeMetrics
 }
 
 // NewServer creates a new M3Msg server.
@@ -52,10 +55,17 @@ func NewServer(
 	s := &server{
 		aggregator: aggregator,
 		logger:     opts.InstrumentOptions().Logger(),
+		consumeMetrics: consumeMetrics{
+			handleLatency: opts.InstrumentOptions().MetricsScope().SubScope("consumer").Timer("handle-latency"),
+		},
 	}
 
 	handler := consumer.NewConsumerHandler(s.Consume, opts.ConsumerOptions())
 	return xserver.NewServer(address, handler, opts.ServerOptions()), nil
+}
+
+type consumeMetrics struct {
+	handleLatency tally.Timer
 }
 
 func (s *server) Consume(c consumer.Consumer) {
@@ -71,7 +81,9 @@ func (s *server) Consume(c consumer.Consumer) {
 			break
 		}
 
+		start := s.consumeMetrics.handleLatency.Start()
 		err := s.handleMessage(pb, union, msg)
+		start.Stop()
 		if err != nil {
 			s.logger.Error("could not process message", zap.Error(err))
 		}

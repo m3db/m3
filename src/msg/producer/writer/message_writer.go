@@ -96,8 +96,8 @@ type messageWriter interface {
 }
 
 type messageWriterMetrics struct {
-	scope tally.Scope
-	opts instrument.TimerOptions
+	scope                    tally.Scope
+	opts                     instrument.TimerOptions
 	writeSuccess             tally.Counter
 	oneConsumerWriteError    tally.Counter
 	allConsumersWriteError   tally.Counter
@@ -110,6 +110,7 @@ type messageWriterMetrics struct {
 	messageDroppedTTLExpire  tally.Counter
 	messageRetry             tally.Counter
 	messageConsumeLatency    tally.Timer
+	messageWriteLatency      tally.Timer
 	messageWriteDelay        tally.Timer
 	scanBatchLatency         tally.Timer
 	scanTotalLatency         tally.Timer
@@ -139,10 +140,10 @@ func newMessageWriterMetricsWithConsumer(
 	opts instrument.TimerOptions,
 	consumer string,
 ) messageWriterMetrics {
-	consumerScope := scope.Tagged(map[string]string{"consumer" : consumer})
+	consumerScope := scope.Tagged(map[string]string{"consumer": consumer})
 	return messageWriterMetrics{
-		scope: scope,
-		opts: opts,
+		scope:                 scope,
+		opts:                  opts,
 		writeSuccess:          consumerScope.Counter("write-success"),
 		oneConsumerWriteError: scope.Counter("write-error-one-consumer"),
 		allConsumersWriteError: consumerScope.
@@ -168,6 +169,7 @@ func newMessageWriterMetricsWithConsumer(
 		messageRetry:          consumerScope.Counter("message-retry"),
 		messageConsumeLatency: instrument.NewTimer(consumerScope, "message-consume-latency", opts),
 		messageWriteDelay:     instrument.NewTimer(consumerScope, "message-write-delay", opts),
+		messageWriteLatency:   instrument.NewTimer(consumerScope, "message-write-latency", opts),
 		scanBatchLatency:      instrument.NewTimer(consumerScope, "scan-batch-latency", opts),
 		scanTotalLatency:      instrument.NewTimer(consumerScope, "scan-total-latency", opts),
 		enqueuedMessages:      consumerScope.Counter("message-enqueue"),
@@ -217,9 +219,9 @@ type messageWriterImpl struct {
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
 	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
-	m                *messageWriterMetrics
-	nextFullScan     time.Time
-	lastNewWrite     *list.Element
+	m            *messageWriterMetrics
+	nextFullScan time.Time
+	lastNewWrite *list.Element
 
 	nowFn clock.NowFn
 }
@@ -322,7 +324,10 @@ func (w *messageWriterImpl) write(
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
-		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
+		start := metrics.messageWriteLatency.Start()
+		err := consumerWriter.Write(connIndex, w.encoder.Bytes())
+		start.Stop()
+		if err != nil {
 			metrics.oneConsumerWriteError.Inc(1)
 			continue
 		}
