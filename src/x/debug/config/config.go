@@ -20,7 +20,10 @@
 
 package config
 
-import "runtime"
+import (
+	"log"
+	"runtime"
+)
 
 // DebugConfiguration for the debug package.
 type DebugConfiguration struct {
@@ -32,5 +35,6 @@ type DebugConfiguration struct {
 
 // SetMutexProfileFraction sets the configured mutex profile fraction for the runtime.
 func (c DebugConfiguration) SetMutexProfileFraction() {
+	log.Printf("Setting MutexProfileFraction to %v\n", c.MutexProfileFraction)
 	runtime.SetMutexProfileFraction(c.MutexProfileFraction)
 }
