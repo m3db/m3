@@ -71,6 +71,8 @@ type streamingWriter struct {
 	summaries    int
 }
 
+// NewStreamingWriter creates a new streaming writer that writes into the data
+// fileset without buffering.
 func NewStreamingWriter(opts Options) (StreamingWriter, error) {
 	w, err := NewWriter(opts)
 	if err != nil {

@@ -267,6 +267,22 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
+// StreamedChecksum yields an ident.IndexChecksum value asynchronously,
+// and any errors encountered during execution.
+type StreamedChecksum interface {
+	// RetrieveIndexChecksum retrieves the index checksum.
+	RetrieveIndexChecksum() (ident.IndexChecksum, error)
+}
+
+type emptyStreamedChecksum struct{}
+
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+	return ident.IndexChecksum{}, nil
+}
+
+// EmptyStreamedChecksum is an empty streamed checksum.
+var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
 	// CacheShardIndices will pre-parse the indexes for given shards
@@ -283,6 +299,16 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if it is available in the shard.
+	StreamIndexChecksum(
+		ctx context.Context,
+		shard uint32,
+		id ident.ID,
+		startTime time.Time,
+		nsCtx namespace.Context,
+	) (StreamedChecksum, error)
+
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -296,6 +322,15 @@ type DatabaseShardBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if available.
+	StreamIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (StreamedChecksum, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers
