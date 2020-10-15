@@ -52,7 +52,8 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 		SetIndexOptions(namespace.NewIndexOptions().
 			SetEnabled(true).
 			SetBlockSize(2 * blockSize),
-		)
+		).
+		SetColdWritesEnabled(true)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
