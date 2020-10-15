@@ -76,8 +76,8 @@ func newHostQueue(
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error) {
 	var (
-		opts               = hostQueueOpts.opts
-		iOpts              = opts.InstrumentOptions()
+		opts  = hostQueueOpts.opts
+		iOpts = opts.InstrumentOptions()
 		scope = iOpts.MetricsScope().SubScope("hostqueue")
 	)
 	iOpts = iOpts.SetMetricsScope(scope)
@@ -107,8 +107,6 @@ func newHostQueue(
 		return nil, err
 	}
 	workerPool.Init()
-
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	size := opts.HostQueueOpsFlushSize()
 
