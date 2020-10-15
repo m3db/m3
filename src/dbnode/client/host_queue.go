@@ -76,14 +76,12 @@ func newHostQueue(
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error) {
 	var (
-		opts               = hostQueueOpts.opts
-		iOpts              = opts.InstrumentOptions()
-		scopeWithoutHostID = iOpts.MetricsScope().SubScope("hostqueue")
-		scope              = scopeWithoutHostID.Tagged(map[string]string{
-			"hostID": host.ID(),
-		})
+		opts  = hostQueueOpts.opts
+		iOpts = opts.InstrumentOptions()
+		scope = iOpts.MetricsScope().SubScope("hostqueue")
 	)
 	iOpts = iOpts.SetMetricsScope(scope)
+	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
@@ -109,8 +107,6 @@ func newHostQueue(
 		return nil, err
 	}
 	workerPool.Init()
-
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	size := opts.HostQueueOpsFlushSize()
 
@@ -143,8 +139,8 @@ func newHostQueue(
 		size:                                         size,
 		ops:                                          opArrayPool.Get(),
 		opsArrayPool:                                 opArrayPool,
-		writeOpBatchSize:                             scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
-		fetchOpBatchSize:                             scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
+		writeOpBatchSize:                             scope.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
+		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
 		drainIn:                                      make(chan []op, opsArraysLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
 	}, nil
