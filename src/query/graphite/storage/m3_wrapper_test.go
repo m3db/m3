@@ -314,24 +314,24 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                                    "constant shift start and end + boundary shift start and end with start at boundary",
 			start:                                   time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
-			end:                                     time.Date(2020, time.October, 8, 16, 05, 0, 0, time.UTC),
+			end:                                     time.Date(2020, time.October, 8, 15, 05, 05, 0, time.UTC),
 			shiftStepsStart:                         1,
 			shiftStepsEnd:                           1,
 			shiftStepsStartWhenAtResolutionBoundary: intRefValue(2),
 			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
 			numDataPointsFetched:                    25,
-			numDataPointsExpected:                   5,
+			numDataPointsExpected:                   4,
 		},
 		{
 			name:                                    "constant shift start and end + boundary shift start and end with start and end at boundary",
 			start:                                   time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
-			end:                                     time.Date(2020, time.October, 8, 16, 0, 0, 0, time.UTC),
+			end:                                     time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 			shiftStepsStart:                         1,
 			shiftStepsEnd:                           1,
 			shiftStepsStartWhenAtResolutionBoundary: intRefValue(2),
 			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
 			numDataPointsFetched:                    25,
-			numDataPointsExpected:                   5,
+			numDataPointsExpected:                   6,
 		},
 	}
 
@@ -360,20 +360,32 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 				require.Equal(t, fmt.Sprint("a", i), tt.Name(), "unexpected name")
 				require.Equal(t, ex, tt.SafeValues(), "unexpected values")
 
-				expectedStart := test.start.
-					Truncate(resolution).
-					Add(time.Duration(test.shiftStepsStart) * resolution)
+				expectedStart := test.start.Truncate(resolution)
 				if !test.renderPartialStart && !test.start.Equal(test.start.Truncate(resolution)) {
 					expectedStart = expectedStart.Add(resolution)
+				}
+				expectedStartPreShift := expectedStart
+				if v := test.shiftStepsStartWhenAtResolutionBoundary; v != nil && test.start.Equal(test.start.Truncate(resolution)) {
+					// Apply boundary shifts which override constant shifts if at boundary.
+					expectedStart = expectedStart.Add(time.Duration(*v) * resolution)
+				} else {
+					// Otherwise shift by constant shift if no override shift effective.
+					expectedStart = expectedStart.Add(time.Duration(test.shiftStepsStart) * resolution)
 				}
 				require.Equal(t, expectedStart, tt.StartTime(), "unexpected start time")
 
 				queryWindow := test.end.Sub(test.start)
 				expectedDatapoints := queryWindow / resolution
-				expectedEnd := expectedStart.Add(expectedDatapoints * resolution).
-					Add(time.Duration(test.shiftStepsEnd) * resolution)
+				expectedEnd := expectedStartPreShift.Add(expectedDatapoints * resolution)
 				if test.renderPartialEnd && queryWindow != queryWindow.Truncate(resolution) {
 					expectedEnd = expectedEnd.Add(resolution)
+				}
+				if v := test.shiftStepsEndWhenAtResolutionBoundary; v != nil && test.end.Equal(test.end.Truncate(resolution)) {
+					// Apply boundary shifts which override constant shifts if at boundary.
+					expectedEnd = expectedEnd.Add(time.Duration(*v) * resolution)
+				} else {
+					// Otherwise shift by constant shift if no override shift effective.
+					expectedEnd = expectedEnd.Add(time.Duration(test.shiftStepsEnd) * resolution)
 				}
 				require.Equal(t, expectedEnd, tt.EndTime(), "unexpected end time")
 			}
