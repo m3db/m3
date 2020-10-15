@@ -23,8 +23,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
+	"runtime"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/server"
@@ -50,7 +52,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg.Debug.SetMutexProfileFraction()
+	log.Print("forcing mutex profile")
+	runtime.SetMutexProfileFraction(1)
+	runtime.SetBlockProfileRate(1)
 
 	server.Run(server.RunOptions{
 		Config: cfg,
