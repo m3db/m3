@@ -45,6 +45,7 @@ var periods = map[string]time.Duration{
 	"seconds": time.Second,
 	"m":       time.Minute,
 	"min":     time.Minute,
+	"mins":     time.Minute,
 	"minute":  time.Minute,
 	"minutes": time.Minute,
 	"h":       time.Hour,
