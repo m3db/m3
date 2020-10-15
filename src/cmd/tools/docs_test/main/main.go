@@ -145,7 +145,7 @@ func main() {
 						class := resp.StatusCode / 100
 						// Ignore 5xx errors since they are indicative of a problem with the external server
 						// and not our documentation.
-						if class != 2 && class != 5 {
+						if class != 2 && class != 5 && resp.StatusCode != http.StatusTooManyRequests {
 							err = fmt.Errorf("unexpected status code: status=%v", resp.StatusCode)
 						}
 					}
