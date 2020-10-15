@@ -68,6 +68,8 @@ func NewAggregateResults(
 	}
 }
 
+func (r *aggregatedResults) EnforceLimits() bool { return true }
+
 func (r *aggregatedResults) Reset(
 	nsID ident.ID,
 	aggregateOpts AggregateResultsOptions,
