@@ -21,19 +21,70 @@
 package aggregation
 
 import (
-	"math"
-	"testing"
-
+	"fmt"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"math"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTakeInstantFn(t *testing.T) {
+	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4}, {5, 6, 7, 8}}
+
+	expectedMin := []ValueAndMeta{
+		{Val: 1.1, SeriesMeta: seriesMetasTakeOrdered[0]},
+		{Val: 2.1, SeriesMeta: seriesMetasTakeOrdered[1]},
+		{Val: 3.1, SeriesMeta: seriesMetasTakeOrdered[2]},
+		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[3]},
+
+		{Val: 5.1, SeriesMeta: seriesMetasTakeOrdered[4]},
+
+		{Val: 6.1, SeriesMeta: seriesMetasTakeOrdered[5]},
+		{Val: 7.1, SeriesMeta: seriesMetasTakeOrdered[6]},
+		{Val: 8.1, SeriesMeta: seriesMetasTakeOrdered[7]},
+		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[8]},
+	}
+
+	size := 3
+	minHeap := utils.NewFloatHeap(false, size)
+	actual := takeInstantFn(minHeap, valuesMin, buckets, seriesMetasTakeOrdered) //9
+
+	actualString := fmt.Sprint(actual)
+	expectedString := fmt.Sprint(expectedMin)
+
+	require.EqualValues(t, expectedString, actualString)
+
+	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	expectedMax := []ValueAndMeta{
+		{Val: 4.1, SeriesMeta: seriesMetasTakeOrdered[3]},
+		{Val: 3.1, SeriesMeta: seriesMetasTakeOrdered[2]},
+		{Val: 2.1, SeriesMeta: seriesMetasTakeOrdered[1]},
+		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[3]},
+
+		{Val: 5.1, SeriesMeta: seriesMetasTakeOrdered[4]},
+
+		{Val: 9.1, SeriesMeta: seriesMetasTakeOrdered[8]},
+		{Val: 8.1, SeriesMeta: seriesMetasTakeOrdered[7]},
+		{Val: 7.1, SeriesMeta: seriesMetasTakeOrdered[6]},
+		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[8]},
+	}
+
+	maxHeap := utils.NewFloatHeap(true, size)
+	actual = takeInstantFn(maxHeap, valuesMax, buckets, seriesMetasTakeOrdered)
+	actualString = fmt.Sprint(actual)
+	expectedString = fmt.Sprint(expectedMax)
+
+	assert.EqualValues(t, expectedString, actualString)
+}
 
 func TestTakeFn(t *testing.T) {
 	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
@@ -58,6 +109,20 @@ func TestTakeFn(t *testing.T) {
 	actualQ := bucketedQuantileFn(0, valuesQuantile, []int{0, 1, 2, 3})
 	test.EqualsWithNans(t, 1.1, actualQ)
 }
+
+var (
+	seriesMetasTakeOrdered = []block.SeriesMeta{
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "2"}, {N: "group", V: "production"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+	}
+)
 
 func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
@@ -98,6 +163,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
+
 	expected := [][]float64{
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
