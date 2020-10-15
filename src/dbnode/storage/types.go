@@ -747,13 +747,13 @@ type NamespaceIndex interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// Bootstrap bootstraps the index the provided segments.
+	// Bootstrap bootstraps the index with the provided segments.
 	Bootstrap(
 		bootstrapResults result.IndexResults,
 	) error
 
-	// BootstrapsDone returns the number of completed bootstraps.
-	BootstrapsDone() uint
+	// Bootstrapped is true if the bootstrap has completed.
+	Bootstrapped() bool
 
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.

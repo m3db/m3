@@ -1008,9 +1008,6 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	d.commitLog = nil
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	nsOptions := namespace.NewOptions()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
-	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
