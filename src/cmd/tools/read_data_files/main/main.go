@@ -22,7 +22,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -128,7 +128,7 @@ func main() {
 			// Use fmt package so it goes to stdout instead of stderr
 			fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
 			if len(annotation) > 0 {
-				fmt.Printf(", annotation: %s", hex.EncodeToString(annotation))
+				fmt.Printf(", annotation: %s", base64.StdEncoding.EncodeToString(annotation))
 			}
 			fmt.Println("}")
 		}
