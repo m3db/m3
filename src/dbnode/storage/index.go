@@ -1383,7 +1383,6 @@ func (i *nsIndex) WideQuery(
 	// NB: result channel should be closed here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
 	defer results.Close()
-	ctx.RegisterFinalizer(results)
 	queryOpts := opts.ToQueryOptions()
 
 	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
