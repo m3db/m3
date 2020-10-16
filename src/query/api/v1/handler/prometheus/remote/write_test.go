@@ -63,7 +63,8 @@ func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
 			WriteForwarding: config.WriteForwardingConfiguration{
 				PromRemoteWrite: handleroptions.PromWriteHandlerForwardingOptions{},
 			},
-		})
+		}).
+		SetStoreMetricsType(true)
 }
 
 func TestPromWriteParsing(t *testing.T) {
@@ -304,8 +305,6 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 		})
 
 	opts := makeOptions(mockDownsamplerAndWriter)
-	handler, err := NewPromWriteHandler(opts)
-	require.NoError(t, err)
 
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
@@ -321,13 +320,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 		},
 	}
 
-	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-
-	writer := httptest.NewRecorder()
-	handler.ServeHTTP(writer, req)
-	resp := writer.Result()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	executeWriteRequest(t, opts, promReq)
 
 	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, true)
@@ -366,8 +359,6 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 		})
 
 	opts := makeOptions(mockDownsamplerAndWriter)
-	handler, err := NewPromWriteHandler(opts)
-	require.NoError(t, err)
 
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
@@ -379,19 +370,45 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 		},
 	}
 
-	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-
-	writer := httptest.NewRecorder()
-	handler.ServeHTTP(writer, req)
-	resp := writer.Result()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	executeWriteRequest(t, opts, promReq)
 
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteDisabledMetricsTypes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter).SetStoreMetricsType(false)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Type: prompb.MetricType_COUNTER},
+		},
+	}
+
+	executeWriteRequest(t, opts, promReq)
+
+	require.True(t, capturedIter.Next())
+	value := capturedIter.Current()
+	assert.Nil(t, value.Annotation)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -441,4 +458,17 @@ func unmarshalAnnotation(t *testing.T, annot []byte) annotation.Payload {
 	payload := annotation.Payload{}
 	require.NoError(t, payload.Unmarshal(annot))
 	return payload
+}
+
+func executeWriteRequest(t *testing.T, handlerOpts options.HandlerOptions, promReq *prompb.WriteRequest) {
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
