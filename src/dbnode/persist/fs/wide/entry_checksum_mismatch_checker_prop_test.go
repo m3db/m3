@@ -31,7 +31,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/ident"
 	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/leanovate/gopter"
@@ -85,7 +84,7 @@ func genEntryTestInput(size int) gopter.Gen {
 
 type generatedChecksums struct {
 	taking     []bool
-	blockBatch []ident.IndexChecksumBlockBatch
+	blockBatch []IndexChecksumBlockBatch
 }
 
 // genChecksumTestInput creates index checksum blockBatch of randomized sizes,
@@ -105,17 +104,19 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 			blockSizes        = val[1].([]int)
 
 			taking         []bool
-			takenChecksums []ident.IndexChecksum
-			checksumBlocks []ident.IndexChecksumBlockBatch
+			takenChecksums []schema.IndexChecksum
+			checksumBlocks []IndexChecksumBlockBatch
 		)
 
 		for i, chance := range dropChancePercent {
 			shouldKeep := chance <= 80
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
-				takenChecksums = append(takenChecksums, ident.IndexChecksum{
-					ID:       entries[i].ID,
-					Checksum: indexHasher.HashIndexEntry(entries[i]),
+				takenChecksums = append(takenChecksums, schema.IndexChecksum{
+					IndexEntry: schema.IndexEntry{
+						ID: entries[i].ID,
+					},
+					MetadataChecksum: indexHasher.HashIndexEntry(entries[i]),
 				})
 			}
 		}
@@ -131,12 +132,12 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 				take = remaining
 			}
 
-			block := ident.IndexChecksumBlockBatch{
+			block := IndexChecksumBlockBatch{
 				Checksums: make([]int64, 0, take),
 			}
 
 			for i := 0; i < take; i++ {
-				block.Checksums = append(block.Checksums, takenChecksums[i].Checksum)
+				block.Checksums = append(block.Checksums, takenChecksums[i].MetadataChecksum)
 				block.EndMarker = takenChecksums[i].ID
 			}
 
@@ -379,7 +380,7 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 				genChecksums generatedChecksums,
 				genEntries generatedEntries,
 			) (bool, error) {
-				inputBlockCh := make(chan ident.IndexChecksumBlockBatch)
+				inputBlockCh := make(chan IndexChecksumBlockBatch)
 				inputBlockReader := NewIndexChecksumBlockBatchReader(inputBlockCh)
 
 				go func() {

@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -107,12 +106,12 @@ func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 	return err
 }
 
-func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockBatch {
+func (c *entryChecksumMismatchChecker) readNextBatch() IndexChecksumBlockBatch {
 	if !c.blockReader.Next() {
 		c.exhausted = true
 		// NB: set exhausted to true and return an empty since there are no
 		// more available checksum blocks.
-		return ident.IndexChecksumBlockBatch{}
+		return IndexChecksumBlockBatch{}
 	}
 
 	c.batchIdx = 0

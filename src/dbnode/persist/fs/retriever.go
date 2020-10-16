@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -707,7 +708,7 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	indexChecksum ident.IndexChecksum
+	indexChecksum schema.IndexChecksum
 	reader        xio.SegmentReader
 
 	err error
@@ -722,7 +723,7 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onIndexChecksumCompleted(
-	indexChecksum ident.IndexChecksum) {
+	indexChecksum schema.IndexChecksum) {
 	if req.err == nil {
 		req.indexChecksum = indexChecksum
 		// If there was an error, we've already called done.
@@ -730,10 +731,10 @@ func (req *retrieveRequest) onIndexChecksumCompleted(
 	}
 }
 
-func (req *retrieveRequest) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveIndexChecksum() (schema.IndexChecksum, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return ident.IndexChecksum{}, req.err
+		return schema.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
 }
@@ -840,7 +841,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = ident.IndexChecksum{}
+	req.indexChecksum = schema.IndexChecksum{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

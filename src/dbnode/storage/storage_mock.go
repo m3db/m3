@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -346,10 +347,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]schema.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret0, _ := ret[0].([]schema.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -786,10 +787,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]schema.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret0, _ := ret[0].([]schema.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

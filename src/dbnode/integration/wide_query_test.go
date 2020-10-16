@@ -33,14 +33,18 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/checked"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/stretchr/testify/assert"
@@ -48,9 +52,14 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	wideTagName   = "tag"
+	wideTagValFmt = "val-%05d"
+)
+
 type shardedIndexChecksum struct {
 	shard     uint32
-	checksums []ident.IndexChecksum
+	checksums []schema.IndexChecksum
 }
 
 // buildExpectedChecksumsByShard sorts the given IDs into ascending shard order,
@@ -60,12 +69,17 @@ func buildExpectedChecksumsByShard(
 	allowedShards []uint32,
 	shardSet sharding.ShardSet,
 	batchSize int,
-) []ident.IndexChecksum {
+) []schema.IndexChecksum {
 	shardedChecksums := make([]shardedIndexChecksum, 0, len(ids))
 	for i, id := range ids {
-		checksum := ident.IndexChecksum{ID: []byte(id), Checksum: int64(i)}
-		shard := shardSet.Lookup(ident.StringID(id))
+		checksum := schema.IndexChecksum{
+			IndexEntry: schema.IndexEntry{
+				ID: []byte(id),
+			},
+			MetadataChecksum: int64(i),
+		}
 
+		shard := shardSet.Lookup(ident.StringID(id))
 		if len(allowedShards) > 0 {
 			shardInUse := false
 			for _, allowed := range allowedShards {
@@ -97,7 +111,7 @@ func buildExpectedChecksumsByShard(
 
 		shardedChecksums = append(shardedChecksums, shardedIndexChecksum{
 			shard:     shard,
-			checksums: []ident.IndexChecksum{checksum},
+			checksums: []schema.IndexChecksum{checksum},
 		})
 	}
 
@@ -105,7 +119,7 @@ func buildExpectedChecksumsByShard(
 		return shardedChecksums[i].shard < shardedChecksums[j].shard
 	})
 
-	var checksums []ident.IndexChecksum
+	var checksums []schema.IndexChecksum
 	for _, sharded := range shardedChecksums {
 		checksums = append(checksums, sharded.checksums...)
 	}
@@ -125,6 +139,22 @@ func buildExpectedChecksumsByShard(
 	}
 
 	return checksums
+}
+
+func assertTags(
+	t *testing.T,
+	encoded []byte,
+	decoder serialize.TagDecoder,
+	expected int64,
+) {
+	decoder.Reset(checked.NewBytes(encoded, nil))
+	assert.Equal(t, 1, decoder.Len())
+	assert.True(t, decoder.Next())
+	tag := decoder.Current()
+	assert.Equal(t, wideTagName, tag.Name.String())
+	assert.Equal(t, fmt.Sprintf(wideTagValFmt, expected), tag.Value.String())
+	assert.False(t, decoder.Next())
+	require.NoError(t, decoder.Err())
 }
 
 func TestWideFetch(t *testing.T) {
@@ -190,11 +220,11 @@ func TestWideFetch(t *testing.T) {
 	indexWrites := make(TestIndexWrites, 0, seriesCount)
 	ids := make([]string, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
-		id := fmt.Sprintf("foo-%05d", i)
+		id := fmt.Sprintf("id-%05d", i)
 		ids = append(ids, id)
 		indexWrites = append(indexWrites, testIndexWrite{
 			id:    ident.StringID(id),
-			tags:  ident.MustNewTagStringsIterator("abc", fmt.Sprintf("def%d", i)),
+			tags:  ident.MustNewTagStringsIterator(wideTagName, fmt.Sprintf(wideTagValFmt, i)),
 			ts:    now,
 			value: float64(i),
 		})
@@ -232,7 +262,7 @@ func TestWideFetch(t *testing.T) {
 	log.Info("filesets found on disk")
 
 	var (
-		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte("abc"), []byte("def.*"))}
+		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte(wideTagName), []byte("val.*"))}
 		iterOpts = index.IterationOptions{}
 	)
 
@@ -246,6 +276,16 @@ func TestWideFetch(t *testing.T) {
 		{name: "all shards filter", shards: testSetup.ShardSet().AllIDs()},
 	}
 
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(
+			serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions(),
+	)
+
+	tagDecoderPool.Init()
+	decoder := tagDecoderPool.Get()
+	defer decoder.Close()
+
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
@@ -257,7 +297,10 @@ func TestWideFetch(t *testing.T) {
 				testSetup.ShardSet(), batchSize)
 			require.Equal(t, len(expected), len(chk))
 			for i, checksum := range chk {
-				assert.Equal(t, expected[i], checksum)
+				assert.Equal(t, expected[i].MetadataChecksum, checksum.MetadataChecksum)
+				assert.Equal(t, expected[i].ID, checksum.ID)
+				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
+				checksum.Finalize()
 			}
 
 			ctx.Close()
@@ -266,7 +309,7 @@ func TestWideFetch(t *testing.T) {
 
 	var (
 		exactID    = ids[1]
-		exactQuery = index.Query{Query: idx.NewTermQuery([]byte("abc"), []byte("def1"))}
+		exactQuery = index.Query{Query: idx.NewTermQuery([]byte(wideTagName), []byte("val-00001"))}
 		exactShard = testSetup.ShardSet().Lookup(ident.StringID(exactID))
 	)
 
@@ -297,8 +340,11 @@ func TestWideFetch(t *testing.T) {
 				assert.Equal(t, 0, len(chk))
 			} else {
 				require.Equal(t, 1, len(chk))
-				assert.Equal(t, int64(1), chk[0].Checksum)
-				assert.Equal(t, []byte(exactID), chk[0].ID)
+				checksum := chk[0]
+				assert.Equal(t, int64(1), checksum.MetadataChecksum)
+				assert.Equal(t, []byte(exactID), checksum.ID)
+				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
+				checksum.Finalize()
 			}
 
 			ctx.Close()
@@ -333,12 +379,14 @@ func TestWideFetch(t *testing.T) {
 					break
 				}
 
-				for i, c := range chk {
-					if expected[i].Checksum != c.Checksum {
+				for i, checksum := range chk {
+					if expected[i].MetadataChecksum != checksum.MetadataChecksum {
 						runError = fmt.Errorf("expected %d checksum, got %d",
-							expected[i].Checksum, c.Checksum)
+							expected[i].MetadataChecksum, checksum.MetadataChecksum)
 						break
 					}
+
+					checksum.Finalize()
 				}
 
 				ctx.Close()

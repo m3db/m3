@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -856,10 +857,10 @@ func (m *MockStreamedChecksum) EXPECT() *MockStreamedChecksumMockRecorder {
 }
 
 // RetrieveIndexChecksum mocks base method
-func (m *MockStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+func (m *MockStreamedChecksum) RetrieveIndexChecksum() (schema.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetrieveIndexChecksum")
-	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret0, _ := ret[0].(schema.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

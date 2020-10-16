@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -992,7 +993,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
+) ([]schema.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1003,7 +1004,7 @@ func (d *db) WideQuery(
 		batchSize = d.opts.WideBatchSize()
 		blockSize = n.Options().IndexOptions().BlockSize()
 
-		collectedChecksums = make([]ident.IndexChecksum, 0, 10)
+		collectedChecksums = make([]schema.IndexChecksum, 0, 10)
 	)
 
 	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
