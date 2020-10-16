@@ -22,6 +22,9 @@ package aggregation
 
 import (
 	"fmt"
+	"math"
+	"testing"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -29,9 +32,6 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
-	"math"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ func TestTakeInstantFn(t *testing.T) {
 	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
 	buckets := [][]int{{0, 1, 2, 3}, {4}, {5, 6, 7, 8}}
 
-	expectedMin := []ValueAndMeta{
+	expectedMin := []valueAndMeta{
 		{val: 1.1, seriesMeta: seriesMetasTakeOrdered[0]},
 		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
 		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
@@ -64,7 +64,7 @@ func TestTakeInstantFn(t *testing.T) {
 	require.EqualValues(t, expectedString, actualString)
 
 	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
-	expectedMax := []ValueAndMeta{
+	expectedMax := []valueAndMeta{
 		{val: 4.1, seriesMeta: seriesMetasTakeOrdered[3]},
 		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
 		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},

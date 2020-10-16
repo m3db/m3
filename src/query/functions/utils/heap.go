@@ -53,6 +53,8 @@ type FloatHeap struct {
 	floatHeap *floatHeap
 }
 
+const limitMaxValues = 10_000
+
 // NewFloatHeap builds a new FloatHeap based on first parameter
 // and a capacity given by second parameter. Zero and negative
 // values for maxSize provide an unbounded FloatHeap
@@ -68,8 +70,9 @@ func NewFloatHeap(isMaxHeap bool, capacity int) *FloatHeap {
 		capacity = 0
 	}
 
-	if capacity > 10_000 {
-		capacity = 10_000
+	// we limit heap capacity because we don't want to go OOM
+	if capacity > limitMaxValues {
+		capacity = limitMaxValues
 	}
 
 	floatHeap := &floatHeap{

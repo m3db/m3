@@ -22,13 +22,14 @@ package aggregation
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/util"
-	"math"
 )
 
 const (
@@ -38,13 +39,13 @@ const (
 	TopKType = "topk"
 )
 
-type ValueAndMeta struct {
+type valueAndMeta struct {
 	val        float64
 	seriesMeta block.SeriesMeta
 }
 
 type takeFunc func(values []float64, buckets [][]int) []float64
-type takeInstantFunc func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []ValueAndMeta
+type takeInstantFunc func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta
 
 // NewTakeOp creates a new takeK operation
 func NewTakeOp(
@@ -64,7 +65,7 @@ func NewTakeOp(
 		fn = func(values []float64, buckets [][]int) []float64 {
 			return takeNone(values)
 		}
-		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []ValueAndMeta {
+		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
 			return takeInstantNone(values, seriesMetas)
 		}
 	} else {
@@ -72,7 +73,7 @@ func NewTakeOp(
 		fn = func(values []float64, buckets [][]int) []float64 {
 			return takeFn(heap, values, buckets)
 		}
-		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []ValueAndMeta {
+		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
 			return takeInstantFn(heap, values, buckets, seriesMetas)
 		}
 	}
@@ -217,8 +218,8 @@ func takeNone(values []float64) []float64 {
 	return values
 }
 
-func takeInstantNone(values []float64, seriesMetas []block.SeriesMeta) []ValueAndMeta {
-	result := make([]ValueAndMeta, len(values))
+func takeInstantNone(values []float64, seriesMetas []block.SeriesMeta) []valueAndMeta {
+	result := make([]valueAndMeta, len(values))
 	for i := range result {
 		result[i].val = math.NaN()
 		result[i].seriesMeta = seriesMetas[i]
@@ -257,10 +258,10 @@ func takeFn(heap *utils.FloatHeap, values []float64, buckets [][]int) []float64 
 	return values
 }
 
-func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []ValueAndMeta {
-	var result = make([]ValueAndMeta, len(values))
+func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []valueAndMeta {
+	var result = make([]valueAndMeta, len(values))
 	for i := range result {
-		result[i] = ValueAndMeta{
+		result[i] = valueAndMeta{
 			val:        values[i],
 			seriesMeta: metas[i],
 		}
