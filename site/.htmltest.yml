@@ -14,7 +14,6 @@ IgnoreEmptyHref: true
 TestFilesConcurrently: false
 DocumentConcurrencyLimit: 1
 HTTPConcurrencyLimit: 1
-LogLevel: 0
 IgnoreURLs:
 - "youtu.be"
 - "youtube.com"
