@@ -233,9 +233,6 @@ func truncateBoundsToResolution(
 		end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)
 	}
 
-	fmt.Println("START TIME, END TIME")
-	fmt.Println(start.String())
-	fmt.Println(end.String())
 	return start, end
 }
 
