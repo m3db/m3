@@ -617,22 +617,24 @@ func (i *promTSIter) Next() bool {
 		return false
 	}
 
-	if i.storeMetricsType {
-		annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
-		if err != nil {
-			i.err = err
-			return false
-		}
+	if !i.storeMetricsType {
+		return true
+	}
 
-		i.annotation, err = annotationPayload.Marshal()
-		if err != nil {
-			i.err = err
-			return false
-		}
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	if err != nil {
+		i.err = err
+		return false
+	}
 
-		if len(i.annotation) == 0 {
-			i.annotation = nil
-		}
+	i.annotation, err = annotationPayload.Marshal()
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	if len(i.annotation) == 0 {
+		i.annotation = nil
 	}
 
 	return true

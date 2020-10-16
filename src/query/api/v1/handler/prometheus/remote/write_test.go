@@ -317,6 +317,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 			{Type: prompb.MetricType_GAUGE_HISTOGRAM},
 			{Type: prompb.MetricType_INFO},
 			{Type: prompb.MetricType_STATESET},
+			{},
 		},
 	}
 
@@ -331,6 +332,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE_HISTOGRAM, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_STATESET, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -367,6 +369,7 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
+			{},
 		},
 	}
 
@@ -376,6 +379,7 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 
 	require.False(t, capturedIter.Next())
@@ -401,14 +405,14 @@ func TestPromWriteDisabledMetricsTypes(t *testing.T) {
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{Type: prompb.MetricType_COUNTER},
+			{},
 		},
 	}
 
 	executeWriteRequest(t, opts, promReq)
 
-	require.True(t, capturedIter.Next())
-	value := capturedIter.Current()
-	assert.Nil(t, value.Annotation)
+	verifyIterValueNoAnnotation(t, capturedIter)
+	verifyIterValueNoAnnotation(t, capturedIter)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -452,6 +456,12 @@ func verifyIterValueAnnotation(
 	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
 
 	return value
+}
+
+func verifyIterValueNoAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter) {
+	require.True(t, iter.Next())
+	value := iter.Current()
+	assert.Nil(t, value.Annotation)
 }
 
 func unmarshalAnnotation(t *testing.T, annot []byte) annotation.Payload {
