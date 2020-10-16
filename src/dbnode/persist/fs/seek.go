@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -518,6 +519,67 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 
 		indexChecksum.ID = idBytes
 		return indexChecksum, nil
+	}
+}
+
+// SeekIndexEntryToReadMismatches performs the following steps:
+// FIXME:
+//     1. Go to the indexLookup and it will give us an offset that is a good starting
+//        point for scanning the index file.
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
+//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
+//        far we know it does not exist.
+func (s *seeker) SeekIndexEntryToReadMismatches(
+	id ident.ID,
+	batchReader wide.IndexChecksumBlockBatchReader,
+	resources ReusableSeekerResources,
+) ([]wide.ReadMismatch, error) {
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted.
+	if err != nil {
+		return nil, err
+	}
+
+	resources.offsetFileReader.reset(s.indexFd, offset)
+	resources.fileDecoderStream.Reset(resources.offsetFileReader)
+	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
+
+	idBytes := id.Bytes()
+	for {
+		entry, err := resources.xmsgpackDecoder.
+			DecodeIndexEntry(resources.decodeIndexEntryBytesPool)
+		if err != nil {
+			if err == io.EOF {
+				// Reached the end of the file without finding the ID.
+				return nil, errSeekIDNotFound
+			}
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return nil, instrument.InvariantErrorf(err.Error())
+		}
+
+		if status == xmsgpack.NotFound {
+			// a `NotFound` status for the index checksum decode indicates that the
+			// current seek has passed the point in the file where this ID could have
+			// appeared; short-circuit here as the ID does not exist in the file.
+			return nil, errSeekIDNotFound
+		} else if status == xmsgpack.Mismatch {
+			// a `Mismatch` status for the index checksum decode indicates that the
+			// current seek does not match the ID, but that it may still appear in
+			// the file.
+			continue
+		}
+
+		indexChecksum := ident.IndexChecksum{
+			Checksum: checksum,
+		}
+
+		indexChecksum.ID = idBytes
+		return nil, nil
 	}
 }
 

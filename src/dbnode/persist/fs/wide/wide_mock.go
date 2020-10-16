@@ -55,6 +55,18 @@ func (m *MockIndexChecksumBlockBatchReader) EXPECT() *MockIndexChecksumBlockBatc
 	return m.recorder
 }
 
+// Close mocks base method
+func (m *MockIndexChecksumBlockBatchReader) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockIndexChecksumBlockBatchReaderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIndexChecksumBlockBatchReader)(nil).Close))
+}
+
 // Current mocks base method
 func (m *MockIndexChecksumBlockBatchReader) Current() ident.IndexChecksumBlockBatch {
 	m.ctrl.T.Helper()

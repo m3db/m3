@@ -74,6 +74,8 @@ type IndexChecksumBlockBatchReader interface {
 	Next() bool
 	// Current yields the current IndexChecksumBlockBatch.
 	Current() ident.IndexChecksumBlockBatch
+	// Close closes the reader, draining any incoming reads without using them.
+	Close()
 }
 
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.

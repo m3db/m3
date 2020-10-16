@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -223,6 +224,15 @@ type DataFileSetSeeker interface {
 	// instead yields a minimal structure describing a checksum of the series.
 	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
 
+	// SeekIndexEntryToReadMismatches seeks in a manner similar to SeekIndexEntry,
+	// applying each ID against an index checksum block batch, returning any
+	// mismatches.
+	SeekIndexEntryToReadMismatches(
+		id ident.ID,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		resources ReusableSeekerResources,
+	) ([]wide.ReadMismatch, error)
+
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
 
@@ -260,6 +270,13 @@ type ConcurrentDataFileSetSeeker interface {
 
 	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
 	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
+
+	// SeekIndexEntryToReadMismatches is the same as in DataFileSetSeeker.
+	SeekIndexEntryToReadMismatches(
+		id ident.ID,
+		batchReader wide.IndexChecksumBlockBatchReader,
+		resources ReusableSeekerResources,
+	) ([]wide.ReadMismatch, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
