@@ -172,6 +172,9 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
+	// NB(bodu): Cleanup of index && data snapshots MUST happen during warm flush cleanup
+	// because cleanup cannot happen concurrently w/ snapshotting as we could be removing latest snapshots
+	// before the latest snapshot metadata gets written to disk.
 	if err := m.cleanupIndexSnapshots(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up index snapshot files: %v", err))
@@ -279,6 +282,7 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	return multiErr.FinalError()
 }
 
+// cleanupDataFiles cleans up out of retention and compacted data file sets.
 func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces []databaseNamespace) error {
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
