@@ -143,10 +143,10 @@ func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
 
 // shouldWriteAnnotation determines whether we should write ant as an annotation.
 // Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-// In case of true, also returns the checksum of the given annotation.
+// Also returns the checksum of the given annotation.
 func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) (bool, uint64) {
 	if len(ant) == 0 {
-		return false, 0
+		return false, emptyAnnotationChecksum
 	}
 	checksum := xxhash.Sum64(ant)
 	return checksum != enc.PrevAnnotationChecksum, checksum
