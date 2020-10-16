@@ -318,21 +318,3 @@ type IDBatch struct {
 	// IDs are the IDs for the batch.
 	IDs []ID
 }
-
-// IndexChecksum represents an index checksums within a series block.
-type IndexChecksum struct {
-	// Checksum is the index checksum.
-	Checksum int64
-	// ID is an optional ID for this series, set only when explicitly requested.
-	ID []byte
-}
-
-// IndexChecksumBlockBatch represents a batch of index checksums originating
-// from a single series block.
-type IndexChecksumBlockBatch struct {
-	// Checksums is the list of index checksums.
-	Checksums []int64
-	// EndMarker is a batch marker, signifying the ID of the
-	// last element in the batch.
-	EndMarker []byte
-}

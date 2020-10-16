@@ -75,6 +75,30 @@ type IndexEntry struct {
 	IndexChecksum int64
 }
 
+// IndexChecksum extends IndexEntry for use with queries, by providing
+// an additional metadata checksum field.
+type IndexChecksum struct {
+	// IndexChecksum embeds IndexEntry.
+	IndexEntry
+	// MetadataChecksum is the computed index metadata checksum.
+	// NB: built from ID, DataChecksum, and tags.
+	MetadataChecksum int64
+	// finalizeFn is any specific cleanup for the IndexChecksum.
+	finalizeFn func()
+}
+
+// Finalize finalizes the index checksum, releasing any held resources.
+func (c *IndexChecksum) Finalize() {
+	if c.finalizeFn != nil {
+		c.finalizeFn()
+	}
+}
+
+// SetFinalizer sets the finalizer for this index checksum.
+func (c *IndexChecksum) SetFinalizer(fn func()) {
+	c.finalizeFn = fn
+}
+
 // IndexEntryHasher hashes an index entry.
 type IndexEntryHasher interface {
 	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
