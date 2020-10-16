@@ -311,7 +311,18 @@ func TestDiskIndexSnapshotSimple(t *testing.T) {
 	var (
 		newTime = testSetup.NowFn()().Add(blockSize * 2)
 	)
+	log.Info("restarting server with new options")
 	testSetup.SetNowFn(newTime)
+	onColdFlush = &testOnColdFlush{
+		// Speed cold flushes back up to normal speed.
+		sleepDuration: 0,
+	}
+	storageOpts = testSetup.StorageOpts().
+		SetOnColdFlush(onColdFlush)
+	testSetup.SetStorageOpts(storageOpts)
+	require.NoError(t, testSetup.StopServer())
+	require.NoError(t, testSetup.StartServer())
+	log.Info("server is now up")
 
 	for _, ns := range testSetup.Namespaces() {
 		start := nowFn()
@@ -324,9 +335,6 @@ func TestDiskIndexSnapshotSimple(t *testing.T) {
 			for _, numDocs := range numDocsPerBlockStart {
 				totalNumDocs += numDocs
 			}
-			log.Info("checking totalNumDocs",
-				zap.Any("totalNumDocs", totalNumDocs))
-			time.Sleep(time.Second)
 			return totalNumDocs == 0
 
 		}, maxWaitTime)

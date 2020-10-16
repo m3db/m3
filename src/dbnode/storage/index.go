@@ -2240,7 +2240,7 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 
 func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
 	i.state.RLock()
-	bootstrapped := i.state.bootstrapState != Bootstrapped
+	bootstrapped := i.state.bootstrapState == Bootstrapped
 	if !bootstrapped {
 		// Needs to be bootstrapped.
 		i.state.RUnlock()

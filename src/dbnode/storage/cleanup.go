@@ -383,7 +383,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
 
-	sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.sortedSnapshotMetadatas(fsOpts)
+	sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.sortedSnapshotMetadataFiles()
 
 	if len(sortedSnapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
@@ -405,6 +405,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 
 	for _, ns := range namespaces {
 		for _, s := range ns.OwnedShards() {
+			fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
 				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
@@ -520,7 +521,10 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 // still happens in the cleanup data snapshots path. Since index and data snapshots share the same rotated commitlog identifier,
 // this work only needs to happen there once.
 func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) error {
-	sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.sortedSnapshotMetadatas(fsOpts)
+	sortedSnapshotMetadatas, _, err := m.sortedSnapshotMetadataFiles()
+	if err != nil {
+		return err
+	}
 
 	if len(sortedSnapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
@@ -580,7 +584,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 			}
 			// We either remove up to the loaded snapshot version or everything but the most recent snapshot.
 			if blockState.SnapshotVersionLoaded != defaultSnapshotVersion {
-				if snapshot.ID.VolumeIndex < removeUpToVersion {
+				if snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
 					m.metrics.deletedSnapshotFile.Inc(1)
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 				}
@@ -600,7 +604,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) sortedSnapshotMetadataFiles(fsOpts fs.Options) (
+func (m *cleanupManager) sortedSnapshotMetadataFiles() (
 	[]fs.SnapshotMetadata,
 	[]fs.SnapshotMetadataErrorWithPaths,
 	error,
