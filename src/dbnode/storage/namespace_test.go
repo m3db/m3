@@ -1159,7 +1159,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
@@ -1193,7 +1193,7 @@ func TestNamespaceIndexWideQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
@@ -1232,7 +1232,7 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()

@@ -116,8 +116,8 @@ func TestReadOnlyIndexProxyDelegate(t *testing.T) {
 	assert.Equal(t, testErr, err)
 	close(ch)
 
-	idx.EXPECT().BootstrapsDone().Return(uint(3))
-	assert.Equal(t, uint(3), roIdx.BootstrapsDone())
+	idx.EXPECT().Bootstrapped().Return(true)
+	assert.True(t, roIdx.Bootstrapped())
 
 	idx.EXPECT().SetExtendedRetentionPeriod(time.Minute)
 	roIdx.SetExtendedRetentionPeriod(time.Minute)

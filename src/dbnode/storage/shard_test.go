@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -1632,6 +1633,81 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retrieved, err := r.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	assert.Equal(t, checksum, retrieved)
+
+	// Check that nothing has been cached. Should be cached after a second.
+	time.Sleep(time.Second)
+
+	shard.RLock()
+	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	shard.RUnlock()
+
+	require.Equal(t, err, errShardEntryNotFound)
+	require.Nil(t, entry)
+}
+
+func TestShardFetchReadMismatches(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions().
+		SetSeriesCachePolicy(series.CacheAll)
+	fsOpts := opts.CommitLogOptions().FilesystemOptions().
+		SetFilePathPrefix(dir)
+	opts = opts.
+		SetCommitLogOptions(opts.CommitLogOptions().
+			SetFilesystemOptions(fsOpts))
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
+
+	ropts := shard.seriesOpts.RetentionOptions()
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+	shard.markWarmFlushStateSuccess(start)
+	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+
+	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
+	r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	batch, err := r.RetrieveMismatchBatch()
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(batch.Mismatches))
+
+	// TODO: enable when reader is added.
+	// retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	// shard.setBlockRetriever(retriever)
+
+	// mismatchBatch := wide.ReadMismatchBatch{
+	// 	Mismatches: []wide.ReadMismatch{{Checksum: 1}},
+	// }
+
+	// streamedBatch := wide.NewMockStreamedMismatchBatch(ctrl)
+	// retriever.EXPECT().
+	// 	FetchReadMismatches(ctx, batchReader, shard.shard, ident.NewIDMatcher("foo"),
+	// 		start, gomock.Any()).Return(streamedBatch, nil).Times(2)
+
+	// First call to RetrieveIndexChecksum is expected to error on retrieval
+	// streamedBatch.EXPECT().RetrieveMismatchBatch().Return(wide.ReadMismatchBatch{}, errors.New("err"))
+	// r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
+	// require.NoError(t, err)
+	// _, err = r.RetrieveMismatchBatch()
+	// assert.EqualError(t, err, "err")
+
+	// indexChecksum.EXPECT().RetrieveMismatchBatch().Return(mismatchBatch, nil)
+	// r, err = shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
+	// require.NoError(t, err)
+	// retrieved, err := r.RetrieveMismatchBatch()
+	// require.NoError(t, err)
+	// assert.Equal(t, mismatchBatch, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)
