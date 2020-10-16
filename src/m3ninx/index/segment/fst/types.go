@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/context"
 )
@@ -57,7 +56,6 @@ var (
 // Segment represents a FST segment.
 type Segment interface {
 	sgmt.ImmutableSegment
-	index.Readable
 
 	// SegmentData returns the segment data used to create the segment.
 	// Note: Must close context when done with the data
