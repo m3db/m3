@@ -2659,18 +2659,6 @@ func (mr *MockNamespaceIndexMockRecorder) BlockStatesSnapshot() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStatesSnapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStatesSnapshot))
 }
 
-// SetSnapshotStateVersionFlushed mocks base method
-func (m *MockNamespaceIndex) SetSnapshotStateVersionFlushed(blockStart time.Time, version int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSnapshotStateVersionFlushed", blockStart, version)
-}
-
-// SetSnapshotStateVersionFlushed indicates an expected call of SetSnapshotStateVersionFlushed
-func (mr *MockNamespaceIndexMockRecorder) SetSnapshotStateVersionFlushed(blockStart, version interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSnapshotStateVersionFlushed", reflect.TypeOf((*MockNamespaceIndex)(nil).SetSnapshotStateVersionFlushed), blockStart, version)
-}
-
 // Close mocks base method
 func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()

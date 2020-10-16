@@ -892,12 +892,22 @@ func (i *nsIndex) Bootstrapped() bool {
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
-	var result namespaceIndexTickResult
+	var (
+		result             namespaceIndexTickResult
+		deletedBlockStarts = make([]xtime.UnixNano, 0)
+	)
 
 	i.state.Lock()
 	defer func() {
 		i.updateBlockStartsWithLock()
 		i.state.Unlock()
+		// Delete snapshot states after holding lock on state to avoid
+		// a lock dependency.
+		i.snapshotState.Lock()
+		for _, blockStart := range deletedBlockStarts {
+			delete(i.snapshotState.statesByTime, blockStart)
+		}
+		i.snapshotState.Unlock()
 	}()
 
 	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(startTime)
@@ -915,6 +925,7 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
 			multiErr = multiErr.Add(block.Close())
 			delete(i.state.blocksByTime, blockStart)
+			deletedBlockStarts = append(deletedBlockStarts, blockStart)
 			result.NumBlocksEvicted++
 			result.NumBlocks--
 			continue

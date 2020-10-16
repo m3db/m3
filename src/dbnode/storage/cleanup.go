@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
@@ -576,29 +575,20 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 				continue
 			}
 
-			blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]
-			if !ok {
-				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(), func(l *zap.Logger) {
-					l.Error("found snapshot file with no corresponding block state",
-						zap.String("namespace", ns.ID().String()),
-						zap.Time("blockStart", snapshot.ID.BlockStart))
-				})
-				continue
-
-			}
 			// We either remove up to the loaded snapshot version or everything but the most recent snapshot.
-			if blockState.SnapshotVersionLoaded != defaultSnapshotVersion {
-				if snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
+			if blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]; ok {
+				if blockState.SnapshotVersionLoaded != defaultSnapshotVersion &&
+					snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
 					m.metrics.deletedSnapshotFile.Inc(1)
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 				}
-			} else {
-				if !uuid.Equal(snapshotID, mostRecentSnapshot.ID.UUID) {
-					// If the UUID of the snapshot files doesn't match the most recent snapshot
-					// then its safe to delete because it means we have a more recently complete set.
-					m.metrics.deletedSnapshotFile.Inc(1)
-					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
-				}
+				continue
+			}
+			if !uuid.Equal(snapshotID, mostRecentSnapshot.ID.UUID) {
+				// If the UUID of the snapshot files doesn't match the most recent snapshot
+				// then its safe to delete because it means we have a more recently complete set.
+				m.metrics.deletedSnapshotFile.Inc(1)
+				filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 			}
 		}
 	}
