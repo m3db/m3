@@ -65,7 +65,7 @@ type Encoder interface {
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
-	// LastAnnotationChecksum returns the checksum of last annotation, useful for
+	// LastAnnotationChecksum returns the checksum of the last annotation, useful for
 	// de-duplicating encoded values. If there are no previously encoded values
 	// an error is returned.
 	LastAnnotationChecksum() (uint64, error)
