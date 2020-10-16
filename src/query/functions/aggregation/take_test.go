@@ -41,17 +41,17 @@ func TestTakeInstantFn(t *testing.T) {
 	buckets := [][]int{{0, 1, 2, 3}, {4}, {5, 6, 7, 8}}
 
 	expectedMin := []ValueAndMeta{
-		{Val: 1.1, SeriesMeta: seriesMetasTakeOrdered[0]},
-		{Val: 2.1, SeriesMeta: seriesMetasTakeOrdered[1]},
-		{Val: 3.1, SeriesMeta: seriesMetasTakeOrdered[2]},
-		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[3]},
+		{val: 1.1, seriesMeta: seriesMetasTakeOrdered[0]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[3]},
 
-		{Val: 5.1, SeriesMeta: seriesMetasTakeOrdered[4]},
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
 
-		{Val: 6.1, SeriesMeta: seriesMetasTakeOrdered[5]},
-		{Val: 7.1, SeriesMeta: seriesMetasTakeOrdered[6]},
-		{Val: 8.1, SeriesMeta: seriesMetasTakeOrdered[7]},
-		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[8]},
+		{val: 6.1, seriesMeta: seriesMetasTakeOrdered[5]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[8]},
 	}
 
 	size := 3
@@ -65,17 +65,17 @@ func TestTakeInstantFn(t *testing.T) {
 
 	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
 	expectedMax := []ValueAndMeta{
-		{Val: 4.1, SeriesMeta: seriesMetasTakeOrdered[3]},
-		{Val: 3.1, SeriesMeta: seriesMetasTakeOrdered[2]},
-		{Val: 2.1, SeriesMeta: seriesMetasTakeOrdered[1]},
-		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[3]},
+		{val: 4.1, seriesMeta: seriesMetasTakeOrdered[3]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[3]},
 
-		{Val: 5.1, SeriesMeta: seriesMetasTakeOrdered[4]},
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
 
-		{Val: 9.1, SeriesMeta: seriesMetasTakeOrdered[8]},
-		{Val: 8.1, SeriesMeta: seriesMetasTakeOrdered[7]},
-		{Val: 7.1, SeriesMeta: seriesMetasTakeOrdered[6]},
-		{Val: math.NaN(), SeriesMeta: seriesMetasTakeOrdered[8]},
+		{val: 9.1, seriesMeta: seriesMetasTakeOrdered[8]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[8]},
 	}
 
 	maxHeap := utils.NewFloatHeap(true, size)

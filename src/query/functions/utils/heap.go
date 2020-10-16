@@ -157,7 +157,7 @@ func (fh *FloatHeap) Flush() []ValueIndexPair {
 
 // FlushInOrder flushes the float heap and returns values in order.
 func (fh *FloatHeap) FlushInOrder() []ValueIndexPair {
-	result := make([]ValueIndexPair, len(fh.floatHeap.heap))
+	result := make([]ValueIndexPair, fh.Len())
 
 	for i := len(result) - 1; i >= 0; i-- {
 		if e, ok := fh.Pop(); ok {

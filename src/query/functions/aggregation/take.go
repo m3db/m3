@@ -39,8 +39,8 @@ const (
 )
 
 type ValueAndMeta struct {
-	Val        float64
-	SeriesMeta block.SeriesMeta
+	val        float64
+	seriesMeta block.SeriesMeta
 }
 
 type takeFunc func(values []float64, buckets [][]int) []float64
@@ -166,9 +166,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		}
 	} else {
 		for index := 0; stepIter.Next(); index++ {
-			step := stepIter.Current()
-			values := step.Values()
-
+			values := stepIter.Current().Values()
 			aggregatedValues := n.op.takeFunc(values, buckets)
 			if err := builder.AppendValues(index, aggregatedValues); err != nil {
 				return nil, err
@@ -186,35 +184,26 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 func (n *takeNode) appendValuesInstant(builder block.Builder, stepIter block.StepIter, seriesMetas []block.SeriesMeta, buckets [][]int) error {
 	stepCount := stepIter.StepCount()
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
-		values := step.Values()
-
-		if isLastStep(index, stepCount) {
-			//we only care for the last step values for the instant query
-			aggregatedValues := n.op.takeInstantFunc(values, buckets, seriesMetas)
-			for i := range aggregatedValues {
-				values[i] = aggregatedValues[i].Val
-			}
-
-			if err := builder.AppendValues(index, values); err != nil {
-				return err
-			}
-
-			//apply series metas in order
-			var rowValues = make([]float64, stepCount)
-			for i, value := range aggregatedValues {
-				rowValues[len(rowValues)-1] = value.Val
-				if err := builder.SetRow(i, rowValues, value.SeriesMeta); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
+		values := stepIter.Current().Values()
 
 		if err := builder.AppendValues(index, values); err != nil {
 			return err
 		}
+
+		if isLastStep(index, stepCount) {
+			//we only care for the last step values for the instant query
+			aggregatedValues := n.op.takeInstantFunc(values, buckets, seriesMetas)
+			//apply series metas in order
+			var rowValues = make([]float64, stepCount)
+			for i, value := range aggregatedValues {
+				rowValues[len(rowValues)-1] = value.val
+				if err := builder.SetRow(i, rowValues, value.seriesMeta); err != nil {
+					return err
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -231,8 +220,8 @@ func takeNone(values []float64) []float64 {
 func takeInstantNone(values []float64, seriesMetas []block.SeriesMeta) []ValueAndMeta {
 	result := make([]ValueAndMeta, len(values))
 	for i := range result {
-		result[i].Val = math.NaN()
-		result[i].SeriesMeta = seriesMetas[i]
+		result[i].val = math.NaN()
+		result[i].seriesMeta = seriesMetas[i]
 	}
 	return result
 }
@@ -272,8 +261,8 @@ func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, met
 	var result = make([]ValueAndMeta, len(values))
 	for i := range result {
 		result[i] = ValueAndMeta{
-			Val:        values[i],
-			SeriesMeta: metas[i],
+			val:        values[i],
+			seriesMeta: metas[i],
 		}
 	}
 
@@ -291,13 +280,13 @@ func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, met
 			prevMeta := metas[prevIndex]
 			idx := bucket[ix]
 
-			result[idx].Val = pair.Val
-			result[idx].SeriesMeta = prevMeta
+			result[idx].val = pair.Val
+			result[idx].seriesMeta = prevMeta
 		}
 
 		//clear remaining values
 		for i := len(valIndexPairs); i < len(bucket); i++ {
-			result[bucket[i]].Val = math.NaN()
+			result[bucket[i]].val = math.NaN()
 		}
 	}
 	return result

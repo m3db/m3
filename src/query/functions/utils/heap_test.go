@@ -232,6 +232,7 @@ func TestFlushOrdered(t *testing.T) {
 		{Val: 2.1, Index: 2},
 		{Val: 1.1, Index: 1},
 	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
 
 	minHeap := NewFloatHeap(false, 3)
 	minHeap.Push(0.1, 0)
@@ -246,4 +247,5 @@ func TestFlushOrdered(t *testing.T) {
 		{Val: 1.1, Index: 1},
 		{Val: 2.1, Index: 2},
 	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
 }
