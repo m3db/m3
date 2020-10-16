@@ -161,7 +161,7 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 
 	stream.WriteBytes(buf[:annotationLength])
 	stream.WriteBytes(ant)
-	enc.PrevAnnotation = ant
+	enc.PrevAnnotation = append(enc.PrevAnnotation[:0], ant...)
 }
 
 func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitChanged(
