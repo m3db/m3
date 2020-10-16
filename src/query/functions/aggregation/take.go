@@ -39,7 +39,7 @@ const (
 )
 
 type ValueAndMeta struct {
-	Val float64
+	Val        float64
 	SeriesMeta block.SeriesMeta
 }
 
@@ -73,7 +73,7 @@ func NewTakeOp(
 			return takeFn(heap, values, buckets)
 		}
 		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []ValueAndMeta {
-			return takeInstantFn(heap, values, buckets, seriesMetas);
+			return takeInstantFn(heap, values, buckets, seriesMetas)
 		}
 	}
 
@@ -82,9 +82,9 @@ func NewTakeOp(
 
 // takeOp stores required properties for take ops
 type takeOp struct {
-	params   NodeParams
-	opType   string
-	takeFunc takeFunc
+	params          NodeParams
+	opType          string
+	takeFunc        takeFunc
 	takeInstantFunc takeInstantFunc
 }
 
@@ -111,9 +111,9 @@ func (o takeOp) Node(
 
 func newTakeOp(params NodeParams, opType string, takeFunc takeFunc, takeInstantFunc takeInstantFunc) takeOp {
 	return takeOp{
-		params:   params,
-		opType:   opType,
-		takeFunc: takeFunc,
+		params:          params,
+		opType:          opType,
+		takeFunc:        takeFunc,
 		takeInstantFunc: takeInstantFunc,
 	}
 }
@@ -151,43 +151,18 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		[]byte(n.op.opType),
 		seriesMetas,
 	)
-
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
 	if err != nil {
 		return nil, err
 	}
-	stepCount := stepIter.StepCount()
-	if err = builder.AddCols(stepCount); err != nil {
+
+	if err = builder.AddCols(stepIter.StepCount()); err != nil {
 		return nil, err
 	}
 
 	if instantaneous {
-		for index := 0; stepIter.Next(); index++ {
-			step := stepIter.Current()
-			values := step.Values()
-			if isLastStep(index, stepCount) {
-				aggregatedValues := n.op.takeInstantFunc(values, buckets, seriesMetas)
-				var valuesToSet = make([]float64, len(aggregatedValues))
-				for i := range aggregatedValues {
-					valuesToSet[i] = aggregatedValues[i].Val
-				}
-
-				if err := builder.AppendValues(index, valuesToSet); err != nil {
-					return nil, err
-				}
-
-				var rowValues = make([]float64, stepCount)
-				for i, value := range aggregatedValues {
-					rowValues[len(rowValues)-1] = value.Val
-					if err := builder.SetRow(i, rowValues, value.SeriesMeta); err != nil {
-						return nil, err
-					}
-				}
-			} else {
-				if err := builder.AppendValues(index, values); err != nil {
-					return nil, err
-				}
-			}
+		if err := n.appendValuesInstant(builder, stepIter, seriesMetas, buckets); err != nil {
+			return nil, err
 		}
 	} else {
 		for index := 0; stepIter.Next(); index++ {
@@ -196,8 +171,8 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 
 			aggregatedValues := n.op.takeFunc(values, buckets)
 			if err := builder.AppendValues(index, aggregatedValues); err != nil {
-					return nil, err
-				}
+				return nil, err
+			}
 		}
 	}
 
@@ -208,8 +183,43 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	return builder.Build(), nil
 }
 
+func (n *takeNode) appendValuesInstant(builder block.Builder, stepIter block.StepIter, seriesMetas []block.SeriesMeta, buckets [][]int) error {
+	stepCount := stepIter.StepCount()
+	for index := 0; stepIter.Next(); index++ {
+		step := stepIter.Current()
+		values := step.Values()
+
+		if isLastStep(index, stepCount) {
+			//we only care for the last step values for the instant query
+			aggregatedValues := n.op.takeInstantFunc(values, buckets, seriesMetas)
+			for i := range aggregatedValues {
+				values[i] = aggregatedValues[i].Val
+			}
+
+			if err := builder.AppendValues(index, values); err != nil {
+				return err
+			}
+
+			//apply series metas in order
+			var rowValues = make([]float64, stepCount)
+			for i, value := range aggregatedValues {
+				rowValues[len(rowValues)-1] = value.Val
+				if err := builder.SetRow(i, rowValues, value.SeriesMeta); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
+		if err := builder.AppendValues(index, values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func isLastStep(stepIndex int, stepCount int) bool {
-	return stepIndex == stepCount - 1
+	return stepIndex == stepCount-1
 }
 
 // shortcut to return empty when taking <= 0 values
