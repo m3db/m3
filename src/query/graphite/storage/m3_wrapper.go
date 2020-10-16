@@ -56,16 +56,18 @@ type m3WrappedStore struct {
 
 // M3WrappedStorageOptions is the graphite storage options.
 type M3WrappedStorageOptions struct {
-	AggregateNamespacesAllData              bool
-	ShiftTimeStart                          time.Duration
-	ShiftTimeEnd                            time.Duration
-	ShiftStepsStart                         int
-	ShiftStepsEnd                           int
-	ShiftStepsStartWhenAtResolutionBoundary *int
-	ShiftStepsEndWhenAtResolutionBoundary   *int
-	RenderPartialStart                      bool
-	RenderPartialEnd                        bool
-	RenderSeriesAllNaNs                     bool
+	AggregateNamespacesAllData                 bool
+	ShiftTimeStart                             time.Duration
+	ShiftTimeEnd                               time.Duration
+	ShiftStepsStart                            int
+	ShiftStepsEnd                              int
+	ShiftStepsStartWhenAtResolutionBoundary    *int
+	ShiftStepsEndWhenAtResolutionBoundary      *int
+	ShiftStepsStartWhenEndAtResolutionBoundary *int
+	ShiftStepsEndWhenStartAtResolutionBoundary *int
+	RenderPartialStart                         bool
+	RenderPartialEnd                           bool
+	RenderSeriesAllNaNs                        bool
 }
 
 type seriesMetadata struct {
@@ -156,12 +158,14 @@ func translateQuery(
 }
 
 type truncateBoundsToResolutionOptions struct {
-	shiftStepsStart                         int
-	shiftStepsEnd                           int
-	shiftStepsStartWhenAtResolutionBoundary *int
-	shiftStepsEndWhenAtResolutionBoundary   *int
-	renderPartialStart                      bool
-	renderPartialEnd                        bool
+	shiftStepsStart                            int
+	shiftStepsEnd                              int
+	shiftStepsStartWhenAtResolutionBoundary    *int
+	shiftStepsEndWhenAtResolutionBoundary      *int
+	shiftStepsStartWhenEndAtResolutionBoundary *int
+	shiftStepsEndWhenStartAtResolutionBoundary *int
+	renderPartialStart                         bool
+	renderPartialEnd                           bool
 }
 
 func truncateBoundsToResolution(
@@ -203,13 +207,15 @@ func truncateBoundsToResolution(
 
 	// Apply shifts.
 	var (
-		shiftStartAtBoundary = opts.shiftStepsStartWhenAtResolutionBoundary
-		shiftEndAtBoundary   = opts.shiftStepsEndWhenAtResolutionBoundary
+		shiftStartAtBoundary        = opts.shiftStepsStartWhenAtResolutionBoundary
+		shiftEndAtBoundary          = opts.shiftStepsEndWhenAtResolutionBoundary
+		shiftEndWhenStartAtBoundary = opts.shiftStepsEndWhenStartAtResolutionBoundary
+		shiftStartWhenEndAtBoundary = opts.shiftStepsStartWhenEndAtResolutionBoundary
 	)
-	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary  {
+	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary {
 		// Apply boundary shifts which override constant shifts if at boundary.
 		start = start.Add(time.Duration(*n) * resolution)
-		if !(endAtResolutionBoundary) {
+		if n := shiftEndWhenStartAtBoundary; n != nil && !(endAtResolutionBoundary) {
 			end = end.Add(time.Duration(*n) * resolution)
 		}
 	} else {
@@ -219,6 +225,9 @@ func truncateBoundsToResolution(
 	if n := shiftEndAtBoundary; n != nil && endAtResolutionBoundary {
 		// Apply boundary shifts which override constant shifts if at boundary.
 		end = end.Add(time.Duration(*n) * resolution)
+		if n := shiftStartWhenEndAtBoundary; n != nil && !(startAtResolutionBoundary) {
+			start = start.Add(time.Duration(*n) * resolution)
+		}
 	} else {
 		// Otherwise shift by constant shift if no override shift effective.
 		end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)

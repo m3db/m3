@@ -252,13 +252,13 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 func TestTruncateBoundsToResolution(t *testing.T) {
 	var (
-		resolution = 60 * time.Second
+		resolution    = 60 * time.Second
 		expectedStart = time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC)
-		expectedEnd = time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC)
-		opts       = truncateBoundsToResolutionOptions{
-			shiftStepsStartWhenAtResolutionBoundary: intRefValue(1),
-			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(1),
-
+		expectedEnd   = time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC)
+		opts          = truncateBoundsToResolutionOptions{
+			shiftStepsStartWhenAtResolutionBoundary:    intRefValue(1),
+			shiftStepsEndWhenAtResolutionBoundary:      intRefValue(1),
+			shiftStepsEndWhenStartAtResolutionBoundary: intRefValue(1),
 		}
 		tests = []struct {
 			start time.Time
