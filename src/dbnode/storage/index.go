@@ -99,7 +99,6 @@ var (
 type snapshotState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]index.BlockState
-	initialized  bool
 
 	// segmentsData is used to amortize allocs across the entire index
 	// snapshotting workload
@@ -859,9 +858,6 @@ func (i *nsIndex) Bootstrap(
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
 		i.state.Unlock()
-
-		// Initialize snapshot states once at the end of bootstrap.
-		i.initializeSnapshotStates()
 	}()
 
 	var multiErr xerrors.MultiError
@@ -1377,9 +1373,6 @@ func (i *nsIndex) Snapshot(
 	i.snapshotState.Unlock()
 
 	_, err = prepared.Close()
-	if err == nil {
-		i.SetSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
-	}
 	return err
 }
 
@@ -2248,13 +2241,6 @@ func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
 	}
 	i.state.RUnlock()
 
-	i.snapshotState.RLock()
-	defer i.snapshotState.RUnlock()
-	if !i.snapshotState.initialized {
-		// Also needs to have the snapshot states initialized.
-		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
-	}
-
 	snapshot := make(map[xtime.UnixNano]index.BlockState, len(i.snapshotState.statesByTime))
 	for time, state := range i.snapshotState.statesByTime {
 		snapshot[time] = state
@@ -2263,43 +2249,6 @@ func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
 	return index.NewBlockStateSnapshot(true, index.BootstrappedBlockStateSnapshot{
 		Snapshot: snapshot,
 	})
-}
-
-func (i *nsIndex) initializeSnapshotStates() {
-	i.snapshotState.RLock()
-	initialized := i.snapshotState.initialized
-	i.snapshotState.RUnlock()
-	if initialized {
-		return
-	}
-
-	defer func() {
-		i.snapshotState.Lock()
-		i.snapshotState.initialized = true
-		i.snapshotState.Unlock()
-	}()
-	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
-	infoFiles := i.readIndexInfoFilesFn(
-		fsOpts.FilePathPrefix(),
-		i.nsMetadata.ID(),
-		fsOpts.InfoReaderBufferSize(),
-		persist.FileSetSnapshotType,
-	)
-	for _, f := range infoFiles {
-		i.SetSnapshotStateVersionFlushed(f.ID.BlockStart, f.ID.VolumeIndex)
-	}
-	return
-}
-
-// SetSnapshotStateVersionFlushed is exposed so we can continue to share the same persist manager
-// in the flush process. We need to update flushed snapshot versions after a successful warm flush
-// since we are writing empty snapshots to disk.
-func (i *nsIndex) SetSnapshotStateVersionFlushed(blockStart time.Time, version int) {
-	i.snapshotState.Lock()
-	defer i.snapshotState.Unlock()
-	state := i.ensureSnapshotStateWithLock(blockStart)
-	state.SnapshotVersionFlushed = version
-	i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 }
 
 func (i *nsIndex) setSnapshotStateVersionLoaded(blockStart time.Time, version int) {
@@ -2316,8 +2265,7 @@ func (i *nsIndex) ensureSnapshotStateWithLock(blockStart time.Time) index.BlockS
 	if !ok {
 		state = index.BlockState{
 			// Default unset values for snapshot version is -1.
-			SnapshotVersionFlushed: defaultSnapshotVersion,
-			SnapshotVersionLoaded:  defaultSnapshotVersion,
+			SnapshotVersionLoaded: defaultSnapshotVersion,
 		}
 		i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	}

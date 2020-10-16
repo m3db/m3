@@ -124,8 +124,6 @@ func (r readOnlyIndexProxy) BlockStatesSnapshot() index.BlockStateSnapshot {
 	return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 }
 
-func (r readOnlyIndexProxy) SetSnapshotStateVersionFlushed(blockStart time.Time, version int) {}
-
 func (r readOnlyIndexProxy) Snapshot(
 	shards map[uint32]struct{},
 	blockStart,

@@ -363,12 +363,6 @@ func (m *flushManager) writeEmptyIndexSnapshots(
 			continue
 		}
 
-		index, err := ns.Index()
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-
 		allShards := make(map[uint32]struct{})
 		for _, dbShard := range ns.OwnedShards() {
 			allShards[dbShard.ID()] = struct{}{}
@@ -387,10 +381,6 @@ func (m *flushManager) writeEmptyIndexSnapshots(
 			prepared, snapshotErr := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
 			if snapshotErr == nil {
 				_, snapshotErr = prepared.Close()
-			}
-			// Only update the snapshot version state if we successfully wrote an empty snapshot.
-			if snapshotErr == nil {
-				index.SetSnapshotStateVersionFlushed(blockStart, prepared.VolumeIndex)
 			}
 			multiErr = multiErr.Add(snapshotErr)
 		}

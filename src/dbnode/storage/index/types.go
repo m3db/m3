@@ -1024,6 +1024,4 @@ type BootstrappedBlockStateSnapshot struct {
 type BlockState struct {
 	// SnapshotVersionLoaded represents snapshot version loaded into mem.
 	SnapshotVersionLoaded int
-	// SnapshotVersionFlushed represents snapshot version flushed to disk.
-	SnapshotVersionFlushed int
 }

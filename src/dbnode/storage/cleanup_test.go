@@ -283,8 +283,14 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 		},
 		{
 			title: "Deletes index snapshot files for block starts up to loaded version",
-			// Not testing data snapshot and commit log cleanup.
 			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			// Not testing data snapshot and commit log cleanup.
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			indexSnapshots: func(filePathPrefix string, namespace ident.ID) (fs.FileSetFilesSlice, error) {
@@ -324,8 +330,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			indexBlockStates: index.BootstrappedBlockStateSnapshot{
 				Snapshot: map[xtime.UnixNano]index.BlockState{
 					xtime.ToUnixNano(testBlockStart): {
-						SnapshotVersionLoaded:  1,
-						SnapshotVersionFlushed: 2,
+						SnapshotVersionLoaded: 1,
 					},
 				},
 			},
@@ -338,9 +343,15 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			},
 		},
 		{
-			title: "Deletes index snapshot files for block starts up to flushed version",
-			// Not testing data snapshot and commit log cleanup.
+			title: "Deletes index snapshot files for block starts up to most recent snapshot UUID",
 			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata1}, nil, nil
+			},
+			// Not testing data snapshot and commit log cleanup.
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			indexSnapshots: func(filePathPrefix string, namespace ident.ID) (fs.FileSetFilesSlice, error) {
@@ -370,8 +381,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			indexBlockStates: index.BootstrappedBlockStateSnapshot{
 				Snapshot: map[xtime.UnixNano]index.BlockState{
 					xtime.ToUnixNano(testBlockStart): {
-						SnapshotVersionLoaded:  -1,
-						SnapshotVersionFlushed: 1,
+						SnapshotVersionLoaded: -1,
 					},
 				},
 			},
@@ -384,9 +394,15 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			},
 		},
 		{
-			title: "Does not delete index snapshot files for block starts at flushed version or loaded version",
-			// Not testing data snapshot and commit log cleanup.
+			title: "Does not delete index snapshot files since loaded version takes priority over most recent snapshot UUID",
 			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata1}, nil, nil
+			},
+			// Not testing data snapshot and commit log cleanup.
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			indexSnapshots: func(filePathPrefix string, namespace ident.ID) (fs.FileSetFilesSlice, error) {
@@ -426,12 +442,10 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			indexBlockStates: index.BootstrappedBlockStateSnapshot{
 				Snapshot: map[xtime.UnixNano]index.BlockState{
 					xtime.ToUnixNano(testBlockStart): {
-						SnapshotVersionLoaded:  0,
-						SnapshotVersionFlushed: 1,
+						SnapshotVersionLoaded: 0,
 					},
 					xtime.ToUnixNano(testBlockStart.Add(testBlockSize)): {
-						SnapshotVersionLoaded:  -1,
-						SnapshotVersionFlushed: 0,
+						SnapshotVersionLoaded: 0,
 					},
 				},
 			},

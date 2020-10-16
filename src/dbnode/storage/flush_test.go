@@ -391,10 +391,6 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().FlushIndex(gomock.Any()).Return(testBlockStarts, nil)
 	ns.EXPECT().Metadata().Return(nil).Times(len(testBlockStarts))
 
-	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().SetSnapshotStateVersionFlushed(gomock.Any(), gomock.Any()).AnyTimes()
-	ns.EXPECT().Index().Return(idx, nil)
-
 	var (
 		mockFlushPersist              = persist.NewMockFlushPreparer(ctrl)
 		mockSnapshotPersist           = persist.NewMockSnapshotPreparer(ctrl)
