@@ -120,8 +120,10 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		var annotation, annotationCopy ts.Annotation
 		if i < 5 {
 			annotation = ts.Annotation("foo")
-		} else if i == 10 {
+		} else if i < 7 {
 			annotation = ts.Annotation("bar")
+		} else if i == 10 {
+			annotation = ts.Annotation("baz")
 		}
 
 		if annotation != nil {
