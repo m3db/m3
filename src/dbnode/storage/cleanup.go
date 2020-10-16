@@ -383,34 +383,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
 
-	fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
-	snapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.snapshotMetadataFilesFn(fsOpts)
-	if err != nil {
-		return err
-	}
-
-	if len(snapshotMetadatas) == 0 {
-		// No cleanup can be performed until we have at least one complete snapshot.
-		return nil
-	}
-
-	// They should technically already be sorted, but better to be safe.
-	sort.Slice(snapshotMetadatas, func(i, j int) bool {
-		return snapshotMetadatas[i].ID.Index < snapshotMetadatas[j].ID.Index
-	})
-	sortedSnapshotMetadatas := snapshotMetadatas
-
-	// Sanity check.
-	lastMetadataIndex := int64(-1)
-	for _, snapshotMetadata := range sortedSnapshotMetadatas {
-		currIndex := snapshotMetadata.ID.Index
-		if currIndex == lastMetadataIndex {
-			// Should never happen.
-			return fmt.Errorf(
-				"found two snapshot metadata files with duplicate index: %d", currIndex)
-		}
-		lastMetadataIndex = currIndex
-	}
+	sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.sortedSnapshotMetadatas(fsOpts)
 
 	if len(sortedSnapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
@@ -547,9 +520,17 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 // still happens in the cleanup data snapshots path. Since index and data snapshots share the same rotated commitlog identifier,
 // this work only needs to happen there once.
 func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) error {
+	sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.sortedSnapshotMetadatas(fsOpts)
+
+	if len(sortedSnapshotMetadatas) == 0 {
+		// No cleanup can be performed until we have at least one complete snapshot.
+		return nil
+	}
+
 	var (
-		multiErr      = xerrors.NewMultiError()
-		filesToDelete = []string{}
+		multiErr           = xerrors.NewMultiError()
+		filesToDelete      = []string{}
+		mostRecentSnapshot = sortedSnapshotMetadatas[len(sortedSnapshotMetadatas)-1]
 	)
 
 	for _, ns := range namespaces {
@@ -572,7 +553,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 		fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
 		snapshots, err := m.indexSnapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID())
 		for _, snapshot := range snapshots {
-			_, _, err := snapshot.SnapshotTimeAndID()
+			_, snapshotID, err := snapshot.SnapshotTimeAndID()
 			if err != nil {
 				// If we can't parse the snapshotID, assume the snapshot is corrupt and delete it. This could be caused
 				// by a variety of situations, like a node crashing while writing out a set of snapshot files and should
@@ -597,21 +578,19 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 				continue
 
 			}
-			// Sanity check, but should not happen as we set snapshot versions on flush and during bootstrap
-			// so generally at least the flushed version should be set.
-			if blockState.SnapshotVersionFlushed == defaultSnapshotVersion &&
-				blockState.SnapshotVersionLoaded == defaultSnapshotVersion {
-				continue
-			}
-			// NB(bodu): Cleanup logic is to remove up to either the snapshot version loaded or flushed.
-			// The loaded version will always be less than or equal to the version flushed.
-			removeUpToVersion := blockState.SnapshotVersionFlushed
+			// We either remove up to the loaded snapshot version or everything but the most recent snapshot.
 			if blockState.SnapshotVersionLoaded != defaultSnapshotVersion {
-				removeUpToVersion = blockState.SnapshotVersionLoaded
-			}
-			if snapshot.ID.VolumeIndex < removeUpToVersion {
-				filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
-				continue
+				if snapshot.ID.VolumeIndex < removeUpToVersion {
+					m.metrics.deletedSnapshotFile.Inc(1)
+					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
+				}
+			} else {
+				if !uuid.Equal(snapshotID, mostRecentSnapshot.ID.UUID) {
+					// If the UUID of the snapshot files doesn't match the most recent snapshot
+					// then its safe to delete because it means we have a more recently complete set.
+					m.metrics.deletedSnapshotFile.Inc(1)
+					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
+				}
 			}
 		}
 	}
@@ -619,4 +598,36 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 	multiErr = multiErr.Add(m.deleteFilesFn(filesToDelete))
 
 	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) sortedSnapshotMetadataFiles(fsOpts fs.Options) (
+	[]fs.SnapshotMetadata,
+	[]fs.SnapshotMetadataErrorWithPaths,
+	error,
+) {
+	fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
+	snapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.snapshotMetadataFilesFn(fsOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// They should technically already be sorted, but better to be safe.
+	sort.Slice(snapshotMetadatas, func(i, j int) bool {
+		return snapshotMetadatas[i].ID.Index < snapshotMetadatas[j].ID.Index
+	})
+	sortedSnapshotMetadatas := snapshotMetadatas
+
+	// Sanity check.
+	lastMetadataIndex := int64(-1)
+	for _, snapshotMetadata := range sortedSnapshotMetadatas {
+		currIndex := snapshotMetadata.ID.Index
+		if currIndex == lastMetadataIndex {
+			// Should never happen.
+			return nil, nil, fmt.Errorf(
+				"found two snapshot metadata files with duplicate index: %d", currIndex)
+		}
+		lastMetadataIndex = currIndex
+	}
+
+	return sortedSnapshotMetadatas, snapshotMetadataErrorsWithPaths, nil
 }

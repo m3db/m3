@@ -26,9 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -69,7 +75,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 
 	// Start the server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
-	log.Debug("disk flush test")
+	log.Debug("disk flush snapshot test")
 	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
@@ -197,4 +203,206 @@ func TestDiskSnapshotSimple(t *testing.T) {
 			}, maxWaitTime)
 		}
 	}
+}
+
+func TestDiskIndexSnapshotSimple(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+	// Test setup
+	var (
+		nOpts = namespace.NewOptions().
+			SetSnapshotEnabled(true)
+		bufferPast   = 10 * time.Minute
+		bufferFuture = 10 * time.Minute
+		blockSize    = time.Hour
+	)
+
+	nOpts = nOpts.
+		SetRetentionOptions(nOpts.RetentionOptions().
+			SetBufferFuture(bufferFuture).
+			SetBufferPast(bufferPast).
+			SetBlockSize(blockSize)).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetBlockSize(blockSize).
+			SetEnabled(true)).
+		SetColdWritesEnabled(true)
+	md1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
+	require.NoError(t, err)
+
+	testOpts := NewTestOptions(t).
+		SetTickMinimumInterval(time.Second).
+		SetNamespaces([]namespace.Metadata{md1, md2})
+	testSetup, err := NewTestSetup(t, testOpts, nil)
+	require.NoError(t, err)
+	defer testSetup.Close()
+
+	onColdFlush := &testOnColdFlush{
+		// Force cold flush to be slow enough to be able
+		// to consistently check index snapshots before flush
+		// finishes.
+		sleepDuration: 10 * time.Second,
+	}
+	storageOpts := testSetup.StorageOpts().
+		SetOnColdFlush(onColdFlush)
+	testSetup.SetStorageOpts(storageOpts)
+
+	// Generate test index data
+	var (
+		numWrites = 50
+		numTags   = 10
+		nowFn     = testSetup.NowFn()
+	)
+
+	t0 := nowFn().Truncate(blockSize).Add(-2 * blockSize)
+	t1 := t0.Add(blockSize)
+	t2 := t1.Add(blockSize)
+	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
+	writesPeriod1 := GenerateTestIndexWrite(1, numWrites, numTags, t1, t2)
+
+	// Start the server
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	log.Debug("disk flush index snapshot test")
+	require.NoError(t, testSetup.StartServer())
+	log.Debug("server is now up")
+
+	// Stop the server
+	defer func() {
+		require.NoError(t, testSetup.StopServer())
+		log.Debug("server is now down")
+	}()
+
+	// Write index data
+	start := nowFn()
+	session, err := testSetup.M3DBClient().DefaultSession()
+	for _, ns := range testSetup.Namespaces() {
+		writesPeriod0.Write(t, ns.ID(), session)
+		writesPeriod1.Write(t, ns.ID(), session)
+	}
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
+
+	var (
+		fsOpts = testSetup.StorageOpts().
+			CommitLogOptions().
+			FilesystemOptions()
+		maxWaitTime = time.Minute
+	)
+	for _, ns := range testSetup.Namespaces() {
+		start := nowFn()
+		log.Info("waiting for index snapshot files to flush",
+			zap.Any("ns", ns.ID()))
+		xclock.WaitUntil(func() bool {
+			numDocsPerBlockStart, err := getNumDocsPerBlockStart(ns.ID(), fsOpts)
+			require.NoError(t, err)
+			totalNumDocs := 0
+			for _, numDocs := range numDocsPerBlockStart {
+				totalNumDocs += numDocs
+			}
+			return totalNumDocs == len(writesPeriod0)+len(writesPeriod1)
+
+		}, maxWaitTime)
+		log.Info("index snapshot files flushed",
+			zap.Duration("took", time.Since(start)),
+			zap.Any("ns", ns.ID()))
+	}
+
+	var (
+		newTime = testSetup.NowFn()().Add(blockSize * 2)
+	)
+	testSetup.SetNowFn(newTime)
+
+	for _, ns := range testSetup.Namespaces() {
+		start := nowFn()
+		log.Info("waiting for old index snapshot files to be cleaned up",
+			zap.Any("ns", ns.ID()))
+		xclock.WaitUntil(func() bool {
+			numDocsPerBlockStart, err := getNumDocsPerBlockStart(ns.ID(), fsOpts)
+			require.NoError(t, err)
+			totalNumDocs := 0
+			for _, numDocs := range numDocsPerBlockStart {
+				totalNumDocs += numDocs
+			}
+			log.Info("checking totalNumDocs",
+				zap.Any("totalNumDocs", totalNumDocs))
+			time.Sleep(time.Second)
+			return totalNumDocs == 0
+
+		}, maxWaitTime)
+		log.Info("index snapshot files cleaned up",
+			zap.Duration("took", time.Since(start)),
+			zap.Any("ns", ns.ID()))
+	}
+}
+
+type indexSnapshotInfo struct {
+	Info        index.IndexVolumeInfo
+	VolumeIndex int
+}
+
+func getNumDocsPerBlockStart(
+	nsID ident.ID,
+	fsOpts fs.Options,
+) (map[xtime.UnixNano]int, error) {
+	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
+	infoFiles := fs.ReadIndexInfoFiles(
+		fsOpts.FilePathPrefix(),
+		nsID,
+		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetSnapshotType,
+	)
+	// Grab the latest snapshot file for each blockstart.
+	latestSnapshotInfoPerBlockStart := make(map[xtime.UnixNano]indexSnapshotInfo)
+	for _, f := range infoFiles {
+		snapshot, ok := latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)]
+		if !ok {
+			latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexSnapshotInfo{
+				Info:        f.Info,
+				VolumeIndex: f.ID.VolumeIndex,
+			}
+			continue
+		}
+
+		if f.ID.VolumeIndex > snapshot.VolumeIndex {
+			latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexSnapshotInfo{
+				Info:        f.Info,
+				VolumeIndex: f.ID.VolumeIndex,
+			}
+		}
+	}
+	for blockStart, snapshot := range latestSnapshotInfoPerBlockStart {
+		for _, segment := range snapshot.Info.Segments {
+			metadata := fswriter.Metadata{}
+			if err := metadata.Unmarshal(segment.Metadata); err != nil {
+				return nil, err
+			}
+			numDocsPerBlockStart[blockStart] += int(metadata.NumDocs)
+		}
+	}
+	return numDocsPerBlockStart, nil
+}
+
+type testOnColdFlush struct {
+	sleepDuration time.Duration
+}
+
+func (o *testOnColdFlush) ColdFlushNamespace(ns storage.Namespace) (storage.OnColdFlushNamespace, error) {
+	return &testOnColdFlushNs{
+		sleepDuration: o.sleepDuration,
+	}, nil
+}
+
+type testOnColdFlushNs struct {
+	sleepDuration time.Duration
+}
+
+func (o *testOnColdFlushNs) OnFlushNewSeries(event persist.OnFlushNewSeriesEvent) error {
+	return nil
+}
+
+func (o *testOnColdFlushNs) Done() error {
+	// Allows injection of artificial lag for testing.
+	time.Sleep(o.sleepDuration)
+	return nil
 }
