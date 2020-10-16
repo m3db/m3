@@ -128,7 +128,7 @@ type Configuration struct {
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
 
-	// Downsample configurates how the metrics should be downsampled.
+	// Downsample configures how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
 	// Ingest is the ingest server.
@@ -151,6 +151,9 @@ type Configuration struct {
 
 	// Experimental is the configuration for the experimental API group.
 	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+
+	// StoreMetricsType controls if metrics type is stored or not.
+	StoreMetricsType *bool `yaml:"storeMetricsType"`
 
 	// Cache configurations.
 	//
