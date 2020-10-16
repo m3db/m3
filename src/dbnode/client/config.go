@@ -237,6 +237,13 @@ type ConfigurationParameters struct {
 	// EncodingOptions is an optional argument when
 	// constructing a client from configuration.
 	EncodingOptions encoding.Options
+
+	// AllowEmptyInitialNamespaceRegistry is an optional argument when
+	// constructing a client from configuration. If enabled,
+	// namespaceInitializer from client.Options will not
+	// wait indefinitely until non-empty namespace registry
+	// is received.
+	AllowEmptyInitialNamespaceRegistry bool
 }
 
 // CustomOption is a programatic method for setting a client
@@ -287,7 +294,8 @@ func (c Configuration) NewAdminClient(
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
 	cfgParams := environment.ConfigurationParameters{
-		InstrumentOpts: iopts,
+		InstrumentOpts:                     iopts,
+		AllowEmptyInitialNamespaceRegistry: params.AllowEmptyInitialNamespaceRegistry,
 	}
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed

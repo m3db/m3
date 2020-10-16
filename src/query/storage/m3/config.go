@@ -337,7 +337,8 @@ func (c ClustersStaticConfiguration) newDynamicClusters(
 	clients := make([]client.Client, 0, len(c))
 	for _, clusterCfg := range c {
 		clusterClient, err := clusterCfg.newClient(client.ConfigurationParameters{
-			InstrumentOptions: instrumentOpts,
+			AllowEmptyInitialNamespaceRegistry: true,
+			InstrumentOptions:                  instrumentOpts,
 		}, opts.CustomAdminOptions...)
 		if err != nil {
 			return nil, err
