@@ -727,9 +727,10 @@ func TestConfiguration(t *testing.T) {
     maxEncodersPerBlock: 0
   wide: null
   tchannel: null
+  debug:
+    mutexProfileFraction: 0
+    blockProfileRate: 0
 coordinator: null
-debug:
-  mutexProfileFraction: 0
 `
 
 	actual := string(data)
