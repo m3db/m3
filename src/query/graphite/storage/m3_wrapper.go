@@ -206,12 +206,9 @@ func truncateBoundsToResolution(
 		shiftStartAtBoundary = opts.shiftStepsStartWhenAtResolutionBoundary
 		shiftEndAtBoundary   = opts.shiftStepsEndWhenAtResolutionBoundary
 	)
-	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary  {
+	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary {
 		// Apply boundary shifts which override constant shifts if at boundary.
 		start = start.Add(time.Duration(*n) * resolution)
-		if !(endAtResolutionBoundary) {
-			end = end.Add(time.Duration(*n) * resolution)
-		}
 	} else {
 		// Otherwise shift by constant shift if no override shift effective.
 		start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)
