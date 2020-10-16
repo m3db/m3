@@ -56,14 +56,16 @@ type m3WrappedStore struct {
 
 // M3WrappedStorageOptions is the graphite storage options.
 type M3WrappedStorageOptions struct {
-	AggregateNamespacesAllData bool
-	ShiftTimeStart             time.Duration
-	ShiftTimeEnd               time.Duration
-	ShiftStepsStart            int
-	ShiftStepsEnd              int
-	RenderPartialStart         bool
-	RenderPartialEnd           bool
-	RenderSeriesAllNaNs        bool
+	AggregateNamespacesAllData              bool
+	ShiftTimeStart                          time.Duration
+	ShiftTimeEnd                            time.Duration
+	ShiftStepsStart                         int
+	ShiftStepsEnd                           int
+	ShiftStepsStartWhenAtResolutionBoundary *int
+	ShiftStepsEndWhenAtResolutionBoundary   *int
+	RenderPartialStart                      bool
+	RenderPartialEnd                        bool
+	RenderSeriesAllNaNs                     bool
 }
 
 type seriesMetadata struct {
@@ -154,10 +156,12 @@ func translateQuery(
 }
 
 type truncateBoundsToResolutionOptions struct {
-	shiftStepsStart    int
-	shiftStepsEnd      int
-	renderPartialStart bool
-	renderPartialEnd   bool
+	shiftStepsStart                         int
+	shiftStepsEnd                           int
+	shiftStepsStartWhenAtResolutionBoundary *int
+	shiftStepsEndWhenAtResolutionBoundary   *int
+	renderPartialStart                      bool
+	renderPartialEnd                        bool
 }
 
 func truncateBoundsToResolution(
@@ -166,6 +170,13 @@ func truncateBoundsToResolution(
 	resolution time.Duration,
 	opts truncateBoundsToResolutionOptions,
 ) (time.Time, time.Time) {
+	var (
+		truncatedStart            = start.Truncate(resolution)
+		truncatedEnd              = end.Truncate(resolution)
+		startAtResolutionBoundary = start.Equal(truncatedStart)
+		endAtResolutionBoundary   = end.Equal(truncatedEnd)
+	)
+
 	// First calculate number of datapoints requested.
 	round := math.Floor
 	if opts.renderPartialEnd {
@@ -176,7 +187,6 @@ func truncateBoundsToResolution(
 	length := round(float64(end.Sub(start)) / float64(resolution))
 
 	// Now determine start time depending on if in the middle of a step or not.
-	truncatedStart := start.Truncate(resolution)
 	// NB: if truncated start matches start, it's already valid.
 	if !start.Equal(truncatedStart) {
 		if opts.renderPartialStart {
@@ -191,9 +201,26 @@ func truncateBoundsToResolution(
 	// Finally calculate end.
 	end = start.Add(time.Duration(length) * resolution)
 
-	// Apply any shifts.
-	start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)
-	end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)
+	// Apply shifts.
+	var (
+		shiftStartAtBoundary = opts.shiftStepsStartWhenAtResolutionBoundary
+		shiftEndAtBoundary   = opts.shiftStepsEndWhenAtResolutionBoundary
+	)
+	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary {
+		// Apply boundary shifts which override constant shifts if at boundary.
+		start = start.Add(time.Duration(*n) * resolution)
+	} else {
+		// Otherwise shift by constant shift if no override shift effective.
+		start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)
+	}
+	if n := shiftEndAtBoundary; n != nil && endAtResolutionBoundary {
+		// Apply boundary shifts which override constant shifts if at boundary.
+		end = end.Add(time.Duration(*n) * resolution)
+	} else {
+		// Otherwise shift by constant shift if no override shift effective.
+		end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)
+	}
+
 	return start, end
 }
 
@@ -370,10 +397,12 @@ func (s *m3WrappedStore) FetchByQuery(
 	}
 
 	truncateOpts := truncateBoundsToResolutionOptions{
-		shiftStepsStart:    s.opts.ShiftStepsStart,
-		shiftStepsEnd:      s.opts.ShiftStepsEnd,
-		renderPartialStart: s.opts.RenderPartialStart,
-		renderPartialEnd:   s.opts.RenderPartialEnd,
+		shiftStepsStart:                         s.opts.ShiftStepsStart,
+		shiftStepsEnd:                           s.opts.ShiftStepsEnd,
+		shiftStepsStartWhenAtResolutionBoundary: s.opts.ShiftStepsStartWhenAtResolutionBoundary,
+		shiftStepsEndWhenAtResolutionBoundary:   s.opts.ShiftStepsEndWhenAtResolutionBoundary,
+		renderPartialStart:                      s.opts.RenderPartialStart,
+		renderPartialEnd:                        s.opts.RenderPartialEnd,
 	}
 
 	series, err := translateTimeseries(ctx, res,

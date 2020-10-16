@@ -479,6 +479,8 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
 		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
 		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
+		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
+		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
 		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs

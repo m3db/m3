@@ -23,7 +23,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -260,54 +259,119 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 	defer ctrl.Finish()
 
 	tests := []struct {
-		start                 time.Time
-		end                   time.Time
-		shiftStepsStart       int
-		shiftStepsEnd         int
-		renderPartialStart    bool
-		renderPartialEnd      bool
-		numDataPointsFetched  int
-		numDataPointsExpected int
+		name                                    string
+		start                                   time.Time
+		end                                     time.Time
+		shiftStepsStart                         int
+		shiftStepsEnd                           int
+		shiftStepsStartWhenAtResolutionBoundary *int
+		shiftStepsEndWhenAtResolutionBoundary   *int
+		renderPartialStart                      bool
+		renderPartialEnd                        bool
+		numDataPointsFetched                    int
+		numDataPointsExpected                   int
+		expectedStart                           time.Time
+		expectedEnd                             time.Time
 	}{
 		{
+			name:                  "default behavior",
+			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
+			numDataPointsFetched:  7,
+			numDataPointsExpected: 4,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
+		},
+		{
+			name:                  "render partial start and end",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
 			renderPartialStart:    true,
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
 		},
 		{
+			name:                  "render just end",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 00, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 6,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
+			name:                  "no render partial, not truncated by resolution",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
 		},
 		{
+			name:                  "no render partial, truncated start by resolution",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
 			end:                   time.Date(2020, time.October, 8, 15, 05, 0, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 5, 0, 0, time.UTC),
+		},
+		{
+			name:                  "constant shift start and end",
+			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 05, 5, 0, time.UTC),
+			shiftStepsStart:       1,
+			shiftStepsEnd:         1,
+			numDataPointsFetched:  25,
+			numDataPointsExpected: 5,
+			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
+			expectedEnd:           time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
+		},
+		{
+			name:                                    "constant shift start and end + boundary shift start and end with start at boundary",
+			start:                                   time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			end:                                     time.Date(2020, time.October, 8, 15, 05, 05, 0, time.UTC),
+			shiftStepsStart:                         1,
+			shiftStepsEnd:                           1,
+			shiftStepsStartWhenAtResolutionBoundary: intRefValue(2),
+			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
+			numDataPointsFetched:                    25,
+			numDataPointsExpected:                   4,
+			expectedStart:                           time.Date(2020, time.October, 8, 15, 2, 0, 0, time.UTC),
+			expectedEnd:                             time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
+		},
+		{
+			name:                                    "constant shift start and end + boundary shift start and end with start and end at boundary",
+			start:                                   time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
+			end:                                     time.Date(2020, time.October, 8, 15, 6, 0, 0, time.UTC),
+			shiftStepsStart:                         1,
+			shiftStepsEnd:                           1,
+			shiftStepsStartWhenAtResolutionBoundary: intRefValue(2),
+			shiftStepsEndWhenAtResolutionBoundary:   intRefValue(2),
+			numDataPointsFetched:                    25,
+			numDataPointsExpected:                   6,
+			expectedStart:                           time.Date(2020, time.October, 8, 15, 2, 0, 0, time.UTC),
+			expectedEnd:                             time.Date(2020, time.October, 8, 15, 8, 0, 0, time.UTC),
 		},
 	}
 
-	for i, test := range tests {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			expected := 9
 			result := buildResult(ctrl, resolution, expected, test.numDataPointsFetched, test.start)
 			translated, err := translateTimeseries(ctx, result, test.start, test.end,
 				testM3DBOpts, truncateBoundsToResolutionOptions{
-					shiftStepsStart:    test.shiftStepsStart,
-					shiftStepsEnd:      test.shiftStepsEnd,
-					renderPartialStart: test.renderPartialStart,
-					renderPartialEnd:   test.renderPartialEnd,
+					shiftStepsStart:                         test.shiftStepsStart,
+					shiftStepsEnd:                           test.shiftStepsEnd,
+					shiftStepsStartWhenAtResolutionBoundary: test.shiftStepsStartWhenAtResolutionBoundary,
+					shiftStepsEndWhenAtResolutionBoundary:   test.shiftStepsEndWhenAtResolutionBoundary,
+					renderPartialStart:                      test.renderPartialStart,
+					renderPartialEnd:                        test.renderPartialEnd,
 				})
 			require.NoError(t, err)
 
@@ -320,24 +384,14 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 
 				require.Equal(t, fmt.Sprint("a", i), tt.Name(), "unexpected name")
 				require.Equal(t, ex, tt.SafeValues(), "unexpected values")
-
-				expectedStart := test.start.
-					Truncate(resolution).
-					Add(time.Duration(test.shiftStepsStart) * resolution)
-				if !test.renderPartialStart && !test.start.Equal(test.start.Truncate(resolution)) {
-					expectedStart = expectedStart.Add(resolution)
-				}
-				require.Equal(t, expectedStart, tt.StartTime(), "unexpected start time")
-
-				queryWindow := test.end.Sub(test.start)
-				expectedDatapoints := queryWindow / resolution
-				expectedEnd := expectedStart.Add(expectedDatapoints * resolution).
-					Add(time.Duration(test.shiftStepsEnd) * resolution)
-				if test.renderPartialEnd && queryWindow != queryWindow.Truncate(resolution) {
-					expectedEnd = expectedEnd.Add(resolution)
-				}
-				require.Equal(t, expectedEnd, tt.EndTime(), "unexpected end time")
+				require.Equal(t, test.expectedStart, tt.StartTime(), "unexpected start time")
+				require.Equal(t, test.expectedEnd, tt.EndTime(), "unexpected end time")
 			}
 		})
 	}
+}
+
+func intRefValue(i int) *int {
+	value := i
+	return &value
 }
