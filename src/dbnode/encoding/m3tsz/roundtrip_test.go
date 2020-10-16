@@ -117,18 +117,27 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 			timeUnit = xtime.Microsecond
 		}
 
-		var annotation ts.Annotation
+		var annotation, annotationCopy ts.Annotation
 		if i < 5 {
 			annotation = ts.Annotation("foo")
 		} else if i == 10 {
 			annotation = ts.Annotation("bar")
 		}
 
+		if annotation != nil {
+			annotationCopy = append(annotationCopy, annotation...)
+		}
+
+		annotations = append(annotations, annotationCopy)
 		timeUnits = append(timeUnits, timeUnit)
-		annotations = append(annotations, annotation)
 
 		err := encoder.Encode(v, timeUnit, annotation)
 		require.NoError(t, err)
+
+		for j := range annotation {
+			// Invalidate the original annotation to make sure encoder is not holding a reference to it.
+			annotation[j] = '*'
+		}
 	}
 
 	decoder := NewDecoder(intOpt, nil)
