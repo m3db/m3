@@ -53,7 +53,7 @@ var (
 	}
 )
 
-// Segment represents a FST segment.
+// Segment is an FST segment.
 type Segment interface {
 	sgmt.ImmutableSegment
 
