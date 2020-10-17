@@ -1056,7 +1056,7 @@ func (d *db) WideQuery(
 			// TODO: use index checksum value to call downstreams.
 			useID := i == len(batch.IDs)-1
 			if !useID {
-				checksum.ID = checksum.ID[:0]
+				// checksum.ID = checksum.ID[:0]
 			}
 
 			indexChecksums = append(indexChecksums, checksum)
