@@ -156,15 +156,19 @@ func TestWideQueryIterator(t *testing.T) {
 		now, testSetup.ShardSet().AllIDs(), iterOpts)
 	require.NoError(t, err)
 
+	var (
+		actualSeries int
+	)
 	for iter.Next() {
 		shardIter := iter.Current()
-		log.Info("shard results", zap.Uint32("shard", shardIter.Shard()))
+		log.Debug("shard result", zap.Uint32("shard", shardIter.Shard()))
 
 		for shardIter.Next() {
 			seriesIter := shardIter.Current()
-			log.Info("series result",
+			log.Debug("series result",
 				zap.String("id", seriesIter.ID().String()),
 				zap.Int("encodedTagsLen", len(seriesIter.EncodedTags())))
+			actualSeries++
 
 			for seriesIter.Next() {
 				// Should get datapoints here when implemented.
@@ -182,4 +186,6 @@ func TestWideQueryIterator(t *testing.T) {
 	iter.Close()
 
 	ctx.Close()
+
+	require.Equal(t, seriesCount, actualSeries, "expected series mismatch")
 }
