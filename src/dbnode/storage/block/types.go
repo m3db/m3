@@ -316,7 +316,7 @@ type DatabaseBlockRetriever interface {
 	StreamReadMismatches(
 		ctx context.Context,
 		shard uint32,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		startTime time.Time,
 		nsCtx namespace.Context,
@@ -349,7 +349,7 @@ type DatabaseShardBlockRetriever interface {
 	// within a block, yielding any read mismatches.
 	StreamReadMismatches(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,

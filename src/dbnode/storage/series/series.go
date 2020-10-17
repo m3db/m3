@@ -417,13 +417,13 @@ func (s *dbSeries) FetchIndexChecksum(
 
 func (s *dbSeries) FetchReadMismatches(
 	ctx context.Context,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (wide.StreamedMismatchBatch, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.FetchReadMismatches(ctx, batchReader, blockStart, nsCtx)
+	r, err := reader.FetchReadMismatches(ctx, mismatchChecker, blockStart, nsCtx)
 	s.RUnlock()
 	return r, err
 }

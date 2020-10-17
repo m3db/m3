@@ -413,13 +413,13 @@ func (s *dbShard) StreamIndexChecksum(
 // StreamReadMismatches implements series.QueryableBlockRetriever
 func (s *dbShard) StreamReadMismatches(
 	ctx context.Context,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (wide.StreamedMismatchBatch, error) {
-	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard, batchReader,
-		id, blockStart, nsCtx)
+	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
+		mismatchReader, id, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever

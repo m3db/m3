@@ -246,7 +246,7 @@ func (r Reader) FetchIndexChecksum(
 // an incoming batchReader.
 func (r Reader) FetchReadMismatches(
 	ctx context.Context,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (wide.StreamedMismatchBatch, error) {
@@ -273,8 +273,8 @@ func (r Reader) FetchReadMismatches(
 	} else if !isRetrievable {
 		return wide.EmptyStreamedMismatchBatch, nil
 	}
-	streamedMismatches, err := r.retriever.StreamReadMismatches(ctx, batchReader,
-		r.id, blockStart, nsCtx)
+	streamedMismatches, err := r.retriever.StreamReadMismatches(ctx,
+		mismatchChecker, r.id, blockStart, nsCtx)
 	if err != nil {
 		return wide.EmptyStreamedMismatchBatch, err
 	}

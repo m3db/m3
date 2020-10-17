@@ -125,13 +125,13 @@ func (r *shardBlockRetriever) StreamIndexChecksum(
 
 func (r *shardBlockRetriever) StreamReadMismatches(
 	ctx context.Context,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (wide.StreamedMismatchBatch, error) {
-	return r.DatabaseBlockRetriever.StreamReadMismatches(ctx, r.shard, batchReader,
-		id, blockStart, nsCtx)
+	return r.DatabaseBlockRetriever.StreamReadMismatches(ctx, r.shard,
+		mismatchChecker, id, blockStart, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

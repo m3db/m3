@@ -120,7 +120,7 @@ func (c *entryChecksumMismatchChecker) readNextBatch() IndexChecksumBlockBatch {
 }
 
 func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
-	indexEntry schema.IndexEntry,
+	indexEntry schema.IndexChecksum,
 ) ([]ReadMismatch, error) {
 	var (
 		hasher   = c.decodeOpts.IndexEntryHasher()

@@ -54,17 +54,17 @@ type Options interface {
 // checksum, with a descriptor of the mismatch. This can indicate both scenarios
 // where the expected checksum was not found, and when there is a mismatch.
 type ReadMismatch struct {
-	// Checksum is the wide index checksum for the mismatched series. All
-	// ReadMismatches will have this set.
-	Checksum int64
-	// EncodedTags are the tags for this read mismatch.
-	// NB: This is only present when there is an explicit mismatch, and tags
-	// and IDs have to be returned for quorum reads.
-	EncodedTags []byte
-	// ID is the ID for this read mismatch.
-	// NB: This is only present when there is an explicit mismatch, and tags
-	// and IDs have to be returned for quorum reads.
-	ID []byte
+	// ReadMismatch extends IndexChecksum with additional mismatch fields.
+	schema.IndexChecksum
+	// Data is the data for the read mismatch. Set only on reader mismatches.
+	Data []byte
+}
+
+// IsReaderMismatch is true if this
+func (r ReadMismatch) IsReaderMismatch() bool {
+	return len(r.Data) > 0 ||
+		len(r.IndexChecksum.IndexEntry.ID) > 0 ||
+		len(r.IndexChecksum.IndexEntry.EncodedTags) > 0
 }
 
 // IndexChecksumBlockBatchReader is a reader across IndexChecksumBlockBatches.
@@ -80,7 +80,7 @@ type IndexChecksumBlockBatchReader interface {
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
 type EntryChecksumMismatchChecker interface {
 	// ComputeMismatchesForEntry determines if the given index entry is a mismatch.
-	ComputeMismatchesForEntry(entry schema.IndexEntry) ([]ReadMismatch, error)
+	ComputeMismatchesForEntry(entry schema.IndexChecksum) ([]ReadMismatch, error)
 	// Drain returns any unconsumed IndexChecksumBlockBatches as mismatches.
 	Drain() []ReadMismatch
 }

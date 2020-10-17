@@ -215,6 +215,14 @@ type DataFileSetSeeker interface {
 	// entry and don't want to waste resources looking it up again.
 	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
+	// SeekReadMismatchesByIndexChecksum seeks in a manner similar to
+	// SeekIndexByEntry, checking against a set of streamed index checksums.
+	SeekReadMismatchesByIndexChecksum(
+		checksum schema.IndexChecksum,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		resources ReusableSeekerResources,
+	) ([]wide.ReadMismatch, error)
+
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
 	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
@@ -224,15 +232,6 @@ type DataFileSetSeeker interface {
 	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a minimal structure describing a checksum of the series.
 	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
-
-	// SeekIndexEntryToReadMismatches seeks in a manner similar to SeekIndexEntry,
-	// applying each ID against an index checksum block batch, returning any
-	// mismatches.
-	SeekIndexEntryToReadMismatches(
-		id ident.ID,
-		batchReader wide.IndexChecksumBlockBatchReader,
-		resources ReusableSeekerResources,
-	) ([]wide.ReadMismatch, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -266,18 +265,18 @@ type ConcurrentDataFileSetSeeker interface {
 	// SeekByIndexEntry is the same as in DataFileSetSeeker.
 	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
+	// SeekReadMismatchesByIndexChecksum is the same as in DataFileSetSeeker.
+	SeekReadMismatchesByIndexChecksum(
+		checksum schema.IndexChecksum,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		resources ReusableSeekerResources,
+	) ([]wide.ReadMismatch, error)
+
 	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
 	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
-
-	// SeekIndexEntryToReadMismatches is the same as in DataFileSetSeeker.
-	SeekIndexEntryToReadMismatches(
-		id ident.ID,
-		batchReader wide.IndexChecksumBlockBatchReader,
-		resources ReusableSeekerResources,
-	) ([]wide.ReadMismatch, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter

@@ -373,6 +373,61 @@ func (s *seeker) SeekByIndexEntry(
 	return buffer, nil
 }
 
+func (s *seeker) SeekReadMismatchesByIndexChecksum(
+	checksum schema.IndexChecksum,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	resources ReusableSeekerResources,
+) ([]wide.ReadMismatch, error) {
+	// NB: first, apply the reader.
+	mismatches, err := mismatchChecker.ComputeMismatchesForEntry(checksum.IndexEntry)
+	if err != nil {
+		// NB: free checksum resources
+		checksum.Finalize()
+		return nil, err
+	}
+
+	if len(mismatches) == 0 {
+		// This entry matches; no need to retrieve data.
+		checksum.Finalize()
+	}
+
+	resources.offsetFileReader.reset(s.dataFd, checksum.Offset)
+
+	// Obtain an appropriately sized buffer.
+	var buffer checked.Bytes
+	if s.opts.bytesPool != nil {
+		buffer = s.opts.bytesPool.Get(int(checksum.Size))
+		buffer.IncRef()
+		defer buffer.DecRef()
+		buffer.Resize(int(checksum.Size))
+	} else {
+		buffer = checked.NewBytes(make([]byte, checksum.Size), nil)
+		buffer.IncRef()
+		defer buffer.DecRef()
+	}
+
+	// Copy the actual data into the underlying buffer.
+	underlyingBuf := buffer.Bytes()
+	n, err := io.ReadFull(resources.offsetFileReader, underlyingBuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(checksum.Size) {
+		// This check is redundant because io.ReadFull will return an error if
+		// its not able to read the specified number of bytes, but we keep it
+		// in for posterity.
+		return nil, fmt.Errorf("tried to read: %d bytes but read: %d", checksum.Size, n)
+	}
+
+	// NB(r): _must_ check the checksum against known checksum as the data
+	// file might not have been verified if we haven't read through the file yet.
+	if checksum.DataChecksum != int64(digest.Checksum(underlyingBuf)) {
+		return nil, errSeekChecksumMismatch
+	}
+
+	return buffer, nil
+}
+
 // SeekIndexEntry performs the following steps:
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
@@ -516,67 +571,6 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 		}
 
 		return checksum, nil
-	}
-}
-
-// SeekIndexEntryToReadMismatches performs the following steps:
-// FIXME:
-//     1. Go to the indexLookup and it will give us an offset that is a good starting
-//        point for scanning the index file.
-//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
-//        begin at the offset provided by the offset lookup).
-//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
-//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
-//        far we know it does not exist.
-func (s *seeker) SeekIndexEntryToReadMismatches(
-	id ident.ID,
-	batchReader wide.IndexChecksumBlockBatchReader,
-	resources ReusableSeekerResources,
-) ([]wide.ReadMismatch, error) {
-	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
-	// Should never happen, either something is really wrong with the code or
-	// the file on disk was corrupted.
-	if err != nil {
-		return nil, err
-	}
-
-	resources.offsetFileReader.reset(s.indexFd, offset)
-	resources.fileDecoderStream.Reset(resources.offsetFileReader)
-	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
-
-	idBytes := id.Bytes()
-	for {
-		entry, err := resources.xmsgpackDecoder.
-			DecodeIndexEntry(resources.decodeIndexEntryBytesPool)
-		if err != nil {
-			if err == io.EOF {
-				// Reached the end of the file without finding the ID.
-				return nil, errSeekIDNotFound
-			}
-			// Should never happen, either something is really wrong with the code or
-			// the file on disk was corrupted.
-			return nil, instrument.InvariantErrorf(err.Error())
-		}
-
-		if status == xmsgpack.NotFound {
-			// a `NotFound` status for the index checksum decode indicates that the
-			// current seek has passed the point in the file where this ID could have
-			// appeared; short-circuit here as the ID does not exist in the file.
-			return nil, errSeekIDNotFound
-		} else if status == xmsgpack.Mismatch {
-			// a `Mismatch` status for the index checksum decode indicates that the
-			// current seek does not match the ID, but that it may still appear in
-			// the file.
-			continue
-		}
-
-		indexChecksum := ident.IndexChecksum{
-			Checksum: checksum,
-		}
-
-		indexChecksum.ID = idBytes
-		return nil, nil
 	}
 }
 

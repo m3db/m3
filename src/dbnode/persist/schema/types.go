@@ -83,7 +83,7 @@ type IndexChecksum struct {
 	// MetadataChecksum is the computed index metadata checksum.
 	// NB: built from ID, DataChecksum, and tags.
 	MetadataChecksum int64
-	// finalizeFn is any specific cleanup for the IndexChecksum.
+	// finalizeFn is any specific cleanup step for the IndexChecksum.
 	finalizeFn func()
 }
 
@@ -94,8 +94,17 @@ func (c *IndexChecksum) Finalize() {
 	}
 }
 
-// SetFinalizer sets the finalizer for this index checksum.
-func (c *IndexChecksum) SetFinalizer(fn func()) {
+// AddFinalizer adds a finalizer for this index checksum.
+func (c *IndexChecksum) AddFinalizer(fn func()) {
+	if prev := c.finalizeFn; prev != nil {
+		c.finalizeFn = func() {
+			prev()
+			fn()
+		}
+
+		return
+	}
+
 	c.finalizeFn = fn
 }
 

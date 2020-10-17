@@ -495,8 +495,8 @@ func (r *blockRetriever) wideFetchBatch(
 			streamRequests = append(streamRequests, req)
 		}
 
-		mismatches, err := seeker.SeekIndexEntryToReadMismatches(
-			req.id, req.batchReader, seekerResources)
+		mismatches, err := seeker.SeekReadMismatchesByIndexChecksum(
+			req.indexChecksum, req.mismatchChecker, seekerResources)
 
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
@@ -716,13 +716,13 @@ func (r *blockRetriever) StreamIndexChecksum(
 func (r *blockRetriever) StreamReadMismatches(
 	ctx context.Context,
 	shard uint32,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (wide.StreamedMismatchBatch, error) {
 	req := r.reqPool.Get()
-	req.batchReader = batchReader
+	req.mismatchChecker = mismatchChecker
 	req.streamReqType = streamReadMismatchReq
 
 	err := r.streamRequest(ctx, req, shard, id, startTime, nil, nsCtx)
@@ -838,7 +838,7 @@ type retrieveRequest struct {
 	mismatchBatch wide.ReadMismatchBatch
 	reader        xio.SegmentReader
 
-	batchReader wide.IndexChecksumBlockBatchReader
+	mismatchChecker wide.EntryChecksumMismatchChecker
 
 	err error
 
@@ -989,7 +989,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = schema.IndexChecksum{}
 	req.mismatchBatch = wide.ReadMismatchBatch{}
-	req.batchReader = nil
+	req.mismatchChecker = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

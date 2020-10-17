@@ -98,7 +98,7 @@ type DatabaseSeries interface {
 	// incoming batchReader.
 	FetchReadMismatches(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (wide.StreamedMismatchBatch, error)
