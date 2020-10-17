@@ -934,12 +934,12 @@ func (n *dbNamespace) FetchReadMismatches(
 	batchReader wide.IndexChecksumBlockBatchReader,
 	id ident.ID,
 	blockStart time.Time,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return wide.EmptyStreamedMismatchBatch, err
+		return wide.EmptyStreamedMismatch, err
 	}
 	res, err := shard.FetchReadMismatches(ctx, batchReader, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

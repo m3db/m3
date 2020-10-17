@@ -33,7 +33,6 @@ package fs
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -313,17 +312,81 @@ func (r *blockRetriever) processIndexChecksumRequest(
 	req.onIndexChecksumCompleted(entry)
 }
 
+func (r *blockRetriever) processReadMismatchRequest(
+	req *retrieveRequest,
+	seeker ConcurrentDataFileSetSeeker,
+	seekerResources ReusableSeekerResources,
+) {
+	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
+		req.indexChecksum, req.mismatchChecker, seekerResources)
+
+	if err != nil && err != errSeekIDNotFound {
+		req.onError(err)
+		return
+	}
+
+	if err == errSeekIDNotFound {
+		req.onIndexMismatchCompleted(wide.ReadMismatch{})
+		return
+	}
+
+	req.onIndexMismatchCompleted(mismatch)
+	req.onCallerOrRetrieverDone()
+}
+
+// filterAndCompleteWideReqs completes all wide operation retrieve requests,
+// returning a list of requests that need to be processed by other means.
+func (r *blockRetriever) filterAndCompleteWideReqs(
+	reqs []*retrieveRequest,
+	seeker ConcurrentDataFileSetSeeker,
+	seekerResources ReusableSeekerResources,
+) []*retrieveRequest {
+	filteredStreamRequests := reqs[:0]
+	for _, req := range reqs {
+		switch req.streamReqType {
+		case streamDataReq:
+			// NB: filter out stream requests; these are handled outside of
+			// wide logic functions.
+			filteredStreamRequests = append(filteredStreamRequests, req)
+		case streamIdxChecksumReq:
+			r.processIndexChecksumRequest(req, seeker, seekerResources)
+		case streamReadMismatchReq:
+			r.processReadMismatchRequest(req, seeker, seekerResources)
+		default:
+			req.onError(errUnsetRequestType)
+		}
+
+		mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
+			req.indexChecksum, req.mismatchChecker, seekerResources)
+
+		if err != nil && err != errSeekIDNotFound {
+			req.onError(err)
+			continue
+		}
+
+		if err == errSeekIDNotFound {
+			req.onIndexMismatchCompleted(wide.ReadMismatch{})
+			continue
+		}
+
+		req.onIndexMismatchCompleted(mismatch)
+		req.onCallerOrRetrieverDone()
+	}
+
+	return filteredStreamRequests
+}
+
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
 	blockStart time.Time,
-	reqs []*retrieveRequest,
+	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
-		for _, req := range reqs {
+		for _, req := range allReqs {
 			req.onError(err)
 		}
 		return
@@ -340,30 +403,12 @@ func (r *blockRetriever) fetchBatch(
 		}
 	}()
 
-	// NB: filter out stream checksum requests, as these are handled seperately.
-	// Rebuild reqs so the wrong reference is less likely to be used later.
-	reqsPreProcessing := reqs
-	reqs = reqs[:0]
+	// NB: filterAndCompleteWideReqs will complete any wide requests, returning
+	// a filtered list of requests that should be processed below. These wide
+	// requests must not take query limits into account.
+	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources)
 
-	// Sort the requests by offset into the file before seeking
-	// to ensure all seeks are in ascending order
 	var limitErr error
-	for _, req := range reqsPreProcessing {
-		if req.streamReqType == streamInvalidReq {
-			req.onError(errUnsetRequestType)
-			continue
-		}
-
-		// NB: index checksum queries should ignore limits.
-		if req.streamReqType == streamIdxChecksumReq {
-			r.processIndexChecksumRequest(req, seeker, seekerResources)
-			continue
-		}
-
-		reqs = append(reqs, req)
-	}
-
-	// NB: remaining requests must be within query limits.
 	if err := r.queryLimits.AnyExceeded(); err != nil {
 		for _, req := range reqs {
 			req.onError(err)
@@ -471,117 +516,6 @@ func (r *blockRetriever) fetchBatch(
 		}(req)
 	}
 }
-
-/*
-
-
-
-
-
-
-
-
-
- */
-
-func (r *blockRetriever) wideFetchBatch(
-	reqs []*retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-) []*retrieveRequest {
-	streamRequests := reqs[:0]
-	for _, req := range reqs {
-		if req.streamReqType == streamDataReq {
-			streamRequests = append(streamRequests, req)
-		}
-
-		mismatches, err := seeker.SeekReadMismatchesByIndexChecksum(
-			req.indexChecksum, req.mismatchChecker, seekerResources)
-
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
-			continue
-		}
-
-		if err == errSeekIDNotFound {
-			req.onIndexMismatchBatchCompleted(wide.ReadMismatchBatch{})
-			continue
-		}
-
-		seriesAdded := false
-		// Add data to any mismatches that originated on this node.
-		for _, mismatch := range mismatches {
-			if mismatch.EncodedTags == nil {
-				continue
-			}
-
-			if seriesAdded {
-				err = fmt.Errorf("cannot add data to more than one series per request")
-				req.onError(err)
-				continue
-			}
-
-		}
-
-		// FIXME: here get data.
-		req.onIndexMismatchBatchCompleted(wide.ReadMismatchBatch{})
-	}
-
-	// Seek and execute all requests
-	for _, req := range reqs {
-		var (
-			data checked.Bytes
-			err  error
-		)
-
-		// Only try to seek the ID if it exists and there haven't been any errors so
-		// far, otherwise we'll get a checksum mismatch error because the default
-		// offset value for indexEntry is zero.
-		if req.foundAndHasNoError() {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
-			if err != nil && err != errSeekIDNotFound {
-				req.onError(err)
-				continue
-			}
-		}
-
-		var (
-			seg, onRetrieveSeg ts.Segment
-			checksum           = req.indexEntry.DataChecksum
-		)
-		if data != nil {
-			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
-		}
-
-		// If we didn't transfer ownership of the tags to the decoder above, then we
-		// no longer need them and we can can finalize them.
-		if tags := req.indexEntry.EncodedTags; tags != nil {
-			tags.DecRef()
-			tags.Finalize()
-		}
-
-		// Complete request.
-		req.onRetrieved(seg, req.nsCtx)
-
-		// No need to call the onRetrieve callback.
-		req.onCallerOrRetrieverDone()
-		continue
-	}
-
-	return streamRequests
-}
-
-/*
-
-
-
-
-
-
-
-
-
- */
 
 func (r *blockRetriever) streamRequest(
 	ctx context.Context,
@@ -720,14 +654,14 @@ func (r *blockRetriever) StreamReadMismatches(
 	id ident.ID,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	req := r.reqPool.Get()
 	req.mismatchChecker = mismatchChecker
 	req.streamReqType = streamReadMismatchReq
 
 	err := r.streamRequest(ctx, req, shard, id, startTime, nil, nsCtx)
 	if err != nil {
-		return wide.EmptyStreamedMismatchBatch, err
+		return wide.EmptyStreamedMismatch, err
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -835,7 +769,7 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	indexChecksum schema.IndexChecksum
-	mismatchBatch wide.ReadMismatchBatch
+	mismatchBatch wide.ReadMismatch
 	reader        xio.SegmentReader
 
 	mismatchChecker wide.EntryChecksumMismatchChecker
@@ -868,8 +802,7 @@ func (req *retrieveRequest) RetrieveIndexChecksum() (schema.IndexChecksum, error
 	return req.indexChecksum, nil
 }
 
-func (req *retrieveRequest) onIndexMismatchBatchCompleted(
-	batch wide.ReadMismatchBatch) {
+func (req *retrieveRequest) onIndexMismatchCompleted(batch wide.ReadMismatch) {
 	if req.err == nil {
 		req.mismatchBatch = batch
 		// If there was an error, we've already called done.
@@ -877,10 +810,10 @@ func (req *retrieveRequest) onIndexMismatchBatchCompleted(
 	}
 }
 
-func (req *retrieveRequest) RetrieveMismatchBatch() (wide.ReadMismatchBatch, error) {
+func (req *retrieveRequest) RetrieveMismatch() (wide.ReadMismatch, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return wide.ReadMismatchBatch{}, req.err
+		return wide.ReadMismatch{}, req.err
 	}
 	return req.mismatchBatch, nil
 }
@@ -988,7 +921,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = schema.IndexChecksum{}
-	req.mismatchBatch = wide.ReadMismatchBatch{}
+	req.mismatchBatch = wide.ReadMismatch{}
 	req.mismatchChecker = nil
 	req.reader = nil
 	req.err = nil

@@ -94,17 +94,8 @@ func (c *IndexChecksum) Finalize() {
 	}
 }
 
-// AddFinalizer adds a finalizer for this index checksum.
-func (c *IndexChecksum) AddFinalizer(fn func()) {
-	if prev := c.finalizeFn; prev != nil {
-		c.finalizeFn = func() {
-			prev()
-			fn()
-		}
-
-		return
-	}
-
+// SetFinalizer sets the finalizer for this index checksum.
+func (c *IndexChecksum) SetFinalizer(fn func()) {
 	c.finalizeFn = fn
 }
 

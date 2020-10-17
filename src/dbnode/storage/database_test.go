@@ -980,7 +980,7 @@ func TestReadMismatches(t *testing.T) {
 		batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
 		ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
 			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatchBatch, nil)
+			Return(wide.EmptyStreamedMismatch, nil)
 
 		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
 		require.NoError(t, err)

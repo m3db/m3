@@ -1124,11 +1124,11 @@ func (d *db) ReadMismatches(
 
 	defer sp.Finish()
 
-	streamedMismatches := make([]wide.StreamedMismatchBatch, 0, batchSize)
+	streamedMismatches := make([]wide.StreamedMismatch, 0, batchSize)
 	streamMismatchProcessor := func(batch *ident.IDBatch) error {
 		streamedMismatches = streamedMismatches[:0]
 		for _, id := range batch.IDs {
-			streamedMismatch, err := d.fetchReadMismatches(ctx, n, batchReader, id, start)
+			streamedMismatch, err := d.fetchReadMismatch(ctx, n, batchReader, id, start)
 			if err != nil {
 				return err
 			}
@@ -1137,12 +1137,12 @@ func (d *db) ReadMismatches(
 		}
 
 		for _, streamedMismatch := range streamedMismatches {
-			batch, err := streamedMismatch.RetrieveMismatchBatch()
+			mismatch, err := streamedMismatch.RetrieveMismatch()
 			if err != nil {
 				return err
 			}
 
-			collectedMismatches = append(collectedMismatches, batch.Mismatches...)
+			collectedMismatches = append(collectedMismatches, mismatch)
 		}
 
 		return nil
@@ -1156,13 +1156,13 @@ func (d *db) ReadMismatches(
 	return collectedMismatches, nil
 }
 
-func (d *db) fetchReadMismatches(
+func (d *db) fetchReadMismatch(
 	ctx context.Context,
 	ns databaseNamespace,
 	batchReader wide.IndexChecksumBlockBatchReader,
 	id ident.ID,
 	start time.Time,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatches)
 	if sampled {
 		sp.LogFields(

@@ -420,7 +420,7 @@ func (s *dbSeries) FetchReadMismatches(
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.FetchReadMismatches(ctx, mismatchChecker, blockStart, nsCtx)

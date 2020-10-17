@@ -391,7 +391,7 @@ type databaseNamespace interface {
 		batchReader wide.IndexChecksumBlockBatchReader,
 		id ident.ID,
 		blockStart time.Time,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -565,7 +565,7 @@ type databaseShard interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

@@ -129,7 +129,7 @@ func (r *shardBlockRetriever) StreamReadMismatches(
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	return r.DatabaseBlockRetriever.StreamReadMismatches(ctx, r.shard,
 		mismatchChecker, id, blockStart, nsCtx)
 }

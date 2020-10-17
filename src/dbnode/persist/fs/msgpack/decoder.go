@@ -499,7 +499,7 @@ func (dec *Decoder) decodeIndexChecksum(
 		indexWithMetaChecksum.ID, _, _ = dec.decodeBytes()
 	} else {
 		indexWithMetaChecksum.ID = dec.decodeBytesWithPool(bytesPool)
-		indexWithMetaChecksum.AddFinalizer(func() {
+		indexWithMetaChecksum.SetFinalizer(func() {
 			bytesPool.Put(indexWithMetaChecksum.ID)
 		})
 	}
@@ -545,7 +545,8 @@ func (dec *Decoder) decodeIndexChecksum(
 	indexWithMetaChecksum.MetadataChecksum = dec.hasher.HashIndexEntry(indexWithMetaChecksum.IndexEntry)
 	if bytesPool != nil {
 		// NB: update finalizer to release both series tags and ID.
-		indexWithMetaChecksum.AddFinalizer(func() {
+		indexWithMetaChecksum.SetFinalizer(func() {
+			bytesPool.Put(indexWithMetaChecksum.ID)
 			bytesPool.Put(indexWithMetaChecksum.EncodedTags)
 		})
 	}

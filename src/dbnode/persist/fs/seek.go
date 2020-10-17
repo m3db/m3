@@ -377,18 +377,38 @@ func (s *seeker) SeekReadMismatchesByIndexChecksum(
 	checksum schema.IndexChecksum,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	resources ReusableSeekerResources,
-) ([]wide.ReadMismatch, error) {
+) (wide.ReadMismatch, error) {
+	completed := false
+	defer func() {
+		// NB: if this fails to complete, finalize the checksum.
+		if !completed {
+			checksum.Finalize()
+		}
+	}()
+
 	// NB: first, apply the reader.
-	mismatches, err := mismatchChecker.ComputeMismatchesForEntry(checksum.IndexEntry)
+	allMismatches, err := mismatchChecker.ComputeMismatchesForEntry(checksum)
 	if err != nil {
 		// NB: free checksum resources
-		checksum.Finalize()
-		return nil, err
+		return wide.ReadMismatch{}, err
+	}
+
+	// NB: only filter out reader side mismatches. TODO: remove index checksum
+	// mismatches, since they are not necessary in the updated model.
+	mismatches := allMismatches[:0]
+	for _, m := range allMismatches {
+		if !m.IsReaderMismatch() {
+			mismatches = append(mismatches, m)
+		}
 	}
 
 	if len(mismatches) == 0 {
 		// This entry matches; no need to retrieve data.
-		checksum.Finalize()
+		return wide.ReadMismatch{}, nil
+	}
+
+	if len(mismatches) > 1 {
+		return wide.ReadMismatch{}, fmt.Errorf("multiple reader mismatches")
 	}
 
 	resources.offsetFileReader.reset(s.dataFd, checksum.Offset)
@@ -410,22 +430,26 @@ func (s *seeker) SeekReadMismatchesByIndexChecksum(
 	underlyingBuf := buffer.Bytes()
 	n, err := io.ReadFull(resources.offsetFileReader, underlyingBuf)
 	if err != nil {
-		return nil, err
+		return wide.ReadMismatch{}, err
 	}
 	if n != int(checksum.Size) {
 		// This check is redundant because io.ReadFull will return an error if
 		// its not able to read the specified number of bytes, but we keep it
 		// in for posterity.
-		return nil, fmt.Errorf("tried to read: %d bytes but read: %d", checksum.Size, n)
+		return wide.ReadMismatch{}, fmt.Errorf("tried to read: %d bytes but read: %d", checksum.Size, n)
 	}
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
 	if checksum.DataChecksum != int64(digest.Checksum(underlyingBuf)) {
-		return nil, errSeekChecksumMismatch
+		return wide.ReadMismatch{}, errSeekChecksumMismatch
 	}
 
-	return buffer, nil
+	completed = true
+	return wide.ReadMismatch{
+		IndexChecksum: checksum,
+		Data:          buffer,
+	}, nil
 }
 
 // SeekIndexEntry performs the following steps:

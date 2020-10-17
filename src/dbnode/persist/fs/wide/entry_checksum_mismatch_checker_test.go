@@ -61,31 +61,27 @@ func buildOpts(t *testing.T) Options {
 	return opts
 }
 
-func idxEntry(id, tags string) schema.IndexEntry {
-	return schema.IndexEntry{
-		ID:          []byte(id),
-		EncodedTags: []byte(tags),
-	}
-}
-
-func toEntry(id, tags string, checksum int64) entryWithChecksum {
-	return entryWithChecksum{
-		entry:      idxEntry(id, tags),
-		idChecksum: checksum,
+func toChecksum(id, tags string, checksum int64) schema.IndexChecksum {
+	return schema.IndexChecksum{
+		IndexEntry: schema.IndexEntry{
+			ID:          []byte(id),
+			EncodedTags: []byte(tags),
+		},
+		MetadataChecksum: checksum,
 	}
 }
 
 func testIdxMismatch(checksum int64) ReadMismatch {
 	return ReadMismatch{
-		Checksum: checksum,
+		IndexChecksum: schema.IndexChecksum{
+			MetadataChecksum: checksum,
+		},
 	}
 }
 
 func testEntryMismatch(id, tags string, checksum int64) ReadMismatch {
 	return ReadMismatch{
-		Checksum:    checksum,
-		ID:          []byte(id),
-		EncodedTags: []byte(tags),
+		IndexChecksum: toChecksum(id, tags, checksum),
 	}
 }
 
@@ -107,9 +103,9 @@ func TestEmitMismatches(t *testing.T) {
 	id1, tags1 := "foo1", "encoded-tags1"
 	id2, tags2 := "foo2", "encoded-tags2"
 	id3, tags3 := "foo3", "encoded-tags3"
-	checker.entryMismatches(toEntry(id1, tags1, 0), toEntry(id2, tags2, 1))
+	checker.checksumMismatches(toChecksum(id1, tags1, 0), toChecksum(id2, tags2, 1))
 	checker.recordIndexMismatches(100, 200)
-	checker.entryMismatches(toEntry(id3, tags3, 2))
+	checker.checksumMismatches(toChecksum(id3, tags3, 2))
 	checker.recordIndexMismatches(300)
 
 	expected := []ReadMismatch{
@@ -131,7 +127,7 @@ func TestComputeMismatchInvariant(t *testing.T) {
 	})
 
 	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
-	_, err := chk.ComputeMismatchesForEntry(idxEntry("bar1", "bar"))
+	_, err := chk.ComputeMismatchesForEntry(toChecksum("bar1", "bar", 1))
 	require.Error(t, err)
 }
 
@@ -142,16 +138,16 @@ func TestComputeMismatchInvariantEndOfBlock(t *testing.T) {
 	})
 
 	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
-	_, err := chk.ComputeMismatchesForEntry(idxEntry("bar2", "bar"))
+	_, err := chk.ComputeMismatchesForEntry(toChecksum("bar2", "bar", 2))
 	require.Error(t, err)
 }
 
 func assertNoMismatch(
 	t *testing.T,
 	chk EntryChecksumMismatchChecker,
-	entry schema.IndexEntry,
+	checksum schema.IndexChecksum,
 ) {
-	mismatch, err := chk.ComputeMismatchesForEntry(entry)
+	mismatch, err := chk.ComputeMismatchesForEntry(checksum)
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(mismatch))
 }
@@ -175,8 +171,8 @@ func TestComputeMismatchWithDelayedReader(t *testing.T) {
 		close(ch)
 	}()
 
-	assertNoMismatch(t, chk, idxEntry("foo1", "bar"))
-	assertNoMismatch(t, chk, idxEntry("qux10", "baz"))
+	assertNoMismatch(t, chk, toChecksum("foo1", "bar", 1))
+	assertNoMismatch(t, chk, toChecksum("qux10", "baz", 10))
 	assert.Equal(t, 0, len(chk.Drain()))
 }
 
@@ -190,11 +186,11 @@ func TestComputeMismatchNoMismatch(t *testing.T) {
 	})
 
 	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
-	assertNoMismatch(t, chk, idxEntry("abc1", "aaa"))
-	assertNoMismatch(t, chk, idxEntry("def2", "bbb"))
-	assertNoMismatch(t, chk, idxEntry("foo3", "ccc"))
-	assertNoMismatch(t, chk, idxEntry("qux100", "ddd"))
-	assertNoMismatch(t, chk, idxEntry("zoo5", "eee"))
+	assertNoMismatch(t, chk, toChecksum("abc1", "aaa", 1))
+	assertNoMismatch(t, chk, toChecksum("def2", "bbb", 2))
+	assertNoMismatch(t, chk, toChecksum("foo3", "ccc", 3))
+	assertNoMismatch(t, chk, toChecksum("qux100", "ddd", 100))
+	assertNoMismatch(t, chk, toChecksum("zoo5", "eee", 5))
 	assert.Equal(t, 0, len(chk.Drain()))
 }
 
@@ -220,7 +216,7 @@ func TestComputeMismatchMismatchesIndexMismatch(t *testing.T) {
 		testIdxMismatch(2),
 	}
 
-	mismatches, err := chk.ComputeMismatchesForEntry(idxEntry("foo3", "ccc"))
+	mismatches, err := chk.ComputeMismatchesForEntry(toChecksum("foo3", "ccc", 3))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -230,7 +226,7 @@ func TestComputeMismatchMismatchesIndexMismatch(t *testing.T) {
 		testIdxMismatch(6),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("qux7", "ddd"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("qux7", "ddd", 7))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -262,7 +258,7 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 		testEntryMismatch("abc1", "ccc", 1),
 	}
 
-	mismatches, err := chk.ComputeMismatchesForEntry(idxEntry("abc1", "ccc"))
+	mismatches, err := chk.ComputeMismatchesForEntry(toChecksum("abc1", "ccc", 1))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -270,7 +266,7 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 		testEntryMismatch("def2", "ddd", 2),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("def2", "ddd"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("def2", "ddd", 2))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -278,7 +274,7 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 		testEntryMismatch("foo3", "f1", 3),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("foo3", "f1"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("foo3", "f1", 3))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -286,7 +282,7 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 		testIdxMismatch(5),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("moo6", "a"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("moo6", "a", 6))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -295,7 +291,7 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 		testEntryMismatch("zoo10", "z", 10),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("zoo10", "z"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("zoo10", "z", 10))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -316,7 +312,7 @@ func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
 		testEntryMismatch("abc10", "ccc", 10),
 	}
 
-	mismatches, err := chk.ComputeMismatchesForEntry(idxEntry("abc10", "ccc"))
+	mismatches, err := chk.ComputeMismatchesForEntry(toChecksum("abc10", "ccc", 10))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -330,7 +326,7 @@ func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
 		testEntryMismatch("zzz20", "ccc", 20),
 	}
 
-	mismatches, err = chk.ComputeMismatchesForEntry(idxEntry("zzz20", "ccc"))
+	mismatches, err = chk.ComputeMismatchesForEntry(toChecksum("zzz20", "ccc", 20))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -345,10 +341,10 @@ func TestComputeMismatchMismatchesEntryMismatchSkipsFirst(t *testing.T) {
 
 	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 	expected := []ReadMismatch{
-		testEntryMismatch("foo3", "abc1", 3),
+		testEntryMismatch("foo3", "abc", 3),
 	}
 
-	mismatches, err := chk.ComputeMismatchesForEntry(idxEntry("foo3", "abc1"))
+	mismatches, err := chk.ComputeMismatchesForEntry(toChecksum("foo3", "abc", 3))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 
@@ -367,7 +363,7 @@ func TestComputeMismatchMismatchesEntryMismatchMatchesLast(t *testing.T) {
 		testIdxMismatch(2),
 	}
 
-	mismatches, err := chk.ComputeMismatchesForEntry(idxEntry("foo3", "abc"))
+	mismatches, err := chk.ComputeMismatchesForEntry(toChecksum("foo3", "abc", 3))
 	require.NoError(t, err)
 	testMismatches(t, expected, mismatches)
 

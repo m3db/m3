@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -38,26 +37,33 @@ import (
 	"github.com/leanovate/gopter/prop"
 )
 
-func generateRawEntries(size int) []schema.IndexEntry {
-	entries := make([]schema.IndexEntry, size)
-	for i := range entries {
-		entries[i] = schema.IndexEntry{
+func generateRawChecksums(size int, opts Options) []schema.IndexChecksum {
+	checksums := make([]schema.IndexChecksum, size)
+	indexHasher := opts.DecodingOptions().IndexEntryHasher()
+	for i := range checksums {
+		entry := schema.IndexEntry{
 			ID:          []byte(fmt.Sprintf("id-%03d", i)),
 			EncodedTags: []byte(fmt.Sprintf("tags-%03d", i)),
 		}
+
+		checksums[i] = schema.IndexChecksum{
+			IndexEntry:       entry,
+			MetadataChecksum: indexHasher.HashIndexEntry(entry),
+		}
 	}
 
-	return entries
+	return checksums
 }
 
 type generatedEntries struct {
 	taking  []bool
-	entries []schema.IndexEntry
+	entries []schema.IndexChecksum
 }
 
-// genEntryTestInput creates a list of indexEntries, dropping a certain percentage.
-func genEntryTestInput(size int) gopter.Gen {
-	entries := generateRawEntries(size)
+// genEntryTestInput creates a list of indexChecksums,
+// dropping a certain percentage.
+func genEntryTestInput(size int, opts Options) gopter.Gen {
+	entries := generateRawChecksums(size, opts)
 
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
@@ -67,7 +73,7 @@ func genEntryTestInput(size int) gopter.Gen {
 			dropChancePercent = val[0].([]int)
 
 			taking       []bool
-			takenEntries []schema.IndexEntry
+			takenEntries []schema.IndexChecksum
 		)
 
 		for i, chance := range dropChancePercent {
@@ -90,9 +96,8 @@ type generatedChecksums struct {
 // genChecksumTestInput creates index checksum blockBatch of randomized sizes,
 // dropping a certain percentage of index checksums.
 func genChecksumTestInput(size int, opts Options) gopter.Gen {
-	entries := generateRawEntries(size)
+	entries := generateRawChecksums(size, opts)
 
-	indexHasher := opts.DecodingOptions().IndexEntryHasher()
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
 		gen.SliceOfN(len(entries), gen.IntRange(0, 100)),
@@ -116,7 +121,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 					IndexEntry: schema.IndexEntry{
 						ID: entries[i].ID,
 					},
-					MetadataChecksum: indexHasher.HashIndexEntry(entries[i]),
+					MetadataChecksum: entries[i].MetadataChecksum,
 				})
 			}
 		}
@@ -413,19 +418,19 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 
 				for i, expected := range expectedMismatches {
 					actual := readMismatches[i]
-					if actual.Checksum != expected.checksum {
+					if actual.MetadataChecksum != expected.checksum {
 						return false, fmt.Errorf("expected checksum %d, got %d at %d",
-							actual.Checksum, expected.checksum, i)
+							actual.MetadataChecksum, expected.checksum, i)
 					}
 
 					if expected.entryMismatch {
-						expectedTags := fmt.Sprintf("tags-%03d", actual.Checksum)
+						expectedTags := fmt.Sprintf("tags-%03d", actual.MetadataChecksum)
 						if acTags := string(actual.EncodedTags); acTags != expectedTags {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedTags, acTags)
 						}
 
-						expectedID := fmt.Sprintf("id-%03d", actual.Checksum)
+						expectedID := fmt.Sprintf("id-%03d", actual.MetadataChecksum)
 						if acID := string(actual.ID); acID != expectedID {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedID, acID)
@@ -441,7 +446,7 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 				}
 
 				return true, nil
-			}, genChecksumTestInput(size, opts), genEntryTestInput(size)))
+			}, genChecksumTestInput(size, opts), genEntryTestInput(size, opts)))
 
 	if !props.Run(reporter) {
 		t.Errorf("failed with initial seed: %d", seed)

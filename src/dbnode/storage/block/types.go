@@ -320,7 +320,7 @@ type DatabaseBlockRetriever interface {
 		id ident.ID,
 		startTime time.Time,
 		nsCtx namespace.Context,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -353,7 +353,7 @@ type DatabaseShardBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

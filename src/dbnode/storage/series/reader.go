@@ -249,7 +249,7 @@ func (r Reader) FetchReadMismatches(
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	var (
 		nowFn = r.opts.ClockOptions().NowFn()
 		now   = nowFn()
@@ -260,23 +260,23 @@ func (r Reader) FetchReadMismatches(
 	if blockStart.Before(earliest) {
 		// NB: this block is falling out of retention; return empty result rather
 		// than iterating over it.
-		return wide.EmptyStreamedMismatchBatch, nil
+		return wide.EmptyStreamedMismatch, nil
 	}
 
 	if r.retriever == nil {
-		return wide.EmptyStreamedMismatchBatch, nil
+		return wide.EmptyStreamedMismatch, nil
 	}
 	// Try to stream from disk
 	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
 	if err != nil {
-		return wide.EmptyStreamedMismatchBatch, err
+		return wide.EmptyStreamedMismatch, err
 	} else if !isRetrievable {
-		return wide.EmptyStreamedMismatchBatch, nil
+		return wide.EmptyStreamedMismatch, nil
 	}
 	streamedMismatches, err := r.retriever.StreamReadMismatches(ctx,
 		mismatchChecker, r.id, blockStart, nsCtx)
 	if err != nil {
-		return wide.EmptyStreamedMismatchBatch, err
+		return wide.EmptyStreamedMismatch, err
 	}
 
 	return streamedMismatches, nil

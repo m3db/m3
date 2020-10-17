@@ -23,6 +23,7 @@ package wide
 import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -57,12 +58,13 @@ type ReadMismatch struct {
 	// ReadMismatch extends IndexChecksum with additional mismatch fields.
 	schema.IndexChecksum
 	// Data is the data for the read mismatch. Set only on reader mismatches.
-	Data []byte
+	Data checked.Bytes
 }
 
-// IsReaderMismatch is true if this
+// IsReaderMismatch is true if this mismatch is this mismatch is on the reader
+// side.
 func (r ReadMismatch) IsReaderMismatch() bool {
-	return len(r.Data) > 0 ||
+	return r.Data.Len() > 0 ||
 		len(r.IndexChecksum.IndexEntry.ID) > 0 ||
 		len(r.IndexChecksum.IndexEntry.EncodedTags) > 0
 }
@@ -85,28 +87,21 @@ type EntryChecksumMismatchChecker interface {
 	Drain() []ReadMismatch
 }
 
-// ReadMismatchBatch represents a batch of read mismatches originating
-// from a single series block.
-type ReadMismatchBatch struct {
-	// Mismatches is the list of mismatches.
-	Mismatches []ReadMismatch // TODO: this will be a richer type with data.
-}
-
-// StreamedMismatchBatch yields a ReadMismatchBatch value asynchronously,
+// StreamedMismatch yields a ReadMismatch value asynchronously,
 // and any errors encountered during execution.
-type StreamedMismatchBatch interface {
-	// RetrieveMismatchBatch retrieves the mismatch batch.
-	RetrieveMismatchBatch() (ReadMismatchBatch, error)
+type StreamedMismatch interface {
+	// RetrieveMismatch retrieves the mismatch.
+	RetrieveMismatch() (ReadMismatch, error)
 }
 
-type emptyStreamedMismatchBatch struct{}
+type emptyStreamedMismatch struct{}
 
-func (emptyStreamedMismatchBatch) RetrieveMismatchBatch() (ReadMismatchBatch, error) {
-	return ReadMismatchBatch{}, nil
+func (emptyStreamedMismatch) RetrieveMismatch() (ReadMismatch, error) {
+	return ReadMismatch{}, nil
 }
 
-// EmptyStreamedMismatchBatch is an empty streamed mismatch batch.
-var EmptyStreamedMismatchBatch StreamedMismatchBatch = emptyStreamedMismatchBatch{}
+// EmptyStreamedMismatch is an empty streamed mismatch batch.
+var EmptyStreamedMismatch StreamedMismatch = emptyStreamedMismatch{}
 
 // IndexChecksumBlockBatch represents a batch of index checksums originating
 // from a single series block.

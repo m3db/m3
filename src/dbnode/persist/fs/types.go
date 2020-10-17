@@ -221,7 +221,7 @@ type DataFileSetSeeker interface {
 		checksum schema.IndexChecksum,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		resources ReusableSeekerResources,
-	) ([]wide.ReadMismatch, error)
+	) (wide.ReadMismatch, error)
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
@@ -270,7 +270,7 @@ type ConcurrentDataFileSetSeeker interface {
 		checksum schema.IndexChecksum,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		resources ReusableSeekerResources,
-	) ([]wide.ReadMismatch, error)
+	) (wide.ReadMismatch, error)
 
 	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
