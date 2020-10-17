@@ -74,6 +74,10 @@ func NewWideQueryOptions(
 				blockStart.String(), blockSize.String())
 	}
 
+	if len(shards) == 0 {
+		return WideQueryOptions{}, fmt.Errorf("expected shards: actual=%d", len(shards))
+	}
+
 	// NB: shards queried must be sorted.
 	sort.Slice(shards, func(i, j int) bool {
 		return shards[i] < shards[j]

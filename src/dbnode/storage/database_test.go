@@ -185,7 +185,7 @@ func newTestDatabase(
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
 
 	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
-	shardSet, err := sharding.NewShardSet(shards, nil)
+	shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
 	require.NoError(t, err)
 
 	database, err := NewDatabase(shardSet, opts)
@@ -946,6 +946,23 @@ type wideQueryTestFn func(
 	now time.Time, shards []uint32, iterOpts index.IterationOptions,
 )
 
+func exhaustWideQueryIter(t *testing.T, iter WideQueryIterator) {
+	for iter.Next() {
+		shardIter := iter.Current()
+		for shardIter.Next() {
+			seriesIter := shardIter.Current()
+			for seriesIter.Next() {
+			}
+			require.NoError(t, seriesIter.Err(), "wide series iter error")
+			seriesIter.Close()
+		}
+		require.NoError(t, shardIter.Err(), "wide shard iter error")
+		shardIter.Close()
+	}
+	require.NoError(t, iter.Err(), "wide iter error")
+	iter.Close()
+}
+
 func TestWideQuery(t *testing.T) {
 	readMismatchTest := func(
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
@@ -955,8 +972,9 @@ func TestWideQuery(t *testing.T) {
 			ident.StringID("foo"), gomock.Any()).
 			Return(block.EmptyStreamedChecksum, nil)
 
-		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
+		iter, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 		require.NoError(t, err)
+		exhaustWideQueryIter(t, iter)
 
 		_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
 		require.Error(t, err)
