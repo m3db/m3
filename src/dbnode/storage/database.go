@@ -1070,8 +1070,6 @@ func (d *db) WideQuery(
 				return err
 			}
 
-			fmt.Printf("!! push record: id=%s, len_encoded_tags=%d\n",
-				indexChecksum.ID, len(indexChecksum.EncodedTags))
 			shardIter.pushRecord(wideQueryShardIteratorRecord{
 				ID:          indexChecksum.ID.Bytes(),
 				EncodedTags: indexChecksum.EncodedTags.Bytes(),
