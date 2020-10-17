@@ -567,14 +567,6 @@ func (r *blockRetriever) streamRequest(
 	return true, nil
 }
 
-func (req *retrieveRequest) toBlock() xio.BlockReader {
-	return xio.BlockReader{
-		SegmentReader: req,
-		Start:         req.start,
-		BlockSize:     req.blockSize,
-	}
-}
-
 func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
@@ -804,6 +796,14 @@ func (req *retrieveRequest) RetrieveMismatch() (wide.ReadMismatch, error) {
 		return wide.ReadMismatch{}, req.err
 	}
 	return req.mismatchBatch, nil
+}
+
+func (req *retrieveRequest) toBlock() xio.BlockReader {
+	return xio.BlockReader{
+		SegmentReader: req,
+		Start:         req.start,
+		BlockSize:     req.blockSize,
+	}
 }
 
 func (req *retrieveRequest) onError(err error) {
