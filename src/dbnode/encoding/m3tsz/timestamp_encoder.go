@@ -21,7 +21,6 @@
 package m3tsz
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -29,14 +28,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // TimestampEncoder encapsulates the state required for a logical stream of
 // bits that represent a stream of timestamps compressed using delta-of-delta
 type TimestampEncoder struct {
-	PrevTime       time.Time
-	PrevTimeDelta  time.Duration
-	PrevAnnotation []byte
+	PrevTime               time.Time
+	PrevTimeDelta          time.Duration
+	PrevAnnotationChecksum uint64
 
 	Options encoding.Options
 
@@ -49,13 +50,16 @@ type TimestampEncoder struct {
 	hasWrittenFirst bool
 }
 
+var emptyAnnotationChecksum = xxhash.Sum64(nil)
+
 // NewTimestampEncoder creates a new TimestampEncoder.
 func NewTimestampEncoder(
 	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
 	return TimestampEncoder{
-		PrevTime: start,
-		TimeUnit: initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
-		Options:  opts,
+		PrevTime:               start,
+		TimeUnit:               initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
+		Options:                opts,
+		PrevAnnotationChecksum: emptyAnnotationChecksum,
 	}
 }
 
@@ -139,16 +143,18 @@ func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
 
 // shouldWriteAnnotation determines whether we should write ant as an annotation.
 // Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) bool {
-	numAnnotationBytes := len(ant)
-	if numAnnotationBytes == 0 {
-		return false
+// Also returns the checksum of the given annotation.
+func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) (bool, uint64) {
+	if len(ant) == 0 {
+		return false, emptyAnnotationChecksum
 	}
-	return !bytes.Equal(enc.PrevAnnotation, ant)
+	checksum := xxhash.Sum64(ant)
+	return checksum != enc.PrevAnnotationChecksum, checksum
 }
 
 func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Annotation) {
-	if !enc.shouldWriteAnnotation(ant) {
+	shouldWrite, checksum := enc.shouldWriteAnnotation(ant)
+	if !shouldWrite {
 		return
 	}
 
@@ -161,7 +167,8 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 
 	stream.WriteBytes(buf[:annotationLength])
 	stream.WriteBytes(ant)
-	enc.PrevAnnotation = ant
+
+	enc.PrevAnnotationChecksum = checksum
 }
 
 func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitChanged(
