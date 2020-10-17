@@ -415,7 +415,7 @@ func (s *dbSeries) FetchIndexChecksum(
 	return r, err
 }
 
-func (s *dbSeries) FetchReadMismatches(
+func (s *dbSeries) FetchReadMismatch(
 	ctx context.Context,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,
@@ -423,7 +423,7 @@ func (s *dbSeries) FetchReadMismatches(
 ) (wide.StreamedMismatch, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.FetchReadMismatches(ctx, mismatchChecker, blockStart, nsCtx)
+	r, err := reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 	s.RUnlock()
 	return r, err
 }

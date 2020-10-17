@@ -1463,19 +1463,19 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, id, blockSt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, id, blockStart)
 }
 
-// FetchReadMismatches mocks base method
-func (m *MockdatabaseNamespace) FetchReadMismatches(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time) (wide.StreamedMismatch, error) {
+// FetchReadMismatch mocks base method
+func (m *MockdatabaseNamespace) FetchReadMismatch(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time) (wide.StreamedMismatch, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchReadMismatches", ctx, mismatchChecker, id, blockStart)
+	ret := m.ctrl.Call(m, "FetchReadMismatch", ctx, mismatchChecker, id, blockStart)
 	ret0, _ := ret[0].(wide.StreamedMismatch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchReadMismatches indicates an expected call of FetchReadMismatches
-func (mr *MockdatabaseNamespaceMockRecorder) FetchReadMismatches(ctx, mismatchChecker, id, blockStart interface{}) *gomock.Call {
+// FetchReadMismatch indicates an expected call of FetchReadMismatch
+func (mr *MockdatabaseNamespaceMockRecorder) FetchReadMismatch(ctx, mismatchChecker, id, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatches", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchReadMismatches), ctx, mismatchChecker, id, blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatch", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchReadMismatch), ctx, mismatchChecker, id, blockStart)
 }
 
 // FetchBlocks mocks base method
@@ -2001,19 +2001,19 @@ func (mr *MockdatabaseShardMockRecorder) FetchIndexChecksum(ctx, id, blockStart,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).FetchIndexChecksum), ctx, id, blockStart, nsCtx)
 }
 
-// FetchReadMismatches mocks base method
-func (m *MockdatabaseShard) FetchReadMismatches(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (wide.StreamedMismatch, error) {
+// FetchReadMismatch mocks base method
+func (m *MockdatabaseShard) FetchReadMismatch(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (wide.StreamedMismatch, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchReadMismatches", ctx, mismatchChecker, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "FetchReadMismatch", ctx, mismatchChecker, id, blockStart, nsCtx)
 	ret0, _ := ret[0].(wide.StreamedMismatch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchReadMismatches indicates an expected call of FetchReadMismatches
-func (mr *MockdatabaseShardMockRecorder) FetchReadMismatches(ctx, mismatchChecker, id, blockStart, nsCtx interface{}) *gomock.Call {
+// FetchReadMismatch indicates an expected call of FetchReadMismatch
+func (mr *MockdatabaseShardMockRecorder) FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatches", reflect.TypeOf((*MockdatabaseShard)(nil).FetchReadMismatches), ctx, mismatchChecker, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatch", reflect.TypeOf((*MockdatabaseShard)(nil).FetchReadMismatch), ctx, mismatchChecker, id, blockStart, nsCtx)
 }
 
 // FetchBlocks mocks base method

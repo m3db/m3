@@ -1163,7 +1163,7 @@ func (d *db) fetchReadMismatch(
 	id ident.ID,
 	start time.Time,
 ) (wide.StreamedMismatch, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatches)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatch)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", ns.ID().String()),
@@ -1173,7 +1173,7 @@ func (d *db) fetchReadMismatch(
 	}
 
 	defer sp.Finish()
-	return ns.FetchReadMismatches(ctx, mismatchChecker, id, start)
+	return ns.FetchReadMismatch(ctx, mismatchChecker, id, start)
 }
 
 func (d *db) FetchBlocks(

@@ -242,9 +242,9 @@ func (r Reader) FetchIndexChecksum(
 	return streamedBlock, nil
 }
 
-// FetchReadMismatches compiles read mismatches using a block retriever and
+// FetchReadMismatch compiles read mismatches using a block retriever and
 // an incoming batchReader.
-func (r Reader) FetchReadMismatches(
+func (r Reader) FetchReadMismatch(
 	ctx context.Context,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	blockStart time.Time,

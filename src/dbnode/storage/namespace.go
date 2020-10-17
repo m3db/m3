@@ -929,7 +929,7 @@ func (n *dbNamespace) FetchIndexChecksum(
 	return res, err
 }
 
-func (n *dbNamespace) FetchReadMismatches(
+func (n *dbNamespace) FetchReadMismatch(
 	ctx context.Context,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
@@ -941,7 +941,7 @@ func (n *dbNamespace) FetchReadMismatches(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return wide.EmptyStreamedMismatch, err
 	}
-	res, err := shard.FetchReadMismatches(ctx, mismatchChecker, id, blockStart, nsCtx)
+	res, err := shard.FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

@@ -978,7 +978,7 @@ func TestReadMismatches(t *testing.T) {
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
 		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
-		ns.EXPECT().FetchReadMismatches(gomock.Any(), checker,
+		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
 			ident.StringID("foo"), gomock.Any()).
 			Return(wide.EmptyStreamedMismatch, nil)
 
@@ -990,7 +990,7 @@ func TestReadMismatches(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBFetchMismatches,
+		tracepoint.DBFetchMismatch,
 		tracepoint.DBReadMismatches,
 		tracepoint.DBReadMismatches,
 		"root",

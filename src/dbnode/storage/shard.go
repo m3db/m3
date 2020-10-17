@@ -1171,7 +1171,7 @@ func (s *dbShard) FetchIndexChecksum(
 	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
-func (s *dbShard) FetchReadMismatches(
+func (s *dbShard) FetchReadMismatch(
 	ctx context.Context,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
@@ -1181,7 +1181,7 @@ func (s *dbShard) FetchReadMismatches(
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchReadMismatches(ctx, mismatchChecker, blockStart, nsCtx)
+	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

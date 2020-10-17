@@ -384,9 +384,9 @@ type databaseNamespace interface {
 		blockStart time.Time,
 	) (block.StreamedChecksum, error)
 
-	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
 	// block at time start, with the given batchReader.
-	FetchReadMismatches(
+	FetchReadMismatch(
 		ctx context.Context,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
@@ -557,9 +557,9 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) (block.StreamedChecksum, error)
 
-	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
 	// block at time start, with the given batchReader.
-	FetchReadMismatches(
+	FetchReadMismatch(
 		ctx context.Context,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,

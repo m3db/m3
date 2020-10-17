@@ -96,7 +96,7 @@ type DatabaseSeries interface {
 
 	// FetchIndexChecksum reads checksum mismatches from encoded blocks and the
 	// incoming batchReader.
-	FetchReadMismatches(
+	FetchReadMismatch(
 		ctx context.Context,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		blockStart time.Time,

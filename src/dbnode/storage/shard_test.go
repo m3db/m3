@@ -1648,7 +1648,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	require.Nil(t, entry)
 }
 
-func TestShardFetchReadMismatches(t *testing.T) {
+func TestShardFetchReadMismatch(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1694,7 +1694,7 @@ func TestShardFetchReadMismatches(t *testing.T) {
 	// First call to RetrieveMismatch is expected to error on retrieval
 	streamedBatch.EXPECT().RetrieveMismatch().
 		Return(wide.ReadMismatch{}, errors.New("err"))
-	r, err := shard.FetchReadMismatches(ctx, checker,
+	r, err := shard.FetchReadMismatch(ctx, checker,
 		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveMismatch()
