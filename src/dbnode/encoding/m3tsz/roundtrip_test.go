@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"bytes"
 	"math"
 	"math/rand"
 	"testing"
@@ -31,61 +32,54 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCountsRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generateCounterDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generateCounterDatapoints(numPoints))
 	}
 }
 
 func TestTimerRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generateTimerDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generateTimerDatapoints(numPoints))
 	}
 }
 
 func TestSmallGaugeRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generateSmallFloatDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generateSmallFloatDatapoints(numPoints))
 	}
 }
 
 func TestPreciseGaugeRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generatePreciseFloatDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generatePreciseFloatDatapoints(numPoints))
 	}
 }
 
 func TestNegativeGaugeFloatsRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generateNegativeFloatDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generateNegativeFloatDatapoints(numPoints))
 	}
 }
 
 func TestMixedGaugeIntRoundTrip(t *testing.T) {
-	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
-		testRoundTrip(t, generateMixSignIntDatapoints(numPoints, timeUnit))
+		testRoundTrip(t, generateMixSignIntDatapoints(numPoints))
 	}
 }
 
@@ -112,15 +106,42 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	defer ctx.Close()
 
 	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
-	for j, v := range input {
-		if j == 0 {
-			encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(10))
-		} else if j == 10 {
-			encoder.Encode(v, xtime.Microsecond, proto.EncodeVarint(60))
-		} else {
-			encoder.Encode(v, xtime.Second, nil)
+	timeUnits := make([]xtime.Unit, 0, len(input))
+	annotations := make([]ts.Annotation, 0, len(input))
+
+	for i, v := range input {
+		timeUnit := xtime.Second
+		if i == 0 {
+			timeUnit = xtime.Millisecond
+		} else if i == 10 {
+			timeUnit = xtime.Microsecond
+		}
+
+		var annotation, annotationCopy ts.Annotation
+		if i < 5 {
+			annotation = ts.Annotation("foo")
+		} else if i < 7 {
+			annotation = ts.Annotation("bar")
+		} else if i == 10 {
+			annotation = ts.Annotation("baz")
+		}
+
+		if annotation != nil {
+			annotationCopy = append(annotationCopy, annotation...)
+		}
+
+		annotations = append(annotations, annotationCopy)
+		timeUnits = append(timeUnits, timeUnit)
+
+		err := encoder.Encode(v, timeUnit, annotation)
+		require.NoError(t, err)
+
+		for j := range annotation {
+			// Invalidate the original annotation to make sure encoder is not holding a reference to it.
+			annotation[j] = '*'
 		}
 	}
+
 	decoder := NewDecoder(intOpt, nil)
 	stream, ok := encoder.Stream(ctx)
 	require.True(t, ok)
@@ -128,51 +149,49 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	it := decoder.Decode(stream)
 	require.True(t, ok)
 	defer it.Close()
-	var decompressed []ts.Datapoint
-	j := 0
-	for it.Next() {
-		v, _, a := it.Current()
 
-		if j == 0 {
-			s, _ := proto.DecodeVarint(a)
-			require.Equal(t, uint64(10), s)
-		} else if j == 10 {
-			s, _ := proto.DecodeVarint(a)
-			require.Equal(t, uint64(60), s)
-		} else {
-			require.Nil(t, a)
+	i := 0
+	for it.Next() {
+		v, u, a := it.Current()
+
+		expectedAnnotation := annotations[i]
+		if i > 0 && bytes.Equal(annotations[i-1], expectedAnnotation) {
+			// Repeated annotation values must be discarded.
+			expectedAnnotation = nil
 		}
-		decompressed = append(decompressed, v)
-		j++
+
+		require.Equal(t, input[i].Timestamp, v.Timestamp)
+		require.Equal(t, input[i].Value, v.Value)
+		require.Equal(t, timeUnits[i], u)
+		require.Equal(t, expectedAnnotation, a)
+
+		i++
 	}
+
 	require.NoError(t, it.Err())
-	require.Equal(t, len(input), len(decompressed))
-	for i := 0; i < len(input); i++ {
-		require.Equal(t, input[i].Timestamp, decompressed[i].Timestamp)
-		require.Equal(t, input[i].Value, decompressed[i].Value)
-	}
+	require.Equal(t, len(input), i)
 	it.Reset(nil, nil)
 	it.Close()
 }
 
-func generateCounterDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	return generateDataPoints(numPoints, timeUnit, 12, 0)
+func generateCounterDatapoints(numPoints int) []ts.Datapoint {
+	return generateDataPoints(numPoints, 12, 0)
 }
 
-func generateTimerDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	return generateDataPoints(numPoints, timeUnit, 7, 6)
+func generateTimerDatapoints(numPoints int) []ts.Datapoint {
+	return generateDataPoints(numPoints, 7, 6)
 }
 
-func generateSmallFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	return generateDataPoints(numPoints, timeUnit, 0, 1)
+func generateSmallFloatDatapoints(numPoints int) []ts.Datapoint {
+	return generateDataPoints(numPoints, 0, 1)
 }
 
-func generatePreciseFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	return generateDataPoints(numPoints, timeUnit, 2, 16)
+func generatePreciseFloatDatapoints(numPoints int) []ts.Datapoint {
+	return generateDataPoints(numPoints, 2, 16)
 }
 
-func generateNegativeFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	dps := generateDataPoints(numPoints, timeUnit, 5, 3)
+func generateNegativeFloatDatapoints(numPoints int) []ts.Datapoint {
+	dps := generateDataPoints(numPoints, 5, 3)
 	for i, dp := range dps {
 		dps[i].Value = -1 * dp.Value
 	}
@@ -180,9 +199,9 @@ func generateNegativeFloatDatapoints(numPoints int, timeUnit time.Duration) []ts
 	return dps
 }
 
-func generateMixSignIntDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
+func generateMixSignIntDatapoints(numPoints int) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	dps := generateDataPoints(numPoints, timeUnit, 3, 0)
+	dps := generateDataPoints(numPoints, 3, 0)
 	for i, dp := range dps {
 		if r.Float64() < 0.5 {
 			dps[i].Value = -1 * dp.Value
@@ -192,7 +211,7 @@ func generateMixSignIntDatapoints(numPoints int, timeUnit time.Duration) []ts.Da
 	return dps
 }
 
-func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec int) []ts.Datapoint {
+func generateDataPoints(numPoints int, numDig, numDec int) []ts.Datapoint {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var startTime int64 = 1427162462
 	currentTime := time.Unix(startTime, 0)
