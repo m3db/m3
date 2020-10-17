@@ -977,15 +977,15 @@ func TestReadMismatches(t *testing.T) {
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-		ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
+		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
+		ns.EXPECT().FetchReadMismatches(gomock.Any(), checker,
 			ident.StringID("foo"), gomock.Any()).
 			Return(wide.EmptyStreamedMismatch, nil)
 
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
+		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
 		require.NoError(t, err)
 
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, nil, iterOpts)
+		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
 		require.Error(t, err)
 	}
 

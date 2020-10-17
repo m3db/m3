@@ -410,7 +410,7 @@ func (s *dbShard) StreamIndexChecksum(
 		blockStart, nsCtx)
 }
 
-// StreamReadMismatches implements series.QueryableBlockRetriever
+// StreamIndexChecksum implements series.QueryableBlockRetriever
 func (s *dbShard) StreamReadMismatches(
 	ctx context.Context,
 	mismatchChecker wide.EntryChecksumMismatchChecker,

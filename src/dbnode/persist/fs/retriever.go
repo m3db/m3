@@ -355,22 +355,6 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 		default:
 			req.onError(errUnsetRequestType)
 		}
-
-		mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-			req.indexChecksum, req.mismatchChecker, seekerResources)
-
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
-			continue
-		}
-
-		if err == errSeekIDNotFound {
-			req.onIndexMismatchCompleted(wide.ReadMismatch{})
-			continue
-		}
-
-		req.onIndexMismatchCompleted(mismatch)
-		req.onCallerOrRetrieverDone()
 	}
 
 	return filteredStreamRequests

@@ -166,10 +166,10 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchIndexChecksum(arg0, arg1, arg2 in
 }
 
 // FetchReadMismatches mocks base method
-func (m *MockDatabaseSeries) FetchReadMismatches(arg0 context.Context, arg1 wide.IndexChecksumBlockBatchReader, arg2 time.Time, arg3 namespace.Context) (wide.StreamedMismatchBatch, error) {
+func (m *MockDatabaseSeries) FetchReadMismatches(arg0 context.Context, arg1 wide.EntryChecksumMismatchChecker, arg2 time.Time, arg3 namespace.Context) (wide.StreamedMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchReadMismatches", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(wide.StreamedMismatchBatch)
+	ret0, _ := ret[0].(wide.StreamedMismatch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -488,10 +488,10 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) StreamIndexChecksum(arg0, arg
 }
 
 // StreamReadMismatches mocks base method
-func (m *MockQueryableBlockRetriever) StreamReadMismatches(arg0 context.Context, arg1 wide.IndexChecksumBlockBatchReader, arg2 ident.ID, arg3 time.Time, arg4 namespace.Context) (wide.StreamedMismatchBatch, error) {
+func (m *MockQueryableBlockRetriever) StreamReadMismatches(arg0 context.Context, arg1 wide.EntryChecksumMismatchChecker, arg2 ident.ID, arg3 time.Time, arg4 namespace.Context) (wide.StreamedMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamReadMismatches", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(wide.StreamedMismatchBatch)
+	ret0, _ := ret[0].(wide.StreamedMismatch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

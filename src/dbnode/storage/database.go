@@ -1087,7 +1087,7 @@ func (d *db) ReadMismatches(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
@@ -1128,7 +1128,7 @@ func (d *db) ReadMismatches(
 	streamMismatchProcessor := func(batch *ident.IDBatch) error {
 		streamedMismatches = streamedMismatches[:0]
 		for _, id := range batch.IDs {
-			streamedMismatch, err := d.fetchReadMismatch(ctx, n, batchReader, id, start)
+			streamedMismatch, err := d.fetchReadMismatch(ctx, n, mismatchChecker, id, start)
 			if err != nil {
 				return err
 			}
@@ -1159,7 +1159,7 @@ func (d *db) ReadMismatches(
 func (d *db) fetchReadMismatch(
 	ctx context.Context,
 	ns databaseNamespace,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	start time.Time,
 ) (wide.StreamedMismatch, error) {
@@ -1173,7 +1173,7 @@ func (d *db) fetchReadMismatch(
 	}
 
 	defer sp.Finish()
-	return ns.FetchReadMismatches(ctx, batchReader, id, start)
+	return ns.FetchReadMismatches(ctx, mismatchChecker, id, start)
 }
 
 func (d *db) FetchBlocks(

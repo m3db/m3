@@ -193,7 +193,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		query index.Query,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		queryStart time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
@@ -388,7 +388,7 @@ type databaseNamespace interface {
 	// block at time start, with the given batchReader.
 	FetchReadMismatches(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		blockStart time.Time,
 	) (wide.StreamedMismatch, error)
@@ -561,7 +561,7 @@ type databaseShard interface {
 	// block at time start, with the given batchReader.
 	FetchReadMismatches(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,

@@ -1678,28 +1678,30 @@ func TestShardFetchReadMismatches(t *testing.T) {
 	shard.markWarmFlushStateSuccess(start)
 	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
 
-	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-
+	checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	mismatchBatch := wide.ReadMismatch{{Checksum: 1}}
+	mismatchBatch := wide.ReadMismatch{
+		IndexChecksum: schema.IndexChecksum{MetadataChecksum: 1},
+	}
+
 	streamedBatch := wide.NewMockStreamedMismatch(ctrl)
 	retriever.EXPECT().
-		StreamReadMismatches(ctx, shard.shard, batchReader, ident.NewIDMatcher("foo"),
+		StreamReadMismatches(ctx, shard.shard, checker, ident.NewIDMatcher("foo"),
 			start, gomock.Any()).Return(streamedBatch, nil).Times(2)
 
 	// First call to RetrieveMismatch is expected to error on retrieval
 	streamedBatch.EXPECT().RetrieveMismatch().
 		Return(wide.ReadMismatch{}, errors.New("err"))
-	r, err := shard.FetchReadMismatches(ctx, batchReader,
+	r, err := shard.FetchReadMismatches(ctx, checker,
 		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveMismatch()
 	assert.EqualError(t, err, "err")
 
 	streamedBatch.EXPECT().RetrieveMismatch().Return(mismatchBatch, nil)
-	r, err = shard.StreamReadMismatches(ctx, batchReader,
+	r, err = shard.StreamReadMismatches(ctx, checker,
 		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	retrieved, err := r.RetrieveMismatch()

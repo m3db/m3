@@ -307,7 +307,7 @@ type DatabaseBlockRetriever interface {
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
-		startTime time.Time,
+		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
 
@@ -318,7 +318,7 @@ type DatabaseBlockRetriever interface {
 		shard uint32,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
-		startTime time.Time,
+		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (wide.StreamedMismatch, error)
 
