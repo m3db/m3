@@ -1078,6 +1078,8 @@ func (d *db) WideQuery(
 				return err
 			}
 
+			fmt.Printf("!! push record: id=%s, len_encoded_tags=%d\n",
+				indexChecksum.ID, len(indexChecksum.EncodedTags))
 			shardIter.pushRecord(wideQueryShardIteratorRecord{
 				ID:          indexChecksum.ID,
 				EncodedTags: indexChecksum.EncodedTags,
@@ -1561,7 +1563,10 @@ type wideQueryIteratorStateShared struct {
 	err error
 }
 
-const shardNotSet = math.MaxUint32
+const (
+	shardNotSet = math.MaxUint32
+	shardEOF    = shardNotSet - 1
+)
 
 func newWideQueryIterator(
 	blockStart time.Time,
@@ -1583,6 +1588,12 @@ func (i *wideQueryIterator) setDoneError(err error) {
 }
 
 func (i *wideQueryIterator) setDone() {
+	i.writeShard = shardEOF
+	if i.writeIter != nil {
+		// Finalize the last iter for writing.
+		i.writeIter.setDone()
+		i.writeIter = nil
+	}
 	close(i.iters)
 }
 
@@ -1595,13 +1606,25 @@ func (i *wideQueryIterator) shardIter(
 
 	// Make sure progressing in shard ascending order.
 	if i.writeShard != shardNotSet && shard < i.writeShard {
+		if i.writeShard == shardEOF {
+			return nil, fmt.Errorf(
+				"shard progression already complete: attempted_next=%d",
+				shard)
+		}
 		return nil, fmt.Errorf(
 			"shard progression must be ascending: curr=%d, next=%d",
 			i.writeShard, shard)
 	}
 
 	nextShardIter := newWideQueryShardIterator(shard, i.fixedBufferMgr)
+
+	if i.writeIter != nil {
+		// Close the current iter for writing.
+		i.writeIter.setDone()
+	}
+	i.writeIter = nextShardIter
 	i.writeShard = shard
+
 	i.iters <- nextShardIter
 	return nextShardIter, nil
 }
@@ -1637,7 +1660,6 @@ func (i *wideQueryIterator) Err() error {
 }
 
 func (i *wideQueryIterator) Close() {
-	i.iters = nil
 }
 
 const shardIterRecordsBuffer = 1024
@@ -1685,14 +1707,6 @@ func newWideQueryShardIterator(
 	}
 }
 
-func (i *wideQueryShardIterator) setDoneError(err error) {
-	i.state.Lock()
-	i.state.err = err
-	i.state.Unlock()
-
-	i.setDone()
-}
-
 func (i *wideQueryShardIterator) setDone() {
 	close(i.records)
 }
@@ -1700,6 +1714,11 @@ func (i *wideQueryShardIterator) setDone() {
 func (i *wideQueryShardIterator) pushRecord(
 	r wideQueryShardIteratorRecord,
 ) {
+	// TODO: transactionally copy the ID + tags + anything else in one go
+	// otherwise the fixed buffer manager might run out of mem and wait
+	// for another buffer to be available but the existing buffer cannot
+	// be released since one field here has taken a copy and needs to be
+	// returned for entire underlying buffer to be released.
 	var qr wideQueryShardIteratorQueuedRecord
 	qr.id, qr.borrowID = i.fixedBufferMgr.copy(r.ID)
 	qr.encodedTags, qr.borrowEncodedTags = i.fixedBufferMgr.copy(r.EncodedTags)
@@ -1736,7 +1755,6 @@ func (i *wideQueryShardIterator) Err() error {
 }
 
 func (i *wideQueryShardIterator) Close() {
-	i.records = nil
 }
 
 var _ WideQuerySeriesIterator = (*wideQuerySeriesIterator)(nil)
