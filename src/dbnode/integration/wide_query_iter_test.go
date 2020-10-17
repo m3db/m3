@@ -170,21 +170,15 @@ func TestWideQueryIterator(t *testing.T) {
 				// Should get datapoints here when implemented.
 			}
 
-			if err := seriesIter.Err(); err != nil {
-				require.FailNow(t, "series iter failure", err)
-			}
+			require.NoError(t, seriesIter.Err(), "wide series iter error")
 			seriesIter.Close()
 		}
 
-		if err := shardIter.Err(); err != nil {
-			require.FailNow(t, "shard iter failure", err)
-		}
+		require.NoError(t, shardIter.Err(), "wide shard iter error")
 		shardIter.Close()
 	}
 
-	if err := iter.Err(); err != nil {
-		require.FailNow(t, "iter failure", err)
-	}
+	require.NoError(t, iter.Err(), "wide iter error")
 	iter.Close()
 
 	ctx.Close()
