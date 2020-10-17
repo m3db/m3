@@ -184,7 +184,7 @@ type Database interface {
 		start time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
-	) ([]xio.IndexChecksum, error) // FIXME: change when exact type known.
+	) (WideQueryIterator, error)
 
 	// ReadMismatches performs a wide blockwise query that applies a received
 	// index checksum block batch.

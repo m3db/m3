@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -992,7 +993,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]xio.IndexChecksum, error) { // FIXME: change when exact type known.
+) (WideQueryIterator, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1000,13 +1001,11 @@ func (d *db) WideQuery(
 	}
 
 	var (
-		batchSize = d.opts.WideBatchSize()
-		blockSize = n.Options().IndexOptions().BlockSize()
-
-		collectedChecksums = make([]xio.IndexChecksum, 0, 10)
+		batchSize  = d.opts.WideBatchSize()
+		blockSize  = n.Options().IndexOptions().BlockSize()
+		blockStart = queryStart.Truncate(blockSize)
 	)
-
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	opts, err := index.NewWideQueryOptions(blockStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1025,8 +1024,17 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
+	iter := newWideQueryIterator(blockStart, shards)
 	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+	indexChecksums := make([]xio.IndexChecksum, 0, batchSize)
+
+	// Won't need these in the future since shard will be available on index checksum.
+	d.RLock()
+	shardSet := d.shardSet
+	d.RUnlock()
+
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
+		// 1. get index checksums
 		streamedChecksums = streamedChecksums[:0]
 		for _, id := range batch.IDs {
 			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
@@ -1037,30 +1045,48 @@ func (d *db) WideQuery(
 			streamedChecksums = append(streamedChecksums, streamedChecksum)
 		}
 
-		for i, streamedChecksum := range streamedChecksums {
+		indexChecksums = indexChecksums[:0]
+		for _, streamedChecksum := range streamedChecksums {
 			checksum, err := streamedChecksum.RetrieveIndexChecksum()
 			if err != nil {
 				return err
 			}
 
-			// TODO: use index checksum value to call downstreams.
-			useID := i == len(batch.IDs)-1
-			if !useID {
-				checksum.ID.Finalize()
+			indexChecksums = append(indexChecksums, checksum)
+		}
+
+		// 2. send batch to remote
+
+		// 3. wait for response and process mismatches
+		// 3.1 insertion in order of the mismatches (into batch)
+
+		// 4. enqueue the data to wide query iterator results
+		for _, indexChecksum := range indexChecksums {
+			// TODO: get shard from indexChecksum instead of calculating
+			shard := shardSet.Lookup(indexChecksum.ID)
+
+			shardIter, err := iter.shardIter(shard)
+			if err != nil {
+				return err
 			}
 
-			collectedChecksums = append(collectedChecksums, checksum)
+			shardIter.pushRecord(wideQueryShardIteratorRecord{
+				ID:          indexChecksum.ID.Bytes(),
+				EncodedTags: indexChecksum.EncodedTags.Bytes(),
+			})
+
+			indexChecksum.Finalize()
 		}
 
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err := d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+		iter.setDoneError(err)
+	}()
 
-	return collectedChecksums, nil
+	return iter, nil
 }
 
 func (d *db) fetchIndexChecksum(
@@ -1474,4 +1500,428 @@ func NewAggregateTilesOptions(
 		End:   end,
 		Step:  step,
 	}, nil
+}
+
+type WideQueryIterator interface {
+	BlockStart() time.Time
+	Shards() []uint32
+
+	Next() bool
+	Current() WideQueryShardIterator
+	Err() error
+	Close()
+}
+
+type WideQueryShardIterator interface {
+	Shard() uint32
+
+	Next() bool
+	Current() WideQuerySeriesIterator
+	Err() error
+	Close()
+}
+
+type WideQuerySeriesIterator interface {
+	ID() ident.ID
+	EncodedTags() ts.EncodedTags
+
+	Next() bool
+	Current() (float64, ts.Annotation)
+	Err() error
+	Close()
+}
+
+var _ WideQueryIterator = (*wideQueryIterator)(nil)
+
+type wideQueryIterator struct {
+	blockStart time.Time
+	shards     []uint32
+
+	fixedBufferMgr *fixedBufferManager
+	iters          chan *wideQueryShardIterator
+
+	writeIter  *wideQueryShardIterator
+	writeShard uint32
+
+	readIter *wideQueryShardIterator
+
+	state wideQueryIteratorStateShared
+}
+
+type wideQueryIteratorStateShared struct {
+	sync.Mutex
+	// err is the only thing read/written to from both
+	// producer and consumer side.
+	err error
+}
+
+const shardNotSet = math.MaxUint32
+
+func newWideQueryIterator(
+	blockStart time.Time,
+	shards []uint32,
+) *wideQueryIterator {
+	return &wideQueryIterator{
+		fixedBufferMgr: newFixedBufferManager(newFixedBufferPool()),
+		iters:          make(chan *wideQueryShardIterator, len(shards)),
+		writeShard:     shardNotSet,
+	}
+}
+
+func (i *wideQueryIterator) setDoneError(err error) {
+	i.state.Lock()
+	i.state.err = err
+	i.state.Unlock()
+
+	i.setDone()
+}
+
+func (i *wideQueryIterator) setDone() {
+	close(i.iters)
+}
+
+func (i *wideQueryIterator) shardIter(
+	shard uint32,
+) (*wideQueryShardIterator, error) {
+	if i.writeShard == shard {
+		return i.writeIter, nil
+	}
+
+	// Make sure progressing in shard ascending order.
+	if i.writeShard != shardNotSet && shard < i.writeShard {
+		return nil, fmt.Errorf(
+			"shard progression must be ascending: curr=%d, next=%d",
+			i.writeShard, shard)
+	}
+
+	nextShardIter := newWideQueryShardIterator(shard, i.fixedBufferMgr)
+	i.writeShard = shard
+	i.iters <- nextShardIter
+	return nextShardIter, nil
+}
+
+func (i *wideQueryIterator) BlockStart() time.Time {
+	return i.blockStart
+}
+
+func (i *wideQueryIterator) Shards() []uint32 {
+	return i.shards
+}
+
+func (i *wideQueryIterator) Next() bool {
+	iter, ok := <-i.iters
+	if !ok {
+		i.readIter = nil
+		return false
+	}
+
+	i.readIter = iter
+	return true
+}
+
+func (i *wideQueryIterator) Current() WideQueryShardIterator {
+	return i.readIter
+}
+
+func (i *wideQueryIterator) Err() error {
+	i.state.Lock()
+	err := i.state.err
+	i.state.Unlock()
+	return err
+}
+
+func (i *wideQueryIterator) Close() {
+	i.iters = nil
+}
+
+const shardIterRecordsBuffer = 1024
+
+var _ WideQueryShardIterator = (*wideQueryShardIterator)(nil)
+
+type wideQueryShardIterator struct {
+	shard          uint32
+	fixedBufferMgr *fixedBufferManager
+
+	records chan wideQueryShardIteratorQueuedRecord
+
+	iter *wideQuerySeriesIterator
+
+	state wideQueryShardIteratorSharedState
+}
+
+type wideQueryShardIteratorQueuedRecord struct {
+	id                []byte
+	encodedTags       []byte
+	borrowID          fixedBufferBorrow
+	borrowEncodedTags fixedBufferBorrow
+}
+
+type wideQueryShardIteratorRecord struct {
+	ID          []byte
+	EncodedTags []byte
+}
+
+type wideQueryShardIteratorSharedState struct {
+	sync.Mutex
+	// err is the only thing read/written to from both
+	// producer and consumer side.
+	err error
+}
+
+func newWideQueryShardIterator(
+	shard uint32,
+	fixedBufferMgr *fixedBufferManager,
+) *wideQueryShardIterator {
+	return &wideQueryShardIterator{
+		shard:          shard,
+		records:        make(chan wideQueryShardIteratorQueuedRecord, shardIterRecordsBuffer),
+		fixedBufferMgr: fixedBufferMgr,
+	}
+}
+
+func (i *wideQueryShardIterator) setDoneError(err error) {
+	i.state.Lock()
+	i.state.err = err
+	i.state.Unlock()
+
+	i.setDone()
+}
+
+func (i *wideQueryShardIterator) setDone() {
+	close(i.records)
+}
+
+func (i *wideQueryShardIterator) pushRecord(
+	r wideQueryShardIteratorRecord,
+) {
+	var qr wideQueryShardIteratorQueuedRecord
+	qr.id, qr.borrowID = i.fixedBufferMgr.copy(r.ID)
+	qr.encodedTags, qr.borrowEncodedTags = i.fixedBufferMgr.copy(r.EncodedTags)
+	i.records <- qr
+}
+
+func (i *wideQueryShardIterator) Shard() uint32 {
+	return i.shard
+}
+
+func (i *wideQueryShardIterator) Next() bool {
+	record, ok := <-i.records
+	if !ok {
+		i.iter = nil
+		return false
+	}
+
+	if i.iter == nil {
+		i.iter = newWideQuerySeriesIterator()
+	}
+	i.iter.reset(record)
+	return true
+}
+
+func (i *wideQueryShardIterator) Current() WideQuerySeriesIterator {
+	return i.iter
+}
+
+func (i *wideQueryShardIterator) Err() error {
+	i.state.Lock()
+	err := i.state.err
+	i.state.Unlock()
+	return err
+}
+
+func (i *wideQueryShardIterator) Close() {
+	i.records = nil
+}
+
+var _ WideQuerySeriesIterator = (*wideQuerySeriesIterator)(nil)
+
+type wideQuerySeriesIterator struct {
+	record      wideQueryShardIteratorQueuedRecord
+	reuseableID *ident.ReuseableBytesID
+}
+
+func newWideQuerySeriesIterator() *wideQuerySeriesIterator {
+	return &wideQuerySeriesIterator{
+		reuseableID: ident.NewReuseableBytesID(),
+	}
+}
+
+func (i *wideQuerySeriesIterator) reset(
+	record wideQueryShardIteratorQueuedRecord,
+) {
+	i.record = record
+	i.reuseableID.Reset(i.record.id)
+}
+
+func (i *wideQuerySeriesIterator) ID() ident.ID {
+	return i.reuseableID
+}
+
+func (i *wideQuerySeriesIterator) EncodedTags() ts.EncodedTags {
+	return ts.EncodedTags(i.record.encodedTags)
+}
+
+func (i *wideQuerySeriesIterator) Next() bool {
+	return false
+}
+
+func (i *wideQuerySeriesIterator) Current() (float64, ts.Annotation) {
+	return 0, nil
+}
+
+func (i *wideQuerySeriesIterator) Err() error {
+	return nil
+}
+
+func (i *wideQuerySeriesIterator) Close() {
+	// Release the borrows on buffers.
+	i.record.borrowID.BufferFinalize()
+	i.record.borrowEncodedTags.BufferFinalize()
+	i.record = wideQueryShardIteratorQueuedRecord{}
+}
+
+const (
+	// 4mb total for fixed buffer.
+	fixedBufferPoolSize = 64
+	fixedBufferCapacity = 65536
+)
+
+type fixedBufferPool struct {
+	buffers chan *fixedBuffer
+}
+
+func newFixedBufferPool() *fixedBufferPool {
+	return &fixedBufferPool{
+		buffers: make(chan *fixedBuffer, fixedBufferPoolSize),
+	}
+}
+
+func (p *fixedBufferPool) get() *fixedBuffer {
+	var b *fixedBuffer
+	select {
+	case b = <-p.buffers:
+	default:
+		b = newFixedBuffer(p)
+	}
+	return b
+}
+
+func (p *fixedBufferPool) put(b *fixedBuffer) {
+	b.reset()
+	select {
+	case p.buffers <- b:
+	default:
+	}
+}
+
+type fixedBuffer struct {
+	pool       *fixedBufferPool
+	ref        int64
+	data       []byte
+	unconsumed []byte
+}
+
+func newFixedBuffer(pool *fixedBufferPool) *fixedBuffer {
+	data := make([]byte, fixedBufferCapacity)
+	b := &fixedBuffer{
+		pool: pool,
+		data: data,
+	}
+	b.reset()
+	return b
+}
+
+func (b *fixedBuffer) reset() {
+	b.unconsumed = b.data
+	atomic.StoreInt64(&b.ref, 1)
+}
+
+func (b *fixedBuffer) copy(src []byte) ([]byte, fixedBufferBorrow, bool) {
+	size := len(src)
+	if len(b.unconsumed) < size {
+		return nil, nil, false
+	}
+
+	copy(b.unconsumed, src)
+	dst := b.unconsumed[:size]
+	b.unconsumed = b.unconsumed[size:]
+
+	b.incRef()
+	return dst, b, true
+}
+
+func (b *fixedBuffer) done() {
+	b.decRef()
+}
+
+func (b *fixedBuffer) BufferFinalize() {
+	b.decRef()
+}
+
+func (b *fixedBuffer) incRef() {
+	atomic.AddInt64(&b.ref, 1)
+}
+
+func (b *fixedBuffer) decRef() {
+	n := atomic.AddInt64(&b.ref, -1)
+	if n == 0 {
+		b.pool.put(b)
+	} else if n < 0 {
+		panic(fmt.Errorf("bad ref count: %d", n))
+	}
+}
+
+type fixedBufferManager struct {
+	mu   sync.Mutex
+	pool *fixedBufferPool
+	curr *fixedBuffer
+}
+
+func newFixedBufferManager(pool *fixedBufferPool) *fixedBufferManager {
+	return &fixedBufferManager{
+		pool: pool,
+	}
+}
+
+type fixedBufferBorrow interface {
+	BufferFinalize()
+}
+
+var fixedBufferBorrowNoopGlobal fixedBufferBorrow = (*fixedBufferBorrowNoop)(nil)
+
+type fixedBufferBorrowNoop struct {
+}
+
+func (b *fixedBufferBorrowNoop) BufferFinalize() {
+	// noop
+}
+
+func (m *fixedBufferManager) copy(src []byte) ([]byte, fixedBufferBorrow) {
+	size := len(src)
+	if size > fixedBufferCapacity {
+		return make([]byte, size), fixedBufferBorrowNoopGlobal
+	}
+
+	// All copies mutate.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.curr == nil {
+		m.curr = m.pool.get()
+	}
+
+	dst, borrow, ok := m.curr.copy(src)
+	if !ok {
+		// Rotate in next buffer.
+		m.curr.done()
+		m.curr = m.pool.get()
+
+		// Perform copy again, fresh fixed buffer so must fit.
+		dst, borrow, ok = m.curr.copy(src)
+		if !ok {
+			panic(fmt.Errorf("below max size and unable to borrow: size=%d", size))
+		}
+	}
+
+	return dst, borrow
 }
