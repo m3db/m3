@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"runtime"
@@ -31,8 +32,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
@@ -155,6 +158,28 @@ func assertTags(
 	assert.Equal(t, fmt.Sprintf(wideTagValFmt, expected), tag.Value.String())
 	assert.False(t, decoder.Next())
 	require.NoError(t, decoder.Err())
+}
+
+func assertData(
+	t *testing.T,
+	ex int64,
+	exTime time.Time,
+	mismatch wide.ReadMismatch,
+) {
+	mismatch.Data.IncRef()
+	mismatchData := mismatch.Data.Bytes()
+	mismatch.Data.DecRef()
+
+	decoder := m3tsz.NewDecoder(true, nil)
+	dataReader := bytes.NewBuffer(mismatchData)
+	it := decoder.Decode(dataReader)
+	assert.NoError(t, it.Err())
+	assert.True(t, it.Next())
+	ts, _, _ := it.Current()
+	assert.True(t, ts.Timestamp.Equal(exTime))
+	assert.Equal(t, float64(ex), ts.Value)
+	assert.False(t, it.Next())
+	assert.NoError(t, it.Err())
 }
 
 func TestWideFetch(t *testing.T) {
@@ -286,6 +311,10 @@ func TestWideFetch(t *testing.T) {
 	decoder := tagDecoderPool.Get()
 	defer decoder.Close()
 
+	wideOpts := wide.NewOptions().
+		SetDecodingOptions(decOpts).
+		SetBatchSize(batchSize)
+
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
@@ -301,6 +330,31 @@ func TestWideFetch(t *testing.T) {
 				assert.Equal(t, expected[i].ID, checksum.ID)
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
 				checksum.Finalize()
+			}
+
+			ctx.Close()
+		})
+
+		t.Run(fmt.Sprintf("%s_checksum_mismatch", tt.name), func(t *testing.T) {
+			ctx := context.NewContext()
+			// NB: empty index checksum blocks.
+			inCh := make(chan wide.IndexChecksumBlockBatch)
+			batchReader := wide.NewIndexChecksumBlockBatchReader(inCh)
+			close(inCh)
+
+			checker := wide.NewEntryChecksumMismatchChecker(batchReader, wideOpts)
+			mismatches, err := testSetup.DB().ReadMismatches(ctx, nsMetadata.ID(), query,
+				checker, now, tt.shards, iterOpts)
+			require.NoError(t, err)
+
+			expected := buildExpectedChecksumsByShard(ids, tt.shards,
+				testSetup.ShardSet(), batchSize)
+			require.Equal(t, len(expected), len(mismatches))
+			for i, mismatch := range mismatches {
+				assert.Equal(t, expected[i].MetadataChecksum, mismatch.MetadataChecksum)
+				assertTags(t, mismatch.EncodedTags, decoder, mismatch.MetadataChecksum)
+				assertData(t, expected[i].MetadataChecksum, now, mismatch)
+				mismatch.Finalize()
 			}
 
 			ctx.Close()

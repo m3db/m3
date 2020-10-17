@@ -397,7 +397,7 @@ func (s *seeker) SeekReadMismatchesByIndexChecksum(
 	// mismatches, since they are not necessary in the updated model.
 	mismatches := allMismatches[:0]
 	for _, m := range allMismatches {
-		if !m.IsReaderMismatch() {
+		if m.IsReaderMismatch() {
 			mismatches = append(mismatches, m)
 		}
 	}
