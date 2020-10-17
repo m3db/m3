@@ -1754,6 +1754,7 @@ func (n *dbNamespace) aggregateTiles(
 		blockReaders = append(blockReaders, reader)
 	}
 
+	// iter
 	var processedTileCount int64
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
