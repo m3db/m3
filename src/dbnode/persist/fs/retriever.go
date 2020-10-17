@@ -318,8 +318,14 @@ func (r *blockRetriever) processReadMismatchRequest(
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
+	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
+	if err != nil {
+		req.onError(err)
+		return
+	}
+
 	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-		req.indexChecksum, req.mismatchChecker, seekerResources)
+		entry, req.mismatchChecker, seekerResources)
 
 	if err != nil && err != errSeekIDNotFound {
 		req.onError(err)

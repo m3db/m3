@@ -1052,7 +1052,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
 				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
-				batch.Add(1)
+				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)
 			}()

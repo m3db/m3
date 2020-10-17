@@ -229,9 +229,9 @@ func (r *wideResults) releaseAndWaitWithLock() {
 		return
 	}
 
-	r.batch.Add(1)
+	r.batch.ReadyForProcessing()
 	r.batchCh <- r.batch
-	r.batch.Wait()
+	r.batch.WaitUntilProcessed()
 	r.batch.IDs = r.batch.IDs[:0]
 	r.size = len(r.idsOverflow)
 }

@@ -964,7 +964,7 @@ func (d *db) batchProcessWideQuery(
 		defer func() {
 			if collectorErr != nil {
 				for batch := range collector {
-					batch.Done()
+					batch.Processed()
 				}
 			}
 
@@ -973,7 +973,7 @@ func (d *db) batchProcessWideQuery(
 
 		for batch := range collector {
 			collectorErr = batchProcessor(batch)
-			batch.Done()
+			batch.Processed()
 		}
 	}()
 
