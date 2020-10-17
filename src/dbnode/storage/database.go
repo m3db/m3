@@ -1791,19 +1791,25 @@ type fixedBufferPool struct {
 }
 
 func newFixedBufferPool() *fixedBufferPool {
-	return &fixedBufferPool{
-		buffers: make(chan *fixedBuffer, fixedBufferPoolSize),
+	slab := make([]byte, fixedBufferPoolSize*fixedBufferCapacity)
+	buffers := make(chan *fixedBuffer, fixedBufferPoolSize)
+	p := &fixedBufferPool{
+		buffers: buffers,
 	}
+
+	for i := 0; i < fixedBufferPoolSize; i++ {
+		buffers <- newFixedBuffer(p, slab[:fixedBufferCapacity])
+		slab = slab[fixedBufferCapacity:]
+	}
+
+	return p
 }
 
 func (p *fixedBufferPool) get() *fixedBuffer {
-	var b *fixedBuffer
-	select {
-	case b = <-p.buffers:
-	default:
-		b = newFixedBuffer(p)
-	}
-	return b
+	// To ensure this is a fixed size buffer pool, always wait for returns
+	// to the pool and so blockingly wait for consumer of the buffers
+	// to return their buffers.
+	return <-p.buffers
 }
 
 func (p *fixedBufferPool) put(b *fixedBuffer) {
@@ -1811,6 +1817,8 @@ func (p *fixedBufferPool) put(b *fixedBuffer) {
 	select {
 	case p.buffers <- b:
 	default:
+		// This is a code bug if actually cannot return, however do not
+		// panic to be defensive.
 	}
 }
 
@@ -1821,8 +1829,7 @@ type fixedBuffer struct {
 	unconsumed []byte
 }
 
-func newFixedBuffer(pool *fixedBufferPool) *fixedBuffer {
-	data := make([]byte, fixedBufferCapacity)
+func newFixedBuffer(pool *fixedBufferPool, data []byte) *fixedBuffer {
 	b := &fixedBuffer{
 		pool: pool,
 		data: data,
