@@ -27,8 +27,6 @@ package wide
 import (
 	"reflect"
 
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
 )
 
@@ -68,10 +66,10 @@ func (mr *MockIndexChecksumBlockBatchReaderMockRecorder) Close() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockIndexChecksumBlockBatchReader) Current() ident.IndexChecksumBlockBatch {
+func (m *MockIndexChecksumBlockBatchReader) Current() IndexChecksumBlockBatch {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(ident.IndexChecksumBlockBatch)
+	ret0, _ := ret[0].(IndexChecksumBlockBatch)
 	return ret0
 }
 

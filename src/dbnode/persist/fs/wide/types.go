@@ -23,7 +23,6 @@ package wide
 import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -73,7 +72,7 @@ type IndexChecksumBlockBatchReader interface {
 	// Next moves to the next IndexChecksumBlockBatch element.
 	Next() bool
 	// Current yields the current IndexChecksumBlockBatch.
-	Current() ident.IndexChecksumBlockBatch
+	Current() IndexChecksumBlockBatch
 	// Close closes the reader, draining any incoming reads without using them.
 	Close()
 }
@@ -108,3 +107,13 @@ func (emptyStreamedMismatchBatch) RetrieveMismatchBatch() (ReadMismatchBatch, er
 
 // EmptyStreamedMismatchBatch is an empty streamed mismatch batch.
 var EmptyStreamedMismatchBatch StreamedMismatchBatch = emptyStreamedMismatchBatch{}
+
+// IndexChecksumBlockBatch represents a batch of index checksums originating
+// from a single series block.
+type IndexChecksumBlockBatch struct {
+	// Checksums is the list of index checksums.
+	Checksums []int64
+	// EndMarker is a batch marker, signifying the ID of the
+	// last element in the batch.
+	EndMarker []byte
+}

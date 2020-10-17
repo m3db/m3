@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -1609,9 +1610,11 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := ident.IndexChecksum{
-		Checksum: 5,
-		ID:       []byte("foo"),
+	checksum := schema.IndexChecksum{
+		IndexEntry: schema.IndexEntry{
+			ID: []byte("foo"),
+		},
+		MetadataChecksum: 5,
 	}
 
 	indexChecksum := block.NewMockStreamedChecksum(ctrl)
@@ -1621,7 +1624,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 
 	// First call to RetrieveIndexChecksum is expected to error on retrieval
 	indexChecksum.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{}, errors.New("err"))
+		Return(schema.IndexChecksum{}, errors.New("err"))
 	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveIndexChecksum()

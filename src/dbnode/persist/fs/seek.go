@@ -475,12 +475,12 @@ func (s *seeker) SeekIndexEntry(
 func (s *seeker) SeekIndexEntryToIndexChecksum(
 	id ident.ID,
 	resources ReusableSeekerResources,
-) (ident.IndexChecksum, error) {
+) (schema.IndexChecksum, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return ident.IndexChecksum{}, err
+		return schema.IndexChecksum{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -494,31 +494,28 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 		if err != nil {
 			if err == io.EOF {
 				// Reached the end of the file without finding the ID.
-				return ident.IndexChecksum{}, errSeekIDNotFound
+				return schema.IndexChecksum{}, errSeekIDNotFound
 			}
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return ident.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
+			return schema.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
 		}
 
-		if status == xmsgpack.NotFound {
+		if status == xmsgpack.NotFoundLookupStatus {
 			// a `NotFound` status for the index checksum decode indicates that the
 			// current seek has passed the point in the file where this ID could have
 			// appeared; short-circuit here as the ID does not exist in the file.
-			return ident.IndexChecksum{}, errSeekIDNotFound
-		} else if status == xmsgpack.Mismatch {
+			return schema.IndexChecksum{}, errSeekIDNotFound
+		} else if status == xmsgpack.MismatchLookupStatus {
 			// a `Mismatch` status for the index checksum decode indicates that the
 			// current seek does not match the ID, but that it may still appear in
 			// the file.
 			continue
+		} else if status == xmsgpack.ErrorLookupStatus {
+			return schema.IndexChecksum{}, errors.New("unknown index lookup error")
 		}
 
-		indexChecksum := ident.IndexChecksum{
-			Checksum: checksum,
-		}
-
-		indexChecksum.ID = idBytes
-		return indexChecksum, nil
+		return checksum, nil
 	}
 }
 

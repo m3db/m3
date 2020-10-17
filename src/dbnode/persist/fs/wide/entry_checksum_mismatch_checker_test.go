@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xhash "github.com/m3db/m3/src/x/test/hash"
@@ -35,8 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func buildTestReader(bls ...ident.IndexChecksumBlockBatch) IndexChecksumBlockBatchReader {
-	ch := make(chan ident.IndexChecksumBlockBatch)
+func buildTestReader(bls ...IndexChecksumBlockBatch) IndexChecksumBlockBatchReader {
+	ch := make(chan IndexChecksumBlockBatch)
 	reader := NewIndexChecksumBlockBatchReader(ch)
 	go func() {
 		for _, bl := range bls {
@@ -126,7 +125,7 @@ func TestEmitMismatches(t *testing.T) {
 }
 
 func TestComputeMismatchInvariant(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1},
 		EndMarker: []byte("foo1"),
 	})
@@ -137,7 +136,7 @@ func TestComputeMismatchInvariant(t *testing.T) {
 }
 
 func TestComputeMismatchInvariantEndOfBlock(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2},
 		EndMarker: []byte("foo2"),
 	})
@@ -158,18 +157,18 @@ func assertNoMismatch(
 }
 
 func TestComputeMismatchWithDelayedReader(t *testing.T) {
-	ch := make(chan ident.IndexChecksumBlockBatch)
+	ch := make(chan IndexChecksumBlockBatch)
 	reader := NewIndexChecksumBlockBatchReader(ch)
 	chk := NewEntryChecksumMismatchChecker(reader, buildOpts(t))
 
 	go func() {
 		time.Sleep(time.Millisecond * 100)
-		ch <- ident.IndexChecksumBlockBatch{
+		ch <- IndexChecksumBlockBatch{
 			Checksums: []int64{1},
 			EndMarker: []byte("foo1"),
 		}
 		time.Sleep(time.Millisecond * 200)
-		ch <- ident.IndexChecksumBlockBatch{
+		ch <- IndexChecksumBlockBatch{
 			Checksums: []int64{10},
 			EndMarker: []byte("qux10"),
 		}
@@ -182,10 +181,10 @@ func TestComputeMismatchWithDelayedReader(t *testing.T) {
 }
 
 func TestComputeMismatchNoMismatch(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("foo3"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{100, 5},
 		EndMarker: []byte("zoo5"),
 	})
@@ -200,16 +199,16 @@ func TestComputeMismatchNoMismatch(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesIndexMismatch(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("foo3"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{4, 5},
 		EndMarker: []byte("moo5"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{6, 7, 8},
 		EndMarker: []byte("qux8"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{9, 10},
 		EndMarker: []byte("zzz9"),
 	})
@@ -244,16 +243,16 @@ func TestComputeMismatchMismatchesIndexMismatch(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{4},
 		EndMarker: []byte("foo3"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{5},
 		EndMarker: []byte("goo5"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{6},
 		EndMarker: []byte("moo6"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{7},
 		EndMarker: []byte("qux7"),
 	})
@@ -304,10 +303,10 @@ func TestComputeMismatchMismatchesEntryMismatches(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("foo3"),
-	}, ident.IndexChecksumBlockBatch{
+	}, IndexChecksumBlockBatch{
 		Checksums: []int64{4, 5, 10},
 		EndMarker: []byte("goo10"),
 	})
@@ -339,7 +338,7 @@ func TestComputeMismatchMismatchesOvershoot(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesEntryMismatchSkipsFirst(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{4},
 		EndMarker: []byte("foo3"),
 	})
@@ -357,7 +356,7 @@ func TestComputeMismatchMismatchesEntryMismatchSkipsFirst(t *testing.T) {
 }
 
 func TestComputeMismatchMismatchesEntryMismatchMatchesLast(t *testing.T) {
-	reader := buildTestReader(ident.IndexChecksumBlockBatch{
+	reader := buildTestReader(IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("foo3"),
 	})

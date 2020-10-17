@@ -181,9 +181,6 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 
 	r.size++
 	r.totalDocsCount++
-
-	// Pool IDs after filter is passed.
-	tsID = r.idPool.Clone(tsID)
 	if len(r.batch.IDs) < r.batchSize {
 		r.batch.IDs = append(r.batch.IDs, tsID)
 	} else {

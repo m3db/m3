@@ -22,28 +22,26 @@ package wide
 
 import (
 	"sync"
-
-	"github.com/m3db/m3/src/x/ident"
 )
 
 type indexChecksumBlockReader struct {
 	mu     sync.Mutex
 	closed bool
 
-	currentBlock ident.IndexChecksumBlockBatch
-	blocks       chan ident.IndexChecksumBlockBatch
+	currentBlock IndexChecksumBlockBatch
+	blocks       chan IndexChecksumBlockBatch
 }
 
 // NewIndexChecksumBlockBatchReader creates a new IndexChecksumBlockBatchReader.
 func NewIndexChecksumBlockBatchReader(
-	blockInput chan ident.IndexChecksumBlockBatch,
+	blockInput chan IndexChecksumBlockBatch,
 ) IndexChecksumBlockBatchReader {
 	return &indexChecksumBlockReader{
 		blocks: blockInput,
 	}
 }
 
-func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlockBatch {
+func (b *indexChecksumBlockReader) Current() IndexChecksumBlockBatch {
 	return b.currentBlock
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -222,7 +223,7 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a minimal structure describing a checksum of the series.
-	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
 
 	// SeekIndexEntryToReadMismatches seeks in a manner similar to SeekIndexEntry,
 	// applying each ID against an index checksum block batch, returning any
@@ -269,7 +270,7 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
-	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (ident.IndexChecksum, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
 
 	// SeekIndexEntryToReadMismatches is the same as in DataFileSetSeeker.
 	SeekIndexEntryToReadMismatches(

@@ -777,7 +777,7 @@ func (n *dbNamespace) QueryIDs(
 		return index.QueryResult{}, err
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errIndexNotBootstrappedToRead
@@ -820,7 +820,7 @@ func (n *dbNamespace) WideQueryIDs(
 		return err
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errIndexNotBootstrappedToRead
@@ -847,7 +847,7 @@ func (n *dbNamespace) AggregateQuery(
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{},

@@ -193,15 +193,13 @@ func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries *ts.S
 
 // divideSeries divides one series list by another single series
 func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
+	if len(dividendSeriesList.Values) == 0 || len(divisorSeriesList.Values) == 0 {
+		return ts.NewSeriesList(), nil
+	}
 	if len(divisorSeriesList.Values) != 1 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries second argument must reference exactly one series but instead has %d",
 			len(divisorSeriesList.Values)))
-		return ts.NewSeriesList(), err
-	}
-	if len(dividendSeriesList.Values) == 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
-			"divideSeries first argument must reference at least one series"))
 		return ts.NewSeriesList(), err
 	}
 

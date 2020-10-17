@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -346,10 +347,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]schema.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret0, _ := ret[0].([]schema.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -786,10 +787,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]ident.IndexChecksum, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]schema.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]ident.IndexChecksum)
+	ret0, _ := ret[0].([]schema.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2465,18 +2466,18 @@ func (mr *MockNamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
-// BootstrapsDone mocks base method
-func (m *MockNamespaceIndex) BootstrapsDone() uint {
+// Bootstrapped mocks base method
+func (m *MockNamespaceIndex) Bootstrapped() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapsDone")
-	ret0, _ := ret[0].(uint)
+	ret := m.ctrl.Call(m, "Bootstrapped")
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// BootstrapsDone indicates an expected call of BootstrapsDone
-func (mr *MockNamespaceIndexMockRecorder) BootstrapsDone() *gomock.Call {
+// Bootstrapped indicates an expected call of Bootstrapped
+func (mr *MockNamespaceIndexMockRecorder) Bootstrapped() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapsDone", reflect.TypeOf((*MockNamespaceIndex)(nil).BootstrapsDone))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrapped))
 }
 
 // CleanupExpiredFileSets mocks base method

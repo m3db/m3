@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -328,14 +329,17 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 
 	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
+		Return(schema.IndexChecksum{
+			IndexEntry:       schema.IndexEntry{ID: []byte("foo")},
+			MetadataChecksum: 5},
+			nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithID, nil)
 
 	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{Checksum: 7}, nil)
+		Return(schema.IndexChecksum{MetadataChecksum: 7}, nil)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
@@ -345,14 +349,14 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	checksum, err := res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	assert.Equal(t, "foo", string(checksum.ID))
-	assert.Equal(t, 5, int(checksum.Checksum))
+	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
 	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	checksum, err = res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(checksum.ID))
-	assert.Equal(t, 7, int(checksum.Checksum))
+	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
@@ -1008,9 +1012,6 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	d.commitLog = nil
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	nsOptions := namespace.NewOptions()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
-	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 

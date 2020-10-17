@@ -41,6 +41,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -522,7 +523,8 @@ func (r *blockRetriever) wideFetchBatch(
 
 		}
 
-		req.onIndexMismatchBatchCompleted(nil)
+		// FIXME: here get data.
+		req.onIndexMismatchBatchCompleted(wide.ReadMismatchBatch{})
 	}
 
 	// Seek and execute all requests
@@ -832,7 +834,7 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	indexChecksum ident.IndexChecksum
+	indexChecksum schema.IndexChecksum
 	mismatchBatch wide.ReadMismatchBatch
 	reader        xio.SegmentReader
 
@@ -850,7 +852,7 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onIndexChecksumCompleted(
-	indexChecksum ident.IndexChecksum) {
+	indexChecksum schema.IndexChecksum) {
 	if req.err == nil {
 		req.indexChecksum = indexChecksum
 		// If there was an error, we've already called done.
@@ -858,10 +860,10 @@ func (req *retrieveRequest) onIndexChecksumCompleted(
 	}
 }
 
-func (req *retrieveRequest) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveIndexChecksum() (schema.IndexChecksum, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return ident.IndexChecksum{}, req.err
+		return schema.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
 }
@@ -985,7 +987,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = ident.IndexChecksum{}
+	req.indexChecksum = schema.IndexChecksum{}
 	req.mismatchBatch = wide.ReadMismatchBatch{}
 	req.batchReader = nil
 	req.reader = nil
