@@ -1065,6 +1065,9 @@ func (d *db) WideQuery(
 			// TODO: get shard from indexChecksum instead of calculating
 			shard := shardSet.Lookup(indexChecksum.ID)
 
+			fmt.Printf("!! push record: id=%s, len_encoded_tags=%d, shard=%d\n",
+				indexChecksum.ID, len(indexChecksum.EncodedTags), shard)
+
 			shardIter, err := iter.shardIter(shard)
 			if err != nil {
 				return err
