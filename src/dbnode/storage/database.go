@@ -1073,13 +1073,14 @@ func (d *db) WideQuery(
 			reuseableID.Reset(indexChecksum.ID)
 			shard := shardSet.Lookup(reuseableID)
 
+			fmt.Printf("!! push record: id=%s, len_encoded_tags=%d, shard=%d\n",
+				indexChecksum.ID, len(indexChecksum.EncodedTags), shard)
+
 			shardIter, err := iter.shardIter(shard)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("!! push record: id=%s, len_encoded_tags=%d\n",
-				indexChecksum.ID, len(indexChecksum.EncodedTags))
 			shardIter.pushRecord(wideQueryShardIteratorRecord{
 				ID:          indexChecksum.ID,
 				EncodedTags: indexChecksum.EncodedTags,
