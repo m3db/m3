@@ -211,25 +211,40 @@ func truncateBoundsToResolution(
 		shiftEndAtBoundary          = opts.shiftStepsEndWhenAtResolutionBoundary
 		shiftStartWhenEndAtBoundary = opts.shiftStepsStartWhenEndAtResolutionBoundary
 		shiftEndWhenStartAtBoundary = opts.shiftStepsEndWhenStartAtResolutionBoundary
+		shiftStartOverride          bool
+		shiftEndOverride            bool
 	)
-	if n := shiftStartAtBoundary; n != nil && startAtResolutionBoundary {
-		// Apply boundary shifts which override constant shifts if at boundary.
-		start = start.Add(time.Duration(*n) * resolution)
-		if n := shiftEndWhenStartAtBoundary; n != nil && !(endAtResolutionBoundary) {
-			end = end.Add(time.Duration(*n) * resolution)
+	if startAtResolutionBoundary {
+		if n := shiftStartAtBoundary; n != nil {
+			// Apply start boundary shifts which override constant shifts if at boundary.
+			start = start.Add(time.Duration(*n) * resolution)
+			shiftStartOverride = true
 		}
-	} else {
-		// Otherwise shift by constant shift if no override shift effective.
+		if n := shiftEndWhenStartAtBoundary; n != nil && !endAtResolutionBoundary {
+			// Apply end boundary shifts which override constant shifts if at boundary.
+			end = end.Add(time.Duration(*n) * resolution)
+			shiftEndOverride = true
+		}
+	}
+	if endAtResolutionBoundary {
+		if n := shiftEndAtBoundary; n != nil {
+			// Apply end boundary shifts which override constant shifts if at boundary.
+			end = end.Add(time.Duration(*n) * resolution)
+			shiftEndOverride = true
+		}
+		if n := shiftStartWhenEndAtBoundary; n != nil && !startAtResolutionBoundary {
+			// Apply start boundary shifts which override constant shifts if at boundary.
+			start = start.Add(time.Duration(*n) * resolution)
+			shiftStartOverride = true
+		}
+	}
+
+	if !shiftStartOverride {
+		// Apply constant shift if no override shift effective.
 		start = start.Add(time.Duration(opts.shiftStepsStart) * resolution)
 	}
-	if n := shiftEndAtBoundary; n != nil && endAtResolutionBoundary {
-		// Apply boundary shifts which override constant shifts if at boundary.
-		end = end.Add(time.Duration(*n) * resolution)
-		if n := shiftStartWhenEndAtBoundary; n != nil && !(startAtResolutionBoundary) {
-			start = start.Add(time.Duration(*n) * resolution)
-		}
-	} else {
-		// Otherwise shift by constant shift if no override shift effective.
+	if !shiftEndOverride {
+		// Apply constant shift if no override shift effective.
 		end = end.Add(time.Duration(opts.shiftStepsEnd) * resolution)
 	}
 
