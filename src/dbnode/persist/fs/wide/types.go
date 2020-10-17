@@ -64,8 +64,7 @@ type ReadMismatch struct {
 // IsReaderMismatch is true if this mismatch is this mismatch is on the reader
 // side.
 func (r ReadMismatch) IsReaderMismatch() bool {
-	return r.Data.Len() > 0 ||
-		len(r.IndexChecksum.IndexEntry.ID) > 0 ||
+	return len(r.IndexChecksum.IndexEntry.ID) > 0 ||
 		len(r.IndexChecksum.IndexEntry.EncodedTags) > 0
 }
 

@@ -509,13 +509,7 @@ func (dec *Decoder) decodeIndexChecksum(
 			MetadataChecksum: checksum,
 		}
 
-		if bytesPool != nil {
-			indexChecksum.SetFinalizer(func() {
-				bytesPool.Put(entry.ID)
-				bytesPool.Put(entry.EncodedTags)
-			})
-		}
-
+		indexChecksum.SetBytesPool(bytesPool)
 		return indexChecksum, MatchedLookupStatus
 	}
 

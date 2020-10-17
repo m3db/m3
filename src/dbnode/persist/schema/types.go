@@ -22,6 +22,7 @@ package schema
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,
@@ -83,20 +84,25 @@ type IndexChecksum struct {
 	// MetadataChecksum is the computed index metadata checksum.
 	// NB: built from ID, DataChecksum, and tags.
 	MetadataChecksum int64
-	// finalizeFn is any specific cleanup step for the IndexChecksum.
-	finalizeFn func()
+
+	pool pool.BytesPool
 }
 
 // Finalize finalizes the index checksum, releasing any held resources.
 func (c *IndexChecksum) Finalize() {
-	if c.finalizeFn != nil {
-		c.finalizeFn()
+	if c.pool != nil {
+		if c.ID != nil {
+			c.pool.Put(c.ID)
+		}
+		if c.EncodedTags != nil {
+			c.pool.Put(c.EncodedTags)
+		}
 	}
 }
 
-// SetFinalizer sets the finalizer for this index checksum.
-func (c *IndexChecksum) SetFinalizer(fn func()) {
-	c.finalizeFn = fn
+// SetBytesPool sets the bytes pool for this index checksum.
+func (c *IndexChecksum) SetBytesPool(pool pool.BytesPool) {
+	c.pool = pool
 }
 
 // IndexEntryHasher hashes an index entry.
