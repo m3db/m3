@@ -481,101 +481,57 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	return indexEntry
 }
 
-// TODO: investigate the regular deccodeIndexEntry path to see if a similar
-// optimization where only the ID is read intially is worthwhile.
 func (dec *Decoder) decodeIndexChecksum(
 	compareID []byte,
 	bytesPool pool.BytesPool,
 ) (schema.IndexChecksum, IndexChecksumLookupStatus) {
-	numFieldsToSkip, actual, ok := dec.checkNumIndexEntryFields()
-	if !ok {
+	entry := dec.decodeIndexEntry(bytesPool)
+	if dec.err != nil {
 		return schema.IndexChecksum{}, ErrorLookupStatus
 	}
 
-	var indexWithMetaChecksum schema.IndexChecksum
-	indexWithMetaChecksum.Index = dec.decodeVarint()
-
-	if bytesPool == nil {
-		indexWithMetaChecksum.ID, _, _ = dec.decodeBytes()
-	} else {
-		indexWithMetaChecksum.ID = dec.decodeBytesWithPool(bytesPool)
-		indexWithMetaChecksum.SetFinalizer(func() {
-			bytesPool.Put(indexWithMetaChecksum.ID)
-		})
-	}
-
-	compare := bytes.Compare(compareID, indexWithMetaChecksum.ID)
-	if compare != 0 {
-		// NB: skip remaining decoder fields. One field was used to retrieve
-		// Index, the other for ID.
-		dec.skip(actual - 2)
-
-		if compare > 0 {
-			// compareID can still exist after the current entry.ID
-			return indexWithMetaChecksum, MismatchLookupStatus
-		} else if compare < 0 {
-			// compareID must have been before the curret entry.ID, so this
-			// ID will not be matched.
-			return indexWithMetaChecksum, NotFoundLookupStatus
+	if entry.EncodedTags == nil {
+		if bytesPool != nil {
+			bytesPool.Put(entry.ID)
 		}
-	}
 
-	indexWithMetaChecksum.Size = dec.decodeVarint()
-	indexWithMetaChecksum.Offset = dec.decodeVarint()
-	indexWithMetaChecksum.DataChecksum = dec.decodeVarint()
-
-	// At this point, if its a V1 file, we've decoded all the available fields.
-	// TODO: Since an entry requires tags for the checksum, this is an error
-	// scenario. In future, tags can be retrieved from seeker on data lookup,
-	// rather than seeded from the IndexChecksum, so erroring here will not
-	// be necessary.
-	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV1 || actual < 6 {
-		dec.skip(numFieldsToSkip)
 		dec.err = fmt.Errorf("decode index checksum requires files V1+")
-		return indexWithMetaChecksum, ErrorLookupStatus
+		return schema.IndexChecksum{}, ErrorLookupStatus
 	}
 
-	// Decode fields added in V2
-	if bytesPool == nil {
-		indexWithMetaChecksum.EncodedTags, _, _ = dec.decodeBytes()
-	} else {
-		indexWithMetaChecksum.EncodedTags = dec.decodeBytesWithPool(bytesPool)
+	compare := bytes.Compare(compareID, entry.ID)
+	var checksum int64
+	if compare == 0 {
+		// NB: need to compute hash before freeing entry bytes.
+		checksum = dec.hasher.HashIndexEntry(entry)
+		indexChecksum := schema.IndexChecksum{
+			IndexEntry:       entry,
+			MetadataChecksum: checksum,
+		}
+
+		if bytesPool != nil {
+			indexChecksum.SetFinalizer(func() {
+				bytesPool.Put(entry.ID)
+				bytesPool.Put(entry.EncodedTags)
+			})
+		}
+
+		return indexChecksum, MatchedLookupStatus
 	}
 
-	indexWithMetaChecksum.MetadataChecksum = dec.hasher.HashIndexEntry(indexWithMetaChecksum.IndexEntry)
 	if bytesPool != nil {
-		// NB: update finalizer to release both series tags and ID.
-		indexWithMetaChecksum.SetFinalizer(func() {
-			bytesPool.Put(indexWithMetaChecksum.ID)
-			bytesPool.Put(indexWithMetaChecksum.EncodedTags)
-		})
+		bytesPool.Put(entry.ID)
+		bytesPool.Put(entry.EncodedTags)
 	}
 
-	// At this point, if its a V2 file, we've decoded all the available fields.
-	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV2 || actual < 7 {
-		dec.skip(numFieldsToSkip)
-		return indexWithMetaChecksum, MatchedLookupStatus
+	if compare > 0 {
+		// compareID can still exist after the current entry.ID
+		return schema.IndexChecksum{}, MismatchLookupStatus
 	}
 
-	// NB(nate): Any new fields should be parsed here.
-
-	// Intentionally skip any extra fields here as we've stipulated that from V3 onward, IndexEntryChecksum will be the
-	// final field on index entries.
-	dec.skip(numFieldsToSkip)
-
-	// Retrieve actual checksum value here. Attempting to retrieve after decoding the upcoming expected checksum field
-	// would include value in actual checksum calculation which would cause a mismatch
-	actualChecksum := dec.readerWithDigest.digest().Sum32()
-
-	// Decode checksum field originally added in V3
-	v := dec.decodeVarint()
-	indexWithMetaChecksum.IndexChecksum = v
-	if indexWithMetaChecksum.IndexChecksum != int64(actualChecksum) {
-		dec.err = errorIndexEntryChecksumMismatch
-		return indexWithMetaChecksum, ErrorLookupStatus
-	}
-
-	return indexWithMetaChecksum, MatchedLookupStatus
+	// compareID must have been before the curret entry.ID, so this
+	// ID will not be matched.
+	return schema.IndexChecksum{}, NotFoundLookupStatus
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {

@@ -310,6 +310,7 @@ func (r *blockRetriever) processIndexChecksumRequest(
 	}
 
 	req.onIndexChecksumCompleted(entry)
+	req.onCallerOrRetrieverDone()
 }
 
 func (r *blockRetriever) processReadMismatchRequest(
@@ -501,15 +502,15 @@ func (r *blockRetriever) fetchBatch(
 	}
 }
 
+// streamRequest returns a bool indicating if the ID was found, and any errors.
 func (r *blockRetriever) streamRequest(
 	ctx context.Context,
 	req *retrieveRequest,
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
-	onNoID func(),
 	nsCtx namespace.Context,
-) error {
+) (bool, error) {
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
@@ -528,27 +529,23 @@ func (r *blockRetriever) streamRequest(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return errNoSeekerMgr
+		return false, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		if onNoID != nil {
-			onNoID()
-		}
-
-		return nil
+		return false, nil
 	}
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	reqs.Lock()
@@ -567,7 +564,7 @@ func (r *blockRetriever) streamRequest(
 	// the data. This means that even though we're returning nil for error
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
-	return nil
+	return true, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -590,14 +587,13 @@ func (r *blockRetriever) Stream(
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
-	onNoIDFn := func() {
-		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
-		req.onRetrieved(ts.Segment{}, namespace.Context{})
-	}
-
-	err := r.streamRequest(ctx, req, shard, id, startTime, onNoIDFn, nsCtx)
+	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		return xio.EmptyBlockReader, err
+	}
+
+	if !found {
+		req.onRetrieved(ts.Segment{}, namespace.Context{})
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -618,9 +614,13 @@ func (r *blockRetriever) StreamIndexChecksum(
 	req := r.reqPool.Get()
 	req.streamReqType = streamIdxChecksumReq
 
-	err := r.streamRequest(ctx, req, shard, id, startTime, nil, nsCtx)
+	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		return block.EmptyStreamedChecksum, err
+	}
+
+	if !found {
+		req.onIndexChecksumCompleted(schema.IndexChecksum{})
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -643,9 +643,13 @@ func (r *blockRetriever) StreamReadMismatches(
 	req.mismatchChecker = mismatchChecker
 	req.streamReqType = streamReadMismatchReq
 
-	err := r.streamRequest(ctx, req, shard, id, startTime, nil, nsCtx)
+	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		return wide.EmptyStreamedMismatch, err
+	}
+
+	if !found {
+		req.onIndexMismatchCompleted(wide.ReadMismatch{})
 	}
 
 	// The request may not have completed yet, but it has an internal
