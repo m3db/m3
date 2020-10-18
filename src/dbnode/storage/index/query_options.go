@@ -54,7 +54,7 @@ var (
 
 // NewWideQueryOptions creates a new wide query options, snapped to block start.
 func NewWideQueryOptions(
-	queryStart time.Time,
+	blockStart time.Time,
 	batchSize int,
 	blockSize time.Duration,
 	shards []uint32,
@@ -68,8 +68,11 @@ func NewWideQueryOptions(
 		return WideQueryOptions{}, fmt.Errorf(errInvalidBlockSize, blockSize)
 	}
 
-	start := queryStart.Truncate(blockSize)
-	end := start.Add(blockSize)
+	if !blockStart.Equal(blockStart.Truncate(blockSize)) {
+		return WideQueryOptions{},
+			fmt.Errorf("block start not divisible by block size: start=%v, size=%s",
+				blockStart.String(), blockSize.String())
+	}
 
 	// NB: shards queried must be sorted.
 	sort.Slice(shards, func(i, j int) bool {
@@ -77,8 +80,8 @@ func NewWideQueryOptions(
 	})
 
 	return WideQueryOptions{
-		StartInclusive:   start,
-		EndExclusive:     end,
+		StartInclusive:   blockStart,
+		EndExclusive:     blockStart.Add(blockSize),
 		BatchSize:        batchSize,
 		IterationOptions: iterOpts,
 		ShardsQueried:    shards,

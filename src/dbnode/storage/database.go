@@ -993,7 +993,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]schema.IndexChecksum, error) { // FIXME: change when exact type known.
+) (WideQueryIterator, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1001,13 +1001,11 @@ func (d *db) WideQuery(
 	}
 
 	var (
-		batchSize = d.opts.WideBatchSize()
-		blockSize = n.Options().IndexOptions().BlockSize()
-
-		collectedChecksums = make([]schema.IndexChecksum, 0, 10)
+		batchSize  = d.opts.WideBatchSize()
+		blockSize  = n.Options().IndexOptions().BlockSize()
+		blockStart = queryStart.Truncate(blockSize)
 	)
-
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	opts, err := index.NewWideQueryOptions(blockStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1026,8 +1024,18 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
+	iter := newWideQueryIterator(blockStart, shards)
 	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+	indexChecksums := make([]schema.IndexChecksum, 0, batchSize)
+
+	// Won't need these in the future since shard will be available on index checksum.
+	reuseableID := ident.NewReuseableBytesID()
+	d.RLock()
+	shardSet := d.shardSet
+	d.RUnlock()
+
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
+		// 1. Fetch index checksums.
 		streamedChecksums = streamedChecksums[:0]
 		for _, id := range batch.IDs {
 			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
@@ -1038,6 +1046,7 @@ func (d *db) WideQuery(
 			streamedChecksums = append(streamedChecksums, streamedChecksum)
 		}
 
+		indexChecksums = indexChecksums[:0]
 		for i, streamedChecksum := range streamedChecksums {
 			checksum, err := streamedChecksum.RetrieveIndexChecksum()
 			if err != nil {
@@ -1047,21 +1056,44 @@ func (d *db) WideQuery(
 			// TODO: use index checksum value to call downstreams.
 			useID := i == len(batch.IDs)-1
 			if !useID {
-				checksum.ID = checksum.ID[:0]
+				// checksum.ID = checksum.ID[:0]
 			}
 
-			collectedChecksums = append(collectedChecksums, checksum)
+			indexChecksums = append(indexChecksums, checksum)
+		}
+
+		// 2. Send batch to remote.
+
+		// 3. Wait for response and process mismatches.
+		// 3.1 Insertion in order of the mismatches (into batch).
+
+		// 4. Finally push the data to wide query iterator results.
+		for _, indexChecksum := range indexChecksums {
+			// TODO: get shard from indexChecksum instead of calculating
+			reuseableID.Reset(indexChecksum.ID)
+			shard := shardSet.Lookup(reuseableID)
+
+			shardIter, err := iter.shardIter(shard)
+			if err != nil {
+				return err
+			}
+
+			shardIter.pushRecord(wideQueryShardIteratorRecord{
+				ID:               indexChecksum.ID,
+				EncodedTags:      indexChecksum.EncodedTags,
+				MetadataChecksum: indexChecksum.MetadataChecksum,
+			})
 		}
 
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err := d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+		iter.setDoneError(err)
+	}()
 
-	return collectedChecksums, nil
+	return iter, nil
 }
 
 func (d *db) fetchIndexChecksum(
