@@ -1051,6 +1051,11 @@ func (d *db) WideQuery(
 				return err
 			}
 
+			if checksum.Empty() {
+				// Should not surface to the iterator.
+				continue
+			}
+
 			indexChecksums = append(indexChecksums, checksum)
 		}
 
@@ -1124,13 +1129,14 @@ func (d *db) ReadMismatches(
 	}
 
 	var (
-		batchSize = d.opts.WideBatchSize()
-		blockSize = n.Options().IndexOptions().BlockSize()
+		batchSize  = d.opts.WideBatchSize()
+		blockSize  = n.Options().IndexOptions().BlockSize()
+		blockStart = queryStart.Truncate(blockSize)
 
 		collectedMismatches = make([]wide.ReadMismatch, 0, 10)
 	)
 
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	opts, err := index.NewWideQueryOptions(blockStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
 	}

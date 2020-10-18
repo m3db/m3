@@ -132,16 +132,12 @@ func buildExpectedChecksumsByShard(
 
 func assertTags(
 	t *testing.T,
-	encodedTags checked.Bytes,
+	encodedTags []byte,
 	decoder serialize.TagDecoder,
 	expected int64,
 	msgAndArgs ...interface{},
 ) {
-	encodedTags.IncRef()
-	encoded := encodedTags.Bytes()
-	encodedTags.DecRef()
-
-	decoder.Reset(checked.NewBytes(encoded, nil))
+	decoder.Reset(checked.NewBytes(encodedTags, nil))
 	assert.Equal(t, 1, decoder.Len(), msgAndArgs...)
 	assert.True(t, decoder.Next(), msgAndArgs...)
 	tag := decoder.Current()
@@ -396,7 +392,7 @@ func TestWideFetch(t *testing.T) {
 			require.Equal(t, len(expected), len(mismatches))
 			for i, mismatch := range mismatches {
 				assert.Equal(t, expected[i].MetadataChecksum, mismatch.MetadataChecksum)
-				assertTags(t, mismatch.EncodedTags, decoder, mismatch.MetadataChecksum)
+				assertTags(t, mismatch.EncodedTags.Bytes(), decoder, mismatch.MetadataChecksum)
 				assertData(t, expected[i].MetadataChecksum, now, mismatch)
 				mismatch.Finalize()
 			}
@@ -442,7 +438,7 @@ func TestWideFetch(t *testing.T) {
 				require.Equal(t, 1, len(chk))
 				checksum := chk[0]
 				assert.Equal(t, int64(1), checksum.MetadataChecksum)
-				assert.Equal(t, exactID, checksum.ID.String())
+				assert.Equal(t, exactID, string(checksum.ID))
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
 			}
 

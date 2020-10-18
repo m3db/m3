@@ -36,6 +36,11 @@ type IndexChecksum struct {
 	MetadataChecksum int64
 }
 
+// Empty returns whether the index checksum is empty and not found.
+func (c IndexChecksum) Empty() bool {
+	return c == IndexChecksum{}
+}
+
 // Finalize finalizes the index checksum.
 func (c *IndexChecksum) Finalize() {
 	if c.EncodedTags != nil {
