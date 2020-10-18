@@ -1033,7 +1033,7 @@ func (d *db) WideQuery(
 	d.RUnlock()
 
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
-		// 1. Fetch index checksums.
+		// Fetch index checksums.
 		streamedChecksums = streamedChecksums[:0]
 		for _, id := range batch.IDs {
 			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
@@ -1059,12 +1059,7 @@ func (d *db) WideQuery(
 			indexChecksums = append(indexChecksums, checksum)
 		}
 
-		// 2. Send batch to remote.
-
-		// 3. Wait for response and process mismatches.
-		// 3.1 Insertion in order of the mismatches (into batch).
-
-		// 4. Finally push the data to wide query iterator results.
+		// Push the data to wide query iterator results.
 		for _, indexChecksum := range indexChecksums {
 			// TODO: get shard from indexChecksum instead of calculating
 			shard := shardSet.Lookup(indexChecksum.ID)

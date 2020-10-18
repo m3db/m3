@@ -34,6 +34,7 @@ type IndexChecksum struct {
 	DataChecksum     int64
 	EncodedTags      checked.Bytes
 	MetadataChecksum int64
+	Data             checked.Bytes
 }
 
 // Empty returns whether the index checksum is empty and not found.
@@ -45,9 +46,18 @@ func (c IndexChecksum) Empty() bool {
 func (c *IndexChecksum) Finalize() {
 	if c.EncodedTags != nil {
 		c.EncodedTags.DecRef()
+		c.EncodedTags.Finalize()
+		c.EncodedTags = nil
 	}
 
-	if c.ID != nil && c.ID.Bytes() != nil {
+	if c.ID != nil {
 		c.ID.Finalize()
+		c.ID = nil
+	}
+
+	if c.Data != nil {
+		c.Data.DecRef()
+		c.Data.Finalize()
+		c.Data = nil
 	}
 }

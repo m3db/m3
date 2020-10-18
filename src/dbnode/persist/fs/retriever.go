@@ -201,9 +201,10 @@ func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
-		seekerResources = NewReusableSeekerResources(r.fsOpts)
-		inFlight        []*retrieveRequest
-		currBatchReqs   []*retrieveRequest
+		seekerResources    = NewReusableSeekerResources(r.fsOpts)
+		retrieverResources = newReuseableRetrieverResources()
+		inFlight           []*retrieveRequest
+		currBatchReqs      []*retrieveRequest
 	)
 	for {
 		// Free references to the inflight requests
@@ -266,8 +267,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 				req.shard != currBatchShard {
 				// Fetch any outstanding in the current batch
 				if len(currBatchReqs) > 0 {
-					r.fetchBatch(
-						seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
+					r.fetchBatch(seekerMgr, currBatchShard, currBatchStart,
+						currBatchReqs, seekerResources, retrieverResources)
 					for i := range currBatchReqs {
 						currBatchReqs[i] = nil
 					}
@@ -285,8 +286,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 
 		// Fetch any finally outstanding in the current batch
 		if len(currBatchReqs) > 0 {
-			r.fetchBatch(
-				seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
+			r.fetchBatch(seekerMgr, currBatchShard, currBatchStart,
+				currBatchReqs, seekerResources, retrieverResources)
 			for i := range currBatchReqs {
 				currBatchReqs[i] = nil
 			}
@@ -297,19 +298,69 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
-func (r *blockRetriever) processIndexChecksumRequest(
-	req *retrieveRequest,
+// filterAndCompleteWideReqs completes all wide operation retrieve requests,
+// returning a list of requests that need to be processed by other means.
+func (r *blockRetriever) filterAndCompleteWideReqs(
+	reqs []*retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
-) {
-	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
-	if err != nil {
-		req.onError(err)
-		return
+	retrieverResources *reuseableRetrieverResources,
+) []*retrieveRequest {
+	filteredStreamRequests := reqs[:0]
+	retrieverResources.resetIndexChecksumReqs()
+	for _, req := range reqs {
+		switch req.streamReqType {
+		case streamDataReq:
+			// NB: filter out stream requests; these are handled outside of
+			// wide logic functions.
+			filteredStreamRequests = append(filteredStreamRequests, req)
+		case streamIdxChecksumReq:
+			checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
+				seekerResources)
+			if err != nil && err != errSeekIDNotFound {
+				req.onError(err)
+				continue
+			}
+
+			req.onIndexChecksumMetadataCompleted(checksum)
+			if err == errSeekIDNotFound {
+				// Missing, return empty result.
+				req.onIndexChecksumDataCompleted(nil)
+				req.onCallerOrRetrieverDone()
+				continue
+			}
+
+			// Enqueue for fetch in batch in offset ascending order.
+			retrieverResources.appendIndexChecksumReq(req)
+
+		case streamReadMismatchReq:
+			r.processReadMismatchRequest(req, seeker, seekerResources)
+		default:
+			req.onError(errUnsetRequestType)
+		}
 	}
 
-	req.onIndexChecksumCompleted(checksum)
-	req.onCallerOrRetrieverDone()
+	// Fulfill the index checksum data fetches in batch offset ascending.
+	var sortByOffsetAsc retrieveRequestByIndexChecksumOffsetAsc
+	sortByOffsetAsc = retrieverResources.indexChecksumReqs
+	sort.Sort(sortByOffsetAsc)
+	for _, req := range retrieverResources.indexChecksumReqs {
+		entry := IndexEntry{
+			Size:         uint32(req.indexChecksum.Size),
+			DataChecksum: uint32(req.indexChecksum.DataChecksum),
+			Offset:       req.indexChecksum.Offset,
+		}
+		data, err := seeker.SeekByIndexEntry(entry, seekerResources)
+		if err != nil {
+			req.onError(err)
+			continue
+		}
+
+		req.onIndexChecksumDataCompleted(data)
+		req.onCallerOrRetrieverDone()
+	}
+
+	return filteredStreamRequests
 }
 
 func (r *blockRetriever) processReadMismatchRequest(
@@ -325,7 +376,6 @@ func (r *blockRetriever) processReadMismatchRequest(
 
 	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
 		checksum, req.mismatchChecker, seekerResources)
-
 	if err != nil && err != errSeekIDNotFound {
 		req.onError(err)
 		return
@@ -340,30 +390,25 @@ func (r *blockRetriever) processReadMismatchRequest(
 	req.onCallerOrRetrieverDone()
 }
 
-// filterAndCompleteWideReqs completes all wide operation retrieve requests,
-// returning a list of requests that need to be processed by other means.
-func (r *blockRetriever) filterAndCompleteWideReqs(
-	reqs []*retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-) []*retrieveRequest {
-	filteredStreamRequests := reqs[:0]
-	for _, req := range reqs {
-		switch req.streamReqType {
-		case streamDataReq:
-			// NB: filter out stream requests; these are handled outside of
-			// wide logic functions.
-			filteredStreamRequests = append(filteredStreamRequests, req)
-		case streamIdxChecksumReq:
-			r.processIndexChecksumRequest(req, seeker, seekerResources)
-		case streamReadMismatchReq:
-			r.processReadMismatchRequest(req, seeker, seekerResources)
-		default:
-			req.onError(errUnsetRequestType)
-		}
-	}
+type reuseableRetrieverResources struct {
+	indexChecksumReqs []*retrieveRequest
+}
 
-	return filteredStreamRequests
+func newReuseableRetrieverResources() *reuseableRetrieverResources {
+	return &reuseableRetrieverResources{}
+}
+
+func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {
+	for i := range r.indexChecksumReqs {
+		r.indexChecksumReqs[i] = nil
+	}
+	r.indexChecksumReqs = r.indexChecksumReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) appendIndexChecksumReq(
+	req *retrieveRequest,
+) {
+	r.indexChecksumReqs = append(r.indexChecksumReqs, req)
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -372,6 +417,7 @@ func (r *blockRetriever) fetchBatch(
 	blockStart time.Time,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
+	retrieverResources *reuseableRetrieverResources,
 ) {
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
@@ -396,7 +442,8 @@ func (r *blockRetriever) fetchBatch(
 	// NB: filterAndCompleteWideReqs will complete any wide requests, returning
 	// a filtered list of requests that should be processed below. These wide
 	// requests must not take query limits into account.
-	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources)
+	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources,
+		retrieverResources)
 
 	var limitErr error
 	if err := r.queryLimits.AnyExceeded(); err != nil {
@@ -431,7 +478,7 @@ func (r *blockRetriever) fetchBatch(
 		req.indexEntry = entry
 	}
 
-	sort.Sort(retrieveRequestByOffsetAsc(reqs))
+	sort.Sort(retrieveRequestByIndexEntryOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
 	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
@@ -617,7 +664,8 @@ func (r *blockRetriever) StreamIndexChecksum(
 	}
 
 	if !found {
-		req.onIndexChecksumCompleted(xio.IndexChecksum{})
+		req.onIndexChecksumMetadataCompleted(xio.IndexChecksum{})
+		req.onIndexChecksumDataCompleted(nil)
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -770,9 +818,15 @@ type retrieveRequest struct {
 	notFound bool
 }
 
-func (req *retrieveRequest) onIndexChecksumCompleted(indexChecksum xio.IndexChecksum) {
+func (req *retrieveRequest) onIndexChecksumMetadataCompleted(indexChecksum xio.IndexChecksum) {
 	if req.err == nil {
 		req.indexChecksum = indexChecksum
+	}
+}
+
+func (req *retrieveRequest) onIndexChecksumDataCompleted(data checked.Bytes) {
+	if req.err == nil {
+		req.indexChecksum.Data = data
 		// If there was an error, we've already called done.
 		req.resultWg.Done()
 	}
@@ -935,12 +989,20 @@ func (r retrieveRequestByStartAscShardAsc) Less(i, j int) bool {
 	return r[i].shard < r[j].shard
 }
 
-type retrieveRequestByOffsetAsc []*retrieveRequest
+type retrieveRequestByIndexEntryOffsetAsc []*retrieveRequest
 
-func (r retrieveRequestByOffsetAsc) Len() int      { return len(r) }
-func (r retrieveRequestByOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
+func (r retrieveRequestByIndexEntryOffsetAsc) Len() int      { return len(r) }
+func (r retrieveRequestByIndexEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r retrieveRequestByIndexEntryOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
+}
+
+type retrieveRequestByIndexChecksumOffsetAsc []*retrieveRequest
+
+func (r retrieveRequestByIndexChecksumOffsetAsc) Len() int      { return len(r) }
+func (r retrieveRequestByIndexChecksumOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r retrieveRequestByIndexChecksumOffsetAsc) Less(i, j int) bool {
+	return r[i].indexChecksum.Offset < r[j].indexChecksum.Offset
 }
 
 // RetrieveRequestPool is the retrieve request pool.
