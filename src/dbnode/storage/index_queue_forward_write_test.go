@@ -243,7 +243,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 					assert.Equal(t, expectedBatchIDs[i], batchStr)
 				}
 
-				b.Done()
+				b.Processed()
 				i++
 			}
 			doneCh <- struct{}{}
