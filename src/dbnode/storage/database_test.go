@@ -947,7 +947,10 @@ type wideQueryTestFn func(
 	now time.Time, shards []uint32, iterOpts index.IterationOptions,
 )
 
-func exhaustWideQueryIter(t *testing.T, iter WideQueryIterator) {
+func exhaustWideQueryIter(
+	t *testing.T,
+	iter WideQueryIterator,
+) {
 	for iter.Next() {
 		shardIter := iter.Current()
 		for shardIter.Next() {
@@ -964,6 +967,34 @@ func exhaustWideQueryIter(t *testing.T, iter WideQueryIterator) {
 	iter.Close()
 }
 
+func exhaustWideQueryIterResult(
+	t *testing.T,
+	iter WideQueryIterator,
+) []error {
+	var errs []error
+	for iter.Next() {
+		shardIter := iter.Current()
+		for shardIter.Next() {
+			seriesIter := shardIter.Current()
+			for seriesIter.Next() {
+			}
+			if err := seriesIter.Err(); err != nil {
+				errs = append(errs, err)
+			}
+			seriesIter.Close()
+		}
+		if err := shardIter.Err(); err != nil {
+			errs = append(errs, err)
+		}
+		shardIter.Close()
+	}
+	if err := iter.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	iter.Close()
+	return errs
+}
+
 func TestWideQuery(t *testing.T) {
 	readMismatchTest := func(
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
@@ -977,13 +1008,15 @@ func TestWideQuery(t *testing.T) {
 		require.NoError(t, err)
 		exhaustWideQueryIter(t, iter)
 
-		_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
-		require.Error(t, err)
+		iter, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+		require.NoError(t, err)
+		errs := exhaustWideQueryIterResult(t, iter)
+		require.Error(t, errs[0])
 	}
 
 	exSpans := []string{
-		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
+		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
 		"root",
 	}
