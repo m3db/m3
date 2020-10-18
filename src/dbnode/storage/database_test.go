@@ -324,6 +324,7 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 
 	nsID := ident.StringID("testns1")
 	seriesID := ident.StringID("bar")
+	shardID := ident.ShardID{ID: seriesID}
 	end := time.Now()
 	start := end.Add(-time.Hour)
 
@@ -345,14 +346,14 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	res, err := d.fetchIndexChecksum(ctx, mockNamespace, shardID, start)
 	require.NoError(t, err)
 	checksum, err := res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	assert.Equal(t, "foo", checksum.ID.String())
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	res, err = d.fetchIndexChecksum(ctx, mockNamespace, shardID, start)
 	checksum, err = res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -1052,7 +1053,11 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
-				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch := &ident.IDBatch{
+					ShardIDs: []ident.ShardID{
+						{ID: ident.StringID("foo")},
+					},
+				}
 				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)

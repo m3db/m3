@@ -45,7 +45,7 @@ type wideResults struct {
 	idPool ident.Pool
 
 	closed      bool
-	idsOverflow []ident.ID
+	idsOverflow []ident.ShardID
 	batch       *ident.IDBatch
 	batchCh     chan<- *ident.IDBatch
 	batchSize   int
@@ -76,17 +76,13 @@ func NewWideQueryResults(
 		nsID:        namespaceID,
 		idPool:      idPool,
 		batchSize:   batchSize,
-		idsOverflow: make([]ident.ID, 0, batchSize),
+		idsOverflow: make([]ident.ShardID, 0, batchSize),
 		batch: &ident.IDBatch{
-			IDs: make([]ident.ID, 0, batchSize),
+			ShardIDs: make([]ident.ShardID, 0, batchSize),
 		},
-		batchCh: collector,
-		shards:  opts.ShardsQueried,
-	}
-
-	if len(opts.ShardsQueried) > 0 {
-		// Only apply filter if there are shards to filter against.
-		results.shardFilter = shardFilter
+		batchCh:     collector,
+		shardFilter: shardFilter,
+		shards:      opts.ShardsQueried,
 	}
 
 	return results
@@ -118,7 +114,7 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 		return size, totalDocsCount, err
 	}
 
-	release := len(r.batch.IDs) == r.batchSize
+	release := len(r.batch.ShardIDs) == r.batchSize
 	if release {
 		r.releaseAndWaitWithLock()
 		r.releaseOverflowWithLock()
@@ -145,10 +141,15 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 
 	var tsID ident.ID = ident.BytesID(d.ID)
 
-	// Need to apply filter if set first.
-	if r.shardFilter != nil {
+	documentShard, documentShardOwned := r.shardFilter(tsID)
+	if !documentShardOwned {
+		// node is no longer responsible for this document's shard.
+		return nil
+	}
+
+	if len(r.shards) > 0 {
+		// Need to apply filter if shard set provided.
 		filteringShard := r.shards[r.shardIdx]
-		documentShard, documentShardOwned := r.shardFilter(tsID)
 		// NB: Check to see if shard is exceeded first (to short circuit earlier if
 		// the current shard is not owned by this node, but shard exceeds filtered).
 		if filteringShard > documentShard {
@@ -173,19 +174,21 @@ func (r *wideResults) addDocumentWithLock(d doc.Document) error {
 				return nil
 			}
 		}
-
-		if !documentShardOwned {
-			return nil
-		}
 	}
 
 	r.size++
 	r.totalDocsCount++
-	if len(r.batch.IDs) < r.batchSize {
-		r.batch.IDs = append(r.batch.IDs, tsID)
+
+	shardID := ident.ShardID{
+		Shard: documentShard,
+		ID:    tsID,
+	}
+
+	if len(r.batch.ShardIDs) < r.batchSize {
+		r.batch.ShardIDs = append(r.batch.ShardIDs, shardID)
 	} else {
 		// NB: Add any IDs overflowing the batch size to the overflow slice.
-		r.idsOverflow = append(r.idsOverflow, tsID)
+		r.idsOverflow = append(r.idsOverflow, shardID)
 	}
 
 	return nil
@@ -225,19 +228,19 @@ func (r *wideResults) Finalize() {
 }
 
 func (r *wideResults) releaseAndWaitWithLock() {
-	if r.closed || len(r.batch.IDs) == 0 {
+	if r.closed || len(r.batch.ShardIDs) == 0 {
 		return
 	}
 
 	r.batch.ReadyForProcessing()
 	r.batchCh <- r.batch
 	r.batch.WaitUntilProcessed()
-	r.batch.IDs = r.batch.IDs[:0]
+	r.batch.ShardIDs = r.batch.ShardIDs[:0]
 	r.size = len(r.idsOverflow)
 }
 
 func (r *wideResults) releaseOverflowWithLock() {
-	if len(r.batch.IDs) != 0 {
+	if len(r.batch.ShardIDs) != 0 {
 		// If still some IDs in the batch, noop. Theoretically this should not
 		// happen, since releaseAndWaitWithLock should be called before
 		// releaseOverflowWithLock, which should drain the channel.
@@ -264,7 +267,7 @@ func (r *wideResults) releaseOverflowWithLock() {
 		}
 
 		// NB: move overflow IDs to the batch itself.
-		r.batch.IDs = append(r.batch.IDs, r.idsOverflow[0:size]...)
+		r.batch.ShardIDs = append(r.batch.ShardIDs, r.idsOverflow[0:size]...)
 		copy(r.idsOverflow, r.idsOverflow[size:])
 		r.idsOverflow = r.idsOverflow[:overflow-size]
 		if incomplete {

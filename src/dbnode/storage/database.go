@@ -1028,8 +1028,8 @@ func (d *db) WideQuery(
 	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedChecksums = streamedChecksums[:0]
-		for _, id := range batch.IDs {
-			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+		for _, shardID := range batch.ShardIDs {
+			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, shardID, start)
 			if err != nil {
 				return err
 			}
@@ -1044,7 +1044,7 @@ func (d *db) WideQuery(
 			}
 
 			// TODO: use index checksum value to call downstreams.
-			useID := i == len(batch.IDs)-1
+			useID := i == len(batch.ShardIDs)-1
 			if !useID {
 				checksum.ID.Finalize()
 			}
@@ -1066,20 +1066,21 @@ func (d *db) WideQuery(
 func (d *db) fetchIndexChecksum(
 	ctx context.Context,
 	ns databaseNamespace,
-	id ident.ID,
+	shardID ident.ShardID,
 	start time.Time,
 ) (block.StreamedChecksum, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", ns.ID().String()),
-			opentracinglog.String("id", id.String()),
+			opentracinglog.String("id", shardID.ID.String()),
+			opentracinglog.Uint32("shard", shardID.Shard),
 			xopentracing.Time("start", start),
 		)
 	}
 
 	defer sp.Finish()
-	return ns.FetchIndexChecksum(ctx, id, start)
+	return ns.FetchIndexChecksum(ctx, shardID.ID, start)
 }
 
 func (d *db) ReadMismatches(
@@ -1126,8 +1127,8 @@ func (d *db) ReadMismatches(
 	streamedMismatches := make([]wide.StreamedMismatch, 0, batchSize)
 	streamMismatchProcessor := func(batch *ident.IDBatch) error {
 		streamedMismatches = streamedMismatches[:0]
-		for _, id := range batch.IDs {
-			streamedMismatch, err := d.fetchReadMismatch(ctx, n, mismatchChecker, id, start)
+		for _, shardID := range batch.ShardIDs {
+			streamedMismatch, err := d.fetchReadMismatch(ctx, n, mismatchChecker, shardID, start)
 			if err != nil {
 				return err
 			}
@@ -1159,20 +1160,21 @@ func (d *db) fetchReadMismatch(
 	ctx context.Context,
 	ns databaseNamespace,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
+	shardID ident.ShardID,
 	start time.Time,
 ) (wide.StreamedMismatch, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatch)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", ns.ID().String()),
-			opentracinglog.String("id", id.String()),
+			opentracinglog.String("id", shardID.ID.String()),
+			opentracinglog.Uint32("shard", shardID.Shard),
 			xopentracing.Time("start", start),
 		)
 	}
 
 	defer sp.Finish()
-	return ns.FetchReadMismatch(ctx, mismatchChecker, id, start)
+	return ns.FetchReadMismatch(ctx, mismatchChecker, shardID.ID, start)
 }
 
 func (d *db) FetchBlocks(
