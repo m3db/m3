@@ -856,6 +856,18 @@ func (m *MockStreamedChecksum) EXPECT() *MockStreamedChecksumMockRecorder {
 	return m.recorder
 }
 
+// Finalize mocks base method
+func (m *MockStreamedChecksum) Finalize() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (mr *MockStreamedChecksumMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockStreamedChecksum)(nil).Finalize))
+}
+
 // RetrieveIndexChecksum mocks base method
 func (m *MockStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
 	m.ctrl.T.Helper()

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -271,6 +272,8 @@ type RetrievableBlockMetadata struct {
 // StreamedChecksum yields a xio.IndexChecksum value asynchronously,
 // and any errors encountered during execution.
 type StreamedChecksum interface {
+	resource.Finalizer
+
 	// RetrieveIndexChecksum retrieves the index checksum.
 	RetrieveIndexChecksum() (xio.IndexChecksum, error)
 }
@@ -279,6 +282,9 @@ type emptyStreamedChecksum struct{}
 
 func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
 	return xio.IndexChecksum{}, nil
+}
+
+func (emptyStreamedChecksum) Finalize() {
 }
 
 // EmptyStreamedChecksum is an empty streamed checksum.

@@ -1037,7 +1037,7 @@ func (d *db) WideQuery(
 		defer func() {
 			// Be sure to finalize any streamed checksums
 			// for both happy path and also early return.
-			// This also free's any resources held by the 
+			// This also free's any resources held by the
 			// resulting index checksum.
 			for _, streamedChecksum := range streamedChecksums {
 				streamedChecksum.Finalize()
@@ -1053,7 +1053,6 @@ func (d *db) WideQuery(
 			streamedChecksums = append(streamedChecksums, streamedChecksum)
 		}
 
-		indexChecksums = indexChecksums[:0]
 		for _, streamedChecksum := range streamedChecksums {
 			checksum, err := streamedChecksum.RetrieveIndexChecksum()
 			if err != nil {
@@ -1075,10 +1074,10 @@ func (d *db) WideQuery(
 			}
 
 			shardIter.pushRecord(wideQueryShardIteratorRecord{
-				ID:               indexChecksum.ID.Bytes(),
-				EncodedTags:      indexChecksum.EncodedTags.Bytes(),
-				MetadataChecksum: indexChecksum.MetadataChecksum,
-				Data:             indexChecksum.Data.Bytes(),
+				ID:               checksum.ID.Bytes(),
+				EncodedTags:      checksum.EncodedTags.Bytes(),
+				MetadataChecksum: checksum.MetadataChecksum,
+				Data:             checksum.Data.Bytes(),
 			})
 		}
 

@@ -135,22 +135,6 @@ type DataReaderOpenOptions struct {
 	OptimizedReadMetadataOnly bool
 }
 
-// StreamedChecksum yields a schema.IndexChecksum value asynchronously,
-// and any errors encountered during execution.
-type StreamedChecksum interface {
-	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (xio.IndexChecksum, error)
-}
-
-type emptyStreamedChecksum struct{}
-
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
-	return xio.IndexChecksum{}, nil
-}
-
-// EmptyStreamedChecksum is an empty streamed checksum.
-var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
-
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
 type DataFileSetReader interface {
 	io.Closer

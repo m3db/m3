@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/resource"
 )
 
 // Options represents the options for mismatch calculation.
@@ -103,6 +104,8 @@ type EntryChecksumMismatchChecker interface {
 // StreamedMismatch yields a ReadMismatch value asynchronously,
 // and any errors encountered during execution.
 type StreamedMismatch interface {
+	resource.Finalizer
+
 	// RetrieveMismatch retrieves the mismatch.
 	RetrieveMismatch() (ReadMismatch, error)
 }
@@ -111,6 +114,9 @@ type emptyStreamedMismatch struct{}
 
 func (emptyStreamedMismatch) RetrieveMismatch() (ReadMismatch, error) {
 	return ReadMismatch{}, nil
+}
+
+func (emptyStreamedMismatch) Finalize() {
 }
 
 // EmptyStreamedMismatch is an empty streamed mismatch batch.

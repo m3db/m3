@@ -131,6 +131,18 @@ func (m *MockStreamedMismatch) EXPECT() *MockStreamedMismatchMockRecorder {
 	return m.recorder
 }
 
+// Finalize mocks base method
+func (m *MockStreamedMismatch) Finalize() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (mr *MockStreamedMismatchMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockStreamedMismatch)(nil).Finalize))
+}
+
 // RetrieveMismatch mocks base method
 func (m *MockStreamedMismatch) RetrieveMismatch() (ReadMismatch, error) {
 	m.ctrl.T.Helper()
