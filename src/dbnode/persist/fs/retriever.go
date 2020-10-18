@@ -358,8 +358,9 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			continue
 		}
 
-		// Request completed.
+		// Success, inc ref so on finalize can decref and finalize.
 		req.indexChecksum.Data = data
+		req.indexChecksum.Data.IncRef()
 		req.success = true
 	}
 
@@ -372,20 +373,28 @@ func (r *blockRetriever) processReadMismatchRequest(
 	seekerResources ReusableSeekerResources,
 ) {
 	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
-	if err != nil {
-		req.err = err
-		return
-	}
-
-	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-		checksum, req.mismatchChecker, seekerResources)
 	if err != nil && err != errSeekIDNotFound {
 		req.err = err
 		return
 	}
 
-	// Either way a success, even if not found.
+	if err == errSeekIDNotFound {
+		req.mismatchBatch = wide.ReadMismatch{}
+		req.success = true
+		return
+	}
+
+	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
+		checksum, req.mismatchChecker, seekerResources)
+	if err != nil {
+		// Should always be found if was found in the index file.
+		req.err = err
+		return
+	}
+
+	// Success, inc ref so on finalize can decref and finalize.
 	req.mismatchBatch = mismatch
+	req.mismatchBatch.Data.IncRef()
 	req.success = true
 }
 
