@@ -1073,6 +1073,7 @@ func (d *db) WideQuery(
 				ID:               indexChecksum.ID.Bytes(),
 				EncodedTags:      indexChecksum.EncodedTags.Bytes(),
 				MetadataChecksum: indexChecksum.MetadataChecksum,
+				Data:             indexChecksum.Data.Bytes(),
 			})
 
 			indexChecksum.Finalize()

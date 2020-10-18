@@ -33,6 +33,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -314,6 +315,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			// NB: filter out stream requests; these are handled outside of
 			// wide logic functions.
 			filteredStreamRequests = append(filteredStreamRequests, req)
+
 		case streamIdxChecksumReq:
 			checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
 				seekerResources)
@@ -335,6 +337,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 		case streamReadMismatchReq:
 			r.processReadMismatchRequest(req, seeker, seekerResources)
+
 		default:
 			req.onError(errUnsetRequestType)
 		}
@@ -388,27 +391,6 @@ func (r *blockRetriever) processReadMismatchRequest(
 
 	req.onIndexMismatchCompleted(mismatch)
 	req.onCallerOrRetrieverDone()
-}
-
-type reuseableRetrieverResources struct {
-	indexChecksumReqs []*retrieveRequest
-}
-
-func newReuseableRetrieverResources() *reuseableRetrieverResources {
-	return &reuseableRetrieverResources{}
-}
-
-func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {
-	for i := range r.indexChecksumReqs {
-		r.indexChecksumReqs[i] = nil
-	}
-	r.indexChecksumReqs = r.indexChecksumReqs[:0]
-}
-
-func (r *reuseableRetrieverResources) appendIndexChecksumReq(
-	req *retrieveRequest,
-) {
-	r.indexChecksumReqs = append(r.indexChecksumReqs, req)
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -826,6 +808,11 @@ func (req *retrieveRequest) onIndexChecksumMetadataCompleted(indexChecksum xio.I
 
 func (req *retrieveRequest) onIndexChecksumDataCompleted(data checked.Bytes) {
 	if req.err == nil {
+		if req.indexChecksum.Empty() {
+			// Code bug.
+			req.onError(fmt.Errorf("index checksum empty"))
+			return
+		}
 		req.indexChecksum.Data = data
 		// If there was an error, we've already called done.
 		req.resultWg.Done()
@@ -872,8 +859,22 @@ func (req *retrieveRequest) onError(err error) {
 }
 
 func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Context) {
-	req.Reset(segment)
 	req.nsCtx = nsCtx
+	req.Reset(segment)
+}
+
+func (req *retrieveRequest) Reset(segment ts.Segment) {
+	req.reader.Reset(segment)
+	if req.err == nil {
+		// If there was an error, we've already called done.
+		req.resultWg.Done()
+	}
+}
+
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+	req.start = start
+	req.blockSize = blockSize
+	req.Reset(segment)
 }
 
 func (req *retrieveRequest) onCallerOrRetrieverDone() {
@@ -893,20 +894,6 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	req.reader.Finalize()
 	req.reader = nil
 	req.pool.Put(req)
-}
-
-func (req *retrieveRequest) Reset(segment ts.Segment) {
-	req.reader.Reset(segment)
-	if req.err == nil {
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
-}
-
-func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
-	req.Reset(segment)
-	req.start = start
-	req.blockSize = blockSize
 }
 
 func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
@@ -1047,4 +1034,25 @@ func (p *reqPool) Put(req *retrieveRequest) {
 	// shortly lived objects while still in the pool
 	req.resetForReuse()
 	p.pool.Put(req)
+}
+
+type reuseableRetrieverResources struct {
+	indexChecksumReqs []*retrieveRequest
+}
+
+func newReuseableRetrieverResources() *reuseableRetrieverResources {
+	return &reuseableRetrieverResources{}
+}
+
+func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {
+	for i := range r.indexChecksumReqs {
+		r.indexChecksumReqs[i] = nil
+	}
+	r.indexChecksumReqs = r.indexChecksumReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) appendIndexChecksumReq(
+	req *retrieveRequest,
+) {
+	r.indexChecksumReqs = append(r.indexChecksumReqs, req)
 }

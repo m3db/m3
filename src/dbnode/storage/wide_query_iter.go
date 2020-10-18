@@ -207,6 +207,8 @@ type wideQueryShardIteratorQueuedRecord struct {
 	borrowID          fixedBufferBorrow
 	encodedTags       []byte
 	borrowEncodedTags fixedBufferBorrow
+	data              []byte
+	borrowData        fixedBufferBorrow
 	metadataChecksum  int64
 }
 
@@ -214,6 +216,7 @@ type wideQueryShardIteratorRecord struct {
 	ID               []byte
 	EncodedTags      []byte
 	MetadataChecksum int64
+	Data             []byte
 }
 
 type wideQueryShardIteratorSharedState struct {
@@ -249,6 +252,7 @@ func (i *wideQueryShardIterator) pushRecord(
 	var qr wideQueryShardIteratorQueuedRecord
 	qr.id, qr.borrowID = i.fixedBufferMgr.copy(r.ID)
 	qr.encodedTags, qr.borrowEncodedTags = i.fixedBufferMgr.copy(r.EncodedTags)
+	qr.data, qr.borrowData = i.fixedBufferMgr.copy(r.Data)
 	qr.metadataChecksum = r.MetadataChecksum
 	i.records <- qr
 }
