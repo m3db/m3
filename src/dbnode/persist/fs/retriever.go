@@ -46,7 +46,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -307,39 +306,39 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	seekerResources ReusableSeekerResources,
 	retrieverResources *reuseableRetrieverResources,
 ) []*retrieveRequest {
-	filteredStreamRequests := reqs[:0]
+	retrieverResources.resetDataReqs()
 	retrieverResources.resetIndexChecksumReqs()
 	for _, req := range reqs {
 		switch req.streamReqType {
 		case streamDataReq:
 			// NB: filter out stream requests; these are handled outside of
 			// wide logic functions.
-			filteredStreamRequests = append(filteredStreamRequests, req)
+			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
 		case streamIdxChecksumReq:
 			checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
 				seekerResources)
 			if err != nil && err != errSeekIDNotFound {
-				req.onError(err)
+				req.err = err
 				continue
 			}
 
-			req.onIndexChecksumMetadataCompleted(checksum)
 			if err == errSeekIDNotFound {
-				// Missing, return empty result.
-				req.onIndexChecksumDataCompleted(nil)
-				req.onCallerOrRetrieverDone()
+				// Missing, return empty result, successful lookup.
+				req.indexChecksum = xio.IndexChecksum{}
+				req.success = true
 				continue
 			}
 
 			// Enqueue for fetch in batch in offset ascending order.
+			req.indexChecksum = checksum
 			retrieverResources.appendIndexChecksumReq(req)
 
 		case streamReadMismatchReq:
 			r.processReadMismatchRequest(req, seeker, seekerResources)
 
 		default:
-			req.onError(errUnsetRequestType)
+			req.err = errUnsetRequestType
 		}
 	}
 
@@ -355,15 +354,16 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 		}
 		data, err := seeker.SeekByIndexEntry(entry, seekerResources)
 		if err != nil {
-			req.onError(err)
+			req.err = err
 			continue
 		}
 
-		req.onIndexChecksumDataCompleted(data)
-		req.onCallerOrRetrieverDone()
+		// Request completed.
+		req.indexChecksum.Data = data
+		req.success = true
 	}
 
-	return filteredStreamRequests
+	return retrieverResources.dataReqs
 }
 
 func (r *blockRetriever) processReadMismatchRequest(
@@ -373,24 +373,20 @@ func (r *blockRetriever) processReadMismatchRequest(
 ) {
 	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
 	if err != nil {
-		req.onError(err)
+		req.err = err
 		return
 	}
 
 	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
 		checksum, req.mismatchChecker, seekerResources)
 	if err != nil && err != errSeekIDNotFound {
-		req.onError(err)
+		req.err = err
 		return
 	}
 
-	if err == errSeekIDNotFound {
-		req.onIndexMismatchCompleted(wide.ReadMismatch{})
-		return
-	}
-
-	req.onIndexMismatchCompleted(mismatch)
-	req.onCallerOrRetrieverDone()
+	// Either way a success, even if not found.
+	req.mismatchBatch = mismatch
+	req.success = true
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -401,17 +397,26 @@ func (r *blockRetriever) fetchBatch(
 	seekerResources ReusableSeekerResources,
 	retrieverResources *reuseableRetrieverResources,
 ) {
-	// Resolve the seeker from the seeker mgr
-	seeker, err := seekerMgr.Borrow(shard, blockStart)
-	if err != nil {
-		for _, req := range allReqs {
-			req.onError(err)
-		}
-		return
-	}
-
+	var seeker ConcurrentDataFileSetSeeker
 	defer func() {
-		err = seekerMgr.Return(shard, blockStart, seeker)
+		// Make sure requests are always fulfilled so if there's a code bug
+		// then errSeekNotCompleted is returned because req.success is not set
+		// rather than we have dangling goroutines stacking up.
+		for _, req := range allReqs {
+			req.onDone(nil)
+		}
+
+		// Reset resources to free any pointers in the slices still pointing
+		// to requests that are now completed and returned to pools.
+		retrieverResources.resetAll()
+
+		if seeker == nil {
+			// No borrowed seeker to return.
+			return
+		}
+
+		// Return borrowed seeker.
+		err := seekerMgr.Return(shard, blockStart, seeker)
 		if err != nil {
 			r.logger.Error("err returning seeker for shard",
 				zap.Uint32("shard", shard),
@@ -420,6 +425,16 @@ func (r *blockRetriever) fetchBatch(
 			)
 		}
 	}()
+
+	// Resolve the seeker from the seeker mgr.
+	var err error
+	seeker, err = seekerMgr.Borrow(shard, blockStart)
+	if err != nil {
+		for _, req := range allReqs {
+			req.err = err
+		}
+		return
+	}
 
 	// NB: filterAndCompleteWideReqs will complete any wide requests, returning
 	// a filtered list of requests that should be processed below. These wide
@@ -430,25 +445,25 @@ func (r *blockRetriever) fetchBatch(
 	var limitErr error
 	if err := r.queryLimits.AnyExceeded(); err != nil {
 		for _, req := range reqs {
-			req.onError(err)
+			req.err = err
 		}
 		return
 	}
 
 	for _, req := range reqs {
 		if limitErr != nil {
-			req.onError(limitErr)
+			req.err = limitErr
 			continue
 		}
 
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
+			req.err = err
 			continue
 		}
 
 		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
-			req.onError(err)
+			req.err = err
 			limitErr = err
 			continue
 		}
@@ -467,41 +482,51 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		var (
-			data checked.Bytes
-			err  error
-		)
+		// Should always be a data request by this point.
+		if req.streamReqType != streamDataReq {
+			req.err = fmt.Errorf("wrong stream req type: expect=%d, actual=%d",
+				streamDataReq, req.streamReqType)
+			continue
+		}
 
-		// Only try to seek the ID if it exists and there haven't been any errors so
-		// far, otherwise we'll get a checksum mismatch error because the default
-		// offset value for indexEntry is zero.
-		if req.foundAndHasNoError() {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
-			if err != nil && err != errSeekIDNotFound {
-				req.onError(err)
-				continue
-			}
+		if req.err != nil {
+			// Skip requests with error, will already get appropriate callback.
+			continue
+		}
+
+		if req.notFound {
+			// Only try to seek the ID if it exists and there haven't been any errors so
+			// far, otherwise we'll get a checksum mismatch error because the default
+			// offset value for indexEntry is zero.
+			req.success = true
+			req.onCallerOrRetrieverDone()
+			continue
+		}
+
+		data, err := seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
+		if err != nil {
+			// If not found error is returned here, that's still an error since
+			// it's expected to be found if it was found in the index file.
+			req.err = err
+			continue
 		}
 
 		var (
 			seg, onRetrieveSeg ts.Segment
 			checksum           = req.indexEntry.DataChecksum
 		)
-		if data != nil {
-			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
-		}
+		seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil && req.foundAndHasNoError()
+		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
 			// consequent fetches.
-			if data != nil {
-				dataCopy := r.bytesPool.Get(data.Len())
-				onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
-				dataCopy.AppendAll(data.Bytes())
-			}
+			dataCopy := r.bytesPool.Get(data.Len())
+			onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
+			dataCopy.AppendAll(data.Bytes())
+
 			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {
 				decoder := tagDecoderPool.Get()
 				// DecRef because we're transferring ownership from the index entry to
@@ -521,9 +546,13 @@ func (r *blockRetriever) fetchBatch(
 
 		// Complete request.
 		req.onRetrieved(seg, req.nsCtx)
+		req.success = true
 
 		if !callOnRetrieve {
-			// No need to call the onRetrieve callback.
+			// No need to call the onRetrieve callback, but do need to call
+			// onCallerOrRetrieverDone since data requests do not get finalized
+			// when req.onDone is called since sometimes they need deferred
+			// finalization (when callOnRetrieve is true).
 			req.onCallerOrRetrieverDone()
 			continue
 		}
@@ -620,6 +649,8 @@ func (r *blockRetriever) Stream(
 
 	if !found {
 		req.onRetrieved(ts.Segment{}, namespace.Context{})
+		req.success = true
+		req.onDone(nil)
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -646,8 +677,9 @@ func (r *blockRetriever) StreamIndexChecksum(
 	}
 
 	if !found {
-		req.onIndexChecksumMetadataCompleted(xio.IndexChecksum{})
-		req.onIndexChecksumDataCompleted(nil)
+		req.indexChecksum = xio.IndexChecksum{}
+		req.success = true
+		req.onDone(nil)
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -676,7 +708,9 @@ func (r *blockRetriever) StreamReadMismatches(
 	}
 
 	if !found {
-		req.onIndexMismatchCompleted(wide.ReadMismatch{})
+		req.mismatchBatch = wide.ReadMismatch{}
+		req.success = true
+		req.onDone(nil)
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -798,25 +832,7 @@ type retrieveRequest struct {
 	shard     uint32
 
 	notFound bool
-}
-
-func (req *retrieveRequest) onIndexChecksumMetadataCompleted(indexChecksum xio.IndexChecksum) {
-	if req.err == nil {
-		req.indexChecksum = indexChecksum
-	}
-}
-
-func (req *retrieveRequest) onIndexChecksumDataCompleted(data checked.Bytes) {
-	if req.err == nil {
-		if req.indexChecksum.Empty() {
-			// Code bug.
-			req.onError(fmt.Errorf("index checksum empty"))
-			return
-		}
-		req.indexChecksum.Data = data
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
+	success  bool
 }
 
 func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
@@ -825,14 +841,6 @@ func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
 		return xio.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
-}
-
-func (req *retrieveRequest) onIndexMismatchCompleted(batch wide.ReadMismatch) {
-	if req.err == nil {
-		req.mismatchBatch = batch
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
 }
 
 func (req *retrieveRequest) RetrieveMismatch() (wide.ReadMismatch, error) {
@@ -851,24 +859,46 @@ func (req *retrieveRequest) toBlock() xio.BlockReader {
 	}
 }
 
-func (req *retrieveRequest) onError(err error) {
-	if req.err == nil {
-		req.err = err
-		req.resultWg.Done()
-	}
-}
-
 func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Context) {
 	req.nsCtx = nsCtx
 	req.Reset(segment)
 }
 
+func (req *retrieveRequest) onDone(err error) {
+	if req.err == nil && err != nil {
+		// Don't override an error if already set.
+		req.err = err
+	}
+	if req.err == nil && !req.success {
+		// Require explicit success, otherwise this request
+		// was never completed.
+		req.err = errSeekNotCompleted
+	}
+
+	req.resultWg.Done()
+
+	switch req.streamReqType {
+	case streamDataReq:
+		// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
+		// code path will call req.onCallerOrRetrieverDone() when it's done.
+		// If encountered an error though, should call it since not waiting for
+		// callback to finish or even if not waiting for callback to finish
+		// the happy path that calls this pre-emptively has not executed either.
+		// That is if-and-only-if request is data request and is successful and
+		// will req.onCallerOrRetrieverDone() be called in a deferred manner.
+		if !req.success {
+			req.onCallerOrRetrieverDone()
+		}
+	default:
+		// All other requests will use this to increment the finalize count by
+		// one and the actual req.Finalize() by the final one to make count of
+		// two and actually return the request to the pool.
+		req.onCallerOrRetrieverDone()
+	}
+}
+
 func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.reader.Reset(segment)
-	if req.err == nil {
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
 }
 
 func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
@@ -881,18 +911,29 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	if atomic.AddUint32(&req.finalizes, 1) != 2 {
 		return
 	}
-	// NB: streamIdxChecksumReq ids are used to sort the resultant list,
-	// so they should not be finalized here.
-	if req.streamReqType == streamDataReq {
-		req.id.Finalize()
+
+	switch req.streamReqType {
+	case streamIdxChecksumReq:
+		// All pooled elements are set on the indexChecksum.
+		req.indexChecksum.Finalize()
+	case streamReadMismatchReq:
+		// All pooled elements are set on the mismatchBatch.
+		req.mismatchBatch.Finalize()
+	default:
+		if req.id != nil {
+			req.id.Finalize()
+			req.id = nil
+		}
+		if req.tags != nil {
+			req.tags.Close()
+			req.tags = ident.EmptyTagIterator
+		}
+		if req.reader != nil {
+			req.reader.Finalize()
+			req.reader = nil
+		}
 	}
-	req.id = nil
-	if req.tags != nil {
-		req.tags.Close()
-		req.tags = ident.EmptyTagIterator
-	}
-	req.reader.Finalize()
-	req.reader = nil
+
 	req.pool.Put(req)
 }
 
@@ -959,10 +1000,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
-}
-
-func (req *retrieveRequest) foundAndHasNoError() bool {
-	return !req.notFound && req.err == nil
+	req.success = false
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
@@ -1037,11 +1075,30 @@ func (p *reqPool) Put(req *retrieveRequest) {
 }
 
 type reuseableRetrieverResources struct {
+	dataReqs          []*retrieveRequest
 	indexChecksumReqs []*retrieveRequest
 }
 
 func newReuseableRetrieverResources() *reuseableRetrieverResources {
 	return &reuseableRetrieverResources{}
+}
+
+func (r *reuseableRetrieverResources) resetAll() {
+	r.resetDataReqs()
+	r.resetIndexChecksumReqs()
+}
+
+func (r *reuseableRetrieverResources) resetDataReqs() {
+	for i := range r.dataReqs {
+		r.dataReqs[i] = nil
+	}
+	r.dataReqs = r.dataReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) appendDataReq(
+	req *retrieveRequest,
+) {
+	r.dataReqs = append(r.dataReqs, req)
 }
 
 func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {

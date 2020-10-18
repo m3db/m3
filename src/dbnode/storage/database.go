@@ -1025,7 +1025,6 @@ func (d *db) WideQuery(
 
 	iter := newWideQueryIterator(blockStart, shards)
 	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
-	indexChecksums := make([]xio.IndexChecksum, 0, batchSize)
 
 	// Won't need these in the future since shard will be available on index checksum.
 	d.RLock()
@@ -1035,6 +1034,16 @@ func (d *db) WideQuery(
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		// Fetch index checksums.
 		streamedChecksums = streamedChecksums[:0]
+		defer func() {
+			// Be sure to finalize any streamed checksums
+			// for both happy path and also early return.
+			// This also free's any resources held by the 
+			// resulting index checksum.
+			for _, streamedChecksum := range streamedChecksums {
+				streamedChecksum.Finalize()
+			}
+		}()
+
 		for _, id := range batch.IDs {
 			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
 			if err != nil {
@@ -1056,14 +1065,10 @@ func (d *db) WideQuery(
 				continue
 			}
 
-			indexChecksums = append(indexChecksums, checksum)
-		}
-
-		// Push the data to wide query iterator results.
-		for _, indexChecksum := range indexChecksums {
 			// TODO: get shard from indexChecksum instead of calculating
-			shard := shardSet.Lookup(indexChecksum.ID)
+			shard := shardSet.Lookup(checksum.ID)
 
+			// Push the data to wide query iterator results.
 			shardIter, err := iter.shardIter(shard)
 			if err != nil {
 				return err
@@ -1075,8 +1080,6 @@ func (d *db) WideQuery(
 				MetadataChecksum: indexChecksum.MetadataChecksum,
 				Data:             indexChecksum.Data.Bytes(),
 			})
-
-			indexChecksum.Finalize()
 		}
 
 		return nil

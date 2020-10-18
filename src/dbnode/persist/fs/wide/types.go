@@ -68,6 +68,16 @@ func (r ReadMismatch) IsReaderMismatch() bool {
 		r.IndexChecksum.EncodedTags != nil
 }
 
+// Finalize the elements in the read mismatch.
+func (r *ReadMismatch) Finalize() {
+	r.IndexChecksum.Finalize()
+	if r.Data != nil {
+		r.Data.DecRef()
+		r.Data.Finalize()
+		r.Data = nil
+	}
+}
+
 // IndexChecksumBlockBatchReader is a reader across IndexChecksumBlockBatches.
 type IndexChecksumBlockBatchReader interface {
 	// Next moves to the next IndexChecksumBlockBatch element.

@@ -52,6 +52,9 @@ var (
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
 
+	// errSeekNotCompleted returned when no error but seek did not complete.
+	errSeekNotCompleted = errors.New("seek not completed")
+
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 )
@@ -607,7 +610,7 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 			}
 		}
 
-		// If it's a match, we need to copy the tags into a checked bytes
+		// If it's a match, we need to copy the ID and tags into a checked bytes
 		// so they can be passed along. We use the "real" bytes pool here
 		// because we're passing ownership of the bytes to the entry / caller.
 		var checkedEncodedTags checked.Bytes
