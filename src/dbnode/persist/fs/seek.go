@@ -33,6 +33,7 @@ import (
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -374,7 +375,7 @@ func (s *seeker) SeekByIndexEntry(
 }
 
 func (s *seeker) SeekReadMismatchesByIndexChecksum(
-	checksum schema.IndexChecksum,
+	checksum xio.IndexChecksum,
 	mismatchChecker wide.EntryChecksumMismatchChecker,
 	resources ReusableSeekerResources,
 ) (wide.ReadMismatch, error) {
@@ -386,6 +387,7 @@ func (s *seeker) SeekReadMismatchesByIndexChecksum(
 		}
 	}()
 
+	mismatchChecker.Lock()
 	// NB: first, apply the reader.
 	allMismatches, err := mismatchChecker.ComputeMismatchesForEntry(checksum)
 	if err != nil {
@@ -411,6 +413,7 @@ func (s *seeker) SeekReadMismatchesByIndexChecksum(
 		return wide.ReadMismatch{}, fmt.Errorf("multiple reader mismatches")
 	}
 
+	mismatchChecker.Unlock()
 	resources.offsetFileReader.reset(s.dataFd, checksum.Offset)
 
 	// Obtain an appropriately sized buffer.
@@ -554,12 +557,12 @@ func (s *seeker) SeekIndexEntry(
 func (s *seeker) SeekIndexEntryToIndexChecksum(
 	id ident.ID,
 	resources ReusableSeekerResources,
-) (schema.IndexChecksum, error) {
+) (xio.IndexChecksum, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return schema.IndexChecksum{}, err
+		return xio.IndexChecksum{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -571,30 +574,61 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 		checksum, status, err := resources.xmsgpackDecoder.
 			DecodeIndexEntryToIndexChecksum(idBytes, resources.decodeIndexEntryBytesPool)
 		if err != nil {
+			// No longer being used so we can return to the pool.
+			resources.decodeIndexEntryBytesPool.Put(checksum.ID)
+			resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+
 			if err == io.EOF {
 				// Reached the end of the file without finding the ID.
-				return schema.IndexChecksum{}, errSeekIDNotFound
+				return xio.IndexChecksum{}, errSeekIDNotFound
 			}
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return schema.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
+			return xio.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
 		}
 
-		if status == xmsgpack.NotFoundLookupStatus {
-			// a `NotFound` status for the index checksum decode indicates that the
-			// current seek has passed the point in the file where this ID could have
-			// appeared; short-circuit here as the ID does not exist in the file.
-			return schema.IndexChecksum{}, errSeekIDNotFound
-		} else if status == xmsgpack.MismatchLookupStatus {
-			// a `Mismatch` status for the index checksum decode indicates that the
-			// current seek does not match the ID, but that it may still appear in
-			// the file.
-			continue
-		} else if status == xmsgpack.ErrorLookupStatus {
-			return schema.IndexChecksum{}, errors.New("unknown index lookup error")
+		if status != xmsgpack.MatchedLookupStatus {
+			// No longer being used so we can return to the pool.
+			resources.decodeIndexEntryBytesPool.Put(checksum.ID)
+			resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+
+			if status == xmsgpack.NotFoundLookupStatus {
+				// a `NotFound` status for the index checksum decode indicates that the
+				// current seek has passed the point in the file where this ID could have
+				// appeared; short-circuit here as the ID does not exist in the file.
+				return xio.IndexChecksum{}, errSeekIDNotFound
+			} else if status == xmsgpack.MismatchLookupStatus {
+				// a `Mismatch` status for the index checksum decode indicates that the
+				// current seek does not match the ID, but that it may still appear in
+				// the file.
+				continue
+			} else if status == xmsgpack.ErrorLookupStatus {
+				return xio.IndexChecksum{}, errors.New("unknown index lookup error")
+			}
 		}
 
-		return checksum, nil
+		// If it's a match, we need to copy the tags into a checked bytes
+		// so they can be passed along. We use the "real" bytes pool here
+		// because we're passing ownership of the bytes to the entry / caller.
+		var checkedEncodedTags checked.Bytes
+		if tags := checksum.EncodedTags; len(tags) > 0 {
+			checkedEncodedTags = s.opts.bytesPool.Get(len(tags))
+			checkedEncodedTags.IncRef()
+			checkedEncodedTags.AppendAll(tags)
+		}
+
+		// No longer being used so we can return to the pool.
+		resources.decodeIndexEntryBytesPool.Put(checksum.ID)
+		resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+
+		return xio.IndexChecksum{
+			ID:               id,
+			Size:             checksum.Size,
+			Offset:           checksum.Offset,
+			DataChecksum:     checksum.DataChecksum,
+			EncodedTags:      checkedEncodedTags,
+			MetadataChecksum: checksum.MetadataChecksum,
+		}, nil
 	}
 }
 

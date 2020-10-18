@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -46,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -329,17 +329,18 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 
 	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
-		Return(schema.IndexChecksum{
-			IndexEntry:       schema.IndexEntry{ID: []byte("foo")},
-			MetadataChecksum: 5},
-			nil)
+		Return(
+			xio.IndexChecksum{
+				ID:               ident.StringID("foo"),
+				MetadataChecksum: 5,
+			}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithID, nil)
 
 	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(schema.IndexChecksum{MetadataChecksum: 7}, nil)
+		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
@@ -348,14 +349,14 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	require.NoError(t, err)
 	checksum, err := res.RetrieveIndexChecksum()
 	require.NoError(t, err)
-	assert.Equal(t, "foo", string(checksum.ID))
+	assert.Equal(t, "foo", checksum.ID.String())
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
 	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	checksum, err = res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(checksum.ID))
+	assert.Nil(t, checksum.ID)
 	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 

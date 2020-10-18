@@ -166,8 +166,6 @@ func (dec *Decoder) DecodeIndexEntryToIndexChecksum(
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if status != MatchedLookupStatus || dec.err != nil {
-		// NB: free resources if not using this index.
-		indexWithMetaChecksum.Finalize()
 		return schema.IndexChecksum{}, status, dec.err
 	}
 
@@ -504,13 +502,10 @@ func (dec *Decoder) decodeIndexChecksum(
 	if compare == 0 {
 		// NB: need to compute hash before freeing entry bytes.
 		checksum = dec.hasher.HashIndexEntry(entry)
-		indexChecksum := schema.IndexChecksum{
+		return schema.IndexChecksum{
 			IndexEntry:       entry,
 			MetadataChecksum: checksum,
-		}
-
-		indexChecksum.SetBytesPool(bytesPool)
-		return indexChecksum, MatchedLookupStatus
+		}, MatchedLookupStatus
 	}
 
 	if bytesPool != nil {

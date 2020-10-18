@@ -40,7 +40,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -303,13 +302,13 @@ func (r *blockRetriever) processIndexChecksumRequest(
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
-	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
+	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
 	if err != nil {
 		req.onError(err)
 		return
 	}
 
-	req.onIndexChecksumCompleted(entry)
+	req.onIndexChecksumCompleted(checksum)
 	req.onCallerOrRetrieverDone()
 }
 
@@ -318,14 +317,14 @@ func (r *blockRetriever) processReadMismatchRequest(
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
-	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
+	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
 	if err != nil {
 		req.onError(err)
 		return
 	}
 
 	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-		entry, req.mismatchChecker, seekerResources)
+		checksum, req.mismatchChecker, seekerResources)
 
 	if err != nil && err != errSeekIDNotFound {
 		req.onError(err)
@@ -618,7 +617,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	}
 
 	if !found {
-		req.onIndexChecksumCompleted(schema.IndexChecksum{})
+		req.onIndexChecksumCompleted(xio.IndexChecksum{})
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -754,7 +753,7 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	indexChecksum schema.IndexChecksum
+	indexChecksum xio.IndexChecksum
 	mismatchBatch wide.ReadMismatch
 	reader        xio.SegmentReader
 
@@ -771,8 +770,7 @@ type retrieveRequest struct {
 	notFound bool
 }
 
-func (req *retrieveRequest) onIndexChecksumCompleted(
-	indexChecksum schema.IndexChecksum) {
+func (req *retrieveRequest) onIndexChecksumCompleted(indexChecksum xio.IndexChecksum) {
 	if req.err == nil {
 		req.indexChecksum = indexChecksum
 		// If there was an error, we've already called done.
@@ -780,10 +778,10 @@ func (req *retrieveRequest) onIndexChecksumCompleted(
 	}
 }
 
-func (req *retrieveRequest) RetrieveIndexChecksum() (schema.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return schema.IndexChecksum{}, req.err
+		return xio.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
 }
@@ -914,7 +912,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = schema.IndexChecksum{}
+	req.indexChecksum = xio.IndexChecksum{}
 	req.mismatchBatch = wide.ReadMismatch{}
 	req.mismatchChecker = nil
 	req.reader = nil

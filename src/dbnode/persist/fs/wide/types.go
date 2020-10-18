@@ -22,7 +22,7 @@ package wide
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -56,7 +56,7 @@ type Options interface {
 // where the expected checksum was not found, and when there is a mismatch.
 type ReadMismatch struct {
 	// ReadMismatch extends IndexChecksum with additional mismatch fields.
-	schema.IndexChecksum
+	xio.IndexChecksum
 	// Data is the data for the read mismatch. Set only on reader mismatches.
 	Data checked.Bytes
 }
@@ -64,8 +64,8 @@ type ReadMismatch struct {
 // IsReaderMismatch is true if this mismatch is this mismatch is on the reader
 // side.
 func (r ReadMismatch) IsReaderMismatch() bool {
-	return len(r.IndexChecksum.IndexEntry.ID) > 0 ||
-		len(r.IndexChecksum.IndexEntry.EncodedTags) > 0
+	return r.IndexChecksum.ID != nil ||
+		r.IndexChecksum.EncodedTags != nil
 }
 
 // IndexChecksumBlockBatchReader is a reader across IndexChecksumBlockBatches.
@@ -81,9 +81,13 @@ type IndexChecksumBlockBatchReader interface {
 // EntryChecksumMismatchChecker checks if a given entry should yield a mismatch.
 type EntryChecksumMismatchChecker interface {
 	// ComputeMismatchesForEntry determines if the given index entry is a mismatch.
-	ComputeMismatchesForEntry(entry schema.IndexChecksum) ([]ReadMismatch, error)
+	ComputeMismatchesForEntry(entry xio.IndexChecksum) ([]ReadMismatch, error)
 	// Drain returns any unconsumed IndexChecksumBlockBatches as mismatches.
 	Drain() []ReadMismatch
+	// Lock sets a mutex on this mismatch checker.
+	Lock()
+	// Unlock unlocks the mutex on the mismatch checker.
+	Unlock()
 }
 
 // StreamedMismatch yields a ReadMismatch value asynchronously,

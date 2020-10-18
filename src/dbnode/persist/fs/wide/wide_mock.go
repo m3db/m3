@@ -27,7 +27,7 @@ package wide
 import (
 	"reflect"
 
-	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 
 	"github.com/golang/mock/gomock"
 )
@@ -56,7 +56,7 @@ func (m *MockEntryChecksumMismatchChecker) EXPECT() *MockEntryChecksumMismatchCh
 }
 
 // ComputeMismatchesForEntry mocks base method
-func (m *MockEntryChecksumMismatchChecker) ComputeMismatchesForEntry(arg0 schema.IndexChecksum) ([]ReadMismatch, error) {
+func (m *MockEntryChecksumMismatchChecker) ComputeMismatchesForEntry(arg0 xio.IndexChecksum) ([]ReadMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ComputeMismatchesForEntry", arg0)
 	ret0, _ := ret[0].([]ReadMismatch)
@@ -82,6 +82,30 @@ func (m *MockEntryChecksumMismatchChecker) Drain() []ReadMismatch {
 func (mr *MockEntryChecksumMismatchCheckerMockRecorder) Drain() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Drain", reflect.TypeOf((*MockEntryChecksumMismatchChecker)(nil).Drain))
+}
+
+// Lock mocks base method
+func (m *MockEntryChecksumMismatchChecker) Lock() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Lock")
+}
+
+// Lock indicates an expected call of Lock
+func (mr *MockEntryChecksumMismatchCheckerMockRecorder) Lock() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lock", reflect.TypeOf((*MockEntryChecksumMismatchChecker)(nil).Lock))
+}
+
+// Unlock mocks base method
+func (m *MockEntryChecksumMismatchChecker) Unlock() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Unlock")
+}
+
+// Unlock indicates an expected call of Unlock
+func (mr *MockEntryChecksumMismatchCheckerMockRecorder) Unlock() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unlock", reflect.TypeOf((*MockEntryChecksumMismatchChecker)(nil).Unlock))
 }
 
 // MockStreamedMismatch is a mock of StreamedMismatch interface

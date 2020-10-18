@@ -31,6 +31,9 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/leanovate/gopter"
@@ -38,17 +41,21 @@ import (
 	"github.com/leanovate/gopter/prop"
 )
 
-func generateRawChecksums(size int, opts Options) []schema.IndexChecksum {
-	checksums := make([]schema.IndexChecksum, size)
+func generateRawChecksums(size int, opts Options) []xio.IndexChecksum {
+	checksums := make([]xio.IndexChecksum, size)
 	indexHasher := opts.DecodingOptions().IndexEntryHasher()
 	for i := range checksums {
+		idStr := fmt.Sprintf("id-%03d", i)
+		tags := []byte(fmt.Sprintf("tags-%03d", i))
+
 		entry := schema.IndexEntry{
-			ID:          []byte(fmt.Sprintf("id-%03d", i)),
-			EncodedTags: []byte(fmt.Sprintf("tags-%03d", i)),
+			ID:          []byte(idStr),
+			EncodedTags: tags,
 		}
 
-		checksums[i] = schema.IndexChecksum{
-			IndexEntry:       entry,
+		checksums[i] = xio.IndexChecksum{
+			ID:               ident.StringID(idStr),
+			EncodedTags:      checked.NewBytes(tags, checked.NewBytesOptions()),
 			MetadataChecksum: indexHasher.HashIndexEntry(entry),
 		}
 	}
@@ -58,7 +65,7 @@ func generateRawChecksums(size int, opts Options) []schema.IndexChecksum {
 
 type generatedEntries struct {
 	taking  []bool
-	entries []schema.IndexChecksum
+	entries []xio.IndexChecksum
 }
 
 // genEntryTestInput creates a list of indexChecksums,
@@ -74,7 +81,7 @@ func genEntryTestInput(size int, opts Options) gopter.Gen {
 			dropChancePercent = val[0].([]int)
 
 			taking       []bool
-			takenEntries []schema.IndexChecksum
+			takenEntries []xio.IndexChecksum
 		)
 
 		for i, chance := range dropChancePercent {
@@ -110,7 +117,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 			blockSizes        = val[1].([]int)
 
 			taking         []bool
-			takenChecksums []schema.IndexChecksum
+			takenChecksums []xio.IndexChecksum
 			checksumBlocks []IndexChecksumBlockBatch
 		)
 
@@ -118,10 +125,8 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 			shouldKeep := chance <= 80
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
-				takenChecksums = append(takenChecksums, schema.IndexChecksum{
-					IndexEntry: schema.IndexEntry{
-						ID: entries[i].ID,
-					},
+				takenChecksums = append(takenChecksums, xio.IndexChecksum{
+					ID:               entries[i].ID,
 					MetadataChecksum: entries[i].MetadataChecksum,
 				})
 			}
@@ -144,7 +149,7 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 
 			for i := 0; i < take; i++ {
 				block.Checksums = append(block.Checksums, takenChecksums[i].MetadataChecksum)
-				block.EndMarker = takenChecksums[i].ID
+				block.EndMarker = takenChecksums[i].ID.Bytes()
 			}
 
 			takenChecksums = takenChecksums[take:]
@@ -426,21 +431,24 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 
 					if expected.entryMismatch {
 						expectedTags := fmt.Sprintf("tags-%03d", actual.MetadataChecksum)
-						if acTags := string(actual.EncodedTags); acTags != expectedTags {
+						actual.EncodedTags.IncRef()
+						acTags := string(actual.EncodedTags.Bytes())
+						actual.EncodedTags.DecRef()
+						if acTags != expectedTags {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedTags, acTags)
 						}
 
 						expectedID := fmt.Sprintf("id-%03d", actual.MetadataChecksum)
-						if acID := string(actual.ID); acID != expectedID {
+						if acID := actual.ID.String(); acID != expectedID {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedID, acID)
 						}
 					} else {
-						if len(actual.EncodedTags) > 0 {
+						if actual.EncodedTags != nil {
 							return false, fmt.Errorf("index mismatch should not have tags")
 						}
-						if len(actual.ID) > 0 {
+						if actual.ID != nil {
 							return false, fmt.Errorf("index mismatch should not have id")
 						}
 					}

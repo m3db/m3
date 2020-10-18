@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -1610,10 +1609,8 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := schema.IndexChecksum{
-		IndexEntry: schema.IndexEntry{
-			ID: []byte("foo"),
-		},
+	checksum := xio.IndexChecksum{
+		ID:               ident.StringID("foo"),
 		MetadataChecksum: 5,
 	}
 
@@ -1624,7 +1621,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 
 	// First call to RetrieveIndexChecksum is expected to error on retrieval
 	indexChecksum.EXPECT().RetrieveIndexChecksum().
-		Return(schema.IndexChecksum{}, errors.New("err"))
+		Return(xio.IndexChecksum{}, errors.New("err"))
 	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveIndexChecksum()
@@ -1683,7 +1680,7 @@ func TestShardFetchReadMismatch(t *testing.T) {
 	shard.setBlockRetriever(retriever)
 
 	mismatchBatch := wide.ReadMismatch{
-		IndexChecksum: schema.IndexChecksum{MetadataChecksum: 1},
+		IndexChecksum: xio.IndexChecksum{MetadataChecksum: 1},
 	}
 
 	streamedBatch := wide.NewMockStreamedMismatch(ctrl)

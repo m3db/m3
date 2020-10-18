@@ -25,7 +25,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xhash "github.com/m3db/m3/src/x/test/hash"
@@ -48,7 +50,7 @@ func buildTestReader(bls ...IndexChecksumBlockBatch) IndexChecksumBlockBatchRead
 }
 
 // buildOpts builds default test options. The NewParsedIndexHasher sets
-// the hash value for a schema.IndexEntry as any string represented integer
+// the hash value for a xio.IndexEntry as any string represented integer
 // values in the entry ID + entry tags.
 func buildOpts(t *testing.T) Options {
 	decodingOpts := msgpack.NewDecodingOptions().
@@ -61,19 +63,17 @@ func buildOpts(t *testing.T) Options {
 	return opts
 }
 
-func toChecksum(id, tags string, checksum int64) schema.IndexChecksum {
-	return schema.IndexChecksum{
-		IndexEntry: schema.IndexEntry{
-			ID:          []byte(id),
-			EncodedTags: []byte(tags),
-		},
+func toChecksum(id, tags string, checksum int64) xio.IndexChecksum {
+	return xio.IndexChecksum{
+		ID:               ident.StringID(id),
+		EncodedTags:      checked.NewBytes([]byte(tags), checked.NewBytesOptions()),
 		MetadataChecksum: checksum,
 	}
 }
 
 func testIdxMismatch(checksum int64) ReadMismatch {
 	return ReadMismatch{
-		IndexChecksum: schema.IndexChecksum{
+		IndexChecksum: xio.IndexChecksum{
 			MetadataChecksum: checksum,
 		},
 	}
@@ -88,7 +88,11 @@ func testEntryMismatch(id, tags string, checksum int64) ReadMismatch {
 func testMismatches(t *testing.T, expected, actual []ReadMismatch) {
 	require.Equal(t, len(expected), len(actual))
 	for i, ex := range expected {
-		assert.Equal(t, ex, actual[i])
+		assert.Equal(t, ex.ID, actual[i].ID)
+		assert.Equal(t, ex.Size, actual[i].Size)
+		assert.Equal(t, ex.Offset, actual[i].Offset)
+		assert.Equal(t, ex.DataChecksum, actual[i].DataChecksum)
+		assert.Equal(t, ex.MetadataChecksum, actual[i].MetadataChecksum)
 	}
 }
 
@@ -145,7 +149,7 @@ func TestComputeMismatchInvariantEndOfBlock(t *testing.T) {
 func assertNoMismatch(
 	t *testing.T,
 	chk EntryChecksumMismatchChecker,
-	checksum schema.IndexChecksum,
+	checksum xio.IndexChecksum,
 ) {
 	mismatch, err := chk.ComputeMismatchesForEntry(checksum)
 	require.NoError(t, err)

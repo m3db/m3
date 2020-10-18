@@ -23,9 +23,11 @@ package wide
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -37,6 +39,8 @@ type entryWithChecksum struct {
 }
 
 type entryChecksumMismatchChecker struct {
+	mu sync.Mutex
+
 	blockReader  IndexChecksumBlockBatchReader
 	mismatches   []ReadMismatch
 	strictLastID []byte
@@ -47,6 +51,16 @@ type entryChecksumMismatchChecker struct {
 	batchIdx  int
 	exhausted bool
 	started   bool
+}
+
+// FIXME: remove once this is changed to single output.
+func (c *entryChecksumMismatchChecker) Lock() {
+	c.mu.Lock()
+}
+
+// FIXME: remove once this is changed to single output.
+func (c *entryChecksumMismatchChecker) Unlock() {
+	c.mu.Unlock()
 }
 
 // NewEntryChecksumMismatchChecker creates a new entry checksum mismatch
@@ -64,14 +78,14 @@ func NewEntryChecksumMismatchChecker(
 	}
 }
 
-func checksumMismatch(checksum schema.IndexChecksum) ReadMismatch {
+func checksumMismatch(checksum xio.IndexChecksum) ReadMismatch {
 	return ReadMismatch{
 		IndexChecksum: checksum,
 	}
 }
 
 func (c *entryChecksumMismatchChecker) checksumMismatches(
-	checksums ...schema.IndexChecksum,
+	checksums ...xio.IndexChecksum,
 ) []ReadMismatch {
 	for _, checksum := range checksums {
 		c.mismatches = append(c.mismatches, checksumMismatch(checksum))
@@ -83,7 +97,7 @@ func (c *entryChecksumMismatchChecker) checksumMismatches(
 func (c *entryChecksumMismatchChecker) recordIndexMismatches(checksums ...int64) {
 	for _, checksum := range checksums {
 		c.mismatches = append(c.mismatches, ReadMismatch{
-			IndexChecksum: schema.IndexChecksum{
+			IndexChecksum: xio.IndexChecksum{
 				MetadataChecksum: checksum,
 			},
 		})
@@ -93,7 +107,7 @@ func (c *entryChecksumMismatchChecker) recordIndexMismatches(checksums ...int64)
 func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 	marker []byte,
 	checksum int64,
-	entry schema.IndexChecksum,
+	entry xio.IndexChecksum,
 ) error {
 	// Checksums match but IDs do not. Treat as an invariant violation.
 	err := fmt.Errorf("checksum collision")
@@ -122,7 +136,7 @@ func (c *entryChecksumMismatchChecker) readNextBatch() IndexChecksumBlockBatch {
 }
 
 func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
-	entry schema.IndexChecksum,
+	entry xio.IndexChecksum,
 ) ([]ReadMismatch, error) {
 	c.mismatches = c.mismatches[:0]
 	if c.exhausted {
@@ -158,7 +172,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 		}
 
 		checksum := batch.Checksums[c.batchIdx]
-		markerCompare := bytes.Compare(batch.EndMarker, entry.ID)
+		markerCompare := bytes.Compare(batch.EndMarker, entry.ID.Bytes())
 		if c.batchIdx < markerIdx {
 			if checksum == entry.MetadataChecksum {
 				// Matches: increment batch index and return any gathered mismatches.

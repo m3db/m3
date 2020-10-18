@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -269,17 +268,17 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
-// StreamedChecksum yields a schema.IndexChecksum value asynchronously,
+// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
 // and any errors encountered during execution.
 type StreamedChecksum interface {
 	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (schema.IndexChecksum, error)
+	RetrieveIndexChecksum() (xio.IndexChecksum, error)
 }
 
 type emptyStreamedChecksum struct{}
 
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (schema.IndexChecksum, error) {
-	return schema.IndexChecksum{}, nil
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+	return xio.IndexChecksum{}, nil
 }
 
 // EmptyStreamedChecksum is an empty streamed checksum.

@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	persist "github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -525,10 +524,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 }
 
 // SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (schema.IndexChecksum, error) {
+func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1)
-	ret0, _ := ret[0].(schema.IndexChecksum)
+	ret0, _ := ret[0].(xio.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -540,7 +539,7 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChecksum(arg0,
 }
 
 // SeekReadMismatchesByIndexChecksum mocks base method
-func (m *MockDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 schema.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
+func (m *MockDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 xio.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekReadMismatchesByIndexChecksum", arg0, arg1, arg2)
 	ret0, _ := ret[0].(wide.ReadMismatch)
@@ -1276,10 +1275,10 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1
 }
 
 // SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (schema.IndexChecksum, error) {
+func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1)
-	ret0, _ := ret[0].(schema.IndexChecksum)
+	ret0, _ := ret[0].(xio.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1291,7 +1290,7 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChec
 }
 
 // SeekReadMismatchesByIndexChecksum mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 schema.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
+func (m *MockConcurrentDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 xio.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekReadMismatchesByIndexChecksum", arg0, arg1, arg2)
 	ret0, _ := ret[0].(wide.ReadMismatch)

@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -136,6 +135,22 @@ type DataReaderOpenOptions struct {
 	OptimizedReadMetadataOnly bool
 }
 
+// StreamedChecksum yields a schema.IndexChecksum value asynchronously,
+// and any errors encountered during execution.
+type StreamedChecksum interface {
+	// RetrieveIndexChecksum retrieves the index checksum.
+	RetrieveIndexChecksum() (xio.IndexChecksum, error)
+}
+
+type emptyStreamedChecksum struct{}
+
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+	return xio.IndexChecksum{}, nil
+}
+
+// EmptyStreamedChecksum is an empty streamed checksum.
+var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
 type DataFileSetReader interface {
 	io.Closer
@@ -218,7 +233,7 @@ type DataFileSetSeeker interface {
 	// SeekReadMismatchesByIndexChecksum seeks in a manner similar to
 	// SeekIndexByEntry, checking against a set of streamed index checksums.
 	SeekReadMismatchesByIndexChecksum(
-		checksum schema.IndexChecksum,
+		checksum xio.IndexChecksum,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		resources ReusableSeekerResources,
 	) (wide.ReadMismatch, error)
@@ -231,7 +246,7 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a minimal structure describing a checksum of the series.
-	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (xio.IndexChecksum, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -267,7 +282,7 @@ type ConcurrentDataFileSetSeeker interface {
 
 	// SeekReadMismatchesByIndexChecksum is the same as in DataFileSetSeeker.
 	SeekReadMismatchesByIndexChecksum(
-		checksum schema.IndexChecksum,
+		checksum xio.IndexChecksum,
 		mismatchChecker wide.EntryChecksumMismatchChecker,
 		resources ReusableSeekerResources,
 	) (wide.ReadMismatch, error)
@@ -276,7 +291,7 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
-	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (schema.IndexChecksum, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, resources ReusableSeekerResources) (xio.IndexChecksum, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter

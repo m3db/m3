@@ -1,5 +1,5 @@
 // +build integration
-
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -146,10 +146,14 @@ func buildExpectedChecksumsByShard(
 
 func assertTags(
 	t *testing.T,
-	encoded []byte,
+	encodedTags checked.Bytes,
 	decoder serialize.TagDecoder,
 	expected int64,
 ) {
+	encodedTags.IncRef()
+	encoded := encodedTags.Bytes()
+	encodedTags.DecRef()
+
 	decoder.Reset(checked.NewBytes(encoded, nil))
 	assert.Equal(t, 1, decoder.Len())
 	assert.True(t, decoder.Next())
@@ -327,7 +331,7 @@ func TestWideFetch(t *testing.T) {
 			require.Equal(t, len(expected), len(chk))
 			for i, checksum := range chk {
 				assert.Equal(t, expected[i].MetadataChecksum, checksum.MetadataChecksum)
-				assert.Equal(t, expected[i].ID, checksum.ID)
+				require.Equal(t, string(expected[i].ID), checksum.ID.String())
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
 				checksum.Finalize()
 			}
@@ -396,7 +400,7 @@ func TestWideFetch(t *testing.T) {
 				require.Equal(t, 1, len(chk))
 				checksum := chk[0]
 				assert.Equal(t, int64(1), checksum.MetadataChecksum)
-				assert.Equal(t, []byte(exactID), checksum.ID)
+				assert.Equal(t, exactID, checksum.ID.String())
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
 				checksum.Finalize()
 			}

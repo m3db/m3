@@ -337,19 +337,21 @@ func TestDecodeIndexEntryToIndexChecksumPooled(t *testing.T) {
 			idLength := len(testIndexCheksumEntry.ID)
 			idBytes := make([]byte, idLength)
 			bytePool.EXPECT().Get(idLength).Return(idBytes)
-			bytePool.EXPECT().Put(idBytes)
 
 			tagLength := len(testIndexCheksumEntry.EncodedTags)
 			tagBytes := make([]byte, tagLength)
 			bytePool.EXPECT().Get(tagLength).Return(tagBytes)
-			bytePool.EXPECT().Put(tagBytes)
+
+			if tt.exStatus != MatchedLookupStatus {
+				bytePool.EXPECT().Put(idBytes)
+				bytePool.EXPECT().Put(tagBytes)
+			}
 
 			res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), bytePool)
 			require.NoError(t, err)
 			require.Equal(t, tt.exStatus, status)
 			if tt.exStatus == MatchedLookupStatus {
 				require.Equal(t, tt.exChecksum, res.MetadataChecksum)
-				res.Finalize()
 			}
 		})
 	}
