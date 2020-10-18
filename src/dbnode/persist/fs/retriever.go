@@ -403,7 +403,7 @@ func (r *blockRetriever) fetchBatch(
 		// then errSeekNotCompleted is returned because req.success is not set
 		// rather than we have dangling goroutines stacking up.
 		for _, req := range allReqs {
-			req.onDone(nil)
+			req.onDone()
 		}
 
 		// Reset resources to free any pointers in the slices still pointing
@@ -650,7 +650,7 @@ func (r *blockRetriever) Stream(
 	if !found {
 		req.onRetrieved(ts.Segment{}, namespace.Context{})
 		req.success = true
-		req.onDone(nil)
+		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -679,7 +679,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	if !found {
 		req.indexChecksum = xio.IndexChecksum{}
 		req.success = true
-		req.onDone(nil)
+		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -710,7 +710,7 @@ func (r *blockRetriever) StreamReadMismatches(
 	if !found {
 		req.mismatchBatch = wide.ReadMismatch{}
 		req.success = true
-		req.onDone(nil)
+		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -864,14 +864,13 @@ func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Cont
 	req.Reset(segment)
 }
 
-func (req *retrieveRequest) onDone(err error) {
-	if req.err == nil && err != nil {
-		// Don't override an error if already set.
-		req.err = err
-	}
+func (req *retrieveRequest) onDone() {
 	if req.err == nil && !req.success {
 		// Require explicit success, otherwise this request
 		// was never completed.
+		// This helps catch code bugs where this element wasn't explicitly
+		// handled as completed during a fetch batch call instead of
+		// returning but with no actual result set properly.
 		req.err = errSeekNotCompleted
 	}
 
