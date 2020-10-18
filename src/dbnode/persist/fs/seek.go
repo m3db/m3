@@ -610,7 +610,7 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 			}
 		}
 
-		// If it's a match, we need to copy the ID and tags into a checked bytes
+		// If it's a match, we need to copy the tags into a checked bytes
 		// so they can be passed along. We use the "real" bytes pool here
 		// because we're passing ownership of the bytes to the entry / caller.
 		var checkedEncodedTags checked.Bytes
