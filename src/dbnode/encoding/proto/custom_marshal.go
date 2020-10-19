@@ -23,7 +23,7 @@ package proto
 import (
 	"math"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 )
 
 // encoding methods correspond to the scalar types defined in the protobuf 3

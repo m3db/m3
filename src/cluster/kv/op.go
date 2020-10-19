@@ -20,7 +20,7 @@
 
 package kv
 
-import "github.com/golang/protobuf/proto"
+import "github.com/gogo/protobuf/proto"
 
 type condition struct {
 	targetType  TargetType

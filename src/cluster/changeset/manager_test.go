@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 

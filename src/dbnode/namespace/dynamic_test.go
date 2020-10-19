@@ -33,7 +33,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )

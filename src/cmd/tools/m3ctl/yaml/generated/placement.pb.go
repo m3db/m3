@@ -27,7 +27,7 @@ import (
 	fmt "fmt"
 	math "math"
 
-	proto "github.com/golang/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 	admin "github.com/m3db/m3/src/query/generated/proto/admin"
 )
 

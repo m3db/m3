@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/watch"
 
 	"go.etcd.io/etcd/clientv3"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"

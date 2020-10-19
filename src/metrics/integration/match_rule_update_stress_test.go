@@ -45,7 +45,7 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/pool"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"

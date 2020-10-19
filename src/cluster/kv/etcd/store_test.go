@@ -39,7 +39,7 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
 	"github.com/coreos/pkg/capnslog"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )

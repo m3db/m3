@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
