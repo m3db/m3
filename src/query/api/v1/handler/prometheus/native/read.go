@@ -113,8 +113,14 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
-
-	logger.With(zap.String("query", parsedOptions.Params.Query))
+	logger.With(
+		zap.String("query", parsedOptions.Params.Query),
+		zap.Time("start", parsedOptions.Params.Start),
+		zap.Time("end", parsedOptions.Params.End),
+		zap.Duration("step", parsedOptions.Params.Step),
+		zap.Duration("timeout", parsedOptions.Params.Timeout),
+		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
+	)
 
 	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsedOptions.CancelWatcher = watcher
