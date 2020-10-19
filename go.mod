@@ -106,6 +106,7 @@ require (
 	github.com/uber/tchannel-go v1.14.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
+	github.com/wjdp/htmltest v0.13.0 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 
 	// This is 3.4.13. Note: we need to specify the version this way due to the issue

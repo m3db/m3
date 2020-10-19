@@ -18,5 +18,3 @@ IgnoreURLs:
 - "youtu.be"
 - "youtube.com"
 - "cassandra.apache.org"
-- "github.com/m3db/m3/tree/docs-test/site/content/docs"
-- "github.com/m3db/m3/tree/master/site/content/docs"

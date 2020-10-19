@@ -94,7 +94,6 @@ TOOLS :=               \
 	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
-	docs_test            \
 	m3ctl                \
 
 .PHONY: setup
@@ -190,6 +189,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
+	GOBIN=$(tools_bin_path) go install github.com/wjdp/htmltest
 
 .PHONY: install-gometalinter
 install-gometalinter:
@@ -220,10 +220,9 @@ release-snapshot: check-for-goreleaser-github-token
 # shell).
 
 .PHONY: docs-test
-docs-test:
+docs-test: install-tools
 	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
-	curl https://htmltest.wjdp.uk | bash
-	./bin/htmltest -c site/.htmltest.yml
+	$(tools_bin_path)/htmltest -c site/.htmltest.yml
 
 .PHONY: docker-integration-test
 docker-integration-test:
