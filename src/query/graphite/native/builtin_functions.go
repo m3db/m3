@@ -2331,6 +2331,9 @@ func init() {
 	MustRegisterFunction(aggregateLine).WithDefaultParams(map[uint8]interface{}{
 		2: "avg", // f
 	})
+	MustRegisterFunction(aggregateWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		3: -1, // positions
+	})
 	MustRegisterFunction(alias)
 	MustRegisterFunction(aliasByMetric)
 	MustRegisterFunction(aliasByNode)
@@ -2343,7 +2346,9 @@ func init() {
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
-	MustRegisterFunction(averageSeriesWithWildcards)
+	MustRegisterFunction(averageSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(cactiStyle)
 	MustRegisterFunction(changed)
 	MustRegisterFunction(consolidateBy)
@@ -2466,8 +2471,9 @@ func init() {
 		3: "",    // fname
 	})
 	MustRegisterFunction(sumSeries)
-	MustRegisterFunction(sumSeriesWithWildcards)
-	MustRegisterFunction(aggregateWithWildcards)
+	MustRegisterFunction(sumSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(sustainedAbove)
 	MustRegisterFunction(sustainedBelow)
 	MustRegisterFunction(threshold).WithDefaultParams(map[uint8]interface{}{
