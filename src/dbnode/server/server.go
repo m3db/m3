@@ -184,6 +184,8 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
+	cfg.Debug.SetRuntimeValues(logger)
+
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	// By default attempt to raise process limits, which is a benign operation.

@@ -31,6 +31,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xhash "github.com/m3db/m3/src/x/test/hash"
 
@@ -39,26 +41,37 @@ import (
 	"github.com/leanovate/gopter/prop"
 )
 
-func generateRawEntries(size int) []schema.IndexEntry {
-	entries := make([]schema.IndexEntry, size)
-	for i := range entries {
-		entries[i] = schema.IndexEntry{
-			ID:          []byte(fmt.Sprintf("id-%03d", i)),
-			EncodedTags: []byte(fmt.Sprintf("tags-%03d", i)),
+func generateRawChecksums(size int, opts Options) []xio.IndexChecksum {
+	checksums := make([]xio.IndexChecksum, size)
+	indexHasher := opts.DecodingOptions().IndexEntryHasher()
+	for i := range checksums {
+		idStr := fmt.Sprintf("id-%03d", i)
+		tags := []byte(fmt.Sprintf("tags-%03d", i))
+
+		entry := schema.IndexEntry{
+			ID:          []byte(idStr),
+			EncodedTags: tags,
+		}
+
+		checksums[i] = xio.IndexChecksum{
+			ID:               ident.StringID(idStr),
+			EncodedTags:      checked.NewBytes(tags, checked.NewBytesOptions()),
+			MetadataChecksum: indexHasher.HashIndexEntry(entry),
 		}
 	}
 
-	return entries
+	return checksums
 }
 
 type generatedEntries struct {
 	taking  []bool
-	entries []schema.IndexEntry
+	entries []xio.IndexChecksum
 }
 
-// genEntryTestInput creates a list of indexEntries, dropping a certain percentage.
-func genEntryTestInput(size int) gopter.Gen {
-	entries := generateRawEntries(size)
+// genEntryTestInput creates a list of indexChecksums,
+// dropping a certain percentage.
+func genEntryTestInput(size int, opts Options) gopter.Gen {
+	entries := generateRawChecksums(size, opts)
 
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
@@ -68,7 +81,7 @@ func genEntryTestInput(size int) gopter.Gen {
 			dropChancePercent = val[0].([]int)
 
 			taking       []bool
-			takenEntries []schema.IndexEntry
+			takenEntries []xio.IndexChecksum
 		)
 
 		for i, chance := range dropChancePercent {
@@ -85,15 +98,14 @@ func genEntryTestInput(size int) gopter.Gen {
 
 type generatedChecksums struct {
 	taking     []bool
-	blockBatch []ident.IndexChecksumBlockBatch
+	blockBatch []IndexChecksumBlockBatch
 }
 
 // genChecksumTestInput creates index checksum blockBatch of randomized sizes,
 // dropping a certain percentage of index checksums.
 func genChecksumTestInput(size int, opts Options) gopter.Gen {
-	entries := generateRawEntries(size)
+	entries := generateRawChecksums(size, opts)
 
-	indexHasher := opts.DecodingOptions().IndexEntryHasher()
 	return gopter.CombineGens(
 		// NB: This generator controls if the element should be removed
 		gen.SliceOfN(len(entries), gen.IntRange(0, 100)),
@@ -105,17 +117,17 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 			blockSizes        = val[1].([]int)
 
 			taking         []bool
-			takenChecksums []ident.IndexChecksum
-			checksumBlocks []ident.IndexChecksumBlockBatch
+			takenChecksums []xio.IndexChecksum
+			checksumBlocks []IndexChecksumBlockBatch
 		)
 
 		for i, chance := range dropChancePercent {
 			shouldKeep := chance <= 80
 			taking = append(taking, shouldKeep)
 			if shouldKeep {
-				takenChecksums = append(takenChecksums, ident.IndexChecksum{
-					ID:       entries[i].ID,
-					Checksum: indexHasher.HashIndexEntry(entries[i]),
+				takenChecksums = append(takenChecksums, xio.IndexChecksum{
+					ID:               entries[i].ID,
+					MetadataChecksum: entries[i].MetadataChecksum,
 				})
 			}
 		}
@@ -131,13 +143,13 @@ func genChecksumTestInput(size int, opts Options) gopter.Gen {
 				take = remaining
 			}
 
-			block := ident.IndexChecksumBlockBatch{
+			block := IndexChecksumBlockBatch{
 				Checksums: make([]int64, 0, take),
 			}
 
 			for i := 0; i < take; i++ {
-				block.Checksums = append(block.Checksums, takenChecksums[i].Checksum)
-				block.EndMarker = takenChecksums[i].ID
+				block.Checksums = append(block.Checksums, takenChecksums[i].MetadataChecksum)
+				block.EndMarker = takenChecksums[i].ID.Bytes()
 			}
 
 			takenChecksums = takenChecksums[take:]
@@ -379,7 +391,7 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 				genChecksums generatedChecksums,
 				genEntries generatedEntries,
 			) (bool, error) {
-				inputBlockCh := make(chan ident.IndexChecksumBlockBatch)
+				inputBlockCh := make(chan IndexChecksumBlockBatch)
 				inputBlockReader := NewIndexChecksumBlockBatchReader(inputBlockCh)
 
 				go func() {
@@ -412,35 +424,38 @@ func TestIndexEntryWideBatchMismatchChecker(t *testing.T) {
 
 				for i, expected := range expectedMismatches {
 					actual := readMismatches[i]
-					if actual.Checksum != expected.checksum {
+					if actual.MetadataChecksum != expected.checksum {
 						return false, fmt.Errorf("expected checksum %d, got %d at %d",
-							actual.Checksum, expected.checksum, i)
+							actual.MetadataChecksum, expected.checksum, i)
 					}
 
 					if expected.entryMismatch {
-						expectedTags := fmt.Sprintf("tags-%03d", actual.Checksum)
-						if acTags := string(actual.EncodedTags); acTags != expectedTags {
+						expectedTags := fmt.Sprintf("tags-%03d", actual.MetadataChecksum)
+						actual.EncodedTags.IncRef()
+						acTags := string(actual.EncodedTags.Bytes())
+						actual.EncodedTags.DecRef()
+						if acTags != expectedTags {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedTags, acTags)
 						}
 
-						expectedID := fmt.Sprintf("id-%03d", actual.Checksum)
-						if acID := string(actual.ID); acID != expectedID {
+						expectedID := fmt.Sprintf("id-%03d", actual.MetadataChecksum)
+						if acID := actual.ID.String(); acID != expectedID {
 							return false, fmt.Errorf("expected tags %s, got %s",
 								expectedID, acID)
 						}
 					} else {
-						if len(actual.EncodedTags) > 0 {
+						if actual.EncodedTags != nil {
 							return false, fmt.Errorf("index mismatch should not have tags")
 						}
-						if len(actual.ID) > 0 {
+						if actual.ID != nil {
 							return false, fmt.Errorf("index mismatch should not have id")
 						}
 					}
 				}
 
 				return true, nil
-			}, genChecksumTestInput(size, opts), genEntryTestInput(size)))
+			}, genChecksumTestInput(size, opts), genEntryTestInput(size, opts)))
 
 	if !props.Run(reporter) {
 		t.Errorf("failed with initial seed: %d", seed)
