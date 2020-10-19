@@ -23,7 +23,6 @@ package native
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -48,6 +47,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseRequest(t *testing.T) {
+	setup := newTestSetup(&prometheus.TimeoutOpts{
+		FetchTimeout: 10 * time.Second,
+	})
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+
+	parsed, err := ParseRequest(req.Context(), req, false, setup.options)
+	require.NoError(t, err)
+	require.Equal(t, time.Second*10, parsed.FetchOpts.Timeout)
+	require.Equal(t, 0, parsed.FetchOpts.DocsLimit)
+	require.Equal(t, 0, parsed.FetchOpts.SeriesLimit)
+	require.Equal(t, false, parsed.FetchOpts.RequireExhaustive)
+	require.Equal(t, 0, parsed.QueryOpts.QueryContextOptions.LimitMaxDocs)
+	require.Equal(t, 0, parsed.QueryOpts.QueryContextOptions.LimitMaxTimeseries)
+	require.Equal(t, false, parsed.QueryOpts.QueryContextOptions.RequireExhaustive)
+	require.Nil(t, parsed.QueryOpts.QueryContextOptions.RestrictFetchType)
+}
 
 func TestPromReadHandlerRead(t *testing.T) {
 	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
@@ -404,5 +422,4 @@ var _ handler.CancelWatcher = (*cancelWatcher)(nil)
 func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
 	// Simulate longer request to test timeout.
 	time.Sleep(c.delay)
-	fmt.Println("DELAY", c.delay)
 }
