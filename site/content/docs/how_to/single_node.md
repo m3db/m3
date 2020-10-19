@@ -27,7 +27,7 @@ Next, create an initial namespace for your metrics in the database using the cUR
 
 <!-- TODO: Retention actually different -->
 
-```json
+```shell
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
   "namespaceName": "default",
