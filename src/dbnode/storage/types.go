@@ -362,9 +362,9 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID for the
+	// FetchWideEntry retrieves wide entry for an ID for the
 	// block at time start.
-	FetchIndexChecksum(
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
@@ -519,6 +519,7 @@ type databaseShard interface {
 		wOpts series.WriteOptions,
 	) (SeriesWrite, error)
 
+	// ReadEncoded reads encoded block reader data for an ID.
 	ReadEncoded(
 		ctx context.Context,
 		id ident.ID,
@@ -526,8 +527,8 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID.
-	FetchIndexChecksum(
+	// FetchWideEntry retrieves the wide entry for an ID at a block start.
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,

@@ -86,8 +86,8 @@ type DatabaseSeries interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum reads checksums from encoded blocks.
-	FetchIndexChecksum(
+	// FetchWideEntry reads wide entries from encoded blocks.
+	FetchWideEntry(
 		ctx context.Context,
 		blockStart time.Time,
 		nsCtx namespace.Context,

@@ -1416,19 +1416,19 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
-// FetchIndexChecksum mocks base method
-func (m *MockdatabaseNamespace) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time) (block.StreamedWideEntry, error) {
+// FetchWideEntry mocks base method
+func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart)
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
-func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, id, blockStart interface{}) *gomock.Call {
+// FetchWideEntry indicates an expected call of FetchWideEntry
+func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, id, blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchWideEntry), ctx, id, blockStart)
 }
 
 // FetchBlocks mocks base method
@@ -1939,19 +1939,19 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
 }
 
-// FetchIndexChecksum mocks base method
-func (m *MockdatabaseShard) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
+// FetchWideEntry mocks base method
+func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, nsCtx)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
-func (mr *MockdatabaseShardMockRecorder) FetchIndexChecksum(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
+// FetchWideEntry indicates an expected call of FetchWideEntry
+func (mr *MockdatabaseShardMockRecorder) FetchWideEntry(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).FetchIndexChecksum), ctx, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseShard)(nil).FetchWideEntry), ctx, id, blockStart, nsCtx)
 }
 
 // FetchBlocks mocks base method

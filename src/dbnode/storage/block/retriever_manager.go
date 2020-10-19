@@ -112,13 +112,13 @@ func (r *shardBlockRetriever) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
-func (r *shardBlockRetriever) StreamIndexChecksum(
+func (r *shardBlockRetriever) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (StreamedWideEntry, error) {
-	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id,
+	return r.DatabaseBlockRetriever.StreamWideEntry(ctx, r.shard, id,
 		blockStart, nsCtx)
 }
 

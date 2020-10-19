@@ -514,12 +514,12 @@ func (s *seeker) SeekWideEntry(
 			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 			if status == xmsgpack.NotFoundLookupStatus {
-				// a `NotFound` status for the index checksum decode indicates that the
+				// a `NotFound` status for the wide entry decode indicates that the
 				// current seek has passed the point in the file where this ID could have
 				// appeared; short-circuit here as the ID does not exist in the file.
 				return xio.WideEntry{}, errSeekIDNotFound
 			} else if status == xmsgpack.MismatchLookupStatus {
-				// a `Mismatch` status for the index checksum decode indicates that the
+				// a `Mismatch` status for the wide entry decode indicates that the
 				// current seek does not match the ID, but that it may still appear in
 				// the file.
 				continue

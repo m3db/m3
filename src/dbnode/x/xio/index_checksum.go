@@ -28,6 +28,7 @@ import (
 // WideEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry.
 type WideEntry struct {
+	Shard            uint32
 	ID               ident.ID
 	Size             int64
 	Offset           int64

@@ -203,8 +203,8 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
-// FetchIndexChecksum reads index checksum blocks using just a block retriever.
-func (r Reader) FetchIndexChecksum(
+// FetchWideEntry reads wide entries using just a block retriever.
+func (r Reader) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
@@ -232,13 +232,13 @@ func (r Reader) FetchIndexChecksum(
 	} else if !isRetrievable {
 		return block.EmptyStreamedWideEntry, nil
 	}
-	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
+	streamedEntry, err := r.retriever.StreamWideEntry(ctx,
 		r.id, blockStart, nsCtx)
 	if err != nil {
 		return block.EmptyStreamedWideEntry, err
 	}
 
-	return streamedBlock, nil
+	return streamedEntry, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

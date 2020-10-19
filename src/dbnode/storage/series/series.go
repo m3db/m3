@@ -402,16 +402,16 @@ func (s *dbSeries) ReadEncoded(
 	return r, err
 }
 
-func (s *dbSeries) FetchIndexChecksum(
+func (s *dbSeries) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
+	e, err := reader.FetchWideEntry(ctx, blockStart, nsCtx)
 	s.RUnlock()
-	return r, err
+	return e, err
 }
 
 func (s *dbSeries) FetchBlocksForColdFlush(

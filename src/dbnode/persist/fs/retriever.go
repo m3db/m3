@@ -67,7 +67,7 @@ const (
 
 	streamInvalidReq streamReqType = iota
 	streamDataReq
-	streamIdxChecksumReq
+	streamWideEntryReq
 )
 
 type blockRetrieverStatus int
@@ -305,7 +305,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	retrieverResources *reuseableRetrieverResources,
 ) []*retrieveRequest {
 	retrieverResources.resetDataReqs()
-	retrieverResources.resetIndexChecksumReqs()
+	retrieverResources.resetWideEntryReqs()
 	for _, req := range reqs {
 		switch req.streamReqType {
 		case streamDataReq:
@@ -313,9 +313,8 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			// wide logic functions.
 			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
-		case streamIdxChecksumReq:
-			entry, err := seeker.SeekWideEntry(req.id,
-				seekerResources)
+		case streamWideEntryReq:
+			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.err = err
 				continue
@@ -330,14 +329,15 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 			// Enqueue for fetch in batch in offset ascending order.
 			req.wideEntry = entry
-			retrieverResources.appendIndexChecksumReq(req)
+			entry.Shard = req.shard
+			retrieverResources.appendWideEntryReq(req)
 
 		default:
 			req.err = errUnsetRequestType
 		}
 	}
 
-	// Fulfill the index checksum data fetches in batch offset ascending.
+	// Fulfill the wide entry data fetches in batch offset ascending.
 	var sortByOffsetAsc retrieveRequestByWideEntryOffsetAsc
 	sortByOffsetAsc = retrieverResources.wideEntryReqs
 	sort.Sort(sortByOffsetAsc)
@@ -634,7 +634,7 @@ func (r *blockRetriever) Stream(
 	return req.toBlock(), nil
 }
 
-func (r *blockRetriever) StreamIndexChecksum(
+func (r *blockRetriever) StreamWideEntry(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
@@ -642,7 +642,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	req := r.reqPool.Get()
-	req.streamReqType = streamIdxChecksumReq
+	req.streamReqType = streamWideEntryReq
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
@@ -844,7 +844,7 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	}
 
 	switch req.streamReqType {
-	case streamIdxChecksumReq:
+	case streamWideEntryReq:
 		// All pooled elements are set on the wideEntry.
 		req.wideEntry.Finalize()
 	default:
@@ -1011,7 +1011,7 @@ func newReuseableRetrieverResources() *reuseableRetrieverResources {
 
 func (r *reuseableRetrieverResources) resetAll() {
 	r.resetDataReqs()
-	r.resetIndexChecksumReqs()
+	r.resetWideEntryReqs()
 }
 
 func (r *reuseableRetrieverResources) resetDataReqs() {
@@ -1027,14 +1027,14 @@ func (r *reuseableRetrieverResources) appendDataReq(
 	r.dataReqs = append(r.dataReqs, req)
 }
 
-func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {
+func (r *reuseableRetrieverResources) resetWideEntryReqs() {
 	for i := range r.wideEntryReqs {
 		r.wideEntryReqs[i] = nil
 	}
 	r.wideEntryReqs = r.wideEntryReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) appendIndexChecksumReq(
+func (r *reuseableRetrieverResources) appendWideEntryReq(
 	req *retrieveRequest,
 ) {
 	r.wideEntryReqs = append(r.wideEntryReqs, req)

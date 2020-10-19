@@ -1025,26 +1025,21 @@ func (d *db) WideQuery(
 	iter := newWideQueryIterator(blockStart, shards)
 	streamedEntries := make([]block.StreamedWideEntry, 0, batchSize)
 
-	// Won't need these in the future since shard will be available on index checksum.
-	d.RLock()
-	shardSet := d.shardSet
-	d.RUnlock()
-
-	indexChecksumProcessor := func(batch *ident.IDBatch) error {
-		// Fetch index checksums.
+	wideEntryProcessor := func(batch *ident.IDBatch) error {
+		// Fetch wide entries.
 		streamedEntries = streamedEntries[:0]
 		defer func() {
 			// Be sure to finalize any streamed entries
 			// for both happy path and also early return.
-			// This also free's any resources held by the
-			// resulting index checksum.
+			// This also frees any resources held by the
+			// resulting wide entries.
 			for _, streamEntry := range streamedEntries {
 				streamEntry.Finalize()
 			}
 		}()
 
 		for _, id := range batch.IDs {
-			streamEntry, err := d.fetchIndexChecksum(ctx, n, id, start)
+			streamEntry, err := d.fetchWideEntry(ctx, n, id, start)
 			if err != nil {
 				return err
 			}
@@ -1063,11 +1058,8 @@ func (d *db) WideQuery(
 				continue
 			}
 
-			// TODO: get shard from indexChecksum instead of calculating
-			shard := shardSet.Lookup(entry.ID)
-
 			// Push the data to wide query iterator results.
-			shardIter, err := iter.shardIter(shard)
+			shardIter, err := iter.shardIter(entry.Shard)
 			if err != nil {
 				return err
 			}
@@ -1084,20 +1076,20 @@ func (d *db) WideQuery(
 	}
 
 	go func() {
-		err := d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+		err := d.batchProcessWideQuery(ctx, n, query, wideEntryProcessor, opts)
 		iter.setDoneError(err)
 	}()
 
 	return iter, nil
 }
 
-func (d *db) fetchIndexChecksum(
+func (d *db) fetchWideEntry(
 	ctx context.Context,
 	ns databaseNamespace,
 	id ident.ID,
 	start time.Time,
 ) (block.StreamedWideEntry, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideEntry)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", ns.ID().String()),
@@ -1107,7 +1099,7 @@ func (d *db) fetchIndexChecksum(
 	}
 
 	defer sp.Finish()
-	return ns.FetchIndexChecksum(ctx, id, start)
+	return ns.FetchWideEntry(ctx, id, start)
 }
 
 func (d *db) FetchBlocks(

@@ -309,7 +309,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseIndexChecksum(t *testing.T) {
+func TestDatabaseWideEntry(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -326,31 +326,31 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 
-	indexChecksumWithID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveWideEntry().
+	streamedEntry := block.NewMockStreamedWideEntry(ctrl)
+	streamedEntry.EXPECT().RetrieveWideEntry().
 		Return(xio.WideEntry{
 			ID:               ident.StringID("foo"),
 			MetadataChecksum: 5,
 		}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithID, nil)
+	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
+		Return(streamedEntry, nil)
 
-	indexChecksumWithoutID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveWideEntry().
+	wideEntryWithoutID := block.NewMockStreamedWideEntry(ctrl)
+	wideEntryWithoutID.EXPECT().RetrieveWideEntry().
 		Return(xio.WideEntry{MetadataChecksum: 7}, nil)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithoutID, nil)
+	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
+		Return(wideEntryWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	res, err := d.fetchWideEntry(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
 	checksum, err := res.RetrieveWideEntry()
 	require.NoError(t, err)
 	assert.Equal(t, "foo", checksum.ID.String())
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	res, err = d.fetchWideEntry(ctx, mockNamespace, seriesID, start)
 	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -998,7 +998,7 @@ func TestWideQuery(t *testing.T) {
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+		ns.EXPECT().FetchWideEntry(gomock.Any(),
 			ident.StringID("foo"), gomock.Any()).
 			Return(block.EmptyStreamedWideEntry, nil)
 
@@ -1014,7 +1014,7 @@ func TestWideQuery(t *testing.T) {
 
 	exSpans := []string{
 		tracepoint.DBWideQuery,
-		tracepoint.DBIndexChecksum,
+		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
 		"root",
 	}

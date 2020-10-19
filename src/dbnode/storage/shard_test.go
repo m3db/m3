@@ -1575,7 +1575,7 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	assert.Equal(t, 2, closer.called)
 }
 
-func TestShardFetchIndexChecksum(t *testing.T) {
+func TestShardFetchFetchWideEntry(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1613,20 +1613,20 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 		MetadataChecksum: 5,
 	}
 
-	indexChecksum := block.NewMockStreamedWideEntry(ctrl)
+	entry := block.NewMockStreamedWideEntry(ctrl)
 	retriever.EXPECT().
-		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
+		FetchWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(entry, nil).Times(2)
 
 	// First call to RetrieveWideEntry is expected to error on retrieval
-	indexChecksum.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
-	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	entry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
+	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
-	indexChecksum.EXPECT().RetrieveWideEntry().Return(entry, nil)
-	r, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	entry.EXPECT().RetrieveWideEntry().Return(entry, nil)
+	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	retrieved, err := r.RetrieveWideEntry()
 	require.NoError(t, err)

@@ -934,19 +934,19 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).Stream), ctx, shard, id, blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexChecksum mocks base method
-func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
+// StreamWideEntry mocks base method
+func (m *MockDatabaseBlockRetriever) StreamWideEntry(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, shard, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, shard, id, blockStart, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
-func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, shard, id, blockStart, nsCtx interface{}) *gomock.Call {
+// StreamWideEntry indicates an expected call of StreamWideEntry
+func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamWideEntry(ctx, shard, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamIndexChecksum), ctx, shard, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamWideEntry), ctx, shard, id, blockStart, nsCtx)
 }
 
 // AssignShardSet mocks base method
@@ -999,19 +999,19 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).Stream), ctx, id, blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexChecksum mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
+// StreamWideEntry mocks base method
+func (m *MockDatabaseShardBlockRetriever) StreamWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, id, blockStart, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
-func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
+// StreamWideEntry indicates an expected call of StreamWideEntry
+func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamWideEntry(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamIndexChecksum), ctx, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamWideEntry), ctx, id, blockStart, nsCtx)
 }
 
 // MockDatabaseBlockRetrieverManager is a mock of DatabaseBlockRetrieverManager interface

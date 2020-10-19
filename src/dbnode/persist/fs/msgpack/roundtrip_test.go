@@ -468,7 +468,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
-	// Index Checksum decoding should fail since it requires tags for now.
+	// Wide Entry decoding should fail since it requires tags for now.
 	dec.Reset(NewByteDecoderStream(cloned))
 	pool := pool.NewMockBytesPool(ctrl)
 	idLength := len(testWideEntry.ID)

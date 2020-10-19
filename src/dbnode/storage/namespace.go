@@ -912,7 +912,7 @@ func (n *dbNamespace) ReadEncoded(
 	return res, err
 }
 
-func (n *dbNamespace) FetchIndexChecksum(
+func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
@@ -923,7 +923,7 @@ func (n *dbNamespace) FetchIndexChecksum(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return block.EmptyStreamedWideEntry, err
 	}
-	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
