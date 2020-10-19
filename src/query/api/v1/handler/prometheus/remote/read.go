@@ -382,10 +382,12 @@ func ParseRequest(
 	}
 
 	timeout := opts.TimeoutOpts().FetchTimeout
+	fmt.Println("TIME1", timeout)
 	timeout, err := prometheus.ParseRequestTimeout(r, timeout)
 	if err != nil {
 		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
+	fmt.Println("TIME2", timeout)
 
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
