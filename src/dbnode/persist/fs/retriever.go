@@ -40,7 +40,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -367,37 +366,6 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	return retrieverResources.dataReqs
 }
 
-func (r *blockRetriever) processReadMismatchRequest(
-	req *retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-) {
-	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
-	if err != nil && err != errSeekIDNotFound {
-		req.err = err
-		return
-	}
-
-	if err == errSeekIDNotFound {
-		req.mismatchBatch = wide.ReadMismatch{}
-		req.success = true
-		return
-	}
-
-	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-		checksum, req.mismatchChecker, seekerResources)
-	if err != nil {
-		// Should always be found if was found in the index file.
-		req.err = err
-		return
-	}
-
-	// Success, inc ref so on finalize can decref and finalize.
-	req.mismatchBatch = mismatch
-	req.mismatchBatch.Data.IncRef()
-	req.success = true
-}
-
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
@@ -699,37 +667,6 @@ func (r *blockRetriever) StreamIndexChecksum(
 	return req, nil
 }
 
-func (r *blockRetriever) StreamReadMismatches(
-	ctx context.Context,
-	shard uint32,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	startTime time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	req := r.reqPool.Get()
-	req.mismatchChecker = mismatchChecker
-	req.streamReqType = streamReadMismatchReq
-
-	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	}
-
-	if !found {
-		req.mismatchBatch = wide.ReadMismatch{}
-		req.success = true
-		req.onDone()
-	}
-
-	// The request may not have completed yet, but it has an internal
-	// waitgroup which the caller will have to wait for before retrieving
-	// the data. This means that even though we're returning nil for error
-	// here, the caller may still encounter an error when they attempt to
-	// read the data.
-	return req, nil
-}
-
 func (r *blockRetriever) shardRequests(
 	shard uint32,
 ) (*shardRetrieveRequests, error) {
@@ -827,10 +764,7 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	indexChecksum xio.IndexChecksum
-	mismatchBatch wide.ReadMismatch
 	reader        xio.SegmentReader
-
-	mismatchChecker wide.EntryChecksumMismatchChecker
 
 	err error
 
@@ -850,14 +784,6 @@ func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
 		return xio.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
-}
-
-func (req *retrieveRequest) RetrieveMismatch() (wide.ReadMismatch, error) {
-	req.resultWg.Wait()
-	if req.err != nil {
-		return wide.ReadMismatch{}, req.err
-	}
-	return req.mismatchBatch, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -1003,8 +929,6 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = xio.IndexChecksum{}
-	req.mismatchBatch = wide.ReadMismatch{}
-	req.mismatchChecker = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

@@ -38,7 +38,7 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
-	emptyIndexChecksumEntry     schema.IndexEntry
+	emptyWideEntry              schema.WideEntry
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -51,12 +51,12 @@ var (
 	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
 )
 
-// IndexChecksumLookupStatus is the status for an index checksum lookup.
-type IndexChecksumLookupStatus byte
+// WideEntryLookupStatus is the status for a wide entry lookup.
+type WideEntryLookupStatus byte
 
 const (
 	// ErrorLookupStatus indicates an error state.
-	ErrorLookupStatus IndexChecksumLookupStatus = iota
+	ErrorLookupStatus WideEntryLookupStatus = iota
 	// MatchedLookupStatus indicates the current entry ID matches the requested ID.
 	MatchedLookupStatus
 	// MismatchLookupStatus indicates the current entry ID preceeds the requested ID.
@@ -152,21 +152,21 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	return indexEntry, nil
 }
 
-// DecodeIndexEntryToIndexChecksum decodes an index entry into a minimal index entry.
-func (dec *Decoder) DecodeIndexEntryToIndexChecksum(
+// DecodeToWideEntry decodes an index entry into a wide entry.
+func (dec *Decoder) DecodeToWideEntry(
 	compareID []byte,
 	bytesPool pool.BytesPool,
-) (schema.IndexChecksum, IndexChecksumLookupStatus, error) {
+) (schema.WideEntry, WideEntryLookupStatus, error) {
 	if dec.err != nil {
-		return schema.IndexChecksum{}, NotFoundLookupStatus, dec.err
+		return emptyWideEntry, NotFoundLookupStatus, dec.err
 	}
 	dec.readerWithDigest.setDigestReaderEnabled(true)
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexWithMetaChecksum, status := dec.decodeIndexChecksum(compareID, bytesPool)
+	indexWithMetaChecksum, status := dec.decodeWideIndex(compareID, bytesPool)
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if status != MatchedLookupStatus || dec.err != nil {
-		return schema.IndexChecksum{}, status, dec.err
+		return emptyWideEntry, status, dec.err
 	}
 
 	return indexWithMetaChecksum, status, nil
@@ -479,13 +479,13 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	return indexEntry
 }
 
-func (dec *Decoder) decodeIndexChecksum(
+func (dec *Decoder) decodeWideIndex(
 	compareID []byte,
 	bytesPool pool.BytesPool,
-) (schema.IndexChecksum, IndexChecksumLookupStatus) {
+) (schema.WideEntry, WideEntryLookupStatus) {
 	entry := dec.decodeIndexEntry(bytesPool)
 	if dec.err != nil {
-		return schema.IndexChecksum{}, ErrorLookupStatus
+		return emptyWideEntry, ErrorLookupStatus
 	}
 
 	if entry.EncodedTags == nil {
@@ -493,8 +493,8 @@ func (dec *Decoder) decodeIndexChecksum(
 			bytesPool.Put(entry.ID)
 		}
 
-		dec.err = fmt.Errorf("decode index checksum requires files V1+")
-		return schema.IndexChecksum{}, ErrorLookupStatus
+		dec.err = fmt.Errorf("decode wide index requires files V1+")
+		return emptyWideEntry, ErrorLookupStatus
 	}
 
 	compare := bytes.Compare(compareID, entry.ID)
@@ -502,7 +502,7 @@ func (dec *Decoder) decodeIndexChecksum(
 	if compare == 0 {
 		// NB: need to compute hash before freeing entry bytes.
 		checksum = dec.hasher.HashIndexEntry(entry)
-		return schema.IndexChecksum{
+		return schema.WideEntry{
 			IndexEntry:       entry,
 			MetadataChecksum: checksum,
 		}, MatchedLookupStatus
@@ -515,12 +515,12 @@ func (dec *Decoder) decodeIndexChecksum(
 
 	if compare > 0 {
 		// compareID can still exist after the current entry.ID
-		return schema.IndexChecksum{}, MismatchLookupStatus
+		return emptyWideEntry, MismatchLookupStatus
 	}
 
 	// compareID must have been before the curret entry.ID, so this
 	// ID will not be matched.
-	return schema.IndexChecksum{}, NotFoundLookupStatus
+	return emptyWideEntry, NotFoundLookupStatus
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {

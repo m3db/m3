@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -316,17 +315,7 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
 
-	// StreamReadMismatches will stream reader mismatches for a given id within
-	// a block, yielding any streamed checksums within the shard.
-	StreamReadMismatches(
-		ctx context.Context,
-		shard uint32,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
-
+	// AssignShardSet assigns the given shard set to this retriever.
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -349,16 +338,6 @@ type DatabaseShardBlockRetriever interface {
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
-
-	// StreamReadMismatches will stream read index mismatches for a given id
-	// within a block, yielding any read mismatches.
-	StreamReadMismatches(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -185,18 +184,6 @@ type Database interface {
 		shards []uint32,
 		iterOpts index.IterationOptions,
 	) (WideQueryIterator, error)
-
-	// ReadMismatches performs a wide blockwise query that applies a received
-	// index checksum block batch.
-	ReadMismatches(
-		ctx context.Context,
-		namespace ident.ID,
-		query index.Query,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		queryStart time.Time,
-		shards []uint32,
-		iterOpts index.IterationOptions,
-	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -383,15 +370,6 @@ type databaseNamespace interface {
 		blockStart time.Time,
 	) (block.StreamedChecksum, error)
 
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-	) (wide.StreamedMismatch, error)
-
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -555,16 +533,6 @@ type databaseShard interface {
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (block.StreamedChecksum, error)
-
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

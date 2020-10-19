@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -408,18 +407,6 @@ func (s *dbShard) StreamIndexChecksum(
 ) (block.StreamedChecksum, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		blockStart, nsCtx)
-}
-
-// StreamIndexChecksum implements series.QueryableBlockRetriever
-func (s *dbShard) StreamReadMismatches(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
-		mismatchChecker, id, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1169,19 +1156,6 @@ func (s *dbShard) FetchIndexChecksum(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
 	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
-}
-
-func (s *dbShard) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	retriever := s.seriesBlockRetriever
-	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

@@ -31,7 +31,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -377,87 +376,6 @@ func (s *seeker) SeekByIndexEntry(
 	return buffer, nil
 }
 
-func (s *seeker) SeekReadMismatchesByIndexChecksum(
-	checksum xio.IndexChecksum,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	resources ReusableSeekerResources,
-) (wide.ReadMismatch, error) {
-	completed := false
-	defer func() {
-		// NB: if this fails to complete, finalize the checksum.
-		if !completed {
-			checksum.Finalize()
-		}
-	}()
-
-	mismatchChecker.Lock()
-	// NB: first, apply the reader.
-	allMismatches, err := mismatchChecker.ComputeMismatchesForEntry(checksum)
-	if err != nil {
-		// NB: free checksum resources
-		return wide.ReadMismatch{}, err
-	}
-
-	// NB: only filter out reader side mismatches. TODO: remove index checksum
-	// mismatches, since they are not necessary in the updated model.
-	mismatches := allMismatches[:0]
-	for _, m := range allMismatches {
-		if m.IsReaderMismatch() {
-			mismatches = append(mismatches, m)
-		}
-	}
-
-	if len(mismatches) == 0 {
-		// This entry matches; no need to retrieve data.
-		return wide.ReadMismatch{}, nil
-	}
-
-	if len(mismatches) > 1 {
-		return wide.ReadMismatch{}, fmt.Errorf("multiple reader mismatches")
-	}
-
-	mismatchChecker.Unlock()
-	resources.offsetFileReader.reset(s.dataFd, checksum.Offset)
-
-	// Obtain an appropriately sized buffer.
-	var buffer checked.Bytes
-	if s.opts.bytesPool != nil {
-		buffer = s.opts.bytesPool.Get(int(checksum.Size))
-		buffer.IncRef()
-		defer buffer.DecRef()
-		buffer.Resize(int(checksum.Size))
-	} else {
-		buffer = checked.NewBytes(make([]byte, checksum.Size), nil)
-		buffer.IncRef()
-		defer buffer.DecRef()
-	}
-
-	// Copy the actual data into the underlying buffer.
-	underlyingBuf := buffer.Bytes()
-	n, err := io.ReadFull(resources.offsetFileReader, underlyingBuf)
-	if err != nil {
-		return wide.ReadMismatch{}, err
-	}
-	if n != int(checksum.Size) {
-		// This check is redundant because io.ReadFull will return an error if
-		// its not able to read the specified number of bytes, but we keep it
-		// in for posterity.
-		return wide.ReadMismatch{}, fmt.Errorf("tried to read: %d bytes but read: %d", checksum.Size, n)
-	}
-
-	// NB(r): _must_ check the checksum against known checksum as the data
-	// file might not have been verified if we haven't read through the file yet.
-	if checksum.DataChecksum != int64(digest.Checksum(underlyingBuf)) {
-		return wide.ReadMismatch{}, errSeekChecksumMismatch
-	}
-
-	completed = true
-	return wide.ReadMismatch{
-		IndexChecksum: checksum,
-		Data:          buffer,
-	}, nil
-}
-
 // SeekIndexEntry performs the following steps:
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
@@ -575,7 +493,7 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 	idBytes := id.Bytes()
 	for {
 		checksum, status, err := resources.xmsgpackDecoder.
-			DecodeIndexEntryToIndexChecksum(idBytes, resources.decodeIndexEntryBytesPool)
+			DecodeToWideEntry(idBytes, resources.decodeIndexEntryBytesPool)
 		if err != nil {
 			// No longer being used so we can return to the pool.
 			resources.decodeIndexEntryBytesPool.Put(checksum.ID)

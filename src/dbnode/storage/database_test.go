@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -1018,33 +1017,6 @@ func TestWideQuery(t *testing.T) {
 		tracepoint.DBWideQuery,
 		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
-		"root",
-	}
-
-	testWideFunction(t, readMismatchTest, exSpans)
-}
-
-func TestReadMismatches(t *testing.T) {
-	readMismatchTest := func(
-		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
-		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
-		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
-			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatch, nil)
-
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
-		require.NoError(t, err)
-
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
-		require.Error(t, err)
-	}
-
-	exSpans := []string{
-		tracepoint.DBFetchMismatch,
-		tracepoint.DBReadMismatches,
-		tracepoint.DBReadMismatches,
 		"root",
 	}
 

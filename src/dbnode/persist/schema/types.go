@@ -75,17 +75,17 @@ type IndexEntry struct {
 	IndexChecksum int64
 }
 
-// IndexChecksum extends IndexEntry for use with queries, by providing
+// WideEntry extends IndexEntry for use with queries, by providing
 // an additional metadata checksum field.
-type IndexChecksum struct {
-	// IndexChecksum embeds IndexEntry.
+type WideEntry struct {
+	// WideEntry embeds IndexEntry.
 	IndexEntry
 	// MetadataChecksum is the computed index metadata checksum.
 	// NB: built from ID, DataChecksum, and tags.
 	MetadataChecksum int64
 }
 
-// IndexEntryHasher hashes an index entry.
+// IndexEntryHasher hashes an index entrsy.
 type IndexEntryHasher interface {
 	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
 	// and the computed data checksum.
