@@ -220,7 +220,7 @@ release-snapshot: check-for-goreleaser-github-token
 # shell).
 
 .PHONY: docs-test
-docs-test: install-tools
+docs-test: setup install-tools
 	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
 	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
 ifneq ($(GITHUB_USER),)
