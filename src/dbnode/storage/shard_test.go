@@ -101,7 +101,10 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+		Index:  index,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -215,7 +218,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
-	entry := lookup.NewEntry(mockSeries, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: mockSeries,
+	})
 	s.Lock()
 	s.insertNewShardEntryWithLock(entry)
 	s.Unlock()
@@ -462,7 +467,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -537,7 +544,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -635,7 +644,9 @@ func TestShardColdFlush(t *testing.T) {
 		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
-		shard.list.PushBack(lookup.NewEntry(curr, 0))
+		shard.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
@@ -837,7 +848,9 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(series.SnapshotResult{}, nil)
-		s.list.PushBack(lookup.NewEntry(entry, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: entry,
+		}))
 	}
 
 	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
@@ -855,7 +868,9 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -871,7 +886,9 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 		Options:     shard.seriesOpts,
 	})
 	shard.Lock()
-	entry := lookup.NewEntry(seriesEntry, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: seriesEntry,
+	})
 	for i := int32(0); i < count; i++ {
 		entry.IncrementReaderWriterCount()
 	}
@@ -1609,9 +1626,9 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := ident.IndexChecksum{
-		Checksum: 5,
-		ID:       []byte("foo"),
+	checksum := xio.IndexChecksum{
+		ID:               ident.StringID("foo"),
+		MetadataChecksum: 5,
 	}
 
 	indexChecksum := block.NewMockStreamedChecksum(ctrl)
@@ -1621,7 +1638,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 
 	// First call to RetrieveIndexChecksum is expected to error on retrieval
 	indexChecksum.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{}, errors.New("err"))
+		Return(xio.IndexChecksum{}, errors.New("err"))
 	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveIndexChecksum()
@@ -1645,7 +1662,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	require.Nil(t, entry)
 }
 
-func TestShardFetchReadMismatches(t *testing.T) {
+func TestShardFetchReadMismatch(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1675,39 +1692,35 @@ func TestShardFetchReadMismatches(t *testing.T) {
 	shard.markWarmFlushStateSuccess(start)
 	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
 
-	batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-	r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
+	checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
+	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	shard.setBlockRetriever(retriever)
+
+	mismatchBatch := wide.ReadMismatch{
+		IndexChecksum: xio.IndexChecksum{MetadataChecksum: 1},
+	}
+
+	streamedBatch := wide.NewMockStreamedMismatch(ctrl)
+	retriever.EXPECT().
+		StreamReadMismatches(ctx, shard.shard, checker, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(streamedBatch, nil).Times(2)
+
+	// First call to RetrieveMismatch is expected to error on retrieval
+	streamedBatch.EXPECT().RetrieveMismatch().
+		Return(wide.ReadMismatch{}, errors.New("err"))
+	r, err := shard.FetchReadMismatch(ctx, checker,
+		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	batch, err := r.RetrieveMismatchBatch()
+	_, err = r.RetrieveMismatch()
+	assert.EqualError(t, err, "err")
+
+	streamedBatch.EXPECT().RetrieveMismatch().Return(mismatchBatch, nil)
+	r, err = shard.StreamReadMismatches(ctx, checker,
+		ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(batch.Mismatches))
-
-	// TODO: enable when reader is added.
-	// retriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	// shard.setBlockRetriever(retriever)
-
-	// mismatchBatch := wide.ReadMismatchBatch{
-	// 	Mismatches: []wide.ReadMismatch{{Checksum: 1}},
-	// }
-
-	// streamedBatch := wide.NewMockStreamedMismatchBatch(ctrl)
-	// retriever.EXPECT().
-	// 	FetchReadMismatches(ctx, batchReader, shard.shard, ident.NewIDMatcher("foo"),
-	// 		start, gomock.Any()).Return(streamedBatch, nil).Times(2)
-
-	// First call to RetrieveIndexChecksum is expected to error on retrieval
-	// streamedBatch.EXPECT().RetrieveMismatchBatch().Return(wide.ReadMismatchBatch{}, errors.New("err"))
-	// r, err := shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
-	// require.NoError(t, err)
-	// _, err = r.RetrieveMismatchBatch()
-	// assert.EqualError(t, err, "err")
-
-	// indexChecksum.EXPECT().RetrieveMismatchBatch().Return(mismatchBatch, nil)
-	// r, err = shard.FetchReadMismatches(ctx, batchReader, ident.StringID("foo"), start, namespace.Context{})
-	// require.NoError(t, err)
-	// retrieved, err := r.RetrieveMismatchBatch()
-	// require.NoError(t, err)
-	// assert.Equal(t, mismatchBatch, retrieved)
+	retrieved, err := r.RetrieveMismatch()
+	require.NoError(t, err)
+	assert.Equal(t, mismatchBatch, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)

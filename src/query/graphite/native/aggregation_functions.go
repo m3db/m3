@@ -539,8 +539,7 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 		}
 
 		if n >= len(parts) || n < 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by node %d; not enough parts", s.Name(), node))
-			return ts.NewSeriesList(), err
+			return aggregate(ctx, series, fname)
 		}
 
 		key := parts[n]
@@ -581,8 +580,7 @@ func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, node
 				}
 
 				if n >= len(parts) || n < 0 {
-					err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by nodes %v; not enough parts", s.Name(), nodes))
-					return ts.NewSeriesList(), err
+					return aggregate(ctx, series, fname)
 				}
 
 				keys = append(keys, parts[n])

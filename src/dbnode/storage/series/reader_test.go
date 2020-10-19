@@ -111,8 +111,8 @@ func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
 
 	checksum, err := c.RetrieveIndexChecksum()
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), checksum.Checksum)
-	assert.Equal(t, 0, len(checksum.ID))
+	assert.Equal(t, int64(0), checksum.MetadataChecksum)
+	assert.Nil(t, checksum.ID)
 }
 
 func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
@@ -128,9 +128,9 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
 
-	checksum := ident.IndexChecksum{
-		Checksum: 5,
-		ID:       []byte("foo"),
+	checksum := xio.IndexChecksum{
+		MetadataChecksum: 5,
+		ID:               ident.StringID("foo"),
 	}
 
 	indexChecksum := block.NewMockStreamedChecksum(ctrl)
@@ -146,7 +146,7 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(ident.IndexChecksum{}, errors.New("err"))
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(xio.IndexChecksum{}, errors.New("err"))
 	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
 	require.NoError(t, err)
 	_, err = streamed.RetrieveIndexChecksum()

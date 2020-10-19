@@ -184,7 +184,7 @@ type Database interface {
 		start time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
-	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
+	) ([]xio.IndexChecksum, error) // FIXME: change when exact type known.
 
 	// ReadMismatches performs a wide blockwise query that applies a received
 	// index checksum block batch.
@@ -192,7 +192,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		query index.Query,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		queryStart time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
@@ -383,14 +383,14 @@ type databaseNamespace interface {
 		blockStart time.Time,
 	) (block.StreamedChecksum, error)
 
-	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
 	// block at time start, with the given batchReader.
-	FetchReadMismatches(
+	FetchReadMismatch(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		blockStart time.Time,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -478,7 +478,7 @@ type databaseNamespace interface {
 // must make sure to release
 type SeriesReadWriteRef struct {
 	// Series reference for read/writing.
-	Series series.DatabaseSeries
+	Series bootstrap.SeriesRef
 	// UniqueIndex is the unique index of the series (as applicable).
 	UniqueIndex uint64
 	// Shard is the shard of the series.
@@ -556,15 +556,15 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) (block.StreamedChecksum, error)
 
-	// FetchReadMismatches retrieves the read mismatches for an ID for the
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
 	// block at time start, with the given batchReader.
-	FetchReadMismatches(
+	FetchReadMismatch(
 		ctx context.Context,
-		batchReader wide.IndexChecksumBlockBatchReader,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (wide.StreamedMismatchBatch, error)
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -661,7 +661,6 @@ type databaseShard interface {
 	SeriesReadWriteRef(
 		id ident.ID,
 		tags ident.TagIterator,
-		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
@@ -691,12 +690,6 @@ type ShardSnapshotResult struct {
 // by persisting data and updating shard state/block leases.
 type ShardColdFlush interface {
 	Done() error
-}
-
-// ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
-// for the shard.
-type ShardSeriesReadWriteRefOptions struct {
-	ReverseIndex bool
 }
 
 // NamespaceIndex indexes namespace writes.
