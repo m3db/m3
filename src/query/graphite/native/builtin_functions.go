@@ -996,7 +996,7 @@ func totalBySum(seriesList []*ts.Series, index int) float64 {
 }
 
 // asPercent calculates a percentage of the total of a wildcard series.
-func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface) (ts.SeriesList, error) {
+func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface, _ ...int) (ts.SeriesList, error) {
 	if len(input.Values) == 0 {
 		return ts.SeriesList(input), nil
 	}
@@ -2335,6 +2335,7 @@ func init() {
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
+		3: nil, // nodes
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
