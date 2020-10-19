@@ -15,7 +15,7 @@ on the coordinator. Note that timestamp is in nanoseconds from Unix epoch.
 
 This example writes two metrics `weather_temperature` and `weather_wind` using 
 the current time in nanoseconds as the timestamp:
-```bash
+```shell
 curl -i -X POST "http://localhost:7201/api/v1/influxdb/write" --data-binary "weather,location=us-midwest temperature=82,wind=42 $(expr $(date +%s) \* 1000000000)"
 ```
 

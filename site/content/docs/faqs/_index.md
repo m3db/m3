@@ -55,7 +55,7 @@ This is due to M3 having a concept of `null` datapoints whereas Prometheus does 
 
 - **I am receiving the error `"could not create etcd watch","error":"etcd watch create timed out after 10s for key: _sd.placement/default_env/m3db"`**
 This is due to the fact that M3DB, M3Coordinator, etc. could not connect to the `etcd` server. Make sure that the endpoints listed under in the following config section are correct AND the correct configuration file is being used.
-```
+```yaml
 etcdClusters:
   - zone: embedded
     endpoints:

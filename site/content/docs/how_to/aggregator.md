@@ -23,7 +23,7 @@ We highly recommend running with at least a replication factor 2 for a `m3aggreg
 #### Initializing aggregator topology 
 
 You can setup a m3aggregator topology by issuing a request to your coordinator (be sure to use your own hostnames, number of shards and replication factor):
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/services/m3aggregator/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 2,
@@ -54,7 +54,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST 
 
 Now we must setup a topic for the `m3aggregator` to receive unaggregated metrics from `m3coordinator` instances:
 
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregator_ingest" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
     "numberOfShards": 64
 }'
@@ -63,7 +63,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 #### Add m3aggregagtor consumer group to ingest topic
 
 Add the `m3aggregator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregator_ingest" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
   "consumerService": {
     "serviceId": {
@@ -82,7 +82,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 #### Initializing m3msg topic for m3coordinator to receive from m3aggregator to write to M3DB
 
 Now we must setup a topic for the `m3coordinator` to receive aggregated metrics from `m3aggregator` instances to write to M3DB:
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
     "numberOfShards": 64
 }'
@@ -91,7 +91,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 #### Initializing m3coordinator topology
 
 Then `m3coordinator` instances need to be configured to receive traffic for this topic (note ingest at port 7507 must match the configured port for your `m3coordinator` ingest server, see config at bottom of this guide):
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/services/m3coordinator/placement/init -d '{
     "instances": [
         {
@@ -110,7 +110,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST 
 #### Add m3coordinator consumer group to outbound topic
 
 Add the `m3coordinator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
-```bash
+```shell
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
   "consumerService": {
     "serviceId": {
@@ -181,7 +181,7 @@ ingest:
 
 You can run `m3aggregator` by either building and running the binary yourself:
 
-```bash
+```shell
 make m3aggregator
 ./bin/m3aggregator -f ./src/aggregator/config/m3aggregator.yml
 ```

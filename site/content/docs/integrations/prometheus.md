@@ -15,7 +15,7 @@ You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and 
 
 It should look something like:
 
-```
+```yaml
 listenAddress:
   type: "config"
   value: "0.0.0.0:7201"
@@ -78,13 +78,13 @@ clusters:
 
 Now start the process up:
 
-```
+```shell
 m3coordinator -f <config-name.yml>
 ```
 
 Or, use the docker container:
 
-```
+```shell
 docker pull quay.io/m3db/m3coordinator:latest
 docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
 ```
@@ -93,7 +93,7 @@ docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordin
 
 Add to your Prometheus configuration the `m3coordinator` sidecar remote read/write endpoints, something like:
 
-```
+```yaml
 remote_read:
   - url: "http://localhost:7201/api/v1/prom/remote/read"
     # To test reading even when local Prometheus has the data
@@ -104,7 +104,7 @@ remote_write:
 
 Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
 
-```json
+```yaml
 - job_name: 'm3db'
   static_configs:
     - targets: ['<M3DB_HOST_NAME_1>:7203', '<M3DB_HOST_NAME_2>:7203', '<M3DB_HOST_NAME_3>:7203']
@@ -115,7 +115,7 @@ Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of j
 
 **NOTE:** If you are running `M3DB` with embedded `M3Coordinator`, you should only have one job. We recommend just calling this job `m3`. For example:
 
-```json
+```yaml
 - job_name: 'm3'
   static_configs:
     - targets: ['<HOST_NAME>:7203']

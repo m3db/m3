@@ -13,7 +13,7 @@ If migrations are deemed necessary, the bootstrap process pauses until the migra
 ## Enabling Migrations
 Migrations are enabled by setting the following fields in the M3 configuration (`m3dbnode.yml`):
 
-```
+```yaml
 db:
   bootstrap:
     fs:

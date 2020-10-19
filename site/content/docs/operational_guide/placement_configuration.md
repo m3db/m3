@@ -86,7 +86,7 @@ Additionally, the following headers can be used in the placement operations:
 
 Send a POST request to the `/api/v1/services/m3db/placement/init` endpoint
 
-```bash
+```shell
 curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
     "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
     "replication_factor": <DESIRED_REPLICATION_FACTOR>(recommended 3),
@@ -126,7 +126,7 @@ curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
 
 Send a POST request to the `/api/v1/services/m3db/placement` endpoint
 
-```bash
+```shell
 curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement -d '{
   "instances": [
     {
@@ -148,7 +148,7 @@ After sending the add command you will need to wait for the M3DB cluster to reac
 
 Send a DELETE request to the `/api/v1/services/m3db/placement/<NODE_ID>` endpoint.
 
-```bash
+```shell
 curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement/<NODE_ID>
 ```
 
@@ -170,7 +170,7 @@ cluster members in `etcdctl member list` must match _exactly_ the list in config
 
 Send a POST request to the `/api/v1/services/m3db/placement/replace` endpoint containing hosts to replace and candidates to replace it with.
 
-```bash
+```shell
 curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement/replace -d '{
     "leavingInstanceIDs": ["<OLD_NODE_ID>"],
     "candidates": [
@@ -268,7 +268,7 @@ complete placement information needs to be passed into the body of the request. 
 is to get the existing placement using `/api/v1/placement` and modify that (as the `placement` field) along 
 with two additional fields -- `version` and `confirm`. Please see below for a full example:
 
-```bash
+```shell
 curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
   "placement": {
     "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
@@ -310,7 +310,7 @@ curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
 
 **Note:** The `set` endpoint can also be used to set the placements in `M3Aggregator` and `M3Coordinator` using the following endpoints, respectively:
 
-```bash
+```shell
 /api/v1/m3aggregator/set
 /api/v1/m3coordinator/set
 ```

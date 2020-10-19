@@ -158,7 +158,7 @@ Once the cluster is recovered, the value should be deleted from etcd to revert t
 
 Examples:
 
-```bash
+```shell
 # On Linux, using a recent bash, update the value for env=default_env
 <<<ChF1bnN0cmljdF9tYWpvcml0eQ== base64 -d | env ETCDCTL_API=3 etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
 

@@ -81,7 +81,7 @@ The following features are currently not supported:
 
 While M3DB supports schemas that contain nested messages, repeated fields, and map fields, currently it can only effectively compress top level scalar fields. For example, M3DB can compress every field in the following schema:
 
-```Protobuf
+```protobuf
 syntax = "proto3";
 
 message VehicleLocation {
@@ -94,7 +94,7 @@ message VehicleLocation {
 
 however, it will not apply any form of compression to the `attributes` field in this schema:
 
-```Protobuf
+```protobuf
 syntax = "proto3";
 
 message VehicleLocation {

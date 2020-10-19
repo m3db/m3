@@ -56,7 +56,7 @@ Note: keep this example similar to the one found in query API
 documentation for consistency/ease of readers.
 -->
 
-```bash
+```shell
 docker run -it --rm                                            \
   quay.io/m3db/prometheus_remote_client_golang:latest          \
   -u http://host.docker.internal:7201/api/v1/prom/remote/write \

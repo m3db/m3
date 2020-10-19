@@ -35,7 +35,7 @@ spec:
 
 3. Once updated, apply the updated manifest and a rolling restart will be performed. You must wait until the `StatefulSet` is entirely upgraded and bootstrapped (as per the M3DB Node Details dashboard) before proceeding to the next `StatefulSet` otherwise multiple replicas will be unavailable at once.
 
-```bash
+```shell
 kubectl apply -f <m3dbnode_manifest>
 ```
 
@@ -62,13 +62,13 @@ It is very important that for each replica set, only one node gets upgraded at a
 
 1) Download new binary (linux example below).
 
-```bash
+```shell
 wget "https://github.com/m3db/m3/releases/download/v$VERSION/m3_$VERSION_linux_amd64.tar.gz" && tar xvzf m3_$VERSION_linux_amd64.tar.gz && rm m3_$VERSION_linux_amd64.tar.gz
 ```
 
 2) Stop and upgrade one M3DB node at a time per replica set using the [systemd unit](https://github.com/m3db/m3/blob/master/integrations/systemd/m3dbnode.service).
 
-```bash
+```shell
 # stop m3dbnode
 sudo systemctl stop m3dbnode
 
@@ -78,7 +78,7 @@ sudo systemctl start m3dbnode
 
 *Note:* If unable to stop `m3dbnode` using `systemctl`, use `pkill` instead.
 
-```bash
+```shell
 # stop m3dbnode
 pkill m3dbnode
 
