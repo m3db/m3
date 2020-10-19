@@ -185,6 +185,9 @@ func Count(ctx *Context, seriesList ts.SeriesList, renamer SeriesListRenamer) (t
 func ParseInterval(fullInterval string) (time.Duration, error) {
 	allIntervals := reInterval.FindAllString(fullInterval, -1)
 	output := time.Duration(0)
+	if allIntervals == nil {
+		return 0, errors.NewInvalidParamsError(fmt.Errorf("Unrecognized interval string: %s", fullInterval))
+	}
 	for _, interval := range allIntervals {
 		if m := reInterval.FindStringSubmatch(strings.TrimSpace(interval)); len(m) != 0 {
 			amount, err := strconv.ParseInt(m[1], 10, 32)
