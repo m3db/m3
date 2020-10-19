@@ -410,6 +410,18 @@ func (s *dbShard) StreamIndexChecksum(
 		blockStart, nsCtx)
 }
 
+// StreamIndexChecksum implements series.QueryableBlockRetriever
+func (s *dbShard) StreamReadMismatches(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatch, error) {
+	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
+		mismatchChecker, id, blockStart, nsCtx)
+}
+
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) (bool, error) {
 	return s.hasWarmFlushed(blockStart)
@@ -1159,17 +1171,17 @@ func (s *dbShard) FetchIndexChecksum(
 	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
 }
 
-func (s *dbShard) FetchReadMismatches(
+func (s *dbShard) FetchReadMismatch(
 	ctx context.Context,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (wide.StreamedMismatchBatch, error) {
+) (wide.StreamedMismatch, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchReadMismatches(ctx, batchReader, blockStart, nsCtx)
+	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

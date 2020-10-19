@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 	xhash "github.com/m3db/m3/src/x/test/hash"
 
 	"github.com/stretchr/testify/assert"
@@ -91,18 +92,21 @@ var (
 		EncodedTags: []byte("testLogMetadataTags"),
 	}
 
-	testIndexCheksumEntry = schema.IndexEntry{
-		Index:         234,
-		ID:            []byte("test100"),
-		Size:          5456,
-		Offset:        2390423,
-		DataChecksum:  50,
-		IndexChecksum: testIndexEntryChecksum,
-		EncodedTags:   []byte("2000"),
-	}
-
 	// NB: 100 is the expected hash for checksums of `testIndexCheksumEntry`
-	testIndexHashValue = int64(100)
+	testMetadataChecksum = int64(100)
+
+	testIndexCheksumEntry = schema.IndexChecksum{
+		IndexEntry: schema.IndexEntry{
+			Index:         234,
+			ID:            []byte("test100"),
+			Size:          5456,
+			Offset:        2390423,
+			DataChecksum:  134245634534,
+			IndexChecksum: 631574095,
+			EncodedTags:   []byte("2000"),
+		},
+		MetadataChecksum: testMetadataChecksum,
+	}
 )
 
 func TestIndexInfoRoundtrip(t *testing.T) {
@@ -407,11 +411,12 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 	)
 	pool.Init()
 
-	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	checksum, _, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, pool)
 	require.NoError(t, err)
-	require.Equal(t, testIndexHashValue, checksum)
+	require.Equal(t, testIndexCheksumEntry.IndexEntry, checksum.IndexEntry)
+	require.Equal(t, testIndexCheksumEntry.MetadataChecksum, checksum.MetadataChecksum)
 }
 
 func TestIndexEntryIntoIndexChecksumRoundtripWithoutBytesPool(t *testing.T) {
@@ -420,15 +425,19 @@ func TestIndexEntryIntoIndexChecksumRoundtripWithoutBytesPool(t *testing.T) {
 		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
 	)
 
-	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	checksum, _, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexHashValue, checksum)
+	require.Equal(t, testIndexCheksumEntry.IndexEntry, checksum.IndexEntry)
+	require.Equal(t, testIndexCheksumEntry.MetadataChecksum, checksum.MetadataChecksum)
 }
 
 // Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		opts = LegacyEncodingOptions{
 			EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
@@ -449,25 +458,33 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 		testIndexCheksumEntry.EncodedTags = currEncodedTags
 	}()
 
-	enc.EncodeIndexEntry(testIndexCheksumEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry)
 	bytes := enc.Bytes()
 	cloned := append(make([]byte, 0, len(bytes)), bytes...)
 	dec.Reset(NewByteDecoderStream(bytes))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexCheksumEntry
+	expected := testIndexCheksumEntry.IndexEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
+	// Index Checksum decoding should fail since it requires tags for now.
 	dec.Reset(NewByteDecoderStream(cloned))
-	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
-	require.NoError(t, err)
-	assert.Equal(t, Match, status)
-	assert.Equal(t, testIndexHashValue, chk)
+	pool := pool.NewMockBytesPool(ctrl)
+	idLength := len(testIndexCheksumEntry.ID)
+	idBytes := make([]byte, idLength)
+	pool.EXPECT().Get(idLength).Return(idBytes)
+	pool.EXPECT().Put(idBytes)
+	_, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, pool)
+	require.Error(t, err)
+	assert.Equal(t, ErrorLookupStatus, status)
 }
 
 // Make sure the V1 decoder code can handle the V3 file format.
 func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		opts = LegacyEncodingOptions{
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
@@ -480,11 +497,11 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	// because the old decoder won't read the new fields.
 	currEncodedTags := testIndexCheksumEntry.EncodedTags
 
-	enc.EncodeIndexEntry(testIndexCheksumEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry)
 
 	// Make sure to zero them before we compare, but after we have
 	// encoded the data.
-	expected := testIndexCheksumEntry
+	expected := testIndexCheksumEntry.IndexEntry
 	expected.EncodedTags = nil
 	defer func() {
 		expected.EncodedTags = currEncodedTags
@@ -498,10 +515,14 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
-	require.NoError(t, err)
-	assert.Equal(t, Match, status)
-	assert.Equal(t, testIndexHashValue, chk)
+	pool := pool.NewMockBytesPool(ctrl)
+	idLength := len(testIndexCheksumEntry.ID)
+	idBytes := make([]byte, idLength)
+	pool.EXPECT().Get(idLength).Return(idBytes)
+	pool.EXPECT().Put(idBytes)
+	_, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, pool)
+	require.Error(t, err)
+	assert.Equal(t, ErrorLookupStatus, status)
 }
 
 // Make sure the V3 decoding code can handle the V2 file format.
@@ -517,19 +538,23 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testIndexCheksumEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexCheksumEntry
+	expected := testIndexCheksumEntry.IndexEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
 	require.NoError(t, err)
-	assert.Equal(t, Match, status)
-	assert.Equal(t, testIndexHashValue, chk) // NB: tags present.
+	assert.Equal(t, MatchedLookupStatus, status)
+	ex := testIndexCheksumEntry.IndexEntry
+	// This file version does not have an IndexChecksum field.
+	ex.IndexChecksum = 0
+	require.Equal(t, ex, chk.IndexEntry)
+	require.Equal(t, testIndexCheksumEntry.MetadataChecksum, chk.MetadataChecksum)
 }
 
 // Make sure the V2 decoder code can handle the V3 file format.
@@ -544,19 +569,23 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testIndexCheksumEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexCheksumEntry
+	expected := testIndexCheksumEntry.IndexEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
 	require.NoError(t, err)
-	assert.Equal(t, Match, status)
-	assert.Equal(t, testIndexHashValue, chk) // NB: tags present.
+	assert.Equal(t, MatchedLookupStatus, status)
+	ex := testIndexCheksumEntry.IndexEntry
+	// This file version does not have an IndexChecksum field.
+	ex.IndexChecksum = 0
+	require.Equal(t, ex, chk.IndexEntry)
+	require.Equal(t, testIndexCheksumEntry.MetadataChecksum, chk.MetadataChecksum)
 }
 
 func TestIndexSummaryRoundtrip(t *testing.T) {
@@ -653,8 +682,8 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 			require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
 			expected = append(expected, testLogMetadata)
 		case 5:
-			require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
-			expected = append(expected, testIndexHashValue)
+			require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
+			expected = append(expected, testMetadataChecksum)
 		}
 	}
 
@@ -672,9 +701,13 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		case 4:
 			res, err = dec.DecodeLogMetadata()
 		case 5:
-			var s IndexChecksumLookupStatus
-			res, s, err = dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
-			assert.Equal(t, s, Match)
+			var (
+				r schema.IndexChecksum
+				s IndexChecksumLookupStatus
+			)
+			r, s, err = dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
+			assert.Equal(t, s, MatchedLookupStatus)
+			res = r.MetadataChecksum
 		}
 		require.NoError(t, err)
 		output = append(output, res)

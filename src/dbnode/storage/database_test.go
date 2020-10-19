@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -328,14 +329,18 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 
 	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
+		Return(
+			xio.IndexChecksum{
+				ID:               ident.StringID("foo"),
+				MetadataChecksum: 5,
+			}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithID, nil)
 
 	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
 	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(ident.IndexChecksum{Checksum: 7}, nil)
+		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
 	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
 		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
@@ -344,15 +349,15 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	require.NoError(t, err)
 	checksum, err := res.RetrieveIndexChecksum()
 	require.NoError(t, err)
-	assert.Equal(t, "foo", string(checksum.ID))
-	assert.Equal(t, 5, int(checksum.Checksum))
+	assert.Equal(t, "foo", checksum.ID.String())
+	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
 	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
 	checksum, err = res.RetrieveIndexChecksum()
 	require.NoError(t, err)
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(checksum.ID))
-	assert.Equal(t, 7, int(checksum.Checksum))
+	assert.Nil(t, checksum.ID)
+	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
@@ -973,20 +978,20 @@ func TestReadMismatches(t *testing.T) {
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		batchReader := wide.NewMockIndexChecksumBlockBatchReader(ctrl)
-		ns.EXPECT().FetchReadMismatches(gomock.Any(), batchReader,
+		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
+		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
 			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatchBatch, nil)
+			Return(wide.EmptyStreamedMismatch, nil)
 
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, shards, iterOpts)
+		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
 		require.NoError(t, err)
 
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, batchReader, now, nil, iterOpts)
+		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
 		require.Error(t, err)
 	}
 
 	exSpans := []string{
-		tracepoint.DBFetchMismatches,
+		tracepoint.DBFetchMismatch,
 		tracepoint.DBReadMismatches,
 		tracepoint.DBReadMismatches,
 		"root",
@@ -1048,7 +1053,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
 				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
-				batch.Add(1)
+				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)
 			}()
