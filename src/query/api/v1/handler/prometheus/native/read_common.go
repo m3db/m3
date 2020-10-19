@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -191,7 +192,7 @@ func read(
 
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
-		ctx, cancel := context.WithTimeout(ctx, 0)
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
 		defer func() {
 			fmt.Println("CANCELED", fetchOpts.Timeout)
 			cancel()

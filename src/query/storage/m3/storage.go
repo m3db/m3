@@ -196,6 +196,7 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
+	fmt.Println("FETCH COMP", ctx.Err())
 	queryOptions := storage.FetchOptionsToM3Options(options, query)
 	accumulator, m3query, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
@@ -233,6 +234,7 @@ func (s *m3storage) FetchCompressed(
 		resolutions = append(resolutions, attr.Resolution)
 	}
 
+	fmt.Println("FETCH COMP DONE", ctx.Err())
 	result.Metadata.Resolutions = resolutions
 	return result, accumulator.Close, nil
 }
