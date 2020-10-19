@@ -478,7 +478,7 @@ type databaseNamespace interface {
 // must make sure to release
 type SeriesReadWriteRef struct {
 	// Series reference for read/writing.
-	Series series.DatabaseSeries
+	Series bootstrap.SeriesRef
 	// UniqueIndex is the unique index of the series (as applicable).
 	UniqueIndex uint64
 	// Shard is the shard of the series.
@@ -661,7 +661,6 @@ type databaseShard interface {
 	SeriesReadWriteRef(
 		id ident.ID,
 		tags ident.TagIterator,
-		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
@@ -691,12 +690,6 @@ type ShardSnapshotResult struct {
 // by persisting data and updating shard state/block leases.
 type ShardColdFlush interface {
 	Done() error
-}
-
-// ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
-// for the shard.
-type ShardSeriesReadWriteRefOptions struct {
-	ReverseIndex bool
 }
 
 // NamespaceIndex indexes namespace writes.
