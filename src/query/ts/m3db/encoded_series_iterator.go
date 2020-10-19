@@ -208,3 +208,33 @@ func iteratorBatchingFn(
 
 	return iters, nil
 }
+
+// BlockSeriesProcessor processes blocks.
+type BlockSeriesProcessor interface {
+	Process(bl block.Block, opts Options, fn BlockSeriesProcessorFn) error
+}
+
+// BlockSeriesProcessorFn processes an individual series iterator.
+type BlockSeriesProcessorFn func(
+	iter block.SeriesIter,
+) error
+
+// NewBlockSeriesProcessor creates a standard block processor.
+func NewBlockSeriesProcessor() BlockSeriesProcessor {
+	return seriesBlockProcessor{}
+}
+
+type seriesBlockProcessor struct {
+}
+
+func (p seriesBlockProcessor) Process(
+	bl block.Block,
+	opts Options,
+	fn BlockSeriesProcessorFn,
+) error {
+	iter, err := bl.SeriesIter()
+	if err != nil {
+		return err
+	}
+	return fn(iter)
+}

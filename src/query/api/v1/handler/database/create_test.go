@@ -183,7 +183,11 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -355,7 +359,11 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -480,7 +488,11 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -610,7 +622,11 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -870,7 +886,11 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -1023,7 +1043,11 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -1236,7 +1260,11 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					},
 					"testAggregatedNamespace": {
 						"aggregationOptions": {
@@ -1274,7 +1302,11 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}

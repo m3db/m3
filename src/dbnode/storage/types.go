@@ -25,12 +25,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -63,6 +65,9 @@ type PageToken []byte
 type IndexedErrorHandler interface {
 	HandleError(index int, err error)
 }
+
+// IDBatchProcessor is a function that processes a batch.
+type IDBatchProcessor func(batch *ident.IDBatch) error
 
 // Database is a time series database.
 type Database interface {
@@ -162,13 +167,36 @@ type Database interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// ReadEncoded retrieves encoded segments for an ID
+	// ReadEncoded retrieves encoded segments for an ID.
 	ReadEncoded(
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// WideQuery performs a wide blockwise query that provides batched results
+	// that can exceed query limits.
+	WideQuery(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		start time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
+	) ([]xio.IndexChecksum, error) // FIXME: change when exact type known.
+
+	// ReadMismatches performs a wide blockwise query that applies a received
+	// index checksum block batch.
+	ReadMismatches(
+		ctx context.Context,
+		namespace ident.ID,
+		query index.Query,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		queryStart time.Time,
+		shards []uint32,
+		iterOpts index.IterationOptions,
+	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -325,6 +353,14 @@ type databaseNamespace interface {
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
 
+	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
 		ctx context.Context,
@@ -338,6 +374,23 @@ type databaseNamespace interface {
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// FetchIndexChecksum retrieves the index checksum for an ID for the
+	// block at time start.
+	FetchIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+	) (block.StreamedChecksum, error)
+
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatch(
+		ctx context.Context,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -415,11 +468,7 @@ type databaseNamespace interface {
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 
 	// AggregateTiles does large tile aggregation from source namespace into this namespace.
-	AggregateTiles(
-		ctx context.Context,
-		sourceNs databaseNamespace,
-		opts AggregateTilesOptions,
-	) (int64, error)
+	AggregateTiles(sourceNs databaseNamespace, opts AggregateTilesOptions) (int64, error)
 
 	// ReadableShardAt returns a shard of this namespace by shardID.
 	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
@@ -498,6 +547,24 @@ type databaseShard interface {
 		start, end time.Time,
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
+
+	// FetchIndexChecksum retrieves the index checksum for an ID.
+	FetchIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (block.StreamedChecksum, error)
+
+	// FetchReadMismatch retrieves the read mismatches for an ID for the
+	// block at time start, with the given batchReader.
+	FetchReadMismatch(
+		ctx context.Context,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -602,10 +669,10 @@ type databaseShard interface {
 
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
-		ctx context.Context,
 		sourceNsID ident.ID,
 		sourceShardID uint32,
 		blockReaders []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
 		targetSchemaDesc namespace.SchemaDescr,
@@ -665,6 +732,14 @@ type NamespaceIndex interface {
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
 
+	// WideQuery resolves the given query into known IDs.
+	WideQuery(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
 		ctx context.Context,
@@ -672,13 +747,13 @@ type NamespaceIndex interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// Bootstrap bootstraps the index the provided segments.
+	// Bootstrap bootstraps the index with the provided segments.
 	Bootstrap(
 		bootstrapResults result.IndexResults,
 	) error
 
-	// BootstrapsDone returns the number of completed bootstraps.
-	BootstrapsDone() uint
+	// Bootstrapped is true if the bootstrap has completed.
+	Bootstrapped() bool
 
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.
@@ -874,19 +949,24 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseRepairer repairs in-memory database data.
-type databaseRepairer interface {
-	// Start starts the repair process.
+// BackgroundProcess is a background process that is run by the database.
+type BackgroundProcess interface {
+	// Start launches the BackgroundProcess to run asynchronously.
 	Start()
 
-	// Stop stops the repair process.
+	// Stop stops the BackgroundProcess.
 	Stop()
-
-	// Repair repairs in-memory data.
-	Repair() error
 
 	// Report reports runtime information.
 	Report()
+}
+
+// databaseRepairer repairs in-memory database data.
+type databaseRepairer interface {
+	BackgroundProcess
+
+	// Repair repairs in-memory data.
+	Repair() error
 }
 
 // databaseTickManager performs periodic ticking.
@@ -901,6 +981,9 @@ type databaseTickManager interface {
 type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
+
+	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator. Must happen before Open().
+	RegisterBackgroundProcess(process BackgroundProcess) error
 
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
@@ -920,9 +1003,6 @@ type databaseMediator interface {
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// Repair repairs the database.
-	Repair() error
 
 	// Close closes the mediator.
 	Close() error
@@ -1215,11 +1295,29 @@ type Options interface {
 	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
 	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 
-	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	// SetMediatorTickInterval sets the ticking interval for the mediator.
 	SetMediatorTickInterval(value time.Duration) Options
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetAdminClient sets the admin client for the database options.
+	SetAdminClient(value client.AdminClient) Options
+
+	// AdminClient returns the admin client.
+	AdminClient() client.AdminClient
+
+	// SetWideBatchSize sets batch size for wide operations.
+	SetWideBatchSize(value int) Options
+
+	// WideBatchSize returns batch size for wide operations.
+	WideBatchSize() int
+
+	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
+	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options
+
+	// BackgroundProcessFns returns the list of functions that create background processes for the database.
+	BackgroundProcessFns() []NewBackgroundProcessFn
 
 	// SetNamespaceHooks sets the NamespaceHooks.
 	SetNamespaceHooks(hooks NamespaceHooks) Options
@@ -1285,15 +1383,15 @@ type newFSMergeWithMemFn func(
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
 
+// NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
+type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
+
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
-	Start, End          time.Time
+	Start, End time.Time
 	// Step is the downsampling step.
-	Step                time.Duration
-	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
-	// TODO: remove once we have metrics type stored in the metadata.
-	HandleCounterResets bool
+	Step time.Duration
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
@@ -1302,4 +1400,5 @@ type NamespaceHooks interface {
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
-type GetNamespaceFn func (k ident.ID) (databaseNamespace, bool)
+// GetNamespaceFn will return a namespace for a given ID if present.
+type GetNamespaceFn func(id ident.ID) (Namespace, bool)

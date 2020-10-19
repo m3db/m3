@@ -160,7 +160,7 @@ func TestResultSetUnfulfilled(t *testing.T) {
 
 func TestShardResultIsEmpty(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), time.Hour, ts.Segment{}, namespace.Context{})
@@ -171,7 +171,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 
 func TestShardResultAddBlock(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	start := time.Now()
 	inputs := []struct {
 		id        string
@@ -199,7 +199,7 @@ func TestShardResultAddBlock(t *testing.T) {
 
 func TestShardResultAddSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	start := time.Now()
 	inputs := []struct {
 		id     string
@@ -229,10 +229,10 @@ func TestShardResultAddSeries(t *testing.T) {
 
 func TestShardResultAddResult(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
-	other := NewShardResult(0, opts)
+	other := NewShardResult(opts)
 	other.AddSeries(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "foe")), block.NewDatabaseSeriesBlocks(0))
 	other.AddSeries(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "baz")), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
@@ -241,10 +241,10 @@ func TestShardResultAddResult(t *testing.T) {
 
 func TestShardResultNumSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
-	other := NewShardResult(0, opts)
+	other := NewShardResult(opts)
 	other.AddSeries(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "foe")), block.NewDatabaseSeriesBlocks(0))
 	other.AddSeries(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "baz")), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
@@ -253,7 +253,7 @@ func TestShardResultNumSeries(t *testing.T) {
 
 func TestShardResultRemoveSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	inputs := []struct {
 		id     string
 		tags   ident.Tags
@@ -423,7 +423,7 @@ func TestEstimateMapBytesSize(t *testing.T) {
 		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blopts, namespace.Context{}),
 	}
 
-	sr := NewShardResult(0, opts)
+	sr := NewShardResult(opts)
 	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
 	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
 

@@ -28,6 +28,8 @@ import (
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 // Options controls namespace behavior
@@ -112,11 +114,23 @@ type Options interface {
 	// RuntimeOptions returns the RuntimeOptions.
 	RuntimeOptions() RuntimeOptions
 
+	// SetExtendedOptions sets the ExtendedOptions.
+	SetExtendedOptions(value ExtendedOptions) Options
+
+	// ExtendedOptions returns the dynamically typed ExtendedOptions (requires type check on access).
+	ExtendedOptions() ExtendedOptions
+
 	// SetAggregationOptions sets the aggregation-related options for this namespace.
 	SetAggregationOptions(value AggregationOptions) Options
 
 	// AggregationOptions returns the aggregation-related options for this namespace.
 	AggregationOptions() AggregationOptions
+
+	// SetStagingState sets the state related to a namespace's availability for use.
+	SetStagingState(value StagingState) Options
+
+	// StagingState returns the state related to a namespace's availability for use.
+	StagingState() StagingState
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -300,6 +314,15 @@ type NamespaceWatch interface {
 // NamespaceUpdater is a namespace updater function.
 type NamespaceUpdater func(Map) error
 
+// ExtendedOptions is the type for dynamically typed options.
+type ExtendedOptions interface {
+	// ToProto converts ExtendedOptions to the corresponding protobuf message.
+	ToProto() (msg proto.Message, typeURLPrefix string)
+
+	// Validate validates the ExtendedOptions.
+	Validate() error
+}
+
 // AggregationOptions is a set of options for aggregating data
 // within the namespace.
 type AggregationOptions interface {
@@ -339,4 +362,24 @@ type DownsampleOptions struct {
 	// case, data will need to be sent to the namespace via another mechanism
 	// (e.g. rollup/recording rules).
 	All bool
+}
+
+// StagingStatus is the status of the namespace.
+type StagingStatus uint8
+
+const (
+	// UnknownStagingStatus represents an unknown staging status.
+	// Namespaces created before StagingState was added to the namespace API
+	// will return UnknownStagingStatus. Callers should be prepared to handle this case.
+	UnknownStagingStatus StagingStatus = iota
+	// InitializingStagingStatus means the namespace is in the process of coming online for use.
+	InitializingStagingStatus
+	// ReadyStagingStatus means the namespace is ready for use.
+	ReadyStagingStatus
+)
+
+var validStagingStatuses = []StagingStatus{
+	UnknownStagingStatus,
+	InitializingStagingStatus,
+	ReadyStagingStatus,
 }

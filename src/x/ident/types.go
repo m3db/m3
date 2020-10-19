@@ -23,6 +23,7 @@ package ident
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -309,4 +310,27 @@ func (t Tags) Equal(other Tags) bool {
 		}
 	}
 	return true
+}
+
+// IDBatch is a batch of IDs that is consumed asynchronously.
+type IDBatch struct {
+	wg sync.WaitGroup
+
+	// IDs are the IDs for the batch.
+	IDs []ID
+}
+
+// ReadyForProcessing indicates this batch is ready for processing.
+func (b *IDBatch) ReadyForProcessing() {
+	b.wg.Add(1)
+}
+
+// WaitUntilProcessed waits until the batch has been processed.
+func (b *IDBatch) WaitUntilProcessed() {
+	b.wg.Wait()
+}
+
+// Processed indicates that this batch has finished processing.
+func (b *IDBatch) Processed() {
+	b.wg.Done()
 }

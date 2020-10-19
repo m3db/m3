@@ -39,8 +39,10 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/prometheus/prometheus/promql"
 )
 
@@ -206,6 +208,17 @@ type HandlerOptions interface {
 	GraphiteStorageOptions() graphite.M3WrappedStorageOptions
 	// SetGraphiteStorageOptions sets the Graphite storage options.
 	SetGraphiteStorageOptions(value graphite.M3WrappedStorageOptions) HandlerOptions
+
+	// SetM3DBOptions sets the M3DB options.
+	SetM3DBOptions(value m3db.Options) HandlerOptions
+	// M3DBOptions returns the M3DB options.
+	M3DBOptions() m3db.Options
+
+	// SetStoreMetricsType enables/disables storing of metrics type.
+	SetStoreMetricsType(value bool) HandlerOptions
+
+	// StoreMetricsType returns true if storing of metrics type is enabled.
+	StoreMetricsType() bool
 }
 
 // HandlerOptions represents handler options.
@@ -233,6 +246,8 @@ type handlerOptions struct {
 	queryRouter           QueryRouter
 	instantQueryRouter    QueryRouter
 	graphiteStorageOpts   graphite.M3WrappedStorageOptions
+	m3dbOpts              m3db.Options
+	storeMetricsType      bool
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -240,6 +255,7 @@ func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
+		m3dbOpts:       m3db.NewOptions(),
 	}
 }
 
@@ -263,12 +279,18 @@ func NewHandlerOptions(
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
+	m3dbOpts m3db.Options,
 ) (HandlerOptions, error) {
 	timeout := cfg.Query.TimeoutOrDefault()
 	if embeddedDbCfg != nil &&
 		embeddedDbCfg.Client.FetchTimeout != nil &&
 		*embeddedDbCfg.Client.FetchTimeout > timeout {
 		timeout = *embeddedDbCfg.Client.FetchTimeout
+	}
+
+	storeMetricsType := false
+	if cfg.StoreMetricsType != nil {
+		storeMetricsType = *cfg.StoreMetricsType
 	}
 
 	return &handlerOptions{
@@ -297,6 +319,8 @@ func NewHandlerOptions(
 		queryRouter:         queryRouter,
 		instantQueryRouter:  instantQueryRouter,
 		graphiteStorageOpts: graphiteStorageOpts,
+		m3dbOpts:            m3dbOpts,
+		storeMetricsType:    storeMetricsType,
 	}, nil
 }
 
@@ -547,4 +571,24 @@ func (o *handlerOptions) SetGraphiteStorageOptions(value graphite.M3WrappedStora
 	opts := *o
 	opts.graphiteStorageOpts = value
 	return &opts
+}
+
+func (o *handlerOptions) SetM3DBOptions(value m3db.Options) HandlerOptions {
+	opts := *o
+	opts.m3dbOpts = value
+	return &opts
+}
+
+func (o *handlerOptions) M3DBOptions() m3db.Options {
+	return o.m3dbOpts
+}
+
+func (o *handlerOptions) SetStoreMetricsType(value bool) HandlerOptions {
+	opts := *o
+	opts.storeMetricsType = value
+	return &opts
+}
+
+func (o *handlerOptions) StoreMetricsType() bool {
+	return o.storeMetricsType
 }

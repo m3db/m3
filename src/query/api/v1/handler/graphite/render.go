@@ -57,6 +57,7 @@ var (
 type renderHandler struct {
 	engine           *native.Engine
 	queryContextOpts models.QueryContextOptions
+	graphiteOpts     graphite.M3WrappedStorageOptions
 }
 
 type respError struct {
@@ -67,10 +68,11 @@ type respError struct {
 // NewRenderHandler returns a new render handler around the given storage.
 func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
-		opts.Enforcer(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
+		opts.Enforcer(), opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &renderHandler{
 		engine:           native.NewEngine(wrappedStore),
 		queryContextOpts: opts.QueryContextOptions(),
+		graphiteOpts:     opts.GraphiteStorageOptions(),
 	}
 }
 
@@ -207,6 +209,8 @@ func (h *renderHandler) serveHTTP(
 	}
 
 	handleroptions.AddWarningHeaders(w, meta)
-	err = WriteRenderResponse(w, response, p.Format)
+	err = WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
+		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,
+	})
 	return respError{err: err, code: http.StatusOK}
 }

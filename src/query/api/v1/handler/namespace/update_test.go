@@ -62,6 +62,10 @@ const (
 						}
 					}
 				]
+			},
+			"extendedOptions": {
+				"@type": "testm3db.io/m3.test.PingResponse",
+				"Value": "bar"
 			}
 		}
 }
@@ -112,6 +116,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSON))
 	require.NotNil(t, req)
 
+	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
+	require.NoError(t, err)
+
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"testNamespace": {
@@ -130,6 +137,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				ExtendedOptions: extendedOpts,
 			},
 		},
 	}
@@ -189,7 +197,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 							"writeIndexingPerCPUConcurrency": 16,
 						},
 						"schemaOptions":     nil,
+						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("bar"),
 					},
 				},
 			},
@@ -245,7 +255,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						},
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
+						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},

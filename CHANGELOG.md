@@ -1,5 +1,37 @@
 # Changelog
 
+# 0.15.17
+
+## Features 
+- **M3Query**: Add aggregate Graphite function ([#2584](https://github.com/m3db/m3/pull/2584))
+- **M3Query**: Add applyByNode Graphite function ([#2654](https://github.com/m3db/m3/pull/2654)) 
+- **M3Query**: Graphite ParseTime function support greatly expanded to be more in line with Graphite allowances ([#2621](https://github.com/m3db/m3/pull/2621)) 
+
+## Bug Fixes
+
+- **M3Aggregator**: Add default m3msg write timeouts to mitigate deadlocking writes with a stale TCP connection ([#2698](https://github.com/m3db/m3/pull/2698))
+- **M3DB**: Fix a bug in bootstrap index caching that would cause long bootstrap times ([#2703](https://github.com/m3db/m3/pull/2703))
+- **M3Query**: Fix Graphite constantLine() function to return 3 steps ([#2699](https://github.com/m3db/m3/pull/2699))
+- **M3Query**: Fix Graphite limit snapping bug in movingAverage and movingMedian functions ([#2694](https://github.com/m3db/m3/pull/2694))
+
+# 0.15.16
+
+## Features
+
+- **M3Query**: Add divideSeriesLists Graphite function ([#2585](https://github.com/m3db/m3/pull/2585))
+- **M3Query**: Add integralByInterval Graphite function ([#2596](https://github.com/m3db/m3/pull/2596))
+- **M3Query**: Add highest, lowest Graphite functions ([#2623](https://github.com/m3db/m3/pull/2623))
+- **M3Query**: Add resolution exceeds query range warning ([#2429](https://github.com/m3db/m3/pull/2429))
+
+## Documentation
+
+- **M3Coordinator**: Added OpenAPI specification for namespace update endpoint ([#2629](https://github.com/m3db/m3/pull/2629))
+
+## Misc
+
+- **M3Coordinator**: Add config option for writes to leaving shards to count towards consistency and read level unstrict all ([#2687](https://github.com/m3db/m3/pull/2687))
+- **All**: Upgrade TChannel to v1.14 ([#2659](https://github.com/m3db/m3/pull/2659))
+
 # 0.15.15
 
 ## Features

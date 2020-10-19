@@ -251,26 +251,17 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 
 func resolveEncodedTagsNameTag(
 	id []byte,
-	iterPool serialize.MetricTagsIteratorPool,
 	nameTag []byte,
 ) ([]byte, error) {
-	// ID is always the encoded tags for downsampling IDs
-	iter := iterPool.Get()
-	iter.Reset(id)
-	defer iter.Close()
-
-	value, ok := iter.TagValue(nameTag)
+	value, ok, err := serialize.TagValueFromEncodedTagsFast(id, nameTag)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
-		// No name was found in encoded tags
+		// No name was found in encoded tags.
 		return nil, errNoMetricNameTag
 	}
 
-	idx := bytes.Index(id, value)
-	if idx == -1 {
-		return nil, fmt.Errorf(
-			"resolved metric name tag value not found in ID: %v", value)
-	}
-
-	// Return original reference to avoid needing to return a copy
-	return id[idx : idx+len(value)], nil
+	// Return original reference to avoid needing to return a copy.
+	return value, nil
 }

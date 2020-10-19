@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -123,9 +124,13 @@ func main() {
 		data.IncRef()
 		iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
 		for iter.Next() {
-			dp, _, _ := iter.Current()
+			dp, _, annotation := iter.Current()
 			// Use fmt package so it goes to stdout instead of stderr
-			fmt.Printf("{id: %s, dp: %+v}\n", id.String(), dp)
+			fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
+			if len(annotation) > 0 {
+				fmt.Printf(", annotation: %s", hex.EncodeToString(annotation))
+			}
+			fmt.Println("}")
 		}
 		if err := iter.Err(); err != nil {
 			log.Fatalf("unable to iterate original data: %v", err)

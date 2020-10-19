@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -147,6 +148,36 @@ func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg
 func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksMetadata), arg0, arg1, arg2, arg3)
+}
+
+// FetchIndexChecksum mocks base method
+func (m *MockDatabaseSeries) FetchIndexChecksum(arg0 context.Context, arg1 time.Time, arg2 namespace.Context) (block.StreamedChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchIndexChecksum", arg0, arg1, arg2)
+	ret0, _ := ret[0].(block.StreamedChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
+func (mr *MockDatabaseSeriesMockRecorder) FetchIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchIndexChecksum), arg0, arg1, arg2)
+}
+
+// FetchReadMismatch mocks base method
+func (m *MockDatabaseSeries) FetchReadMismatch(arg0 context.Context, arg1 wide.EntryChecksumMismatchChecker, arg2 time.Time, arg3 namespace.Context) (wide.StreamedMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchReadMismatch", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(wide.StreamedMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchReadMismatch indicates an expected call of FetchReadMismatch
+func (mr *MockDatabaseSeriesMockRecorder) FetchReadMismatch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatch", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchReadMismatch), arg0, arg1, arg2, arg3)
 }
 
 // ID mocks base method
@@ -439,4 +470,34 @@ func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID
 func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
+}
+
+// StreamIndexChecksum mocks base method
+func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 namespace.Context) (block.StreamedChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(block.StreamedChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamIndexChecksum(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamIndexChecksum), arg0, arg1, arg2, arg3)
+}
+
+// StreamReadMismatches mocks base method
+func (m *MockQueryableBlockRetriever) StreamReadMismatches(arg0 context.Context, arg1 wide.EntryChecksumMismatchChecker, arg2 ident.ID, arg3 time.Time, arg4 namespace.Context) (wide.StreamedMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamReadMismatches", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(wide.StreamedMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamReadMismatches indicates an expected call of StreamReadMismatches
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamReadMismatches(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamReadMismatches", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamReadMismatches), arg0, arg1, arg2, arg3, arg4)
 }

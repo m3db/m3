@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -8,7 +8,7 @@
 // furnished to do so, subject to the following conditions:
 //
 // The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// all copies or substantial portions of the Software
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -16,42 +16,34 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// THE SOFTWARE
 
-// Package pprof provides a function for registering a HTTP handler for pprof
-// endpoints.
-package pprof
+package wide
 
 import (
-	"net/http"
-	"net/http/pprof"
-	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	pprofPath = "/debug/pprof/"
-)
-
-// RegisterHandler registers the pprof handler with the given http mux.
-func RegisterHandler(mux *http.ServeMux) {
-	mux.Handle(pprofPath, handler())
-}
-
-func handler() http.Handler {
-	h := func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(r.URL.Path, pprofPath)
-		switch name {
-		case "cmdline":
-			pprof.Cmdline(w, r)
-		case "profile":
-			pprof.Profile(w, r)
-		case "symbol":
-			pprof.Symbol(w, r)
-		case "trace":
-			pprof.Trace(w, r)
-		default:
-			pprof.Index(w, r)
-		}
+func TestIndexChecksumBlockBatchReader(t *testing.T) {
+	ch := make(chan IndexChecksumBlockBatch)
+	buf := NewIndexChecksumBlockBatchReader(ch)
+	bl := IndexChecksumBlockBatch{EndMarker: []byte("foo")}
+	bl2 := IndexChecksumBlockBatch{
+		Checksums: []int64{1, 2, 3},
+		EndMarker: []byte("bar"),
 	}
-	return http.HandlerFunc(h)
+
+	go func() {
+		ch <- bl
+		ch <- bl2
+		close(ch)
+	}()
+
+	assert.True(t, buf.Next())
+	assert.Equal(t, bl, buf.Current())
+	assert.True(t, buf.Next())
+	assert.Equal(t, bl2, buf.Current())
+	assert.False(t, buf.Next())
 }

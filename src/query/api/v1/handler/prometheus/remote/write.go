@@ -99,6 +99,7 @@ var (
 type PromWriteHandler struct {
 	downsamplerAndWriter   ingest.DownsamplerAndWriter
 	tagOptions             models.TagOptions
+	storeMetricsType       bool
 	forwarding             handleroptions.PromWriteHandlerForwardingOptions
 	forwardTimeout         time.Duration
 	forwardHTTPClient      *http.Client
@@ -168,6 +169,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
+		storeMetricsType:       options.StoreMetricsType(),
 		forwarding:             forwarding,
 		forwardTimeout:         forwardTimeout,
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
@@ -491,7 +493,7 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter, err := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter, err := newPromTSIter(r.Timeseries, h.tagOptions, h.storeMetricsType)
 	if err != nil {
 		var errs xerrors.MultiError
 		return errs.Add(err)
@@ -553,7 +555,11 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*promTSIter, error) {
+func newPromTSIter(
+	timeseries []prompb.TimeSeries,
+	tagOpts models.TagOptions,
+	storeMetricsType bool,
+) (*promTSIter, error) {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
@@ -581,24 +587,57 @@ func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*
 	}
 
 	return &promTSIter{
-		attributes: seriesAttributes,
-		idx:        -1,
-		tags:       tags,
-		datapoints: datapoints,
+		attributes:       seriesAttributes,
+		idx:              -1,
+		tags:             tags,
+		datapoints:       datapoints,
+		storeMetricsType: storeMetricsType,
 	}, nil
 }
 
 type promTSIter struct {
 	idx        int
+	err        error
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 	metadatas  []ts.Metadata
+	annotation []byte
+
+	storeMetricsType bool
 }
 
 func (i *promTSIter) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
 	i.idx++
-	return i.idx < len(i.tags)
+	if i.idx >= len(i.tags) {
+		return false
+	}
+
+	if !i.storeMetricsType {
+		return true
+	}
+
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	i.annotation, err = annotationPayload.Marshal()
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	if len(i.annotation) == 0 {
+		i.annotation = nil
+	}
+
+	return true
 }
 
 func (i *promTSIter) Current() ingest.IterValue {
@@ -611,6 +650,7 @@ func (i *promTSIter) Current() ingest.IterValue {
 		Datapoints: i.datapoints[i.idx],
 		Attributes: i.attributes[i.idx],
 		Unit:       xtime.Millisecond,
+		Annotation: i.annotation,
 	}
 	if i.idx < len(i.metadatas) {
 		value.Metadata = i.metadatas[i.idx]
@@ -620,11 +660,14 @@ func (i *promTSIter) Current() ingest.IterValue {
 
 func (i *promTSIter) Reset() error {
 	i.idx = -1
+	i.err = nil
+	i.annotation = nil
+
 	return nil
 }
 
 func (i *promTSIter) Error() error {
-	return nil
+	return i.err
 }
 
 func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {

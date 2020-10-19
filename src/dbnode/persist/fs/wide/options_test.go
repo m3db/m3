@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pprof
+package wide
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestHandler(t *testing.T) {
-	s := httptest.NewServer(handler())
-	url := s.URL + pprofPath
-	defer s.Close()
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	assert.Error(t, opts.Validate())
 
-	for _, endpoint := range []string{
-		"",
-		"cmdline",
-		"symbol",
-		"profile?seconds=1",
-		"trace?seconds=1",
-		"goroutine?debug=2",
-	} {
-		resp, err := http.Get(url + endpoint)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	}
+	decOpts := msgpack.NewDecodingOptions()
+	opts = opts.SetDecodingOptions(decOpts)
+	assert.Equal(t, decOpts, opts.DecodingOptions())
+	assert.NoError(t, opts.Validate())
+
+	opts = opts.SetBatchSize(-1)
+	assert.Error(t, opts.Validate())
+
+	opts = opts.SetBatchSize(100)
+	assert.Equal(t, 100, opts.BatchSize())
 }
