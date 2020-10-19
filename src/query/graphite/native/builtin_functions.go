@@ -884,10 +884,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 					}
 				}
 
-				// func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
-				//if num > 0 && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
-
-				if num > 0 && effectiveXFF(windowPoints, nans, xFilesFactor) {
+				if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
