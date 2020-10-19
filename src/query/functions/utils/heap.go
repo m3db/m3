@@ -22,6 +22,7 @@ package utils
 
 import (
 	"container/heap"
+	"sort"
 )
 
 // ValueIndexPair is a pair of float value and index at which it exists
@@ -30,20 +31,27 @@ type ValueIndexPair struct {
 	Index int
 }
 
-type lessFn func(*ValueIndexPair, *ValueIndexPair) bool
+type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
-func maxHeapLess(i, j *ValueIndexPair) bool {
+func maxHeapLess(i, j ValueIndexPair) bool {
 	if i.Val == j.Val {
 		return i.Index > j.Index
 	}
 	return i.Val < j.Val
 }
 
-func minHeapLess(i, j *ValueIndexPair) bool {
+func minHeapLess(i, j ValueIndexPair) bool {
 	if i.Val == j.Val {
 		return i.Index > j.Index
 	}
 	return i.Val > j.Val
+}
+
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // FloatHeap is a heap that can be given a maximum size
@@ -53,12 +61,10 @@ type FloatHeap struct {
 	floatHeap *floatHeap
 }
 
-const limitMaxValues = 10_000
-
 // NewFloatHeap builds a new FloatHeap based on first parameter
 // and a capacity given by second parameter. Zero and negative
 // values for maxSize provide an unbounded FloatHeap
-func NewFloatHeap(isMaxHeap bool, capacity int) *FloatHeap {
+func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 	var less lessFn
 	if isMaxHeap {
 		less = maxHeapLess
@@ -70,18 +76,13 @@ func NewFloatHeap(isMaxHeap bool, capacity int) *FloatHeap {
 		capacity = 0
 	}
 
-	// we limit heap capacity because we don't want to go OOM
-	if capacity > limitMaxValues {
-		capacity = limitMaxValues
-	}
-
 	floatHeap := &floatHeap{
 		heap: make([]ValueIndexPair, 0, capacity),
 		less: less,
 	}
 
 	heap.Init(floatHeap)
-	return &FloatHeap{
+	return FloatHeap{
 		isMaxHeap: isMaxHeap,
 		capacity:  capacity,
 		floatHeap: floatHeap,
@@ -158,17 +159,13 @@ func (fh *FloatHeap) Flush() []ValueIndexPair {
 	return values
 }
 
-// FlushInOrder flushes the float heap and returns values in order.
-func (fh *FloatHeap) FlushInOrder() []ValueIndexPair {
-	result := make([]ValueIndexPair, fh.Len())
-
-	for i := len(result) - 1; i >= 0; i-- {
-		if e, ok := fh.Pop(); ok {
-			result[i] = e
-		}
-	}
-
-	return result
+// OrderedFlush flushes the float heap and returns values in order.
+func (fh *FloatHeap) OrderedFlush() []ValueIndexPair {
+	flushed := fh.Flush()
+	sort.Slice(flushed, func(i, j int) bool {
+		return fh.floatHeap.less(flushed[j], flushed[i])
+	})
+	return flushed
 }
 
 // Peek reveals the top value of the heap without mutating the heap.
@@ -196,7 +193,7 @@ func (h *floatHeap) Len() int {
 
 // Less is true if value of i is less than value of j
 func (h *floatHeap) Less(i, j int) bool {
-	return h.less(&h.heap[i], &h.heap[j])
+	return h.less(h.heap[i], h.heap[j])
 }
 
 // Swap swaps values at these indices

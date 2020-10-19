@@ -225,7 +225,7 @@ func TestFlushOrdered(t *testing.T) {
 	maxHeap.Push(2.1, 2)
 	maxHeap.Push(3.1, 3)
 
-	actualMax := maxHeap.FlushInOrder()
+	actualMax := maxHeap.OrderedFlush()
 
 	assert.Equal(t, []ValueIndexPair{
 		{Val: 3.1, Index: 3},
@@ -240,7 +240,40 @@ func TestFlushOrdered(t *testing.T) {
 	minHeap.Push(2.1, 2)
 	minHeap.Push(3.1, 3)
 
-	actualMin := minHeap.FlushInOrder()
+	actualMin := minHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 0.1, Index: 0},
+		{Val: 1.1, Index: 1},
+		{Val: 2.1, Index: 2},
+	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestFlushOrderedWhenRandomInsertionOrder(t *testing.T) {
+	maxHeap := NewFloatHeap(true, 3)
+
+	maxHeap.Push(0.1, 0)
+	maxHeap.Push(2.1, 2)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(3.1, 3)
+
+	actualMax := maxHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 3.1, Index: 3},
+		{Val: 2.1, Index: 2},
+		{Val: 1.1, Index: 1},
+	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
+
+	minHeap := NewFloatHeap(false, 3)
+	minHeap.Push(0.1, 0)
+	minHeap.Push(2.1, 2)
+	minHeap.Push(1.1, 1)
+	minHeap.Push(3.1, 3)
+
+	actualMin := minHeap.OrderedFlush()
 
 	assert.Equal(t, []ValueIndexPair{
 		{Val: 0.1, Index: 0},

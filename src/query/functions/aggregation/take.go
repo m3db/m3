@@ -44,47 +44,43 @@ type valueAndMeta struct {
 	seriesMeta block.SeriesMeta
 }
 
-type takeFunc func(values []float64, buckets [][]int) []float64
-type takeInstantFunc func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta
+type takeFunc func(heap utils.FloatHeap, values []float64, buckets [][]int) []float64
+type takeInstantFunc func(heap utils.FloatHeap, values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta
+type takeValuesFunc func(values []float64, buckets [][]int) []float64
 
 // NewTakeOp creates a new takeK operation
 func NewTakeOp(
 	opType string,
 	params NodeParams,
 ) (parser.Params, error) {
-	takeTop := opType == TopKType
-	if !takeTop && opType != BottomKType {
-		return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
-	}
-
 	var fn takeFunc
 	var fnInstant takeInstantFunc
 	k := int(params.Parameter)
 
 	if k < 1 {
-		fn = func(values []float64, buckets [][]int) []float64 {
+		fn = func(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 			return takeNone(values)
 		}
-		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
+		fnInstant = func(heap utils.FloatHeap, values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
 			return takeInstantNone(values, seriesMetas)
 		}
 	} else {
-		heap := utils.NewFloatHeap(takeTop, k)
-		fn = func(values []float64, buckets [][]int) []float64 {
+		fn = func(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 			return takeFn(heap, values, buckets)
 		}
-		fnInstant = func(values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
+		fnInstant = func(heap utils.FloatHeap, values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta {
 			return takeInstantFn(heap, values, buckets, seriesMetas)
 		}
 	}
 
-	return newTakeOp(params, opType, fn, fnInstant), nil
+	return newTakeOp(params, opType, k, fn, fnInstant), nil
 }
 
 // takeOp stores required properties for take ops
 type takeOp struct {
 	params          NodeParams
 	opType          string
+	k				int
 	takeFunc        takeFunc
 	takeInstantFunc takeInstantFunc
 }
@@ -110,10 +106,11 @@ func (o takeOp) Node(
 	}
 }
 
-func newTakeOp(params NodeParams, opType string, takeFunc takeFunc, takeInstantFunc takeInstantFunc) takeOp {
+func newTakeOp(params NodeParams, opType string, k int, takeFunc takeFunc, takeInstantFunc takeInstantFunc) takeOp {
 	return takeOp{
 		params:          params,
 		opType:          opType,
+		k: 				 k,
 		takeFunc:        takeFunc,
 		takeInstantFunc: takeInstantFunc,
 	}
@@ -143,6 +140,11 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	instantaneous := queryCtx.Options.Instantaneous
+	takeTop := n.op.opType == TopKType
+	if !takeTop && n.op.opType != BottomKType {
+		return nil, fmt.Errorf("operator not supported: %s", n.op.opType)
+	}
+
 	params := n.op.params
 	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
@@ -152,60 +154,92 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		[]byte(n.op.opType),
 		seriesMetas,
 	)
-	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = builder.AddCols(stepIter.StepCount()); err != nil {
-		return nil, err
-	}
-
+	seriesCount := len(seriesMetas)
 	if instantaneous {
-		if err := n.appendValuesInstant(builder, stepIter, seriesMetas, buckets); err != nil {
+		heap := utils.NewFloatHeap(takeTop, utils.Min(n.op.k, seriesCount))
+		return n.processBlockInstantaneous(heap, queryCtx, b.Meta(), stepIter, seriesMetas, buckets)
+	} else {
+		fnTake := n.resolveTakeFn(seriesCount, takeTop)
+		builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
+		if err != nil {
 			return nil, err
 		}
-	} else {
+
+		if err = builder.AddCols(stepIter.StepCount()); err != nil {
+			return nil, err
+		}
+
 		for index := 0; stepIter.Next(); index++ {
 			values := stepIter.Current().Values()
-			aggregatedValues := n.op.takeFunc(values, buckets)
-			if err := builder.AppendValues(index, aggregatedValues); err != nil {
+			if err := builder.AppendValues(index, fnTake(values, buckets)); err != nil {
 				return nil, err
 			}
 		}
+		if err = stepIter.Err(); err != nil {
+			return nil, err
+		}
+		return builder.Build(), nil
 	}
-
-	if err = stepIter.Err(); err != nil {
-		return nil, err
-	}
-
-	return builder.Build(), nil
 }
 
-func (n *takeNode) appendValuesInstant(builder block.Builder, stepIter block.StepIter, seriesMetas []block.SeriesMeta, buckets [][]int) error {
-	stepCount := stepIter.StepCount()
-	for index := 0; stepIter.Next(); index++ {
-		values := stepIter.Current().Values()
-
-		if err := builder.AppendValues(index, values); err != nil {
-			return err
-		}
-
-		if isLastStep(index, stepCount) {
-			//we only care for the last step values for the instant query
-			aggregatedValues := n.op.takeInstantFunc(values, buckets, seriesMetas)
-			//apply series metas in order
-			var rowValues = make([]float64, stepCount)
-			for i, value := range aggregatedValues {
-				rowValues[len(rowValues)-1] = value.val
-				if err := builder.SetRow(i, rowValues, value.seriesMeta); err != nil {
-					return err
-				}
-			}
+func (n *takeNode) resolveTakeFn(seriesCount int, takeTop bool) takeValuesFunc {
+	if n.op.k < seriesCount {
+		heap := utils.NewFloatHeap(takeTop, n.op.k)
+		return func (values []float64, buckets [][]int) []float64 {
+			return n.op.takeFunc(heap, values, buckets)
 		}
 	}
 
-	return nil
+	return func (values []float64, buckets [][]int) []float64 {
+		return values
+	}
+}
+
+func (n *takeNode) processBlockInstantaneous(
+	heap utils.FloatHeap,
+	queryCtx *models.QueryContext,
+	metadata block.Metadata,
+	stepIter block.StepIter,
+	seriesMetas []block.SeriesMeta,
+	buckets [][]int) (block.Block, error) {
+	stepCount := stepIter.StepCount()
+
+	for index := 0; stepIter.Next(); index++ {
+		if isLastStep(index, stepCount) {
+			//we only care for the last step values for the instant query
+			step := stepIter.Current()
+			values := step.Values()
+			takenSortedValues := n.op.takeInstantFunc(heap, values, buckets, seriesMetas)
+			for i := range takenSortedValues {
+				values[i] = takenSortedValues[i].val
+				seriesMetas[i] = takenSortedValues[i].seriesMeta
+			}
+
+			//adjust bounds to contain single step
+			time, err := metadata.Bounds.TimeForIndex(index)
+			if err != nil {
+				return nil, err
+			}
+			metadata.Bounds = models.Bounds{
+				Start:    time,
+				Duration: metadata.Bounds.StepSize,
+				StepSize: metadata.Bounds.StepSize,
+			}
+
+			blockBuilder, err := n.controller.BlockBuilder(queryCtx, metadata, seriesMetas)
+			if err != nil {
+				return nil, err
+			}
+			if err = blockBuilder.AddCols(1); err != nil {
+				return nil, err
+			}
+			if err := blockBuilder.AppendValues(0, values); err != nil {
+				return nil, err
+			}
+			return blockBuilder.Build(), nil
+		}
+	}
+	return nil, fmt.Errorf("no data to return: %s", n.op.opType)
 }
 
 func isLastStep(stepIndex int, stepCount int) bool {
@@ -227,7 +261,7 @@ func takeInstantNone(values []float64, seriesMetas []block.SeriesMeta) []valueAn
 	return result
 }
 
-func takeFn(heap *utils.FloatHeap, values []float64, buckets [][]int) []float64 {
+func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 	capacity := heap.Cap()
 	for _, bucket := range buckets {
 		// If this bucket's length is less than or equal to the heap's
@@ -258,7 +292,7 @@ func takeFn(heap *utils.FloatHeap, values []float64, buckets [][]int) []float64 
 	return values
 }
 
-func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []valueAndMeta {
+func takeInstantFn(heap utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []valueAndMeta {
 	var result = make([]valueAndMeta, len(values))
 	for i := range result {
 		result[i] = valueAndMeta{
@@ -275,7 +309,7 @@ func takeInstantFn(heap *utils.FloatHeap, values []float64, buckets [][]int, met
 			}
 		}
 
-		valIndexPairs := heap.FlushInOrder()
+		valIndexPairs := heap.OrderedFlush()
 		for ix, pair := range valIndexPairs {
 			prevIndex := pair.Index
 			prevMeta := metas[prevIndex]
