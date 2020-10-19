@@ -222,7 +222,13 @@ release-snapshot: check-for-goreleaser-github-token
 .PHONY: docs-test
 docs-test: install-tools
 	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
-	$(tools_bin_path)/htmltest -c site/.htmltest.yml
+	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
+ifneq ($(GITHUB_USER),)
+ifneq ($(GITHUB_TOKEN),)
+	@echo 'HTTPHeaders: {"Authorization":"Basic $(shell echo -n "$$GITHUB_USER:$$GITHUB_TOKEN" | base64 | xargs echo -n)"}' >> $(BUILD)/.htmltest.yml
+endif
+endif
+	$(tools_bin_path)/htmltest -c $(BUILD)/.htmltest.yml
 
 .PHONY: docker-integration-test
 docker-integration-test:
