@@ -465,14 +465,14 @@ func (s *seeker) SeekIndexEntry(
 	}
 }
 
-// SeekIndexEntryToIndexChecksum performs the following steps:
+// SeekWideEntry performs the following steps:
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
 //        point for scanning the index file.
 //     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
 //        begin at the offset provided by the offset lookup).
 //     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
+//     4. Call DecodeToWideEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekWideEntry(

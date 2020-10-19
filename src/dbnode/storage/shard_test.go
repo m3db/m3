@@ -1608,29 +1608,29 @@ func TestShardFetchFetchWideEntry(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	entry := xio.WideEntry{
+	wideEntry := xio.WideEntry{
 		ID:               ident.StringID("foo"),
 		MetadataChecksum: 5,
 	}
 
-	entry := block.NewMockStreamedWideEntry(ctrl)
+	streamedEntry := block.NewMockStreamedWideEntry(ctrl)
 	retriever.EXPECT().
-		FetchWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).Return(entry, nil).Times(2)
+		StreamWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(streamedEntry, nil).Times(2)
 
 	// First call to RetrieveWideEntry is expected to error on retrieval
-	entry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
 	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
-	entry.EXPECT().RetrieveWideEntry().Return(entry, nil)
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(wideEntry, nil)
 	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
 	retrieved, err := r.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, entry, retrieved)
+	assert.Equal(t, wideEntry, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)
