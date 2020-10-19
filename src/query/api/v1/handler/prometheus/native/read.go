@@ -114,6 +114,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.With(zap.String("query", parsedOptions.Params.Query))
+
 	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsedOptions.CancelWatcher = watcher
 

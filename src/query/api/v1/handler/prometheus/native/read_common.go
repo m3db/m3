@@ -191,9 +191,13 @@ func read(
 
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
-		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
-		defer cancel()
+		ctx, cancel := context.WithTimeout(ctx, 0)
+		defer func() {
+			fmt.Println("CANCELED", fetchOpts.Timeout)
+			cancel()
+		}()
 
+		fmt.Println("WATCH CANCEL", fetchOpts.Timeout)
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
