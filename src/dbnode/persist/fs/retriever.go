@@ -68,7 +68,6 @@ const (
 	streamInvalidReq streamReqType = iota
 	streamDataReq
 	streamIdxChecksumReq
-	streamReadMismatchReq
 )
 
 type blockRetrieverStatus int
@@ -315,7 +314,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
 		case streamIdxChecksumReq:
-			checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
+			entry, err := seeker.SeekWideEntry(req.id,
 				seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.err = err
@@ -324,17 +323,14 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 			if err == errSeekIDNotFound {
 				// Missing, return empty result, successful lookup.
-				req.indexChecksum = xio.IndexChecksum{}
+				req.wideEntry = xio.WideEntry{}
 				req.success = true
 				continue
 			}
 
 			// Enqueue for fetch in batch in offset ascending order.
-			req.indexChecksum = checksum
+			req.wideEntry = entry
 			retrieverResources.appendIndexChecksumReq(req)
-
-		case streamReadMismatchReq:
-			r.processReadMismatchRequest(req, seeker, seekerResources)
 
 		default:
 			req.err = errUnsetRequestType
@@ -342,14 +338,14 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	}
 
 	// Fulfill the index checksum data fetches in batch offset ascending.
-	var sortByOffsetAsc retrieveRequestByIndexChecksumOffsetAsc
-	sortByOffsetAsc = retrieverResources.indexChecksumReqs
+	var sortByOffsetAsc retrieveRequestByWideEntryOffsetAsc
+	sortByOffsetAsc = retrieverResources.wideEntryReqs
 	sort.Sort(sortByOffsetAsc)
-	for _, req := range retrieverResources.indexChecksumReqs {
+	for _, req := range retrieverResources.wideEntryReqs {
 		entry := IndexEntry{
-			Size:         uint32(req.indexChecksum.Size),
-			DataChecksum: uint32(req.indexChecksum.DataChecksum),
-			Offset:       req.indexChecksum.Offset,
+			Size:         uint32(req.wideEntry.Size),
+			DataChecksum: uint32(req.wideEntry.DataChecksum),
+			Offset:       req.wideEntry.Offset,
 		}
 		data, err := seeker.SeekByIndexEntry(entry, seekerResources)
 		if err != nil {
@@ -358,8 +354,8 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 		}
 
 		// Success, inc ref so on finalize can decref and finalize.
-		req.indexChecksum.Data = data
-		req.indexChecksum.Data.IncRef()
+		req.wideEntry.Data = data
+		req.wideEntry.Data.IncRef()
 		req.success = true
 	}
 
@@ -644,17 +640,17 @@ func (r *blockRetriever) StreamIndexChecksum(
 	id ident.ID,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	req := r.reqPool.Get()
 	req.streamReqType = streamIdxChecksumReq
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	}
 
 	if !found {
-		req.indexChecksum = xio.IndexChecksum{}
+		req.wideEntry = xio.WideEntry{}
 		req.success = true
 		req.onDone()
 	}
@@ -763,7 +759,7 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	indexChecksum xio.IndexChecksum
+	wideEntry     xio.WideEntry
 	reader        xio.SegmentReader
 
 	err error
@@ -778,12 +774,13 @@ type retrieveRequest struct {
 	success  bool
 }
 
-func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveWideEntry() (xio.WideEntry, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return xio.IndexChecksum{}, req.err
+		return xio.WideEntry{}, req.err
 	}
-	return req.indexChecksum, nil
+
+	return req.wideEntry, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -848,11 +845,8 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 
 	switch req.streamReqType {
 	case streamIdxChecksumReq:
-		// All pooled elements are set on the indexChecksum.
-		req.indexChecksum.Finalize()
-	case streamReadMismatchReq:
-		// All pooled elements are set on the mismatchBatch.
-		req.mismatchBatch.Finalize()
+		// All pooled elements are set on the wideEntry.
+		req.wideEntry.Finalize()
 	default:
 		if req.id != nil {
 			req.id.Finalize()
@@ -928,7 +922,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = xio.IndexChecksum{}
+	req.wideEntry = xio.WideEntry{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
@@ -954,12 +948,12 @@ func (r retrieveRequestByIndexEntryOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
 }
 
-type retrieveRequestByIndexChecksumOffsetAsc []*retrieveRequest
+type retrieveRequestByWideEntryOffsetAsc []*retrieveRequest
 
-func (r retrieveRequestByIndexChecksumOffsetAsc) Len() int      { return len(r) }
-func (r retrieveRequestByIndexChecksumOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r retrieveRequestByIndexChecksumOffsetAsc) Less(i, j int) bool {
-	return r[i].indexChecksum.Offset < r[j].indexChecksum.Offset
+func (r retrieveRequestByWideEntryOffsetAsc) Len() int      { return len(r) }
+func (r retrieveRequestByWideEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r retrieveRequestByWideEntryOffsetAsc) Less(i, j int) bool {
+	return r[i].wideEntry.Offset < r[j].wideEntry.Offset
 }
 
 // RetrieveRequestPool is the retrieve request pool.
@@ -1007,8 +1001,8 @@ func (p *reqPool) Put(req *retrieveRequest) {
 }
 
 type reuseableRetrieverResources struct {
-	dataReqs          []*retrieveRequest
-	indexChecksumReqs []*retrieveRequest
+	dataReqs      []*retrieveRequest
+	wideEntryReqs []*retrieveRequest
 }
 
 func newReuseableRetrieverResources() *reuseableRetrieverResources {
@@ -1034,14 +1028,14 @@ func (r *reuseableRetrieverResources) appendDataReq(
 }
 
 func (r *reuseableRetrieverResources) resetIndexChecksumReqs() {
-	for i := range r.indexChecksumReqs {
-		r.indexChecksumReqs[i] = nil
+	for i := range r.wideEntryReqs {
+		r.wideEntryReqs[i] = nil
 	}
-	r.indexChecksumReqs = r.indexChecksumReqs[:0]
+	r.wideEntryReqs = r.wideEntryReqs[:0]
 }
 
 func (r *reuseableRetrieverResources) appendIndexChecksumReq(
 	req *retrieveRequest,
 ) {
-	r.indexChecksumReqs = append(r.indexChecksumReqs, req)
+	r.wideEntryReqs = append(r.wideEntryReqs, req)
 }

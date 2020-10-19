@@ -109,10 +109,10 @@ func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
 	c, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
 	assert.NoError(t, err)
 
-	checksum, err := c.RetrieveIndexChecksum()
+	entry, err := c.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), checksum.MetadataChecksum)
-	assert.Nil(t, checksum.ID)
+	assert.Equal(t, int64(0), entry.MetadataChecksum)
+	assert.Nil(t, entry.ID)
 }
 
 func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
@@ -128,12 +128,7 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
 
-	checksum := xio.IndexChecksum{
-		MetadataChecksum: 5,
-		ID:               ident.StringID("foo"),
-	}
-
-	indexChecksum := block.NewMockStreamedChecksum(ctrl)
+	indexChecksum := block.NewMockStreamedWideEntry(ctrl)
 
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
@@ -146,19 +141,24 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(xio.IndexChecksum{}, errors.New("err"))
+	indexChecksum.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
 	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
 	require.NoError(t, err)
-	_, err = streamed.RetrieveIndexChecksum()
+	_, err = streamed.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
 	// Check reads as expected
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
+	entry := xio.WideEntry{
+		MetadataChecksum: 5,
+		ID:               ident.StringID("foo"),
+	}
+
+	indexChecksum.EXPECT().RetrieveWideEntry().Return(entry, nil)
 	streamed, err = reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
 	require.NoError(t, err)
-	actual, err := streamed.RetrieveIndexChecksum()
+	actual, err := streamed.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, checksum, actual)
+	assert.Equal(t, entry, actual)
 }
 
 type readTestCase struct {

@@ -1608,40 +1608,39 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := xio.IndexChecksum{
+	entry := xio.WideEntry{
 		ID:               ident.StringID("foo"),
 		MetadataChecksum: 5,
 	}
 
-	indexChecksum := block.NewMockStreamedChecksum(ctrl)
+	indexChecksum := block.NewMockStreamedWideEntry(ctrl)
 	retriever.EXPECT().
 		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
 
-	// First call to RetrieveIndexChecksum is expected to error on retrieval
-	indexChecksum.EXPECT().RetrieveIndexChecksum().
-		Return(xio.IndexChecksum{}, errors.New("err"))
+	// First call to RetrieveWideEntry is expected to error on retrieval
+	indexChecksum.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
 	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	_, err = r.RetrieveIndexChecksum()
+	_, err = r.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
+	indexChecksum.EXPECT().RetrieveWideEntry().Return(entry, nil)
 	r, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
 	require.NoError(t, err)
-	retrieved, err := r.RetrieveIndexChecksum()
+	retrieved, err := r.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, checksum, retrieved)
+	assert.Equal(t, entry, retrieved)
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)
 
 	shard.RLock()
-	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	cahcedEntry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 	shard.RUnlock()
 
 	require.Equal(t, err, errShardEntryNotFound)
-	require.Nil(t, entry)
+	require.Nil(t, cahcedEntry)
 }
 
 func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {

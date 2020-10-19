@@ -268,26 +268,26 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
-// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
+// StreamedWideEntry yields a xio.WideEntry value asynchronously,
 // and any errors encountered during execution.
-type StreamedChecksum interface {
+type StreamedWideEntry interface {
 	resource.Finalizer
 
-	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (xio.IndexChecksum, error)
+	// RetrieveWideEntry retrieves the collected wide entry.
+	RetrieveWideEntry() (xio.WideEntry, error)
 }
 
-type emptyStreamedChecksum struct{}
+type emptyWideEntry struct{}
 
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
-	return xio.IndexChecksum{}, nil
+func (emptyWideEntry) RetrieveWideEntry() (xio.WideEntry, error) {
+	return xio.WideEntry{}, nil
 }
 
-func (emptyStreamedChecksum) Finalize() {
+func (emptyWideEntry) Finalize() {
 }
 
-// EmptyStreamedChecksum is an empty streamed checksum.
-var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+// EmptyStreamedWideEntry is an empty streamed wide entry.
+var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
@@ -313,7 +313,7 @@ type DatabaseBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
+	) (StreamedWideEntry, error)
 
 	// AssignShardSet assigns the given shard set to this retriever.
 	AssignShardSet(shardSet sharding.ShardSet)
@@ -337,7 +337,7 @@ type DatabaseShardBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
+	) (StreamedWideEntry, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

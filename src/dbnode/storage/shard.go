@@ -404,7 +404,7 @@ func (s *dbShard) StreamIndexChecksum(
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		blockStart, nsCtx)
 }
@@ -1151,7 +1151,7 @@ func (s *dbShard) FetchIndexChecksum(
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)

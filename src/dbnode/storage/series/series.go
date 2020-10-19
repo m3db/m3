@@ -406,7 +406,7 @@ func (s *dbSeries) FetchIndexChecksum(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.FetchIndexChecksum(ctx, blockStart, nsCtx)

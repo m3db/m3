@@ -916,12 +916,12 @@ func (n *dbNamespace) FetchIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	}
 	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

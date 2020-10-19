@@ -91,7 +91,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (block.StreamedChecksum, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(

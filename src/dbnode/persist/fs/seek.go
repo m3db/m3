@@ -475,15 +475,15 @@ func (s *seeker) SeekIndexEntry(
 //     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
-func (s *seeker) SeekIndexEntryToIndexChecksum(
+func (s *seeker) SeekWideEntry(
 	id ident.ID,
 	resources ReusableSeekerResources,
-) (xio.IndexChecksum, error) {
+) (xio.WideEntry, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return xio.IndexChecksum{}, err
+		return xio.WideEntry{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -492,39 +492,39 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 
 	idBytes := id.Bytes()
 	for {
-		checksum, status, err := resources.xmsgpackDecoder.
+		entry, status, err := resources.xmsgpackDecoder.
 			DecodeToWideEntry(idBytes, resources.decodeIndexEntryBytesPool)
 		if err != nil {
 			// No longer being used so we can return to the pool.
-			resources.decodeIndexEntryBytesPool.Put(checksum.ID)
-			resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+			resources.decodeIndexEntryBytesPool.Put(entry.ID)
+			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 			if err == io.EOF {
 				// Reached the end of the file without finding the ID.
-				return xio.IndexChecksum{}, errSeekIDNotFound
+				return xio.WideEntry{}, errSeekIDNotFound
 			}
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return xio.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
+			return xio.WideEntry{}, instrument.InvariantErrorf(err.Error())
 		}
 
 		if status != xmsgpack.MatchedLookupStatus {
 			// No longer being used so we can return to the pool.
-			resources.decodeIndexEntryBytesPool.Put(checksum.ID)
-			resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+			resources.decodeIndexEntryBytesPool.Put(entry.ID)
+			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 			if status == xmsgpack.NotFoundLookupStatus {
 				// a `NotFound` status for the index checksum decode indicates that the
 				// current seek has passed the point in the file where this ID could have
 				// appeared; short-circuit here as the ID does not exist in the file.
-				return xio.IndexChecksum{}, errSeekIDNotFound
+				return xio.WideEntry{}, errSeekIDNotFound
 			} else if status == xmsgpack.MismatchLookupStatus {
 				// a `Mismatch` status for the index checksum decode indicates that the
 				// current seek does not match the ID, but that it may still appear in
 				// the file.
 				continue
 			} else if status == xmsgpack.ErrorLookupStatus {
-				return xio.IndexChecksum{}, errors.New("unknown index lookup error")
+				return xio.WideEntry{}, errors.New("unknown index lookup error")
 			}
 		}
 
@@ -532,23 +532,23 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 		// so they can be passed along. We use the "real" bytes pool here
 		// because we're passing ownership of the bytes to the entry / caller.
 		var checkedEncodedTags checked.Bytes
-		if tags := checksum.EncodedTags; len(tags) > 0 {
+		if tags := entry.EncodedTags; len(tags) > 0 {
 			checkedEncodedTags = s.opts.bytesPool.Get(len(tags))
 			checkedEncodedTags.IncRef()
 			checkedEncodedTags.AppendAll(tags)
 		}
 
 		// No longer being used so we can return to the pool.
-		resources.decodeIndexEntryBytesPool.Put(checksum.ID)
-		resources.decodeIndexEntryBytesPool.Put(checksum.EncodedTags)
+		resources.decodeIndexEntryBytesPool.Put(entry.ID)
+		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
-		return xio.IndexChecksum{
+		return xio.WideEntry{
 			ID:               id,
-			Size:             checksum.Size,
-			Offset:           checksum.Offset,
-			DataChecksum:     checksum.DataChecksum,
+			Size:             entry.Size,
+			Offset:           entry.Offset,
+			DataChecksum:     entry.DataChecksum,
 			EncodedTags:      checkedEncodedTags,
-			MetadataChecksum: checksum.MetadataChecksum,
+			MetadataChecksum: entry.MetadataChecksum,
 		}, nil
 	}
 }

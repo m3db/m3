@@ -368,7 +368,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
-	) (block.StreamedChecksum, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -532,7 +532,7 @@ type databaseShard interface {
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (block.StreamedChecksum, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

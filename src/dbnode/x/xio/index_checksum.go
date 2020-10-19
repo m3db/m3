@@ -25,9 +25,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-// IndexChecksum is an entry from the index file which can be passed to
+// WideEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry.
-type IndexChecksum struct {
+type WideEntry struct {
 	ID               ident.ID
 	Size             int64
 	Offset           int64
@@ -37,13 +37,13 @@ type IndexChecksum struct {
 	Data             checked.Bytes
 }
 
-// Empty returns whether the index checksum is empty and not found.
-func (c IndexChecksum) Empty() bool {
-	return c == IndexChecksum{}
+// Empty returns whether the wide entry is empty and not found.
+func (c WideEntry) Empty() bool {
+	return c == WideEntry{}
 }
 
-// Finalize finalizes the index checksum.
-func (c *IndexChecksum) Finalize() {
+// Finalize finalizes the wide entry.
+func (c *WideEntry) Finalize() {
 	if c.EncodedTags != nil {
 		c.EncodedTags.DecRef()
 		c.EncodedTags.Finalize()

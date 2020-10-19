@@ -162,14 +162,14 @@ func (dec *Decoder) DecodeToWideEntry(
 	}
 	dec.readerWithDigest.setDigestReaderEnabled(true)
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexWithMetaChecksum, status := dec.decodeWideIndex(compareID, bytesPool)
+	entry, status := dec.decodeWideEntry(compareID, bytesPool)
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if status != MatchedLookupStatus || dec.err != nil {
 		return emptyWideEntry, status, dec.err
 	}
 
-	return indexWithMetaChecksum, status, nil
+	return entry, status, nil
 }
 
 // DecodeIndexSummary decodes index summary.
@@ -479,7 +479,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	return indexEntry
 }
 
-func (dec *Decoder) decodeWideIndex(
+func (dec *Decoder) decodeWideEntry(
 	compareID []byte,
 	bytesPool pool.BytesPool,
 ) (schema.WideEntry, WideEntryLookupStatus) {

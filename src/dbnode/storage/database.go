@@ -1023,7 +1023,7 @@ func (d *db) WideQuery(
 	defer sp.Finish()
 
 	iter := newWideQueryIterator(blockStart, shards)
-	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+	streamedEntries := make([]block.StreamedWideEntry, 0, batchSize)
 
 	// Won't need these in the future since shard will be available on index checksum.
 	d.RLock()
@@ -1032,39 +1032,39 @@ func (d *db) WideQuery(
 
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		// Fetch index checksums.
-		streamedChecksums = streamedChecksums[:0]
+		streamedEntries = streamedEntries[:0]
 		defer func() {
-			// Be sure to finalize any streamed checksums
+			// Be sure to finalize any streamed entries
 			// for both happy path and also early return.
 			// This also free's any resources held by the
 			// resulting index checksum.
-			for _, streamedChecksum := range streamedChecksums {
-				streamedChecksum.Finalize()
+			for _, streamEntry := range streamedEntries {
+				streamEntry.Finalize()
 			}
 		}()
 
 		for _, id := range batch.IDs {
-			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+			streamEntry, err := d.fetchIndexChecksum(ctx, n, id, start)
 			if err != nil {
 				return err
 			}
 
-			streamedChecksums = append(streamedChecksums, streamedChecksum)
+			streamedEntries = append(streamedEntries, streamEntry)
 		}
 
-		for _, streamedChecksum := range streamedChecksums {
-			checksum, err := streamedChecksum.RetrieveIndexChecksum()
+		for _, streamEntry := range streamedEntries {
+			entry, err := streamEntry.RetrieveWideEntry()
 			if err != nil {
 				return err
 			}
 
-			if checksum.Empty() {
+			if entry.Empty() {
 				// Should not surface to the iterator.
 				continue
 			}
 
 			// TODO: get shard from indexChecksum instead of calculating
-			shard := shardSet.Lookup(checksum.ID)
+			shard := shardSet.Lookup(entry.ID)
 
 			// Push the data to wide query iterator results.
 			shardIter, err := iter.shardIter(shard)
@@ -1073,10 +1073,10 @@ func (d *db) WideQuery(
 			}
 
 			shardIter.pushRecord(wideQueryShardIteratorRecord{
-				ID:               checksum.ID.Bytes(),
-				EncodedTags:      checksum.EncodedTags.Bytes(),
-				MetadataChecksum: checksum.MetadataChecksum,
-				Data:             checksum.Data.Bytes(),
+				ID:               entry.ID.Bytes(),
+				EncodedTags:      entry.EncodedTags.Bytes(),
+				MetadataChecksum: entry.MetadataChecksum,
+				Data:             entry.Data.Bytes(),
 			})
 		}
 
@@ -1096,7 +1096,7 @@ func (d *db) fetchIndexChecksum(
 	ns databaseNamespace,
 	id ident.ID,
 	start time.Time,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(

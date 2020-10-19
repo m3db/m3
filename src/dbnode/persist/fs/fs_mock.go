@@ -31,7 +31,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	persist "github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -523,34 +522,19 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
 }
 
-// SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.IndexChecksum, error) {
+// SeekWideEntry mocks base method
+func (m *MockDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1)
-	ret0, _ := ret[0].(xio.IndexChecksum)
+	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1)
+	ret0, _ := ret[0].(xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SeekIndexEntryToIndexChecksum indicates an expected call of SeekIndexEntryToIndexChecksum
-func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChecksum(arg0, arg1 interface{}) *gomock.Call {
+// SeekWideEntry indicates an expected call of SeekWideEntry
+func (mr *MockDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntryToIndexChecksum", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekIndexEntryToIndexChecksum), arg0, arg1)
-}
-
-// SeekReadMismatchesByIndexChecksum mocks base method
-func (m *MockDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 xio.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekReadMismatchesByIndexChecksum", arg0, arg1, arg2)
-	ret0, _ := ret[0].(wide.ReadMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SeekReadMismatchesByIndexChecksum indicates an expected call of SeekReadMismatchesByIndexChecksum
-func (mr *MockDataFileSetSeekerMockRecorder) SeekReadMismatchesByIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekReadMismatchesByIndexChecksum", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekReadMismatchesByIndexChecksum), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1)
 }
 
 // MockIndexFileSetWriter is a mock of IndexFileSetWriter interface
@@ -1274,34 +1258,19 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekIndexEntry), arg0, arg1)
 }
 
-// SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.IndexChecksum, error) {
+// SeekWideEntry mocks base method
+func (m *MockConcurrentDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1)
-	ret0, _ := ret[0].(xio.IndexChecksum)
+	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1)
+	ret0, _ := ret[0].(xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SeekIndexEntryToIndexChecksum indicates an expected call of SeekIndexEntryToIndexChecksum
-func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntryToIndexChecksum(arg0, arg1 interface{}) *gomock.Call {
+// SeekWideEntry indicates an expected call of SeekWideEntry
+func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekIndexEntryToIndexChecksum", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekIndexEntryToIndexChecksum), arg0, arg1)
-}
-
-// SeekReadMismatchesByIndexChecksum mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekReadMismatchesByIndexChecksum(arg0 xio.IndexChecksum, arg1 wide.EntryChecksumMismatchChecker, arg2 ReusableSeekerResources) (wide.ReadMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekReadMismatchesByIndexChecksum", arg0, arg1, arg2)
-	ret0, _ := ret[0].(wide.ReadMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SeekReadMismatchesByIndexChecksum indicates an expected call of SeekReadMismatchesByIndexChecksum
-func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekReadMismatchesByIndexChecksum(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekReadMismatchesByIndexChecksum", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekReadMismatchesByIndexChecksum), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1)
 }
 
 // MockMergeWith is a mock of MergeWith interface

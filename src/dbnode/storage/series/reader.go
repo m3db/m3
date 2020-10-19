@@ -208,7 +208,7 @@ func (r Reader) FetchIndexChecksum(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	var (
 		nowFn = r.opts.ClockOptions().NowFn()
 		now   = nowFn()
@@ -219,23 +219,23 @@ func (r Reader) FetchIndexChecksum(
 	if blockStart.Before(earliest) {
 		// NB: this block is falling out of retention; return empty result rather
 		// than iterating over it.
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 
 	if r.retriever == nil {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 	// Try to stream from disk
 	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	} else if !isRetrievable {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
 		r.id, blockStart, nsCtx)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	}
 
 	return streamedBlock, nil
