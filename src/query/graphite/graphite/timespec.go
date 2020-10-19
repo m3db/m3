@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/query/graphite/errors"
 )
 
-var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)    // allows -3min, -4d, etc.
-var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`) // -3min, +3min, -4d, +4d
+var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)(.*)$`)    // allows -3min, -4d, etc.
+var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)(.*)$`) // -3min, +3min, -4d, +4d
 var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]{1,2}?)$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 var reDayOfWeekOffset = regexp.MustCompile(`(?i)^(\-|\+)(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`) // +monday, +thursday, etc
