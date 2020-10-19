@@ -279,7 +279,7 @@ type NamespaceDataAccumulator interface {
 
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
-	// Series is the series for the checkout operation.
+	// Series is the series ref for the checkout operation.
 	Series SeriesRef
 	// Shard is the shard for the series.
 	Shard uint32
@@ -487,7 +487,7 @@ type SeriesRef interface {
 		wOpts series.WriteOptions,
 	) (bool, series.WriteType, error)
 
-	/// LoadBlock loads a single block into the series.
+	// LoadBlock loads a single block into the series.
 	LoadBlock(
 		block block.DatabaseBlock,
 		writeType series.WriteType,
