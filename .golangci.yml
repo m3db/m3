@@ -88,11 +88,17 @@ linters-settings:
     include-go-root: false
     packages:
       - github.com/sirupsen/logrus
+      - github.com/golang/protobuf/jsonpb
+      - google.golang.org/protobuf/encoding/protojson
+      - github.com/golang/protobuf/proto
+      - google.golang.org/protobuf/proto
     packages-with-error-messages:
       # specify an error message to output when a blacklisted package is used
       github.com/sirupsen/logrus: "logging is allowed only by logutils.Log"
       github.com/golang/protobuf/jsonpb: "replace with github.com/gogo/protobuf/jsonpb"
+      google.golang.org/protobuf/encoding/protojson: "replace with github.com/gogo/protobuf/jsonpb"
       github.com/golang/protobuf/proto: "replace with github.com/gogo/protobuf/proto"
+      google.golang.org/protobuf/proto: "replace with github.com/gogo/protobuf/proto"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
