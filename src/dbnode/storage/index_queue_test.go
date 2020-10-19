@@ -427,7 +427,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 				assert.Equal(t, expectedBatchIDs[i], batchStr)
 			}
 
-			b.Done()
+			b.Processed()
 			i++
 		}
 		doneCh <- struct{}{}
@@ -463,7 +463,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	go func() {
 		i := 0
 		for b := range collector {
-			b.Done()
+			b.Processed()
 			fmt.Println(b.IDs)
 			i++
 		}

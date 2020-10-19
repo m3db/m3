@@ -23,10 +23,11 @@ package wide
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -38,6 +39,8 @@ type entryWithChecksum struct {
 }
 
 type entryChecksumMismatchChecker struct {
+	mu sync.Mutex
+
 	blockReader  IndexChecksumBlockBatchReader
 	mismatches   []ReadMismatch
 	strictLastID []byte
@@ -48,6 +51,16 @@ type entryChecksumMismatchChecker struct {
 	batchIdx  int
 	exhausted bool
 	started   bool
+}
+
+// FIXME: remove once this is changed to single output.
+func (c *entryChecksumMismatchChecker) Lock() {
+	c.mu.Lock()
+}
+
+// FIXME: remove once this is changed to single output.
+func (c *entryChecksumMismatchChecker) Unlock() {
+	c.mu.Unlock()
 }
 
 // NewEntryChecksumMismatchChecker creates a new entry checksum mismatch
@@ -65,19 +78,17 @@ func NewEntryChecksumMismatchChecker(
 	}
 }
 
-func entryMismatch(e entryWithChecksum) ReadMismatch {
+func checksumMismatch(checksum xio.IndexChecksum) ReadMismatch {
 	return ReadMismatch{
-		Checksum:    e.idChecksum,
-		EncodedTags: e.entry.EncodedTags,
-		ID:          e.entry.ID,
+		IndexChecksum: checksum,
 	}
 }
 
-func (c *entryChecksumMismatchChecker) entryMismatches(
-	entries ...entryWithChecksum,
+func (c *entryChecksumMismatchChecker) checksumMismatches(
+	checksums ...xio.IndexChecksum,
 ) []ReadMismatch {
-	for _, e := range entries {
-		c.mismatches = append(c.mismatches, entryMismatch(e))
+	for _, checksum := range checksums {
+		c.mismatches = append(c.mismatches, checksumMismatch(checksum))
 	}
 
 	return c.mismatches
@@ -85,14 +96,18 @@ func (c *entryChecksumMismatchChecker) entryMismatches(
 
 func (c *entryChecksumMismatchChecker) recordIndexMismatches(checksums ...int64) {
 	for _, checksum := range checksums {
-		c.mismatches = append(c.mismatches, ReadMismatch{Checksum: checksum})
+		c.mismatches = append(c.mismatches, ReadMismatch{
+			IndexChecksum: xio.IndexChecksum{
+				MetadataChecksum: checksum,
+			},
+		})
 	}
 }
 
 func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 	marker []byte,
 	checksum int64,
-	entry entryWithChecksum,
+	entry xio.IndexChecksum,
 ) error {
 	// Checksums match but IDs do not. Treat as an invariant violation.
 	err := fmt.Errorf("checksum collision")
@@ -101,18 +116,18 @@ func (c *entryChecksumMismatchChecker) emitInvariantViolation(
 			err.Error(),
 			zap.Int64("checksum", checksum),
 			zap.Binary("marker", marker),
-			zap.Any("entry", entry.entry),
+			zap.Any("entry", entry),
 		)
 	})
 	return err
 }
 
-func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockBatch {
+func (c *entryChecksumMismatchChecker) readNextBatch() IndexChecksumBlockBatch {
 	if !c.blockReader.Next() {
 		c.exhausted = true
 		// NB: set exhausted to true and return an empty since there are no
 		// more available checksum blocks.
-		return ident.IndexChecksumBlockBatch{}
+		return IndexChecksumBlockBatch{}
 	}
 
 	c.batchIdx = 0
@@ -121,19 +136,13 @@ func (c *entryChecksumMismatchChecker) readNextBatch() ident.IndexChecksumBlockB
 }
 
 func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
-	indexEntry schema.IndexEntry,
+	entry xio.IndexChecksum,
 ) ([]ReadMismatch, error) {
-	var (
-		hasher   = c.decodeOpts.IndexEntryHasher()
-		checksum = hasher.HashIndexEntry(indexEntry)
-		entry    = entryWithChecksum{entry: indexEntry, idChecksum: checksum}
-	)
-
 	c.mismatches = c.mismatches[:0]
 	if c.exhausted {
 		// NB: no remaining batches in the index checksum block; any further
 		// elements are mismatches (missing from primary).
-		return c.entryMismatches(entry), nil
+		return c.checksumMismatches(entry), nil
 	}
 
 	if !c.started {
@@ -142,7 +151,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 			// NB: no index checksum blocks available; any further
 			// elements are mismatches (missing from primary).
 			c.exhausted = true
-			return c.entryMismatches(entry), nil
+			return c.checksumMismatches(entry), nil
 		}
 
 		c.batchIdx = 0
@@ -163,9 +172,9 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 		}
 
 		checksum := batch.Checksums[c.batchIdx]
-		markerCompare := bytes.Compare(batch.EndMarker, entry.entry.ID)
+		markerCompare := bytes.Compare(batch.EndMarker, entry.ID.Bytes())
 		if c.batchIdx < markerIdx {
-			if checksum == entry.idChecksum {
+			if checksum == entry.MetadataChecksum {
 				// Matches: increment batch index and return any gathered mismatches.
 				c.batchIdx++
 				return c.mismatches, nil
@@ -174,7 +183,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 			for nextBatchIdx := c.batchIdx + 1; nextBatchIdx < markerIdx; nextBatchIdx++ {
 				// NB: read next hashes, checking for index checksum matches.
 				nextChecksum := batch.Checksums[nextBatchIdx]
-				if entry.idChecksum != nextChecksum {
+				if entry.MetadataChecksum != nextChecksum {
 					continue
 				}
 
@@ -186,7 +195,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 
 			checksum = batch.Checksums[markerIdx]
 			// NB: this is the last element in the batch. Check ID against MARKER.
-			if entry.idChecksum == checksum {
+			if entry.MetadataChecksum == checksum {
 				if markerCompare != 0 {
 					// Checksums match but IDs do not. Treat as emitInvariantViolation violation.
 					return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
@@ -202,7 +211,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 			if markerCompare > 0 {
 				// This is a mismatch on primary that appears before the
 				// marker element. Return mismatch but do not advance iter.
-				return c.entryMismatches(entry), nil
+				return c.checksumMismatches(entry), nil
 			}
 
 			// Current value is past the end of this batch. Mark all in batch as
@@ -211,7 +220,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 			batch = c.readNextBatch()
 			if c.exhausted {
 				// If no further values, add the current entry as a mismatch and return.
-				return c.entryMismatches(entry), nil
+				return c.checksumMismatches(entry), nil
 			}
 
 			// All mismatches marked for the current batch, check entry against next
@@ -220,7 +229,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 		}
 
 		// NB: this is the last element in the batch. Check ID against MARKER.
-		if entry.idChecksum == checksum {
+		if entry.MetadataChecksum == checksum {
 			if markerCompare != 0 {
 				// Checksums match but IDs do not. Treat as emitInvariantViolation violation.
 				return nil, c.emitInvariantViolation(batch.EndMarker, checksum, entry)
@@ -236,11 +245,11 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 			// IDs match but checksums do not. Advance the block iter and return
 			// mismatch.
 			batch = c.readNextBatch()
-			return c.entryMismatches(entry), nil
+			return c.checksumMismatches(entry), nil
 		} else if markerCompare > 0 {
 			// This is a mismatch on primary that appears before the
 			// marker element. Return mismatch but do not advance iter.
-			return c.entryMismatches(entry), nil
+			return c.checksumMismatches(entry), nil
 		}
 
 		// The current batch here is exceeded. Emit the current batch marker as
@@ -249,7 +258,7 @@ func (c *entryChecksumMismatchChecker) ComputeMismatchesForEntry(
 		batch = c.readNextBatch()
 		if c.exhausted {
 			// If no further values, add the current entry as a mismatch and return.
-			return c.entryMismatches(entry), nil
+			return c.checksumMismatches(entry), nil
 		}
 	}
 }
