@@ -5,6 +5,5 @@ import (
 )
 
 func main() {
-	multichecker.Main(
-	)
+	multichecker.Main()
 }

@@ -91,6 +91,8 @@ linters-settings:
     packages-with-error-messages:
       # specify an error message to output when a blacklisted package is used
       github.com/sirupsen/logrus: "logging is allowed only by logutils.Log"
+      github.com/golang/protobuf/jsonpb: "replace with github.com/gogo/protobuf/jsonpb"
+      github.com/golang/protobuf/proto: "replace with github.com/gogo/protobuf/proto"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
