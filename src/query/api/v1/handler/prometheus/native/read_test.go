@@ -50,31 +50,62 @@ import (
 )
 
 func TestPromReadHandlerRead(t *testing.T) {
-	testPromReadHandlerRead(t, timeoutOpts, block.NewResultMetadata(), "")
-	testPromReadHandlerRead(t, timeoutOpts, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandlerRead(t, timeoutOpts, block.ResultMetadata{Exhaustive: false},
+	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
 		headers.LimitHeaderSeriesLimitApplied)
 }
 
 func TestPromReadHandlerWithTimeout(t *testing.T) {
-	ctx := testPromReadHandlerRead(t, &prometheus.TimeoutOpts{
-		FetchTimeout: 100 * time.Millisecond,
-	}, block.NewResultMetadata(), "")
-	fmt.Println(ctx.Err())
-	time.Sleep(300 * time.Millisecond)
-	fmt.Println(ctx.Err())
-	require.Equal(t, "context deadline exceeded", ctx.Err())
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	timeout := &prometheus.TimeoutOpts{
+		FetchTimeout: 10 * time.Millisecond,
+	}
+	setup := newTestSetup(timeout)
+	promRead := setup.Handlers.read
+
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	m := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: block.NewResultMetadata(),
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
+	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
+
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+	ctx := req.Context()
+
+	r, parseErr := testParseParams(req)
+	require.Nil(t, parseErr)
+	assert.Equal(t, models.FormatPromQL, r.FormatType)
+	parsed := ParsedOptions{
+		QueryOpts: setup.QueryOpts,
+		FetchOpts: setup.FetchOpts,
+		Params:    r,
+		CancelWatcher: &cancelWatcher{
+			delay: timeout.FetchTimeout * 10,
+		},
+	}
+
+	_, err := read(ctx, parsed, promRead.opts)
+	require.Error(t, err)
+	require.Equal(t,
+		"context deadline exceeded",
+		err.Error())
 }
 
 func testPromReadHandlerRead(
 	t *testing.T,
-	timeout *prometheus.TimeoutOpts,
 	resultMeta block.ResultMetadata,
 	ex string,
-) context.Context {
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup(timeout)
+	setup := newTestSetup(timeoutOpts)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -95,10 +126,9 @@ func testPromReadHandlerRead(
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
 	parsed := ParsedOptions{
-		QueryOpts:     setup.QueryOpts,
-		FetchOpts:     setup.FetchOpts,
-		Params:        r,
-		CancelWatcher: &cancelWatcher{},
+		QueryOpts: setup.QueryOpts,
+		FetchOpts: setup.FetchOpts,
+		Params:    r,
 	}
 
 	result, err := read(ctx, parsed, promRead.opts)
@@ -112,8 +142,6 @@ func testPromReadHandlerRead(
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
-
-	return ctx
 }
 
 type M3QLResp []struct {
@@ -376,4 +404,5 @@ var _ handler.CancelWatcher = (*cancelWatcher)(nil)
 func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
 	// Simulate longer request to test timeout.
 	time.Sleep(c.delay)
+	fmt.Println("DELAY", c.delay)
 }

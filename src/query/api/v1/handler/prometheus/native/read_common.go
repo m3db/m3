@@ -206,6 +206,9 @@ func read(
 	if err != nil {
 		return emptyResult, err
 	}
+	if err := ctx.Err(); err != nil {
+		return emptyResult, err
+	}
 
 	resultMeta := bl.Meta().ResultMetadata
 	it, err := bl.StepIter()
