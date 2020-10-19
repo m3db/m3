@@ -742,6 +742,11 @@ func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesL
 	return lowest(ctx, input, n, "current")
 }
 
+// effectiveXFF return true if windowPoints has a % of non-nulls above the xFilesFactor, false if not
+func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
+	return float64(windowPoints-nans)/float64(windowPoints) >= xFilesFactor
+}
+
 // windowSizeFunc calculates window size for moving average calculation
 type windowSizeFunc func(stepSize int) int
 
@@ -879,7 +884,10 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 					}
 				}
 
-				if num > 0 && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
+				// func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
+				//if num > 0 && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
+
+				if num > 0 && effectiveXFF(windowPoints, nans, xFilesFactor) {
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
@@ -1986,7 +1994,7 @@ type movingImplementationFn func(window []float64, values ts.MutableValues, wind
 func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	nans := common.SafeSort(window)
 
-	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		index := (windowPoints - nans) / 2
 		median := window[nans+index]
 		vals.SetValueAt(i, median)
@@ -1997,7 +2005,7 @@ func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints in
 func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	sum, nans := common.SafeSum(window)
 
-	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, sum)
 	}
 }
@@ -2006,7 +2014,7 @@ func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	max, nans := common.SafeMax(window)
 
-	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor  {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, max)
 	}
 }
@@ -2015,7 +2023,7 @@ func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, 
 func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	min, nans := common.SafeMin(window)
 
-	if nans < windowPoints && float64(windowPoints - nans / (windowPoints)) >= xFilesFactor {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, min)
 	}
 }
@@ -2468,7 +2476,7 @@ func init() {
 		4: false, // alignToFrom
 	})
 	MustRegisterFunction(smartSummarize).WithDefaultParams(map[uint8]interface{}{
-		3: "",    // fname
+		3: "", // fname
 	})
 	MustRegisterFunction(sumSeries)
 	MustRegisterFunction(sumSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
@@ -2484,7 +2492,7 @@ func init() {
 		2: 60, // step
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
-		3: true, // resetEnd
+		3: true,  // resetEnd
 		4: false, // alignDst
 	})
 	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
