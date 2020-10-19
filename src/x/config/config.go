@@ -117,7 +117,8 @@ func deprecationCheck(cfg interface{}, df []string) []string {
 			df = deprecationCheck(v.Interface(), df)
 		}
 		name := reflect.TypeOf(cfg).Field(i).Name
-		if strings.HasPrefix(name, deprecatedPrefix) {
+		if strings.HasPrefix(name, deprecatedPrefix) && !v.IsZero() {
+			// Only log as deprecated if actually using (not zero value).
 			df = append(df, name)
 		}
 	}
