@@ -422,7 +422,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{foo, nan, bar},
+			"result":     xjson.Array{foo, nan, bar},
 		},
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -434,7 +434,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{foo, bar},
+			"result":     xjson.Array{foo, bar},
 		},
 	})
 	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -488,7 +488,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{nan1, nan2},
+			"result":     xjson.Array{nan1, nan2},
 		},
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -500,7 +500,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{},
+			"result":     xjson.Array{},
 		},
 	})
 	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())

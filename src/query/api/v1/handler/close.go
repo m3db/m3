@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	"go.uber.org/zap"
 )
 
 // CancelWatcher is an interface that wraps a WatchForCancel method.
@@ -57,7 +58,7 @@ func (c *canceller) WatchForCancel(
 		case <-ctx.Done():
 			// We only care about the time out case and not other cancellations
 			if ctx.Err() == context.DeadlineExceeded {
-				logger.Warn("request timed out")
+				logger.Warn("request timed out", zap.Error(ctx.Err()))
 			}
 		}
 	}()

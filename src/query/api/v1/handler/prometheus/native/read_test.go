@@ -23,6 +23,7 @@ package native
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -48,20 +50,31 @@ import (
 )
 
 func TestPromReadHandlerRead(t *testing.T) {
-	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+	testPromReadHandlerRead(t, timeoutOpts, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, timeoutOpts, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, timeoutOpts, block.ResultMetadata{Exhaustive: false},
 		headers.LimitHeaderSeriesLimitApplied)
+}
+
+func TestPromReadHandlerWithTimeout(t *testing.T) {
+	ctx := testPromReadHandlerRead(t, &prometheus.TimeoutOpts{
+		FetchTimeout: 100 * time.Millisecond,
+	}, block.NewResultMetadata(), "")
+	fmt.Println(ctx.Err())
+	time.Sleep(300 * time.Millisecond)
+	fmt.Println(ctx.Err())
+	require.Equal(t, "context deadline exceeded", ctx.Err())
 }
 
 func testPromReadHandlerRead(
 	t *testing.T,
+	timeout *prometheus.TimeoutOpts,
 	resultMeta block.ResultMetadata,
 	ex string,
-) {
+) context.Context {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup()
+	setup := newTestSetup(timeout)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -76,17 +89,19 @@ func testPromReadHandlerRead(
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
+	ctx := req.Context()
 
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
 	parsed := ParsedOptions{
-		QueryOpts: setup.QueryOpts,
-		FetchOpts: setup.FetchOpts,
-		Params:    r,
+		QueryOpts:     setup.QueryOpts,
+		FetchOpts:     setup.FetchOpts,
+		Params:        r,
+		CancelWatcher: &cancelWatcher{},
 	}
 
-	result, err := read(context.TODO(), parsed, promRead.opts)
+	result, err := read(ctx, parsed, promRead.opts)
 	require.NoError(t, err)
 	seriesList := result.Series
 
@@ -97,6 +112,8 @@ func testPromReadHandlerRead(
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
+
+	return ctx
 }
 
 type M3QLResp []struct {
@@ -120,7 +137,7 @@ func testM3PromReadHandlerRead(
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup()
+	setup := newTestSetup(timeoutOpts)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -178,7 +195,7 @@ type testSetupHandlers struct {
 	instantRead *promReadHandler
 }
 
-func newTestSetup() *testSetup {
+func newTestSetup(timeout *prometheus.TimeoutOpts) *testSetup {
 	mockStorage := mock.NewMockStorage()
 
 	instrumentOpts := instrument.NewOptions()
@@ -198,7 +215,7 @@ func newTestSetup() *testSetup {
 		SetEngine(engine).
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetTagOptions(tagOpts).
-		SetTimeoutOpts(timeoutOpts).
+		SetTimeoutOpts(timeout).
 		SetInstrumentOpts(instrumentOpts).
 		SetConfig(config.Configuration{
 			Limits: limitsConfig,
@@ -224,7 +241,7 @@ func newTestSetup() *testSetup {
 }
 
 func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
-	setup := newTestSetup()
+	setup := newTestSetup(timeoutOpts)
 	opts := setup.Handlers.read.opts
 	setup.Handlers.read.opts = opts.SetConfig(config.Configuration{
 		Limits: config.LimitsConfiguration{
@@ -348,4 +365,15 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+type cancelWatcher struct {
+	delay time.Duration
+}
+
+var _ handler.CancelWatcher = (*cancelWatcher)(nil)
+
+func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
+	// Simulate longer request to test timeout.
+	time.Sleep(c.delay)
 }

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -117,6 +116,11 @@ func ParseRequest(
 		return ParsedOptions{}, rErr
 	}
 
+	fetchOpts.Timeout = opts.TimeoutOpts().FetchTimeout
+	if params.Timeout > 0 {
+		fetchOpts.Timeout = params.Timeout
+	}
+
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
 	if err := validateRequest(params, maxPoints); err != nil {
 		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
@@ -192,13 +196,9 @@ func read(
 
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
-		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
-		defer func() {
-			fmt.Println("CANCELED", fetchOpts.Timeout)
-			cancel()
-		}()
-
-		fmt.Println("WATCH CANCEL", fetchOpts.Timeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, parsed.FetchOpts.Timeout)
+		defer cancel()
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
