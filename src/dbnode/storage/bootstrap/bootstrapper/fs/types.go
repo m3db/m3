@@ -70,21 +70,13 @@ type Options interface {
 	// Compactor returns the compactor used to compact segment builders into segments.
 	Compactor() *compaction.Compactor
 
-	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapDataNumProcessors(value int) Options
+	// SetIndexSegmentConcurrency sets the concurrency for
+	// building index segments.
+	SetIndexSegmentConcurrency(value int) Options
 
-	// BoostrapDataNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapDataNumProcessors() int
-
-	// SetBoostrapIndexNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapIndexNumProcessors(value int) Options
-
-	// BoostrapIndexNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapIndexNumProcessors() int
+	// IndexSegmentConcurrency returns the concurrency for
+	// building index segments.
+	IndexSegmentConcurrency() int
 
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
