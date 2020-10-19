@@ -23,6 +23,7 @@ package ident
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -311,20 +312,25 @@ func (t Tags) Equal(other Tags) bool {
 	return true
 }
 
-// IndexChecksum is a wide index checksums for a single entry.
-type IndexChecksum struct {
-	// Checksum is the wide index checksums.
-	Checksum int64
-	// ID is the ID.
-	ID []byte
+// IDBatch is a batch of IDs that is consumed asynchronously.
+type IDBatch struct {
+	wg sync.WaitGroup
+
+	// IDs are the IDs for the batch.
+	IDs []ID
 }
 
-// IndexChecksumBlockBatch represents a batch of index checksums originating
-// from a single series block.
-type IndexChecksumBlockBatch struct {
-	// Checksums is the list of index checksums.
-	Checksums []int64
-	// EndMarker is a batch marker, signifying the ID of the
-	// last element in the batch.
-	EndMarker []byte
+// ReadyForProcessing indicates this batch is ready for processing.
+func (b *IDBatch) ReadyForProcessing() {
+	b.wg.Add(1)
+}
+
+// WaitUntilProcessed waits until the batch has been processed.
+func (b *IDBatch) WaitUntilProcessed() {
+	b.wg.Wait()
+}
+
+// Processed indicates that this batch has finished processing.
+func (b *IDBatch) Processed() {
+	b.wg.Done()
 }

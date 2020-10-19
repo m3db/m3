@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -40,16 +39,22 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestPeersBootstrapHighConcurrency(t *testing.T) {
-	for _, test := range []testPeersBootstrapHighConcurrencyOptions{
-		{BatchSize: 16, Concurrency: 64, BatchesPerWorker: 8},
-	} {
-		name, err := json.Marshal(test)
-		require.NoError(t, err)
-		t.Run(string(name), func(t *testing.T) {
-			testPeersBootstrapHighConcurrency(t, test)
+func TestPeersBootstrapHighConcurrencyBatch16Workers64(t *testing.T) {
+	testPeersBootstrapHighConcurrency(t,
+		testPeersBootstrapHighConcurrencyOptions{
+			BatchSize:        16,
+			Concurrency:      64,
+			BatchesPerWorker: 8,
 		})
-	}
+}
+
+func TestPeersBootstrapHighConcurrencyBatch64Workers16(t *testing.T) {
+	testPeersBootstrapHighConcurrency(t,
+		testPeersBootstrapHighConcurrencyOptions{
+			BatchSize:        64,
+			Concurrency:      16,
+			BatchesPerWorker: 8,
+		})
 }
 
 type testPeersBootstrapHighConcurrencyOptions struct {

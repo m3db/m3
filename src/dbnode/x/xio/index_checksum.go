@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pprof
+package xio
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-func TestHandler(t *testing.T) {
-	s := httptest.NewServer(handler())
-	url := s.URL + pprofPath
-	defer s.Close()
+// IndexChecksum is an entry from the index file which can be passed to
+// SeekUsingIndexEntry to seek to the data for that entry.
+type IndexChecksum struct {
+	ID               ident.ID
+	Size             int64
+	Offset           int64
+	DataChecksum     int64
+	EncodedTags      checked.Bytes
+	MetadataChecksum int64
+}
 
-	for _, endpoint := range []string{
-		"",
-		"cmdline",
-		"symbol",
-		"profile?seconds=1",
-		"trace?seconds=1",
-		"goroutine?debug=2",
-	} {
-		resp, err := http.Get(url + endpoint)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+// Finalize finalizes the index checksum.
+func (c *IndexChecksum) Finalize() {
+	if c.EncodedTags != nil {
+		c.EncodedTags.DecRef()
+	}
+
+	if c.ID != nil && c.ID.Bytes() != nil {
+		c.ID.Finalize()
 	}
 }

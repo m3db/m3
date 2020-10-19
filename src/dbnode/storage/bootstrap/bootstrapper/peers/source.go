@@ -58,9 +58,10 @@ import (
 )
 
 type peersSource struct {
-	opts  Options
-	log   *zap.Logger
-	nowFn clock.NowFn
+	opts              Options
+	log               *zap.Logger
+	newPersistManager func() (persist.Manager, error)
+	nowFn             clock.NowFn
 }
 
 type persistenceFlush struct {
@@ -77,8 +78,11 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 
 	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
-		opts:  opts,
-		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		opts: opts,
+		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		newPersistManager: func() (persist.Manager, error) {
+			return fs.NewPersistManager(opts.FilesystemOptions())
+		},
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
 }
@@ -246,7 +250,6 @@ func (s *peersSource) readData(
 
 	var (
 		resultLock              sync.Mutex
-		wg                      sync.WaitGroup
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
@@ -277,7 +280,10 @@ func (s *peersSource) readData(
 		}
 	}
 
-	workers := xsync.NewWorkerPool(concurrency)
+	var (
+		wg      sync.WaitGroup
+		workers = xsync.NewWorkerPool(concurrency)
+	)
 	workers.Init()
 	for shard, ranges := range shardTimeRanges.Iter() {
 		shard, ranges := shard, ranges
@@ -314,7 +320,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) (io.Closer, error) {
-	persistMgr, err := fs.NewPersistManager(s.opts.FilesystemOptions())
+	persistMgr, err := s.newPersistManager()
 	if err != nil {
 		return nil, err
 	}
@@ -747,7 +753,7 @@ func (s *peersSource) readIndex(
 			return nil, err
 		}
 
-		persistManager, err := fs.NewPersistManager(s.opts.FilesystemOptions())
+		persistManager, err := s.newPersistManager()
 		if err != nil {
 			return nil, err
 		}

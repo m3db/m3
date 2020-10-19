@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -56,14 +55,22 @@ var (
 	testNamespace         = ident.StringID("testnamespace")
 	testNamespaceMetadata = func(t *testing.T, opts ...namespaceOption) namespace.Metadata {
 		namespaceOpts := namespace.NewOptions()
+		idxOpts := namespaceOpts.IndexOptions()
+		namespaceOpts = namespaceOpts.SetIndexOptions(idxOpts.SetEnabled(true))
 		for _, opt := range opts {
 			namespaceOpts = opt(namespaceOpts)
 		}
-		idxOpts := namespaceOpts.IndexOptions()
-		namespaceOpts = namespaceOpts.SetIndexOptions(idxOpts.SetEnabled(true))
 		ns, err := namespace.NewMetadata(testNamespace, namespaceOpts)
 		require.NoError(t, err)
 		return ns
+	}
+	testNamespaceMetadataNoIndex = func(t *testing.T, opts ...namespaceOption) namespace.Metadata {
+		newOpts := append([]namespaceOption(nil), opts...)
+		newOpts = append(newOpts, func(namespaceOpts namespace.Options) namespace.Options {
+			idxOpts := namespaceOpts.IndexOptions()
+			return namespaceOpts.SetIndexOptions(idxOpts.SetEnabled(false))
+		})
+		return testNamespaceMetadata(t, newOpts...)
 	}
 
 	testDefaultRunOpts = bootstrap.NewRunOptions().
@@ -73,6 +80,8 @@ var (
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 )
+
+type namespaceOption func(namespace.Options) namespace.Options
 
 func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
 	idxOpts := index.NewOptions()
@@ -129,10 +138,8 @@ func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3
 	return mockRuntimeOptsMgr
 }
 
-type namespaceOption func(namespace.Options) namespace.Options
-
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl).
@@ -142,7 +149,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		nsMetadata = testNamespaceMetadata(t)
+		nsMetadata = testNamespaceMetadataNoIndex(t)
 		target     = result.NewShardTimeRanges()
 		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
@@ -163,10 +170,10 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	nsMetadata := testNamespaceMetadata(t)
+	nsMetadata := testNamespaceMetadataNoIndex(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
 	expectedErr := errors.New("an error")
@@ -203,11 +210,11 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 }
 
 func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl)
-	nsMetadata := testNamespaceMetadata(t)
+	nsMetadata := testNamespaceMetadataNoIndex(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -266,10 +273,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		series.CacheRecentlyRead,
 		series.CacheLRU,
 	} {
-		ctrl := gomock.NewController(t)
+		ctrl := xtest.NewController(t)
 		defer ctrl.Finish()
 
-		testNsMd := testNamespaceMetadata(t)
+		testNsMd := testNamespaceMetadataNoIndex(t)
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
 		opts := newTestDefaultOpts(t, ctrl).SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
@@ -417,10 +424,12 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		mockPersistManager := persist.NewMockManager(ctrl)
 		mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreparer, nil)
 
-		opts = opts.SetPersistManager(mockPersistManager)
-
 		src, err := newPeersSource(opts)
 		require.NoError(t, err)
+
+		src.(*peersSource).newPersistManager = func() (persist.Manager, error) {
+			return mockPersistManager, nil
+		}
 
 		target := result.NewShardTimeRanges().Set(
 			0,
@@ -448,7 +457,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 }
 
 func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl).
@@ -456,7 +465,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 			ResultOptions().
 			SetSeriesCachePolicy(series.CacheRecentlyRead),
 		)
-	testNsMd := testNamespaceMetadata(t)
+	testNsMd := testNamespaceMetadataNoIndex(t)
 	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -485,8 +494,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().
-		Stream(gomock.Any()).Return(xio.EmptyBlockReader, errors.New("stream err"))
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Checksum().Return(uint32(0), errors.New("stream err"))
 	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
@@ -495,17 +503,10 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	addResult(0, "foo", fooBlocks[1], false)
 
 	// bar results
-	mockStream := xio.NewMockSegmentReader(ctrl)
-	mockStream.EXPECT().Segment().Return(ts.Segment{}, segmentError)
-
-	b := xio.BlockReader{
-		SegmentReader: mockStream,
-	}
-
 	var barBlocks [2]block.DatabaseBlock
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
+	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Checksum().Return(uint32(0), errors.New("stream err"))
 	addResult(1, "bar", barBlocks[0], false)
 
 	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
@@ -621,6 +622,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
+				panic("wat")
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},
@@ -727,10 +729,12 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	mockPersistManager := persist.NewMockManager(ctrl)
 	mockPersistManager.EXPECT().StartFlushPersist().Return(flushPreprarer, nil)
 
-	opts = opts.SetPersistManager(mockPersistManager)
-
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
+
+	src.(*peersSource).newPersistManager = func() (persist.Manager, error) {
+		return mockPersistManager, nil
+	}
 
 	target := result.NewShardTimeRanges().Set(
 		0,

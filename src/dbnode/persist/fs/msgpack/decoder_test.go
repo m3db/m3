@@ -24,6 +24,10 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
+	xhash "github.com/m3db/m3/src/x/test/hash"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,14 +147,16 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Strip checksum, add new field, add updated checksum
 	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
-	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
+	checksum := int64(digest.Checksum(enc.Bytes()))
+	require.NoError(t, enc.enc.EncodeInt64(checksum))
+	expected := testIndexEntry
+	expected.IndexChecksum = checksum
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-
-	require.Equal(t, testIndexEntry, res)
+	require.Equal(t, expected, res)
 }
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
@@ -277,4 +283,76 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
+}
+
+var decodeIndexChecksumTests = []struct {
+	id         string
+	exStatus   IndexChecksumLookupStatus
+	exChecksum int64
+}{
+	{id: "aaa", exStatus: NotFoundLookupStatus},
+	{id: "test100", exStatus: MatchedLookupStatus, exChecksum: testMetadataChecksum},
+	{id: "zzz", exStatus: MismatchLookupStatus},
+}
+
+func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
+	)
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
+	data := enc.Bytes()
+
+	for _, tt := range decodeIndexChecksumTests {
+		t.Run(tt.id, func(t *testing.T) {
+			dec.Reset(NewByteDecoderStream(data))
+			res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), nil)
+			require.NoError(t, err)
+			require.Equal(t, tt.exStatus, status)
+			if tt.exStatus == MatchedLookupStatus {
+				require.Equal(t, tt.exChecksum, res.MetadataChecksum)
+			}
+		})
+	}
+}
+
+func TestDecodeIndexEntryToIndexChecksumPooled(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
+	)
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry.IndexEntry))
+	data := enc.Bytes()
+
+	for _, tt := range decodeIndexChecksumTests {
+		t.Run(tt.id+"_pooled", func(t *testing.T) {
+			dec.Reset(NewByteDecoderStream(data))
+
+			bytePool := pool.NewMockBytesPool(ctrl)
+			idLength := len(testIndexCheksumEntry.ID)
+			idBytes := make([]byte, idLength)
+			bytePool.EXPECT().Get(idLength).Return(idBytes)
+
+			tagLength := len(testIndexCheksumEntry.EncodedTags)
+			tagBytes := make([]byte, tagLength)
+			bytePool.EXPECT().Get(tagLength).Return(tagBytes)
+
+			if tt.exStatus != MatchedLookupStatus {
+				bytePool.EXPECT().Put(idBytes)
+				bytePool.EXPECT().Put(tagBytes)
+			}
+
+			res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte(tt.id), bytePool)
+			require.NoError(t, err)
+			require.Equal(t, tt.exStatus, status)
+			if tt.exStatus == MatchedLookupStatus {
+				require.Equal(t, tt.exChecksum, res.MetadataChecksum)
+			}
+		})
+	}
 }
