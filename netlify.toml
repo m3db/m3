@@ -8,8 +8,7 @@
   # root directory if a base has not been set. This sample publishes the
   # directory located at the absolute path "root/project/build-output"
   publish = "site/public/"
-
-[context."docs-test"]
+  
   command = "hugo"  
   HUGO_VERSION = "0.75.1"
 
