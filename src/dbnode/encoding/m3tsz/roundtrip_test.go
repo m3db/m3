@@ -23,7 +23,6 @@ package m3tsz
 import (
 	"bytes"
 	"math"
-
 	"math/rand"
 	"testing"
 	"time"
