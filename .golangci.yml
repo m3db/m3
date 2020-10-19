@@ -3,3 +3,6 @@ run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   timeout: 2m
 
+issues:
+  # Show only new issues created after git revision `REV`
+  new-from-rev: ae8ea433d16e095634dda164ed5e041460ed2cd5
