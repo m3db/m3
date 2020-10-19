@@ -96,6 +96,7 @@ TOOLS :=               \
 	carbon_load          \
 	docs_test            \
 	m3ctl                \
+	linter               \
 
 .PHONY: setup
 setup:
@@ -184,6 +185,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
 	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
 	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(tools_bin_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint
 	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
 	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
@@ -245,6 +247,13 @@ docs-test:
 	make docs-validate
 	@echo "--- Documentation build test"
 	make docs-build
+
+.PHONY: lint
+lint: export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
+lint: install-tools linter
+	@echo "--- :golang: Running linters"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint
+	./bin/linter ./...
 
 .PHONY: docker-integration-test
 docker-integration-test:
