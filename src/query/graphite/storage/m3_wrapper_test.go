@@ -250,6 +250,49 @@ func TestFetchByInvalidQuery(t *testing.T) {
 	require.Equal(t, 0, len(result.SeriesList))
 }
 
+func TestTruncateBoundsToResolution(t *testing.T) {
+	var (
+		resolution    = 60 * time.Second
+		expectedStart = time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC)
+		expectedEnd   = time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC)
+		opts          = truncateBoundsToResolutionOptions{
+			shiftStepsStartWhenAtResolutionBoundary:    intRefValue(1),
+			shiftStepsEndWhenAtResolutionBoundary:      intRefValue(1),
+			shiftStepsEndWhenStartAtResolutionBoundary: intRefValue(1),
+		}
+		tests = []struct {
+			start time.Time
+			end   time.Time
+		}{
+
+			{
+				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 00, 0, time.UTC),
+			},
+
+			{
+				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 39, 0, time.UTC),
+			},
+			{
+				start: time.Date(2020, time.October, 8, 30, 50, 12, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 00, 0, time.UTC),
+			},
+			{
+				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 39, 0, time.UTC),
+			},
+		}
+	)
+
+	for _, test := range tests {
+
+		actualStart, actualEnd := truncateBoundsToResolution(test.start, test.end, resolution, opts)
+		assert.Equal(t, expectedStart, actualStart)
+		assert.Equal(t, expectedEnd, actualEnd)
+	}
+}
+
 func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) {
 	var (
 		ctrl       = xtest.NewController(t)

@@ -963,7 +963,7 @@ func (d *db) batchProcessWideQuery(
 		defer func() {
 			if collectorErr != nil {
 				for batch := range collector {
-					batch.Done()
+					batch.Processed()
 				}
 			}
 
@@ -972,7 +972,7 @@ func (d *db) batchProcessWideQuery(
 
 		for batch := range collector {
 			collectorErr = batchProcessor(batch)
-			batch.Done()
+			batch.Processed()
 		}
 	}()
 
@@ -992,7 +992,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]ident.IndexChecksum, error) { // FIXME: change when exact type known.
+) ([]xio.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1003,7 +1003,7 @@ func (d *db) WideQuery(
 		batchSize = d.opts.WideBatchSize()
 		blockSize = n.Options().IndexOptions().BlockSize()
 
-		collectedChecksums = make([]ident.IndexChecksum, 0, 10)
+		collectedChecksums = make([]xio.IndexChecksum, 0, 10)
 	)
 
 	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
@@ -1046,7 +1046,7 @@ func (d *db) WideQuery(
 			// TODO: use index checksum value to call downstreams.
 			useID := i == len(batch.IDs)-1
 			if !useID {
-				checksum.ID = checksum.ID[:0]
+				checksum.ID.Finalize()
 			}
 
 			collectedChecksums = append(collectedChecksums, checksum)
@@ -1086,7 +1086,7 @@ func (d *db) ReadMismatches(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
@@ -1123,11 +1123,11 @@ func (d *db) ReadMismatches(
 
 	defer sp.Finish()
 
-	streamedMismatches := make([]wide.StreamedMismatchBatch, 0, batchSize)
+	streamedMismatches := make([]wide.StreamedMismatch, 0, batchSize)
 	streamMismatchProcessor := func(batch *ident.IDBatch) error {
 		streamedMismatches = streamedMismatches[:0]
 		for _, id := range batch.IDs {
-			streamedMismatch, err := d.fetchReadMismatches(ctx, n, batchReader, id, start)
+			streamedMismatch, err := d.fetchReadMismatch(ctx, n, mismatchChecker, id, start)
 			if err != nil {
 				return err
 			}
@@ -1136,12 +1136,12 @@ func (d *db) ReadMismatches(
 		}
 
 		for _, streamedMismatch := range streamedMismatches {
-			batch, err := streamedMismatch.RetrieveMismatchBatch()
+			mismatch, err := streamedMismatch.RetrieveMismatch()
 			if err != nil {
 				return err
 			}
 
-			collectedMismatches = append(collectedMismatches, batch.Mismatches...)
+			collectedMismatches = append(collectedMismatches, mismatch)
 		}
 
 		return nil
@@ -1155,14 +1155,14 @@ func (d *db) ReadMismatches(
 	return collectedMismatches, nil
 }
 
-func (d *db) fetchReadMismatches(
+func (d *db) fetchReadMismatch(
 	ctx context.Context,
 	ns databaseNamespace,
-	batchReader wide.IndexChecksumBlockBatchReader,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
 	id ident.ID,
 	start time.Time,
-) (wide.StreamedMismatchBatch, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatches)
+) (wide.StreamedMismatch, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatch)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", ns.ID().String()),
@@ -1172,7 +1172,7 @@ func (d *db) fetchReadMismatches(
 	}
 
 	defer sp.Finish()
-	return ns.FetchReadMismatches(ctx, batchReader, id, start)
+	return ns.FetchReadMismatch(ctx, mismatchChecker, id, start)
 }
 
 func (d *db) FetchBlocks(

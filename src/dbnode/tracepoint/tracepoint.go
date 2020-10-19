@@ -76,8 +76,8 @@ const (
 	// DBIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
 	DBIndexChecksum = "storage.db.IndexChecksum"
 
-	// DBFetchMismatches is the operation name for the tchannelthrift FetchMismatches path.
-	DBFetchMismatches = "storage.db.FetchMismatches"
+	// DBFetchMismatch is the operation name for the tchannelthrift DBFetchMismatch path.
+	DBFetchMismatch = "storage.db.FetchMismatch"
 
 	// DBAggregateTiles is the operation name for the db AggregateTiles path.
 	DBAggregateTiles = "storage.db.AggregateTiles"

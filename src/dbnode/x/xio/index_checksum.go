@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package xio
 
 import (
-	"flag"
-	"fmt"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-
-	"github.com/m3db/m3/src/aggregator/server"
-	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	"github.com/m3db/m3/src/x/etcd"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
+// IndexChecksum is an entry from the index file which can be passed to
+// SeekUsingIndexEntry to seek to the data for that entry.
+type IndexChecksum struct {
+	ID               ident.ID
+	Size             int64
+	Offset           int64
+	DataChecksum     int64
+	EncodedTags      checked.Bytes
+	MetadataChecksum int64
+}
 
-	flag.Parse()
-
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
-
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
-		os.Exit(1)
+// Finalize finalizes the index checksum.
+func (c *IndexChecksum) Finalize() {
+	if c.EncodedTags != nil {
+		c.EncodedTags.DecRef()
 	}
 
-	server.Run(server.RunOptions{
-		Config: cfg,
-	})
+	if c.ID != nil && c.ID.Bytes() != nil {
+		c.ID.Finalize()
+	}
 }

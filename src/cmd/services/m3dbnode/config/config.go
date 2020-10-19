@@ -59,9 +59,6 @@ type Configuration struct {
 
 	// Coordinator is the configuration for the coordinator to run (optional).
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
-
-	// Debug configuration.
-	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -169,6 +166,9 @@ type DBConfiguration struct {
 
 	// TChannel exposes TChannel config options.
 	TChannel *TChannelConfiguration `yaml:"tchannel"`
+
+	// Debug configuration.
+	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
