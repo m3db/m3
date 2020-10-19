@@ -78,22 +78,6 @@ type Options interface {
 	// building index segments.
 	IndexSegmentConcurrency() int
 
-	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapDataNumProcessors(value int) Options
-
-	// BoostrapDataNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapDataNumProcessors() int
-
-	// SetBoostrapIndexNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapIndexNumProcessors(value int) Options
-
-	// BoostrapIndexNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapIndexNumProcessors() int
-
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 

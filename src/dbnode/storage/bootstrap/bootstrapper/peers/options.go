@@ -22,6 +22,7 @@ package peers
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"runtime"
 
@@ -116,6 +117,9 @@ func (o *options) Validate() error {
 	}
 	if o.fsOpts == nil {
 		return errFilesystemOptionsNotSet
+	}
+	if n := o.indexSegmentConcurrency; n <= 0 {
+		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
 	return nil
 }

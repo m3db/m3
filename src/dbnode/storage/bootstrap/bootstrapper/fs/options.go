@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	goruntime "runtime"
 
@@ -62,19 +63,17 @@ var (
 )
 
 type options struct {
-	instrumentOpts              instrument.Options
-	resultOpts                  result.Options
-	fsOpts                      fs.Options
-	indexOpts                   index.Options
-	persistManager              persist.Manager
-	compactor                   *compaction.Compactor
-	indexSegmentConcurrency     int
-	bootstrapDataNumProcessors  int
-	bootstrapIndexNumProcessors int
-	runtimeOptsMgr              runtime.OptionsManager
-	identifierPool              ident.Pool
-	migrationOpts               migration.Options
-	storageOpts                 storage.Options
+	instrumentOpts          instrument.Options
+	resultOpts              result.Options
+	fsOpts                  fs.Options
+	indexOpts               index.Options
+	persistManager          persist.Manager
+	compactor               *compaction.Compactor
+	indexSegmentConcurrency int
+	runtimeOptsMgr          runtime.OptionsManager
+	identifierPool          ident.Pool
+	migrationOpts           migration.Options
+	storageOpts             storage.Options
 }
 
 // NewOptions creates new bootstrap options
@@ -86,15 +85,13 @@ func NewOptions() Options {
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 
 	return &options{
-		instrumentOpts:              instrument.NewOptions(),
-		resultOpts:                  result.NewOptions(),
-		indexSegmentConcurrency:     defaultIndexSegmentConcurrency,
-		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
-		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
-		runtimeOptsMgr:              runtime.NewOptionsManager(),
-		identifierPool:              idPool,
-		migrationOpts:               migration.NewOptions(),
-		storageOpts:                 storage.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		resultOpts:              result.NewOptions(),
+		indexSegmentConcurrency: defaultIndexSegmentConcurrency,
+		runtimeOptsMgr:          runtime.NewOptionsManager(),
+		identifierPool:          idPool,
+		migrationOpts:           migration.NewOptions(),
+		storageOpts:             storage.NewOptions(),
 	}
 }
 
@@ -116,6 +113,9 @@ func (o *options) Validate() error {
 	}
 	if err := o.migrationOpts.Validate(); err != nil {
 		return err
+	}
+	if n := o.indexSegmentConcurrency; n <= 0 {
+		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
 	return nil
 }
@@ -188,26 +188,6 @@ func (o *options) SetIndexSegmentConcurrency(value int) Options {
 
 func (o *options) IndexSegmentConcurrency() int {
 	return o.indexSegmentConcurrency
-}
-
-func (o *options) SetBoostrapDataNumProcessors(value int) Options {
-	opts := *o
-	opts.bootstrapDataNumProcessors = value
-	return &opts
-}
-
-func (o *options) BoostrapDataNumProcessors() int {
-	return o.bootstrapDataNumProcessors
-}
-
-func (o *options) SetBoostrapIndexNumProcessors(value int) Options {
-	opts := *o
-	opts.bootstrapIndexNumProcessors = value
-	return &opts
-}
-
-func (o *options) BoostrapIndexNumProcessors() int {
-	return o.bootstrapIndexNumProcessors
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

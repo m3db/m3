@@ -135,9 +135,7 @@ func enqueueReadersGroupedByBlockSize(
 				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders
 		}
-		// Make sure to create before potentially being blocked on send.
-		timeWindowReaders := newTimeWindowReaders(group.Ranges, readers)
-		readersCh <- timeWindowReaders
+		readersCh <- newTimeWindowReaders(group.Ranges, readers)
 	}
 }
 

@@ -73,10 +73,8 @@ var (
 	testDefaultRunOpts        = bootstrap.NewRunOptions().
 					SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts).
-				SetBoostrapDataNumProcessors(1).
-				SetBoostrapIndexNumProcessors(1)
-	testShardRanges = testShardTimeRanges()
+	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
+	testShardRanges       = testShardTimeRanges()
 )
 
 func newTestOptions(t require.TestingT, filePathPrefix string) Options {

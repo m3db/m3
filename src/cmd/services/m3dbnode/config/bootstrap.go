@@ -22,8 +22,6 @@ package config
 
 import (
 	"fmt"
-	"math"
-	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -73,17 +71,14 @@ type BootstrapConfiguration struct {
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
-	// TODO: deprecate.
-	// NumProcessorsPerCPU is the number of processors per CPU.
-	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+	// DeprecatedNumProcessorsPerCPU is the number of processors per CPU.
+	// TODO: Remove, this is deprecated since BootstrapDataNumProcessors() is
+	// no longer actually used anywhere.
+	DeprecatedNumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 
 	// Migration configuration specifies what version, if any, existing data filesets should be migrated to
 	// if necessary.
 	Migration *BootstrapMigrationConfiguration `yaml:"migration"`
-}
-
-func (c BootstrapFilesystemConfiguration) numCPUs() int {
-	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
 }
 
 func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfiguration {
@@ -95,8 +90,7 @@ func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfigur
 
 func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
 	return BootstrapFilesystemConfiguration{
-		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
-		Migration:           &BootstrapMigrationConfiguration{},
+		Migration: &BootstrapMigrationConfiguration{},
 	}
 }
 
@@ -224,7 +218,6 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
-				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
