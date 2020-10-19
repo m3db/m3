@@ -442,9 +442,11 @@ bar: 42
 		require.NoError(t, err)
 
 		actual := deprecationCheck(cfg2, df)
-		require.Len(t, actual, 2)
 		expect := []string{"DeprecatedFoo", "DeprecatedBar"}
-		require.Equal(t, expect, actual)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 	})
 
 	t.Run("DeprecatedZeroValue", func(t *testing.T) {
@@ -460,7 +462,7 @@ bar: 42
 
 		df := []string{}
 		ss := deprecationCheck(cfg, df)
-		require.Len(t, ss, 0)
+		require.Equal(t, 0, len(ss))
 
 		// Deprecated zero value should be ok and not printed
 		badConfig := `
@@ -483,9 +485,11 @@ baz: null
 		require.NoError(t, err)
 
 		actual := deprecationCheck(cfg2, df)
-		require.Len(t, actual, 2)
 		expect := []string{"DeprecatedFoo", "DeprecatedBar"}
-		require.Equal(t, expect, actual)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 	})
 
 	t.Run("NestedConfig", func(t *testing.T) {
@@ -512,9 +516,11 @@ commitlog:
 
 		df := []string{}
 		actual := deprecationCheck(cfg, df)
-		require.Len(t, actual, 1)
 		expect := []string{"DeprecatedBlockSize"}
-		require.Equal(t, expect, actual)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 
 		// Multiple deprecation
 		var cfg2 nestedConfigurationMultipleDeprecated
@@ -527,7 +533,6 @@ servers:
 commitlog:
   flushMaxBytes: 42
   flushEvery: second
-  blockSize: 23
 multiple:
   listen_address: localhost:4385
   buffer_space: 1024
@@ -548,18 +553,15 @@ multiple:
 
 		df = []string{}
 		actual = deprecationCheck(cfg2, df)
-		require.Len(t, actual, 4)
 		expect = []string{
-			"DeprecatedBlockSize",
 			"DeprecatedMultiple",
 			"DeprecatedFoo",
 			"DeprecatedBar",
 		}
-		require.True(
-			t,
-			slicesContainSameStrings(expect, actual),
-			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual),
-		)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.True(t, slicesContainSameStrings(expect, actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 	})
 }
 
