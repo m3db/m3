@@ -2619,7 +2619,10 @@ func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, vers
 
 func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		state.WarmStatus = fileOpSuccess
+	}
 	state.ColdVersionFlushed = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
