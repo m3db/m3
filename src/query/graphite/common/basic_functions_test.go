@@ -140,6 +140,7 @@ func TestParseInterval(t *testing.T) {
 		"6months":   time.Hour * 24 * 30 * 6,
 		"2y":        time.Hour * 24 * 365 * 2,
 		"10years":   time.Hour * 24 * 365 * 10,
+		"1w5min":    (time.Hour * 24 * 7) + (time.Minute * 5),
 	}
 
 	for s, d := range tests {
