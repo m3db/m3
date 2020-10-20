@@ -68,7 +68,7 @@ linters-settings:
   goimports:
     # put imports beginning with prefix after 3rd-party packages;
     # it's a comma-separated list of prefixes
-    local-prefixes: github.com/org/project
+    local-prefixes: github.com/m3db/m3
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
     min-complexity: 10
@@ -155,10 +155,14 @@ linters-settings:
         sizeThreshold: 32
       ruleguard:
         rules: "src/cmd/tools/linter/gorules/rules.go"
+  gci:
+    # gci control golang package import order and make it always deterministic
+    local-prefixes: github.com/m3db/m3
 
 linters:
   enable:
     - megacheck
+    - gci
     - gocritic
     - govet
   enable-all: false
