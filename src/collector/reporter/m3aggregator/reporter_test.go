@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -148,20 +149,55 @@ var (
 		},
 	}
 
-	testMatchResult = rules.NewMatchResult(0, math.MaxInt64,
-		testMatchForExistingID,
-		testMatchForNewRollupIDs)
+	testMatchForRollupWithKeepOriginalIDs = []rules.IDWithMetadatas{
+		{
+			ID:        []byte("bar"),
+			Metadatas: metadata.DefaultStagedMetadatas,
+		},
+	}
 
-	testMatchDropPolicyAppliedResult = rules.NewMatchResult(0, math.MaxInt64,
+	testMatchResult = rules.NewMatchResult(
+		0,
+		math.MaxInt64,
+		testMatchForExistingID,
+		testMatchForNewRollupIDs,
+		true,
+	)
+
+	testMatchDropPolicyAppliedResult = rules.NewMatchResult(
+		0,
+		math.MaxInt64,
 		metadata.StagedMetadatas{metadata.StagedMetadata{
 			Metadata:     metadata.DropMetadata,
 			CutoverNanos: testNow.UnixNano() / 2,
 		}},
-		testMatchForNewRollupIDs)
+		testMatchForNewRollupIDs,
+		true,
+	)
 
-	testMatchDropPolicyNotYetEffectiveResult = rules.NewMatchResult(0, math.MaxInt64,
+	testMatchDropPolicyNotYetEffectiveResult = rules.NewMatchResult(
+		0,
+		math.MaxInt64,
 		testMatchForExistingID,
-		testMatchForNewRollupIDs)
+		testMatchForNewRollupIDs,
+		true,
+	)
+
+	testMatchKeepOriginalResult = rules.NewMatchResult(
+		0,
+		50,
+		testMatchForExistingID,
+		testMatchForRollupWithKeepOriginalIDs,
+		true,
+	)
+
+	testMatchNoKeepOriginalResult = rules.NewMatchResult(
+		0,
+		50,
+		testMatchForExistingID,
+		testMatchForRollupWithKeepOriginalIDs,
+		false,
+	)
 )
 
 func TestReporterReportCounter(t *testing.T) {
@@ -551,6 +587,149 @@ func TestReporterReportPending(t *testing.T) {
 	res, exists = gauges[expectedID]
 	require.True(t, exists)
 	require.Equal(t, 0.0, res.Value())
+}
+
+func TestReporterReportMetricsWithKeepOriginal(t *testing.T) {
+	cases := map[string]struct {
+		id     string
+		value  int
+		mtype  metric.Type
+		result rules.MatchResult
+		expect map[string]int
+	}{
+		"counter-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.CounterType,
+			result: testMatchKeepOriginalResult,
+			expect: map[string]int{
+				"foo": 1234,
+				"bar": 1234,
+			},
+		},
+		"counter-no-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.CounterType,
+			result: testMatchNoKeepOriginalResult,
+			expect: map[string]int{
+				"bar": 1234,
+			},
+		},
+		"gauge-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.GaugeType,
+			result: testMatchKeepOriginalResult,
+			expect: map[string]int{
+				"foo": 1234,
+				"bar": 1234,
+			},
+		},
+		"gauge-no-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.GaugeType,
+			result: testMatchNoKeepOriginalResult,
+			expect: map[string]int{
+				"bar": 1234,
+			},
+		},
+		"timer-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.TimerType,
+			result: testMatchKeepOriginalResult,
+			expect: map[string]int{
+				"foo": 1234,
+				"bar": 1234,
+			},
+		},
+		"timer-no-keep-original": {
+			id:     "foo",
+			value:  1234,
+			mtype:  metric.TimerType,
+			result: testMatchNoKeepOriginalResult,
+			expect: map[string]int{
+				"bar": 1234,
+			},
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockID := id.NewMockID(ctrl)
+			mockID.EXPECT().Bytes().Return([]byte(tt.id)).MinTimes(1)
+
+			mockMatcher := matcher.NewMockMatcher(ctrl)
+			mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
+			mockMatcher.EXPECT().
+				ForwardMatch(mockID, testFromNanos, testToNanos).
+				Return(tt.result)
+
+			actual := make(map[string]int)
+			mockClient := client.NewMockClient(ctrl)
+			mockClient.EXPECT().Close().Return(nil).AnyTimes()
+
+			switch tt.mtype {
+			case metric.CounterType:
+				mockClient.EXPECT().
+					WriteUntimedCounter(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						metric unaggregated.Counter,
+						metadatas metadata.StagedMetadatas,
+					) error {
+						actual[string(metric.ID)] = int(metric.Value)
+						return nil
+					}).Times(len(tt.expect))
+			case metric.GaugeType:
+				mockClient.EXPECT().
+					WriteUntimedGauge(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						metric unaggregated.Gauge,
+						metadatas metadata.StagedMetadatas,
+					) error {
+						actual[string(metric.ID)] = int(metric.Value)
+						return nil
+					}).Times(len(tt.expect))
+			case metric.TimerType:
+				mockClient.EXPECT().
+					WriteUntimedBatchTimer(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(
+						metric unaggregated.BatchTimer,
+						metadatas metadata.StagedMetadatas,
+					) error {
+						require.Equal(t, 1, len(metric.Values))
+						actual[string(metric.ID)] = int(metric.Values[0])
+						return nil
+					}).Times(len(tt.expect))
+			default:
+				require.Fail(t, "unexpected metric type")
+			}
+
+			reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
+			defer reporter.Close()
+
+			var err error
+			switch tt.mtype {
+			case metric.CounterType:
+				err = reporter.ReportCounter(mockID, 1234)
+			case metric.GaugeType:
+				err = reporter.ReportGauge(mockID, 1234.0)
+			case metric.TimerType:
+				err = reporter.ReportBatchTimer(mockID, []float64{1234.0})
+			default:
+				require.Fail(t, "unexpected metric type")
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expect, actual)
+			require.Equal(t, len(tt.expect), len(actual))
+		})
+	}
 }
 
 func TestReporterReportCounterWithDropPolicyApplied(t *testing.T) {
