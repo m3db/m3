@@ -32,8 +32,6 @@ import (
 func TestIDSchemeValidation(t *testing.T) {
 	err := TypeDefault.Validate()
 	assert.EqualError(t, err, "id scheme type not set")
-	err = TypeLegacy.Validate()
-	assert.NoError(t, err)
 	err = TypePrependMeta.Validate()
 	assert.NoError(t, err)
 	err = TypeQuoted.Validate()
@@ -51,7 +49,6 @@ func TestMetricsTypeUnmarshalYAML(t *testing.T) {
 	}
 
 	validParseSchemes := []IDSchemeType{
-		TypeLegacy,
 		TypeQuoted,
 		TypePrependMeta,
 	}

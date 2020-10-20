@@ -30,7 +30,7 @@ func TestDefaultTagOptions(t *testing.T) {
 	opts := NewTagOptions()
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, defaultMetricName, opts.MetricName())
-	assert.Equal(t, TypeLegacy, opts.IDSchemeType())
+	assert.Equal(t, TypeQuoted, opts.IDSchemeType())
 }
 
 func TestValidTagOptions(t *testing.T) {

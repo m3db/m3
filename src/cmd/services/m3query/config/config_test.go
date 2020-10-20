@@ -45,8 +45,10 @@ func TestTagOptionsFromEmptyConfigErrors(t *testing.T) {
 }
 
 func TestTagOptionsFromConfigWithIDGenerationScheme(t *testing.T) {
-	schemes := []models.IDSchemeType{models.TypeLegacy,
-		models.TypePrependMeta, models.TypeQuoted}
+	schemes := []models.IDSchemeType{
+		models.TypePrependMeta,
+		models.TypeQuoted,
+	}
 	for _, scheme := range schemes {
 		cfg := TagOptionsConfiguration{
 			Scheme: scheme,
@@ -64,7 +66,7 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	name := "foobar"
 	cfg := TagOptionsConfiguration{
 		MetricName: name,
-		Scheme:     models.TypeLegacy,
+		Scheme:     models.TypeQuoted,
 		Filters: []TagFilter{
 			{Name: "foo", Values: []string{".", "abc"}},
 			{Name: "bar", Values: []string{".*"}},
@@ -246,7 +248,6 @@ func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
 		schemeStr string
 		scheme    models.IDSchemeType
 	}{
-		{"legacy", models.TypeLegacy},
 		{"prepend_meta", models.TypePrependMeta},
 		{"quoted", models.TypeQuoted},
 	}

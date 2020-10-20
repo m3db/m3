@@ -53,7 +53,7 @@ func NewTagOptions() TagOptions {
 		version:                0,
 		metricName:             defaultMetricName,
 		bucketName:             defaultBucketName,
-		idScheme:               TypeLegacy,
+		idScheme:               TypeQuoted,
 		allowTagNameDuplicates: defaultAllowTagNameDuplicates,
 		allowTagValueEmpty:     defaultAllowTagValueEmpty,
 	}

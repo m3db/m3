@@ -568,7 +568,7 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `le`.
 	BucketName string `yaml:"bucketName"`
 
-	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
+	// Scheme determines the default ID generation scheme. Defaults to TypeQuoted.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 
 	// Filters are optional tag filters, removing all series with tags
