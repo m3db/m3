@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/debug/config"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
@@ -104,7 +103,7 @@ type Configuration struct {
 	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
 
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
