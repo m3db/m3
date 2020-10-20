@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -90,22 +91,22 @@ func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 func (h *configSetBootstrappersHandler) parseRequest(
 	r *http.Request,
-) (*commonpb.StringArrayProto, xhttp.Error) {
+) (*commonpb.StringArrayProto, error) {
 	array := new(commonpb.StringArrayProto)
 
 	defer r.Body.Close()
 
 	if err := jsonpb.Unmarshal(r.Body, array); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	if len(array.Values) == 0 {
-		return nil, xhttp.NewError(fmt.Errorf("no values"), http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("no values"))
 	}
 
 	validator := dbconfig.NewBootstrapConfigurationValidator()
 	if err := validator.ValidateBootstrappersOrder(array.Values); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return array, nil

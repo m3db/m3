@@ -313,36 +313,36 @@ func (h *createHandler) maybeInitPlacement(
 func (h *createHandler) parseAndValidateRequest(
 	r *http.Request,
 	existingPlacement clusterplacement.Placement,
-) (*admin.DatabaseCreateRequest, []*admin.NamespaceAddRequest, *admin.PlacementInitRequest, xhttp.Error) {
+) (*admin.DatabaseCreateRequest, []*admin.NamespaceAddRequest, *admin.PlacementInitRequest, error) {
 	requirePlacement := existingPlacement == nil
 
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
 		wrapped := fmt.Errorf("error converting duration to nano bytes: %s", err.Error())
-		return nil, nil, nil, xhttp.NewError(wrapped, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(wrapped)
 	}
 
 	dbCreateReq := new(admin.DatabaseCreateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
-		return nil, nil, nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	if dbCreateReq.NamespaceName == "" {
 		err := fmt.Errorf("%s: namespaceName", errMissingRequiredField)
-		return nil, nil, nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	requestedDBType := dbType(dbCreateReq.Type)
 	if requirePlacement &&
 		requestedDBType == dbTypeCluster &&
 		len(dbCreateReq.Hosts) == 0 {
-		return nil, nil, nil, xhttp.NewError(errMissingRequiredField, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(errMissingRequiredField)
 	}
 
 	namespaceAddRequests, err := defaultedNamespaceAddRequests(dbCreateReq, existingPlacement)
 	if err != nil {
-		return nil, nil, nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	var placementInitRequest *admin.PlacementInitRequest
@@ -350,7 +350,7 @@ func (h *createHandler) parseAndValidateRequest(
 		requestedDBType == dbTypeLocal {
 		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
 		if err != nil {
-			return nil, nil, nil, xhttp.NewError(err, http.StatusBadRequest)
+			return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
