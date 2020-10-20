@@ -30,7 +30,7 @@ import (
 	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/sergi/go-diff/diffmatchpatch"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/require"

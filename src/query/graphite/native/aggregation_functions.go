@@ -193,15 +193,13 @@ func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries *ts.S
 
 // divideSeries divides one series list by another single series
 func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
+	if len(dividendSeriesList.Values) == 0 || len(divisorSeriesList.Values) == 0 {
+		return ts.NewSeriesList(), nil
+	}
 	if len(divisorSeriesList.Values) != 1 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries second argument must reference exactly one series but instead has %d",
 			len(divisorSeriesList.Values)))
-		return ts.NewSeriesList(), err
-	}
-	if len(dividendSeriesList.Values) == 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
-			"divideSeries first argument must reference at least one series"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -541,8 +539,7 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 		}
 
 		if n >= len(parts) || n < 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by node %d; not enough parts", s.Name(), node))
-			return ts.NewSeriesList(), err
+			return aggregate(ctx, series, fname)
 		}
 
 		key := parts[n]
@@ -583,8 +580,7 @@ func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, node
 				}
 
 				if n >= len(parts) || n < 0 {
-					err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by nodes %v; not enough parts", s.Name(), nodes))
-					return ts.NewSeriesList(), err
+					return aggregate(ctx, series, fname)
 				}
 
 				keys = append(keys, parts[n])

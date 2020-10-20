@@ -16,4 +16,5 @@ import (
 	_ "github.com/pointlander/peg"
 	_ "github.com/rakyll/statik"
 	_ "github.com/robskillington/gorename"
+	_ "github.com/wjdp/htmltest"
 )

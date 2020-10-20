@@ -23,16 +23,14 @@ package wide
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIndexChecksumBlockBatchReader(t *testing.T) {
-	ch := make(chan ident.IndexChecksumBlockBatch)
+	ch := make(chan IndexChecksumBlockBatch)
 	buf := NewIndexChecksumBlockBatchReader(ch)
-	bl := ident.IndexChecksumBlockBatch{EndMarker: []byte("foo")}
-	bl2 := ident.IndexChecksumBlockBatch{
+	bl := IndexChecksumBlockBatch{EndMarker: []byte("foo")}
+	bl2 := IndexChecksumBlockBatch{
 		Checksums: []int64{1, 2, 3},
 		EndMarker: []byte("bar"),
 	}

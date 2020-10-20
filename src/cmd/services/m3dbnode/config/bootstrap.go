@@ -22,8 +22,6 @@ package config
 
 import (
 	"fmt"
-	"math"
-	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -61,20 +59,22 @@ type BootstrapConfiguration struct {
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
+
+	// IndexSegmentConcurrency determines the concurrency for building index
+	// segments.
+	IndexSegmentConcurrency *int `yaml:"indexSegmentConcurrency"`
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
-	// NumProcessorsPerCPU is the number of processors per CPU.
-	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+	// DeprecatedNumProcessorsPerCPU is the number of processors per CPU.
+	// TODO: Remove, this is deprecated since BootstrapDataNumProcessors() is
+	// no longer actually used anywhere.
+	DeprecatedNumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 
 	// Migration configuration specifies what version, if any, existing data filesets should be migrated to
 	// if necessary.
 	Migration *BootstrapMigrationConfiguration `yaml:"migration"`
-}
-
-func (c BootstrapFilesystemConfiguration) numCPUs() int {
-	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
 }
 
 func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfiguration {
@@ -86,8 +86,7 @@ func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfigur
 
 func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
 	return BootstrapFilesystemConfiguration{
-		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
-		Migration:           &BootstrapMigrationConfiguration{},
+		Migration: &BootstrapMigrationConfiguration{},
 	}
 }
 
@@ -139,12 +138,17 @@ type BootstrapPeersConfiguration struct {
 	// for historical data being streamed between peers (historical blocks).
 	// Defaults to: numCPU / 2.
 	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
+	// StreamPersistShardFlushConcurrency controls how many shards in parallel to flush
+	// for historical data being streamed between peers (historical blocks).
+	// Defaults to: 1.
+	StreamPersistShardFlushConcurrency int `yaml:"streamPersistShardFlushConcurrency"`
 }
 
 func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
 	return BootstrapPeersConfiguration{
-		StreamShardConcurrency:        peers.DefaultShardConcurrency,
-		StreamPersistShardConcurrency: peers.DefaultShardPersistenceConcurrency,
+		StreamShardConcurrency:             peers.DefaultShardConcurrency,
+		StreamPersistShardConcurrency:      peers.DefaultShardPersistenceConcurrency,
+		StreamPersistShardFlushConcurrency: peers.DefaultShardPersistenceFlushConcurrency,
 	}
 }
 
@@ -210,11 +214,13 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
-				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
 				SetStorageOptions(opts)
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
+			}
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
 				return nil, err
 			}
@@ -252,7 +258,11 @@ func (bsc BootstrapConfiguration) New(
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool()).
 				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
-				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency)
+				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency).
+				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency)
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
+			}
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}

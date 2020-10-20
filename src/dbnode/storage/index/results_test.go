@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,6 +56,8 @@ func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 
 func TestResultsInsertInvalid(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+	assert.True(t, res.EnforceLimits())
+
 	dInvalid := doc.Document{ID: nil}
 	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)

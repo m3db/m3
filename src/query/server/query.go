@@ -203,6 +203,8 @@ func Run(runOpts RunOptions) {
 
 	defer logger.Sync()
 
+	cfg.Debug.SetRuntimeValues(logger)
+
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	if cfg.MultiProcess.Enabled {
@@ -477,6 +479,10 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
 		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
 		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
+		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
+		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
+		graphiteStorageOpts.ShiftStepsEndWhenStartAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary
+		graphiteStorageOpts.ShiftStepsStartWhenEndAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary
 		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs

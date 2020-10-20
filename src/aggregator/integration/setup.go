@@ -23,6 +23,7 @@ package integration
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"testing"
@@ -97,7 +98,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	rwOpts := xio.NewOptions()
 	rawTCPServerOpts := rawtcpserver.NewOptions().SetRWOptions(rwOpts)
 	m3msgServerOpts := m3msgserver.NewOptions()
-	httpServerOpts := httpserver.NewOptions()
+	httpServerOpts := httpserver.NewOptions().
+		// use a new mux per test to avoid collisions registering the same handlers between tests.
+		SetMux(http.NewServeMux())
 
 	// Creating the aggregator options.
 	clockOpts := opts.ClockOptions()

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
+	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
@@ -158,8 +159,16 @@ type DBConfiguration struct {
 	// of applying back-pressure or protecting the db nodes.
 	Limits LimitsConfiguration `yaml:"limits"`
 
+	// WideConfig contains some limits for wide operations. These operations
+	// differ from regular paths by optimizing for query completeness across
+	// arbitary query ranges rather than speed.
+	WideConfig *WideConfiguration `yaml:"wide"`
+
 	// TChannel exposes TChannel config options.
 	TChannel *TChannelConfiguration `yaml:"tchannel"`
+
+	// Debug configuration.
+	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -390,6 +399,16 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// WideConfiguration contains configuration for wide operations. These
+// differ from regular paths by optimizing for query completeness across
+// arbitary query ranges rather than speed.
+type WideConfiguration struct {
+	// BatchSize represents batch size for wide operations. This size corresponds
+	// to how many series are processed within a single "chunk"; larger batch
+	// sizes will complete the query faster, but increase memory consumption.
+	BatchSize int `yaml:"batchSize"`
+}
+
 // NamespaceProtoSchema is the namespace protobuf schema.
 type NamespaceProtoSchema struct {
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
@@ -579,6 +598,8 @@ func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
 
 // TChannelConfiguration holds TChannel config options.
 type TChannelConfiguration struct {
-	MaxIdleTime       time.Duration `yaml:"maxIdleTime"`
+	// MaxIdleTime is the maximum idle time.
+	MaxIdleTime time.Duration `yaml:"maxIdleTime"`
+	// IdleCheckInterval is the idle check interval.
 	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
 }

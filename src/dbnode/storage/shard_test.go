@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -100,7 +101,10 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+		Index:  index,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -197,8 +201,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -214,7 +218,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
-	entry := lookup.NewEntry(mockSeries, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: mockSeries,
+	})
 	s.Lock()
 	s.insertNewShardEntryWithLock(entry)
 	s.Unlock()
@@ -275,8 +281,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -333,8 +339,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -380,7 +386,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 		start             = time.Now().Truncate(testBlockSize)
 		threeBytes        = checked.NewBytes([]byte("123"), nil)
 
-		sr      = result.NewShardResult(0, result.NewOptions())
+		sr      = result.NewShardResult(result.NewOptions())
 		fooTags = ident.NewTags(ident.StringTag("foo", "foe"))
 		barTags = ident.NewTags(ident.StringTag("bar", "baz"))
 	)
@@ -461,7 +467,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -536,7 +544,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -634,7 +644,9 @@ func TestShardColdFlush(t *testing.T) {
 		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
-		shard.list.PushBack(lookup.NewEntry(curr, 0))
+		shard.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
@@ -836,7 +848,9 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(series.SnapshotResult{}, nil)
-		s.list.PushBack(lookup.NewEntry(entry, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: entry,
+		}))
 	}
 
 	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
@@ -854,7 +868,9 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -870,7 +886,9 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 		Options:     shard.seriesOpts,
 	})
 	shard.Lock()
-	entry := lookup.NewEntry(seriesEntry, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: seriesEntry,
+	})
 	for i := int32(0); i < count; i++ {
 		entry.IncrementReaderWriterCount()
 	}
@@ -1573,6 +1591,146 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	shard.Close()
 
 	assert.Equal(t, 2, closer.called)
+}
+
+func TestShardFetchIndexChecksum(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions().
+		SetSeriesCachePolicy(series.CacheAll)
+	fsOpts := opts.CommitLogOptions().FilesystemOptions().
+		SetFilePathPrefix(dir)
+	opts = opts.
+		SetCommitLogOptions(opts.CommitLogOptions().
+			SetFilesystemOptions(fsOpts))
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
+
+	ropts := shard.seriesOpts.RetentionOptions()
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+	shard.markWarmFlushStateSuccess(start)
+	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+
+	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	shard.setBlockRetriever(retriever)
+
+	checksum := xio.IndexChecksum{
+		ID:               ident.StringID("foo"),
+		MetadataChecksum: 5,
+	}
+
+	indexChecksum := block.NewMockStreamedChecksum(ctrl)
+	retriever.EXPECT().
+		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(indexChecksum, nil).Times(2)
+
+	// First call to RetrieveIndexChecksum is expected to error on retrieval
+	indexChecksum.EXPECT().RetrieveIndexChecksum().
+		Return(xio.IndexChecksum{}, errors.New("err"))
+	r, err := shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	_, err = r.RetrieveIndexChecksum()
+	assert.EqualError(t, err, "err")
+
+	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
+	r, err = shard.FetchIndexChecksum(ctx, ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	retrieved, err := r.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, checksum, retrieved)
+
+	// Check that nothing has been cached. Should be cached after a second.
+	time.Sleep(time.Second)
+
+	shard.RLock()
+	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	shard.RUnlock()
+
+	require.Equal(t, err, errShardEntryNotFound)
+	require.Nil(t, entry)
+}
+
+func TestShardFetchReadMismatch(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions().
+		SetSeriesCachePolicy(series.CacheAll)
+	fsOpts := opts.CommitLogOptions().FilesystemOptions().
+		SetFilePathPrefix(dir)
+	opts = opts.
+		SetCommitLogOptions(opts.CommitLogOptions().
+			SetFilesystemOptions(fsOpts))
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
+
+	ropts := shard.seriesOpts.RetentionOptions()
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+	shard.markWarmFlushStateSuccess(start)
+	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+
+	checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
+	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	shard.setBlockRetriever(retriever)
+
+	mismatchBatch := wide.ReadMismatch{
+		IndexChecksum: xio.IndexChecksum{MetadataChecksum: 1},
+	}
+
+	streamedBatch := wide.NewMockStreamedMismatch(ctrl)
+	retriever.EXPECT().
+		StreamReadMismatches(ctx, shard.shard, checker, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).Return(streamedBatch, nil).Times(2)
+
+	// First call to RetrieveMismatch is expected to error on retrieval
+	streamedBatch.EXPECT().RetrieveMismatch().
+		Return(wide.ReadMismatch{}, errors.New("err"))
+	r, err := shard.FetchReadMismatch(ctx, checker,
+		ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	_, err = r.RetrieveMismatch()
+	assert.EqualError(t, err, "err")
+
+	streamedBatch.EXPECT().RetrieveMismatch().Return(mismatchBatch, nil)
+	r, err = shard.StreamReadMismatches(ctx, checker,
+		ident.StringID("foo"), start, namespace.Context{})
+	require.NoError(t, err)
+	retrieved, err := r.RetrieveMismatch()
+	require.NoError(t, err)
+	assert.Equal(t, mismatchBatch, retrieved)
+
+	// Check that nothing has been cached. Should be cached after a second.
+	time.Sleep(time.Second)
+
+	shard.RLock()
+	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	shard.RUnlock()
+
+	require.Equal(t, err, errShardEntryNotFound)
+	require.Nil(t, entry)
 }
 
 func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {

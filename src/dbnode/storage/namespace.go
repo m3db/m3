@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -163,6 +164,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks           instrument.MethodMetrics
 	fetchBlocksMetadata   instrument.MethodMetrics
 	queryIDs              instrument.MethodMetrics
+	wideQuery             instrument.MethodMetrics
 	aggregateQuery        instrument.MethodMetrics
 	unfulfilled           tally.Counter
 	bootstrapStart        tally.Counter
@@ -249,6 +251,7 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		wideQuery:             instrument.NewMethodMetrics(scope, "wideQuery", opts),
 		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
 		bootstrapStart:        bootstrapScope.Counter("start"),
@@ -700,7 +703,7 @@ func (n *dbNamespace) WriteTagged(
 	annotation []byte,
 ) (SeriesWrite, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceIndexingDisabled
 	}
@@ -722,7 +725,7 @@ func (n *dbNamespace) WriteTagged(
 func (n *dbNamespace) WritePendingIndexInserts(
 	pending []writes.PendingIndexInsert,
 ) error {
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		return errNamespaceIndexingDisabled
 	}
 	return n.reverseIndex.WritePending(pending)
@@ -739,12 +742,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	if err != nil {
 		return SeriesReadWriteRef{}, owned, err
 	}
-
-	opts := ShardSeriesReadWriteRefOptions{
-		ReverseIndex: n.reverseIndex != nil,
-	}
-
-	res, err := shard.SeriesReadWriteRef(id, tags, opts)
+	res, err := shard.SeriesReadWriteRef(id, tags)
 	return res, true, err
 }
 
@@ -767,14 +765,14 @@ func (n *dbNamespace) QueryIDs(
 	defer sp.Finish()
 
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errNamespaceIndexingDisabled
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errIndexNotBootstrappedToRead
@@ -791,18 +789,60 @@ func (n *dbNamespace) QueryIDs(
 	return res, err
 }
 
+func (n *dbNamespace) WideQueryIDs(
+	ctx context.Context,
+	query index.Query,
+	collector chan *ident.IDBatch,
+	opts index.WideQueryOptions,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSWideQueryIDs)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.Int("batchSize", opts.BatchSize),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+	}
+	defer sp.Finish()
+
+	callStart := n.nowFn()
+	if n.reverseIndex == nil {
+		n.metrics.wideQuery.ReportError(n.nowFn().Sub(callStart))
+		err := errNamespaceIndexingDisabled
+		sp.LogFields(opentracinglog.Error(err))
+		return err
+	}
+
+	if !n.reverseIndex.Bootstrapped() {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		err := errIndexNotBootstrappedToRead
+		sp.LogFields(opentracinglog.Error(err))
+		return xerrors.NewRetryableError(err)
+	}
+
+	err := n.reverseIndex.WideQuery(ctx, query, collector, opts)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
+}
+
 func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
 	callStart := n.nowFn()
-	if n.reverseIndex == nil { // only happens if indexing is enabled.
+	if n.reverseIndex == nil {
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{},
@@ -864,6 +904,39 @@ func (n *dbNamespace) ReadEncoded(
 		return nil, err
 	}
 	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) FetchIndexChecksum(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+) (block.StreamedChecksum, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return block.EmptyStreamedChecksum, err
+	}
+	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) FetchReadMismatch(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	blockStart time.Time,
+) (wide.StreamedMismatch, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return wide.EmptyStreamedMismatch, err
+	}
+	res, err := shard.FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -1667,9 +1740,7 @@ func (n *dbNamespace) aggregateTiles(
 		sourceBlockStarts []time.Time
 	)
 
-	for sourceBlockStart := targetBlockStart;
-		sourceBlockStart.Before(lastSourceBlockEnd);
-		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err

@@ -22,6 +22,7 @@ package peers
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -36,12 +37,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -54,11 +58,10 @@ import (
 )
 
 type peersSource struct {
-	opts           Options
-	log            *zap.Logger
-	nowFn          clock.NowFn
-	persistManager *bootstrapper.SharedPersistManager
-	compactor      *bootstrapper.SharedCompactor
+	opts              Options
+	log               *zap.Logger
+	newPersistManager func() (persist.Manager, error)
+	nowFn             clock.NowFn
 }
 
 type persistenceFlush struct {
@@ -75,15 +78,12 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 
 	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
-		opts:  opts,
-		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		opts: opts,
+		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
+		newPersistManager: func() (persist.Manager, error) {
+			return fs.NewPersistManager(opts.FilesystemOptions())
+		},
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
-		persistManager: &bootstrapper.SharedPersistManager{
-			Mgr: opts.PersistManager(),
-		},
-		compactor: &bootstrapper.SharedCompactor{
-			Compactor: opts.Compactor(),
-		},
 	}, nil
 }
 
@@ -171,13 +171,6 @@ func (s *peersSource) Read(
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
-	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
-	}
-	builder := result.NewIndexBuilder(segBuilder)
-
 	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
@@ -194,7 +187,6 @@ func (s *peersSource) Read(
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			builder,
 			span,
 			cache,
 			namespace.IndexRunOptions.RunOptions,
@@ -236,8 +228,6 @@ func (s *peersSource) readData(
 	}
 
 	var (
-		namespace     = nsMetadata.ID()
-		persistFlush  persist.FlushPreparer
 		shouldPersist = false
 		// TODO(bodu): We should migrate to series.CacheLRU only.
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -247,24 +237,7 @@ func (s *peersSource) readData(
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
-		persistManager := s.opts.PersistManager()
-
-		// Neither of these should ever happen
-		if seriesCachePolicy != series.CacheAll && persistManager == nil {
-			s.log.Fatal("tried to perform a bootstrap with persistence without persist manager")
-		}
-
-		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
-
-		persist, err := persistManager.StartFlushPersist()
-		if err != nil {
-			return nil, err
-		}
-
-		defer persist.DoneFlush()
-
 		shouldPersist = true
-		persistFlush = persist
 	}
 
 	result := result.NewDataBootstrapResult()
@@ -277,14 +250,14 @@ func (s *peersSource) readData(
 
 	var (
 		resultLock              sync.Mutex
-		wg                      sync.WaitGroup
-		persistenceWorkerDoneCh = make(chan struct{})
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
 		count                   = shardTimeRanges.Len()
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
+		persistWg               = &sync.WaitGroup{}
+		persistClosers          []io.Closer
 	)
 	if shouldPersist {
 		concurrency = s.opts.ShardPersistenceConcurrency()
@@ -295,11 +268,22 @@ func (s *peersSource) readData(
 		zap.Int("concurrency", concurrency),
 		zap.Bool("shouldPersist", shouldPersist))
 	if shouldPersist {
-		go s.startPersistenceQueueWorkerLoop(
-			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)
+		// Spin up persist workers.
+		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
+			closer, err := s.startPersistenceQueueWorkerLoop(opts,
+				persistWg, persistenceQueue, result, &resultLock)
+			if err != nil {
+				return nil, err
+			}
+
+			persistClosers = append(persistClosers, closer)
+		}
 	}
 
-	workers := xsync.NewWorkerPool(concurrency)
+	var (
+		wg      sync.WaitGroup
+		workers = xsync.NewWorkerPool(concurrency)
+	)
 	workers.Init()
 	for shard, ranges := range shardTimeRanges.Iter() {
 		shard, ranges := shard, ranges
@@ -315,31 +299,70 @@ func (s *peersSource) readData(
 	wg.Wait()
 	close(persistenceQueue)
 	if shouldPersist {
-		// Wait for the persistenceQueueWorker to finish flushing everything
-		<-persistenceWorkerDoneCh
+		// Wait for the persistenceQueue workers to finish flushing everything.
+		persistWg.Wait()
+
+		// Close any persist closers to finalize files written.
+		for _, closer := range persistClosers {
+			if err := closer.Close(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return result, nil
 }
 
-// startPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
+func (s *peersSource) startPersistenceQueueWorkerLoop(
+	opts bootstrap.RunOptions,
+	persistWg *sync.WaitGroup,
+	persistenceQueue chan persistenceFlush,
+	bootstrapResult result.DataBootstrapResult,
+	lock *sync.Mutex,
+) (io.Closer, error) {
+	persistMgr, err := s.newPersistManager()
+	if err != nil {
+		return nil, err
+	}
+
+	persistFlush, err := persistMgr.StartFlushPersist()
+	if err != nil {
+		return nil, err
+	}
+
+	persistWg.Add(1)
+	go func() {
+		defer persistWg.Done()
+		s.runPersistenceQueueWorkerLoop(opts, persistenceQueue,
+			persistFlush, bootstrapResult, lock)
+	}()
+
+	return xclose.CloserFn(persistFlush.DoneFlush), nil
+}
+
+// runPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
 // loops through the persistenceQueue and performs a flush for each entry, ensuring that
 // no more than one flush is ever happening at once. Once the persistenceQueue channel
 // is closed, and the worker has completed flushing all the remaining entries, it will close the
 // provided doneCh so that callers can block until everything has been successfully flushed.
-func (s *peersSource) startPersistenceQueueWorkerLoop(
+func (s *peersSource) runPersistenceQueueWorkerLoop(
 	opts bootstrap.RunOptions,
-	doneCh chan struct{},
 	persistenceQueue chan persistenceFlush,
 	persistFlush persist.FlushPreparer,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
+	// Track async cleanup tasks.
+	asyncTasks := &sync.WaitGroup{}
+
+	// Wait for cleanups to all occur before returning from worker.
+	defer asyncTasks.Wait()
+
 	// If performing a bootstrap with persistence enabled then flush one
 	// at a time as shard results are gathered.
 	for flush := range persistenceQueue {
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
-			flush.shardResult, flush.timeRange)
+			flush.shardResult, flush.timeRange, asyncTasks)
 		if err == nil {
 			continue
 		}
@@ -358,7 +381,6 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
-	close(doneCh)
 }
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
@@ -492,6 +514,7 @@ func (s *peersSource) flush(
 	shard uint32,
 	shardResult result.ShardResult,
 	tr xtime.Range,
+	asyncTasks *sync.WaitGroup,
 ) error {
 	persistConfig := opts.PersistConfig()
 	if persistConfig.FileSetType != persist.FileSetFlushType {
@@ -525,9 +548,7 @@ func (s *peersSource) flush(
 	var (
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		flushCtx  = s.opts.ContextPool().Get()
 	)
-
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
@@ -572,43 +593,25 @@ func (s *peersSource) flush(
 				continue
 			}
 
-			flushCtx.Reset()
-			stream, err := bl.Stream(flushCtx)
-			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err // Need to call prepared.Close, avoid return
-				break
-			}
-
-			segment, err := stream.Segment()
-			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err // Need to call prepared.Close, avoid return
-				break
-			}
-
 			checksum, err := bl.Checksum()
 			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err
+				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
+
+			// Discard and finalize the block.
+			segment := bl.Discard()
+
+			// Remove from map.
+			s.Blocks.RemoveBlockAt(start)
 
 			metadata := persist.NewMetadataFromIDAndTags(s.ID, s.Tags,
 				persist.MetadataOptions{})
 			err = prepared.Persist(metadata, segment, checksum)
-			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
-
-			// Now that we've persisted the data to disk, we can finalize the block,
-			// as there is no need to keep it in memory. We do this here because it
-			// is better to do this as we loop to make blocks return to the pool earlier
-			// than all at once the end of this flush cycle.
-			s.Blocks.RemoveBlockAt(start)
-			bl.Close()
 		}
 
 		// Always close before attempting to check if block error occurred,
@@ -624,38 +627,45 @@ func (s *peersSource) flush(
 		}
 	}
 
-	// Since we've persisted the data to disk, we don't want to keep all the series in the shard
-	// result. Otherwise if we leave them in, then they will all get loaded into the shard object,
-	// and then immediately evicted on the next tick which causes unnecessary memory pressure
-	// during peer bootstrapping.
-	numSeriesTriedToRemoveWithRemainingBlocks := 0
-	for _, entry := range shardResult.AllSeries().Iter() {
-		series := entry.Value()
-		numBlocksRemaining := len(series.Blocks.AllBlocks())
-		// Should never happen since we removed all the block in the previous loop and fetching
-		// bootstrap blocks should always be exclusive on the end side.
-		if numBlocksRemaining > 0 {
-			numSeriesTriedToRemoveWithRemainingBlocks++
-			continue
-		}
+	// Perform cleanup async but allow caller to wait on them.
+	// This allows to progress to next flush faster.
+	asyncTasks.Add(1)
+	go func() {
+		defer asyncTasks.Done()
 
-		shardResult.RemoveSeries(series.ID)
-		series.Blocks.Close()
-		// Safe to finalize these IDs and Tags because the prepared object was the only other thing
-		// using them, and it has been closed.
-		series.ID.Finalize()
-		series.Tags.Finalize()
-	}
-	if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
-		iOpts := s.opts.ResultOptions().InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
-			l.With(
-				zap.Int64("start", tr.Start.Unix()),
-				zap.Int64("end", tr.End.Unix()),
-				zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
-			).Error("error tried to remove series that still has blocks")
-		})
-	}
+		// Since we've persisted the data to disk, we don't want to keep all the series in the shard
+		// result. Otherwise if we leave them in, then they will all get loaded into the shard object,
+		// and then immediately evicted on the next tick which causes unnecessary memory pressure
+		// during peer bootstrapping.
+		numSeriesTriedToRemoveWithRemainingBlocks := 0
+		for _, entry := range shardResult.AllSeries().Iter() {
+			series := entry.Value()
+			numBlocksRemaining := len(series.Blocks.AllBlocks())
+			// Should never happen since we removed all the block in the previous loop and fetching
+			// bootstrap blocks should always be exclusive on the end side.
+			if numBlocksRemaining > 0 {
+				numSeriesTriedToRemoveWithRemainingBlocks++
+				continue
+			}
+
+			shardResult.RemoveSeries(series.ID)
+			series.Blocks.Close()
+			// Safe to finalize these IDs and Tags because the prepared object was the only other thing
+			// using them, and it has been closed.
+			series.ID.Finalize()
+			series.Tags.Finalize()
+		}
+		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
+			iOpts := s.opts.ResultOptions().InstrumentOptions()
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+				l.With(
+					zap.Int64("start", tr.Start.Unix()),
+					zap.Int64("end", tr.End.Unix()),
+					zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+				).Error("error tried to remove series that still has blocks")
+			})
+		}
+	}()
 
 	return nil
 }
@@ -663,7 +673,6 @@ func (s *peersSource) flush(
 func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	builder *result.IndexBuilder,
 	span opentracing.Span,
 	cache bootstrap.Cache,
 	opts bootstrap.RunOptions,
@@ -691,8 +700,9 @@ func (s *peersSource) readIndex(
 				return fs.NewReader(bytesPool, fsOpts)
 			},
 		})
-		resultLock = &sync.Mutex{}
-		readersCh  = make(chan bootstrapper.TimeWindowReaders)
+		resultLock              = &sync.Mutex{}
+		indexSegmentConcurrency = s.opts.IndexSegmentConcurrency()
+		readersCh               = make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
 	)
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
 		zap.Int("shards", count),
@@ -716,6 +726,64 @@ func (s *peersSource) readIndex(
 		Cache:                     cache,
 	})
 
+	var buildWg sync.WaitGroup
+	for i := 0; i < indexSegmentConcurrency; i++ {
+		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+		segBuilder, err := alloc()
+		if err != nil {
+			return nil, err
+		}
+
+		builder := result.NewIndexBuilder(segBuilder)
+
+		indexOpts := s.opts.IndexOptions()
+		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
+			index.DocumentArrayPoolCapacity,
+			indexOpts.SegmentBuilderOptions(),
+			indexOpts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				FSTWriterOptions: &fst.WriterOptions{
+					// DisableRegistry is set to true to trade a larger FST size
+					// for a faster FST compaction since we want to reduce the end
+					// to end latency for time to first index a metric.
+					DisableRegistry: true,
+				},
+			})
+		if err != nil {
+			return nil, err
+		}
+
+		persistManager, err := s.newPersistManager()
+		if err != nil {
+			return nil, err
+		}
+
+		buildWg.Add(1)
+		go func() {
+			s.processReadersWorker(ns, r, readersCh, builder, readerPool, idxOpts,
+				&bootstrapper.SharedPersistManager{Mgr: persistManager},
+				&bootstrapper.SharedCompactor{Compactor: compactor},
+				resultLock)
+			buildWg.Done()
+		}()
+	}
+
+	buildWg.Wait()
+
+	return r, nil
+}
+
+func (s *peersSource) processReadersWorker(
+	ns namespace.Metadata,
+	r result.IndexBootstrapResult,
+	readersCh <-chan bootstrapper.TimeWindowReaders,
+	builder *result.IndexBuilder,
+	readerPool *bootstrapper.ReaderPool,
+	idxOpts namespace.IndexOptions,
+	persistManager *bootstrapper.SharedPersistManager,
+	compactor *bootstrapper.SharedCompactor,
+	resultLock *sync.Mutex,
+) {
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
@@ -729,40 +797,13 @@ func (s *peersSource) readIndex(
 			timeWindowReaders,
 			readerPool,
 			idxOpts,
+			persistManager,
+			compactor,
+			resultLock,
 		)
 		s.markRunResultErrorsAndUnfulfilled(resultLock, r, timeWindowReaders.Ranges,
 			remainingRanges, timesWithErrors)
 	}
-
-	return r, nil
-}
-
-func (s *peersSource) readNextEntryAndMaybeIndex(
-	r fs.DataFileSetReader,
-	batch []doc.Document,
-	builder *result.IndexBuilder,
-) ([]doc.Document, error) {
-	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
-	if err != nil {
-		return batch, err
-	}
-
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
-	if err != nil {
-		return batch, err
-	}
-
-	batch = append(batch, d)
-
-	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return builder.FlushBatch(batch)
-	}
-
-	return batch, nil
 }
 
 func (s *peersSource) processReaders(
@@ -772,6 +813,9 @@ func (s *peersSource) processReaders(
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
 	idxOpts namespace.IndexOptions,
+	persistManager *bootstrapper.SharedPersistManager,
+	compactor *bootstrapper.SharedCompactor,
+	resultLock *sync.Mutex,
 ) (result.ShardTimeRanges, []time.Time) {
 	var (
 		docsPool        = s.opts.IndexOptions().DocumentArrayPool()
@@ -794,7 +838,9 @@ func (s *peersSource) processReaders(
 				err       error
 			)
 
+			resultLock.Lock()
 			r.IndexResults().AddBlockIfNotExists(start, idxOpts)
+			resultLock.Unlock()
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
 				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, builder)
@@ -817,9 +863,11 @@ func (s *peersSource) processReaders(
 					shard,
 					xtime.NewRanges(timeRange),
 				)
+				resultLock.Lock()
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
 					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
 					idxpersist.DefaultIndexVolumeType, idxOpts)
+				resultLock.Unlock()
 			}
 
 			if err == nil {
@@ -878,7 +926,7 @@ func (s *peersSource) processReaders(
 			ns,
 			requestedRanges,
 			builder.Builder(),
-			s.persistManager,
+			persistManager,
 			s.opts.ResultOptions(),
 			existingIndexBlock.Fulfilled(),
 			blockStart,
@@ -898,7 +946,7 @@ func (s *peersSource) processReaders(
 			ns,
 			requestedRanges,
 			builder.Builder(),
-			s.compactor,
+			compactor,
 			s.opts.ResultOptions(),
 			s.opts.IndexOptions().MmapReporter(),
 			blockStart,
@@ -924,7 +972,9 @@ func (s *peersSource) processReaders(
 	newFulfilled.AddRanges(indexBlock.Fulfilled())
 
 	// Replace index block for default index volume type.
+	resultLock.Lock()
 	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+	resultLock.Unlock()
 
 	// Return readers to pool.
 	for _, shardReaders := range timeWindowReaders.Readers {
@@ -936,6 +986,34 @@ func (s *peersSource) processReaders(
 	}
 
 	return remainingRanges, timesWithErrors
+}
+
+func (s *peersSource) readNextEntryAndMaybeIndex(
+	r fs.DataFileSetReader,
+	batch []doc.Document,
+	builder *result.IndexBuilder,
+) ([]doc.Document, error) {
+	// If performing index run, then simply read the metadata and add to segment.
+	id, tagsIter, _, _, err := r.ReadMetadata()
+	if err != nil {
+		return batch, err
+	}
+
+	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
+	// Finalize the ID and tags.
+	id.Finalize()
+	tagsIter.Close()
+	if err != nil {
+		return batch, err
+	}
+
+	batch = append(batch, d)
+
+	if len(batch) >= index.DocumentArrayPoolCapacity {
+		return builder.FlushBatch(batch)
+	}
+
+	return batch, nil
 }
 
 // markRunResultErrorsAndUnfulfilled checks the list of times that had errors and makes

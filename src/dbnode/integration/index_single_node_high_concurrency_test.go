@@ -258,6 +258,7 @@ func testIndexSingleNodeHighConcurrency(
 			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
 		checkNumTotalQueryMatches = true
 		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
+			i := i
 			go func() {
 				src := rand.NewSource(int64(i))
 				rng := rand.New(src)

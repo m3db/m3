@@ -1159,7 +1159,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
@@ -1188,12 +1188,51 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	assert.Equal(t, "root", spans[1].OperationName)
 }
 
+func TestNamespaceIndexWideQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().Bootstrapped().Return(true)
+
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+	opts := index.WideQueryOptions{}
+
+	ch := make(chan *ident.IDBatch)
+	idx.EXPECT().WideQuery(gomock.Any(), query, ch, opts)
+	err := ns.WideQueryIDs(ctx, query, ch, opts)
+	require.NoError(t, err)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.NSWideQueryIDs, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
+
+	// NB: assert no panic occurs without an index.
+	noIdxNs, noIdxCloser := newTestNamespaceWithIndex(t, nil)
+	err = noIdxNs.WideQueryIDs(ctx, query, ch, opts)
+	assert.EqualError(t, err, errNamespaceIndexingDisabled.Error())
+	noIdxCloser()
+	close(ch)
+}
+
 func TestNamespaceAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
