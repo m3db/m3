@@ -21,22 +21,14 @@
 package prom
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	"net/http"
 
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 )
-
-// NB: since Prometheus engine is not brought up in the usual fashion,
-// default subquery evaluation interval is unset, causing div by 0 errors.
-func init() {
-	promql.SetDefaultEvaluationInterval(time.Minute)
-}
 
 // Options defines options for PromQL handler.
 type Options struct {

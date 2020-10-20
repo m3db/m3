@@ -47,16 +47,19 @@ type mockSeriesSet struct {
 func (m *mockSeriesSet) Next() bool             { return false }
 func (m *mockSeriesSet) At() promstorage.Series { return nil }
 func (m *mockSeriesSet) Err() error             { return nil }
+func (mockSeriesSet) Warnings() promstorage.Warnings {
+	return nil
+}
 
 func (q *mockQuerier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
-) (promstorage.SeriesSet, promstorage.Warnings, error) {
+) (promstorage.SeriesSet) {
 	if q.mockOptions.selectFn != nil {
 		return q.mockOptions.selectFn(sortSeries, hints, labelMatchers...)
 	}
-	return &mockSeriesSet{mockOptions: q.mockOptions}, nil, nil
+	return &mockSeriesSet{mockOptions: q.mockOptions}
 }
 
 func (*mockQuerier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
@@ -76,7 +79,7 @@ type mockOptions struct {
 		sortSeries bool,
 		hints *promstorage.SelectHints,
 		labelMatchers ...*labels.Matcher,
-	) (promstorage.SeriesSet, promstorage.Warnings, error)
+	) (promstorage.SeriesSet)
 }
 
 type mockQueryable struct {

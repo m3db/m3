@@ -34,7 +34,7 @@ require (
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.1
 	github.com/google/go-jsonnet v0.16.0
@@ -44,9 +44,9 @@ require (
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
-	github.com/influxdata/influxdb v1.7.7
+	github.com/influxdata/influxdb v1.8.2
 	github.com/jhump/protoreflect v1.6.1
-	github.com/json-iterator/go v1.1.9
+	github.com/json-iterator/go v1.1.10
 	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -67,7 +67,7 @@ require (
 	github.com/mjibson/esc v0.1.0
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
-	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
+	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
@@ -79,15 +79,15 @@ require (
 	github.com/pointlander/jetset v1.0.0 // indirect
 	github.com/pointlander/peg v1.0.0
 	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
-	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/common v0.9.1
+	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/common v0.13.0
 	github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
 	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
-	github.com/satori/go.uuid v1.2.0
+	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
@@ -128,7 +128,7 @@ require (
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible
 )
 
@@ -160,3 +160,7 @@ replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // https://github.com/ory/dockertest/issues/212
 replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
+
+// https://github.com/m3db/m3/issues/2689
+replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.0.0-20200911110723-e83ef207b6c2
+replace	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
