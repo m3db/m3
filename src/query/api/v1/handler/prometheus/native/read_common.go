@@ -22,7 +22,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 
@@ -47,7 +46,6 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
-	maxDatapoints     tally.Gauge
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -116,34 +114,11 @@ func ParseRequest(
 		return ParsedOptions{}, rErr
 	}
 
-	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
-	if err := validateRequest(params, maxPoints); err != nil {
-		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
 	return ParsedOptions{
 		QueryOpts: queryOpts,
 		FetchOpts: fetchOpts,
 		Params:    params,
 	}, nil
-}
-
-func validateRequest(params models.RequestParams, maxPoints int) error {
-	// Impose a rough limit on the number of returned time series.
-	// This is intended to prevent things like querying from the beginning of
-	// time with a 1s step size.
-	numSteps := int(params.End.Sub(params.Start) / params.Step)
-	if maxPoints > 0 && numSteps > maxPoints {
-		return fmt.Errorf(
-			"querying from %v to %v with step size %v would result in too many "+
-				"datapoints (end - start / step > %d). Either decrease the query "+
-				"resolution (?step=XX), decrease the time window, or increase "+
-				"the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, maxPoints,
-		)
-	}
-
-	return nil
 }
 
 // ParsedOptions are parsed options for the query.
