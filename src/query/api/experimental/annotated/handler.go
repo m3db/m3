@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/proto"
@@ -48,10 +49,10 @@ const (
 )
 
 var (
-	errEmptyBody = xhttp.NewError(errors.New("request body is empty"),
-		http.StatusBadRequest)
+	errEmptyBody = xerrors.NewInvalidParamsError(errors.New("request body is empty"))
 )
 
+// Handler is the annotated endpoint handler.
 type Handler struct {
 	writer     ingest.DownsamplerAndWriter
 	tagOptions models.TagOptions
