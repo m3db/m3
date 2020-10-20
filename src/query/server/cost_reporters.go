@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/cost"
@@ -62,7 +61,6 @@ const (
 //   cost_reporter_max_datapoints_hist{limiter=~"(global|per_query)"}: histogram;
 //   > represents the distribution of the maximum datapoints used at any point in each query.
 func newConfiguredChainedEnforcer(
-	cfg *config.Configuration,
 	instrumentOptions instrument.Options,
 ) (qcost.ChainedEnforcer, close.SimpleCloser, error) {
 	scope := instrumentOptions.MetricsScope().SubScope(costScopeName)
