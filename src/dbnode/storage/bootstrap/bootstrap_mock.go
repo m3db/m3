@@ -30,11 +30,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -833,4 +836,57 @@ func (m *MockCacheOptions) InstrumentOptions() instrument.Options {
 func (mr *MockCacheOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockCacheOptions)(nil).InstrumentOptions))
+}
+
+// MockSeriesRef is a mock of SeriesRef interface
+type MockSeriesRef struct {
+	ctrl     *gomock.Controller
+	recorder *MockSeriesRefMockRecorder
+}
+
+// MockSeriesRefMockRecorder is the mock recorder for MockSeriesRef
+type MockSeriesRefMockRecorder struct {
+	mock *MockSeriesRef
+}
+
+// NewMockSeriesRef creates a new mock instance
+func NewMockSeriesRef(ctrl *gomock.Controller) *MockSeriesRef {
+	mock := &MockSeriesRef{ctrl: ctrl}
+	mock.recorder = &MockSeriesRefMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSeriesRef) EXPECT() *MockSeriesRefMockRecorder {
+	return m.recorder
+}
+
+// Write mocks base method
+func (m *MockSeriesRef) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (bool, series.WriteType, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Write", ctx, timestamp, value, unit, annotation, wOpts)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(series.WriteType)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Write indicates an expected call of Write
+func (mr *MockSeriesRefMockRecorder) Write(ctx, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockSeriesRef)(nil).Write), ctx, timestamp, value, unit, annotation, wOpts)
+}
+
+// LoadBlock mocks base method
+func (m *MockSeriesRef) LoadBlock(block block.DatabaseBlock, writeType series.WriteType) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoadBlock", block, writeType)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LoadBlock indicates an expected call of LoadBlock
+func (mr *MockSeriesRefMockRecorder) LoadBlock(block, writeType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockSeriesRef)(nil).LoadBlock), block, writeType)
 }

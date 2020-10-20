@@ -114,7 +114,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	require.NoError(t, err)
 
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: seriesEntry,
+	}))
 	shard.Unlock()
 
 	var (
