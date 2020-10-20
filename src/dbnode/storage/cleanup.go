@@ -576,9 +576,8 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 			}
 
 			// We either remove up to the loaded snapshot version or everything but the most recent snapshot.
-			if blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]; ok {
-				if blockState.SnapshotVersionLoaded != defaultSnapshotVersion &&
-					snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
+			if blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]; ok && blockState.SnapshotVersionLoaded != defaultSnapshotVersion {
+				if snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
 					m.metrics.deletedSnapshotFile.Inc(1)
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 				}

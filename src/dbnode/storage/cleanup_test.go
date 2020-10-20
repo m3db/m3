@@ -549,12 +549,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
-		// Not testing index snapshot cleanup.
-		false,
-		index.BootstrappedBlockStateSnapshot{},
-	))
-	ns.EXPECT().Index().Times(3).Return(idx, nil)
+	ns.EXPECT().Index().Times(2).Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)

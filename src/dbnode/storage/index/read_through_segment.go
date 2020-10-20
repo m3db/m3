@@ -169,10 +169,6 @@ func (r *ReadThroughSegment) State() fst.IndexSegmentState {
 	return r.segment.State()
 }
 
-func (s *ReadThroughSegment) AllDocs() (index.IDDocIterator, error) {
-	return s.segment.AllDocs()
-}
-
 func (s *ReadThroughSegment) Doc(id postings.ID) (doc.Document, error) {
 	return s.Doc(id)
 }
