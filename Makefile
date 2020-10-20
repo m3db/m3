@@ -223,9 +223,9 @@ release-snapshot: check-for-goreleaser-github-token
 docs-test: setup install-tools
 	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
 	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
-ifneq ($(GITHUB_USER),)
-ifneq ($(GITHUB_TOKEN),)
-	@echo 'HTTPHeaders: {"Authorization":"Basic $(shell echo -n "$$GITHUB_USER:$$GITHUB_TOKEN" | base64 | xargs echo -n)"}' >> $(BUILD)/.htmltest.yml
+ifneq ($(DOCSTEST_AUTH_USER),)
+ifneq ($(DOCSTEST_AUTH_TOKEN),)
+	@echo 'HTTPHeaders: {"Authorization":"Basic $(shell echo -n "$$DOCSTEST_AUTH_USER:$$DOCSTEST_AUTH_TOKEN" | base64 | xargs echo -n)"}' >> $(BUILD)/.htmltest.yml
 endif
 endif
 	$(tools_bin_path)/htmltest -c $(BUILD)/.htmltest.yml
