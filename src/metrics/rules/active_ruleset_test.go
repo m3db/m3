@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -564,6 +564,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  true,
 			forExistingIDResult: metadata.StagedMetadatas{
 				metadata.StagedMetadata{
 					CutoverNanos: 22000,
@@ -662,6 +663,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  false,
 			forExistingIDResult: metadata.StagedMetadatas{
 				{
 					CutoverNanos: 24000,
@@ -715,6 +717,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:           25000,
 			matchTo:             25001,
 			expireAtNanos:       30000,
+			keepOriginal:        false,
 			forExistingIDResult: metadata.DefaultStagedMetadatas,
 		},
 		{
@@ -722,6 +725,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     10000,
 			matchTo:       40000,
 			expireAtNanos: 90000,
+			keepOriginal:  false,
 			forExistingIDResult: metadata.StagedMetadatas{
 				{
 					CutoverNanos: 10000,
@@ -1317,12 +1321,14 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		mockNewID,
 		nil,
 	)
+
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
@@ -1338,6 +1344,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  true,
 			forExistingIDResult: metadata.StagedMetadatas{
 				metadata.StagedMetadata{
 					CutoverNanos: 22000,
@@ -2447,6 +2454,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
@@ -2929,6 +2937,7 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 			input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 		})
 	}
 }
@@ -3132,6 +3141,106 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.forExistingIDResult, res.ForExistingIDAt(0))
 		require.Equal(t, 0, res.NumNewRollupIDs())
+		require.Equal(t, input.keepOriginal, res.KeepOriginal())
+	}
+}
+
+func TestMatchedKeepOriginal(t *testing.T) {
+	filter, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"foo": filters.FilterValue{Pattern: "bar"},
+			"baz": filters.FilterValue{Pattern: "bat"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+
+	var (
+		targets = []rollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("rollup.r2"),
+							Tags:          bs("foo"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+				},
+			},
+		}
+		rollups = []*rollupRule{
+			{
+				uuid: "rollup",
+				snapshots: []*rollupRuleSnapshot{
+					&rollupRuleSnapshot{
+						name:         "rollup.1.nokeep",
+						cutoverNanos: 0,
+						filter:       filter,
+						keepOriginal: false,
+						targets:      targets,
+					},
+					&rollupRuleSnapshot{
+						name:         "rollup.2.keep",
+						cutoverNanos: 10000,
+						filter:       filter,
+						keepOriginal: true,
+						targets:      targets,
+					},
+					&rollupRuleSnapshot{
+						name:         "rollup.2.nokeep",
+						tombstoned:   false,
+						cutoverNanos: 20000,
+						filter:       filter,
+						targets:      targets,
+					},
+				},
+			},
+		}
+		as = newActiveRuleSet(
+			0,
+			nil,
+			rollups,
+			testTagsFilterOptions(),
+			mockNewID,
+			func([]byte, []byte) bool { return true },
+		)
+	)
+
+	cases := map[string]struct {
+		expectKeepOriginal bool
+		cutoverNanos       int64
+	}{
+		"latest-nokeep-first": {
+			expectKeepOriginal: false,
+			cutoverNanos:       0,
+		},
+		"latest-keep-nested": {
+			expectKeepOriginal: true,
+			cutoverNanos:       10000,
+		},
+		"latest-nokeep-last": {
+			expectKeepOriginal: false,
+			cutoverNanos:       20000,
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			res := as.ForwardMatch(
+				b("baz=bat,foo=bar"),
+				tt.cutoverNanos,
+				tt.cutoverNanos+10000,
+			)
+
+			require.Equal(t, 1, res.NumNewRollupIDs())
+			require.Equal(t, tt.expectKeepOriginal, res.KeepOriginal())
+		})
 	}
 }
 
@@ -3490,6 +3599,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				tombstoned:   false,
 				cutoverNanos: 20000,
 				filter:       filter1,
+				keepOriginal: true,
 				targets: []rollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
