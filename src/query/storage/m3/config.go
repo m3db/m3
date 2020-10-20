@@ -90,19 +90,10 @@ type ClusterStaticNamespaceConfiguration struct {
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
 	unset := storagemetadata.MetricsType(0)
-	if c.Type != unset && c.StorageMetricsType != unset {
-		// Don't allow both to not be default
-		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
-	}
 
 	if c.Type != unset {
 		// New field value set
 		return c.Type, nil
-	}
-
-	if c.StorageMetricsType != unset {
-		// Deprecated field value set
-		return c.StorageMetricsType, nil
 	}
 
 	// Both are unset
