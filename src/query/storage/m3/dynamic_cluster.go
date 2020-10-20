@@ -38,13 +38,15 @@ var (
 	errAlreadyInitialized                         = errors.New("instance already initialized")
 	errDynamicClusterNamespaceConfigurationNotSet = errors.New("dynamicClusterNamespaceConfiguration not set")
 	errInstrumentOptionsNotSet                    = errors.New("instrumentOptions not set")
+	errClusterNamespacesWatcherNotSet             = errors.New("clusterNamespacesWatcher not set")
 	errNsWatchAlreadyClosed                       = errors.New("namespace watch already closed")
 )
 
 type dynamicCluster struct {
-	clusterCfgs []DynamicClusterNamespaceConfiguration
-	logger      *zap.Logger
-	iOpts       instrument.Options
+	clusterCfgs              []DynamicClusterNamespaceConfiguration
+	logger                   *zap.Logger
+	iOpts                    instrument.Options
+	clusterNamespacesWatcher ClusterNamespacesWatcher
 
 	sync.RWMutex
 
@@ -66,10 +68,11 @@ func NewDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 	}
 
 	cluster := &dynamicCluster{
-		clusterCfgs:             opts.DynamicClusterNamespaceConfiguration(),
-		logger:                  opts.InstrumentOptions().Logger(),
-		iOpts:                   opts.InstrumentOptions(),
-		namespacesByEtcdCluster: make(map[int]clusterNamespaceLookup),
+		clusterCfgs:              opts.DynamicClusterNamespaceConfiguration(),
+		logger:                   opts.InstrumentOptions().Logger(),
+		iOpts:                    opts.InstrumentOptions(),
+		clusterNamespacesWatcher: opts.ClusterNamespacesWatcher(),
+		namespacesByEtcdCluster:  make(map[int]clusterNamespaceLookup),
 	}
 
 	if err := cluster.init(); err != nil {
@@ -177,6 +180,11 @@ func (d *dynamicCluster) updateNamespaces(
 	d.updateNamespacesByEtcdClusterWithLock(etcdClusterID, clusterCfg, newNamespaces)
 	d.updateClusterNamespacesWithLock()
 	d.Unlock()
+
+	if err := d.clusterNamespacesWatcher.Update(d.ClusterNamespaces()); err != nil {
+		d.logger.Error("failed to update cluster namespaces watcher. downstream components relying on namespace "+
+			"updates to regenerate configuration will not be notified", zap.Error(err))
+	}
 }
 
 func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(

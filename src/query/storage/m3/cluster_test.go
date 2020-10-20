@@ -100,8 +100,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 		},
 	}
 
-	clusters, err := cfg.NewStaticClusters(instrument.NewOptions(),
-		ClustersStaticConfigurationOptions{})
+	clusters, err := cfg.NewStaticClusters(instrument.NewOptions(), ClustersStaticConfigurationOptions{}, NewClusterNamespacesWatcher())
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes
@@ -172,7 +171,8 @@ func TestNewDynamicClusters(t *testing.T) {
 	clusters, err := cfg.newDynamicClusters(
 		newNoopCluster,
 		instrument.NewOptions(),
-		ClustersStaticConfigurationOptions{})
+		ClustersStaticConfigurationOptions{},
+		NewClusterNamespacesWatcher())
 	require.NoError(t, err)
 
 	noopCluster := clusters.(*noopCluster)

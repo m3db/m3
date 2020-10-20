@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	dbclient "github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
@@ -44,10 +45,12 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
@@ -71,15 +74,41 @@ const (
 	nameTag = "__name__"
 )
 
-func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
+func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	gaugeMetrics, _ := testGaugeMetrics(testGaugeMetricsOptions{})
+	require.Equal(t, 1, len(gaugeMetrics))
+
+	gaugeMetric := gaugeMetrics[0]
+	numSamples := len(gaugeMetric.samples)
+
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []AutoMappingRule{
-			{
-				Aggregations: []aggregation.Type{testAggregationType},
-				Policies:     testAggregationStoragePolicies,
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: gaugeMetric.tags,
+					// NB(nate): Automapping rules generated from cluster namespaces currently
+					// hardcode 'Last' as the aggregation type. As such, expect value to be the last value
+					// in the sample.
+					values: []expectedValue{{value: gaugeMetric.samples[numSamples-1]}},
+				},
 			},
 		},
 	})
+
+	session := dbclient.NewMockSession(ctrl)
+	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	<-updateCh
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -181,7 +210,10 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRule(t *testing.T) {
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRuleFromNamespacesWatcher(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
 			nameTag: "foo_metric",
@@ -192,15 +224,6 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 		},
 	}
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []AutoMappingRule{
-			{
-				Aggregations: []aggregation.Type{aggregation.Sum},
-				Policies: policy.StoragePolicies{
-					policy.MustParseStoragePolicy("2s:24h"),
-					policy.MustParseStoragePolicy("4s:48h"),
-				},
-			},
-		},
 		rulesConfig: &RulesConfiguration{
 			MappingRules: []MappingRuleConfiguration{
 				{
@@ -231,11 +254,14 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 						Retention:   24 * time.Hour,
 					},
 				},
-				// Expect the sum to still be used for the storage
+				// Expect last to still be used for the storage
 				// policy 4s:48h.
 				{
-					tags:   gaugeMetric.tags,
-					values: []expectedValue{{value: 60}},
+					tags: gaugeMetric.tags,
+					// NB(nate): Automapping rules generated from cluster namespaces currently
+					// hardcode 'Last' as the aggregation type. As such, expect value to be the last value
+					// in the sample.
+					values: []expectedValue{{value: 0}},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  4 * time.Second,
@@ -246,11 +272,28 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 		},
 	})
 
+	session := dbclient.NewMockSession(ctrl)
+	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:24h"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("4s:48h"),
+		Resolution:  4 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	})
+	<-updateCh
+
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule(t *testing.T) {
+func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRuleFromNamespacesWatcher(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
 			nameTag: "foo_metric",
@@ -261,14 +304,6 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 		},
 	}
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []AutoMappingRule{
-			{
-				Aggregations: []aggregation.Type{aggregation.Sum},
-				Policies: policy.StoragePolicies{
-					policy.MustParseStoragePolicy("2s:24h"),
-				},
-			},
-		},
 		rulesConfig: &RulesConfiguration{
 			MappingRules: []MappingRuleConfiguration{
 				{
@@ -302,6 +337,15 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 			},
 		},
 	})
+
+	session := dbclient.NewMockSession(ctrl)
+	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:24h"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	<-updateCh
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -1582,6 +1626,23 @@ func testDownsamplerAggregationIngest(
 	}
 }
 
+func setAggregatedNamespaces(
+	t *testing.T,
+	testDownsampler testDownsampler,
+	session dbclient.Session,
+	namespaces ...m3.AggregatedClusterNamespaceDefinition,
+) chan bool {
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("default"),
+		Retention:   48 * time.Hour,
+		Session:     session,
+	}, namespaces...)
+	require.NoError(t, err)
+	require.NoError(t, testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
+
+	return testDownsampler.updateCh
+}
+
 func tagsToStringMap(tags models.Tags) map[string]string {
 	stringMap := make(map[string]string, tags.Len())
 	for _, t := range tags.Tags {
@@ -1599,6 +1660,7 @@ type testDownsampler struct {
 	storage        mock.Storage
 	rulesStore     rules.Store
 	instrumentOpts instrument.Options
+	updateCh       chan bool
 }
 
 type testDownsamplerOptions struct {
@@ -1682,20 +1744,22 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		cfg.Rules = opts.rulesConfig
 	}
 
+	updateCh := make(chan bool, 1)
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
-		Storage:                    storage,
-		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
-		RulesKVStore:               rulesKVStore,
-		AutoMappingRules:           opts.autoMappingRules,
-		ClockOptions:               clockOpts,
-		InstrumentOptions:          instrumentOpts,
-		TagEncoderOptions:          tagEncoderOptions,
-		TagDecoderOptions:          tagDecoderOptions,
-		TagEncoderPoolOptions:      tagEncoderPoolOptions,
-		TagDecoderPoolOptions:      tagDecoderPoolOptions,
-		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
-		RWOptions:                  xio.NewOptions(),
-		TagOptions:                 models.NewTagOptions(),
+		Storage:                        storage,
+		ClusterClient:                  clusterclient.NewMockClient(gomock.NewController(t)),
+		RulesKVStore:                   rulesKVStore,
+		ClusterNamespacesWatcher:       m3.NewClusterNamespacesWatcher(),
+		ClockOptions:                   clockOpts,
+		InstrumentOptions:              instrumentOpts,
+		TagEncoderOptions:              tagEncoderOptions,
+		TagDecoderOptions:              tagDecoderOptions,
+		TagEncoderPoolOptions:          tagEncoderPoolOptions,
+		TagDecoderPoolOptions:          tagDecoderPoolOptions,
+		MetricsAppenderPoolOptions:     metricsAppenderPoolOptions,
+		RWOptions:                      xio.NewOptions(),
+		TagOptions:                     models.NewTagOptions(),
+		MetricsAppenderOptionsUpdateCh: updateCh,
 	})
 	require.NoError(t, err)
 
@@ -1710,6 +1774,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		storage:        storage,
 		rulesStore:     rulesStore,
 		instrumentOpts: instrumentOpts,
+		updateCh:       updateCh,
 	}
 }
 
