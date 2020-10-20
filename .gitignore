@@ -39,8 +39,6 @@ coverage/
 # Release directory
 dist/
 
-# Docs directory
-site/
 
 # Node
 node_modules/
@@ -60,3 +58,6 @@ m3db.io/openapi
 # Vagrant
 .vagrant
 
+#docs ignores
+site/public
+tmp
