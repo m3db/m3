@@ -43,7 +43,7 @@ func newTime(n int) xtime.UnixNano {
 }
 
 func TestEntryReaderWriterCount(t *testing.T) {
-	e := lookup.NewEntry(nil, 0)
+	e := lookup.NewEntry(lookup.NewEntryOptions{})
 	require.Equal(t, int32(0), e.ReaderWriterCount())
 
 	e.IncrementReaderWriterCount()
@@ -54,7 +54,7 @@ func TestEntryReaderWriterCount(t *testing.T) {
 }
 
 func TestEntryIndexSuccessPath(t *testing.T) {
-	e := lookup.NewEntry(nil, 0)
+	e := lookup.NewEntry(lookup.NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
@@ -69,7 +69,7 @@ func TestEntryIndexSuccessPath(t *testing.T) {
 }
 
 func TestEntryIndexFailPath(t *testing.T) {
-	e := lookup.NewEntry(nil, 0)
+	e := lookup.NewEntry(lookup.NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
@@ -85,7 +85,7 @@ func TestEntryIndexFailPath(t *testing.T) {
 func TestEntryMultipleGoroutinesRaceIndexUpdate(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
 
-	e := lookup.NewEntry(nil, 0)
+	e := lookup.NewEntry(lookup.NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 

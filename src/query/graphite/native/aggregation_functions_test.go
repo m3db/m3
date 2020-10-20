@@ -294,13 +294,29 @@ func TestDivideSeries(t *testing.T) {
 	common.CompareOutputsAndExpected(t, 10000, consolidationStartTime,
 		[]common.TestSeries{expected[0]}, []*ts.Series{series.Values[0]})
 
-	// error - multiple divisor series
+	// empty series
 	series, err = divideSeries(ctx, singlePathSpec{
+		Values: []*ts.Series{},
+	}, singlePathSpec{
+		Values: consolidationTestSeries,
+	})
+	require.Nil(t, err)
+	require.Equal(t, series, ts.NewSeriesList())
+}
+
+func TestDivideSeriesError(t *testing.T) {
+	ctx, consolidationTestSeries := newConsolidationTestSeries()
+	defer ctx.Close()
+
+
+	// error - multiple divisor series
+	_, err := divideSeries(ctx, singlePathSpec{
 		Values: consolidationTestSeries,
 	}, singlePathSpec{
 		Values: consolidationTestSeries,
 	})
 	require.Error(t, err)
+	require.Equal(t, err.Error(), "divideSeries second argument must reference exactly one series but instead has 4")
 }
 
 func TestDivideSeriesLists(t *testing.T) {

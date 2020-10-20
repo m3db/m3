@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -398,6 +399,31 @@ func (s *dbSeries) ReadEncoded(
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
+	s.RUnlock()
+	return r, err
+}
+
+func (s *dbSeries) FetchIndexChecksum(
+	ctx context.Context,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (block.StreamedChecksum, error) {
+	s.RLock()
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	r, err := reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
+	s.RUnlock()
+	return r, err
+}
+
+func (s *dbSeries) FetchReadMismatch(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatch, error) {
+	s.RLock()
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	r, err := reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 	s.RUnlock()
 	return r, err
 }

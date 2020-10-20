@@ -428,6 +428,7 @@ func TestConfiguration(t *testing.T) {
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
     cacheSeriesMetadata: null
+    indexSegmentConcurrency: null
   blockRetrieve: null
   cache:
     series: null
@@ -725,10 +726,12 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
+  wide: null
   tchannel: null
+  debug:
+    mutexProfileFraction: 0
+    blockProfileRate: 0
 coordinator: null
-debug:
-  mutexProfileFraction: 0
 `
 
 	actual := string(data)

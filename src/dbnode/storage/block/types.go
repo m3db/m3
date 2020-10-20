@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -267,6 +268,22 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
+// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
+// and any errors encountered during execution.
+type StreamedChecksum interface {
+	// RetrieveIndexChecksum retrieves the index checksum.
+	RetrieveIndexChecksum() (xio.IndexChecksum, error)
+}
+
+type emptyStreamedChecksum struct{}
+
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+	return xio.IndexChecksum{}, nil
+}
+
+// EmptyStreamedChecksum is an empty streamed checksum.
+var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
 	// CacheShardIndices will pre-parse the indexes for given shards
@@ -283,6 +300,27 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if it is available in the shard.
+	StreamIndexChecksum(
+		ctx context.Context,
+		shard uint32,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (StreamedChecksum, error)
+
+	// StreamReadMismatches will stream reader mismatches for a given id within
+	// a block, yielding any streamed checksums within the shard.
+	StreamReadMismatches(
+		ctx context.Context,
+		shard uint32,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
+
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -296,6 +334,25 @@ type DatabaseShardBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	// StreamIndexChecksum will stream the index checksum for a given id within
+	// a block, yielding an index checksum if available.
+	StreamIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (StreamedChecksum, error)
+
+	// StreamReadMismatches will stream read index mismatches for a given id
+	// within a block, yielding any read mismatches.
+	StreamReadMismatches(
+		ctx context.Context,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

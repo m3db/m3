@@ -42,7 +42,7 @@ func newTestWriter(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestWriterFiles(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	_, w := newTestWriter(t, ctrl)
 	require.Equal(t, w.Files(), []IndexSegmentFileType{
@@ -55,7 +55,7 @@ func TestWriterFiles(t *testing.T) {
 }
 
 func TestWriterWriteFile(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var iow io.Writer

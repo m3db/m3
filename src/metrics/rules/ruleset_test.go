@@ -2210,4 +2210,5 @@ type testMatchInput struct {
 	expireAtNanos         int64
 	forExistingIDResult   metadata.StagedMetadatas
 	forNewRollupIDsResult []IDWithMetadatas
+	keepOriginal          bool
 }

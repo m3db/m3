@@ -117,6 +117,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 					},
 				},
 				nil,
+				false,
 			),
 		},
 		{
@@ -156,6 +157,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						},
 					},
 				},
+				true,
 			),
 		},
 		{
@@ -204,6 +206,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						},
 					},
 				},
+				true,
 			),
 		},
 	}
@@ -270,12 +273,19 @@ func validateMatchResult(
 				forNewRollupIDs[i] = actual.ForNewRollupIDsAt(i, 0)
 			}
 		}
-		actual = rules.NewMatchResult(expected.Version(), actual.ExpireAtNanos(), forExistingID, forNewRollupIDs)
+		actual = rules.NewMatchResult(
+			expected.Version(),
+			actual.ExpireAtNanos(),
+			forExistingID,
+			forNewRollupIDs,
+			actual.KeepOriginal(),
+		)
 	}
 	testMatchResultCmpOpts := []cmp.Option{
 		cmp.AllowUnexported(rules.MatchResult{}),
 		cmpopts.EquateEmpty(),
 	}
+
 	require.True(t, cmp.Equal(expected, actual, testMatchResultCmpOpts...))
 }
 
@@ -342,6 +352,7 @@ func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
+					KeepOriginal: true,
 					TargetsV2: []*rulepb.RollupTargetV2{
 						&rulepb.RollupTargetV2{
 							Pipeline: &pipelinepb.Pipeline{
