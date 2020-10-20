@@ -116,11 +116,6 @@ func ParseRequest(
 		return ParsedOptions{}, rErr
 	}
 
-	fetchOpts.Timeout = opts.TimeoutOpts().FetchTimeout
-	if params.Timeout > 0 {
-		fetchOpts.Timeout = params.Timeout
-	}
-
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
 	if err := validateRequest(params, maxPoints); err != nil {
 		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
@@ -197,16 +192,13 @@ func read(
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, parsed.FetchOpts.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, parsed.Params.Timeout)
 		defer cancel()
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
-		return emptyResult, err
-	}
-	if err := ctx.Err(); err != nil {
 		return emptyResult, err
 	}
 
