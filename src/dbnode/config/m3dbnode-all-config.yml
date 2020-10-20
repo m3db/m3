@@ -135,7 +135,7 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     # Directory to store M3DB data in.
     filePathPrefix: /var/lib/m3db
     # Various fixed-sized buffers used for M3DB I/O.

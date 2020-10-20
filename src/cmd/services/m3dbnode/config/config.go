@@ -126,7 +126,7 @@ type DBConfiguration struct {
 	Cache CacheConfigurations `yaml:"cache"`
 
 	// The filesystem configuration for the node.
-	Filesystem FilesystemConfiguration `yaml:"fs"`
+	Filesystem FilesystemConfiguration `yaml:"filesystem"`
 
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`

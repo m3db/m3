@@ -184,7 +184,7 @@ data:
           calculationType: fixed
           size: 2097152
 
-      fs:
+      filesystem:
         filePathPrefix: /var/lib/m3db
 
       config:

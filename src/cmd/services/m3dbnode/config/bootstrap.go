@@ -52,7 +52,7 @@ type BootstrapConfiguration struct {
 	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
 
 	// Filesystem bootstrapper configuration.
-	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
+	Filesystem *BootstrapFilesystemConfiguration `yaml:"filesystem"`
 
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
