@@ -94,6 +94,7 @@ TOOLS :=               \
 	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
+	docs_test            \
 	m3ctl                \
 
 .PHONY: setup
@@ -189,7 +190,6 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
-	GOBIN=$(tools_bin_path) go install github.com/wjdp/htmltest
 
 .PHONY: install-gometalinter
 install-gometalinter:
@@ -214,21 +214,37 @@ release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
 	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
 
+.PHONY: docs-container
+docs-container:
+	docker run --rm hello-world >/dev/null
+	docker build -t m3db-docs docs
+
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
 # Makefile assumes its running under bash and the container is alpine (ash
 # shell).
+.PHONY: docs-build
+docs-build: docs-container
+	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -t material"
+
+.PHONY: docs-serve
+docs-serve: docs-container
+	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -t material -a 0.0.0.0:8000"
+
+.PHONY: docs-deploy
+docs-deploy: docs-container
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -t material && mkdocs gh-deploy --force --dirty"
+
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
 
 .PHONY: docs-test
-docs-test: setup install-tools
-	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
-	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
-ifneq ($(DOCSTEST_AUTH_USER),)
-ifneq ($(DOCSTEST_AUTH_TOKEN),)
-	@echo 'HTTPHeaders: {"Authorization":"Basic $(shell echo -n "$$DOCSTEST_AUTH_USER:$$DOCSTEST_AUTH_TOKEN" | base64 | xargs echo -n)"}' >> $(BUILD)/.htmltest.yml
-endif
-endif
-	$(tools_bin_path)/htmltest -c $(BUILD)/.htmltest.yml
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
 
 .PHONY: docker-integration-test
 docker-integration-test:
