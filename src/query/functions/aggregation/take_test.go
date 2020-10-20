@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,7 +82,7 @@ func TestTakeInstantFn(t *testing.T) {
 	actualString = fmt.Sprint(actual)
 	expectedString = fmt.Sprint(expectedMax)
 
-	assert.EqualValues(t, expectedString, actualString)
+	require.EqualValues(t, expectedString, actualString)
 }
 
 func TestTakeFn(t *testing.T) {
@@ -152,9 +151,9 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	// Should have the same metas as when started
-	assert.Equal(t, seriesMetas, sink.Metas)
+	require.Equal(t, seriesMetas, sink.Metas)
 	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
-	assert.Equal(t, bounds, sink.Meta.Bounds)
+	require.Equal(t, bounds, sink.Meta.Bounds)
 }
 
 func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
@@ -177,9 +176,9 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	// Should have the same metas as when started
-	assert.Equal(t, seriesMetas, sink.Metas)
+	require.Equal(t, seriesMetas, sink.Metas)
 	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
-	assert.Equal(t, bounds, sink.Meta.Bounds)
+	require.Equal(t, bounds, sink.Meta.Bounds)
 }
 
 func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
@@ -201,7 +200,7 @@ func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 	}
 
 	// Should have the same metas as when started
-	assert.Equal(t, seriesMetas, sink.Metas)
+	require.Equal(t, seriesMetas, sink.Metas)
 	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
-	assert.Equal(t, bounds, sink.Meta.Bounds)
+	require.Equal(t, bounds, sink.Meta.Bounds)
 }

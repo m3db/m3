@@ -154,10 +154,11 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		[]byte(n.op.opType),
 		seriesMetas,
 	)
-	seriesCount := len(seriesMetas)
+
+	seriesCount := maxSeriesCount(buckets)
 	if instantaneous {
 		heap := utils.NewFloatHeap(takeTop, utils.Min(n.op.k, seriesCount))
-		return n.processBlockInstantaneous(heap, queryCtx, b.Meta(), stepIter, seriesMetas, buckets)
+		return n.processBlockInstantaneous(heap, queryCtx, meta, stepIter, seriesMetas, buckets)
 	} else {
 		fnTake := n.resolveTakeFn(seriesCount, takeTop)
 		builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
@@ -180,6 +181,18 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		}
 		return builder.Build(), nil
 	}
+}
+
+func maxSeriesCount(buckets [][]int) int {
+	result := 0
+
+	for _, bucket := range buckets {
+		if len(bucket) > result {
+			result = len(bucket)
+		}
+	}
+
+	return result
 }
 
 func (n *takeNode) resolveTakeFn(seriesCount int, takeTop bool) takeValuesFunc {
@@ -207,8 +220,7 @@ func (n *takeNode) processBlockInstantaneous(
 	for index := 0; stepIter.Next(); index++ {
 		if isLastStep(index, stepCount) {
 			//we only care for the last step values for the instant query
-			step := stepIter.Current()
-			values := step.Values()
+			values := stepIter.Current().Values()
 			takenSortedValues := n.op.takeInstantFunc(heap, values, buckets, seriesMetas)
 			for i := range takenSortedValues {
 				values[i] = takenSortedValues[i].val
