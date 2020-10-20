@@ -129,14 +129,6 @@ func (fh *FloatHeap) Push(value float64, index int) {
 	})
 }
 
-func (fh *FloatHeap) Pop() (ValueIndexPair, bool) {
-	h := fh.floatHeap.heap
-	if len(h) == 0 {
-		return ValueIndexPair{}, false
-	}
-	return heap.Pop(fh.floatHeap).(ValueIndexPair), true
-}
-
 // Len returns the current length of the heap
 func (fh *FloatHeap) Len() int {
 	return fh.floatHeap.Len()
