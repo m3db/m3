@@ -192,12 +192,14 @@ func read(
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
 		var cancel context.CancelFunc
+		fmt.Println("TIMEOUT", parsed.Params.Timeout)
 		ctx, cancel = context.WithTimeout(ctx, parsed.Params.Timeout)
 		defer cancel()
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
+	fmt.Println(bl, err)
 	if err != nil {
 		return emptyResult, err
 	}

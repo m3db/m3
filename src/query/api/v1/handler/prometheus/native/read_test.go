@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -38,11 +39,13 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +54,7 @@ import (
 func TestParseRequest(t *testing.T) {
 	setup := newTestSetup(&prometheus.TimeoutOpts{
 		FetchTimeout: 10 * time.Second,
-	})
+	}, nil)
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
@@ -76,23 +79,27 @@ func TestPromReadHandlerRead(t *testing.T) {
 }
 
 func TestPromReadHandlerWithTimeout(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	ctrl := xtest.NewController(t)
+	engine := executor.NewMockEngine(ctrl)
+	engine.EXPECT().
+		Options().
+		Return(executor.NewEngineOptions())
+	engine.EXPECT().
+		ExecuteExpr(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context,
+			parser parser.Parser,
+			opts *executor.QueryOptions,
+			fetchOpts *storage.FetchOptions,
+			params models.RequestParams,
+		) (block.Block, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		})
 
-	timeout := &prometheus.TimeoutOpts{
-		FetchTimeout: 10 * time.Millisecond,
-	}
-	setup := newTestSetup(timeout)
+	setup := newTestSetup(nil, engine)
 	promRead := setup.Handlers.read
-
-	seriesMeta := test.NewSeriesMeta("dummy", len(values))
-	m := block.Metadata{
-		Bounds:         bounds,
-		Tags:           models.NewTags(0, models.NewTagOptions()),
-		ResultMetadata: block.NewResultMetadata(),
-	}
-
-	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
-	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
@@ -101,12 +108,13 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
+	r.Timeout = 10 * time.Millisecond
 	parsed := ParsedOptions{
 		QueryOpts: setup.QueryOpts,
 		FetchOpts: setup.FetchOpts,
 		Params:    r,
 		CancelWatcher: &cancelWatcher{
-			delay: timeout.FetchTimeout * 10,
+			delay: r.Timeout * 10,
 		},
 	}
 
@@ -124,7 +132,7 @@ func testPromReadHandlerRead(
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup(timeoutOpts)
+	setup := newTestSetup(timeoutOpts, nil)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -184,7 +192,7 @@ func testM3PromReadHandlerRead(
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup(timeoutOpts)
+	setup := newTestSetup(timeoutOpts, nil)
 	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -242,7 +250,10 @@ type testSetupHandlers struct {
 	instantRead *promReadHandler
 }
 
-func newTestSetup(timeout *prometheus.TimeoutOpts) *testSetup {
+func newTestSetup(
+	timeout *prometheus.TimeoutOpts,
+	mockEngine *executor.MockEngine,
+) *testSetup {
 	mockStorage := mock.NewMockStorage()
 
 	instrumentOpts := instrument.NewOptions()
@@ -252,6 +263,9 @@ func newTestSetup(timeout *prometheus.TimeoutOpts) *testSetup {
 		SetGlobalEnforcer(nil).
 		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
+	if mockEngine != nil {
+		engine = mockEngine
+	}
 	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
 	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 	tagOpts := models.NewTagOptions()
@@ -288,7 +302,7 @@ func newTestSetup(timeout *prometheus.TimeoutOpts) *testSetup {
 }
 
 func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
-	setup := newTestSetup(timeoutOpts)
+	setup := newTestSetup(timeoutOpts, nil)
 	opts := setup.Handlers.read.opts
 	setup.Handlers.read.opts = opts.SetConfig(config.Configuration{
 		Limits: config.LimitsConfiguration{
