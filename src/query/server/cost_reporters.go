@@ -79,8 +79,10 @@ func newConfiguredChainedEnforcer(
 	globalReporterScope := globalScope.SubScope(reporterScopeName)
 
 	globalLimitMgr := cost.NewStaticLimitManager(
-		cfg.Limits.Global.AsLimitManagerOptions().
-			SetInstrumentOptions(instrumentOptions.SetMetricsScope(globalLimitManagerScope)))
+		cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
+			Threshold: cost.Cost(0),
+			Enabled:   false,
+		}).SetInstrumentOptions(instrumentOptions.SetMetricsScope(globalLimitManagerScope)))
 
 	globalTracker := cost.NewTracker()
 
@@ -97,8 +99,10 @@ func newConfiguredChainedEnforcer(
 	queryReporterScope := queryScope.SubScope(reporterScopeName)
 
 	queryLimitMgr := cost.NewStaticLimitManager(
-		cfg.Limits.PerQuery.AsLimitManagerOptions().
-			SetInstrumentOptions(instrumentOptions.SetMetricsScope(queryLimitManagerScope)))
+		cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
+			Threshold: cost.Cost(0),
+			Enabled:   false,
+		}).SetInstrumentOptions(instrumentOptions.SetMetricsScope(queryLimitManagerScope)))
 
 	queryTracker := cost.NewTracker()
 
