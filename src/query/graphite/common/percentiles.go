@@ -117,6 +117,7 @@ func SafeMin(input []float64) (float64, int) {
 	return min, nans
 }
 
+
 // GetPercentile computes the percentile cut off for an array of floats
 func GetPercentile(input []float64, percentile float64, interpolate bool) float64 {
 	nans := SafeSort(input)
@@ -125,26 +126,21 @@ func GetPercentile(input []float64, percentile float64, interpolate bool) float6
 		return math.NaN()
 	}
 
-	fractionalRank := (percentile / 100.0) * (float64(len(series) + 1))
-	rank := int(fractionalRank)
-	rankFraction := fractionalRank - float64(rank)
+	fractionalRank := (percentile / 100.0) * (float64(len(series)))
+	rank := math.Ceil(fractionalRank)
 
-	if interpolate == false {
-		rank = rank + int(math.Ceil(rankFraction))
+	rankAsInt := int(rank)
+
+	if rankAsInt <= 1 {
+		return series[0]
 	}
 
-	var percentileResult float64
-	if rank == 0 {
-		percentileResult = series[0]
-	} else if rank-1 == len(series) {
-		percentileResult = series[len(series)-1]
-	} else {
-		percentileResult = series[rank-1]
-	}
+	percentileResult := series[rankAsInt-1]
 
-	if interpolate && rank != len(series) {
-		nextValue := series[rank]
-		percentileResult = percentileResult + (rankFraction * (nextValue - percentileResult))
+	if interpolate {
+		prevValue := series[rankAsInt-2]
+		fraction := fractionalRank - (rank - 1)
+		percentileResult = prevValue + (fraction * (percentileResult - prevValue))
 	}
 
 	return percentileResult
