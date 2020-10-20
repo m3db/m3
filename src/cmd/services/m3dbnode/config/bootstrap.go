@@ -43,6 +43,15 @@ import (
 var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.125
+
+	// order in which bootstrappers are run
+	// (run in ascending order of precedence)
+	orderedBootstrappers = []string{
+		uninitialized.UninitializedTopologyBootstrapperName,
+		peers.PeersBootstrapperName,
+		commitlog.CommitLogBootstrapperName,
+		bfs.FileSystemBootstrapperName,
+	}
 )
 
 // BootstrapConfiguration specifies the config for bootstrappers.
@@ -157,7 +166,6 @@ func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
 // Useful for tests and perhaps verifying same options set across multiple
 // bootstrappers.
 type BootstrapConfigurationValidator interface {
-	ValidateBootstrappersOrder(names []string) error
 	ValidateFilesystemBootstrapperOptions(opts bfs.Options) error
 	ValidateCommitLogBootstrapperOptions(opts commitlog.Options) error
 	ValidatePeersBootstrapperOptions(opts peers.Options) error
@@ -173,10 +181,6 @@ func (bsc BootstrapConfiguration) New(
 	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
-	if err := validator.ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
-		return nil, err
-	}
-
 	idxOpts := opts.IndexOptions()
 	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
@@ -198,9 +202,8 @@ func (bsc BootstrapConfiguration) New(
 		bs     bootstrap.BootstrapperProvider
 		fsOpts = opts.CommitLogOptions().FilesystemOptions()
 	)
-	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
-	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
-		switch bsc.Bootstrappers[i] {
+	for _, b := range orderedBootstrappers {
+		switch b {
 		case bootstrapper.NoOpAllBootstrapperName:
 			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
@@ -279,7 +282,7 @@ func (bsc BootstrapConfiguration) New(
 			}
 			bs = uninitialized.NewUninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
-			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
+			return nil, fmt.Errorf("unknown bootstrapper: %s", b)
 		}
 	}
 
