@@ -56,7 +56,6 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
-		maxDatapoints:     scope.Gauge("max_datapoints"),
 	}
 }
 

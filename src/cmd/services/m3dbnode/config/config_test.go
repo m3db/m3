@@ -1057,7 +1057,12 @@ db:
 	origin := topology.NewMockHost(ctrl)
 	adminClient := client.NewMockAdminClient(ctrl)
 
-	_, err = cfg.DB.Bootstrap.New(validator,
-		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+	_, err = cfg.DB.Bootstrap.New(
+		result.NewOptions(),
+		storage.DefaultTestOptions(),
+		mapProvider,
+		origin,
+		adminClient,
+	)
 	require.NoError(t, err)
 }

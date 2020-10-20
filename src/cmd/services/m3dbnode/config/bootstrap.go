@@ -48,8 +48,10 @@ var (
 	// (run in ascending order of precedence)
 	orderedBootstrappers = []string{
 		uninitialized.UninitializedTopologyBootstrapperName,
+		// Peers and commitlog must come after uninitialized topology bootrapping.
 		peers.PeersBootstrapperName,
 		commitlog.CommitLogBootstrapperName,
+		// Filesystem bootstrapping must be last.
 		bfs.FileSystemBootstrapperName,
 	}
 )
@@ -161,20 +163,8 @@ func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
 	}
 }
 
-// BootstrapConfigurationValidator can be used to validate the option sets
-// that the  bootstrap configuration builds.
-// Useful for tests and perhaps verifying same options set across multiple
-// bootstrappers.
-type BootstrapConfigurationValidator interface {
-	ValidateFilesystemBootstrapperOptions(opts bfs.Options) error
-	ValidateCommitLogBootstrapperOptions(opts commitlog.Options) error
-	ValidatePeersBootstrapperOptions(opts peers.Options) error
-	ValidateUninitializedBootstrapperOptions(opts uninitialized.Options) error
-}
-
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
-	validator BootstrapConfigurationValidator,
 	rsOpts result.Options,
 	opts storage.Options,
 	topoMapProvider topology.MapProvider,
@@ -224,7 +214,7 @@ func (bsc BootstrapConfiguration) New(
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
 			}
-			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
+			if err := fsbOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbOpts, bs)
@@ -238,7 +228,7 @@ func (bsc BootstrapConfiguration) New(
 				SetCommitLogOptions(opts.CommitLogOptions()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetReturnUnfulfilledForCorruptCommitLogFiles(cCfg.ReturnUnfulfilledForCorruptCommitLogFiles)
-			if err := validator.ValidateCommitLogBootstrapperOptions(cOpts); err != nil {
+			if err := cOpts.Validate(); err != nil {
 				return nil, err
 			}
 			inspection, err := fs.InspectFilesystem(fsOpts)
@@ -266,7 +256,7 @@ func (bsc BootstrapConfiguration) New(
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
 			}
-			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
+			if err := pOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
@@ -277,7 +267,7 @@ func (bsc BootstrapConfiguration) New(
 			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			if err := validator.ValidateUninitializedBootstrapperOptions(uOpts); err != nil {
+			if err := uOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs = uninitialized.NewUninitializedTopologyBootstrapperProvider(uOpts, bs)
@@ -314,95 +304,4 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 		return *cfg
 	}
 	return newDefaultBootstrapPeersConfiguration()
-}
-
-type bootstrapConfigurationValidator struct {
-}
-
-// NewBootstrapConfigurationValidator returns a new bootstrap configuration
-// validator that validates certain options configured by the bootstrap
-// configuration.
-func NewBootstrapConfigurationValidator() BootstrapConfigurationValidator {
-	return bootstrapConfigurationValidator{}
-}
-
-func (v bootstrapConfigurationValidator) ValidateBootstrappersOrder(names []string) error {
-	dataFetchingBootstrappers := []string{
-		bfs.FileSystemBootstrapperName,
-		peers.PeersBootstrapperName,
-		commitlog.CommitLogBootstrapperName,
-	}
-
-	precedingBootstrappersAllowedByBootstrapper := map[string][]string{
-		bootstrapper.NoOpAllBootstrapperName:  dataFetchingBootstrappers,
-		bootstrapper.NoOpNoneBootstrapperName: dataFetchingBootstrappers,
-		bfs.FileSystemBootstrapperName:        []string{
-			// Filesystem bootstrapper must always appear first
-		},
-		peers.PeersBootstrapperName: []string{
-			// Peers must always appear after filesystem
-			bfs.FileSystemBootstrapperName,
-			// Peers may appear before OR after commitlog
-			commitlog.CommitLogBootstrapperName,
-		},
-		commitlog.CommitLogBootstrapperName: []string{
-			// Commit log bootstrapper may appear after filesystem or peers
-			bfs.FileSystemBootstrapperName,
-			peers.PeersBootstrapperName,
-		},
-		uninitialized.UninitializedTopologyBootstrapperName: []string{
-			// Unintialized bootstrapper may appear after filesystem or peers or commitlog
-			bfs.FileSystemBootstrapperName,
-			commitlog.CommitLogBootstrapperName,
-			peers.PeersBootstrapperName,
-		},
-	}
-
-	validated := make(map[string]struct{})
-	for _, name := range names {
-		precedingAllowed, ok := precedingBootstrappersAllowedByBootstrapper[name]
-		if !ok {
-			return fmt.Errorf("unknown bootstrapper: %v", name)
-		}
-
-		allowed := make(map[string]struct{})
-		for _, elem := range precedingAllowed {
-			allowed[elem] = struct{}{}
-		}
-
-		for existing := range validated {
-			if _, ok := allowed[existing]; !ok {
-				return fmt.Errorf("bootstrapper %s cannot appear after %s: ",
-					name, existing)
-			}
-		}
-
-		validated[name] = struct{}{}
-	}
-
-	return nil
-}
-
-func (v bootstrapConfigurationValidator) ValidateFilesystemBootstrapperOptions(
-	opts bfs.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidateCommitLogBootstrapperOptions(
-	opts commitlog.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidatePeersBootstrapperOptions(
-	opts peers.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidateUninitializedBootstrapperOptions(
-	opts uninitialized.Options,
-) error {
-	return opts.Validate()
 }
