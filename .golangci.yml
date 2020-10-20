@@ -146,23 +146,26 @@ linters-settings:
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
     enabled-tags:
       - performance
-
+    enabled-checks:
+      - ruleguard
     settings: # settings passed to gocritic
       captLocal: # must be valid enabled check name
         paramsOnly: true
       rangeValCopy:
         sizeThreshold: 32
+      ruleguard:
+        rules: "src/cmd/tools/linter/gorules/rules.go"
 
 linters:
   enable:
     - megacheck
+    - gocritic
     - govet
   enable-all: false
   disable:
     - maligned
     - prealloc
     - dupl
-    - gocritic
     - lll
     - wsl
     - gomnd

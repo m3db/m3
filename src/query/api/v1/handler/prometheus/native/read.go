@@ -23,6 +23,7 @@ package native
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -102,7 +103,7 @@ func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
-
+	var _ map[time.Time]string
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
 
