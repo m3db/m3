@@ -48,6 +48,7 @@ var (
 		"seconds": time.Second,
 		"m":       time.Minute,
 		"min":     time.Minute,
+		"mins":    time.Minute,
 		"minute":  time.Minute,
 		"minutes": time.Minute,
 		"h":       time.Hour,
@@ -181,19 +182,26 @@ func Count(ctx *Context, seriesList ts.SeriesList, renamer SeriesListRenamer) (t
 }
 
 // ParseInterval parses an interval string and returns the corresponding duration.
-func ParseInterval(s string) (time.Duration, error) {
-	if m := reInterval.FindStringSubmatch(strings.TrimSpace(s)); len(m) != 0 {
-		amount, err := strconv.ParseInt(m[1], 10, 32)
+func ParseInterval(fullInterval string) (time.Duration, error) {
+	allIntervals := reInterval.FindAllString(fullInterval, -1)
+	output := time.Duration(0)
+	if allIntervals == nil {
+		return 0, errors.NewInvalidParamsError(fmt.Errorf("Unrecognized interval string: %s", fullInterval))
+	}
+	
+	for _, interval := range allIntervals {
+		if m := reInterval.FindStringSubmatch(strings.TrimSpace(interval)); len(m) != 0 {
+			amount, err := strconv.ParseInt(m[1], 10, 32)
+			if err != nil {
+				return 0, errors.NewInvalidParamsError(err)
+			}
 
-		if err != nil {
-			return 0, errors.NewInvalidParamsError(err)
+			interval := intervals[strings.ToLower(m[2])]
+			output += (interval * time.Duration(amount))
 		}
-
-		interval := intervals[strings.ToLower(m[2])]
-		return interval * time.Duration(amount), nil
 	}
 
-	return 0, ErrInvalidIntervalFormat
+	return output, nil
 }
 
 // ConstantLine draws a horizontal line at a specified value
@@ -281,6 +289,5 @@ func init() {
 		intervalNames = append(intervalNames, name)
 	}
 
-	reInterval = regexp.MustCompile(fmt.Sprintf("(?i)^([+-]?[0-9]+)(%s)$",
-		strings.Join(intervalNames, "|")))
+	reInterval = regexp.MustCompile("(?i)([+-]?[0-9]+)(s|min|h|d|w|mon|y)([A-Z]*)")
 }
