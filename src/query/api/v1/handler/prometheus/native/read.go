@@ -109,8 +109,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		logger.Error("could not parse request", zap.Error(rErr.Inner()))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		logger.Error("could not parse request", zap.Error(rErr))
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Any("parsedOptions", parsedOptions))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

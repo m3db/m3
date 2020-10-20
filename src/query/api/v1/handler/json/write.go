@@ -78,7 +78,7 @@ type WriteQuery struct {
 func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := parseRequest(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("parsing error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
@@ -96,7 +96,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 }
 
@@ -127,23 +127,23 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 	})
 }
 
-func parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {
+func parseRequest(r *http.Request) (*WriteQuery, xhttp.Error) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	defer body.Close()
 
 	js, err := ioutil.ReadAll(body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+		return nil, xhttp.NewError(err, http.StatusInternalServerError)
 	}
 
 	var writeQuery *WriteQuery
 	if err = json.Unmarshal(js, &writeQuery); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return writeQuery, nil

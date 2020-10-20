@@ -69,8 +69,8 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query, parseBodyErr := h.parseBody(r)
 	fetchOpts, parseURLParamsErr := h.parseURLParams(r)
 	if err := firstParseError(parseBodyErr, parseURLParamsErr); err != nil {
-		logger.Error("unable to parse request", zap.Error(err.Inner()))
-		xhttp.Error(w, err.Inner(), err.Code())
+		logger.Error("unable to parse request", zap.Error(err))
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -80,29 +80,29 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 			zap.Any("query", query),
 			zap.Any("fetchOpts", fetchOpts))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	xhttp.WriteJSONResponse(w, results, logger)
 }
 
-func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *xhttp.ParseError) {
+func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, xhttp.Error) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 	defer r.Body.Close()
 
 	var fetchQuery storage.FetchQuery
 	if err := json.Unmarshal(body, &fetchQuery); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return &fetchQuery, nil
 }
 
-func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, *xhttp.ParseError) {
+func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, xhttp.Error) {
 	fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if parseErr != nil {
 		return nil, parseErr
@@ -115,13 +115,13 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 	} else if str := r.URL.Query().Get("seriesLimit"); str != "" {
 		var err error
 		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 	}
 
@@ -129,7 +129,7 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.DocsLimit, err = strconv.Atoi(str)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		var err error
 		fetchOpts.RequireExhaustive, err = strconv.ParseBool(str)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 	}
 
@@ -152,7 +152,7 @@ func (h *SearchHandler) search(
 	return h.store.SearchSeries(ctx, query, opts)
 }
 
-func firstParseError(errs ...*xhttp.ParseError) *xhttp.ParseError {
+func firstParseError(errs ...xhttp.Error) xhttp.Error {
 	for _, err := range errs {
 		if err != nil {
 			return err

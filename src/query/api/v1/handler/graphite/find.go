@@ -119,13 +119,13 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// for parseFindParamsToQueries
 	terminatedQuery, childQuery, raw, rErr := parseFindParamsToQueries(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -150,7 +150,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	wg.Wait()
 	if err := xerrors.FirstError(tErr, cErr); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -159,7 +159,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -172,6 +172,6 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// TODO: Support multiple result types
 	if err = findResultsJSON(w, prefix, seenMap); err != nil {
 		logger.Error("unable to print find results", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 	}
 }

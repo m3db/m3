@@ -50,7 +50,7 @@ const (
 // config.
 type FetchOptionsBuilder interface {
 	// NewFetchOptions parses an http request into fetch options.
-	NewFetchOptions(req *http.Request) (*storage.FetchOptions, *xhttp.ParseError)
+	NewFetchOptions(req *http.Request) (*storage.FetchOptions, xhttp.Error)
 }
 
 // FetchOptionsBuilderOptions provides options to use when creating a
@@ -133,13 +133,13 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
 	req *http.Request,
-) (*storage.FetchOptions, *xhttp.ParseError) {
+) (*storage.FetchOptions, xhttp.Error) {
 	fetchOpts := storage.NewFetchOptions()
 
 	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.SeriesLimit = seriesLimit
@@ -147,14 +147,14 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.DocsLimit = docsLimit
 
 	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.Limits.RequireExhaustive)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
@@ -164,7 +164,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse metrics type: input=%s, err=%v", str, err)
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -178,7 +178,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse storage policy: input=%s, err=%v", str, err)
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -191,12 +191,12 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		// Allow header to override any default restrict by tags config.
 		var opts StringTagOptions
 		if err := json.Unmarshal([]byte(str), &opts); err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 
 		tagOpts, err := opts.StorageOptions()
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -211,7 +211,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
 				"could not validate restrict options: err=%v", err)
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xhttp.NewError(err, http.StatusBadRequest)
 		}
 	}
 
@@ -220,14 +220,14 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	if step, ok, err := ParseStep(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse step: err=%v", err)
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	} else if ok {
 		fetchOpts.Step = step
 	}
 	if lookback, ok, err := ParseLookbackDuration(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse lookback: err=%v", err)
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
 	}

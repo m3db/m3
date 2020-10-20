@@ -47,7 +47,10 @@ const (
 	WriteHTTPMethod = http.MethodPost
 )
 
-var errEmptyBody = errors.New("request body is empty")
+var (
+	errEmptyBody = xhttp.NewError(errors.New("request body is empty"),
+		http.StatusBadRequest)
+)
 
 type Handler struct {
 	writer     ingest.DownsamplerAndWriter
@@ -69,7 +72,7 @@ func NewHandler(
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Body == nil {
 		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.Error(w, errEmptyBody, http.StatusBadRequest)
+		xhttp.WriteError(w, errEmptyBody)
 		return
 	}
 	defer r.Body.Close()
@@ -77,7 +80,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, err := parseRequest(r.Body)
 	if err != nil {
 		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
@@ -106,7 +109,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = fmt.Errorf(
 			"unable to write metric batch, encountered %d errors: %v", len(batchErr.Errors()), batchErr.Error(),
 		)
-		xhttp.Error(w, err, status)
+		xhttp.WriteError(w, xhttp.NewError(err, status))
 		return
 	}
 

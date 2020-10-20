@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -78,7 +79,7 @@ func (h *ReadyHandler) ServeHTTP(
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -86,7 +87,7 @@ func (h *ReadyHandler) ServeHTTP(
 	ready, err := h.Ready(req, opts)
 	if err != nil {
 		logger.Error("unable to mark namespace as ready", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -97,12 +98,12 @@ func (h *ReadyHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyRequest, *xhttp.ParseError) {
+func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyRequest, xhttp.Error) {
 	defer r.Body.Close()
 
 	req := new(admin.NamespaceReadyRequest)
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return req, nil
@@ -128,7 +129,7 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 
 	ns, ok := newMetadata[req.Name]
 	if !ok {
-		return false, fmt.Errorf("namespace %v not found", req.Name)
+		return false, xerrors.NewInvalidParamsError(fmt.Errorf("namespace %v not found", req.Name))
 	}
 
 	// If we're not forcing the staging state, check db nodes to see if namespace is ready.

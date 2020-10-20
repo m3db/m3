@@ -79,11 +79,11 @@ func parseParams(
 	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, xhttp.Error) {
 	var params models.RequestParams
 
 	if err := r.ParseForm(); err != nil {
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
 	}
 
@@ -92,32 +92,32 @@ func parseParams(
 		var err error
 		params.Now, err = parseTime(r, timeParam, params.Now)
 		if err != nil {
-			return params, xhttp.NewParseError(
+			return params, xhttp.NewError(
 				fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
 		}
 	}
 
 	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	params.Timeout = t
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
 
 	params.Start = start
 	end, err := parseTime(r, endParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
 
 	if start.After(end) {
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf("start (%s) must be before end (%s)",
 				start, end), http.StatusBadRequest)
 	}
@@ -126,14 +126,14 @@ func parseParams(
 	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf(formatErrStr, handleroptions.StepParam, err), http.StatusBadRequest)
 	}
 
 	params.Step = fetchOpts.Step
 	query, err := parseQuery(r)
 	if err != nil {
-		return params, xhttp.NewParseError(
+		return params, xhttp.NewError(
 			fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 
@@ -219,10 +219,10 @@ func parseInstantaneousParams(
 	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, xhttp.Error) {
 	if err := r.ParseForm(); err != nil {
 		return models.RequestParams{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+			xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	if fetchOpts.Step == 0 {
@@ -234,7 +234,7 @@ func parseInstantaneousParams(
 	params, err := parseParams(r, engineOpts, timeoutOpts,
 		fetchOpts, instrumentOpts)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return params, nil

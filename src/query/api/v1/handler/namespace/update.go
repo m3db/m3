@@ -92,7 +92,7 @@ func (h *UpdateHandler) ServeHTTP(
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Warn("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -100,12 +100,12 @@ func (h *UpdateHandler) ServeHTTP(
 	nsRegistry, parseErr, err := h.Update(md, opts)
 	if parseErr != nil {
 		logger.Warn("update namespace bad request", zap.Error(parseErr))
-		xhttp.Error(w, parseErr.Inner(), parseErr.Code())
+		xhttp.WriteError(w, parseErr)
 		return
 	}
 	if err != nil {
 		logger.Error("unable to update namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -116,21 +116,21 @@ func (h *UpdateHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *UpdateHandler) parseRequest(r *http.Request) (*admin.NamespaceUpdateRequest, *xhttp.ParseError) {
+func (h *UpdateHandler) parseRequest(r *http.Request) (*admin.NamespaceUpdateRequest, xhttp.Error) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	updateReq := new(admin.NamespaceUpdateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), updateReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	if err := validateUpdateRequest(updateReq); err != nil {
 		err := fmt.Errorf("unable to validate update request: %w", err)
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return updateReq, nil
@@ -187,7 +187,7 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 func (h *UpdateHandler) Update(
 	updateReq *admin.NamespaceUpdateRequest,
 	opts handleroptions.ServiceOptions,
-) (nsproto.Registry, *xhttp.ParseError, error) {
+) (nsproto.Registry, xhttp.Error, error) {
 	var emptyReg = nsproto.Registry{}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())
@@ -207,7 +207,7 @@ func (h *UpdateHandler) Update(
 
 	ns, ok := newMetadata[updateReq.Name]
 	if !ok {
-		parseErr := xhttp.NewParseError(
+		parseErr := xhttp.NewError(
 			fmt.Errorf("namespace not found: err=%s", updateReq.Name),
 			http.StatusNotFound)
 		return emptyReg, parseErr, nil

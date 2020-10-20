@@ -104,11 +104,11 @@ func topicName(headers http.Header) string {
 	return DefaultTopicName
 }
 
-func parseRequest(r *http.Request, m proto.Message) *xhttp.ParseError {
+func parseRequest(r *http.Request, m proto.Message) xhttp.Error {
 	defer r.Body.Close()
 
 	if err := jsonpb.Unmarshal(r.Body, m); err != nil {
-		return xhttp.NewParseError(err, http.StatusBadRequest)
+		return xhttp.NewError(err, http.StatusBadRequest)
 	}
 	return nil
 }

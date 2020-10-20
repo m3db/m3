@@ -109,13 +109,12 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
 	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
-		err := rErr.Inner()
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		logger.Error("remote read query parse error",
-			zap.Error(err),
+			zap.Error(rErr),
 			zap.Any("req", req),
 			zap.Any("fetchOpts", fetchOpts))
-		xhttp.Error(w, err, rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -127,7 +126,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 			zap.Any("req", req),
 			zap.Any("fetchOpts", fetchOpts))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -223,7 +222,7 @@ func WriteSnappyCompressed(
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return err
 	}
 
@@ -235,7 +234,7 @@ func WriteSnappyCompressed(
 	if _, err := w.Write(compressed); err != nil {
 		logger.Error("unable to encode read results to snappy",
 			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 
 	return err
@@ -243,7 +242,7 @@ func WriteSnappyCompressed(
 
 func parseCompressedRequest(
 	r *http.Request,
-) (*prompb.ReadRequest, *xhttp.ParseError) {
+) (*prompb.ReadRequest, xhttp.Error) {
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -251,7 +250,7 @@ func parseCompressedRequest(
 
 	var req prompb.ReadRequest
 	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
@@ -268,30 +267,30 @@ type ReadResult struct {
 func ParseExpr(
 	r *http.Request,
 	opts xpromql.ParseOptions,
-) (*prompb.ReadRequest, *xhttp.ParseError) {
+) (*prompb.ReadRequest, xhttp.Error) {
 	var req *prompb.ReadRequest
 	exprParam := strings.TrimSpace(r.FormValue("query"))
 	if len(exprParam) == 0 {
-		return nil, xhttp.NewParseError(
+		return nil, xhttp.NewError(
 			fmt.Errorf("cannot parse params: no expr"),
 			http.StatusBadRequest)
 	}
 
 	queryStart, err := util.ParseTimeString(r.FormValue("start"))
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	queryEnd, err := util.ParseTimeString(r.FormValue("end"))
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	fn := opts.ParseFn()
 	req = &prompb.ReadRequest{}
 	expr, err := fn(exprParam)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	var vectorsInspected []*promql.VectorSelector
@@ -367,9 +366,9 @@ func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
+) (*prompb.ReadRequest, *storage.FetchOptions, xhttp.Error) {
 	var req *prompb.ReadRequest
-	var rErr *xhttp.ParseError
+	var rErr xhttp.Error
 	switch {
 	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
 		req, rErr = ParseExpr(r, opts.Engine().Options().ParseOptions())
@@ -384,7 +383,7 @@ func ParseRequest(
 	timeout := opts.TimeoutOpts().FetchTimeout
 	timeout, err := prometheus.ParseRequestTimeout(r, timeout)
 	if err != nil {
-		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)

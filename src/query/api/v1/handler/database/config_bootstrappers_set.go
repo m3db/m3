@@ -68,20 +68,20 @@ func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 	value, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	store, err := h.client.KV()
 	if err != nil {
 		logger.Error("unable to get kv store", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	if _, err := store.Set(kvconfig.BootstrapperKey, value); err != nil {
 		logger.Error("unable to set kv key", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -90,22 +90,22 @@ func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 func (h *configSetBootstrappersHandler) parseRequest(
 	r *http.Request,
-) (*commonpb.StringArrayProto, *xhttp.ParseError) {
+) (*commonpb.StringArrayProto, xhttp.Error) {
 	array := new(commonpb.StringArrayProto)
 
 	defer r.Body.Close()
 
 	if err := jsonpb.Unmarshal(r.Body, array); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	if len(array.Values) == 0 {
-		return nil, xhttp.NewParseError(fmt.Errorf("no values"), http.StatusBadRequest)
+		return nil, xhttp.NewError(fmt.Errorf("no values"), http.StatusBadRequest)
 	}
 
 	validator := dbconfig.NewBootstrapConfigurationValidator()
 	if err := validator.ValidateBootstrappersOrder(array.Values); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return array, nil

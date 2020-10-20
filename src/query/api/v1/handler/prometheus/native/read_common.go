@@ -80,7 +80,7 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, *xhttp.ParseError) {
+) (ParsedOptions, xhttp.Error) {
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		return ParsedOptions{}, rErr
@@ -118,7 +118,7 @@ func ParseRequest(
 
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
 	if err := validateRequest(params, maxPoints); err != nil {
-		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsedOptions{}, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return ParsedOptions{

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -52,7 +53,7 @@ var (
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
 
-	errNamespaceExists = errors.New("namespace with same ID already exists")
+	errNamespaceExists = xerrors.NewInvalidParamsError(errors.New("namespace with same ID already exists"))
 )
 
 // AddHandler is the handler for namespace adds.
@@ -80,7 +81,7 @@ func (h *AddHandler) ServeHTTP(
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -89,12 +90,12 @@ func (h *AddHandler) ServeHTTP(
 	if err != nil {
 		if err == errNamespaceExists {
 			logger.Error("namespace already exists", zap.Error(err))
-			xhttp.Error(w, err, http.StatusConflict)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusConflict))
 			return
 		}
 
 		logger.Error("unable to get namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -105,16 +106,16 @@ func (h *AddHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *xhttp.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, xhttp.Error) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	addReq := new(admin.NamespaceAddRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), addReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return addReq, nil
@@ -125,11 +126,11 @@ func (h *AddHandler) Add(
 	addReq *admin.NamespaceAddRequest,
 	opts handleroptions.ServiceOptions,
 ) (nsproto.Registry, error) {
-	var emptyReg = nsproto.Registry{}
+	var emptyReg nsproto.Registry
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
 	if err != nil {
-		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
+		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("bad namespace metadata: %v", err))
 	}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())

@@ -377,12 +377,30 @@ type m3aggregatorPlacementOpts struct {
 	propagationDelay time.Duration
 }
 
+var _ xhttp.Error = (*unsafeAddError)(nil)
+
 type unsafeAddError struct {
+	err   error
 	hosts string
 }
 
-func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
+func newUnsafeAddError(hosts string) *unsafeAddError {
+	return &unsafeAddError{
+		err:   fmt.Errorf("instances [%s] do not have all shards available", hosts),
+		hosts: hosts,
+	}
+}
+
+func (e *unsafeAddError) Code() int {
+	return http.StatusBadRequest
+}
+
+func (e *unsafeAddError) InnerError() error {
+	return e.err
+}
+
+func (e *unsafeAddError) Error() string {
+	return e.err.Error()
 }
 
 func validateAllAvailable(p placement.Placement) error {
@@ -393,7 +411,7 @@ func validateAllAvailable(p placement.Placement) error {
 		}
 	}
 	if len(badInsts) > 0 {
-		return unsafeAddError{
+		return &unsafeAddError{
 			hosts: strings.Join(badInsts, ","),
 		}
 	}
@@ -439,7 +457,7 @@ func parseServiceMiddleware(
 		)
 		svc.ServiceName, err = parseServiceFromRequest(r)
 		if err != nil {
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 			return
 		}
 

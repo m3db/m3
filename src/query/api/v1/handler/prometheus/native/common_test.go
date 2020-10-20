@@ -68,7 +68,7 @@ func defaultParams() url.Values {
 	return vals
 }
 
-func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func testParseParams(req *http.Request) (models.RequestParams, xhttp.Error) {
 	fetchOpts, err := handleroptions.
 		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}).
 		NewFetchOptions(req)

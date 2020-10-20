@@ -32,9 +32,9 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 const (
@@ -95,19 +95,19 @@ type reportResponse struct {
 func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, err := h.parseRequest(r)
 	if err != nil {
-		xhttp.Error(w, err.Inner(), err.Code())
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	for _, metric := range req.Metrics {
 		id, err := h.newMetricID(metric)
 		if err != nil {
-			xhttp.Error(w, err.Inner(), err.Code())
+			xhttp.WriteError(w, err)
 			return
 		}
 
 		if err := h.reportMetric(id, metric); err != nil {
-			xhttp.Error(w, err.Inner(), err.Code())
+			xhttp.WriteError(w, err)
 			return
 		}
 	}
@@ -116,23 +116,23 @@ func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.Logger())
 }
 
-func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.ParseError) {
+func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, xhttp.Error) {
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	defer r.Body.Close()
 
 	req := new(reportRequest)
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	return req, nil
 }
 
-func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseError) {
+func (h *reportHandler) newMetricID(metric metricValue) (id.ID, xhttp.Error) {
 	tags := models.NewTags(len(metric.Tags), models.NewTagOptions())
 	for n, v := range metric.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
@@ -144,12 +144,12 @@ func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseErro
 	defer encoder.Finalize()
 
 	if err := encoder.Encode(tagsIter); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+		return nil, xhttp.NewError(err, http.StatusInternalServerError)
 	}
 
 	data, ok := encoder.Data()
 	if !ok {
-		return nil, xhttp.NewParseError(errEncoderNoBytes, http.StatusInternalServerError)
+		return nil, xhttp.NewError(errEncoderNoBytes, http.StatusInternalServerError)
 	}
 
 	// Take a copy of the pooled encoder's bytes
@@ -160,7 +160,7 @@ func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseErro
 	return metricTagsIter, nil
 }
 
-func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *xhttp.ParseError {
+func (h *reportHandler) reportMetric(id id.ID, metric metricValue) xhttp.Error {
 	var err error
 	switch metric.Type {
 	case counterType:
@@ -168,7 +168,7 @@ func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *xhttp.ParseE
 		if roundedValue != metric.Value {
 			// Not an int
 			badReqErr := fmt.Errorf("counter value not a float: %v", metric.Value)
-			return xhttp.NewParseError(badReqErr, http.StatusBadRequest)
+			return xhttp.NewError(badReqErr, http.StatusBadRequest)
 		}
 
 		err = h.reporter.ReportCounter(id, int64(roundedValue))
@@ -178,10 +178,10 @@ func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *xhttp.ParseE
 		err = h.reporter.ReportBatchTimer(id, []float64{metric.Value})
 	default:
 		badReqErr := fmt.Errorf("invalid metric type: %s", metric.Type)
-		return xhttp.NewParseError(badReqErr, http.StatusBadRequest)
+		return xhttp.NewError(badReqErr, http.StatusBadRequest)
 	}
 	if err != nil {
-		return xhttp.NewParseError(err, http.StatusInternalServerError)
+		return xhttp.NewError(err, http.StatusInternalServerError)
 	}
 	return nil
 }

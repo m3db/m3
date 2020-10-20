@@ -55,12 +55,12 @@ func parseFindParamsToQueries(r *http.Request) (
 	_terminatedQuery *storage.CompleteTagsQuery,
 	_childQuery *storage.CompleteTagsQuery,
 	_rawQueryString string,
-	_err *xhttp.ParseError,
+	_err xhttp.Error,
 ) {
 	query := r.FormValue("query")
 	if query == "" {
 		return nil, nil, "",
-			xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
+			xhttp.NewError(errors.ErrNoQueryFound, http.StatusBadRequest)
 	}
 
 	now := time.Now()
@@ -81,7 +81,7 @@ func parseFindParamsToQueries(r *http.Request) (
 
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'from': %s", fromString),
+			xhttp.NewError(fmt.Errorf("invalid 'from': %s", fromString),
 				http.StatusBadRequest)
 	}
 
@@ -93,14 +93,14 @@ func parseFindParamsToQueries(r *http.Request) (
 
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'until': %s", untilString),
+			xhttp.NewError(fmt.Errorf("invalid 'until': %s", untilString),
 				http.StatusBadRequest)
 	}
 
 	matchers, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
+			xhttp.NewError(fmt.Errorf("invalid 'query': %s", query),
 				http.StatusBadRequest)
 	}
 
@@ -108,7 +108,7 @@ func parseFindParamsToQueries(r *http.Request) (
 	// matchers should always have a length of at least 2 (term + terminator)
 	// so this is a sanity check and unexpected in actual execution.
 	if len(matchers) < 2 {
-		return nil, nil, "", xhttp.NewParseError(fmt.Errorf("unable to parse "+
+		return nil, nil, "", xhttp.NewError(fmt.Errorf("unable to parse "+
 			"'query': %s", query),
 			http.StatusBadRequest)
 	}

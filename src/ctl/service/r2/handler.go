@@ -68,6 +68,6 @@ func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
 	if err != nil {
 		msg := fmt.Sprintf("Could not generate error response for: %s", opError.Error())
 		h.logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 }

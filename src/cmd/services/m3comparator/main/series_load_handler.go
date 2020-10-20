@@ -60,7 +60,7 @@ func (l *httpSeriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	err := l.serveHTTP(r)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
