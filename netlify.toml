@@ -9,7 +9,7 @@
   # directory located at the absolute path "root/project/build-output"
   publish = "site/public/"
   
-  command = "hugo"  
+  command = "make site-build -C ../"  
   HUGO_VERSION = "0.75.1"
 
 [[redirects]]
