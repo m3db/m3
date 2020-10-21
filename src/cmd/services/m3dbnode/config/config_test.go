@@ -99,10 +99,6 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - peers
-          - noop-all
       fs:
           numProcessorsPerCPU: 0.42
       commitlog:
@@ -417,10 +413,6 @@ func TestConfiguration(t *testing.T) {
   writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
-    bootstrappers:
-    - filesystem
-    - peers
-    - noop-all
     fs:
       numProcessorsPerCPU: 0.42
       migration: null
@@ -457,7 +449,6 @@ func TestConfiguration(t *testing.T) {
       calculationType: fixed
       size: 2097152
     queueChannel: null
-    blockSize: null
   repair:
     enabled: false
     throttle: 2m0s
@@ -941,10 +932,6 @@ db:
   httpNodeListenAddress: 0.0.0.0:9002
   httpClusterListenAddress: 0.0.0.0:9003
 
-  bootstrap:
-      bootstrappers:
-          - noop-all
-
   commitlog:
       flushMaxBytes: 524288
       flushEvery: 1s
@@ -1009,11 +996,6 @@ db:
   httpClusterListenAddress: 0.0.0.0:9003
 
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - commitlog
-          - peers
-          - uninitialized_topology
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: ` + notDefaultStr + `
 
@@ -1038,20 +1020,6 @@ db:
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, cfg.DB)
-
-	validator := NewMockBootstrapConfigurationValidator(ctrl)
-	validator.EXPECT().ValidateBootstrappersOrder(gomock.Any()).Return(nil).AnyTimes()
-	validator.EXPECT().ValidateFilesystemBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidatePeersBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidateUninitializedBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().
-		ValidateCommitLogBootstrapperOptions(gomock.Any()).
-		DoAndReturn(func(opts commitlog.Options) error {
-			actual := opts.ReturnUnfulfilledForCorruptCommitLogFiles()
-			expected := notDefault
-			require.Equal(t, expected, actual)
-			return nil
-		})
 
 	mapProvider := topology.NewMockMapProvider(ctrl)
 	origin := topology.NewMockHost(ctrl)
