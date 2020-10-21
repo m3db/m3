@@ -28,6 +28,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+
 	"github.com/apache/thrift/lib/go/thrift"
 )
 
@@ -3065,7 +3066,8 @@ type FetchTaggedRequest struct {
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
 	return &FetchTaggedRequest{
-		RangeTimeType: 0,
+		RangeTimeType:     0,
+		RequireExhaustive: true,
 	}
 }
 
@@ -3104,7 +3106,7 @@ func (p *FetchTaggedRequest) GetRangeTimeType() TimeType {
 	return p.RangeTimeType
 }
 
-var FetchTaggedRequest_RequireExhaustive_DEFAULT bool = false
+var FetchTaggedRequest_RequireExhaustive_DEFAULT bool = true
 
 func (p *FetchTaggedRequest) GetRequireExhaustive() bool {
 	return p.RequireExhaustive
@@ -19991,7 +19993,8 @@ func (p *NodeFetchBatchRawArgs) Read(iprot thrift.TProtocol) error {
 
 func (p *NodeFetchBatchRawArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &FetchBatchRawRequest{
-		RangeTimeType: 0,
+		RangeTimeType:     0,
+		RequireExhaustive: true,
 	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
