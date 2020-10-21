@@ -37,11 +37,12 @@ const (
 	PerSecond
 	Increase
 	Add
+	Reset
 )
 
 // IsValid checks if the transformation type is valid.
 func (t Type) IsValid() bool {
-	return t.IsUnaryTransform() || t.IsBinaryTransform()
+	return t.IsUnaryTransform() || t.IsBinaryTransform() || t.IsUnaryMultiOutputTransform()
 }
 
 // IsUnaryTransform returns whether this is a unary transformation.
@@ -56,19 +57,27 @@ func (t Type) IsBinaryTransform() bool {
 	return exists
 }
 
+func (t Type) IsUnaryMultiOutputTransform() bool {
+	_, exists := unaryMultiOutputTransforms[t]
+	return exists
+}
+
 // NewOp returns a constructed operation that is allocated once and can be
 // reused.
 func (t Type) NewOp() (Op, error) {
 	var (
-		err    error
-		unary  UnaryTransform
-		binary BinaryTransform
+		err        error
+		unary      UnaryTransform
+		binary     BinaryTransform
+		unaryMulti UnaryMultiOutputTransform
 	)
 	switch {
 	case t.IsUnaryTransform():
 		unary, err = t.UnaryTransform()
 	case t.IsBinaryTransform():
 		binary, err = t.BinaryTransform()
+	case t.IsUnaryMultiOutputTransform():
+		unaryMulti, err = t.UnaryMultiOutputTransform()
 	default:
 		err = fmt.Errorf("unknown transformation type: %v", t)
 	}
@@ -76,9 +85,10 @@ func (t Type) NewOp() (Op, error) {
 		return Op{}, err
 	}
 	return Op{
-		opType: t,
-		unary:  unary,
-		binary: binary,
+		opType:     t,
+		unary:      unary,
+		binary:     binary,
+		unaryMulti: unaryMulti,
 	}, nil
 }
 
@@ -122,6 +132,26 @@ func (t Type) MustBinaryTransform() BinaryTransform {
 	return tf
 }
 
+// UnaryMultiOutputTransform returns the unary transformation function associated with
+// the transformation type if applicable, or an error otherwise.
+func (t Type) UnaryMultiOutputTransform() (UnaryMultiOutputTransform, error) {
+	tf, exists := unaryMultiOutputTransforms[t]
+	if !exists {
+		return nil, fmt.Errorf("%v is not a unary transfomration", t)
+	}
+	return tf(), nil
+}
+
+// MustUnaryMultiOutputTransform returns the unary transformation function associated with
+// the transformation type if applicable, or panics otherwise.
+func (t Type) MustUnaryMultiOutputTransform() UnaryMultiOutputTransform {
+	tf, err := t.UnaryMultiOutputTransform()
+	if err != nil {
+		panic(err)
+	}
+	return tf
+}
+
 // ToProto converts the transformation type to a protobuf message in place.
 func (t Type) ToProto(pb *transformationpb.TransformationType) error {
 	switch t {
@@ -133,6 +163,8 @@ func (t Type) ToProto(pb *transformationpb.TransformationType) error {
 		*pb = transformationpb.TransformationType_INCREASE
 	case Add:
 		*pb = transformationpb.TransformationType_ADD
+	case Reset:
+		*pb = transformationpb.TransformationType_RESET
 	default:
 		return fmt.Errorf("unknown transformation type: %v", t)
 	}
@@ -150,6 +182,8 @@ func (t *Type) FromProto(pb transformationpb.TransformationType) error {
 		*t = Increase
 	case transformationpb.TransformationType_ADD:
 		*t = Add
+	case transformationpb.TransformationType_RESET:
+		*t = Reset
 	default:
 		return fmt.Errorf("unknown transformation type in proto: %v", pb)
 	}
@@ -201,9 +235,10 @@ func ParseType(str string) (Type, error) {
 type Op struct {
 	opType Type
 
-	// might have either unary or binary
-	unary  UnaryTransform
-	binary BinaryTransform
+	// has one of the following
+	unary      UnaryTransform
+	binary     BinaryTransform
+	unaryMulti UnaryMultiOutputTransform
 }
 
 // Type returns the op type.
@@ -227,6 +262,14 @@ func (o Op) BinaryTransform() (BinaryTransform, bool) {
 	return o.binary, true
 }
 
+// UnaryMultiOutputTransform returns the active unary multi transform if op is unary multi transform.
+func (o Op) UnaryMultiOutputTransform() (UnaryMultiOutputTransform, bool) {
+	if !o.Type().IsUnaryMultiOutputTransform() {
+		return nil, false
+	}
+	return o.unaryMulti, true
+}
+
 var (
 	unaryTransforms = map[Type]func() UnaryTransform{
 		Absolute: transformAbsolute,
@@ -235,6 +278,9 @@ var (
 	binaryTransforms = map[Type]func() BinaryTransform{
 		PerSecond: transformPerSecond,
 		Increase:  transformIncrease,
+	}
+	unaryMultiOutputTransforms = map[Type]func() UnaryMultiOutputTransform{
+		Reset: transformReset,
 	}
 	typeStringMap map[string]Type
 )
@@ -245,6 +291,9 @@ func init() {
 		typeStringMap[t.String()] = t
 	}
 	for t := range binaryTransforms {
+		typeStringMap[t.String()] = t
+	}
+	for t := range unaryMultiOutputTransforms {
 		typeStringMap[t.String()] = t
 	}
 }
