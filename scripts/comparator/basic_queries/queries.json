@@ -5,7 +5,7 @@
       "42",
       "time()"
     ],
-    "steps" : [
+    "steps": [
       "1m"
     ]
   },
@@ -15,7 +15,7 @@
       "quail",
       "quail offset 60s"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s",
       "1m"
@@ -30,7 +30,7 @@
       "idelta(multi_1[1m] offset 1h)",
       "deriv(multi_1[3m])"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s", 
       "1m",
@@ -45,7 +45,7 @@
       "quail*quail",
       "quail offset 1m / quail"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s",
       "1m"
@@ -58,7 +58,7 @@
       "sum(foobar{foobar=\"qux\"}) - 1",
       "sum(foobar{foobar=\"qux\"} offset 1m)"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s", 
       "1m"
@@ -72,7 +72,7 @@
       "sum(foobar{foobar=\"qux\"}) - 1",
       "sum(foobar{foobar=\"qux\"} offset 1m)"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s", 
       "1m"
@@ -86,7 +86,7 @@
       "label_replace(quail,\"foo\", \"$1!\", \"name\", \"(.*)\")-100",
       "label_join(quail,\"quince\", \"!\", \"foobar\", \"name\")"
     ],
-    "steps" : [
+    "steps": [
       "15s",
       "30s", 
       "1m"
@@ -100,7 +100,7 @@
       "topk(2, avg_over_time(quack[30s]))",
       "topk(2, avg(avg_over_time(quack[30s])) by (name))"
     ],
-    "steps" : [
+    "steps": [
       "1m"
     ]
   },
@@ -111,7 +111,7 @@
       "quantile(0.8, avg_over_time(multi_10[30s]))",
       "quantile(1, avg(avg_over_time(multi_10[30s])) by (name))"
     ],
-    "steps" : [
+    "steps": [
       "1m"
     ]
   }
