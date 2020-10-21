@@ -7,9 +7,9 @@
   # the build. This is relative to the base directory if one has been set, or the
   # root directory if a base has not been set. This sample publishes the
   # directory located at the absolute path "root/project/build-output"
-  publish = "site/public/"
+  publish = "/site/public/"
   
-  command = "hugo"  
+  command = "make site-build -C ../"  
   HUGO_VERSION = "0.75.1"
 
 [[redirects]]
@@ -32,7 +32,3 @@
 [[redirects]]
   from = "/talks"
   to = "docs/overview/media"
-
-[[redirects]]
-  from = "/*"
-  to = "https://m3db.io/docs/:splat"  
