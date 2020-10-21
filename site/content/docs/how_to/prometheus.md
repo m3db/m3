@@ -29,9 +29,7 @@ Start by downloading the config template. Update the namespaces and the client s
 You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as unaggregated since it's required by default to have a cluster that receives all Prometheus metrics unaggregated. In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality here.
 
 It should look something like:
-listenAddress:
-  type: "config"
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info

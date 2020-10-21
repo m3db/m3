@@ -1,8 +1,7 @@
 # Include this field if you want to enable an embedded M3Coordinator instance.
 coordinator:
   # Address for M3Coordinator to listen for traffic.
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   # All configured M3DB namespaces must be listed in this config if running an
   # embedded M3Coordinator instance.
