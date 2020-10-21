@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -50,6 +50,7 @@ type rollupRuleSnapshot struct {
 	rawFilter          string
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
+	keepOriginal       bool
 }
 
 func newRollupRuleSnapshotFromProto(
@@ -102,6 +103,7 @@ func newRollupRuleSnapshotFromProto(
 		filter,
 		r.LastUpdatedAtNanos,
 		r.LastUpdatedBy,
+		r.KeepOriginal,
 	), nil
 }
 
@@ -113,6 +115,7 @@ func newRollupRuleSnapshotFromFields(
 	filter filters.Filter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
+	keepOriginal bool,
 ) (*rollupRuleSnapshot, error) {
 	if _, err := filters.ValidateTagsFilter(rawFilter); err != nil {
 		return nil, err
@@ -126,6 +129,7 @@ func newRollupRuleSnapshotFromFields(
 		filter,
 		lastUpdatedAtNanos,
 		lastUpdatedBy,
+		keepOriginal,
 	), nil
 }
 
@@ -140,6 +144,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 	filter filters.Filter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
+	keepOriginal bool,
 ) *rollupRuleSnapshot {
 	return &rollupRuleSnapshot{
 		name:               name,
@@ -150,6 +155,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 		rawFilter:          rawFilter,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
+		keepOriginal:       keepOriginal,
 	}
 }
 
@@ -171,6 +177,7 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 		rawFilter:          rrs.rawFilter,
 		lastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		lastUpdatedBy:      rrs.lastUpdatedBy,
+		keepOriginal:       rrs.keepOriginal,
 	}
 }
 
@@ -183,6 +190,7 @@ func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
 		Filter:             rrs.rawFilter,
 		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		LastUpdatedBy:      rrs.lastUpdatedBy,
+		KeepOriginal:       rrs.keepOriginal,
 	}
 
 	targets := make([]*rulepb.RollupTargetV2, len(rrs.targets))
@@ -319,6 +327,7 @@ func (rc *rollupRule) addSnapshot(
 		nil,
 		meta.updatedAtNanos,
 		meta.updatedBy,
+		false,
 	)
 	if err != nil {
 		return err
@@ -347,6 +356,7 @@ func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
 	snapshot.lastUpdatedBy = meta.updatedBy
 	snapshot.targets = nil
+	snapshot.keepOriginal = false
 	rc.snapshots = append(rc.snapshots, &snapshot)
 	return nil
 }
@@ -401,5 +411,6 @@ func (rc *rollupRule) rollupRuleView(snapshotIdx int) (view.RollupRule, error) {
 		Targets:             targets,
 		LastUpdatedBy:       rrs.lastUpdatedBy,
 		LastUpdatedAtMillis: rrs.lastUpdatedAtNanos / nanosPerMilli,
+		KeepOriginal:        rrs.keepOriginal,
 	}, nil
 }
