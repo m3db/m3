@@ -103,5 +103,16 @@
     "steps" : [
       "1m"
     ]
+  },
+  {
+    "queryGroup":"quantile",
+    "queries":[
+      "quantile(0, quack)",
+      "quantile(0.8, avg_over_time(quack[30s]))",
+      "quantile(1, avg(avg_over_time(quack[30s])) by (name))"
+    ],
+    "steps" : [
+      "1m"
+    ]
   }
 ]
