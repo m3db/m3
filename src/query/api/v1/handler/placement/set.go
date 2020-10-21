@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -78,10 +79,10 @@ func (h *SetHandler) ServeHTTP(
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOptions)
 
-	req, pErr := h.parseRequest(r)
-	if pErr != nil {
-		logger.Error("unable to parse request", zap.Error(pErr))
-		xhttp.WriteError(w, xhttp.NewError(pErr, http.StatusBadRequest))
+	req, err := h.parseRequest(r)
+	if err != nil {
+		logger.Error("unable to parse request", zap.Error(err))
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -165,7 +166,7 @@ func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, 
 
 	req := &admin.PlacementSetRequest{}
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, err
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return req, nil

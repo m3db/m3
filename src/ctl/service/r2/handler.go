@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/ctl/auth"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
