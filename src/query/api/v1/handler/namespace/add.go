@@ -106,16 +106,16 @@ func (h *AddHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, xhttp.Error) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, error) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	addReq := new(admin.NamespaceAddRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), addReq); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return addReq, nil
@@ -149,18 +149,19 @@ func (h *AddHandler) Add(
 	// we can't easily check that it's a conflict in the handler.
 	for _, ns := range currentMetadata {
 		if ns.ID().Equal(md.ID()) {
+			// NB: errNamespaceExists already an invalid params error.
 			return emptyReg, errNamespaceExists
 		}
 	}
 
 	newMDs := append(currentMetadata, md)
 	if err = validateNamespaceAggregationOptions(newMDs); err != nil {
-		return emptyReg, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
-		return emptyReg, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	protoRegistry, err := namespace.ToProto(nsMap)
