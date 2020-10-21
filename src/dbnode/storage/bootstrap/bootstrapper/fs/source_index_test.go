@@ -213,7 +213,7 @@ func TestBootstrapIndexPartiallyFulfilled(t *testing.T) {
 	require.True(t, ok)
 	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
-	require.Equal(t, 2, len(block.Segments()))
+	require.Equal(t, 1, len(block.Segments()))
 	for _, seg := range block.Segments() {
 		require.True(t, seg.IsPersisted())
 	}

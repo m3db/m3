@@ -22,7 +22,6 @@ package fs
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -314,15 +313,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	runResult *runResult,
 	readerPool *bootstrapper.ReaderPool,
 	readersCh <-chan bootstrapper.TimeWindowReaders,
-) *runResult {
+) {
 	var (
 		resultOpts = s.opts.ResultOptions()
 	)
 
 	for timeWindowReaders := range readersCh {
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-			runOpts, runResult, resultOpts, timeWindowReaders, readerPool,
-			persistManager, compactor)
+			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
 	}
 }
 
@@ -373,8 +371,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ropts result.Options,
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
-	persistManager *bootstrapper.SharedPersistManager,
-	compactor *bootstrapper.SharedCompactor,
 ) {
 	var (
 		blockPool            = ropts.DatabaseBlockOptions().DatabaseBlockPool()
@@ -404,7 +400,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				switch run {
 				case bootstrapDataRunType:
 					err = s.readNextEntryAndRecordBlock(nsCtx, accumulator, shard, r,
-						runResult, start, blockSize, blockPool, seriesCachePolicy)
+						start, blockSize, blockPool, seriesCachePolicy)
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
@@ -460,7 +456,6 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardID uint32,
 	r fs.DataFileSetReader,
-	runResult *runResult,
 	blockStart time.Time,
 	blockSize time.Duration,
 	blockPool block.DatabaseBlockPool,
@@ -535,8 +530,9 @@ func (s *fileSystemSource) read(
 		}
 		if res == nil {
 			res = newResult
+		} else {
+			res = res.mergedResult(newResult)
 		}
-		res = res.mergedResult(newResult)
 	}
 
 	if run == bootstrapDataRunType {
@@ -573,7 +569,6 @@ func (s *fileSystemSource) read(
 			// We may have less we need to read
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
-			log.Println("subtract ->", r.fulfilled)
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
@@ -586,7 +581,8 @@ func (s *fileSystemSource) read(
 		// allocate and keep around readers outside of the bootstrapping process,
 		// hence why its created on demand each time.
 		readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
-		readersCh := make(chan bootstrapper.TimeWindowReaders)
+		concurrency := s.opts.IndexSegmentConcurrency()
+		readersCh := make(chan bootstrapper.TimeWindowReaders, concurrency)
 
 		blockSize := md.Options().RetentionOptions().BlockSize()
 		runtimeOpts := s.opts.RuntimeOptionsManager().Get()
@@ -606,11 +602,20 @@ func (s *fileSystemSource) read(
 			Cache:           cache,
 		})
 
-		bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-			accumulator, runOpts, readerPool, readersCh)
+		bootstrapFromReadersRunResult := newRunResult()
+		var buildWg sync.WaitGroup
+		for i := 0; i < concurrency; i++ {
+			buildWg.Add(1)
+			go func() {
+				s.bootstrapFromReaders(run, md, accumulator, runOpts,
+					bootstrapFromReadersRunResult, readerPool, readersCh)
+				buildWg.Done()
+			}()
 
+		}
+		buildWg.Wait()
 		// Merge any existing results if necessary.
-		setOrMergeResult(bootstrapFromDataReadersResult)
+		setOrMergeResult(bootstrapFromReadersRunResult)
 	case bootstrapIndexRunType:
 		// NB(bodu): We no longer persist index blocks for TSDB blocks missing persisted index blocks.
 		// See bootstrapper README section on "TSDB data on disk missing index data" for more details.
