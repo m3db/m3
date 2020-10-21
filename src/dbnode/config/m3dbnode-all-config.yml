@@ -108,14 +108,6 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-    # Order in which to run the bootstrappers. Don't change these values unless
-    # you know what you're doing as non-standard configurations can cause data
-    # loss or make recovery from disaster scenarios difficult.
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
 

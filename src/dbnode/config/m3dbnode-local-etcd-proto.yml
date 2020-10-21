@@ -60,11 +60,6 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
 

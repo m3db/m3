@@ -348,15 +348,8 @@ db:
 
     writeNewSeriesAsync: false
     writeNewSeriesLimitPerSecond: 1048576
-    writeNewSeriesBackoffDuration: 2ms
-
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
-
+	writeNewSeriesBackoffDuration: 2ms
+	
     commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
