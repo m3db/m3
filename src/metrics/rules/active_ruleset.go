@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -126,20 +126,29 @@ func (as *activeRuleSet) ForwardMatch(
 		forNewRollupIDs  = currMatchRes.forNewRollupIDs
 		nextIdx          = as.nextCutoverIdx(fromNanos)
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
+		keepOriginal     = currMatchRes.keepOriginal
 	)
+
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
 		nextMatchRes := as.forwardMatchAt(id, nextCutoverNanos)
 		forExistingID = mergeResultsForExistingID(forExistingID, nextMatchRes.forExistingID, nextCutoverNanos)
 		forNewRollupIDs = mergeResultsForNewRollupIDs(forNewRollupIDs, nextMatchRes.forNewRollupIDs, nextCutoverNanos)
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
+		keepOriginal = nextMatchRes.keepOriginal
 	}
 
 	// The result expires when the beginning of the match time range reaches the first cutover time
 	// after `fromNanos`, or the end of the match time range reaches the first cutover time after
 	// `toNanos` among all active rules because the metric may then be matched against a different
 	// set of rules.
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, forNewRollupIDs)
+	return NewMatchResult(
+		as.version,
+		nextCutoverNanos,
+		forExistingID,
+		forNewRollupIDs,
+		keepOriginal,
+	)
 }
 
 func (as *activeRuleSet) ReverseMatch(
@@ -155,6 +164,7 @@ func (as *activeRuleSet) ReverseMatch(
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
 		forExistingID    metadata.StagedMetadatas
 		isRollupID       bool
+		keepOriginal     bool
 	)
 
 	// Determine whether the ID is a rollup metric ID.
@@ -163,17 +173,51 @@ func (as *activeRuleSet) ReverseMatch(
 		isRollupID = as.isRollupIDFn(name, tags)
 	}
 
-	if currForExistingID, found := as.reverseMappingsFor(id, name, tags, isRollupID, fromNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts); found {
-		forExistingID = mergeResultsForExistingID(forExistingID, currForExistingID, fromNanos)
-	}
-	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		if nextForExistingID, found := as.reverseMappingsFor(id, name, tags, isRollupID, nextCutoverNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts); found {
-			forExistingID = mergeResultsForExistingID(forExistingID, nextForExistingID, nextCutoverNanos)
+	currResult, found := as.reverseMappingsFor(
+		id,
+		name,
+		tags,
+		isRollupID,
+		fromNanos,
+		mt,
+		at,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+	)
+	if found {
+		forExistingID = mergeResultsForExistingID(forExistingID, currResult.metadata, fromNanos)
+		if currResult.keepOriginal {
+			keepOriginal = true
 		}
+	}
+
+	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
+		nextResult, found := as.reverseMappingsFor(
+			id,
+			name,
+			tags,
+			isRollupID,
+			nextCutoverNanos,
+			mt,
+			at,
+			isMultiAggregationTypesAllowed,
+			aggTypesOpts,
+		)
+		if found {
+			forExistingID = mergeResultsForExistingID(
+				forExistingID,
+				nextResult.metadata,
+				nextCutoverNanos,
+			)
+			if nextResult.keepOriginal {
+				keepOriginal = true
+			}
+		}
+
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
 	}
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil)
+	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil, keepOriginal)
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
@@ -202,6 +246,7 @@ func (as *activeRuleSet) forwardMatchAt(
 	return forwardMatchResult{
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
+		keepOriginal:    rollupResults.keepOriginal,
 	}
 }
 
@@ -256,31 +301,41 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 	var (
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
+		keepOriginal  bool
 	)
+
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.activeSnapshot(timeNanos)
 		if snapshot == nil {
 			continue
 		}
+
 		if !snapshot.filter.Matches(id) {
 			continue
 		}
+
 		// Make sure the cutover time tracks the latest cutover time among all matching
 		// rollup rules to represent the correct time of rule change.
 		if cutoverNanos < snapshot.cutoverNanos {
 			cutoverNanos = snapshot.cutoverNanos
 		}
+
+		if snapshot.keepOriginal {
+			keepOriginal = true
+		}
+
 		// If the rollup rule snapshot is a tombstoned snapshot, its cutover time is
 		// recorded to indicate a rule change, but its rollup targets are no longer in effect.
 		if snapshot.tombstoned {
 			continue
 		}
+
 		for _, target := range snapshot.targets {
 			rollupTargets = append(rollupTargets, target.clone())
 		}
 	}
 	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets)
+	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal)
 	return res
 }
 
@@ -295,6 +350,7 @@ func (as *activeRuleSet) toRollupResults(
 	id []byte,
 	cutoverNanos int64,
 	targets []rollupTarget,
+	keepOriginal bool,
 ) (rollupResults, error) {
 	if len(targets) == 0 {
 		return rollupResults{}, nil
@@ -392,6 +448,7 @@ func (as *activeRuleSet) toRollupResults(
 	return rollupResults{
 		forExistingID:   ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
 		forNewRollupIDs: newRollupIDResults,
+		keepOriginal:    keepOriginal,
 	}, multiErr.FinalError()
 }
 
@@ -489,11 +546,16 @@ func (as *activeRuleSet) reverseMappingsFor(
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
-) (metadata.StagedMetadata, bool) {
+) (reverseMatchResult, bool) {
 	if !isRollupID {
 		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at, aggTypesOpts)
 	}
 	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+}
+
+type reverseMatchResult struct {
+	metadata     metadata.StagedMetadata
+	keepOriginal bool
 }
 
 // reverseMappingsForNonRollupID returns the staged metadata for the given non-rollup ID at
@@ -504,19 +566,24 @@ func (as *activeRuleSet) reverseMappingsForNonRollupID(
 	mt metric.Type,
 	at aggregation.Type,
 	aggTypesOpts aggregation.TypesOptions,
-) (metadata.StagedMetadata, bool) {
+) (reverseMatchResult, bool) {
 	mappingRes := as.mappingsForNonRollupID(id, timeNanos).forExistingID
 	// Always filter pipelines with aggregation types because for non rollup IDs, it is possible
 	// that none of the rules would match based on the aggregation types, in which case we fall
 	// back to the default staged metadata.
 	filteredPipelines := filteredPipelinesWithAggregationType(mappingRes.pipelines, mt, at, aggTypesOpts)
 	if len(filteredPipelines) == 0 {
-		return metadata.DefaultStagedMetadata, false
+		return reverseMatchResult{
+			metadata: metadata.DefaultStagedMetadata,
+		}, false
 	}
-	return metadata.StagedMetadata{
-		CutoverNanos: mappingRes.cutoverNanos,
-		Tombstoned:   false,
-		Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
+
+	return reverseMatchResult{
+		metadata: metadata.StagedMetadata{
+			CutoverNanos: mappingRes.cutoverNanos,
+			Tombstoned:   false,
+			Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
+		},
 	}, true
 }
 
@@ -539,12 +606,13 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
-) (metadata.StagedMetadata, bool) {
+) (reverseMatchResult, bool) {
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.activeSnapshot(timeNanos)
 		if snapshot == nil || snapshot.tombstoned {
 			continue
 		}
+
 		for _, target := range snapshot.targets {
 			for i := 0; i < target.Pipeline.Len(); i++ {
 				pipelineOp := target.Pipeline.At(i)
@@ -580,17 +648,25 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 					filteredPipelines = filteredPipelinesWithAggregationType(filteredPipelines, mt, at, aggTypesOpts)
 				}
 				if len(filteredPipelines) == 0 {
-					return metadata.DefaultStagedMetadata, false
+					return reverseMatchResult{
+						metadata: metadata.DefaultStagedMetadata,
+					}, false
 				}
-				return metadata.StagedMetadata{
-					CutoverNanos: snapshot.cutoverNanos,
-					Tombstoned:   false,
-					Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
+
+				return reverseMatchResult{
+					metadata: metadata.StagedMetadata{
+						CutoverNanos: snapshot.cutoverNanos,
+						Tombstoned:   false,
+						Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
+					},
+					keepOriginal: snapshot.keepOriginal,
 				}, true
 			}
 		}
 	}
-	return metadata.DefaultStagedMetadata, false
+	return reverseMatchResult{
+		metadata: metadata.DefaultStagedMetadata,
+	}, false
 }
 
 // nextCutoverIdx returns the next snapshot index whose cutover time is after t.
@@ -811,9 +887,15 @@ type rollupResults struct {
 	// the match result produced by rollup rules containing rollup pipelines whose first
 	// pipeline operation is a rollup operation.
 	forNewRollupIDs []idWithMatchResults
+
+	// This represents whether or not the original (source) metric for the
+	// matched rollup rule should be kept. If true, both metrics are written;
+	// if false, only the new generated rollup metric is written.
+	keepOriginal bool
 }
 
 type forwardMatchResult struct {
 	forExistingID   metadata.StagedMetadata
 	forNewRollupIDs []IDWithMetadatas
+	keepOriginal    bool
 }
