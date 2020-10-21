@@ -74,7 +74,7 @@ below before making changes.
 
 The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to
 
-`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](/openapi/).
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
 **Note**: The [peers bootstrapper](/docs/operational_guide/bootstrapping_crash_recovery) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
 
