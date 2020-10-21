@@ -107,9 +107,9 @@
   {
     "queryGroup": "quantile",
     "queries": [
-      "quantile(0, quack)",
-      "quantile(0.8, avg_over_time(quack[30s]))",
-      "quantile(1, avg(avg_over_time(quack[30s])) by (name))"
+      "quantile(0, multi_10)",
+      "quantile(0.8, avg_over_time(multi_10[30s]))",
+      "quantile(1, avg(avg_over_time(multi_10[30s])) by (name))"
     ],
     "steps" : [
       "1m"
