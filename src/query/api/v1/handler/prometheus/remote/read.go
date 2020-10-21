@@ -242,7 +242,7 @@ func WriteSnappyCompressed(
 
 func parseCompressedRequest(
 	r *http.Request,
-) (*prompb.ReadRequest, xhttp.Error) {
+) (*prompb.ReadRequest, error) {
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -250,7 +250,7 @@ func parseCompressedRequest(
 
 	var req prompb.ReadRequest
 	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return &req, nil
@@ -267,30 +267,40 @@ type ReadResult struct {
 func ParseExpr(
 	r *http.Request,
 	opts xpromql.ParseOptions,
-) (*prompb.ReadRequest, xhttp.Error) {
+) (*prompb.ReadRequest, error) {
+	expr, err := parseExpr(r, opts)
+	if err != nil {
+		// Always invalid request if parsing fails params.
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+	return expr, nil
+}
+
+func parseExpr(
+	r *http.Request,
+	opts xpromql.ParseOptions,
+) (*prompb.ReadRequest, error) {
 	var req *prompb.ReadRequest
 	exprParam := strings.TrimSpace(r.FormValue("query"))
 	if len(exprParam) == 0 {
-		return nil, xhttp.NewError(
-			fmt.Errorf("cannot parse params: no expr"),
-			http.StatusBadRequest)
+		return nil, fmt.Errorf("cannot parse params: no expr")
 	}
 
 	queryStart, err := util.ParseTimeString(r.FormValue("start"))
 	if err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, err
 	}
 
 	queryEnd, err := util.ParseTimeString(r.FormValue("end"))
 	if err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, err
 	}
 
 	fn := opts.ParseFn()
 	req = &prompb.ReadRequest{}
 	expr, err := fn(exprParam)
 	if err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, err
 	}
 
 	var vectorsInspected []*promql.VectorSelector
@@ -366,24 +376,38 @@ func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (*prompb.ReadRequest, *storage.FetchOptions, xhttp.Error) {
-	var req *prompb.ReadRequest
-	var rErr xhttp.Error
+) (*prompb.ReadRequest, *storage.FetchOptions, error) {
+	req, fetchOpts, err := parseRequest(ctx, r, opts)
+	if err != nil {
+		// Always invalid request if parsing fails params.
+		return nil, nil, xerrors.NewInvalidParamsError(err)
+	}
+	return req, fetchOpts, nil
+}
+
+func parseRequest(
+	ctx context.Context,
+	r *http.Request,
+	opts options.HandlerOptions,
+) (*prompb.ReadRequest, *storage.FetchOptions, error) {
+	var (
+		req *prompb.ReadRequest
+		err error
+	)
 	switch {
 	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
-		req, rErr = ParseExpr(r, opts.Engine().Options().ParseOptions())
+		req, err = ParseExpr(r, opts.Engine().Options().ParseOptions())
 	default:
-		req, rErr = parseCompressedRequest(r)
+		req, err = parseCompressedRequest(r)
 	}
-
-	if rErr != nil {
-		return nil, nil, rErr
+	if err != nil {
+		return nil, nil, err
 	}
 
 	timeout := opts.TimeoutOpts().FetchTimeout
-	timeout, err := prometheus.ParseRequestTimeout(r, timeout)
+	timeout, err = prometheus.ParseRequestTimeout(r, timeout)
 	if err != nil {
-		return nil, nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, nil, err
 	}
 
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)

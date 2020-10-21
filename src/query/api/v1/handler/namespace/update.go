@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -97,12 +98,7 @@ func (h *UpdateHandler) ServeHTTP(
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	nsRegistry, parseErr, err := h.Update(md, opts)
-	if parseErr != nil {
-		logger.Warn("update namespace bad request", zap.Error(parseErr))
-		xhttp.WriteError(w, parseErr)
-		return
-	}
+	nsRegistry, err := h.Update(md, opts)
 	if err != nil {
 		logger.Error("unable to update namespace", zap.Error(err))
 		xhttp.WriteError(w, err)
@@ -120,17 +116,17 @@ func (h *UpdateHandler) parseRequest(r *http.Request) (*admin.NamespaceUpdateReq
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	updateReq := new(admin.NamespaceUpdateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), updateReq); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	if err := validateUpdateRequest(updateReq); err != nil {
 		err := fmt.Errorf("unable to validate update request: %w", err)
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return updateReq, nil
@@ -187,17 +183,17 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 func (h *UpdateHandler) Update(
 	updateReq *admin.NamespaceUpdateRequest,
 	opts handleroptions.ServiceOptions,
-) (nsproto.Registry, xhttp.Error, error) {
-	var emptyReg = nsproto.Registry{}
+) (nsproto.Registry, error) {
+	var emptyReg nsproto.Registry
 
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
-		return emptyReg, nil, err
+		return emptyReg, err
 	}
 
 	currentMetadata, version, err := Metadata(store)
 	if err != nil {
-		return emptyReg, nil, err
+		return emptyReg, err
 	}
 
 	newMetadata := make(map[string]namespace.Metadata)
@@ -207,10 +203,9 @@ func (h *UpdateHandler) Update(
 
 	ns, ok := newMetadata[updateReq.Name]
 	if !ok {
-		parseErr := xhttp.NewError(
+		return emptyReg, xhttp.NewError(
 			fmt.Errorf("namespace not found: err=%s", updateReq.Name),
 			http.StatusNotFound)
-		return emptyReg, parseErr, nil
 	}
 
 	// Replace targeted namespace with modified retention.
@@ -223,7 +218,8 @@ func (h *UpdateHandler) Update(
 				SetRetentionOptions(retentionOpts)
 			ns, err = namespace.NewMetadata(ns.ID(), opts)
 			if err != nil {
-				return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+				return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf(
+					"error constructing new metadata: %w", err))
 			}
 		}
 	}
@@ -241,7 +237,8 @@ func (h *UpdateHandler) Update(
 			SetRuntimeOptions(runtimeOpts)
 		ns, err = namespace.NewMetadata(ns.ID(), opts)
 		if err != nil {
-			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+			return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf(
+				"error constructing new metadata: %w", err))
 		}
 	}
 
@@ -249,24 +246,27 @@ func (h *UpdateHandler) Update(
 	if newExtendedOptions := updateReq.Options.ExtendedOptions; newExtendedOptions != nil {
 		newExtOpts, err := namespace.ToExtendedOptions(newExtendedOptions)
 		if err != nil {
-			return emptyReg, nil, err
+			return emptyReg, xerrors.NewInvalidParamsError(err)
 		}
 		opts := ns.Options().SetExtendedOptions(newExtOpts)
 		ns, err = namespace.NewMetadata(ns.ID(), opts)
 		if err != nil {
-			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+			return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf(
+				"error constructing new metadata: %w", err))
 		}
 	}
 	if protoAggOpts := updateReq.Options.AggregationOptions; protoAggOpts != nil {
 		newAggOpts, err := namespace.ToAggregationOptions(protoAggOpts)
 		if err != nil {
-			return emptyReg, nil, fmt.Errorf("error constructing construction aggregationOptions: %w", err)
+			return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf(
+				"error constructing construction aggregationOptions: %w", err))
 		}
 		if !ns.Options().AggregationOptions().Equal(newAggOpts) {
 			opts := ns.Options().SetAggregationOptions(newAggOpts)
 			ns, err = namespace.NewMetadata(ns.ID(), opts)
 			if err != nil {
-				return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+				return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf(
+					"error constructing new metadata: %w", err))
 			}
 		}
 	}
@@ -281,23 +281,23 @@ func (h *UpdateHandler) Update(
 	}
 
 	if err = validateNamespaceAggregationOptions(newMDs); err != nil {
-		return emptyReg, nil, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
-		return emptyReg, nil, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	protoRegistry, err := namespace.ToProto(nsMap)
 	if err != nil {
-		return emptyReg, nil, fmt.Errorf("error constructing namespace protobuf: %w", err)
+		return emptyReg, fmt.Errorf("error constructing namespace protobuf: %w", err)
 	}
 
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
-		return emptyReg, nil, fmt.Errorf("failed to update namespace: %w", err)
+		return emptyReg, fmt.Errorf("failed to update namespace: %w", err)
 	}
 
-	return *protoRegistry, nil, nil
+	return *protoRegistry, nil
 }

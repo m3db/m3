@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/uber-go/tally"
 
@@ -80,7 +79,21 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, xhttp.Error) {
+) (ParsedOptions, error) {
+	parsed, err := parseRequest(ctx, r, instantaneous, opts)
+	if err != nil {
+		// All parsing of requests should result in an invalid params error.
+		return ParsedOptions{}, xerrors.NewInvalidParamsError(err)
+	}
+	return parsed, nil
+}
+
+func parseRequest(
+	ctx context.Context,
+	r *http.Request,
+	instantaneous bool,
+	opts options.HandlerOptions,
+) (ParsedOptions, error) {
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		return ParsedOptions{}, rErr
@@ -118,7 +131,7 @@ func ParseRequest(
 
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
 	if err := validateRequest(params, maxPoints); err != nil {
-		return ParsedOptions{}, xhttp.NewError(err, http.StatusBadRequest)
+		return ParsedOptions{}, err
 	}
 
 	return ParsedOptions{
