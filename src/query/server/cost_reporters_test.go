@@ -25,7 +25,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/cost/test"
@@ -51,16 +50,7 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 		s := tally.NewTestScope("", nil)
 		iopts := instrument.NewOptions().SetMetricsScope(s)
 
-		globalEnforcer, closer, err := newConfiguredChainedEnforcer(&config.Configuration{
-			Limits: config.LimitsConfiguration{
-				PerQuery: config.PerQueryLimitsConfiguration{
-					MaxFetchedDatapoints: perQueryLimit,
-				},
-				Global: config.GlobalLimitsConfiguration{
-					MaxFetchedDatapoints: globalLimit,
-				},
-			},
-		}, iopts)
+		globalEnforcer, closer, err := newConfiguredChainedEnforcer(iopts)
 
 		require.NoError(t, err)
 
@@ -132,23 +122,13 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 
 		qe1, qe2 := tctx.GlobalEnforcer.Child(cost.QueryLevel), tctx.GlobalEnforcer.Child(cost.QueryLevel)
 		r := qe1.Add(6)
-		test.AssertLimitErrorWithMsg(
-			t,
-			r.Error,
-			"exceeded query limit: exceeded limits.perQuery.maxFetchedDatapoints",
-			6,
-			6)
+		assert.NoError(t, r.Error)
 
 		r = qe2.Add(3)
 		require.NoError(t, r.Error)
 
 		r = qe2.Add(2)
-		test.AssertLimitErrorWithMsg(
-			t,
-			r.Error,
-			"exceeded global limit: exceeded limits.global.maxFetchedDatapoints",
-			11,
-			10)
+		require.NoError(t, r.Error)
 
 		test.AssertCurrentCost(t, 11, tctx.GlobalEnforcer)
 

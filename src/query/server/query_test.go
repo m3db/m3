@@ -520,18 +520,7 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 		SetMetricsScope(scope)
 
 	setup := func(t *testing.T, globalLimit, queryLimit int) testContext {
-		cfg := &config.Configuration{
-			Limits: config.LimitsConfiguration{
-				Global: config.GlobalLimitsConfiguration{
-					MaxFetchedDatapoints: 100,
-				},
-				PerQuery: config.PerQueryLimitsConfiguration{
-					MaxFetchedDatapoints: 10,
-				},
-			},
-		}
-
-		global, closer, err := newConfiguredChainedEnforcer(cfg, instrumentOpts)
+		global, closer, err := newConfiguredChainedEnforcer(instrumentOpts)
 		require.NoError(t, err)
 
 		queryLvl := global.Child(cost.QueryLevel)

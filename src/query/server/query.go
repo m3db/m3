@@ -424,8 +424,9 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
-	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
-		instrumentOptions)
+	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(
+		instrumentOptions,
+	)
 	if err != nil {
 		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
 	}
