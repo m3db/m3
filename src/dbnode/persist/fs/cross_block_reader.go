@@ -57,6 +57,7 @@ type crossBlockReader struct {
 // provided in a slice sorted by block start time.
 // Callers are responsible for closing the DataFileSetReaders.
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
+
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
 		if !dataFileSetReader.StreamingEnabled() {

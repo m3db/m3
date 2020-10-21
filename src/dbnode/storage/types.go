@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -183,7 +184,7 @@ type Database interface {
 		start time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
-	) (WideQueryIterator, error)
+	) (wide.QueryIterator, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -182,7 +183,7 @@ func copyBytes(b []byte) []byte {
 
 func wideQueryIterSeries(
 	t *testing.T,
-	iter storage.WideQueryIterator,
+	iter wide.QueryIterator,
 ) []testWideQuerySeries {
 	var results []testWideQuerySeries
 
@@ -196,11 +197,11 @@ func wideQueryIterSeries(
 				// Should get datapoints here when implemented.
 			}
 
+			meta := seriesIter.SeriesMetadata()
 			results = append(results, testWideQuerySeries{
-				Shard:            shardIter.Shard(),
-				ID:               copyBytes(seriesIter.ID().Bytes()),
-				EncodedTags:      copyBytes([]byte(seriesIter.EncodedTags())),
-				MetadataChecksum: seriesIter.MetadataChecksum(),
+				Shard:       shardIter.Shard(),
+				ID:          copyBytes(meta.ID.Bytes()),
+				EncodedTags: copyBytes(meta.EncodedTags),
 			})
 
 			require.NoError(t, seriesIter.Err(), "wide series iter error")

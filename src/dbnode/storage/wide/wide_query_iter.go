@@ -18,58 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package wide
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// WideQueryIterator is a wide query iterator.
-type WideQueryIterator interface {
-	BlockStart() time.Time
-	Shards() []uint32
-
-	Next() bool
-	Current() WideQueryShardIterator
-	Err() error
-	Close()
-}
-
-// WideQueryShardIterator is a wide query shard iterator.
-type WideQueryShardIterator interface {
-	Shard() uint32
-
-	Next() bool
-	Current() WideQuerySeriesIterator
-	Err() error
-	Close()
-}
-
-// WideQuerySeriesIterator is a wide query series iterator.
-type WideQuerySeriesIterator interface {
-	ID() ident.ID
-	EncodedTags() ts.EncodedTags
-	MetadataChecksum() int64
-
-	Next() bool
-	Current() (float64, ts.Annotation)
-	Err() error
-	Close()
-}
-
-var _ WideQueryIterator = (*wideQueryIterator)(nil)
+var _ QueryIterator = (*wideQueryIterator)(nil)
 
 type wideQueryIterator struct {
 	blockStart time.Time
 	shards     []uint32
 
-	fixedBufferMgr *fixedBufferManager
+	fixedBufferMgr FixedBufferManager
 	iters          chan *wideQueryShardIterator
 
 	writeIter  *wideQueryShardIterator
@@ -78,6 +48,7 @@ type wideQueryIterator struct {
 	readIter *wideQueryShardIterator
 
 	state wideQueryIteratorStateShared
+	opts  Options
 }
 
 type wideQueryIteratorStateShared struct {
@@ -92,18 +63,21 @@ const (
 	shardEOF    = shardNotSet - 1
 )
 
-func newWideQueryIterator(
+// NewQueryIterator builds a wide query iterator.
+func NewQueryIterator(
 	blockStart time.Time,
 	shards []uint32,
-) *wideQueryIterator {
+	opts Options,
+) QueryIterator {
 	return &wideQueryIterator{
-		fixedBufferMgr: newFixedBufferManager(newFixedBufferPool()),
+		fixedBufferMgr: newFixedBufferManager(opts),
 		iters:          make(chan *wideQueryShardIterator, len(shards)),
 		writeShard:     shardNotSet,
+		opts:           opts,
 	}
 }
 
-func (i *wideQueryIterator) setDoneError(err error) {
+func (i *wideQueryIterator) SetDoneError(err error) {
 	i.state.Lock()
 	i.state.err = err
 	i.state.Unlock()
@@ -121,9 +95,7 @@ func (i *wideQueryIterator) setDone() {
 	close(i.iters)
 }
 
-func (i *wideQueryIterator) shardIter(
-	shard uint32,
-) (*wideQueryShardIterator, error) {
+func (i *wideQueryIterator) ShardIter(shard uint32) (QueryShardIterator, error) {
 	if i.writeShard == shard {
 		return i.writeIter, nil
 	}
@@ -140,7 +112,7 @@ func (i *wideQueryIterator) shardIter(
 			i.writeShard, shard)
 	}
 
-	nextShardIter := newWideQueryShardIterator(shard, i.fixedBufferMgr)
+	nextShardIter := newQueryShardIterator(shard, i.blockStart, i.fixedBufferMgr, i.opts)
 
 	if i.writeIter != nil {
 		// Close the current iter for writing.
@@ -172,7 +144,7 @@ func (i *wideQueryIterator) Next() bool {
 	return true
 }
 
-func (i *wideQueryIterator) Current() WideQueryShardIterator {
+func (i *wideQueryIterator) Current() QueryShardIterator {
 	return i.readIter
 }
 
@@ -188,34 +160,30 @@ func (i *wideQueryIterator) Close() {
 
 const shardIterRecordsBuffer = 1024
 
-var _ WideQueryShardIterator = (*wideQueryShardIterator)(nil)
+var _ QueryShardIterator = (*wideQueryShardIterator)(nil)
 
 type wideQueryShardIterator struct {
 	shard          uint32
-	fixedBufferMgr *fixedBufferManager
+	blockStart     time.Time
+	fixedBufferMgr FixedBufferManager
 
 	records chan wideQueryShardIteratorQueuedRecord
 
 	iter *wideQuerySeriesIterator
 
 	state wideQueryShardIteratorSharedState
+
+	opts Options
 }
 
 type wideQueryShardIteratorQueuedRecord struct {
 	id                []byte
-	borrowID          fixedBufferBorrow
+	borrowID          BorrowedBuffer
 	encodedTags       []byte
-	borrowEncodedTags fixedBufferBorrow
+	borrowEncodedTags BorrowedBuffer
 	data              []byte
-	borrowData        fixedBufferBorrow
+	borrowData        BorrowedBuffer
 	metadataChecksum  int64
-}
-
-type wideQueryShardIteratorRecord struct {
-	ID               []byte
-	EncodedTags      []byte
-	MetadataChecksum int64
-	Data             []byte
 }
 
 type wideQueryShardIteratorSharedState struct {
@@ -225,35 +193,58 @@ type wideQueryShardIteratorSharedState struct {
 	err error
 }
 
-func newWideQueryShardIterator(
+func newQueryShardIterator(
 	shard uint32,
-	fixedBufferMgr *fixedBufferManager,
+	blockStart time.Time,
+	fixedBufferMgr FixedBufferManager,
+	opts Options,
 ) *wideQueryShardIterator {
 	return &wideQueryShardIterator{
 		shard:          shard,
+		blockStart:     blockStart,
 		records:        make(chan wideQueryShardIteratorQueuedRecord, shardIterRecordsBuffer),
 		fixedBufferMgr: fixedBufferMgr,
+		opts:           opts,
 	}
+}
+
+func (i *wideQueryShardIterator) BlockStart() time.Time {
+	return i.blockStart
 }
 
 func (i *wideQueryShardIterator) setDone() {
 	close(i.records)
 }
 
-func (i *wideQueryShardIterator) pushRecord(
-	r wideQueryShardIteratorRecord,
-) {
+func (i *wideQueryShardIterator) PushRecord(r ShardIteratorRecord) error {
+	var (
+		qr  wideQueryShardIteratorQueuedRecord
+		err error
+	)
+
 	// TODO: transactionally copy the ID + tags + anything else in one go
 	// otherwise the fixed buffer manager might run out of mem and wait
 	// for another buffer to be available but the existing buffer cannot
 	// be released since one field here has taken a copy and needs to be
 	// returned for entire underlying buffer to be released.
-	var qr wideQueryShardIteratorQueuedRecord
-	qr.id, qr.borrowID = i.fixedBufferMgr.copy(r.ID)
-	qr.encodedTags, qr.borrowEncodedTags = i.fixedBufferMgr.copy(r.EncodedTags)
-	qr.data, qr.borrowData = i.fixedBufferMgr.copy(r.Data)
+	qr.id, qr.borrowID, err = i.fixedBufferMgr.Copy(r.ID)
+	if err != nil {
+		return err
+	}
+
+	qr.encodedTags, qr.borrowEncodedTags, err = i.fixedBufferMgr.Copy(r.EncodedTags)
+	if err != nil {
+		return err
+	}
+
+	qr.data, qr.borrowData, err = i.fixedBufferMgr.Copy(r.Data)
+	if err != nil {
+		return err
+	}
+
 	qr.metadataChecksum = r.MetadataChecksum
 	i.records <- qr
+	return nil
 }
 
 func (i *wideQueryShardIterator) Shard() uint32 {
@@ -268,13 +259,13 @@ func (i *wideQueryShardIterator) Next() bool {
 	}
 
 	if i.iter == nil {
-		i.iter = newWideQuerySeriesIterator()
+		i.iter = newQuerySeriesIterator(i.opts)
 	}
 	i.iter.reset(record)
 	return true
 }
 
-func (i *wideQueryShardIterator) Current() WideQuerySeriesIterator {
+func (i *wideQueryShardIterator) Current() QuerySeriesIterator {
 	return i.iter
 }
 
@@ -288,16 +279,21 @@ func (i *wideQueryShardIterator) Err() error {
 func (i *wideQueryShardIterator) Close() {
 }
 
-var _ WideQuerySeriesIterator = (*wideQuerySeriesIterator)(nil)
+var _ QuerySeriesIterator = (*wideQuerySeriesIterator)(nil)
 
 type wideQuerySeriesIterator struct {
 	record      wideQueryShardIteratorQueuedRecord
 	reuseableID *ident.ReuseableBytesID
+	iter        encoding.ReaderIterator
+	opts        Options
 }
 
-func newWideQuerySeriesIterator() *wideQuerySeriesIterator {
+func newQuerySeriesIterator(opts Options) *wideQuerySeriesIterator {
+	readerIter := opts.ReaderIteratorPool().Get()
 	return &wideQuerySeriesIterator{
 		reuseableID: ident.NewReuseableBytesID(),
+		iter:        readerIter,
+		opts:        opts,
 	}
 }
 
@@ -305,36 +301,40 @@ func (i *wideQuerySeriesIterator) reset(
 	record wideQueryShardIteratorQueuedRecord,
 ) {
 	i.record = record
+	buf := bytes.NewBuffer(record.data)
+	i.iter.Reset(buf, i.opts.SchemaDescr())
 	i.reuseableID.Reset(i.record.id)
 }
 
-func (i *wideQuerySeriesIterator) ID() ident.ID {
-	return i.reuseableID
-}
-
-func (i *wideQuerySeriesIterator) EncodedTags() ts.EncodedTags {
-	return ts.EncodedTags(i.record.encodedTags)
-}
-
-func (i *wideQuerySeriesIterator) MetadataChecksum() int64 {
-	return i.record.metadataChecksum
+func (i *wideQuerySeriesIterator) SeriesMetadata() SeriesMetadata {
+	return SeriesMetadata{
+		ID:          i.record.id,
+		EncodedTags: i.record.encodedTags,
+	}
 }
 
 func (i *wideQuerySeriesIterator) Next() bool {
-	return false
+	return i.iter.Next()
 }
 
-func (i *wideQuerySeriesIterator) Current() (float64, ts.Annotation) {
-	return 0, nil
+func (i *wideQuerySeriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	return i.iter.Current()
 }
 
 func (i *wideQuerySeriesIterator) Err() error {
-	return nil
+	if i.iter == nil {
+		return nil
+	}
+
+	return i.iter.Err()
 }
 
 func (i *wideQuerySeriesIterator) Close() {
 	// Release the borrows on buffers.
-	i.record.borrowID.BufferFinalize()
-	i.record.borrowEncodedTags.BufferFinalize()
+	i.record.borrowID.Finalize()
+	i.record.borrowData.Finalize()
+	i.record.borrowEncodedTags.Finalize()
 	i.record = wideQueryShardIteratorQueuedRecord{}
+	// Close the read iterator. Will return it to the pool.
+	i.iter.Close()
 }

@@ -39,6 +39,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -947,7 +948,7 @@ type wideQueryTestFn func(
 
 func exhaustWideQueryIter(
 	t *testing.T,
-	iter WideQueryIterator,
+	iter wide.QueryIterator,
 ) {
 	for iter.Next() {
 		shardIter := iter.Current()
@@ -967,7 +968,7 @@ func exhaustWideQueryIter(
 
 func exhaustWideQueryIterResult(
 	t *testing.T,
-	iter WideQueryIterator,
+	iter wide.QueryIterator,
 ) []error {
 	var errs []error
 	for iter.Next() {

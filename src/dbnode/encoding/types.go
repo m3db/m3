@@ -88,7 +88,7 @@ type Encoder interface {
 	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
 
-// NewEncoderFn creates a new encoder
+// NewEncoderFn creates a new encoder.
 type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 
 // Options represents different options for encoding time as well as markers.
@@ -178,7 +178,7 @@ type Iterator interface {
 	// object as it may get invalidated when the iterator calls Next().
 	Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 
-	// Err returns the error encountered
+	// Err returns the error encountered.
 	Err() error
 
 	// Close closes the iterator and if pooled will return to the pool.
@@ -367,9 +367,9 @@ type IStream interface {
 
 // OStream encapsulates a writable stream.
 type OStream interface {
-	// Len returns the length of the OStream
+	// Len returns the length of the OStream.
 	Len() int
-	// Empty returns whether the OStream is empty
+	// Empty returns whether the OStream is empty.
 	Empty() bool
 
 	// WriteBit writes the last bit of v.

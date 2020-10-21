@@ -36,6 +36,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -991,7 +992,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) (WideQueryIterator, error) {
+) (wide.QueryIterator, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1022,7 +1023,8 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
-	iter := newWideQueryIterator(blockStart, shards)
+	wideOpts := wide.NewOptions().SetReaderIteratorPool(d.opts.ReaderIteratorPool())
+	iter := wide.NewQueryIterator(blockStart, shards, wideOpts)
 	streamedEntries := make([]block.StreamedWideEntry, 0, batchSize)
 
 	wideEntryProcessor := func(batch *ident.IDBatch) error {
@@ -1059,12 +1061,12 @@ func (d *db) WideQuery(
 			}
 
 			// Push the data to wide query iterator results.
-			shardIter, err := iter.shardIter(entry.Shard)
+			shardIter, err := iter.ShardIter(entry.Shard)
 			if err != nil {
 				return err
 			}
 
-			shardIter.pushRecord(wideQueryShardIteratorRecord{
+			shardIter.PushRecord(wide.ShardIteratorRecord{
 				ID:               entry.ID.Bytes(),
 				EncodedTags:      entry.EncodedTags.Bytes(),
 				MetadataChecksum: entry.MetadataChecksum,
@@ -1077,7 +1079,7 @@ func (d *db) WideQuery(
 
 	go func() {
 		err := d.batchProcessWideQuery(ctx, n, query, wideEntryProcessor, opts)
-		iter.setDoneError(err)
+		iter.SetDoneError(err)
 	}()
 
 	return iter, nil

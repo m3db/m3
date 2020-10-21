@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -345,10 +346,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) (WideQueryIterator, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].(WideQueryIterator)
+	ret0, _ := ret[0].(wide.QueryIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -770,10 +771,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) (WideQueryIterator, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].(WideQueryIterator)
+	ret0, _ := ret[0].(wide.QueryIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

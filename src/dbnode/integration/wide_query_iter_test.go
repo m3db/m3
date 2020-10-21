@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -165,9 +163,10 @@ func TestWideQueryIterator(t *testing.T) {
 
 		for shardIter.Next() {
 			seriesIter := shardIter.Current()
+			meta := seriesIter.SeriesMetadata()
 			log.Debug("series result",
-				zap.String("id", seriesIter.ID().String()),
-				zap.Int("encodedTagsLen", len(seriesIter.EncodedTags())))
+				zap.String("id", meta.ID.String()),
+				zap.String("tags", string(meta.EncodedTags)))
 			actualSeries++
 
 			for seriesIter.Next() {
