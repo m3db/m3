@@ -9,7 +9,7 @@ Namespaces in M3DB are analogous to tables in other databases. Each namespace ha
 
 The operations below include sample cURLs, but you can always review the API documentation by navigating to
 
-`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](/openapi/).
 
 Additionally, the following headers can be used in the namespace operations: 
 
