@@ -19993,8 +19993,7 @@ func (p *NodeFetchBatchRawArgs) Read(iprot thrift.TProtocol) error {
 
 func (p *NodeFetchBatchRawArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &FetchBatchRawRequest{
-		RangeTimeType:     0,
-		RequireExhaustive: true,
+		RangeTimeType: 0,
 	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
@@ -20749,7 +20748,8 @@ func (p *NodeFetchTaggedArgs) Read(iprot thrift.TProtocol) error {
 
 func (p *NodeFetchTaggedArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &FetchTaggedRequest{
-		RangeTimeType: 0,
+		RangeTimeType:     0,
+		RequireExhaustive: true,
 	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
