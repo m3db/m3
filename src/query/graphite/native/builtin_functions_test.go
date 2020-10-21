@@ -2966,7 +2966,7 @@ func TestEffectiveXFilesFactor(t *testing.T) {
 	require.True(t, effectiveXFF(10, 0, 1.0))
 
 	require.False(t, effectiveXFF(10, 10, 0.1))
-	require.False(t, effectiveXFF(10, 4, 0.5))
+	require.False(t, effectiveXFF(10, 6, 0.5))
 	require.False(t, effectiveXFF(10, 1, 1.0))
 }
 
