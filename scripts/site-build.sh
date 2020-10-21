@@ -12,4 +12,5 @@ sed -i.bak "s#spec-url='.*'#spec-url='spec.yml'#g" site/static/openapi/index.htm
 rm site/static/openapi/index.html.bak
 
 # Now run hugo
+cd site
 hugo
