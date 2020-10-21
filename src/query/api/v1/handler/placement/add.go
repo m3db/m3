@@ -109,7 +109,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 	addReq := new(admin.PlacementAddRequest)
 	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
-		return nil, xerrors.NewInvalidParamsError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return addReq, nil

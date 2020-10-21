@@ -40,12 +40,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -121,7 +117,7 @@ func parseParams(
 	}
 
 	params.End = end
-	
+
 	if step := fetchOpts.Step; step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
 		return params, xerrors.NewInvalidParamsError(
@@ -146,7 +142,7 @@ func parseParams(
 	}
 
 	params.BlockType = models.TypeSingleBlock
-	if blockType := r.FormValue(blockTypeParam); != "" {
+	if blockType := r.FormValue(blockTypeParam); blockType != "" {
 		intVal, err := strconv.ParseInt(blockType, 10, 8)
 		if err != nil {
 			return params, xerrors.NewInvalidParamsError(

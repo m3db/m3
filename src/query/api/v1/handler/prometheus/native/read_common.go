@@ -35,10 +35,11 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
 )
 
 type promReadMetrics struct {
@@ -94,9 +95,9 @@ func parseRequest(
 	instantaneous bool,
 	opts options.HandlerOptions,
 ) (ParsedOptions, error) {
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
-	if rErr != nil {
-		return ParsedOptions{}, rErr
+	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		return ParsedOptions{}, err
 	}
 
 	queryOpts := &executor.QueryOptions{
@@ -115,18 +116,19 @@ func parseRequest(
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	engine := opts.Engine()
-	var params models.RequestParams
+	var (
+		engine = opts.Engine()
+		params models.RequestParams
+	)
 	if instantaneous {
-		params, rErr = parseInstantaneousParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseInstantaneousParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts)
 	} else {
-		params, rErr = parseParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts)
 	}
-
-	if rErr != nil {
-		return ParsedOptions{}, rErr
+	if err != nil {
+		return ParsedOptions{}, err
 	}
 
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()

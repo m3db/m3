@@ -117,15 +117,15 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// provided matchers, and one which will match the provided matchers with at
 	// least one more child node. For further information, refer to the comment
 	// for parseFindParamsToQueries
-	terminatedQuery, childQuery, raw, rErr := parseFindParamsToQueries(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
+	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r)
+	if err != nil {
+		xhttp.WriteError(w, err)
 		return
 	}
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
+	opts, err := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if err != nil {
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -141,13 +141,13 @@ func (h *grahiteFindHandler) ServeHTTP(
 		terminatedResult, tErr = h.storage.CompleteTags(ctx, terminatedQuery, opts)
 		wg.Done()
 	}()
-
 	go func() {
 		childResult, cErr = h.storage.CompleteTags(ctx, childQuery, opts)
 		wg.Done()
 	}()
 
 	wg.Wait()
+
 	if err := xerrors.FirstError(tErr, cErr); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		xhttp.WriteError(w, err)

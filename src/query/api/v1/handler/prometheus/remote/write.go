@@ -261,13 +261,18 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
 	defer batchRequestStopwatch.Stop()
 
-	req, opts, result, rErr := h.parseRequest(r)
-	if rErr != nil {
+	checkedReq, err := h.checkedParseRequest(r)
+	if err != nil {
 		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.WriteError(w, rErr)
+		xhttp.WriteError(w, err)
 		return
 	}
 
+	var (
+		req    = checkedReq.Request
+		opts   = checkedReq.Options
+		result = checkedReq.CompressResult
+	)
 	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
 	// if the request bodies ever get pooled until after
@@ -399,7 +404,7 @@ type parseRequestResult struct {
 	CompressResult prometheus.ParsePromCompressedRequestResult
 }
 
-func (h *PromWriteHandler) parseRequestChecked(
+func (h *PromWriteHandler) checkedParseRequest(
 	r *http.Request,
 ) (parseRequestResult, error) {
 	result, err := h.parseRequest(r)
