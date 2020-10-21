@@ -45,7 +45,7 @@ Not yet, but that functionality is currently being worked on.
 You can check if your nodes are snapshotting by looking at the `Background tasks` tab in the [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
 
 - **How do you list all available API endpoints?**
-See [M3DB OpenAPI](https://m3db.io/openapi).
+See [M3DB OpenAPI](/openapi).
 
 - **What is the recommended way to upgrade my M3 stack?**
 See the [Upgrading M3](/docs/operational_guide/upgrading_m3) guide.
