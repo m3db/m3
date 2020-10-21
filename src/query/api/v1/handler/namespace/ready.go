@@ -98,12 +98,12 @@ func (h *ReadyHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyRequest, xhttp.Error) {
+func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyRequest, error) {
 	defer r.Body.Close()
 
 	req := new(admin.NamespaceReadyRequest)
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return req, nil

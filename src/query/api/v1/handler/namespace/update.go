@@ -116,7 +116,7 @@ func (h *UpdateHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *UpdateHandler) parseRequest(r *http.Request) (*admin.NamespaceUpdateRequest, xhttp.Error) {
+func (h *UpdateHandler) parseRequest(r *http.Request) (*admin.NamespaceUpdateRequest, error) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {

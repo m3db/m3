@@ -102,12 +102,12 @@ func (h *SchemaHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, &resp, logger)
 }
 
-func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAddRequest, xhttp.Error) {
+func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAddRequest, error) {
 	defer r.Body.Close()
 
 	var schemaAddReq admin.NamespaceSchemaAddRequest
 	if err := jsonpb.Unmarshal(r.Body, &schemaAddReq); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 	return &schemaAddReq, nil
 }
@@ -183,12 +183,12 @@ func (h *SchemaResetHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaResetRequest, xhttp.Error) {
+func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaResetRequest, error) {
 	defer r.Body.Close()
 
 	var schemaResetReq admin.NamespaceSchemaResetRequest
 	if err := jsonpb.Unmarshal(r.Body, &schemaResetReq); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 	return &schemaResetReq, nil
 }

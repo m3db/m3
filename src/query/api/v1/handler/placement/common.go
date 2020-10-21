@@ -212,7 +212,7 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	for _, instanceProto := range instancesProto {
 		instance, err := placement.NewInstanceFromProto(instanceProto)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.NewInvalidParamsError(err)
 		}
 		res = append(res, instance)
 	}
@@ -377,43 +377,16 @@ type m3aggregatorPlacementOpts struct {
 	propagationDelay time.Duration
 }
 
-var _ xhttp.Error = (*unsafeAddError)(nil)
-
-type unsafeAddError struct {
-	err   error
-	hosts string
-}
-
-func newUnsafeAddError(hosts string) *unsafeAddError {
-	return &unsafeAddError{
-		err:   fmt.Errorf("instances [%s] do not have all shards available", hosts),
-		hosts: hosts,
-	}
-}
-
-func (e *unsafeAddError) Code() int {
-	return http.StatusBadRequest
-}
-
-func (e *unsafeAddError) InnerError() error {
-	return e.err
-}
-
-func (e *unsafeAddError) Error() string {
-	return e.err.Error()
-}
-
 func validateAllAvailable(p placement.Placement) error {
-	badInsts := []string{}
+	var bad []string
 	for _, inst := range p.Instances() {
 		if !inst.IsAvailable() {
-			badInsts = append(badInsts, inst.ID())
+			bad = append(bad, inst.ID())
 		}
 	}
-	if len(badInsts) > 0 {
-		return &unsafeAddError{
-			hosts: strings.Join(badInsts, ","),
-		}
+	if len(bad) > 0 {
+		return xerrors.NewInvalidParamsError(
+			fmt.Errorf("instances do not have all shards available: %v", bad))
 	}
 	return nil
 }

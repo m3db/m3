@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -107,11 +108,12 @@ func (h *InitHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, xhttp.Error) {
+func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, error) {
 	defer r.Body.Close()
+
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
-		return nil, xhttp.NewError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return initReq, nil
