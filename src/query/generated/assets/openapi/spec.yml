@@ -915,10 +915,3 @@ definitions:
         $ref: "#/definitions/NamespaceGetResponse"
       placement:
         $ref: "#/definitions/PlacementGetResponse"
-  DatabaseConfigBootstrappers:
-    type: "object"
-    properties:
-      values:
-        type: "array"
-        items:
-          type: "string"

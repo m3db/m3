@@ -22,11 +22,6 @@
     "idScheme": "quoted"
 "db":
   "bootstrap":
-    "bootstrappers":
-    - "filesystem"
-    - "commitlog"
-    - "peers"
-    - "uninitialized_topology"
     "commitlog":
       "returnUnfulfilledForCorruptCommitLogFiles": false
   "cache":
