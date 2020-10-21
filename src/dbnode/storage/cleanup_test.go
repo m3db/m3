@@ -638,11 +638,6 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().CleanupExpiredFileSets(gomock.Any())
 	idx.EXPECT().CleanupDuplicateFileSets()
-	idx.EXPECT().BlockStatesSnapshot().Return(index.NewBlockStateSnapshot(
-		// We perform testing of cleanup index snapshot files elsewhere.
-		false,
-		index.BootstrappedBlockStateSnapshot{},
-	))
 	ns.EXPECT().Index().Return(idx, nil).AnyTimes()
 
 	shard := NewMockdatabaseShard(ctrl)
