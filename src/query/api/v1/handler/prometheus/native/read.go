@@ -100,7 +100,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer timer.Stop()
 
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
+	iOpts := h.opts.InstrumentOpts()
+	logger := logging.WithContext(ctx, iOpts)
 
 	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
 	if rErr != nil {
@@ -109,6 +110,15 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
+	ctx = logging.NewContext(ctx,
+		iOpts,
+		zap.String("query", parsedOptions.Params.Query),
+		zap.Time("start", parsedOptions.Params.Start),
+		zap.Time("end", parsedOptions.Params.End),
+		zap.Duration("step", parsedOptions.Params.Step),
+		zap.Duration("timeout", parsedOptions.Params.Timeout),
+		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
+	)
 
 	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsedOptions.CancelWatcher = watcher
