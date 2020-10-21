@@ -55,7 +55,8 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		SetBlockSize(2 * blockSize)
 	nOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
-		SetIndexOptions(idxOpts)
+		SetIndexOptions(idxOpts).
+		SetColdWritesEnabled(true)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
 	opts := NewTestOptions(t).

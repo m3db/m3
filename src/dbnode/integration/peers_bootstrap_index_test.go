@@ -60,7 +60,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		SetBlockSize(blockSize)
 	nOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
-		SetIndexOptions(idxOpts)
+		SetIndexOptions(idxOpts).
+		SetColdWritesEnabled(true)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
 	opts := NewTestOptions(t).
