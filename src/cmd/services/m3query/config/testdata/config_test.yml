@@ -53,7 +53,5 @@ clusters:
 
 limits:
   perQuery:
-    maxComputedDatapoints: 12000
-    maxFetchedDatapoints: 11000
-  global:
-    maxFetchedDatapoints: 13000
+    maxFetchedSeries: 12000
+    maxFetchedDocs: 11000

@@ -28,9 +28,6 @@ function(coordinator={}, db={}) {
       "samplingRate": 1.0,
       "extended": "none"
     },
-    "limits": {
-      "maxComputedDatapoints": 10000
-    },
     "tagOptions": {
       // Configuration setting for generating metric IDs from tags.
       "idScheme": "quoted"

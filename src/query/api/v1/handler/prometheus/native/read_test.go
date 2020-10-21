@@ -22,9 +22,7 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -168,64 +166,6 @@ func testPromReadHandlerRead(
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
-}
-
-type M3QLResp []struct {
-	Target     string            `json:"target"`
-	Tags       map[string]string `json:"tags"`
-	Datapoints [][]float64       `json:"datapoints"`
-	StepSizeMs int               `json:"step_size_ms"`
-}
-
-func TestM3PromReadHandlerRead(t *testing.T) {
-	testM3PromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testM3PromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testM3PromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		headers.LimitHeaderSeriesLimitApplied)
-}
-
-func testM3PromReadHandlerRead(
-	t *testing.T,
-	resultMeta block.ResultMetadata,
-	ex string,
-) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-
-	setup := newTestSetup(timeoutOpts, nil)
-	promRead := setup.Handlers.read
-
-	seriesMeta := test.NewSeriesMeta("dummy", len(values))
-	meta := block.Metadata{
-		Bounds:         bounds,
-		Tags:           models.NewTags(0, models.NewTagOptions()),
-		ResultMetadata: resultMeta,
-	}
-
-	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
-	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
-
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.Header.Add(headers.RenderFormat, "m3ql")
-	req.URL.RawQuery = defaultParams().Encode()
-
-	recorder := httptest.NewRecorder()
-	promRead.ServeHTTP(recorder, req)
-
-	header := recorder.Header().Get(headers.LimitHeader)
-	assert.Equal(t, ex, header)
-
-	var m3qlResp M3QLResp
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
-
-	assert.Len(t, m3qlResp, 2)
-	assert.Equal(t, "dummy0", m3qlResp[0].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"},
-		m3qlResp[0].Tags)
-	assert.Equal(t, 10000, m3qlResp[0].StepSizeMs)
-	assert.Equal(t, "dummy1", m3qlResp[1].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"},
-		m3qlResp[1].Tags)
-	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {

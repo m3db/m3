@@ -1,6 +1,4 @@
 "coordinator":
-  "limits":
-    "maxComputedDatapoints": 10000
   "listenAddress":
     "type": "config"
     "value": "0.0.0.0:7201"
