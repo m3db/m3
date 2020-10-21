@@ -63,9 +63,7 @@ import (
 )
 
 var configYAML = `
-listenAddress:
-  type: "config"
-  value: "127.0.0.1:0"
+listenAddress: 127.0.0.1:0
 
 logging:
   level: info
@@ -411,9 +409,7 @@ func TestGRPCBackend(t *testing.T) {
 	require.NoError(t, err)
 	grpcAddr := lis.Addr().String()
 	var grpcConfigYAML = fmt.Sprintf(`
-listenAddress:
-  type: "config"
-  value: "127.0.0.1:0"
+listenAddress: 127.0.0.1:0
 
 logging:
   level: info
@@ -539,7 +535,7 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 
 	// Spot check that limits are setup properly for each level.
 	r := tctx.Query.Add(11)
-	require.Error(t, r.Error)
+	require.NoError(t, r.Error)
 
 	floatsEqual := func(f1, f2 float64) {
 		assert.InDelta(t, f1, f2, 0.0000001)
@@ -573,14 +569,14 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 		"cost.reporter.over_datapoints_limit+enabled=true,limiter=global":  0,
 		"cost.reporter.datapoints_counter+limiter=global":                  11,
 		"cost.reporter.over_datapoints_limit+enabled=false,limiter=query":  0,
-		"cost.reporter.over_datapoints_limit+enabled=true,limiter=query":   1,
+		"cost.reporter.over_datapoints_limit+enabled=true,limiter=query":   0,
 	}
 	expectGaugeValues := map[string]float64{
-		"cost.limits.threshold+limiter=global":    100,
-		"cost.limits.enabled+limiter=global":      1,
+		"cost.limits.threshold+limiter=global":    0,
+		"cost.limits.enabled+limiter=global":      0,
 		"cost.reporter.datapoints+limiter=global": 11,
-		"cost.limits.threshold+limiter=query":     10,
-		"cost.limits.enabled+limiter=query":       1,
+		"cost.limits.threshold+limiter=query":     0,
+		"cost.limits.enabled+limiter=query":       0,
 	}
 
 	snapshot := scope.Snapshot()

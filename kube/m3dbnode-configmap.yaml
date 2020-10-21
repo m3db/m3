@@ -6,9 +6,7 @@ metadata:
 data:
   m3dbnode.yml: |+
     coordinator:
-      listenAddress:
-        type: "config"
-        value: "0.0.0.0:7201"
+      listenAddress: 0.0.0.0:7201
       local:
         namespaces:
             - namespace: default
