@@ -219,9 +219,12 @@ release-snapshot: check-for-goreleaser-github-token
 # Makefile assumes its running under bash and the container is alpine (ash
 # shell).
 
-.PHONY: docs-test
-docs-test: setup install-tools
+.PHONY: docs-build
+docs-build:
 	docker run --rm -it -v $(PWD)/site:/src klakegg/hugo:ext-alpine
+
+.PHONY: docs-test
+docs-test: setup install-tools docs-build
 	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
 ifneq ($(DOCSTEST_AUTH_USER),)
 ifneq ($(DOCSTEST_AUTH_TOKEN),)
