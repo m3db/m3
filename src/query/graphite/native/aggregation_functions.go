@@ -108,10 +108,10 @@ func medianSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList,
 	values   := ts.NewValues(ctx, millisPerStep, numSteps)
 
 
+	valuesAtTime := make([]float64, len(normalized.Values))
 	for i := 0; i < numSteps; i++ {
-		valuesAtTime := []float64{}
-		for _, series := range normalized.Values {
-			valuesAtTime = append(valuesAtTime, series.ValueAt(i))
+		for j, series := range normalized.Values {
+			valuesAtTime[j] = series.ValueAt(i)
 		}
 		values.SetValueAt(i, ts.Median(valuesAtTime, len(valuesAtTime)))
 	}
