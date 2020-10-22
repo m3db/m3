@@ -10,7 +10,7 @@
   publish = "/site/public/"
   
   command = "make site-build -C ../"  
-  HUGO_VERSION = "0.75.1"
+  HUGO_VERSION = "0.76.5"
 
 [[redirects]]
   from = "/misc/writing_docs/"
