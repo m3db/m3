@@ -860,31 +860,12 @@ func (i *nsIndex) Bootstrap(
 		i.state.Unlock()
 	}()
 
-	var (
-		multiErr  xerrors.MultiError
-		fsOpts    = i.opts.CommitLogOptions().FilesystemOptions()
-		infoFiles = i.readIndexInfoFilesFn(
-			fsOpts.FilePathPrefix(),
-			i.nsMetadata.ID(),
-			fsOpts.InfoReaderBufferSize(),
-			persist.FileSetFlushType,
-		)
-	)
+	var multiErr xerrors.MultiError
 	for blockStart, blockResults := range bootstrapResults {
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
-		}
-		// NB(bodu): For warm snapshots, we need to make sure that we haven't already successfully warm
-		// flushed that block start. We can run into this case when the node crashes between a successful warm
-		// flush and the next index snapshot.
-		if _, ok := blockResults.GetBlock(idxpersist.SnapshotWarmIndexVolumeType); ok {
-			if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, blockStart.ToTime()) {
-				// If we have warm snapshots and the block has been warm flushed already,
-				// we just discard the warm snapshot data.
-				blockResults.DeleteBlock(idxpersist.SnapshotWarmIndexVolumeType)
-			}
 		}
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
