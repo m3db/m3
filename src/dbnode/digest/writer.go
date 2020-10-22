@@ -64,13 +64,18 @@ func (w *fdWithDigestWriter) Write(b []byte) (int, error) {
 	return written, nil
 }
 
-// Close flushes what's remaining in the buffered writer and closes
+// Close flushes what's remaining in the buffered writer and syncs and closes
 // the underlying file.
 func (w *fdWithDigestWriter) Close() error {
 	if err := w.writer.Flush(); err != nil {
 		return err
 	}
-	return w.FdWithDigest.Close()
+	syncErr := w.FdWithDigest.Fd().Sync()
+	closeErr := w.FdWithDigest.Close()
+	if syncErr != nil {
+		return syncErr
+	}
+	return closeErr
 }
 
 // Flush flushes what's remaining in the buffered writes.
