@@ -37,13 +37,17 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -154,7 +158,7 @@ var (
 
 	// Maps the patterns above to their expected write options.
 	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
-		"match-regex1": ingest.WriteOptions{
+		"match-regex1": {
 			DownsampleOverride: true,
 			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
@@ -167,7 +171,7 @@ var (
 			},
 			WriteOverride: true,
 		},
-		"match-regex2": ingest.WriteOptions{
+		"match-regex2": {
 			DownsampleOverride: true,
 			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
@@ -177,7 +181,7 @@ var (
 			},
 			WriteOverride: true,
 		},
-		"match-regex3": ingest.WriteOptions{
+		"match-regex3": {
 			DownsampleOverride: true,
 			WriteOverride:      true,
 			WriteStoragePolicies: []policy.StoragePolicy{
@@ -222,8 +226,16 @@ func TestIngesterHandleConn(t *testing.T) {
 		return nil
 	}).AnyTimes()
 
+	session := client.NewMockSession(ctrl)
+	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("10s:48h"),
+		Resolution:  10 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	})
+
 	byteConn := &byteConn{b: bytes.NewBuffer(testPacket)}
-	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesMatchAll, testOptions)
+	ingester, err := NewIngester(mockDownsamplerAndWriter, watcher, newTestOpts(testRulesMatchAll, nil))
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
@@ -276,7 +288,26 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		"foo.match-regex3.bar.baz 3 3\n" +
 		"foo.match-not-regex.bar.baz 4 4")
 	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
-	ingester, err := NewIngester(mockDownsamplerAndWriter, testRulesWithPatterns, testOptions)
+
+	session := client.NewMockSession(ctrl)
+	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("10s:48h"),
+		Resolution:  10 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1m:24h"),
+		Resolution:  1 * time.Minute,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1h:168h"),
+		Resolution:  1 * time.Hour,
+		Retention:   168 * time.Hour,
+		Session:     session,
+	})
+
+	ingester, err := NewIngester(mockDownsamplerAndWriter, watcher, newTestOpts(testRulesWithPatterns, nil))
 	require.NoError(t, err)
 	ingester.Handle(byteConn)
 
@@ -300,6 +331,140 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 			value:     3,
 		},
 	}, found)
+}
+
+func TestIngesterNoStaticRules(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter, found := newMockDownsamplerAndWriter(ctrl, func(mappingRules []downsample.AutoMappingRule) {
+		// Use panics instead of require/assert because those don't behave properly when the assertion
+		// is run in a background goroutine.
+		if len(mappingRules) != 1 {
+			panic(fmt.Sprintf("expected: len(DownsampleMappingRules) == 1, got: %v", len(mappingRules)))
+		}
+		policies := mappingRules[0].Policies
+
+		if len(policies) != 1 {
+			panic(fmt.Sprintf("expected: len(policies) == 1, got: %v", len(policies)))
+		}
+		expectedPolicy := policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
+		if ok := expectedPolicy == policies[0]; !ok {
+			panic(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0]))
+		}
+	})
+
+	session := client.NewMockSession(ctrl)
+	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("10s:48h"),
+		Resolution:  10 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	})
+
+	conn := &byteConn{b: bytes.NewBuffer(testPacket)}
+	updatedCh := make(chan bool, 1)
+	i, err := NewIngester(mockDownsamplerAndWriter, watcher, newTestOpts(CarbonIngesterRules{Rules: nil}, updatedCh))
+	require.NoError(t, err)
+
+	<-updatedCh
+
+	i.Handle(conn)
+
+	assertTestMetricsAreEqual(t, testMetrics, *found)
+
+	// Simulate namespace changes while ingester exists.
+	clusterNamespaces := newClusterNamespaces(t, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("10s:48h"),
+		Resolution:  10 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1m:7d"),
+		Resolution:  1 * time.Minute,
+		Retention:   168 * time.Hour,
+		Session:     session,
+	})
+
+	err = watcher.Update(clusterNamespaces)
+	require.NoError(t, err)
+
+	// Ensure storage policies on mapping rules have been updated now that new aggregated namespaces have
+	// been added.
+	mockDownsamplerAndWriter, found = newMockDownsamplerAndWriter(ctrl, func(mappingRules []downsample.AutoMappingRule) {
+		// Use panics instead of require/assert because those don't behave properly when the assertion
+		// is run in a background goroutine.
+		if len(mappingRules) != 1 {
+			panic(fmt.Sprintf("expected: len(DownsampleMappingRules) == 1, got: %v", len(mappingRules)))
+		}
+		policies := mappingRules[0].Policies
+
+		if len(policies) != 2 {
+			panic(fmt.Sprintf("expected: len(policies) == 2, got: %v", len(policies)))
+		}
+		expectedPolicy := policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
+		if ok := expectedPolicy == policies[0]; !ok {
+			panic(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0]))
+		}
+		expectedPolicy = policy.NewStoragePolicy(1*time.Minute, xtime.Second, 168*time.Hour)
+		if ok := expectedPolicy == policies[1]; !ok {
+			panic(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[1]))
+		}
+
+	})
+
+	// Need to do this to update the mock to check for storage policy updates we expect to see.
+	downcast := i.(*ingester)
+	downcast.downsamplerAndWriter = mockDownsamplerAndWriter
+
+	<-updatedCh
+
+	conn = &byteConn{b: bytes.NewBuffer(testPacket)}
+	downcast.Handle(conn)
+
+	assertTestMetricsAreEqual(t, testMetrics, *found)
+}
+
+func newMockDownsamplerAndWriter(
+	ctrl *gomock.Controller,
+	expectations func(mappingRules []downsample.AutoMappingRule),
+) (*ingest.MockDownsamplerAndWriter, *[]testMetric) {
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+
+	var (
+		lock    sync.Mutex
+		metrics = make([]testMetric, 0, numLinesInTestPacket)
+		found   = &metrics
+		idx     = 0
+	)
+	mockDownsamplerAndWriter.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
+		_ context.Context,
+		tags models.Tags,
+		dp ts.Datapoints,
+		unit xtime.Unit,
+		annotation []byte,
+		writeOpts ingest.WriteOptions,
+	) interface{} {
+		lock.Lock()
+		// Clone tags because they (and their underlying bytes) are pooled.
+		*found = append(*found, testMetric{
+			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+
+		// Make 1 in 10 writes fail to test those paths.
+		returnErr := idx%10 == 0
+		idx++
+		lock.Unlock()
+
+		expectations(writeOpts.DownsampleMappingRules)
+
+		if returnErr {
+			return errors.New("some_error")
+		}
+		return nil
+	}).AnyTimes()
+
+	return mockDownsamplerAndWriter, found
 }
 
 func TestGenerateTagsFromName(t *testing.T) {
@@ -357,6 +522,43 @@ func TestGenerateTagsFromName(t *testing.T) {
 		}
 		require.Equal(t, tc.expectedTags, tags.Tags)
 	}
+}
+
+func newTestOpts(rules CarbonIngesterRules, updatedCh chan bool) Options {
+	cfg := config.CarbonIngesterConfiguration{Rules: rules.Rules}
+	opts := testOptions
+	opts.IngesterConfig = &cfg
+	opts.RulesUpdatedCh = updatedCh
+
+	return opts
+}
+
+func newTestWatcher(
+	t *testing.T,
+	session client.Session,
+	aggNamespaces ...m3.AggregatedClusterNamespaceDefinition,
+) m3.ClusterNamespacesWatcher {
+	clusterNamespaces := newClusterNamespaces(t, session, aggNamespaces...)
+	watcher := m3.NewClusterNamespacesWatcher()
+	err := watcher.Update(clusterNamespaces)
+	require.NoError(t, err)
+
+	return watcher
+}
+
+func newClusterNamespaces(
+	t *testing.T,
+	session client.Session,
+	aggNamespaces ...m3.AggregatedClusterNamespaceDefinition,
+) m3.ClusterNamespaces {
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("default"),
+		Retention:   48 * time.Hour,
+		Session:     session,
+	}, aggNamespaces...)
+	require.NoError(t, err)
+
+	return clusters.ClusterNamespaces()
 }
 
 // byteConn implements the net.Conn interface so that we can test the handler without
