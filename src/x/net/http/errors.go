@@ -69,8 +69,27 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+type options struct {
+	response []byte
+}
+
+// WriteErrorOption is an option to pass to WriteError.
+type WriteErrorOption func(*options)
+
+// WithErrorResponse specifies a response to add the WriteError method.
+func WithErrorResponse(b []byte) WriteErrorOption {
+	return func(o *options) {
+		o.response = b
+	}
+}
+
 // WriteError will serve an HTTP error.
-func WriteError(w http.ResponseWriter, err error) {
+func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
+	var o options
+	for _, fn := range opts {
+		fn(&o)
+	}
+
 	switch v := err.(type) {
 	case Error:
 		w.WriteHeader(v.Code())
@@ -82,6 +101,11 @@ func WriteError(w http.ResponseWriter, err error) {
 		}
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	if o.response != nil {
+		w.Write(o.response)
+		return
 	}
 
 	json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
