@@ -385,8 +385,9 @@ func validateAllAvailable(p placement.Placement) error {
 		}
 	}
 	if len(bad) > 0 {
-		return xerrors.NewInvalidParamsError(
-			fmt.Errorf("instances do not have all shards available: %v", bad))
+		str := strings.Join(bad, ", ")
+		err := fmt.Errorf("instances do not have all shards available: [%s]", str)
+		return xerrors.NewInvalidParamsError(err)
 	}
 	return nil
 }

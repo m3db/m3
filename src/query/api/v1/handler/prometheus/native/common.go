@@ -64,7 +64,6 @@ func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 		}
 		return util.ParseTimeString(t)
 	}
-
 	return time.Time{}, errors.ErrNotFound
 }
 
@@ -96,8 +95,8 @@ func parseParams(
 	if err != nil {
 		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	params.Timeout = t
+
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, startParam, err)
@@ -110,28 +109,26 @@ func parseParams(
 		err = fmt.Errorf(formatErrStr, endParam, err)
 		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	if start.After(end) {
 		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
 		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	params.End = end
 
-	if step := fetchOpts.Step; step <= 0 {
+	step := fetchOpts.Step
+	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
 		return params, xerrors.NewInvalidParamsError(
 			fmt.Errorf(formatErrStr, handleroptions.StepParam, err))
-	} else {
-		params.Step = fetchOpts.Step
 	}
+	params.Step = fetchOpts.Step
 
-	if query, err := parseQuery(r); err != nil {
+	query, err := parseQuery(r)
+	if err != nil {
 		return params, xerrors.NewInvalidParamsError(
 			fmt.Errorf(formatErrStr, queryParam, err))
-	} else {
-		params.Query = query
 	}
+	params.Query = query
 
 	if debugVal := r.FormValue(debugParam); debugVal != "" {
 		params.Debug, err = strconv.ParseBool(debugVal)
