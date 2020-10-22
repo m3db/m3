@@ -22,7 +22,6 @@ package linear
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/m3db/m3/src/query/block"
@@ -67,14 +66,6 @@ type valueAndMeta struct {
 
 type lessFn func (i, j float64) bool
 
-func asc(i, j float64) bool {
-	return i < j || math.IsNaN(j) && !math.IsNaN(i)
-}
-
-func desc(i, j float64) bool {
-	return i > j || math.IsNaN(j) && !math.IsNaN(i)
-}
-
 // Node creates an execution node
 func (o sortOp) Node(
 	controller *transform.Controller,
@@ -101,35 +92,19 @@ func (n *sortNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	instantaneous := queryCtx.Options.Instantaneous
-
 	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
-	stepCount := stepIter.StepCount()
 
-	if !instantaneous {
-		builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := builder.AddCols(stepCount); err != nil {
-			return nil, err
-		}
-
-		for index := 0; stepIter.Next(); index++ {
-			if err := builder.AppendValues(index, stepIter.Current().Values()); err != nil {
-				return nil, err
-			}
-		}
-
-		if err = stepIter.Err(); err != nil {
-			return nil, err
-		}
-		return builder.Build(), nil
+	if instantaneous {
+		return n.processInstantBlock(queryCtx, stepIter, meta, seriesMetas)
 	}
+	return n.processNopBlock(queryCtx, stepIter, meta, seriesMetas)
+}
 
+func (n *sortNode) processInstantBlock(queryCtx *models.QueryContext, stepIter block.StepIter, meta block.Metadata, seriesMetas []block.SeriesMeta) (block.Block, error) {
 	for index := 0; stepIter.Next(); index++ {
-		if isLastStep(index, stepCount) {
+		if isLastStep(index, stepIter.StepCount()) {
+			meta.ResultMetadata.KeepNans = block.BoolTrue
 			//we only care for the last step values for the instant query
 			values := stepIter.Current().Values()
 			valuesToSort := make([]valueAndMeta, len(values))
@@ -176,8 +151,29 @@ func (n *sortNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 			return blockBuilder.Build(), nil
 		}
 	}
-
 	return nil, fmt.Errorf("no data to return: %s", n.op.opType)
+}
+
+func (n *sortNode) processNopBlock(queryCtx *models.QueryContext, stepIter block.StepIter, meta block.Metadata, seriesMetas []block.SeriesMeta) (block.Block, error) {
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+		return nil, err
+	}
+
+	for index := 0; stepIter.Next(); index++ {
+		if err := builder.AppendValues(index, stepIter.Current().Values()); err != nil {
+			return nil, err
+		}
+	}
+
+	if err = stepIter.Err(); err != nil {
+		return nil, err
+	}
+	return builder.Build(), nil
 }
 
 func isLastStep(stepIndex int, stepCount int) bool {
@@ -192,9 +188,9 @@ func NewSortOp(opType string) (parser.Params, error) {
 
 	var lessFn lessFn
 	if ascending {
-		lessFn = asc
+		lessFn = utils.AscFloat64
 	} else {
-		lessFn = desc
+		lessFn = utils.DescFloat64
 	}
 
 	return sortOp{opType, lessFn}, nil

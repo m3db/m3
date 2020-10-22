@@ -55,6 +55,15 @@ func (m Metadata) String() string {
 // Warnings is a slice of warnings.
 type Warnings []Warning
 
+// Nullable bool
+type Bool int
+
+const (
+	BoolNull = iota
+	BoolFalse
+	BoolTrue
+)
+
 // ResultMetadata describes metadata common to each type of query results,
 // indicating any additional information about the result.
 type ResultMetadata struct {
@@ -68,6 +77,8 @@ type ResultMetadata struct {
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
 	Resolutions []time.Duration
+	// KeepNans indicates if NaNs should be kept when returning results
+	KeepNans Bool
 }
 
 // NewResultMetadata creates a new result metadata.

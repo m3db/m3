@@ -43,14 +43,12 @@ func TestTakeInstantFn(t *testing.T) {
 		{val: 1.1, seriesMeta: seriesMetasTakeOrdered[0]},
 		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
 		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
-		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[3]},
 
 		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
 
 		{val: 6.1, seriesMeta: seriesMetasTakeOrdered[5]},
 		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
 		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
-		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[8]},
 	}
 
 	size := 3
@@ -67,14 +65,12 @@ func TestTakeInstantFn(t *testing.T) {
 		{val: 4.1, seriesMeta: seriesMetasTakeOrdered[3]},
 		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
 		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
-		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[3]},
 
 		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
 
 		{val: 9.1, seriesMeta: seriesMetasTakeOrdered[8]},
 		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
 		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
-		{val: math.NaN(), seriesMeta: seriesMetasTakeOrdered[8]},
 	}
 
 	maxHeap := utils.NewFloatHeap(true, size)

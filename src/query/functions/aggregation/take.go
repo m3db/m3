@@ -209,22 +209,25 @@ func (n *takeNode) resolveTakeFn(seriesCount int, takeTop bool) takeValuesFunc {
 }
 
 func (n *takeNode) processBlockInstantaneous(
-	heap utils.FloatHeap,
-	queryCtx *models.QueryContext,
-	metadata block.Metadata,
-	stepIter block.StepIter,
-	seriesMetas []block.SeriesMeta,
-	buckets [][]int) (block.Block, error) {
+		heap utils.FloatHeap,
+		queryCtx *models.QueryContext,
+		metadata block.Metadata,
+		stepIter block.StepIter,
+		seriesMetas []block.SeriesMeta,
+		buckets [][]int) (block.Block, error) {
 	stepCount := stepIter.StepCount()
-
+	metadata.ResultMetadata.KeepNans = block.BoolTrue
 	for index := 0; stepIter.Next(); index++ {
 		if isLastStep(index, stepCount) {
 			//we only care for the last step values for the instant query
 			values := stepIter.Current().Values()
 			takenSortedValues := n.op.takeInstantFunc(heap, values, buckets, seriesMetas)
+
+			blockValues := make([]float64, len(takenSortedValues))
+			blockSeries := make([]block.SeriesMeta, len(takenSortedValues))
 			for i := range takenSortedValues {
-				values[i] = takenSortedValues[i].val
-				seriesMetas[i] = takenSortedValues[i].seriesMeta
+				blockValues[i] = takenSortedValues[i].val
+				blockSeries[i] = takenSortedValues[i].seriesMeta
 			}
 
 			//adjust bounds to contain single step
@@ -238,14 +241,14 @@ func (n *takeNode) processBlockInstantaneous(
 				StepSize: metadata.Bounds.StepSize,
 			}
 
-			blockBuilder, err := n.controller.BlockBuilder(queryCtx, metadata, seriesMetas)
+			blockBuilder, err := n.controller.BlockBuilder(queryCtx, metadata, blockSeries)
 			if err != nil {
 				return nil, err
 			}
 			if err = blockBuilder.AddCols(1); err != nil {
 				return nil, err
 			}
-			if err := blockBuilder.AppendValues(0, values); err != nil {
+			if err := blockBuilder.AppendValues(0, blockValues); err != nil {
 				return nil, err
 			}
 			return blockBuilder.Build(), nil
@@ -305,35 +308,22 @@ func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 }
 
 func takeInstantFn(heap utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []valueAndMeta {
-	var result = make([]valueAndMeta, len(values))
-	for i := range result {
-		result[i] = valueAndMeta{
-			val:        values[i],
-			seriesMeta: metas[i],
-		}
-	}
-
+	var result []valueAndMeta
 	for _, bucket := range buckets {
 		for _, idx := range bucket {
 			val := values[idx]
-			if !math.IsNaN(val) {
-				heap.Push(val, idx)
-			}
+			heap.Push(val, idx)
 		}
 
 		valIndexPairs := heap.OrderedFlush()
-		for ix, pair := range valIndexPairs {
+		for _, pair := range valIndexPairs {
 			prevIndex := pair.Index
 			prevMeta := metas[prevIndex]
-			idx := bucket[ix]
 
-			result[idx].val = pair.Val
-			result[idx].seriesMeta = prevMeta
-		}
-
-		//clear remaining values
-		for i := len(valIndexPairs); i < len(bucket); i++ {
-			result[bucket[i]].val = math.NaN()
+			result = append(result, valueAndMeta{
+				val:        pair.Val,
+				seriesMeta: prevMeta,
+			})
 		}
 	}
 	return result

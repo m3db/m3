@@ -21,6 +21,8 @@
 package utils
 
 import (
+	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 	"testing"
@@ -217,6 +219,12 @@ func TestNegativeCapacityHeap(t *testing.T) {
 	}
 }
 
+func equalPairs(t *testing.T, expected, actual []ValueIndexPair) {
+	e := fmt.Sprint(expected)
+	a := fmt.Sprint(actual)
+	assert.Equal(t, e, a)
+}
+
 func TestFlushOrdered(t *testing.T) {
 	maxHeap := NewFloatHeap(true, 3)
 
@@ -253,10 +261,12 @@ func TestFlushOrdered(t *testing.T) {
 func TestFlushOrderedWhenRandomInsertionOrder(t *testing.T) {
 	maxHeap := NewFloatHeap(true, 3)
 
+	maxHeap.Push(math.NaN(), 4)
 	maxHeap.Push(0.1, 0)
 	maxHeap.Push(2.1, 2)
 	maxHeap.Push(1.1, 1)
 	maxHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
 
 	actualMax := maxHeap.OrderedFlush()
 
@@ -268,10 +278,12 @@ func TestFlushOrderedWhenRandomInsertionOrder(t *testing.T) {
 	assert.Equal(t, 0, maxHeap.Len())
 
 	minHeap := NewFloatHeap(false, 3)
+	maxHeap.Push(math.NaN(), 4)
 	minHeap.Push(0.1, 0)
 	minHeap.Push(2.1, 2)
 	minHeap.Push(1.1, 1)
 	minHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
 
 	actualMin := minHeap.OrderedFlush()
 
@@ -279,6 +291,38 @@ func TestFlushOrderedWhenRandomInsertionOrder(t *testing.T) {
 		{Val: 0.1, Index: 0},
 		{Val: 1.1, Index: 1},
 		{Val: 2.1, Index: 2},
+	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestFlushOrderedWhenRandomInsertionOrderAndTakeNaNs(t *testing.T) {
+	maxHeap := NewFloatHeap(true, 3)
+	maxHeap.Push(math.NaN(), 4)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
+
+	actualMax := maxHeap.OrderedFlush()
+
+	equalPairs(t, []ValueIndexPair{
+		{Val: 3.1, Index: 3},
+		{Val: 1.1, Index: 1},
+		{Val: math.NaN(), Index: 4},
+	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
+
+	minHeap := NewFloatHeap(false, 3)
+	minHeap.Push(math.NaN(), 4)
+	minHeap.Push(0.1, 0)
+	minHeap.Push(2.1, 2)
+	minHeap.Push(math.NaN(), 5)
+
+	actualMin := minHeap.OrderedFlush()
+
+	equalPairs(t, []ValueIndexPair{
+		{Val: 0.1, Index: 0},
+		{Val: 2.1, Index: 2},
+		{Val: math.NaN(), Index: 4},
 	}, actualMin)
 	assert.Equal(t, 0, minHeap.Len())
 }

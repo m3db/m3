@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestAscSort(t *testing.T) {
 	expected := []float64{ 0.1, 4.1, 5.0, 8.6, math.NaN() }
 
 	sort.Slice(actual, func(i, j int) bool {
-		return asc(actual[i], actual[j])
+		return utils.AscFloat64(actual[i], actual[j])
 	})
 
 	test.EqualsWithNans(t, expected, actual)
@@ -31,7 +32,7 @@ func TestDescSort(t *testing.T) {
 	expected := []float64{ 8.6, 5.0, 4.1, 0.1, math.NaN() }
 
 	sort.Slice(actual, func(i, j int) bool {
-		return desc(actual[i], actual[j])
+		return utils.DescFloat64(actual[i], actual[j])
 	})
 
 	test.EqualsWithNans(t, expected, actual)
