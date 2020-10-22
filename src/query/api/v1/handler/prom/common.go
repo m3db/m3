@@ -109,12 +109,12 @@ func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 
 func respondError(w http.ResponseWriter, err error) {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, err := json.Marshal(&response{
+	b, marshalErr := json.Marshal(&response{
 		Status: statusError,
 		Error:  err.Error(),
 	})
-	if err != nil {
-		xhttp.WriteError(w, err)
+	if marshalErr != nil {
+		xhttp.WriteError(w, marshalErr)
 		return
 	}
 
