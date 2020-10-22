@@ -11,7 +11,7 @@ M3 supports ingesting Graphite metrics using the [Carbon plaintext protocol](htt
 
 ## Ingestion
 
-Setting up the M3 stack to ingest carbon metrics is straightforward. First, make sure you've followed our [other documentation](/docs/how_to/single_node) to get m3coordinator and M3DB setup. Also, familiarize yourself with how M3 [handles aggregation](/docs/how_to/query).
+Setting up the M3 stack to ingest carbon metrics is straightforward. First, make sure you've followed our [other documentation](/docs/quickstart) to get m3coordinator and M3DB setup. Also, familiarize yourself with how M3 [handles aggregation](/docs/how_to/query).
 
 Once you have both of those services running properly, modify your m3coordinator configuration to add the following lines and restart it:
 

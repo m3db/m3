@@ -10,7 +10,7 @@ weight: 1
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 
 {{% notice warning %}}
-Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode, with a separate M3Coordinator [read the clustered mode guide](/docs/how_to/cluster_hard_way.md).
+Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode, with a separate M3Coordinator [read the clustered mode guide](/docs/how_to/cluster_hard_way).
 {{% /notice %}}
 
 ## Prerequisites
@@ -94,7 +94,7 @@ This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that crea
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration.md) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
+The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
 
 In another terminal, use the following command.
 
