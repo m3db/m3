@@ -10,7 +10,7 @@ weight: 1
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 
 {{% notice warning %}}
-Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode, with a separate M3Coordinator [read the clustered mode guide](cluster_hard_way.md).
+Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode, with a separate M3Coordinator [read the clustered mode guide](/docs/how_to/cluster_hard_way.md).
 {{% /notice %}}
 
 ## Prerequisites
@@ -68,7 +68,7 @@ The file groups configuration into `coordinator` or `db` sections that represent
 <!-- TODO: Replicate relevant sections -->
 
 {{% notice tip %}}
-You can find more information on configuring M3DB in the [operational guides section](/operational_guide/).
+You can find more information on configuring M3DB in the [operational guides section](/docs/operational_guide/).
 {{% /notice %}}
 
 ## Organizing Data with Placements and Namespaces
@@ -92,19 +92,19 @@ For example, if the cluster placement states that node A owns shards 1, 2, and 3
 
 This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
-You can create [placements](/operational_guide/placement_configuration/) and [namespaces](/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/operational_guide/namespace_configuration.md) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
+The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration.md) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
 
 In another terminal, use the following command.
 
 {{< tabs name="create_placement_namespace" >}}
 {{% tab name="Command" %}}
 
-{{% codeinclude file="includes/quickstart/create-database.sh" language="shell" %}}
+{{% codeinclude file="quickstart/create-database.sh" language="shell" %}}
 
 {{% notice tip %}}
-The Docker command used above creates a Docker [persistent volume](https://docs.docker.com/storage/volumes/) to keep the data M3 creates on your host file system between container restarts. If have already followed this tutorial, the namespace already exists. You can clear the data by deleting the contents of the _m3db_data_ folder, or deleting the namespace with [the DELETE endpoint](operational_guide/namespace_configuration/#deleting-a-namespace).
+The Docker command used above creates a Docker [persistent volume](https://docs.docker.com/storage/volumes/) to keep the data M3 creates on your host file system between container restarts. If have already followed this tutorial, the namespace already exists. You can clear the data by deleting the contents of the _m3db_data_ folder, or deleting the namespace with [the DELETE endpoint](/docs/operational_guide/namespace_configuration/#deleting-a-namespace).
 {{% /notice %}}
 
 {{% /tab %}}
@@ -264,7 +264,7 @@ curl {{% apiendpoint %}}placement | jq .
 {{< /tabs >}}
 
 {{% notice tip %}}
-[Read more about the bootstrapping process](/operational_guide/bootstrapping_crash_recovery/).
+[Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
 ### View Details of a Namespace
@@ -331,7 +331,7 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
 For this quickstart, use the _{{% apiendpoint %}}json/write_ endpoint to write a tagged metric to M3DB with the following data in the request body, all fields are required:
@@ -351,17 +351,17 @@ Label names may contain ASCII letters, numbers, underscores, and Unicode charact
 {{< tabs name="write_metrics" >}}
 {{< tab name="Command 1" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-1.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-1.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< tab name="Command 2" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-2.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-2.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< tab name="Command 3" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-3.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-3.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< /tabs >}}
