@@ -168,8 +168,7 @@ func withPanicErrorResponderFunc(
 				logger.Error("panic captured", zap.Any("stack", err))
 
 				if !writeCheckWriter.Written() {
-					xhttp.Error(w, fmt.Errorf("caught panic: %v", err),
-						http.StatusInternalServerError)
+					xhttp.WriteError(w, fmt.Errorf("caught panic: %v", err))
 					return
 				}
 

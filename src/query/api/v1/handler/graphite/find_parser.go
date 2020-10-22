@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // parseFindParamsToQueries parses an incoming request to two find queries,
@@ -55,12 +55,12 @@ func parseFindParamsToQueries(r *http.Request) (
 	_terminatedQuery *storage.CompleteTagsQuery,
 	_childQuery *storage.CompleteTagsQuery,
 	_rawQueryString string,
-	_err *xhttp.ParseError,
+	_err error,
 ) {
 	query := r.FormValue("query")
 	if query == "" {
 		return nil, nil, "",
-			xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(errors.ErrNoQueryFound)
 	}
 
 	now := time.Now()
@@ -81,8 +81,7 @@ func parseFindParamsToQueries(r *http.Request) (
 
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'from': %s", fromString),
-				http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'from': %s", fromString))
 	}
 
 	until, err := graphite.ParseTime(
@@ -93,24 +92,21 @@ func parseFindParamsToQueries(r *http.Request) (
 
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'until': %s", untilString),
-				http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
 	}
 
 	matchers, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, nil, "",
-			xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
-				http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
 	}
 
 	// NB: Filter will always be the second last term in the matchers, and the
 	// matchers should always have a length of at least 2 (term + terminator)
 	// so this is a sanity check and unexpected in actual execution.
 	if len(matchers) < 2 {
-		return nil, nil, "", xhttp.NewParseError(fmt.Errorf("unable to parse "+
-			"'query': %s", query),
-			http.StatusBadRequest)
+		return nil, nil, "",
+			xerrors.NewInvalidParamsError(fmt.Errorf("unable to parse 'query': %s", query))
 	}
 
 	filter := [][]byte{matchers[len(matchers)-2].Name}
