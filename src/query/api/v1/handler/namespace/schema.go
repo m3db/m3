@@ -200,7 +200,8 @@ func (h *SchemaResetHandler) Reset(
 ) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
 	if !opts.Force {
-		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
+		err := fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
+		return &emptyRep, xerrors.NewInvalidParamsError(err)
 	}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())

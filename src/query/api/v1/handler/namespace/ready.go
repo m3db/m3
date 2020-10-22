@@ -176,8 +176,9 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 
 func (h *ReadyHandler) checkDBNodes(namespace string) error {
 	if h.clusters == nil {
-		return fmt.Errorf("coordinator is not connected to dbnodes. cannot check namespace %v"+
+		err := fmt.Errorf("coordinator is not connected to dbnodes. cannot check namespace %v"+
 			" for readiness. set force = true to make namespaces ready without checking dbnodes", namespace)
+		return xerrors.NewInvalidParamsError(err)
 	}
 
 	var (
@@ -192,7 +193,8 @@ func (h *ReadyHandler) checkDBNodes(namespace string) error {
 		}
 	}
 	if session == nil {
-		return fmt.Errorf("could not find db session for namespace %v", namespace)
+		err := fmt.Errorf("could not find db session for namespace: %v", namespace)
+		return xerrors.NewInvalidParamsError(err)
 	}
 
 	// Do a simple quorum read. A non-error indicates most dbnodes have the namespace.

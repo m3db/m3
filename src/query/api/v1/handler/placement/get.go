@@ -88,6 +88,10 @@ func (h *GetHandler) ServeHTTP(
 		xhttp.WriteError(w, err)
 		return
 	}
+	if placement == nil {
+		xhttp.WriteError(w, errPlacementDoesNotExist)
+		return
+	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
@@ -120,8 +124,8 @@ func (h *GetHandler) Get(
 		return nil, err
 	}
 
-	if vs := httpReq.FormValue("version"); vs != "" {
-		version, err := strconv.Atoi(vs)
+	if httpReq != nil && httpReq.FormValue("version") != "" {
+		version, err := strconv.Atoi(httpReq.FormValue("version"))
 		if err != nil {
 			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("could not parse version: %v", err))
 		}
@@ -130,7 +134,7 @@ func (h *GetHandler) Get(
 		if err == kv.ErrNotFound {
 			// TODO(rartoul): This should probably be handled at the service
 			// level but that would be a large refactor.
-			return nil, errPlacementDoesNotExist
+			return nil, nil
 		}
 		if err != nil {
 			return nil, err
@@ -143,7 +147,7 @@ func (h *GetHandler) Get(
 	if err == kv.ErrNotFound {
 		// TODO(rartoul): This should probably be handled at the service
 		// level but that would be a large refactor.
-		return nil, errPlacementDoesNotExist
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err

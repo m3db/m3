@@ -21,17 +21,19 @@
 package topic
 
 import (
+	"fmt"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
-	pkgerrors "github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -79,7 +81,11 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	svcLogger := logger.With(zap.String("service", name))
 	if err := service.Delete(name); err != nil {
 		svcLogger.Error("unable to delete service", zap.Error(err))
-		err := pkgerrors.WithMessagef(err, "error deleting service '%s'", name)
+		if err == kv.ErrNotFound {
+			err = xerrors.NewInvalidParamsError(err)
+		}
+		err := xerrors.NewRenamedError(err,
+			fmt.Errorf("error deleting service '%s': %v", name, err))
 		xhttp.WriteError(w, err)
 		return
 	}
