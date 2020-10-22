@@ -394,6 +394,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 	}
 
 	var (
+		filePathPrefix     = m.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 		multiErr           = xerrors.NewMultiError()
 		filesToDelete      = []string{}
 		mostRecentSnapshot = sortedSnapshotMetadatas[len(sortedSnapshotMetadatas)-1]
@@ -408,8 +409,7 @@ func (m *cleanupManager) cleanupDataSnapshotsAndCommitlogs(namespaces []database
 
 	for _, ns := range namespaces {
 		for _, s := range ns.OwnedShards() {
-			fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
-			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
+			shardSnapshots, err := m.snapshotFilesFn(filePathPrefix, ns.ID(), s.ID())
 			if err != nil {
 				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
 				continue
@@ -535,6 +535,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 	}
 
 	var (
+		filePathPrefix     = m.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 		multiErr           = xerrors.NewMultiError()
 		filesToDelete      = []string{}
 		mostRecentSnapshot = sortedSnapshotMetadatas[len(sortedSnapshotMetadatas)-1]
@@ -557,8 +558,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 			continue
 		}
 		// Get index snapshot files and cross-ref block states.
-		fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
-		snapshots, err := m.indexSnapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID())
+		snapshots, err := m.indexSnapshotFilesFn(filePathPrefix, ns.ID())
 		for _, snapshot := range snapshots {
 			_, snapshotID, err := snapshot.SnapshotTimeAndID()
 			if err != nil {
@@ -576,7 +576,7 @@ func (m *cleanupManager) cleanupIndexSnapshots(namespaces []databaseNamespace) e
 			}
 
 			// We either remove up to the loaded snapshot version or everything but the most recent snapshot.
-			if blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]; ok && blockState.SnapshotVersionLoaded != defaultSnapshotVersion {
+			if blockState, ok := blockStates.Snapshot[xtime.ToUnixNano(snapshot.ID.BlockStart)]; ok && blockState.SnapshotVersionLoaded != snapshotVersionUnset {
 				if snapshot.ID.VolumeIndex < blockState.SnapshotVersionLoaded {
 					m.metrics.deletedSnapshotFile.Inc(1)
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)

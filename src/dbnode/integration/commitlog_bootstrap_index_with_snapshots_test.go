@@ -133,13 +133,43 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 	// For now jut write out all of the series into the snapshots and confirm that we can
 	// bootstrap successfully from index snapshots.
 	// For now, we cover the entire index block w/ the snapshot.
-	writeIndexSnapshotsWithPredicate(
-		t, setup, seriesMaps, ns1, generate.WriteAllPredicate, indexBlockSize)
-	writeSnapshotsWithPredicate(
-		t, setup, seriesMaps, 0, ns1, generate.WriteAllPredicate, blockSize)
-	writeIndexSnapshotsWithPredicate(t, setup, seriesMaps, ns2, generate.WriteAllPredicate, indexBlockSize)
-	writeSnapshotsWithPredicate(
-		t, setup, seriesMaps, 0, ns2, generate.WriteAllPredicate, blockSize)
+	var (
+		snapshotInterval             = time.Minute
+		numDatapointsNotInSnapshots  = 0
+		numDatapointsNotInCommitLogs = 0
+		snapshotsPred                = func(dp generate.TestValue) bool {
+			blockStart := dp.Timestamp.Truncate(blockSize)
+			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
+				return true
+			}
+
+			numDatapointsNotInSnapshots++
+			return false
+		}
+		commitLogPred = func(dp generate.TestValue) bool {
+			blockStart := dp.Timestamp.Truncate(blockSize)
+			if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
+				return true
+			}
+
+			numDatapointsNotInCommitLogs++
+			return false
+		}
+	)
+	for _, ns := range []namespace.Metadata{
+		ns1,
+		ns2,
+	} {
+		writeIndexSnapshotsWithPredicate(
+			t, setup, seriesMaps, ns, snapshotsPred, indexBlockSize)
+		writeSnapshotsWithPredicate(
+			t, setup, seriesMaps, 0, ns, snapshotsPred, blockSize)
+		writeCommitLogDataWithPredicate(
+			t, setup, commitLogOpts, seriesMaps, ns, commitLogPred)
+	}
+	// Ensure we've excluded some dps from data/index snapshot and commitlog files.
+	require.True(t, numDatapointsNotInSnapshots > 0) // This num is 2x'ed but its fine.
+	require.True(t, numDatapointsNotInCommitLogs > 0)
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.

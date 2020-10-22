@@ -3,7 +3,7 @@
 The fs bootstrapper inspects both data and index info files on disk and marks requested shard time ranges
 for each as fulfilled respectively when it finds persisted data for either.
 
-The fs bootstrapper *only* bootstraps from persisted data on disk. It passes along unfulfilled
+The fs bootstrapper *only* bootstraps from persisted data (both index and TSDB) on disk. It passes along unfulfilled
 shard time ranges to the next bootstrapper (as does every bootstrapper).
 
 ## TSDB data on disk missing index data

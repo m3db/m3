@@ -229,11 +229,6 @@ func (entry *Entry) LoadBlock(
 	block block.DatabaseBlock,
 	writeType series.WriteType,
 ) error {
-	// TODO(bodu): We can remove this once we have index snapshotting as index snapshots will
-	// contained snapshotted index segments that cover snapshotted data.
-	if err := entry.maybeIndex(block.StartTime()); err != nil {
-		return err
-	}
 	return entry.Series.LoadBlock(block, writeType)
 }
 

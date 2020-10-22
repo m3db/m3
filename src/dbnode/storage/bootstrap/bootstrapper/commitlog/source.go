@@ -200,7 +200,7 @@ func (s *commitLogSource) Read(
 		fsOpts          = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix  = fsOpts.FilePathPrefix()
 		namespaceIter   = namespaces.Namespaces.Iter()
-		indexResult     = result.NewIndexBootstrapResult()
+		indexResults    = make([]result.IndexBootstrapResult, len(namespaceIter))
 	)
 	defer doneReadingData()
 
@@ -208,7 +208,7 @@ func (s *commitLogSource) Read(
 	s.log.Info("read snapshots start")
 	span.LogEvent("read_snapshots_start")
 
-	for _, elem := range namespaceIter {
+	for i, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
 
@@ -254,19 +254,15 @@ func (s *commitLogSource) Read(
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
-		fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-		indexInfoFiles := s.readIndexInfoFilesFn(fsOpts.FilePathPrefix(), ns.Metadata.ID(),
+		indexInfoFiles := s.readIndexInfoFilesFn(filePathPrefix, ns.Metadata.ID(),
 			fsOpts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
-
 		// Get latest index snapshot per block start
 		mostRecentIndexSnapshotsByBlock, err := s.mostRecentIndexSnapshotsByBlock(
 			ns.Metadata, shardTimeRanges, indexSnapshotFiles, indexInfoFiles)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
+		indexResult := result.NewIndexBootstrapResult()
 		if err := s.bootstrapIndexSnapshots(
 			ns.Metadata,
 			indexResult,
@@ -274,6 +270,7 @@ func (s *commitLogSource) Read(
 		); err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
+		indexResults[i] = indexResult
 	}
 
 	s.log.Info("read snapshots done",
@@ -293,7 +290,7 @@ func (s *commitLogSource) Read(
 	bootstrapResult := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
-	for _, elem := range namespaceIter {
+	for i, elem := range namespaceIter {
 		ns := elem.Value()
 		id := ns.Metadata.ID()
 		dataResult := result.NewDataBootstrapResult()
@@ -301,7 +298,9 @@ func (s *commitLogSource) Read(
 			shardTimeRanges := ns.DataRunOptions.ShardTimeRanges
 			dataResult = shardTimeRanges.ToUnfulfilledDataResult()
 		}
+		var indexResult result.IndexBootstrapResult
 		if ns.Metadata.Options().IndexOptions().Enabled() {
+			indexResult = indexResults[i]
 			if s.commitLogResult.shouldReturnUnfulfilled {
 				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()

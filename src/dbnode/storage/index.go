@@ -88,8 +88,8 @@ const (
 
 	defaultFlushDocsBatchSize = 8192
 
-	// Use -1 for default unset snapshot versions.
-	defaultSnapshotVersion = -1
+	// Use -1 for unset snapshot versions.
+	snapshotVersionUnset = -1
 )
 
 var (
@@ -860,12 +860,31 @@ func (i *nsIndex) Bootstrap(
 		i.state.Unlock()
 	}()
 
-	var multiErr xerrors.MultiError
+	var (
+		multiErr  xerrors.MultiError
+		fsOpts    = i.opts.CommitLogOptions().FilesystemOptions()
+		infoFiles = i.readIndexInfoFilesFn(
+			fsOpts.FilePathPrefix(),
+			i.nsMetadata.ID(),
+			fsOpts.InfoReaderBufferSize(),
+			persist.FileSetFlushType,
+		)
+	)
 	for blockStart, blockResults := range bootstrapResults {
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
+		}
+		// NB(bodu): For warm snapshots, we need to make sure that we haven't already successfully warm
+		// flushed that block start. We can run into this case when the node crashes between a successful warm
+		// flush and the next index snapshot.
+		if _, ok := blockResults.GetBlock(idxpersist.SnapshotWarmIndexVolumeType); ok {
+			if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, blockStart.ToTime()) {
+				// If we have warm snapshots and the block has been warm flushed already,
+				// we just discard the warm snapshot data.
+				blockResults.DeleteBlock(idxpersist.SnapshotWarmIndexVolumeType)
+			}
 		}
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
@@ -1025,7 +1044,7 @@ func (i *nsIndex) WarmFlush(
 		}
 
 		// NB(bodu): We should reset any snapshot loaded version to default after a successful warm flush.
-		i.setSnapshotStateVersionLoaded(block.StartTime(), defaultSnapshotVersion)
+		i.setSnapshotStateVersionLoaded(block.StartTime(), snapshotVersionUnset)
 		// Track successfully warm flushed block starts.
 		blockStarts = append(blockStarts, block.StartTime())
 	}
@@ -1055,7 +1074,7 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 		for _, block := range flushable {
 			multiErr = multiErr.Add(block.EvictColdMutableSegments())
 			// NB(bodu): We should reset any snapshot loaded version to default after a successful cold flush.
-			i.setSnapshotStateVersionLoaded(block.StartTime(), defaultSnapshotVersion)
+			i.setSnapshotStateVersionLoaded(block.StartTime(), snapshotVersionUnset)
 		}
 		return multiErr.FinalError()
 	}, nil
@@ -2030,7 +2049,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 	}
 
 	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
-	// We need to seal cold blocks write away for cold writes.
+	// We need to seal cold blocks right away for cold writes.
 	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
 		if err := block.Seal(); err != nil {
 			return nil, err
@@ -2275,8 +2294,8 @@ func (i *nsIndex) ensureSnapshotStateWithLock(blockStart time.Time) index.BlockS
 	state, ok := i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		state = index.BlockState{
-			// Default unset values for snapshot version is -1.
-			SnapshotVersionLoaded: defaultSnapshotVersion,
+			// Unset values for snapshot version is -1.
+			SnapshotVersionLoaded: snapshotVersionUnset,
 		}
 		i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	}

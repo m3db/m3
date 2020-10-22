@@ -795,6 +795,8 @@ type NamespaceIndex interface {
 		infoFiles []fs.ReadIndexInfoFileResult,
 	) error
 
+	// BlockStatesSnapshot returns per index block state. Currently, the per
+	// block state only captures the loaded index snaphot version (if any).
 	BlockStatesSnapshot() index.BlockStateSnapshot
 
 	// Close will release the index resources and close the index.

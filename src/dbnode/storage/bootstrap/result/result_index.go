@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	// Volume index defaults to -1 or unset.
-	defaultVolumeIndex = -1
+	// Volume index of -1 means unset.
+	volumeIndexUnset = -1
 )
 
 // NewDefaultDocumentsBuilderAllocator returns a default mutable segment
@@ -265,7 +265,7 @@ func NewIndexBlock(
 	return IndexBlock{
 		segments:    segments,
 		fulfilled:   fulfilled,
-		volumeIndex: defaultVolumeIndex,
+		volumeIndex: volumeIndexUnset,
 	}
 }
 

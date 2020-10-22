@@ -192,13 +192,14 @@ type IndexSnapshotFn func(fst.SegmentData) error
 // immutable Segment.
 type IndexCloser func() ([]segment.Segment, error)
 
-// PreparedIndexFlushPersist is an object that wraps holds a persist function and a closer.
+// PreparedIndexFlushPersist is an object that wraps holds a index data persist function and a closer.
 type PreparedIndexFlushPersist struct {
 	Persist IndexFlushFn
 	Close   IndexCloser
 }
 
-// PreparedIndexSnapshotPersist is an object that wraps holds a persist function and a closer.
+// PreparedIndexSnapshotPersist is an object that wraps holds a index snapshot
+// persist function and a closer.
 type PreparedIndexSnapshotPersist struct {
 	Persist     IndexSnapshotFn
 	Close       IndexCloser
