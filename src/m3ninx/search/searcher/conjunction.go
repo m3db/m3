@@ -21,6 +21,8 @@
 package searcher
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -44,45 +46,38 @@ func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searc
 	}, nil
 }
 
-func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
+	var (
+		intersects = make([]postings.List, 0, len(s.searchers))
+		negations  = make([]postings.List, 0, len(s.negations))
+	)
 	for _, sr := range s.searchers {
-		curr, err := sr.Search(r)
+		pl, _, err := sr.Search(r)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-
-		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
 		if pl == nil {
-			pl = curr.Clone()
-		} else {
-			if err := pl.Intersect(curr); err != nil {
-				return nil, err
-			}
+			return nil, nil, fmt.Errorf("conjunction searchers must resolve postings lists")
 		}
 
-		// We can break early if the interescted postings list is ever empty.
-		if pl.IsEmpty() {
-			break
-		}
+		intersects = append(intersects, pl)
 	}
 
 	for _, sr := range s.negations {
-		curr, err := sr.Search(r)
+		pl, _, err := sr.Search(r)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if pl == nil {
+			return nil, nil, fmt.Errorf("conjunction searchers must resolve postings lists")
 		}
 
-		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		if err := pl.Difference(curr); err != nil {
-			return nil, err
-		}
-
-		// We can break early if the interescted postings list is ever empty.
-		if pl.IsEmpty() {
-			break
-		}
+		negations = append(negations, pl)
 	}
 
-	return pl, nil
+	iter, err := newIntersectAndNegatePostingsListIter(intersects, negations)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, iter, nil
 }

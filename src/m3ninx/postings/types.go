@@ -52,9 +52,6 @@ type List interface {
 	// calculating the size of the postings list.
 	IsEmpty() bool
 
-	// Max returns the maximum ID in the postings list or an error if it is empty.
-	Max() (ID, error)
-
 	// Len returns the numbers of IDs in the postings list.
 	Len() int
 

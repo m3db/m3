@@ -179,14 +179,6 @@ func (d *postingsList) IsEmpty() bool {
 	return d.bitmap.Count() == 0
 }
 
-func (d *postingsList) Max() (postings.ID, error) {
-	if d.IsEmpty() {
-		return 0, postings.ErrEmptyList
-	}
-	max := d.bitmap.Max()
-	return postings.ID(max), nil
-}
-
 func (d *postingsList) Len() int {
 	return int(d.bitmap.Count())
 }

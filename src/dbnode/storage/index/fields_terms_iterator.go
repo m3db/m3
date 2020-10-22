@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -122,9 +123,21 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 		return err
 	}
 
-	pl, err := searcher.Search(fti.reader)
+	pl, iter, err := searcher.Search(fti.reader)
 	if err != nil {
 		return err
+	}
+
+	if pl == nil && iter != nil {
+		// Turn iterator into a postings list.
+		mutable := roaring.NewPostingsList()
+		if err := mutable.AddIterator(iter); err != nil {
+			return err
+		}
+		pl = mutable
+	}
+	if pl == nil {
+		return fmt.Errorf("no postings list or iterator returned")
 	}
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
@@ -213,7 +226,7 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 			return false, errUnpackBitmapFromPostingsList
 		}
 
-		// Check term isn part of at least some of the documents we're
+		// Check term isn't part of at least some of the documents we're
 		// restricted to providing results for based on intersection
 		// count.
 		// Note: IntersectionCount is significantly faster than intersecting and

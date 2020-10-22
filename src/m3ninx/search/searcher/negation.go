@@ -38,17 +38,17 @@ func NewNegationSearcher(s search.Searcher) (search.Searcher, error) {
 	}, nil
 }
 
-func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
+func (s *negationSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
 	pl, err := r.MatchAll()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	sPl, err := s.searcher.Search(r)
+	sPl, _, err := s.searcher.Search(r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pl.Difference(sPl)
-	return pl, nil
+	return pl, nil, nil
 }

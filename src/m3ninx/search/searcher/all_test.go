@@ -39,7 +39,7 @@ func TestAllSearcher(t *testing.T) {
 	allPl := roaring.NewPostingsList()
 	reader.EXPECT().MatchAll().Return(allPl, nil)
 
-	pl, err := s.Search(reader)
+	pl, _, err := s.Search(reader)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(allPl))
 }

@@ -24,8 +24,11 @@ import (
 	"fmt"
 	re "regexp"
 	"regexp/syntax"
+	"sync"
 
 	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
+
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 var (
@@ -42,6 +45,53 @@ func init() {
 	dotStarCompiledRegex = re
 }
 
+var (
+	// cache for regexes, as per Go std lib:
+	// A Regexp is safe for concurrent use by multiple goroutines, except for
+	// configuration methods, such as Longest.
+	// The vellum Regexp is also safe for concurrent use as it is query for
+	// states but does not mutate internal state.
+	cacheLock sync.RWMutex
+	cache     *simplelru.LRU
+	cacheSize int
+)
+
+// RegexpCacheSize returns the regex cache size.
+func RegexpCacheSize() int {
+	cacheLock.RLock()
+	n := cacheSize
+	cacheLock.RUnlock()
+	return n
+}
+
+// SetRegexpCacheSize sets the regex cache size, if zero disables cache.
+func SetRegexpCacheSize(size int) error {
+	cacheLock.Lock()
+	defer cacheLock.Unlock()
+
+	if size < 0 {
+		return fmt.Errorf("expected zero or greater size: actual=%d", size)
+	}
+
+	if size == 0 {
+		cache = nil
+		return nil
+	}
+
+	if cache != nil {
+		cache.Resize(size)
+		return nil
+	}
+
+	v, err := simplelru.NewLRU(size, nil)
+	if err != nil {
+		return err
+	}
+
+	cache = v
+	return nil
+}
+
 // DotStarCompiledRegex returns a regexp which matches ".*".
 func DotStarCompiledRegex() CompiledRegex {
 	return dotStarCompiledRegex
@@ -54,8 +104,29 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	// Due to peculiarities in the implementation of Vellum, we have to make certain modifications
 	// to all incoming regular expressions to ensure compatibility between them.
 
-	// first, we parse the regular expression into the equivalent regex
 	reString := string(r)
+
+	// Check cache first.
+	var (
+		cachedValue       CompiledRegex
+		cachedValueExists bool
+		cacheEnabled      bool
+	)
+	cacheLock.RLock()
+	cacheEnabled = cache != nil
+	if cacheEnabled {
+		var cached interface{}
+		cached, cachedValueExists = cache.Get(reString)
+		if cachedValueExists {
+			cachedValue = cached.(CompiledRegex)
+		}
+	}
+	cacheLock.RUnlock()
+	if cachedValueExists {
+		return cachedValue, nil
+	}
+
+	// first, we parse the regular expression into the equivalent regex
 	reAst, err := parseRegexp(reString)
 	if err != nil {
 		return CompiledRegex{}, err
@@ -93,6 +164,14 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	compiledRegex.FST = fstRE
 	compiledRegex.PrefixBegin = start
 	compiledRegex.PrefixEnd = end
+
+	// Update cache if cache existed when we checked.
+	if cacheEnabled {
+		cacheLock.Lock()
+		// Check still enabled and if so update it.
+		cache.Add(reString, compiledRegex)
+		cacheLock.Unlock()
+	}
 
 	return compiledRegex, nil
 }

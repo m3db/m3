@@ -38,6 +38,6 @@ func NewEmptySearcher() search.Searcher {
 	}
 }
 
-func (s *emptySearcher) Search(r index.Reader) (postings.List, error) {
-	return s.postings, nil
+func (s *emptySearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
+	return s.postings, nil, nil
 }

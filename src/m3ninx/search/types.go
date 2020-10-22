@@ -56,7 +56,7 @@ type Query interface {
 // of the documents it matches for the given segment.
 type Searcher interface {
 	// Search executes a configured query against the given Reader.
-	Search(index.Reader) (postings.List, error)
+	Search(index.Reader) (postings.List, postings.Iterator, error)
 }
 
 // Searchers is a slice of Searcher.
