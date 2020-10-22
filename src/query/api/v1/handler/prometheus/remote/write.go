@@ -188,6 +188,7 @@ type promWriteMetrics struct {
 	writeErrorsClient        tally.Counter
 	writeBatchLatency        tally.Histogram
 	writeBatchLatencyBuckets tally.DurationBuckets
+	processingLatency        tally.Timer
 	ingestLatency            tally.Histogram
 	ingestLatencyBuckets     tally.DurationBuckets
 	forwardSuccess           tally.Counter
@@ -248,6 +249,7 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
 		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", writeLatencyBuckets),
 		writeBatchLatencyBuckets: writeLatencyBuckets,
+		processingLatency:        scope.SubScope("processing").Timer("latency"),
 		ingestLatency:            scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
 		ingestLatencyBuckets:     ingestLatencyBuckets,
 		forwardSuccess:           scope.SubScope("forward").Counter("success"),
@@ -258,6 +260,7 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	processingTime := h.metrics.processingLatency.Start()
 	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
 	defer batchRequestStopwatch.Stop()
 
@@ -318,6 +321,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	batchErr := h.write(r.Context(), req, opts)
+	processingTime.Stop()
 
 	// Record ingestion delay latency
 	now := h.nowFn()
