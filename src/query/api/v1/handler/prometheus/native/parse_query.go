@@ -194,7 +194,7 @@ func (h *promParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.instrumentOpts.Logger()
 	root, err := parseRootNode(r, h.engine, logger)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
