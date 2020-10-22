@@ -105,7 +105,7 @@ func drainAndCheckBatches(
 				id.Finalize()
 			}
 
-			batch.Done()
+			batch.Processed()
 			withinIndex := i < len(expected)
 			assert.True(t, withinIndex)
 			if withinIndex {

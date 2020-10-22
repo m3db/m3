@@ -78,6 +78,14 @@ type Options interface {
 	// persistence enabled.
 	ShardPersistenceFlushConcurrency() int
 
+	// SetIndexSegmentConcurrency sets the concurrency for
+	// building index segments.
+	SetIndexSegmentConcurrency(value int) Options
+
+	// IndexSegmentConcurrency returns the concurrency for
+	// building index segments.
+	IndexSegmentConcurrency() int
+
 	// SetPersistenceMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.

@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/instrument"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xjson "github.com/m3db/m3/src/x/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -68,7 +68,7 @@ func defaultParams() url.Values {
 	return vals
 }
 
-func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError) {
+func testParseParams(req *http.Request) (models.RequestParams, error) {
 	fetchOpts, err := handleroptions.
 		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}).
 		NewFetchOptions(req)
@@ -76,8 +76,7 @@ func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError
 		return models.RequestParams{}, err
 	}
 
-	return parseParams(req, executor.NewEngineOptions(), timeoutOpts,
-		fetchOpts, instrument.NewOptions())
+	return parseParams(req, executor.NewEngineOptions(), timeoutOpts, fetchOpts)
 }
 
 func TestParamParsing(t *testing.T) {
@@ -108,7 +107,7 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	req.URL.RawQuery = params.Encode()
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
-		timeoutOpts, storage.NewFetchOptions(), instrument.NewOptions())
+		timeoutOpts, storage.NewFetchOptions())
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
@@ -120,7 +119,7 @@ func TestInvalidStart(t *testing.T) {
 	req.URL.RawQuery = vals.Encode()
 	_, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
-	require.Equal(t, err.Code(), http.StatusBadRequest)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestInvalidTarget(t *testing.T) {
@@ -132,33 +131,47 @@ func TestInvalidTarget(t *testing.T) {
 	p, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
-	require.Equal(t, err.Code(), http.StatusBadRequest)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestParseBlockType(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
+	for _, test := range []struct {
+		input    string
+		expected models.FetchedBlockType
+		err      bool
+	}{
+		{
+			input:    "0",
+			expected: models.TypeSingleBlock,
+		},
+		{
+			input: "1",
+			err:   true,
+		},
+		{
+			input: "2",
+			err:   true,
+		},
+		{
+			input: "foo",
+			err:   true,
+		},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			req := httptest.NewRequest("GET", PromReadURL, nil)
+			p := defaultParams()
+			p.Set("block-type", test.input)
+			req.URL.RawQuery = p.Encode()
 
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
+			r, err := testParseParams(req)
+			if !test.err {
+				require.NoError(t, err, "should be no block error")
+				require.Equal(t, test.expected, r.BlockType)
+			} else {
+				require.Error(t, err, "should be block error")
+			}
+		})
+	}
 }
 
 func TestRenderResultsJSON(t *testing.T) {
@@ -422,7 +435,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{foo, nan, bar},
+			"result":     xjson.Array{foo, nan, bar},
 		},
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -434,7 +447,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{foo, bar},
+			"result":     xjson.Array{foo, bar},
 		},
 	})
 	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -488,7 +501,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{nan1, nan2},
+			"result":     xjson.Array{nan1, nan2},
 		},
 	})
 	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
@@ -500,7 +513,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 		"status": "success",
 		"data": xjson.Map{
 			"resultType": "vector",
-			"result": xjson.Array{},
+			"result":     xjson.Array{},
 		},
 	})
 	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())

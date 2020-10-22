@@ -393,7 +393,7 @@ func (h *Handler) registerRoutesEndpoint() {
 				return nil
 			})
 		if err != nil {
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 		json.NewEncoder(w).Encode(struct {

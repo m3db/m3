@@ -284,12 +284,12 @@ func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 	points, err := imodels.ParsePoints(bytes)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 	opts := ingest.WriteOptions{}
@@ -350,5 +350,5 @@ func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
 			resultErr, sep, numBadRequest, lastBadRequestErr)
 	}
-	xhttp.Error(w, errors.New(resultErr), status)
+	xhttp.WriteError(w, xhttp.NewError(errors.New(resultErr), status))
 }

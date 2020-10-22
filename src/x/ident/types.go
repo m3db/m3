@@ -314,25 +314,23 @@ func (t Tags) Equal(other Tags) bool {
 
 // IDBatch is a batch of IDs that is consumed asynchronously.
 type IDBatch struct {
-	sync.WaitGroup
+	wg sync.WaitGroup
+
 	// IDs are the IDs for the batch.
 	IDs []ID
 }
 
-// IndexChecksum represents an index checksums within a series block.
-type IndexChecksum struct {
-	// Checksum is the index checksum.
-	Checksum int64
-	// ID is an optional ID for this series, set only when explicitly requested.
-	ID []byte
+// ReadyForProcessing indicates this batch is ready for processing.
+func (b *IDBatch) ReadyForProcessing() {
+	b.wg.Add(1)
 }
 
-// IndexChecksumBlockBatch represents a batch of index checksums originating
-// from a single series block.
-type IndexChecksumBlockBatch struct {
-	// Checksums is the list of index checksums.
-	Checksums []int64
-	// EndMarker is a batch marker, signifying the ID of the
-	// last element in the batch.
-	EndMarker []byte
+// WaitUntilProcessed waits until the batch has been processed.
+func (b *IDBatch) WaitUntilProcessed() {
+	b.wg.Wait()
+}
+
+// Processed indicates that this batch has finished processing.
+func (b *IDBatch) Processed() {
+	b.wg.Done()
 }

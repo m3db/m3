@@ -21,33 +21,35 @@
 package wide
 
 import (
-	"github.com/m3db/m3/src/x/ident"
-
-	"go.uber.org/atomic"
+	"sync"
 )
 
 type indexChecksumBlockReader struct {
-	closed       *atomic.Bool
-	currentBlock ident.IndexChecksumBlockBatch
-	blocks       chan ident.IndexChecksumBlockBatch
+	mu     sync.Mutex
+	closed bool
+
+	currentBlock IndexChecksumBlockBatch
+	blocks       chan IndexChecksumBlockBatch
 }
 
 // NewIndexChecksumBlockBatchReader creates a new IndexChecksumBlockBatchReader.
 func NewIndexChecksumBlockBatchReader(
-	blockInput chan ident.IndexChecksumBlockBatch,
+	blockInput chan IndexChecksumBlockBatch,
 ) IndexChecksumBlockBatchReader {
 	return &indexChecksumBlockReader{
-		closed: atomic.NewBool(false),
 		blocks: blockInput,
 	}
 }
 
-func (b *indexChecksumBlockReader) Current() ident.IndexChecksumBlockBatch {
+func (b *indexChecksumBlockReader) Current() IndexChecksumBlockBatch {
 	return b.currentBlock
 }
 
 func (b *indexChecksumBlockReader) Next() bool {
-	if b.closed.Load() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.closed {
 		return false
 	}
 
@@ -56,6 +58,22 @@ func (b *indexChecksumBlockReader) Next() bool {
 		return true
 	}
 
-	b.closed.Store(true)
+	b.closed = true
 	return false
+}
+
+func (b *indexChecksumBlockReader) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.closed {
+		return
+	}
+
+	// NB: drain block channel.
+	for range b.blocks {
+	}
+
+	b.closed = true
+	return
 }
