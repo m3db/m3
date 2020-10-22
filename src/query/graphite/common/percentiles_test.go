@@ -57,19 +57,19 @@ func TestGetPercentile(t *testing.T) {
 			true,
 			50,
 			[]float64{1, 2, 3, 4, 5},
-			2.5,
+			3,
 		},
 		{
 			false,
 			50,
 			[]float64{1, 2, 3, 4, 5, 6},
-			3,
+			4,
 		},
 		{
 			true,
 			50,
 			[]float64{1, 2, 3, 4, 5, 6},
-			3,
+			3.5,
 		},
 		{
 			false,
@@ -87,19 +87,19 @@ func TestGetPercentile(t *testing.T) {
 			false,
 			50,
 			[]float64{1, 2},
-			1,
+			2,
 		},
 		{
 			true,
 			30,
 			[]float64{32, 34, 62, 73, 75},
-			33,
+			33.6,
 		},
 		{
 			true,
 			33,
 			[]float64{32, 34, 73, 75},
-			32.64,
+			33.3,
 		},
 	}
 
