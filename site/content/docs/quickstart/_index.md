@@ -501,9 +501,9 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 {{% /tab %}}
 {{< /tabs >}}
 
-## Next Steps
+<!-- ## Next Steps
 
 This quickstart covered getting a single-node M3DB cluster running, and writing and querying metrics to the cluster. Some next steps are:
 
 -   one
--   two
+-   two -->
