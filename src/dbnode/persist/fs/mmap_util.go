@@ -85,7 +85,7 @@ func validateAndMmapFile(
 
 	if calculatedDigest := digest.Checksum(mmapDescriptor.Bytes); calculatedDigest != expectedDigest {
 		mmap.Munmap(mmapDescriptor)
-		return mmap.Descriptor{}, fmt.Errorf("expected file %s digest was: %d, but got: %d",
+		return mmap.Descriptor{}, fmt.Errorf("expected %s file digest was: %d, but got: %d",
 			fd.Name(), expectedDigest, calculatedDigest)
 	}
 
