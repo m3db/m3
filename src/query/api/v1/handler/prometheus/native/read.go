@@ -157,7 +157,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
-		KeepNaNs: keepNans,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
 	})
 
 	if err != nil {
