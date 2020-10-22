@@ -1486,16 +1486,15 @@ func (i *nsIndex) query(
 			i.metrics.queryNonExhaustiveLimitError.Inc(1)
 		}
 
-		err := fmt.Errorf(
+		// NB(r): Make sure error is not retried and returns as bad request.
+		return exhaustive, xerrors.NewInvalidParamsError(fmt.Errorf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
 			seriesCount,
 			opts.DocsLimit,
 			docsCount,
-		)
-		// NB(r): Make sure error is not retried and returns as bad request.
-		return exhaustive, xerrors.NewInvalidParamsError(err)
+		))
 	}
 
 	// Otherwise non-exhaustive but not required to be.

@@ -83,21 +83,21 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	handleroptions.AddWarningHeaders(w, result.Metadata)
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 }

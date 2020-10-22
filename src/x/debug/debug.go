@@ -185,12 +185,11 @@ func (i *zipWriter) HTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := bytes.NewBuffer([]byte{})
 		if err := i.WriteZip(buf, r); err != nil {
-			xhttp.Error(w, fmt.Errorf("unable to write ZIP file: %s", err), http.StatusInternalServerError)
+			xhttp.WriteError(w, fmt.Errorf("unable to write ZIP file: %s", err))
 			return
 		}
 		if _, err := io.Copy(w, buf); err != nil {
 			i.logger.Error("unable to write ZIP response", zap.Error(err))
-			return
 		}
 	})
 }

@@ -79,13 +79,13 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	queries, err := prometheus.ParseSeriesMatchQuery(r, h.parseOpts, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		result, err := h.storage.SearchSeries(ctx, query, opts)
 		if err != nil {
 			logger.Error("unable to get matched series", zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, err)
 			return
 		}
 
@@ -107,7 +107,5 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	// TODO: Support multiple result types
 	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
 		logger.Error("unable to write matched series", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
 	}
 }
