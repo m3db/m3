@@ -90,7 +90,8 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		Without:      expr.Without,
 	}
 
-	switch op := getAggOpType(opType); op {
+	op := getAggOpType(opType)
+	switch op {
 	case common.UnknownOpType:
 		return nil, fmt.Errorf("operator not supported: %s", opType)
 
@@ -114,11 +115,8 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		}
 
 		nodeInformation.Parameter = val
-		return aggregation.NewAggregationOp(op, nodeInformation)
-
-	default:
-		return aggregation.NewAggregationOp(op, nodeInformation)
 	}
+	return aggregation.NewAggregationOp(op, nodeInformation)
 }
 
 func getAggOpType(opType promql.ItemType) string {
