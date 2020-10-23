@@ -48,6 +48,10 @@ func bucketedQuantileFn(q float64, values []float64, bucket []int) float64 {
 		return math.NaN()
 	}
 
+	if math.IsNaN(q) {
+		return math.NaN()
+	}
+
 	if q < 0 || q > 1 {
 		// Use math.Inf(0) == +Inf by truncating q and subtracting 1 to give
 		// the correctly signed infinity

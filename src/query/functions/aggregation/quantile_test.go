@@ -117,6 +117,16 @@ func TestQuantileFnSingleNonNan(t *testing.T) {
 	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 }
 
+func TestQuantileNanArgument(t *testing.T) {
+	values := []float64{0.0, 1.0}
+	buckets := []int{0, 1}
+
+	expected := math.NaN()
+	actual := bucketedQuantileFn(math.NaN(), values, buckets)
+
+	test.EqualsWithNans(t, expected, actual)
+}
+
 func TestQuantileCreationFn(t *testing.T) {
 	n := 0.145
 	op, success := makeQuantileFn("badOp", n)
