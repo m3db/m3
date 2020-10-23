@@ -70,12 +70,11 @@ func (w *fdWithDigestWriter) Close() error {
 	if err := w.writer.Flush(); err != nil {
 		return err
 	}
-	syncErr := w.FdWithDigest.Fd().Sync()
-	closeErr := w.FdWithDigest.Close()
-	if syncErr != nil {
-		return syncErr
+	if err := w.FdWithDigest.Fd().Sync(); err != nil {
+		_ = w.FdWithDigest.Close()
+		return err
 	}
-	return closeErr
+	return w.FdWithDigest.Close()
 }
 
 // Flush flushes what's remaining in the buffered writes.

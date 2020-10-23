@@ -649,7 +649,11 @@ func writeCheckpointFile(
 	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
 		// NB(prateek): intentionally skipping fd.Close() error, as failure
 		// to write takes precedence over failure to close the file
-		fd.Close()
+		_ = fd.Close()
+		return err
+	}
+	if err := fd.Sync(); err != nil {
+		_ = fd.Close()
 		return err
 	}
 	return fd.Close()
