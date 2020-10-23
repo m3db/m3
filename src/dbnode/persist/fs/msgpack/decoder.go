@@ -38,7 +38,6 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
-	emptyIndexChecksumEntry     schema.IndexEntry
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -470,8 +469,12 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	actualChecksum := dec.readerWithDigest.digest().Sum32()
 
 	// Decode checksum field originally added in V3
-	v := dec.decodeVarint()
-	indexEntry.IndexChecksum = v
+	indexEntry.IndexChecksum = dec.decodeVarint()
+	if dec.err != nil {
+		dec.err = fmt.Errorf("decode index entry encountered error: %s", dec.err)
+		return emptyIndexEntry
+	}
+
 	if indexEntry.IndexChecksum != int64(actualChecksum) {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
