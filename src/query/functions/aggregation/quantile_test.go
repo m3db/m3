@@ -118,14 +118,42 @@ func TestQuantileFnSingleNonNan(t *testing.T) {
 }
 
 func TestQuantileNanAndEmptyArguments(t *testing.T) {
-	actual := []float64{
-		bucketedQuantileFn(0.8, []float64{}, []int{}),
-		bucketedQuantileFn(0.8, []float64{0.0, 1.0}, []int{}),
-		bucketedQuantileFn(0.8, []float64{}, []int{0, 1}),
-		bucketedQuantileFn(math.NaN(), []float64{0.0, 1.0}, []int{0, 1}),
+	tests := []struct {
+		name   string
+		q      float64
+		values []float64
+		bucket []int
+	}{
+		{
+			name:   "q = NaN",
+			q:      math.NaN(),
+			values: []float64{0.0, 1.0},
+			bucket: []int{0, 1},
+		},
+		{
+			name:   "empty values and bucket",
+			q:      0.8,
+			values: []float64{},
+			bucket: []int{},
+		},
+		{
+			name:   "empty bucket",
+			q:      0.8,
+			values: []float64{0.0, 1.0},
+			bucket: []int{},
+		},
+		{
+			name:   "empty values",
+			q:      0.8,
+			values: []float64{},
+			bucket: []int{0, 1},
+		},
 	}
-	for _, a := range actual {
-		require.True(t, math.IsNaN(a))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := bucketedQuantileFn(tt.q, tt.values, tt.bucket)
+			assert.True(t, math.IsNaN(results))
+		})
 	}
 }
 
