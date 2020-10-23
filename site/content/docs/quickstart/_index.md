@@ -10,7 +10,7 @@ weight: 1
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 
 {{% notice warning %}}
-Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode, with a separate M3Coordinator [read the clustered mode guide](/docs/how_to/cluster_hard_way).
+Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode with a separate M3Coordinator, [read the clustered mode guide](/docs/how_to/cluster_hard_way).
 {{% /notice %}}
 
 ## Prerequisites
@@ -75,7 +75,7 @@ You can find more information on configuring M3DB in the [operational guides sec
 
 A time series database (TSDBs) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
 
-As a distributed TSDB, M3DB helps solves this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3DB does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into {{< glossary_tooltip text="shards" term_id="shard" >}}.
+As a distributed TSDB, M3DB helps solve this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3DB does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into {{< glossary_tooltip text="shards" term_id="shard" >}}.
 
 <!-- TODO: Find an image -->
 
@@ -104,7 +104,7 @@ In another terminal, use the following command.
 {{% codeinclude file="quickstart/create-database.sh" language="shell" %}}
 
 {{% notice tip %}}
-The Docker command used above creates a Docker [persistent volume](https://docs.docker.com/storage/volumes/) to keep the data M3 creates on your host file system between container restarts. If have already followed this tutorial, the namespace already exists. You can clear the data by deleting the contents of the _m3db_data_ folder, or deleting the namespace with [the DELETE endpoint](/docs/operational_guide/namespace_configuration/#deleting-a-namespace).
+The Docker command used above creates a Docker [persistent volume](https://docs.docker.com/storage/volumes/) to keep the data M3 creates on your host file system between container restarts. If you have already followed this tutorial, the namespace already exists. You can clear the data by deleting the contents of the _m3db_data_ folder, or deleting the namespace with [the DELETE endpoint](/docs/operational_guide/namespace_configuration/#deleting-a-namespace).
 {{% /notice %}}
 
 {{% /tab %}}
