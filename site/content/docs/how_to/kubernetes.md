@@ -4,11 +4,11 @@ weight: 3
 ---
 
 
-**Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
-can. It is a considerably more streamlined setup.
+{{% notice tip %}}
+We recommend you use [our Kubernetes operator](https://operator.m3db.io/) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
+{{% /notice %}}
 
-The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
-(CRDs) to automatically handle operations such as managing cluster topology.
+
 
 The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
 as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisfied by
@@ -44,7 +44,7 @@ If your Kubernetes cluster spans multiple availability zones, it's important to 
 
 ### Kernel Configuration
 
-We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][/docs/operational_guide/kernel_configuration] docs
+We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
 for more.
 
 Note that our default StatefulSet spec will give the M3DB container `CAP_SYS_RESOURCE` so it may raise its file limits.
@@ -281,7 +281,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement -d '{
 
 ### Prometheus
 
-As mentioned in our integrations [guide](/docs/integrations/prometheus), M3DB can be used as a [remote read/write
+As mentioned in our integrations [guide](/integrations/prometheus), M3DB can be used as a [remote read/write
 endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E) for Prometheus.
 
 If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:

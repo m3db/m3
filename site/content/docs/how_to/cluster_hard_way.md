@@ -4,71 +4,99 @@ menuTitle: Manual Cluster Deployment
 weight: 2
 ---
 
-This document lists the manual steps involved in deploying a M3DB cluster. In practice, you'd be automating this using Terraform or using Kubernetes rather than doing this by hand; guides for doing so are available under the How-To section.
+This guide shows you the steps involved in creating an M3DB cluster using M3 binaries, typically you would automate this with infrastructure as code tools such as Terraform or Kubernetes.
 
-## Primer Architecture
+## M3 Architecture
 
-A quick primer on M3DB architecture. Here’s what a typical deployment looks like:
+Here's a typical M3 deployment:
 
-![Typical Deployment](/docs/cluster_architecture.png)
+<!-- TODO: Update image -->
 
-A few different things to highlight about the diagram:
+![Typical Deployment](/cluster_architecture.png)
 
-### Role Type
+An M3DB deployment has three role types:
 
-There are three ‘role types’ for a m3db deployment -
+<!-- TODO: These are mentioned but we don't do anything with them -->
 
--   Coordinator: `m3coordinator` serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.
--   Storage Node: `m3dbnode` processes running on these hosts are the workhorses of the database, they store data; and serve reads and writes.
--   Seed Node: First and foremost, these hosts are storage nodes themselves. In addition to that responsibility, they run an embedded ETCD server. This is to allow the various M3DB processes running across the cluster to reason about the topology/configuration of the cluster in a consistent manner.
+-   {{< glossary_tooltip text="Coordinator" term_id="m3coordinator" >}}: `m3coordinator` nodes coordinate reads and writes across all nodes in the cluster. It's a lightweight process, and does not store any data. This role typically runs alongside a Prometheus instance, or is part of a collector agent.
+-   **Storage Node**: The `m3dbnode` processes are the workhorses of M3, they store data and serve reads and writes.
 
-**Note**: In very large deployments, you’d use a dedicated ETCD cluster, and only use M3DB Storage and Coordinator Nodes
+## Prerequisites
 
-## Provisioning
+M3 uses [etcd](https://etcd.io/) as a distributed key-value storage for the following functions:
 
-Enough background, lets get you going with a real cluster! Provision your host (be it VMs from AWS/GCP/etc) or bare-metal servers in your DC with the latest and greatest flavour of Linux you favor. M3DB works on all popular distributions - Ubuntu/RHEL/CentOS, let us know if you run into issues on another platform and we’ll be happy to assist.
+-   Update cluster configuration in realtime
+-   Manage placements for distributed and sharded clusters
+-   Perform leader-election in M3Aggregator
+
+{{% notice note %}}
+M3 storage nodes also have an embedded etcd server you can use for small test clusters which we call a **Seed Node** when run this way. See the `etcdClusters` section of [this example configuration file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml).
+{{% /notice %}}
+
+## Download and Install a Binary
+
+You can download the latest release as [a pre-compiled binary from the M3 GitHub page](https://github.com/m3db/m3/releases/latest), or [clone the codebase](https://github.com/m3db/m3) and build from source using `make m3dbnode`.
+
+## Provision a Host
+
+Enough background, let's create a real cluster!
+
+M3 in production can run on local or cloud-based VMs, or bare-metal servers. M3 supports all popular Linux distributions (Ubuntu, RHEL, CentOS), and [let us know](https://github.com/m3db/m3/issues/new/choose) if you have any issues with your preferred distribution.
 
 ### Network
 
-If you’re using AWS or GCP it is highly advised to use static IPs so that if you need to replace a host, you don’t have to update your configuration files on all the hosts, you simply decomission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had.  For AWS you can use a [Elastic Network Interface](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html) on a VPC and for GCP you can simply use an [internal static IP address](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-internal-ip-address).
+{{% notice tip %}}
+If you use AWS or GCP, we recommend you use static IPs so that if you need to replace a host, you don't have to update configuration files on all the hosts, but decommission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had. If you're using AWS you can use an [Elastic Network Interface](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html) on a Virtual Private Cloud (VPC) and for GCP you can use an [internal static IP address](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-internal-ip-address).
+{{% /notice %}}
 
-In this example you will be creating three static IP addresses for the three seed nodes.
+This example creates three static IP addresses for three **storage nodes**.
 
-Further, we assume you have hostnames configured correctly too. i.e. running `hostname` on a host in the cluster returns the host ID you'll be using when specifying instance host IDs when creating the M3DB cluster placement. E.g. running `hostname` on a node `m3db001` should return it's host ID `m3db001`.
+This guide assumes you have host names configured, i.e., running `hostname` on a host in the cluster returns the host ID you use when creating the M3DB cluster placement.
 
-In GCP the name of your instance when you create it will automatically be it's hostname. When you create an instance click "Management, disks, networking, SSH keys" and under "Networking" click the default interface and click the "Primary internal IP" drop down and select "Reserve a static internal IP address" and give it a name, i.e. `m3db001`, a description that describes it's a seed node IP address and use "Assign automatically".
+<!-- TODO: Check this and also streamline, still quite horrible to parse -->
 
-In AWS it might be simpler to just use whatever the hostname you get for the provisioned VM as your host ID when specifying M3DB placement.  Either that or use the `environment` host ID resolver and pass your host ID when launching the database process with an environment variable.  You can set to the host ID and specify the environment variable name in config as `envVarName: M3DB_HOST_ID` if you are using an environment variable named `M3DB_HOST_ID`.
+When using GCP the name of your instance is the host name. When you create an instance, click _Management, disks, networking, SSH keys_, under _Networking_, click the default interface, click the _Primary internal IP_ drop down, select _Reserve a static internal IP address_, give it an appropriate name and description, and use _Assign automatically_.
 
-Relevant config snippet:
+When using AWS, you can use the host name supplied for the provisioned VM as your host ID, or use the `environment` host ID resolver and pass the host ID when launching the database process with an environment variable.
+
+For example, if you used `M3DC_HOST_ID` for the environment variable name, use the following in your configuration:
 
 ```yaml
 hostID:
-  resolver: environment
-  envVarName: M3DB_HOST_ID
+  resolver: hostname
+    - ${M3DC_HOST_ID:""}
 ```
 
-Then start your process with:
+Then start the `m3dbnode` process with:
 
 ```shell
-M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
+M3DB_HOST_ID=m3db001 m3dbnode -f <config-file.yml>
 ```
 
-### Kernel
+### Kernel Configuration
 
-Ensure you review our [recommended kernel configuration](/docs/operational_guide/kernel_configuration) before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
+Depending on the default limits of your bare-metal machine or VM, M3 may need some Kernel tweaks to run as efficiently as possible, and [we recommend you review those](/operational_guide/kernel_configuration) before running M3 in production.
 
-## Config files
+## Configuration files
 
-We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.
+You configure each M3 component by passing the location of a YAML file with the `-f` argument.
 
-**Note**: the steps that follow assume you have the following 3 seed nodes - make necessary adjustment if you have more or are using a dedicated ETCD cluster. Example seed nodes:
+{{% notice note %}}
+The steps in this guide have the following 3 seed nodes, you need to change your configuration to suit the details of yours, including the details of an etcd cluster in the `etcdClusters` section.
+{{% /notice %}}
 
 -   m3db001 (Region=us-east1, Zone=us-east1-a, Static IP=10.142.0.1)
 -   m3db002 (Region=us-east1, Zone=us-east1-b, Static IP=10.142.0.2)
 -   m3db003 (Region=us-east1, Zone=us-east1-c, Static IP=10.142.0.3)
 
-We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the [config](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml). Update the config ‘service’ and 'seedNodes' sections to read as follows:
+### M3DB node
+
+[Start with the M3DB configuration template](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml) and change it to suit your cluster. 
+
+The example below connects to an etcd instance in a zone called `eu-1`
+This example updates the `service` and `seedNodes` sections to match the node details above:
+
+<!-- TODO: Add more details on config items here -->
 
 ```yaml
 config:
@@ -83,37 +111,37 @@ config:
           - 10.142.0.1:2379
           - 10.142.0.2:2379
           - 10.142.0.3:2379
-  seedNodes:
-    initialCluster:
-      - hostID: m3db001
-        endpoint: http://10.142.0.1:2380
-      - hostID: m3db002
-        endpoint: http://10.142.0.2:2380
-      - hostID: m3db003
-        endpoint: http://10.142.0.3:2380
 ```
 
-## Start the seed nodes
+## Start the storage nodes
 
-Transfer the config you just crafted to each host in the cluster. And then starting with the seed nodes, start up the m3dbnode process:
+Start each seed node in the cluster using the same configuration file, and adjusting the `M3DB_HOST_ID` value to match the host name.
 
 ```shell
-m3dbnode -f <config-name.yml>
+M3DB_HOST_ID=m3db001 m3dbnode -f <config-file.yml>
 ```
 
-**Note**, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc
+{{% notice tip %}}
+You can daemon-ize the node startup process using your favorite utility such as systemd, init.d, or supervisor.
+{{% /notice %}}
 
-## Create Namespace and Initialize Topology
+## Create Namespace and Initialize Placement
 
-The recommended way to create a namespace and initialize a topology is to use the `/api/v1/database/create` api. Below is an example.
+<!-- TODO: Again partials and includes across guides? -->
 
-**Note:** In order to create a more custom setup, please refer to the [namespace configuration](/docs/operational_guide/namespace_configuration) and 
-[placement configuration](/docs/operational_guide/placement_configuration) guides, though this is discouraged.
+This guide uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
+
+The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/operational_guide/namespace_configuration.md) you also need to add them to the `local` section of `M3Coordinator`'s YAML configuration.
+
+You can create [placements](https://docs.m3db.io/operational_guide/placement_configuration/) and [namespaces](https://docs.m3db.io/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+
+{{< tabs name="database_create" >}}
+{{% tab name="Command" %}}
 
 ```shell
-curl -X POST http://localhost:7201/api/v1/database/create -d '{
+curl -X POST {{% apiendpoint %}}database/create -d '{
   "type": "cluster",
-  "namespaceName": "1week_namespace",
+  "namespaceName": "default",
   "retentionTime": "168h",
   "numShards": "1024",
   "replicationFactor": "3",
@@ -146,9 +174,12 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 ```
 
-**Note:** Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
+{{% notice note %}}
+`isolationGroup` specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. You should use at least as many isolation groups as your replication factor. This example uses the availability zones `us-east1-a`, `us-east1-b`, `us-east1-c` as the isolation groups which matches our replication factor of 3. [Read more details in this guide](/operational_guide/replication_and_deployment_in_zones).
+{{% /notice %}}
 
-Shortly after, you should see your node complete bootstrapping:
+{{% /tab %}}
+{{% tab name="Output" %}}
 
 ```shell
 20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
@@ -163,57 +194,98 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
 
-If you need to setup multiple namespaces, you can run the above `/api/v1/database/create` command multiple times with different namespace configurations.
+{{% /tab %}}
+{{< /tabs >}}
 
-### Replication factor (RF)
+If you need to setup multiple namespaces, you can run the command above above multiple times with different namespace configurations.
 
-Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](/docs/operational_guide/replication_and_deployment_in_zones) for more specifics.
+### Replication factor
+
+We recommend a replication factor of **3**, with each replica spread across failure domains such as a physical server rack, data center or availability zone. Read our [replication factor recommendations](/operational_guide/replication_and_deployment_in_zones) for more details.
 
 ### Shards
 
-See [placement configuration](/docs/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
+Read the [placement configuration guide](/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
 
 ## Test it out
 
-Now you can experiment with writing tagged metrics:
+<!-- TODO: Again partials and includes across guides? -->
+
+Now you can write tagged metrics:
 
 ```shell
-curl -sS -X POST localhost:9003/writetagged -d '{
-  "namespace": "metrics",
-  "id": "foo",
-  "tags": [
+curl -X POST {{% apiendpoint %}}json/write -d '{
+  "tags": 
     {
-      "name": "city",
-      "value": "new_york"
+      "__name__": "third_avenue",
+      "city": "new_york",
+      "checkout": "1"
     },
-    {
-      "name": "endpoint",
-      "value": "/request"
-    }
-  ],
-  "datapoint": {
-    "timestamp": '"$(date "+%s")"',
-    "value": 42.123456789
-  }
+    "timestamp": '\"$(date "+%s")\"',
+    "value": 3347.26
 }'
 ```
 
-And reading the metrics you've written:
+And read the metrics written, for example, to return results in the past 45 seconds.
+
+{{< tabs name="example_promql_regex" >}}
+{{% tab name="Linux" %}}
+
+<!-- TODO: Check this on Linux -->
 
 ```shell
-curl -sS -X POST http://localhost:9003/query -d '{
-  "namespace": "metrics",
-  "query": {
-    "regexp": {
-      "field": "city",
-      "regexp": ".*"
-    }
-  },
-  "rangeStart": 0,
-  "rangeEnd": '"$(date "+%s")"'
-}' | jq .
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue" \
+  -d "start=$(date "+%s" -d "45 seconds ago")" \
+  -d "end=$( date +%s )" \
+  -d "step=5s" | jq .  
 ```
 
-## Integrations
+{{% /tab %}}
+{{% tab name="macOS/BSD" %}}
 
-[Prometheus as a long term storage remote read/write endpoint](/docs/integrations/prometheus).
+```shell
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue" \
+  -d "start=$( date -v -45S +%s )" \
+  -d "end=$( date +%s )" \
+  -d "step=5s" | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "third_avenue",
+          "checkout": "1",
+          "city": "new_york"
+        },
+        "values": [
+          [
+            {{% now %}},
+            "3347.26"
+          ],
+          [
+            {{% now %}},
+            "5347.26"
+          ],
+          [
+            {{% now %}},
+            "7347.26"
+          ]
+        ]
+      }
+    ]
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
