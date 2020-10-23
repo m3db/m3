@@ -38,7 +38,7 @@ func maxHeapLess(i, j ValueIndexPair) bool {
 	if i.Val == j.Val || math.IsNaN(i.Val) && math.IsNaN(j.Val) {
 		return i.Index > j.Index
 	}
-	return math.IsNaN(i.Val) && !math.IsNaN(j.Val) || i.Val < j.Val
+	return i.Val < j.Val || math.IsNaN(i.Val) && !math.IsNaN(j.Val)
 }
 
 func minHeapLess(i, j ValueIndexPair) bool {

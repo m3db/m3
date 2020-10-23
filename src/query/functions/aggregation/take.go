@@ -46,7 +46,6 @@ type valueAndMeta struct {
 
 type takeFunc func(heap utils.FloatHeap, values []float64, buckets [][]int) []float64
 type takeInstantFunc func(heap utils.FloatHeap, values []float64, buckets [][]int, seriesMetas []block.SeriesMeta) []valueAndMeta
-type takeValuesFunc func(values []float64, buckets [][]int) []float64
 
 // NewTakeOp creates a new takeK operation
 func NewTakeOp(
@@ -148,7 +147,11 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		return n.processBlockInstantaneous(heap, queryCtx, meta, stepIter, seriesMetas, buckets)
 	}
 
-	fnTake := n.resolveTakeFn(seriesCount, takeTop)
+	if n.op.k >= seriesCount {
+		return b, nil
+	}
+
+	heap := utils.NewFloatHeap(takeTop, n.op.k)
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
 	if err != nil {
 		return nil, err
@@ -160,7 +163,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 
 	for index := 0; stepIter.Next(); index++ {
 		values := stepIter.Current().Values()
-		if err := builder.AppendValues(index, fnTake(values, buckets)); err != nil {
+		if err := builder.AppendValues(index, n.op.takeFunc(heap, values, buckets)); err != nil {
 			return nil, err
 		}
 	}
@@ -180,19 +183,6 @@ func maxSeriesCount(buckets [][]int) int {
 	}
 
 	return result
-}
-
-func (n *takeNode) resolveTakeFn(seriesCount int, takeTop bool) takeValuesFunc {
-	if n.op.k < seriesCount {
-		heap := utils.NewFloatHeap(takeTop, n.op.k)
-		return func(values []float64, buckets [][]int) []float64 {
-			return n.op.takeFunc(heap, values, buckets)
-		}
-	}
-
-	return func(values []float64, buckets [][]int) []float64 {
-		return values
-	}
 }
 
 func (n *takeNode) processBlockInstantaneous(

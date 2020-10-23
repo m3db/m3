@@ -158,11 +158,9 @@ func NewSortOp(opType string) (parser.Params, error) {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
-	var lessFn lessFn
+	lessFn := utils.GreaterWithNaNs
 	if ascending {
 		lessFn = utils.LesserWithNaNs
-	} else {
-		lessFn = utils.GreaterWithNaNs
 	}
 
 	return sortOp{opType, lessFn}, nil
