@@ -200,7 +200,7 @@ func (s *commitLogSource) Read(
 		fsOpts          = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix  = fsOpts.FilePathPrefix()
 		namespaceIter   = namespaces.Namespaces.Iter()
-		indexResults    = make([]result.IndexBootstrapResult, len(namespaceIter))
+		indexResults    = make([]result.IndexBootstrapResult, 0, len(namespaceIter))
 	)
 	defer doneReadingData()
 
@@ -208,7 +208,7 @@ func (s *commitLogSource) Read(
 	s.log.Info("read snapshots start")
 	span.LogEvent("read_snapshots_start")
 
-	for i, elem := range namespaceIter {
+	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
 
@@ -270,7 +270,7 @@ func (s *commitLogSource) Read(
 		); err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
-		indexResults[i] = indexResult
+		indexResults = append(indexResults, indexResult)
 	}
 
 	s.log.Info("read snapshots done",
@@ -287,10 +287,13 @@ func (s *commitLogSource) Read(
 		s.log.Debug("commit log already read in a previous pass, using previous result.")
 	}
 
-	bootstrapResult := bootstrap.NamespaceResults{
-		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
-	}
-	for i, elem := range namespaceIter {
+	var (
+		bootstrapResult = bootstrap.NamespaceResults{
+			Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+		}
+		indexResultIdx int
+	)
+	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		id := ns.Metadata.ID()
 		dataResult := result.NewDataBootstrapResult()
@@ -300,7 +303,7 @@ func (s *commitLogSource) Read(
 		}
 		var indexResult result.IndexBootstrapResult
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			indexResult = indexResults[i]
+			indexResult = indexResults[indexResultIdx]
 			if s.commitLogResult.shouldReturnUnfulfilled {
 				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
@@ -312,6 +315,7 @@ func (s *commitLogSource) Read(
 			DataResult:  dataResult,
 			IndexResult: indexResult,
 		})
+		indexResultIdx++
 	}
 
 	return bootstrapResult, nil
