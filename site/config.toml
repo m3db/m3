@@ -117,7 +117,11 @@ offlineSearch = false
   themeVariant = "blue"
   twitter = "m3db_io"
 
-# TODO: Might need to refactor some of the K8s shortcodes later
+  [params.api]
+    localCordinator = "http://localhost:7201/"
+    apiEndpoint = "api/v1/"
+
+  # TODO: Might need to refactor some of the K8s shortcodes later
 # Add your release versions here
 # TODO: Enable when ready
 # [[params.versions]]
