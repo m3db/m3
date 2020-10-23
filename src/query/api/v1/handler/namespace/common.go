@@ -192,16 +192,6 @@ func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
 				resolutionRetentionMap[key] = true
 			}
 		}
-
-		indexOpts := md.Options().IndexOptions()
-		indexBlockSize := indexOpts.BlockSize()
-		retentionBlockSize := retentionOpts.BlockSize()
-		if indexBlockSize != retentionBlockSize {
-			return fmt.Errorf("index and retention block size must match (%v, %v)",
-				indexBlockSize,
-				retentionBlockSize,
-			)
-		}
 	}
 
 	return nil

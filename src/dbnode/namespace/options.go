@@ -53,11 +53,11 @@ const (
 )
 
 var (
-	errIndexBlockSizePositive                       = errors.New("index block size must positive")
-	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
-	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
-	errNamespaceRuntimeOptionsNotSet                = errors.New("namespace runtime options is not set")
-	errAggregationOptionsNotSet                     = errors.New("aggregation options is not set")
+	errIndexBlockSizePositive               = errors.New("index block size must positive")
+	errIndexBlockSizeTooLarge               = errors.New("index block size needs to be <= namespace retention period")
+	errIndexBlockSizeMustMatchDataBlockSize = errors.New("index block size must match data block size")
+	errNamespaceRuntimeOptionsNotSet        = errors.New("namespace runtime options is not set")
+	errAggregationOptionsNotSet             = errors.New("aggregation options is not set")
 )
 
 type options struct {
@@ -132,8 +132,8 @@ func (o *options) Validate() error {
 	if retention < indexBlockSize || (futureRetention != 0 && futureRetention < indexBlockSize) {
 		return errIndexBlockSizeTooLarge
 	}
-	if indexBlockSize%dataBlockSize != 0 {
-		return errIndexBlockSizeMustBeAMultipleOfDataBlockSize
+	if indexBlockSize != dataBlockSize {
+		return errIndexBlockSizeMustMatchDataBlockSize
 	}
 	if o.runtimeOpts == nil {
 		return errNamespaceRuntimeOptionsNotSet
