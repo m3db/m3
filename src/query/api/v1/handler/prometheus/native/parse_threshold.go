@@ -171,13 +171,13 @@ func (h *promThresholdHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	logger := h.instrumentOpts.Logger()
 	root, err := parseRootNode(r, h.engine, logger)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
 	queryRepresentation, err := root.QueryRepresentation()
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		logger.Error("cannot convert to query representation", zap.Error(err))
 		return
 	}

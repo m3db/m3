@@ -128,7 +128,7 @@ type Configuration struct {
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
 
-	// Downsample configurates how the metrics should be downsampled.
+	// Downsample configures how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
 	// Ingest is the ingest server.
@@ -151,6 +151,9 @@ type Configuration struct {
 
 	// Experimental is the configuration for the experimental API group.
 	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+
+	// StoreMetricsType controls if metrics type is stored or not.
+	StoreMetricsType *bool `yaml:"storeMetricsType"`
 
 	// Cache configurations.
 	//
@@ -432,6 +435,22 @@ type CarbonConfiguration struct {
 	ShiftStepsStart int `yaml:"shiftStepsStart"`
 	// ShiftStepsEnd sets a constant set of steps to shift end by.
 	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// ShiftStepsStartWhenAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the start is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsStartWhenAtResolutionBoundary *int `yaml:"shiftStepsStartWhenAtResolutionBoundary"`
+	// ShiftStepsEndWhenAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the end is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsEndWhenAtResolutionBoundary *int `yaml:"shiftStepsEndWhenAtResolutionBoundary"`
+	// ShiftStepsStartWhenEndAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the end is an exact match to the resolution boundary
+	// of a query AND the start is not an exact match to the resolution boundary.
+	ShiftStepsStartWhenEndAtResolutionBoundary *int `yaml:"shiftStepsStartWhenEndAtResolutionBoundary"`
+	// ShiftStepsEndWhenStartAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the start is an exact match to the resolution boundary
+	// of a query AND the end is not an exact match to the resolution boundary.
+	ShiftStepsEndWhenStartAtResolutionBoundary *int `yaml:"shiftStepsEndWhenStartAtResolutionBoundary"`
 	// RenderPartialStart sets whether to render partial datapoints when
 	// the start time is between a datapoint's resolution step size.
 	RenderPartialStart bool `yaml:"renderPartialStart"`

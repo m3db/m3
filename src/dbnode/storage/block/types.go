@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -267,17 +268,17 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
-// StreamedChecksum yields an ident.IndexChecksum value asynchronously,
+// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
 // and any errors encountered during execution.
 type StreamedChecksum interface {
 	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (ident.IndexChecksum, error)
+	RetrieveIndexChecksum() (xio.IndexChecksum, error)
 }
 
 type emptyStreamedChecksum struct{}
 
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (ident.IndexChecksum, error) {
-	return ident.IndexChecksum{}, nil
+func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+	return xio.IndexChecksum{}, nil
 }
 
 // EmptyStreamedChecksum is an empty streamed checksum.
@@ -305,9 +306,20 @@ type DatabaseBlockRetriever interface {
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
-		startTime time.Time,
+		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
+
+	// StreamReadMismatches will stream reader mismatches for a given id within
+	// a block, yielding any streamed checksums within the shard.
+	StreamReadMismatches(
+		ctx context.Context,
+		shard uint32,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
 
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -331,6 +343,16 @@ type DatabaseShardBlockRetriever interface {
 		blockStart time.Time,
 		nsCtx namespace.Context,
 	) (StreamedChecksum, error)
+
+	// StreamReadMismatches will stream read index mismatches for a given id
+	// within a block, yielding any read mismatches.
+	StreamReadMismatches(
+		ctx context.Context,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

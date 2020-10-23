@@ -70,6 +70,8 @@ func Run(opts RunOptions) {
 	}
 	defer logger.Sync()
 
+	cfg.Debug.SetRuntimeValues(logger)
+
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	scope, closer, err := cfg.Metrics.NewRootScope()

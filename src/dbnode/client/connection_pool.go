@@ -84,6 +84,12 @@ type sleepFn func(t time.Duration)
 func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	seed := int64(murmur3.StringSum32(host.Address()))
 
+	scope := opts.InstrumentOptions().
+		MetricsScope().
+		Tagged(map[string]string{
+			"hostID": host.ID(),
+		})
+
 	p := &connPool{
 		opts:               opts,
 		host:               host,
@@ -96,7 +102,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
-		healthStatus:       opts.InstrumentOptions().MetricsScope().Gauge("health-status"),
+		healthStatus:       scope.Gauge("health-status"),
 	}
 
 	return p

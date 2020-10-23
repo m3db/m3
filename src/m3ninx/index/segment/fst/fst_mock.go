@@ -28,10 +28,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
@@ -209,21 +206,6 @@ func (m *MockSegment) EXPECT() *MockSegmentMockRecorder {
 	return m.recorder
 }
 
-// AllDocs mocks base method
-func (m *MockSegment) AllDocs() (index.IDDocIterator, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AllDocs")
-	ret0, _ := ret[0].(index.IDDocIterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AllDocs indicates an expected call of AllDocs
-func (mr *MockSegmentMockRecorder) AllDocs() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockSegment)(nil).AllDocs))
-}
-
 // Close mocks base method
 func (m *MockSegment) Close() error {
 	m.ctrl.T.Helper()
@@ -268,36 +250,6 @@ func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
 }
 
-// Doc mocks base method
-func (m *MockSegment) Doc(arg0 postings.ID) (doc.Document, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Doc", arg0)
-	ret0, _ := ret[0].(doc.Document)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Doc indicates an expected call of Doc
-func (mr *MockSegmentMockRecorder) Doc(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockSegment)(nil).Doc), arg0)
-}
-
-// Docs mocks base method
-func (m *MockSegment) Docs(arg0 postings.List) (doc.Iterator, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Docs", arg0)
-	ret0, _ := ret[0].(doc.Iterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Docs indicates an expected call of Docs
-func (mr *MockSegmentMockRecorder) Docs(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockSegment)(nil).Docs), arg0)
-}
-
 // FieldsIterable mocks base method
 func (m *MockSegment) FieldsIterable() segment.FieldsIterable {
 	m.ctrl.T.Helper()
@@ -324,66 +276,6 @@ func (m *MockSegment) FreeMmap() error {
 func (mr *MockSegmentMockRecorder) FreeMmap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FreeMmap", reflect.TypeOf((*MockSegment)(nil).FreeMmap))
-}
-
-// MatchAll mocks base method
-func (m *MockSegment) MatchAll() (postings.MutableList, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MatchAll")
-	ret0, _ := ret[0].(postings.MutableList)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchAll indicates an expected call of MatchAll
-func (mr *MockSegmentMockRecorder) MatchAll() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockSegment)(nil).MatchAll))
-}
-
-// MatchField mocks base method
-func (m *MockSegment) MatchField(arg0 []byte) (postings.List, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MatchField", arg0)
-	ret0, _ := ret[0].(postings.List)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchField indicates an expected call of MatchField
-func (mr *MockSegmentMockRecorder) MatchField(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchField", reflect.TypeOf((*MockSegment)(nil).MatchField), arg0)
-}
-
-// MatchRegexp mocks base method
-func (m *MockSegment) MatchRegexp(arg0 []byte, arg1 index.CompiledRegex) (postings.List, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1)
-	ret0, _ := ret[0].(postings.List)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchRegexp indicates an expected call of MatchRegexp
-func (mr *MockSegmentMockRecorder) MatchRegexp(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockSegment)(nil).MatchRegexp), arg0, arg1)
-}
-
-// MatchTerm mocks base method
-func (m *MockSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
-	ret0, _ := ret[0].(postings.List)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchTerm indicates an expected call of MatchTerm
-func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockSegment)(nil).MatchTerm), arg0, arg1)
 }
 
 // Reader mocks base method

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -741,12 +742,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	if err != nil {
 		return SeriesReadWriteRef{}, owned, err
 	}
-
-	opts := ShardSeriesReadWriteRefOptions{
-		ReverseIndex: n.reverseIndex != nil,
-	}
-
-	res, err := shard.SeriesReadWriteRef(id, tags, opts)
+	res, err := shard.SeriesReadWriteRef(id, tags)
 	return res, true, err
 }
 
@@ -776,7 +772,7 @@ func (n *dbNamespace) QueryIDs(
 		return index.QueryResult{}, err
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errIndexNotBootstrappedToRead
@@ -819,7 +815,7 @@ func (n *dbNamespace) WideQueryIDs(
 		return err
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
 		err := errIndexNotBootstrappedToRead
@@ -846,7 +842,7 @@ func (n *dbNamespace) AggregateQuery(
 		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
 	}
 
-	if n.reverseIndex.BootstrapsDone() < 1 {
+	if !n.reverseIndex.Bootstrapped() {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
 		return index.AggregateQueryResult{},
@@ -924,6 +920,23 @@ func (n *dbNamespace) FetchIndexChecksum(
 		return block.EmptyStreamedChecksum, err
 	}
 	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) FetchReadMismatch(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	blockStart time.Time,
+) (wide.StreamedMismatch, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return wide.EmptyStreamedMismatch, err
+	}
+	res, err := shard.FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -1727,9 +1740,7 @@ func (n *dbNamespace) aggregateTiles(
 		sourceBlockStarts []time.Time
 	)
 
-	for sourceBlockStart := targetBlockStart;
-		sourceBlockStart.Before(lastSourceBlockEnd);
-		sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err

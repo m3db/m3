@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -407,6 +408,18 @@ func (s *dbShard) StreamIndexChecksum(
 ) (block.StreamedChecksum, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		blockStart, nsCtx)
+}
+
+// StreamIndexChecksum implements series.QueryableBlockRetriever
+func (s *dbShard) StreamReadMismatches(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatch, error) {
+	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
+		mismatchChecker, id, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1055,7 +1068,6 @@ func (s *dbShard) writeAndIndex(
 func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
-	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, _, err := s.tryRetrieveWritableSeries(id)
@@ -1066,7 +1078,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	if entry != nil {
 		// The read/write ref is already incremented.
 		return SeriesReadWriteRef{
-			Series:              entry.Series,
+			Series:              entry,
 			Shard:               s.shard,
 			UniqueIndex:         entry.Index,
 			ReleaseReadWriteRef: entry,
@@ -1088,21 +1100,18 @@ func (s *dbShard) SeriesReadWriteRef(
 	// lock is still contended but at least series writes due to commit log
 	// bootstrapping do not interrupt normal writes waiting for ability
 	// to write to an individual series.
-	at := s.nowFn()
 	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType:      insertSyncIncReaderWriterCount,
-		hasPendingIndex: opts.ReverseIndex,
-		pendingIndex: dbShardPendingIndex{
-			timestamp:  at,
-			enqueuedAt: at,
-		},
+		insertType: insertSyncIncReaderWriterCount,
+		// NB(bodu): We transparently index in the series ref when
+		// bootstrapping now instead of when grabbing a ref.
+		hasPendingIndex: false,
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
 
 	return SeriesReadWriteRef{
-		Series:              entry.Series,
+		Series:              entry,
 		Shard:               s.shard,
 		UniqueIndex:         entry.Index,
 		ReleaseReadWriteRef: entry,
@@ -1156,6 +1165,19 @@ func (s *dbShard) FetchIndexChecksum(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
 	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
+}
+
+func (s *dbShard) FetchReadMismatch(
+	ctx context.Context,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (wide.StreamedMismatch, error) {
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -1275,7 +1297,12 @@ func (s *dbShard) newShardEntry(
 		OnEvictedFromWiredList: s,
 		Options:                s.seriesOpts,
 	})
-	return lookup.NewEntry(newSeries, uniqueIndex), nil
+	return lookup.NewEntry(lookup.NewEntryOptions{
+		Series:      newSeries,
+		Index:       uniqueIndex,
+		IndexWriter: s.reverseIndex,
+		NowFn:       s.nowFn,
+	}), nil
 }
 
 type insertAsyncResult struct {
@@ -2763,7 +2790,7 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	var (
-		annotationPayload  annotation.Payload
+		annotationPayload annotation.Payload
 		// NB: there is a maximum of 4 datapoints per frame for counters.
 		downsampledValues  = make([]downsample.Value, 0, 4)
 		processedTileCount int64
