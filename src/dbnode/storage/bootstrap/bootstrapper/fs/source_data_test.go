@@ -61,7 +61,7 @@ var (
 	testShard                 = uint32(0)
 	testNs1ID                 = ident.StringID("test_namespace")
 	testBlockSize             = 2 * time.Hour
-	testIndexBlockSize        = 4 * time.Hour
+	testIndexBlockSize        = 2 * time.Hour
 	testStart                 = time.Now().Truncate(testBlockSize)
 	testFileMode              = os.FileMode(0666)
 	testDirMode               = os.ModeDir | os.FileMode(0755)

@@ -45,7 +45,7 @@ var (
 
 	validIndexOpts = nsproto.IndexOptions{
 		Enabled:        true,
-		BlockSizeNanos: toNanos(600), // 10h
+		BlockSizeNanos: toNanos(120), // 2h
 	}
 
 	validRetentionOpts = nsproto.RetentionOptions{
