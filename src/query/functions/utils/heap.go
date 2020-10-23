@@ -35,24 +35,26 @@ type ValueIndexPair struct {
 type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
 func maxHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val {
+	if i.Val == j.Val || math.IsNaN(i.Val) && math.IsNaN(j.Val) {
 		return i.Index > j.Index
 	}
 	return math.IsNaN(i.Val) && !math.IsNaN(j.Val) || i.Val < j.Val
 }
 
 func minHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val {
+	if i.Val == j.Val || math.IsNaN(i.Val) && math.IsNaN(j.Val) {
 		return i.Index > j.Index
 	}
 	return i.Val > j.Val || math.IsNaN(i.Val) && !math.IsNaN(j.Val)
 }
 
-func AscFloat64(i, j float64) bool {
+// Compares two float64 values which one is lesser with NaNs. NaNs are always sorted away.
+func LesserWithNaNs(i, j float64) bool {
 	return i < j || math.IsNaN(j) && !math.IsNaN(i)
 }
 
-func DescFloat64(i, j float64) bool {
+// Compares two float64 values which one is greater with NaNs. NaNs are always sorted away.
+func GreaterWithNaNs(i, j float64) bool {
 	return i > j || math.IsNaN(j) && !math.IsNaN(i)
 }
 
@@ -116,8 +118,8 @@ func (fh *FloatHeap) Push(value float64, index int) {
 			// NB(arnikola): unfortunately, can't just replace first
 			// element as it may not respect internal order. Need to
 			// run heap.Fix() to rectify this
-			if (fh.isMaxHeap && DescFloat64(value, peek.Val)) ||
-				(!fh.isMaxHeap && AscFloat64(value, peek.Val)) {
+			if (fh.isMaxHeap && GreaterWithNaNs(value, peek.Val)) ||
+				(!fh.isMaxHeap && LesserWithNaNs(value, peek.Val)) {
 				h.heap[0] = ValueIndexPair{
 					Val:   value,
 					Index: index,

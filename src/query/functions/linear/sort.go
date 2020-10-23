@@ -86,98 +86,70 @@ func (n *sortNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 }
 
 func (n *sortNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+	if !queryCtx.Options.Instantaneous {
+		return b, nil
+	}
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	instantaneous := queryCtx.Options.Instantaneous
 	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
-
-	if instantaneous {
-		return n.processInstantBlock(queryCtx, stepIter, meta, seriesMetas)
-	}
-	return n.processNopBlock(queryCtx, stepIter, meta, seriesMetas)
+	return n.processInstantBlock(queryCtx, stepIter, meta, seriesMetas)
 }
 
 func (n *sortNode) processInstantBlock(queryCtx *models.QueryContext, stepIter block.StepIter, meta block.Metadata, seriesMetas []block.SeriesMeta) (block.Block, error) {
-	for index := 0; stepIter.Next(); index++ {
-		if isLastStep(index, stepIter.StepCount()) {
-			meta.ResultMetadata.KeepNans = block.BoolTrue
-			//we only care for the last step values for the instant query
-			values := stepIter.Current().Values()
-			valuesToSort := make([]valueAndMeta, len(values))
-			for i, value := range values {
-				valuesToSort[i] = valueAndMeta{
-					val:        value,
-					seriesMeta: seriesMetas[i],
-				}
-			}
-
-			sort.Slice(valuesToSort, func(i, j int) bool {
-				return n.op.lessFn(valuesToSort[i].val, valuesToSort[j].val)
-			})
-
-			for i := range valuesToSort {
-				values[i] = valuesToSort[i].val
-				seriesMetas[i] = valuesToSort[i].seriesMeta
-			}
-
-			//adjust bounds to contain single step
-			time, err := meta.Bounds.TimeForIndex(index)
-			if err != nil {
-				return nil, err
-			}
-			meta.Bounds = models.Bounds{
-				Start:    time,
-				Duration: meta.Bounds.StepSize,
-				StepSize: meta.Bounds.StepSize,
-			}
-
-			blockBuilder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
-			if err != nil {
-				return nil, err
-			}
-			if err = blockBuilder.AddCols(1); err != nil {
-				return nil, err
-			}
-			if err := blockBuilder.AppendValues(0, values); err != nil {
-				return nil, err
-			}
-			if err = stepIter.Err(); err != nil {
-				return nil, err
-			}
-			return blockBuilder.Build(), nil
+	ixLastStep := stepIter.StepCount() - 1 //we only care for the last step values for the instant query
+	for i := 0; i <= ixLastStep; i++ {
+		if !stepIter.Next() {
+			return nil, fmt.Errorf("invalid step count; expected %d got %d", stepIter.StepCount(), i+1)
 		}
 	}
-	return nil, fmt.Errorf("no data to return: %s", n.op.opType)
-}
+	values := stepIter.Current().Values()
+	meta.ResultMetadata.KeepNaNs = true
+	valuesToSort := make([]valueAndMeta, len(values))
+	for i, value := range values {
+		valuesToSort[i] = valueAndMeta{
+			val:        value,
+			seriesMeta: seriesMetas[i],
+		}
+	}
 
-func (n *sortNode) processNopBlock(queryCtx *models.QueryContext, stepIter block.StepIter, meta block.Metadata, seriesMetas []block.SeriesMeta) (block.Block, error) {
-	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
+	sort.Slice(valuesToSort, func(i, j int) bool {
+		return n.op.lessFn(valuesToSort[i].val, valuesToSort[j].val)
+	})
+
+	for i, sorted := range valuesToSort {
+		values[i] = sorted.val
+		seriesMetas[i] = sorted.seriesMeta
+	}
+
+	//adjust bounds to contain single step
+	time, err := meta.Bounds.TimeForIndex(ixLastStep)
 	if err != nil {
 		return nil, err
 	}
+	meta.Bounds = models.Bounds{
+		Start:    time,
+		Duration: meta.Bounds.StepSize,
+		StepSize: meta.Bounds.StepSize,
+	}
 
-	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+	blockBuilder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
+	if err != nil {
 		return nil, err
 	}
-
-	for index := 0; stepIter.Next(); index++ {
-		if err := builder.AppendValues(index, stepIter.Current().Values()); err != nil {
-			return nil, err
-		}
+	if err = blockBuilder.AddCols(1); err != nil {
+		return nil, err
 	}
-
+	if err := blockBuilder.AppendValues(0, values); err != nil {
+		return nil, err
+	}
 	if err = stepIter.Err(); err != nil {
 		return nil, err
 	}
-	return builder.Build(), nil
-}
-
-func isLastStep(stepIndex int, stepCount int) bool {
-	return stepIndex == stepCount-1
+	return blockBuilder.Build(), nil
 }
 
 func NewSortOp(opType string) (parser.Params, error) {
@@ -188,9 +160,9 @@ func NewSortOp(opType string) (parser.Params, error) {
 
 	var lessFn lessFn
 	if ascending {
-		lessFn = utils.AscFloat64
+		lessFn = utils.LesserWithNaNs
 	} else {
-		lessFn = utils.DescFloat64
+		lessFn = utils.GreaterWithNaNs
 	}
 
 	return sortOp{opType, lessFn}, nil

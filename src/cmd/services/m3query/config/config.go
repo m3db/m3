@@ -207,9 +207,9 @@ type DeprecatedQueryConversionCacheConfiguration struct {
 
 // ResultOptions are the result options for query.
 type ResultOptions struct {
-	// KeepNans keeps NaNs before returning query results.
+	// KeepNaNs keeps NaNs before returning query results.
 	// The default is false, which matches Prometheus
-	KeepNans bool `yaml:"keepNans"`
+	KeepNaNs bool `yaml:"keepNans"`
 }
 
 // QueryConfiguration is the query configuration.

@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -136,16 +135,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handleroptions.AddWarningHeaders(w, result.Meta)
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
-	keepNans := h.opts.Config().ResultOptions.KeepNans
-	switch result.Meta.KeepNans {
-		case block.BoolFalse:
-			keepNans = false
-		case block.BoolTrue:
-			keepNans = true
+	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
+	if !keepNaNs {
+		keepNaNs = result.Meta.KeepNaNs
 	}
 
 	if h.instant {
-		renderResultsInstantaneousJSON(w, result, keepNans)
+		renderResultsInstantaneousJSON(w, result, keepNaNs)
 		return
 	}
 
@@ -157,7 +153,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
-		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNaNs,
 	})
 
 	if err != nil {

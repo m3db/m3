@@ -27,6 +27,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/test"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -325,4 +327,26 @@ func TestFlushOrderedWhenRandomInsertionOrderAndTakeNaNs(t *testing.T) {
 		{Val: math.NaN(), Index: 4},
 	}, actualMin)
 	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestSortLesserWithNaNs(t *testing.T) {
+	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
+	expected := []float64{ 0.1, 4.1, 5.0, 8.6, math.NaN() }
+
+	sort.Slice(actual, func(i, j int) bool {
+		return LesserWithNaNs(actual[i], actual[j])
+	})
+
+	test.EqualsWithNans(t, expected, actual)
+}
+
+func TestSortGreaterWithNaNs(t *testing.T) {
+	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
+	expected := []float64{ 8.6, 5.0, 4.1, 0.1, math.NaN() }
+
+	sort.Slice(actual, func(i, j int) bool {
+		return GreaterWithNaNs(actual[i], actual[j])
+	})
+
+	test.EqualsWithNans(t, expected, actual)
 }
