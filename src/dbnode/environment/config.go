@@ -194,11 +194,14 @@ func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts                     instrument.Options
-	HashingSeed                        uint32
-	HostID                             string
-	NewDirectoryMode                   os.FileMode
-	ForceColdWritesEnabled             bool
+	InstrumentOpts         instrument.Options
+	HashingSeed            uint32
+	HostID                 string
+	NewDirectoryMode       os.FileMode
+	ForceColdWritesEnabled bool
+	// AllowEmptyInitialNamespaceRegistry determines whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	// This is used when configuring the namespaceInitializer.
 	AllowEmptyInitialNamespaceRegistry bool
 }
 

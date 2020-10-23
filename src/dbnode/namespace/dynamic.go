@@ -123,8 +123,9 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 				watchable: watchable,
 				kvWatch:   watch,
 			}
-			go dt.run()
-			go dt.reportMetrics()
+
+			startRegistryWatch(dt)
+
 			return dt, nil
 		} else if err != nil {
 			return nil, err
@@ -158,9 +159,14 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 		currentMap:   m,
 	}
 
-	go dt.run()
-	go dt.reportMetrics()
+	startRegistryWatch(dt)
+
 	return dt, nil
+}
+
+func startRegistryWatch(reg *dynamicRegistry) {
+	go reg.run()
+	go reg.reportMetrics()
 }
 
 func (r *dynamicRegistry) isClosed() bool {
@@ -170,16 +176,26 @@ func (r *dynamicRegistry) isClosed() bool {
 	return closed
 }
 
-func (r *dynamicRegistry) value() kv.Value {
+func (r *dynamicRegistry) value() (kv.Value, bool) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.currentValue
+
+	if r.currentValue == nil {
+		return nil, false
+	}
+
+	return r.currentValue, true
 }
 
-func (r *dynamicRegistry) maps() Map {
+func (r *dynamicRegistry) maps() (Map, bool) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.currentMap
+
+	if r.currentMap == nil {
+		return nil, false
+	}
+
+	return r.currentMap, true
 }
 
 func (r *dynamicRegistry) reportMetrics() {
@@ -191,8 +207,8 @@ func (r *dynamicRegistry) reportMetrics() {
 			return
 		}
 
-		if r.value() != nil {
-			r.metrics.currentVersion.Update(float64(r.value().Version()))
+		if val, ok := r.value(); ok {
+			r.metrics.currentVersion.Update(float64(val.Version()))
 		}
 	}
 }
@@ -211,7 +227,8 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if r.currentValue != nil && !val.IsNewer(r.currentValue) {
+		currentValue, ok := r.value()
+		if ok && !val.IsNewer(currentValue) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received older version, skipping",
 				zap.Int("version", val.Version()))
@@ -226,7 +243,8 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if r.maps() != nil && m.Equal(r.maps()) {
+		currentMap, ok := r.maps()
+		if ok && m.Equal(currentMap) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received identical update, skipping",
 				zap.Int("version", val.Version()))

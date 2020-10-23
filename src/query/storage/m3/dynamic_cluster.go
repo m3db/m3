@@ -45,7 +45,6 @@ type dynamicCluster struct {
 	clusterCfgs []DynamicClusterNamespaceConfiguration
 	logger      *zap.Logger
 	iOpts       instrument.Options
-	updateCh    chan<- bool
 
 	sync.RWMutex
 
@@ -62,13 +61,6 @@ type dynamicCluster struct {
 // NewDynamicClusters creates an implementation of the Clusters interface
 // supports dynamic updating of cluster namespaces.
 func NewDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
-	return newDynamicClusters(opts, nil)
-}
-
-// newDynamicClusters is a private constructor with an updater channel that can be
-// used to receive update notifications. This is should only be invoked directly by
-// tests.
-func newDynamicClusters(opts DynamicClusterOptions, updateCh chan<- bool) (Clusters, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -78,7 +70,6 @@ func newDynamicClusters(opts DynamicClusterOptions, updateCh chan<- bool) (Clust
 		logger:                  opts.InstrumentOptions().Logger(),
 		iOpts:                   opts.InstrumentOptions(),
 		namespacesByEtcdCluster: make(map[int]clusterNamespaceLookup),
-		updateCh:                updateCh,
 	}
 
 	if err := cluster.init(); err != nil {
@@ -146,21 +137,23 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterID int, cfg DynamicCluste
 	// Set method to invoke upon receiving updates and start watching.
 	updater := func(namespaces namespace.Map) error {
 		d.updateNamespaces(etcdClusterID, cfg, namespaces)
-		if d.updateCh != nil {
-			d.updateCh <- true
-		}
 		return nil
-	}
-	nsWatch := namespace.NewNamespaceWatch(updater, watch, d.iOpts)
-	if err = nsWatch.Start(); err != nil {
-		return err
 	}
 
 	nsMap := watch.Get()
 	if nsMap != nil {
+		// When watches are created, a notification is generated if the initial value is not nil. Therefore,
+		// since we've performed a successful get, consume the initial notification so that once the nsWatch is
+		// started below, we do not trigger a duplicate update.
+		<-watch.C()
 		d.updateNamespaces(etcdClusterID, cfg, nsMap)
 	} else {
 		d.logger.Debug("initial namespace get was empty")
+	}
+
+	nsWatch := namespace.NewNamespaceWatch(updater, watch, d.iOpts)
+	if err = nsWatch.Start(); err != nil {
+		return err
 	}
 
 	d.Lock()
@@ -383,10 +376,6 @@ func (d *dynamicCluster) Close() error {
 	}
 
 	d.closed = true
-
-	if d.updateCh != nil {
-		close(d.updateCh)
-	}
 
 	var multiErr xerrors.MultiError
 	for _, watch := range d.nsWatches {
