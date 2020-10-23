@@ -171,7 +171,7 @@ struct FetchTaggedRequest {
 	5: required bool fetchData
 	6: optional i64 limit
 	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
-	8: optional bool requireExhaustive = false
+	8: optional bool requireExhaustive = true
 	9: optional i64 docsLimit
 }
 
