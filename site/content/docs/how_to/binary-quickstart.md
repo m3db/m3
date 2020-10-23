@@ -376,17 +376,17 @@ Label names may contain ASCII letters, numbers, underscores, and Unicode charact
 {{< tabs name="write_metrics" >}}
 {{< tab name="Command 1" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-1.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-1.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< tab name="Command 2" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-2.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-2.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< tab name="Command 3" >}}
 
-{{% codeinclude file="includes/quickstart/write-metrics-3.sh" language="shell" %}}
+{{% codeinclude file="quickstart/write-metrics-3.sh" language="shell" %}}
 
 {{< /tab >}}
 {{< /tabs >}}
