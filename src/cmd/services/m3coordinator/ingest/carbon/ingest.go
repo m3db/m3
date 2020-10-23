@@ -127,17 +127,20 @@ func NewIngester(
 		}
 	})
 
+	scope := opts.InstrumentOptions.MetricsScope()
+	metrics, err := newCarbonIngesterMetrics(scope)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ingester{
 		downsamplerAndWriter: downsamplerAndWriter,
 		opts:                 opts,
 		logger:               opts.InstrumentOptions.Logger(),
 		tagOpts:              tagOpts,
-		metrics: newCarbonIngesterMetrics(
-			opts.InstrumentOptions.MetricsScope()),
-
-		rules: compiledRules,
-
-		lineResourcesPool: resourcePool,
+		metrics:              metrics,
+		rules:                compiledRules,
+		lineResourcesPool:    resourcePool,
 	}, nil
 }
 
@@ -283,10 +286,8 @@ func (i *ingester) writeWithOptions(
 		return err
 	}
 
-	err = i.downsamplerAndWriter.Write(
-		ctx, tags, resources.datapoints, xtime.Second, nil, opts,
-	)
-
+	err = i.downsamplerAndWriter.Write(ctx, tags, resources.datapoints,
+		xtime.Second, nil, opts)
 	if err != nil {
 		i.logger.Error("err writing carbon metric",
 			zap.String("name", string(resources.name)), zap.Error(err))
@@ -301,18 +302,26 @@ func (i *ingester) Close() {
 	// We don't maintain any state in-between connections so there is nothing to do here.
 }
 
-func newCarbonIngesterMetrics(m tally.Scope) carbonIngesterMetrics {
-	return carbonIngesterMetrics{
-		success:   m.Counter("success"),
-		err:       m.Counter("error"),
-		malformed: m.Counter("malformed"),
-	}
+type carbonIngesterMetrics struct {
+	success       tally.Counter
+	err           tally.Counter
+	malformed     tally.Counter
+	ingestLatency tally.Histogram
+	writeLatency  tally.Histogram
 }
 
-type carbonIngesterMetrics struct {
-	success   tally.Counter
-	err       tally.Counter
-	malformed tally.Counter
+func newCarbonIngesterMetrics(scope tally.Scope) (carbonIngesterMetrics, error) {
+	buckets, err := ingest.NewLatencyBuckets()
+	if err != nil {
+		return carbonIngesterMetrics{}, err
+	}
+	return carbonIngesterMetrics{
+		success:       scope.Counter("success"),
+		err:           scope.Counter("error"),
+		malformed:     scope.Counter("malformed"),
+		writeLatency:  scope.SubScope("write").Histogram("latency", buckets.WriteLatencyBuckets),
+		ingestLatency: scope.SubScope("ingest").Histogram("latency", buckets.IngestLatencyBuckets),
+	}, nil
 }
 
 // GenerateTagsFromName accepts a carbon metric name and blows it up into a list of

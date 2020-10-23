@@ -414,11 +414,11 @@ func Run(runOpts RunOptions) {
 	}
 	defer stopReporting()
 
-	// Setup regexp cache.
-	regexpCacheSize := cfg.Cache.RegexpConfiguration().SizeOrDefault()
-	if err := m3ninxindex.SetRegexpCacheSize(regexpCacheSize); err != nil {
-		logger.Fatal("could not set regexp cache size", zap.Error(err))
-	}
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iopts.MetricsScope(),
+	})
 
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()

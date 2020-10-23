@@ -21,20 +21,23 @@
 package index
 
 import (
+	"context"
 	"fmt"
 	re "regexp"
 	"regexp/syntax"
 	"sync"
 
-	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
+	"github.com/uber-go/tally"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
+	"github.com/m3db/m3/src/x/cache"
 )
 
 var (
 	// dotStartCompiledRegex is a CompileRegex that matches any input.
 	// NB: It can be accessed through DotStartCompiledRegex().
 	dotStarCompiledRegex CompiledRegex
+	cacheContext         = context.Background()
 )
 
 func init() {
@@ -51,45 +54,54 @@ var (
 	// configuration methods, such as Longest.
 	// The vellum Regexp is also safe for concurrent use as it is query for
 	// states but does not mutate internal state.
-	cacheLock sync.RWMutex
-	cache     *simplelru.LRU
-	cacheSize int
+	regexpCacheLock    sync.RWMutex
+	regexpCache        *cache.LRU
+	regexpCacheSize    int
+	regexpCacheMetrics *cacheMetrics
 )
 
-// RegexpCacheSize returns the regex cache size.
-func RegexpCacheSize() int {
-	cacheLock.RLock()
-	n := cacheSize
-	cacheLock.RUnlock()
-	return n
+type cacheMetrics struct {
+	hit           tally.Counter
+	miss          tally.Counter
+	errors        tally.Counter
+	unwrapSuccess tally.Counter
+	unwrapError   tally.Counter
 }
 
-// SetRegexpCacheSize sets the regex cache size, if zero disables cache.
-func SetRegexpCacheSize(size int) error {
-	cacheLock.Lock()
-	defer cacheLock.Unlock()
+// RegexpCacheOptions is a set of regexp cache options.
+type RegexpCacheOptions struct {
+	Size  int
+	Scope tally.Scope
+}
 
-	if size < 0 {
-		return fmt.Errorf("expected zero or greater size: actual=%d", size)
+// SetRegexpCacheOptions sets the regex cache options, size zero disables cache.
+func SetRegexpCacheOptions(opts RegexpCacheOptions) {
+	regexpCacheLock.Lock()
+	defer regexpCacheLock.Unlock()
+
+	if opts.Size < 1 {
+		regexpCache = nil
+		regexpCacheMetrics = nil
+		return
 	}
 
-	if size == 0 {
-		cache = nil
-		return nil
+	scope := tally.NoopScope
+	if opts.Scope != nil {
+		scope = opts.Scope
 	}
 
-	if cache != nil {
-		cache.Resize(size)
-		return nil
+	scope = scope.SubScope("m3ninx").SubScope("regexp").SubScope("cache")
+	regexpCache = cache.NewLRU(&cache.LRUOptions{
+		MaxEntries: opts.Size,
+		Metrics:    scope.SubScope("lru"),
+	})
+	regexpCacheMetrics = &cacheMetrics{
+		hit:           scope.Counter("hit"),
+		miss:          scope.Counter("miss"),
+		errors:        scope.Counter("errors"),
+		unwrapSuccess: scope.SubScope("unwrap").Counter("success"),
+		unwrapError:   scope.SubScope("unwrap").Counter("error"),
 	}
-
-	v, err := simplelru.NewLRU(size, nil)
-	if err != nil {
-		return err
-	}
-
-	cache = v
-	return nil
 }
 
 // DotStarCompiledRegex returns a regexp which matches ".*".
@@ -107,23 +119,26 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	reString := string(r)
 
 	// Check cache first.
-	var (
-		cachedValue       CompiledRegex
-		cachedValueExists bool
-		cacheEnabled      bool
-	)
-	cacheLock.RLock()
-	cacheEnabled = cache != nil
-	if cacheEnabled {
-		var cached interface{}
-		cached, cachedValueExists = cache.Get(reString)
-		if cachedValueExists {
-			cachedValue = cached.(CompiledRegex)
+	regexpCacheLock.RLock()
+	cacheLRU := regexpCache
+	cacheLRUMetrics := regexpCacheMetrics
+	regexpCacheLock.RUnlock()
+
+	if cacheLRU != nil && cacheLRUMetrics != nil {
+		cached, err := regexpCache.GetWithTTL(cacheContext, reString, nil)
+		if err != nil && err != cache.ErrEntryNotFound {
+			cacheLRUMetrics.errors.Inc(1)
+		} else if err == cache.ErrEntryNotFound || cached == nil {
+			cacheLRUMetrics.miss.Inc(1)
+		} else {
+			cacheLRUMetrics.hit.Inc(1)
+			if unwrapped, ok := cached.(*CompiledRegex); ok {
+				cacheLRUMetrics.unwrapSuccess.Inc(1)
+				return *unwrapped, nil
+			}
+			// Unable to unwrap into expected type.
+			cacheLRUMetrics.unwrapError.Inc(1)
 		}
-	}
-	cacheLock.RUnlock()
-	if cachedValueExists {
-		return cachedValue, nil
 	}
 
 	// first, we parse the regular expression into the equivalent regex
@@ -166,11 +181,11 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	compiledRegex.PrefixEnd = end
 
 	// Update cache if cache existed when we checked.
-	if cacheEnabled {
-		cacheLock.Lock()
-		// Check still enabled and if so update it.
-		cache.Add(reString, compiledRegex)
-		cacheLock.Unlock()
+	if cacheLRU != nil {
+		// Copy of compiled regex.
+		copied := compiledRegex
+		// No need to lock on Put since cache is locked.
+		cacheLRU.Put(reString, &copied)
 	}
 
 	return compiledRegex, nil
