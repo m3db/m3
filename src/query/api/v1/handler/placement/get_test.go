@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/service"
@@ -149,7 +149,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(nil, errors.New("key not found"))
+		mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()

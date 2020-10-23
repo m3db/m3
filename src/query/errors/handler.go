@@ -20,28 +20,34 @@
 
 package errors
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+)
 
 var (
 	// ErrNotFound is returned when something is not found, this might be used for direct comparison
-	ErrNotFound = errors.New("not found")
+	ErrNotFound = xhttp.NewError(xerrors.NewInvalidParamsError(errors.New("not found")), http.StatusNotFound)
 	// ErrHeaderNotFound is returned when a header is not found
-	ErrHeaderNotFound = errors.New("header not found")
+	ErrHeaderNotFound = xerrors.NewInvalidParamsError(errors.New("header not found"))
 	// ErrBatchQuery is returned when a batch query is found
-	ErrBatchQuery = errors.New("batch queries are currently not supported")
+	ErrBatchQuery = xerrors.NewInvalidParamsError(errors.New("batch queries are currently not supported"))
 	// ErrNoQueryFound is returned when a target is not found
-	ErrNoQueryFound = errors.New("no query found")
+	ErrNoQueryFound = xerrors.NewInvalidParamsError(errors.New("no query found"))
 	// ErrInvalidResultParamError is returned when result field for complete tag request
 	// is an unexpected value
-	ErrInvalidResultParamError = errors.New("invalid 'result' type for complete tag request")
+	ErrInvalidResultParamError = xerrors.NewInvalidParamsError(errors.New("invalid 'result' type for complete tag request"))
 	// ErrNoName is returned when no name param is provided in the resource path
-	ErrNoName = errors.New("invalid path with no name present")
+	ErrNoName = xerrors.NewInvalidParamsError(errors.New("invalid path with no name present"))
 	// ErrInvalidMatchers is returned when invalid matchers are provided
-	ErrInvalidMatchers = errors.New("invalid matchers")
+	ErrInvalidMatchers = xerrors.NewInvalidParamsError(errors.New("invalid matchers"))
 	// ErrNamesOnly is returned when label values results are name only
-	ErrNamesOnly = errors.New("can not render label values; result has label names only")
+	ErrNamesOnly = xerrors.NewInvalidParamsError(errors.New("can not render label values; result has label names only"))
 	// ErrWithNames is returned when label values results are name only
-	ErrWithNames = errors.New("can not render label list; result has label names and values")
+	ErrWithNames = xerrors.NewInvalidParamsError(errors.New("can not render label list; result has label names and values"))
 	// ErrMultipleResults is returned when there are multiple label values results
-	ErrMultipleResults = errors.New("can not render label values; multiple results detected")
+	ErrMultipleResults = xerrors.NewInvalidParamsError(errors.New("can not render label values; multiple results detected"))
 )

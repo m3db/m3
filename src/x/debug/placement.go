@@ -54,13 +54,9 @@ func NewPlacementInfoSource(
 // Write fetches data about the placement and writes it in the given writer.
 // The data is formatted in json.
 func (p *placementInfoSource) Write(w io.Writer, httpReq *http.Request) error {
-	placement, _, err := p.getHandler.Get(p.service, httpReq)
+	placement, err := p.getHandler.Get(p.service, httpReq)
 	if err != nil {
 		return err
-	}
-	if placement == nil {
-		return fmt.Errorf("placement does not exist for service: %s",
-			p.service.ServiceName)
 	}
 
 	placementProto, err := placement.Proto()

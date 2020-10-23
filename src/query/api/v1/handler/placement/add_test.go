@@ -175,7 +175,7 @@ func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Equal(t,
-			`{"error":"instances [A,B] do not have all shards available"}`+"\n",
+			`{"error":"instances do not have all shards available: [A, B]"}`+"\n",
 			string(body))
 	})
 }
