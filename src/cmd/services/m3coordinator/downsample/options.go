@@ -119,8 +119,6 @@ type DownsamplerOptions struct {
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
-	// Primarily exists for testing.
-	MetricsAppenderOptionsUpdateCh chan bool
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -131,29 +129,31 @@ type AutoMappingRule struct {
 
 // NewAutoMappingRules generates mapping rules from cluster namespaces.
 func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, error) {
-	var autoMappingRules []AutoMappingRule
+	autoMappingRules := make([]AutoMappingRule, 0, len(namespaces))
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
 		attrs := opts.Attributes()
-		if attrs.MetricsType == storagemetadata.AggregatedMetricsType {
-			downsampleOpts, err := opts.DownsampleOptions()
-			if err != nil {
-				errFmt := "unable to resolve downsample options for namespace: %v"
-				return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
-			}
-			if downsampleOpts.All {
-				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
-					xtime.Second, attrs.Retention)
-				autoMappingRules = append(autoMappingRules, AutoMappingRule{
-					// NB(r): By default we will apply just keep all last values
-					// since coordinator only uses downsampling with Prometheus
-					// remote write endpoint.
-					// More rich static configuration mapping rules can be added
-					// in the future but they are currently not required.
-					Aggregations: []aggregation.Type{aggregation.Last},
-					Policies:     policy.StoragePolicies{storagePolicy},
-				})
-			}
+		if attrs.MetricsType != storagemetadata.AggregatedMetricsType {
+			continue
+		}
+
+		downsampleOpts, err := opts.DownsampleOptions()
+		if err != nil {
+			errFmt := "unable to resolve downsample options for namespace: %v"
+			return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
+		}
+		if downsampleOpts.All {
+			storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
+				xtime.Second, attrs.Retention)
+			autoMappingRules = append(autoMappingRules, AutoMappingRule{
+				// NB(r): By default we will apply just keep all last values
+				// since coordinator only uses downsampling with Prometheus
+				// remote write endpoint.
+				// More rich static configuration mapping rules can be added
+				// in the future but they are currently not required.
+				Aggregations: []aggregation.Type{aggregation.Last},
+				Policies:     policy.StoragePolicies{storagePolicy},
+			})
 		}
 	}
 	return autoMappingRules, nil

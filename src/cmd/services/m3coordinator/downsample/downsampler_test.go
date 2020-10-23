@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	dbclient "github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -101,14 +102,17 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 		},
 	})
 
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+
 	session := dbclient.NewMockSession(ctrl)
-	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("2s:1d"),
 		Resolution:  2 * time.Second,
 		Retention:   24 * time.Hour,
 		Session:     session,
 	})
-	<-updateCh
+
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -272,8 +276,10 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 		},
 	})
 
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+
 	session := dbclient.NewMockSession(ctrl)
-	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("2s:24h"),
 		Resolution:  2 * time.Second,
 		Retention:   24 * time.Hour,
@@ -284,7 +290,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 		Retention:   48 * time.Hour,
 		Session:     session,
 	})
-	<-updateCh
+
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -338,14 +345,17 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 		},
 	})
 
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+
 	session := dbclient.NewMockSession(ctrl)
-	updateCh := setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("2s:24h"),
 		Resolution:  2 * time.Second,
 		Retention:   24 * time.Hour,
 		Session:     session,
 	})
-	<-updateCh
+
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -1225,6 +1235,27 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 	testDownsamplerRemoteAggregation(t, testDownsampler)
 }
 
+func originalStagedMetadata(t *testing.T, testDownsampler testDownsampler) []metricpb.StagedMetadatas {
+	ds, ok := testDownsampler.downsampler.(*downsampler)
+	require.True(t, ok)
+
+	origStagedMetadata := ds.metricsAppenderOpts.defaultStagedMetadatasProtos
+	return origStagedMetadata
+}
+
+func waitForStagedMetadataUpdate(t *testing.T, testDownsampler testDownsampler, origStagedMetadata []metricpb.StagedMetadatas) {
+	ds, ok := testDownsampler.downsampler.(*downsampler)
+	require.True(t, ok)
+
+	require.True(t, clock.WaitUntil(func() bool {
+		ds.RLock()
+		defer ds.RUnlock()
+
+		return !assert.ObjectsAreEqual(origStagedMetadata, ds.metricsAppenderOpts.defaultStagedMetadatasProtos)
+	}, time.Second))
+
+}
+
 type testExpectedWrite struct {
 	tags              map[string]string
 	values            []expectedValue // use values for multi expected values
@@ -1631,7 +1662,7 @@ func setAggregatedNamespaces(
 	testDownsampler testDownsampler,
 	session dbclient.Session,
 	namespaces ...m3.AggregatedClusterNamespaceDefinition,
-) chan bool {
+) {
 	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("default"),
 		Retention:   48 * time.Hour,
@@ -1639,8 +1670,6 @@ func setAggregatedNamespaces(
 	}, namespaces...)
 	require.NoError(t, err)
 	require.NoError(t, testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
-
-	return testDownsampler.updateCh
 }
 
 func tagsToStringMap(tags models.Tags) map[string]string {
@@ -1660,7 +1689,6 @@ type testDownsampler struct {
 	storage        mock.Storage
 	rulesStore     rules.Store
 	instrumentOpts instrument.Options
-	updateCh       chan bool
 }
 
 type testDownsamplerOptions struct {
@@ -1744,22 +1772,20 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		cfg.Rules = opts.rulesConfig
 	}
 
-	updateCh := make(chan bool, 1)
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
-		Storage:                        storage,
-		ClusterClient:                  clusterclient.NewMockClient(gomock.NewController(t)),
-		RulesKVStore:                   rulesKVStore,
-		ClusterNamespacesWatcher:       m3.NewClusterNamespacesWatcher(),
-		ClockOptions:                   clockOpts,
-		InstrumentOptions:              instrumentOpts,
-		TagEncoderOptions:              tagEncoderOptions,
-		TagDecoderOptions:              tagDecoderOptions,
-		TagEncoderPoolOptions:          tagEncoderPoolOptions,
-		TagDecoderPoolOptions:          tagDecoderPoolOptions,
-		MetricsAppenderPoolOptions:     metricsAppenderPoolOptions,
-		RWOptions:                      xio.NewOptions(),
-		TagOptions:                     models.NewTagOptions(),
-		MetricsAppenderOptionsUpdateCh: updateCh,
+		Storage:                    storage,
+		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
+		RulesKVStore:               rulesKVStore,
+		ClusterNamespacesWatcher:   m3.NewClusterNamespacesWatcher(),
+		ClockOptions:               clockOpts,
+		InstrumentOptions:          instrumentOpts,
+		TagEncoderOptions:          tagEncoderOptions,
+		TagDecoderOptions:          tagDecoderOptions,
+		TagEncoderPoolOptions:      tagEncoderPoolOptions,
+		TagDecoderPoolOptions:      tagDecoderPoolOptions,
+		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
+		RWOptions:                  xio.NewOptions(),
+		TagOptions:                 models.NewTagOptions(),
 	})
 	require.NoError(t, err)
 
@@ -1774,7 +1800,6 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		storage:        storage,
 		rulesStore:     rulesStore,
 		instrumentOpts: instrumentOpts,
-		updateCh:       updateCh,
 	}
 }
 

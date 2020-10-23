@@ -122,6 +122,8 @@ type ClusterNamespacesWatcher interface {
 	Close()
 }
 
+// ClusterNamespacesListener is a listener for receiving updates from a
+// ClusterNamespacesWatcher.
 type ClusterNamespacesListener interface {
 	// OnUpdate is called when updates have occurred passing in the new namespaces.
 	OnUpdate(namespaces ClusterNamespaces)
