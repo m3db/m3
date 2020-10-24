@@ -122,7 +122,7 @@ function test_query_limits_applied {
   # coordinator (limit set by header)
   echo "Test query limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
 }
 
 function prometheus_query_native {

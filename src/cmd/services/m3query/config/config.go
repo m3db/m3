@@ -77,8 +77,14 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQuerySeriesLimit = 10000
+	// By default, cap total series to prevent results of
+	// extremely large sizes consuming too much memory.
+	defaultStorageQuerySeriesLimit = 100_000
 	defaultStorageQueryDocsLimit   = 0 // Default OFF.
+
+	// By default, raise errors instead of truncating results so
+	// users do not experience see unexpected results.
+	defaultRequireExhaustive = true
 
 	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
 		GrowOnDemand:          true,
@@ -369,7 +375,7 @@ type PerQueryLimitsConfiguration struct {
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
+	RequireExhaustive *bool `yaml:"requireExhaustive"`
 
 	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
 	// used by a given query, this is applied at the query service after the
@@ -405,10 +411,15 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		docsLimit = v
 	}
 
+	requireExhaustive := defaultRequireExhaustive
+	if r := l.RequireExhaustive; r != nil {
+		requireExhaustive = *r
+	}
+
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
-		RequireExhaustive: l.RequireExhaustive,
+		RequireExhaustive: requireExhaustive,
 	}
 }
 
