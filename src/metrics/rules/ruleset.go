@@ -423,6 +423,7 @@ func (rs *ruleSet) AddRollupRule(rrv view.RollupRule, meta UpdateMetadata) (stri
 			rrv.Filter,
 			targets,
 			meta,
+			rrv.KeepOriginal,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
 		}
@@ -433,6 +434,7 @@ func (rs *ruleSet) AddRollupRule(rrv view.RollupRule, meta UpdateMetadata) (stri
 			rrv.Filter,
 			targets,
 			meta,
+			rrv.KeepOriginal,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", rrv.Name))
 		}
@@ -452,6 +454,7 @@ func (rs *ruleSet) UpdateRollupRule(rrv view.RollupRule, meta UpdateMetadata) er
 		rrv.Filter,
 		targets,
 		meta,
+		rrv.KeepOriginal,
 	); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", rrv.Name))
 	}
