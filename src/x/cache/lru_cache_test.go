@@ -570,6 +570,16 @@ func TestLRU_GetWithTTL_AllowEntrySpecificTTLs(t *testing.T) {
 	assert.Equal(t, 2, loadAttempts)
 }
 
+func TestLRU_PutWithTTL_NoExistingEntry(t *testing.T) {
+	lru := NewLRU(nil)
+
+	lru.PutWithTTL("foo", "bar", 0)
+
+	value, err := lru.GetWithTTL(context.Background(), "foo", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", value.(string))
+}
+
 var defaultKeys = []string{
 	"key-0", "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "key-7", "key-8", "key-9", "key10",
 }

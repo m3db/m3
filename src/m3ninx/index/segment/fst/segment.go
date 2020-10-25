@@ -34,14 +34,12 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
 
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 	"github.com/m3dbx/vellum"
 )
 
@@ -387,17 +385,7 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 	return i.postingsIter, nil
 }
 
-func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset uint64) error {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return errReaderClosed
-	}
-
-	return r.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b, offset)
-}
-
-func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b *pilosaroaring.Bitmap, offset uint64) error {
+func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b *roaring.ReadOnlyBitmap, offset uint64) error {
 	if r.finalized {
 		return errReaderFinalized
 	}
@@ -407,8 +395,7 @@ func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b
 		return fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
 
-	b.Reset()
-	return b.UnmarshalBinary(postingsBytes)
+	return b.Reset(postingsBytes)
 }
 
 func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
@@ -630,8 +617,8 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
-
-	return pilosa.Unmarshal(postingsBytes)
+	// Read only bitmap is a very low allocation postings list.
+	return roaring.NewReadOnlyBitmap(postingsBytes)
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, error) {

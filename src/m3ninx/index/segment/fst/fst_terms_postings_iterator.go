@@ -23,24 +23,11 @@ package fst
 import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3dbx/pilosa/roaring"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 )
 
-// postingsIterRoaringPoolingConfig uses a configuration that avoids allocating
-// any containers in the roaring bitmap, since these roaring bitmaps are backed
-// by mmaps and don't have any native containers themselves.
-var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
-	MaxArraySize:                    0,
-	MaxRunsSize:                     0,
-	AllocateBitmap:                  false,
-	MaxCapacity:                     0,
-	MaxKeysAndContainersSliceLength: 128 * 10,
-}
-
 type fstTermsPostingsIter struct {
-	bitmap   *roaring.Bitmap
-	postings postings.List
+	bitmap *roaring.ReadOnlyBitmap
 
 	seg       *fsSegment
 	termsIter *fstTermsIter
@@ -49,10 +36,8 @@ type fstTermsPostingsIter struct {
 }
 
 func newFSTTermsPostingsIter() *fstTermsPostingsIter {
-	bitmap := roaring.NewBitmapWithPooling(postingsIterRoaringPoolingConfig)
 	i := &fstTermsPostingsIter{
-		bitmap:   bitmap,
-		postings: postingsroaring.NewPostingsListFromBitmap(bitmap),
+		bitmap: &roaring.ReadOnlyBitmap{},
 	}
 	i.clear()
 	return i
@@ -61,7 +46,7 @@ func newFSTTermsPostingsIter() *fstTermsPostingsIter {
 var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
 
 func (f *fstTermsPostingsIter) clear() {
-	f.bitmap.Reset()
+	f.bitmap.Reset(nil)
 	f.seg = nil
 	f.termsIter = nil
 	f.currTerm = nil
@@ -100,7 +85,7 @@ func (f *fstTermsPostingsIter) Next() bool {
 }
 
 func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {
-	return f.currTerm, f.postings
+	return f.currTerm, f.bitmap
 }
 
 func (f *fstTermsPostingsIter) Err() error {

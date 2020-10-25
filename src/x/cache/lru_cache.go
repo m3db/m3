@@ -227,7 +227,7 @@ func (c *LRU) PutWithTTL(key string, value interface{}, ttl time.Duration) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
-	_, _ = c.updateCacheEntry(key, expiresAt, value, nil)
+	_, _ = c.updateCacheEntryWithLock(key, expiresAt, value, nil)
 }
 
 // Get returns the value associated with the key, optionally
@@ -349,22 +349,22 @@ func (c *LRU) cacheLoadComplete(
 	defer c.mut.Unlock()
 
 	if err != nil {
-		return c.handleCacheLoadError(key, expiresAt, err)
+		return c.handleCacheLoadErrorWithLock(key, expiresAt, err)
 	}
 
-	return c.updateCacheEntry(key, expiresAt, value, err)
+	return c.updateCacheEntryWithLock(key, expiresAt, value, err)
 }
 
-// handleCacheLoadError handles the results of an error from a cache load. If
+// handleCacheLoadErrorWithLock handles the results of an error from a cache load. If
 // we are caching errors, updates the cache entry with the error. Otherwise
 // removes the cache entry and returns the (possible unwrapped) error.
-func (c *LRU) handleCacheLoadError(
+func (c *LRU) handleCacheLoadErrorWithLock(
 	key string, expiresAt time.Time, err error,
 ) (interface{}, error) {
 	// If the loader is telling us to cache this error, do so unconditionally
 	var cachedErr CachedError
 	if errors.As(err, &cachedErr) {
-		return c.updateCacheEntry(key, expiresAt, nil, cachedErr.Err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, cachedErr.Err)
 	}
 
 	// If the cache is configured to cache errors by default, do so unless
@@ -372,7 +372,7 @@ func (c *LRU) handleCacheLoadError(
 	var uncachedErr UncachedError
 	isUncachedError := errors.As(err, &uncachedErr)
 	if c.cacheErrors && !isUncachedError {
-		return c.updateCacheEntry(key, expiresAt, nil, err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, err)
 	}
 
 	// Something happened during load, but we don't want to cache this - remove the entry,
@@ -389,12 +389,17 @@ func (c *LRU) handleCacheLoadError(
 	return nil, err
 }
 
-// updateCacheEntry updates a cache entry with a new value or cached error,
+// updateCacheEntryWithLock updates a cache entry with a new value or cached error,
 // and marks it as the most recently accessed and most recently loaded entry
-func (c *LRU) updateCacheEntry(
+func (c *LRU) updateCacheEntryWithLock(
 	key string, expiresAt time.Time, value interface{}, err error,
 ) (interface{}, error) {
 	entry := c.entries[key]
+	if entry == nil {
+		entry = &lruCacheEntry{}
+		c.entries[key] = entry
+	}
+
 	entry.value, entry.err = value, err
 
 	// Re-adjust expiration and mark as both most recently access and most recently used
@@ -408,8 +413,10 @@ func (c *LRU) updateCacheEntry(
 	c.metrics.entries.Update(float64(len(c.entries)))
 
 	// Tell any other callers that we're done loading
-	close(entry.loadingCh)
-	entry.loadingCh = nil
+	if entry.loadingCh != nil {
+		close(entry.loadingCh)
+		entry.loadingCh = nil
+	}
 	return value, err
 }
 

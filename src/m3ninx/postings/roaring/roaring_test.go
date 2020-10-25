@@ -35,21 +35,6 @@ func TestRoaringPostingsListEmpty(t *testing.T) {
 	require.Equal(t, 0, d.Len())
 }
 
-func TestRoaringPostingsListMax(t *testing.T) {
-	d := NewPostingsList()
-	require.NoError(t, d.Insert(42))
-	require.NoError(t, d.Insert(78))
-	require.NoError(t, d.Insert(103))
-
-	max, err := d.Max()
-	require.NoError(t, err)
-	require.Equal(t, postings.ID(103), max)
-
-	d = NewPostingsList()
-	_, err = d.Max()
-	require.Error(t, err)
-}
-
 func TestRoaringPostingsListInsert(t *testing.T) {
 	d := NewPostingsList()
 	require.NoError(t, d.Insert(1))
