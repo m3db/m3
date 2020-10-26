@@ -340,8 +340,6 @@ func TestIngesterNoStaticRules(t *testing.T) {
 
 	var expectationErr error
 	mockDownsamplerAndWriter, found := newMockDownsamplerAndWriter(ctrl, func(mappingRules []downsample.AutoMappingRule) {
-		// Use panics instead of require/assert because those don't behave properly when the assertion
-		// is run in a background goroutine.
 		if len(mappingRules) != 1 {
 			expectationErr = errors.New(fmt.Sprintf("expected: len(DownsampleMappingRules) == 1, got: %v", len(mappingRules)))
 		}
