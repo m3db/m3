@@ -176,7 +176,8 @@ func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
 			continue
 		}
 
-		retention := md.Options().RetentionOptions().RetentionPeriod()
+		retentionOpts := md.Options().RetentionOptions()
+		retention := retentionOpts.RetentionPeriod()
 		for _, agg := range aggOpts.Aggregations() {
 			if agg.Aggregated {
 				key := resolutionRetentionKey{
