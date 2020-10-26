@@ -31,6 +31,9 @@ listenAddress: "..."
 - **M3Coordinator**: `/api/v1/placement` changed to `/api/v1/services/m3db/placement`
 - **M3Coordinator**: `/api/v1/placement/init` changed to `/api/v1/services/m3db/placement/init`
 
+### Misc
+- **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
+
 # 0.15.17
 
 ## Features 
