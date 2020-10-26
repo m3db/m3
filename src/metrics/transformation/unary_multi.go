@@ -38,7 +38,7 @@ import "time"
 // since the timestamps are no longer at a fixed interval. In practice we see a 3x increase in storage for these
 // aggregated counters.
 func transformReset() UnaryMultiOutputTransform {
-	return UnaryMultiOutputTransformFn(func(dp Datapoint) (Datapoint, []Datapoint) {
-		return dp, []Datapoint{{Value: 0, TimeNanos: dp.TimeNanos + int64(time.Second)}}
+	return UnaryMultiOutputTransformFn(func(dp Datapoint) (Datapoint, Datapoint) {
+		return dp, Datapoint{Value: 0, TimeNanos: dp.TimeNanos + int64(time.Second)}
 	})
 }

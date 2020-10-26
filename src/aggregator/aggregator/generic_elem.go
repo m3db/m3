@@ -468,10 +468,9 @@ func (e *GenericElem) processValueWithAggregationLock(
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		toFlush := make([]transformation.Datapoint, 0)
+		toFlush := make([]transformation.Datapoint, 0, 2)
 		value := lockedAgg.aggregation.ValueOf(aggType)
 		for _, transformOp := range transformations {
-
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
 			unaryMultiOp, isUnaryMultiOp := transformOp.UnaryMultiOutputTransform()
@@ -515,10 +514,9 @@ func (e *GenericElem) processValueWithAggregationLock(
 					TimeNanos: timeNanos,
 					Value:     value,
 				}
-				res, others := unaryMultiOp.Evaluate(curr)
-				for _, o := range others {
-					toFlush = append(toFlush, o)
-				}
+
+				res, extraDp := unaryMultiOp.Evaluate(curr)
+				toFlush = append(toFlush, extraDp)
 				value = res.Value
 			}
 		}
