@@ -276,7 +276,7 @@ func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {
 }
 
 func takeInstantFn(heap utils.FloatHeap, values []float64, buckets [][]int, metas []block.SeriesMeta) []valueAndMeta {
-	var result []valueAndMeta
+	var result = make([]valueAndMeta, 0, heap.Cap())
 	if heap.Cap() < 1 {
 		return result
 	}
