@@ -32,10 +32,9 @@ func TestReset(t *testing.T) {
 	require.NoError(t, err)
 	now := time.Now()
 	dp := Datapoint{Value: 1000, TimeNanos: now.UnixNano()}
-	this, others := reset.Evaluate(dp)
+	this, other := reset.Evaluate(dp)
 	require.Equal(t, dp, this)
-	require.Len(t, others, 1)
-	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, others[0])
+	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, other)
 
 }
 
