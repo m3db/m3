@@ -1672,7 +1672,6 @@ func withEncodingAndPoolingOptions(
 				SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
-				SetPostingsListPool(postingsList).
 				SetInstrumentOptions(iopts).
 				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(

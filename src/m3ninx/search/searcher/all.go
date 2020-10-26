@@ -33,10 +33,6 @@ func NewAllSearcher() search.Searcher {
 	return &all{}
 }
 
-func (s *all) Search(r index.Reader) (postings.List, postings.Iterator, error) {
-	pl, err := r.MatchAll()
-	if err != nil {
-		return nil, nil, err
-	}
-	return pl, nil, nil
+func (s *all) Search(r index.Reader) (postings.List, error) {
+	return r.MatchAll()
 }

@@ -28,16 +28,13 @@ import (
 )
 
 type emptySearcher struct {
-	postings postings.List
 }
 
 // NewEmptySearcher returns a new searcher which always returns an empty postings list.
 func NewEmptySearcher() search.Searcher {
-	return &emptySearcher{
-		postings: roaring.NewPostingsList(),
-	}
+	return &emptySearcher{}
 }
 
-func (s *emptySearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
-	return s.postings, nil, nil
+func (s *emptySearcher) Search(r index.Reader) (postings.List, error) {
+	return roaring.NewReadOnlyBitmap(nil)
 }

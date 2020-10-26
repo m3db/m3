@@ -37,10 +37,6 @@ func NewFieldSearcher(field []byte) (search.Searcher, error) {
 	}, nil
 }
 
-func (s *fieldSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
-	pl, err := r.MatchField(s.field)
-	if err != nil {
-		return nil, nil, err
-	}
-	return pl, nil, nil
+func (s *fieldSearcher) Search(r index.Reader) (postings.List, error) {
+	return r.MatchField(s.field)
 }

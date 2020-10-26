@@ -23,6 +23,7 @@ package searcher
 import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -38,17 +39,20 @@ func NewNegationSearcher(s search.Searcher) (search.Searcher, error) {
 	}, nil
 }
 
-func (s *negationSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
+func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
 	pl, err := r.MatchAll()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	sPl, _, err := s.searcher.Search(r)
+	negatePl, err := s.searcher.Search(r)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	pl.Difference(sPl)
-	return pl, nil, nil
+	// Perform a lazy fast intersect and negate.
+	// TODO: Try and see if returns err, if so fallback to slower method?
+	intersects := []postings.List{pl}
+	negations := []postings.List{negatePl}
+	return roaring.IntersectAndNegateReadOnly(intersects, negations)
 }

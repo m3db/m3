@@ -418,7 +418,10 @@ func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
 	}
 	if !exists {
 		// i.e. we don't know anything about the term, so can early return an empty postings list
-		return r.opts.PostingsListPool().Get(), nil
+		// NB(r): Important this is a read only bitmap since we perform
+		// operations on postings lists and expect them all to be read only
+		// postings lists.
+		return roaring.NewReadOnlyBitmap(nil)
 	}
 
 	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
@@ -451,7 +454,10 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
-		return r.opts.PostingsListPool().Get(), nil
+		// NB(r): Important this is a read only bitmap since we perform
+		// operations on postings lists and expect them all to be read only
+		// postings lists.
+		return roaring.NewReadOnlyBitmap(nil)
 	}
 
 	fstCloser := x.NewSafeCloser(termsFST)
@@ -464,7 +470,10 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the term, so can early return an empty postings list
-		return r.opts.PostingsListPool().Get(), nil
+		// NB(r): Important this is a read only bitmap since we perform
+		// operations on postings lists and expect them all to be read only
+		// postings lists.
+		return roaring.NewReadOnlyBitmap(nil)
 	}
 
 	pl, err := r.retrievePostingsListWithRLock(postingsOffset)
@@ -501,7 +510,10 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
-		return r.opts.PostingsListPool().Get(), nil
+		// NB(r): Important this is a read only bitmap since we perform
+		// operations on postings lists and expect them all to be read only
+		// postings lists.
+		return roaring.NewReadOnlyBitmap(nil)
 	}
 
 	var (
@@ -534,7 +546,9 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		iterErr = iter.Next()
 	}
 
-	pl, err := roaring.Union(pls)
+	// NB(r): Can use union read only since we are guaranteed all
+	// postings lists are read only.
+	pl, err := roaring.UnionReadOnly(pls)
 	if err != nil {
 		return nil, err
 	}
@@ -550,20 +564,17 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 	return pl, nil
 }
 
-func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.MutableList, error) {
+func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.List, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
 		return nil, errReaderFinalized
 	}
 
-	pl := r.opts.PostingsListPool().Get()
-	err := pl.AddRange(0, postings.ID(r.numDocs))
-	if err != nil {
-		return nil, err
-	}
-
-	return pl, nil
+	// NB(r): Important this is a read only bitmap since we perform
+	// operations on postings lists and expect them all to be read only
+	// postings lists.
+	return roaring.NewReadOnlyBitmapRange(0, uint64(r.numDocs))
 }
 
 func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
@@ -871,7 +882,7 @@ func (sr *fsSegmentReader) MatchRegexp(
 	return pl, err
 }
 
-func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
+func (sr *fsSegmentReader) MatchAll() (postings.List, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}

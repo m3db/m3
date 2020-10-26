@@ -101,7 +101,6 @@ func (d *postingsList) Intersect(other postings.List) error {
 	if !ok {
 		return errIntersectRoaringOnly
 	}
-
 	d.bitmap = d.bitmap.Intersect(o.bitmap)
 	return nil
 }
@@ -179,7 +178,11 @@ func (d *postingsList) IsEmpty() bool {
 	return d.bitmap.Count() == 0
 }
 
-func (d *postingsList) Len() int {
+func (d *postingsList) CountFast() (int, bool) {
+	return int(d.bitmap.Count()), true
+}
+
+func (d *postingsList) CountSlow() int {
 	return int(d.bitmap.Count())
 }
 
@@ -200,23 +203,7 @@ func (d *postingsList) Clone() postings.MutableList {
 }
 
 func (d *postingsList) Equal(other postings.List) bool {
-	if d.Len() != other.Len() {
-		return false
-	}
-
-	iter := d.Iterator()
-	otherIter := other.Iterator()
-
-	for iter.Next() {
-		if !otherIter.Next() {
-			return false
-		}
-		if iter.Current() != otherIter.Current() {
-			return false
-		}
-	}
-
-	return true
+	return postings.Equal(d, other)
 }
 
 type roaringIterator struct {

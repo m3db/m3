@@ -68,7 +68,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 
 	// If empty posting list, track insertion of this key into the terms
 	// collection for correct response when retrieving all terms
-	newTerm := postingsList.Len() == 0
+	newTerm := postingsList.IsEmpty()
 	if err := postingsList.Insert(id); err != nil {
 		return err
 	}

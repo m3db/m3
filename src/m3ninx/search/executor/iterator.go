@@ -21,8 +21,6 @@
 package executor
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -119,17 +117,10 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	}
 
 	reader := it.readers[it.idx]
-	pl, iter, err := it.searcher.Search(reader)
+	pl, err := it.searcher.Search(reader)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if pl != nil && iter == nil {
-		iter = pl.Iterator()
-	}
-	if iter == nil {
-		return nil, false, fmt.Errorf("no postings list or iterator returned")
-	}
-
-	return index.NewIDDocIterator(reader, iter), true, nil
+	return index.NewIDDocIterator(reader, pl.Iterator()), true, nil
 }

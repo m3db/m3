@@ -32,14 +32,17 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	errNotPilosaRoaring = errors.New("not pilosa roaring format")
-
+const (
 	headerBaseSize     = uint64(8)
 	magicNumber        = uint32(12348)
 	storageVersion     = uint32(0)
 	bitmapN            = 1024
 	runCountHeaderSize = uint32(2)
+	containerValues    = 2 << 15 // 2^16 or 65k
+)
+
+var (
+	errNotPilosaRoaring = errors.New("not pilosa roaring format")
 )
 
 type containerType byte
@@ -61,6 +64,10 @@ var _ postings.List = (*ReadOnlyBitmap)(nil)
 type ReadOnlyBitmap struct {
 	data []byte
 	keyN uint64
+
+	rangeOverride       bool // if rangeOverride then just a read only range
+	rangeStartInclusive uint64
+	rangeEndExclusive   uint64
 }
 
 // NewReadOnlyBitmap returns a new read only bitmap.
@@ -72,7 +79,28 @@ func NewReadOnlyBitmap(data []byte) (*ReadOnlyBitmap, error) {
 	return b, nil
 }
 
+// NewReadOnlyBitmapRange returns a special read only bitmap that
+// represents a range.
+func NewReadOnlyBitmapRange(
+	startInclusive, endExclusive uint64,
+) (*ReadOnlyBitmap, error) {
+	if endExclusive < startInclusive {
+		return nil, fmt.Errorf("end cannot be before start: start=%d, end=%d",
+			startInclusive, endExclusive)
+	}
+
+	return &ReadOnlyBitmap{
+		rangeOverride:       true,
+		rangeStartInclusive: startInclusive,
+		rangeEndExclusive:   endExclusive,
+	}, nil
+}
+
 func (b *ReadOnlyBitmap) Reset(data []byte) error {
+	b.rangeOverride = false
+	b.rangeStartInclusive = 0
+	b.rangeEndExclusive = 0
+
 	if len(data) == 0 {
 		// Reset to nil
 		b.data = nil
@@ -209,6 +237,12 @@ func (b *ReadOnlyBitmap) containerAtIndex(index uint64) readOnlyContainer {
 }
 
 func (b *ReadOnlyBitmap) Contains(id postings.ID) bool {
+	if b.rangeOverride {
+		// Using range override.
+		return uint64(id) >= b.rangeStartInclusive &&
+			uint64(id) < b.rangeEndExclusive
+	}
+
 	value := uint64(id)
 	container, ok := b.container(highbits(value))
 	if !ok {
@@ -227,10 +261,13 @@ func (b *ReadOnlyBitmap) Contains(id postings.ID) bool {
 }
 
 func (b *ReadOnlyBitmap) IsEmpty() bool {
-	return b.keyN == 0
+	if b.rangeOverride {
+		return b.rangeCount() == 0
+	}
+	return b.count() == 0
 }
 
-func (b *ReadOnlyBitmap) Len() int {
+func (b *ReadOnlyBitmap) count() int {
 	l := 0
 	for i := uint64(0); i < b.keyN; i++ {
 		l += int(b.containerAtIndex(i).cardinality)
@@ -238,25 +275,42 @@ func (b *ReadOnlyBitmap) Len() int {
 	return l
 }
 
+func (b *ReadOnlyBitmap) rangeCount() int {
+	return int(b.rangeEndExclusive - b.rangeStartInclusive)
+}
+
+func (b *ReadOnlyBitmap) CountFast() (int, bool) {
+	if b.rangeOverride {
+		return b.rangeCount(), true
+	}
+	return b.count(), true
+}
+
+func (b *ReadOnlyBitmap) CountSlow() int {
+	if b.rangeOverride {
+		return b.rangeCount()
+	}
+	return b.count()
+}
+
 func (b *ReadOnlyBitmap) Iterator() postings.Iterator {
+	if b.rangeOverride {
+		return postings.NewRangeIterator(postings.ID(b.rangeStartInclusive),
+			postings.ID(b.rangeEndExclusive))
+	}
 	return newReadOnlyBitmapIterator(b)
 }
 
+func (b *ReadOnlyBitmap) containerIterator() containerIterator {
+	if b.rangeOverride {
+		return newReadOnlyBitmapRangeContainerIterator(b.rangeStartInclusive,
+			b.rangeEndExclusive)
+	}
+	return newReadOnlyBitmapContainerIterator(b)
+}
+
 func (b *ReadOnlyBitmap) Equal(other postings.List) bool {
-	if b.Len() != other.Len() {
-		return false
-	}
-	iter := b.Iterator()
-	otherIter := other.Iterator()
-	for iter.Next() {
-		if !otherIter.Next() {
-			return false
-		}
-		if iter.Current() != otherIter.Current() {
-			return false
-		}
-	}
-	return true
+	return postings.Equal(b, other)
 }
 
 func (b *ReadOnlyBitmap) keyAtIndex(index int) uint64 {
@@ -429,4 +483,344 @@ func (i *readOnlyBitmapIterator) Err() error {
 
 func (i *readOnlyBitmapIterator) Close() error {
 	return nil
+}
+
+var _ containerIterator = (*readOnlyBitmapContainerIterator)(nil)
+
+type readOnlyBitmapContainerIterator struct {
+	b              *ReadOnlyBitmap
+	containerIndex int
+	container      readOnlyContainer
+}
+
+func newReadOnlyBitmapContainerIterator(
+	b *ReadOnlyBitmap,
+) *readOnlyBitmapContainerIterator {
+	return &readOnlyBitmapContainerIterator{
+		b:              b,
+		containerIndex: -1,
+	}
+}
+
+func (i *readOnlyBitmapContainerIterator) NextContainer() bool {
+	i.containerIndex++
+	if i.containerIndex >= int(i.b.keyN) {
+		return false
+	}
+	i.container = i.b.containerAtIndex(uint64(i.containerIndex))
+	return true
+}
+
+func (i *readOnlyBitmapContainerIterator) ContainerKey() uint64 {
+	return i.container.key
+}
+
+func (i *readOnlyBitmapContainerIterator) ContainerUnion(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	if bitmap, ok := i.container.bitmap(); ok {
+		if ctx.siblings == 0 {
+			// Special case, if no other containers at same key and this is a
+			// bitmap container then we can just immediately iterate over that
+			// no copying required.
+			target.SetReadOnly(bitmap.values)
+			return
+		}
+
+		unionBitmapInPlace(target.bitmap, bitmap.values)
+		return
+	}
+
+	if array, ok := i.container.array(); ok {
+		// Blindly set array values.
+		for _, v := range array.values {
+			target.bitmap[v>>6] |= (uint64(1) << (v % 64))
+		}
+		return
+	}
+
+	if runs, ok := i.container.runs(); ok {
+		// Blindly set run ranges.
+		for i := 0; i < len(runs.values); i++ {
+			bitmapSetRange(target.bitmap,
+				uint64(runs.values[i].start), uint64(runs.values[i].last)+1)
+		}
+		return
+	}
+}
+
+func (i *readOnlyBitmapContainerIterator) ContainerIntersect(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	if bitmap, ok := i.container.bitmap(); ok {
+		if ctx.siblings == 0 {
+			// Special case, if no other containers at same key and this is a
+			// bitmap container then we can just immediately iterate over that
+			// no copying required.
+			target.SetReadOnly(bitmap.values)
+			return
+		}
+
+		intersectBitmapInPlace(target.bitmap, bitmap.values)
+		return
+	}
+
+	if array, ok := i.container.array(); ok {
+		// Set temp bitmap with the array values then intersect.
+		ctx.tempBitmap.Reset(false)
+		for _, v := range array.values {
+			ctx.tempBitmap.bitmap[v>>6] |= (uint64(1) << (v % 64))
+		}
+
+		intersectBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+		return
+	}
+
+	if runs, ok := i.container.runs(); ok {
+		// Set temp bitmap with the ranges then intersect with temp.
+		ctx.tempBitmap.Reset(false)
+		for i := 0; i < len(runs.values); i++ {
+			bitmapSetRange(ctx.tempBitmap.bitmap,
+				uint64(runs.values[i].start), uint64(runs.values[i].last)+1)
+		}
+
+		intersectBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+		return
+	}
+}
+
+func (i *readOnlyBitmapContainerIterator) ContainerNegate(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	if bitmap, ok := i.container.bitmap(); ok {
+		differenceBitmapInPlace(target.bitmap, bitmap.values)
+		return
+	}
+
+	if array, ok := i.container.array(); ok {
+		// Set temp bitmap with the array values then intersect.
+		ctx.tempBitmap.Reset(false)
+		for _, v := range array.values {
+			ctx.tempBitmap.bitmap[v>>6] |= (uint64(1) << (v % 64))
+		}
+
+		differenceBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+		return
+	}
+
+	if runs, ok := i.container.runs(); ok {
+		// Set temp bitmap with the ranges then intersect with temp.
+		ctx.tempBitmap.Reset(false)
+		for i := 0; i < len(runs.values); i++ {
+			bitmapSetRange(ctx.tempBitmap.bitmap,
+				uint64(runs.values[i].start), uint64(runs.values[i].last)+1)
+		}
+
+		differenceBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+		return
+	}
+}
+
+const maxBitmap = 0xFFFFFFFFFFFFFFFF
+
+// bitmapSetRange sets all bits in [i, j) the same as pilosa's
+// bitmapSetRangeIgnoreN.
+// pilosa license is included as part of vendor code install.
+func bitmapSetRange(bitmap []uint64, i, j uint64) {
+	x := i >> 6
+	y := (j - 1) >> 6
+	var X uint64 = maxBitmap << (i % 64)
+	var Y uint64 = maxBitmap >> (63 - ((j - 1) % 64))
+
+	if x == y {
+		bitmap[x] |= (X & Y)
+	} else {
+		bitmap[x] |= X
+		for i := x + 1; i < y; i++ {
+			bitmap[i] = maxBitmap
+		}
+		bitmap[y] |= Y
+	}
+}
+
+// bitmapContains returns if bitmap includes element the same as pilosa's
+// bitmapContains.
+// pilosa license is included as part of vendor code install.
+func bitmapContains(bitmap []uint64, v uint16) bool {
+	return (bitmap[v/64] & (1 << uint64(v%64))) != 0
+}
+
+func unionBitmapInPlace(a, b []uint64) {
+	// Below is similar to pilosa's unionBitmapInPlace.
+	// pilosa license is included as part of vendor code install.
+	// local variables added to prevent BCE checks in loop
+	// see https://go101.org/article/bounds-check-elimination.html
+	var (
+		ab = a[:bitmapN]
+		bb = b[:bitmapN]
+	)
+
+	// Manually unroll loop to make it a little faster.
+	for i := 0; i < bitmapN; i += 4 {
+		ab[i] |= bb[i]
+		ab[i+1] |= bb[i+1]
+		ab[i+2] |= bb[i+2]
+		ab[i+3] |= bb[i+3]
+	}
+}
+
+func intersectBitmapInPlace(a, b []uint64) {
+	// Below is similar to pilosa's unionBitmapInPlace.
+	// pilosa license is included as part of vendor code install.
+	// local variables added to prevent BCE checks in loop
+	// see https://go101.org/article/bounds-check-elimination.html
+	var (
+		ab = a[:bitmapN]
+		bb = b[:bitmapN]
+	)
+
+	// Manually unroll loop to make it a little faster.
+	for i := 0; i < bitmapN; i += 4 {
+		ab[i] &= bb[i]
+		ab[i+1] &= bb[i+1]
+		ab[i+2] &= bb[i+2]
+		ab[i+3] &= bb[i+3]
+	}
+}
+
+func differenceBitmapInPlace(a, b []uint64) {
+	// Below is similar to pilosa's unionBitmapInPlace.
+	// pilosa license is included as part of vendor code install.
+	// local variables added to prevent BCE checks in loop
+	// see https://go101.org/article/bounds-check-elimination.html
+	var (
+		ab = a[:bitmapN]
+		bb = b[:bitmapN]
+	)
+
+	// Manually unroll loop to make it a little faster.
+	for i := 0; i < bitmapN; i += 4 {
+		ab[i] &= (^bb[i])
+		ab[i+1] &= (^bb[i+1])
+		ab[i+2] &= (^bb[i+2])
+		ab[i+3] &= (^bb[i+3])
+	}
+}
+
+var _ containerIterator = (*readOnlyBitmapRangeContainerIterator)(nil)
+
+type readOnlyBitmapRangeContainerIterator struct {
+	startInclusive int64 // use int64 so endInclusive can be -1 if need be
+	endInclusive   int64 // use int64 so endInclusive can be -1 if need be
+	first          bool
+	key            int64
+}
+
+func newReadOnlyBitmapRangeContainerIterator(
+	startInclusive, endExclusive uint64,
+) *readOnlyBitmapRangeContainerIterator {
+	return &readOnlyBitmapRangeContainerIterator{
+		startInclusive: int64(startInclusive),
+		endInclusive:   int64(endExclusive - 1),
+	}
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) startInKey() bool {
+	return i.key == i.startInclusive/containerValues
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) endInKey() bool {
+	return i.key == i.endInclusive/containerValues
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) validKey() bool {
+	return i.key <= i.endInclusive/containerValues
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) keyStart() uint64 {
+	return uint64(i.key) << 16
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) keyEnd() uint64 {
+	return uint64(i.key+1) << 16
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) NextContainer() bool {
+	if !i.first {
+		i.first = true
+		i.key = i.startInclusive / containerValues
+		return i.validKey()
+	}
+
+	if !i.validKey() {
+		return false
+	}
+
+	i.key++
+	return i.validKey()
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) ContainerKey() uint64 {
+	return uint64(i.key)
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) ContainerUnion(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	start := i.keyStart()
+	if i.startInKey() {
+		start = uint64(i.startInclusive)
+	}
+
+	end := i.keyEnd()
+	if i.endInKey() {
+		end = uint64(i.endInclusive)
+	}
+
+	// Set from [start, end+1) to union.
+	bitmapSetRange(target.bitmap, start, end+1)
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) ContainerIntersect(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	start := i.keyStart()
+	if i.startInKey() {
+		start = uint64(i.startInclusive)
+	}
+
+	end := i.keyEnd()
+	if i.endInKey() {
+		end = uint64(i.endInclusive)
+	}
+
+	// Create temp overlay and intersect with that.
+	ctx.tempBitmap.Reset(false)
+	bitmapSetRange(ctx.tempBitmap.bitmap, start, end+1)
+	intersectBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) ContainerNegate(
+	ctx containerOpContext,
+	target *bitmapContainer,
+) {
+	start := i.keyStart()
+	if i.startInKey() {
+		start = uint64(i.startInclusive)
+	}
+
+	end := i.keyEnd()
+	if i.endInKey() {
+		end = uint64(i.endInclusive)
+	}
+
+	// Create temp overlay and intersect with that.
+	ctx.tempBitmap.Reset(false)
+	bitmapSetRange(ctx.tempBitmap.bitmap, start, end+1)
+	differenceBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
 }

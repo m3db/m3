@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -46,38 +47,36 @@ func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searc
 	}, nil
 }
 
-func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
+func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	var (
 		intersects = make([]postings.List, 0, len(s.searchers))
 		negations  = make([]postings.List, 0, len(s.negations))
 	)
 	for _, sr := range s.searchers {
-		pl, _, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if pl == nil {
-			return nil, nil, fmt.Errorf("conjunction searchers must resolve postings lists")
+			return nil, fmt.Errorf("conjunction searchers must resolve postings lists")
 		}
 
 		intersects = append(intersects, pl)
 	}
 
 	for _, sr := range s.negations {
-		pl, _, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if pl == nil {
-			return nil, nil, fmt.Errorf("conjunction searchers must resolve postings lists")
+			return nil, fmt.Errorf("conjunction searchers must resolve postings lists")
 		}
 
 		negations = append(negations, pl)
 	}
 
-	iter, err := newIntersectAndNegatePostingsListIter(intersects, negations)
-	if err != nil {
-		return nil, nil, err
-	}
-	return nil, iter, nil
+	// Perform a lazy fast intersect and negate.
+	// TODO: Try and see if returns err, if so fallback to slower method?
+	return roaring.IntersectAndNegateReadOnly(intersects, negations)
 }

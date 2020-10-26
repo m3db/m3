@@ -74,7 +74,7 @@ type Readable interface {
 	MatchRegexp(field []byte, c CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
-	MatchAll() (postings.MutableList, error)
+	MatchAll() (postings.List, error)
 
 	// Docs returns an iterator over the documents whose IDs are in the provided
 	// postings list.

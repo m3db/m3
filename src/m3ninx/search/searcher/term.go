@@ -38,10 +38,6 @@ func NewTermSearcher(field, term []byte) search.Searcher {
 	}
 }
 
-func (s *termSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
-	pl, err := r.MatchTerm(s.field, s.term)
-	if err != nil {
-		return nil, nil, err
-	}
-	return pl, nil, nil
+func (s *termSearcher) Search(r index.Reader) (postings.List, error) {
+	return r.MatchTerm(s.field, s.term)
 }

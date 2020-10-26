@@ -21,8 +21,6 @@
 package searcher
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -45,26 +43,20 @@ func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error)
 	}, nil
 }
 
-func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
+func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	var (
 		union = make([]postings.List, 0, len(s.searchers))
 	)
 	for _, sr := range s.searchers {
-		pl, _, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
-			return nil, nil, err
-		}
-		if pl == nil {
-			return nil, nil, fmt.Errorf("disjunction searchers must resolve postings lists")
+			return nil, err
 		}
 
 		union = append(union, pl)
 	}
 
-	pl, err := roaring.Union(union)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return pl, nil, nil
+	// Perform a lazy fast union.
+	// TODO: Try and see if returns err, if so fallback to slower method?
+	return roaring.UnionReadOnly(union)
 }

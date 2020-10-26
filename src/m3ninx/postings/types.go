@@ -52,8 +52,14 @@ type List interface {
 	// calculating the size of the postings list.
 	IsEmpty() bool
 
-	// Len returns the numbers of IDs in the postings list.
-	Len() int
+	// CountFast returns a count of cardinality quickly if available, returns
+	// false otherwise.
+	CountFast() (int, bool)
+
+	// CountSlow should be called when CountFast returns false and a count
+	// is still required, it will fallback to iterating over the posting lists
+	// and counting how many entries there were during an iteration.
+	CountSlow() int
 
 	// Iterator returns an iterator over the IDs in the postings list.
 	Iterator() Iterator

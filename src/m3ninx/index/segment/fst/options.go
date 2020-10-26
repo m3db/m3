@@ -22,7 +22,6 @@ package fst
 
 import (
 	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x/bytes"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,12 +45,6 @@ type Options interface {
 
 	// BytesPool returns the bytes pool.
 	BytesPool() pool.BytesPool
-
-	// SetPostingsListPool sets the postings list pool.
-	SetPostingsListPool(value postings.Pool) Options
-
-	// PostingsListPool returns the postings list pool.
-	PostingsListPool() postings.Pool
 
 	// SetContextPool sets the contextPool.
 	SetContextPool(value context.Pool) Options
@@ -85,7 +78,6 @@ func NewOptions() Options {
 		iopts:             instrument.NewOptions(),
 		bytesSliceArrPool: arrPool,
 		bytesPool:         bytesPool,
-		postingsPool:      postings.NewPool(nil, roaring.NewPostingsList),
 		// Use a zero pool, this should be overriden at config time.
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
@@ -111,16 +103,6 @@ func (o *opts) SetBytesPool(value pool.BytesPool) Options {
 
 func (o *opts) BytesPool() pool.BytesPool {
 	return o.bytesPool
-}
-
-func (o *opts) SetPostingsListPool(v postings.Pool) Options {
-	opts := *o
-	opts.postingsPool = v
-	return &opts
-}
-
-func (o *opts) PostingsListPool() postings.Pool {
-	return o.postingsPool
 }
 
 func (o *opts) SetContextPool(value context.Pool) Options {

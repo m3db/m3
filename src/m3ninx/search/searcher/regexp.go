@@ -40,10 +40,6 @@ func NewRegexpSearcher(field []byte, compiled index.CompiledRegex) search.Search
 	}
 }
 
-func (s *regexpSearcher) Search(r index.Reader) (postings.List, postings.Iterator, error) {
-	pl, err := r.MatchRegexp(s.field, s.compiled)
-	if err != nil {
-		return nil, nil, err
-	}
-	return pl, nil, nil
+func (s *regexpSearcher) Search(r index.Reader) (postings.List, error) {
+	return r.MatchRegexp(s.field, s.compiled)
 }

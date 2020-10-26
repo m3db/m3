@@ -253,7 +253,7 @@ func (s *readThroughSegmentReader) MatchField(field []byte) (postings.List, erro
 // NB(r): The postings list returned by match all is just an iterator
 // from zero to the maximum document number indexed by the segment and as such
 // causes no allocations to compute and construct.
-func (s *readThroughSegmentReader) MatchAll() (postings.MutableList, error) {
+func (s *readThroughSegmentReader) MatchAll() (postings.List, error) {
 	return s.reader.MatchAll()
 }
 
