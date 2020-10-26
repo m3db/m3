@@ -24,6 +24,9 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"sync"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // FdWithDigestWriter provides a buffered writer for writing to the underlying file.
@@ -70,10 +73,6 @@ func (w *fdWithDigestWriter) Close() error {
 	if err := w.writer.Flush(); err != nil {
 		return err
 	}
-	if err := w.FdWithDigest.Fd().Sync(); err != nil {
-		_ = w.FdWithDigest.Close()
-		return err
-	}
 	return w.FdWithDigest.Close()
 }
 
@@ -112,4 +111,38 @@ func (w *fdWithDigestContentsWriter) WriteDigests(digests ...uint32) error {
 		}
 	}
 	return nil
+}
+
+func CloseAll(writers ...FdWithDigestWriter) error {
+	multiErr := xerrors.NewMultiError()
+	for _, writer := range writers {
+		if err := writer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	return multiErr.FinalError()
+}
+
+func SyncAll(writers ...FdWithDigestWriter) error {
+	var (
+		multiErr = xerrors.NewMultiError()
+		errMut   = sync.Mutex{}
+		wg       sync.WaitGroup
+	)
+
+	wg.Add(len(writers))
+	for _, writer := range writers {
+		fd := writer.Fd()
+		go func() {
+			if err := fd.Sync(); err != nil {
+				errMut.Lock()
+				multiErr = multiErr.Add(err)
+				errMut.Unlock()
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	return multiErr.FinalError()
 }

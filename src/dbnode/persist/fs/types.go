@@ -68,6 +68,7 @@ type DataWriterOpenOptions struct {
 	FileSetContentType persist.FileSetContentType
 	Identifier         FileSetFileIdentifier
 	BlockSize          time.Duration
+	SyncBeforeClose    bool
 	// Only used when writing snapshot files
 	Snapshot DataWriterSnapshotOptions
 }

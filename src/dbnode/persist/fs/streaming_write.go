@@ -91,7 +91,8 @@ func (w *streamingWriter) Open(opts StreamingWriterOpenOptions) error {
 			BlockStart:  opts.BlockStart,
 			VolumeIndex: opts.VolumeIndex,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:     persist.FileSetFlushType,
+		SyncBeforeClose: true,
 	}
 
 	plannedRecordsCount := opts.PlannedRecordsCount
@@ -230,6 +231,7 @@ func (w *streamingWriter) Close() error {
 		w.writer.digestFdWithDigestContents.Digest().Sum32(),
 		w.writer.digestBuf,
 		w.writer.newFileMode,
+		true,
 	); err != nil {
 		w.writer.err = err
 		return err

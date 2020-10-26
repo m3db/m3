@@ -81,14 +81,6 @@ func TestOpenFilesFails(t *testing.T) {
 	assert.Equal(t, expectedErr, err)
 }
 
-func TestCloseAllFails(t *testing.T) {
-	file := createTempFile(t)
-	defer os.Remove(file.Name())
-
-	assert.NoError(t, file.Close())
-	assert.Error(t, closeAll(file))
-}
-
 func TestDeleteFiles(t *testing.T) {
 	var files []string
 	iter := 3

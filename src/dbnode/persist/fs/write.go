@@ -62,6 +62,7 @@ type writer struct {
 	summariesPercent                float64
 	bloomFilterFalsePositivePercent float64
 	bufferSize                      int
+	syncBeforeClose                 bool
 
 	infoFdWithDigest           digest.FdWithDigestWriter
 	indexFdWithDigest          digest.FdWithDigestWriter
@@ -229,6 +230,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	w.dataFdWithDigest.Reset(dataFd)
 	w.digestFdWithDigestContents.Reset(digestFd)
+	w.syncBeforeClose = opts.SyncBeforeClose
 
 	return nil
 }
@@ -342,6 +344,7 @@ func (w *writer) Close() error {
 		w.digestFdWithDigestContents.Digest().Sum32(),
 		w.digestBuf,
 		w.newFileMode,
+		w.syncBeforeClose,
 	); err != nil {
 		w.err = err
 		return err
@@ -358,15 +361,21 @@ func (w *writer) DeferClose() (persist.DataCloser, error) {
 		w.err = err
 		return nil, err
 	}
-	checkpointFilePath := w.checkpointFilePath
-	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
-	newFileMode := w.newFileMode
+
+	var (
+		checkpointFilePath = w.checkpointFilePath
+		digestChecksum     = w.digestFdWithDigestContents.Digest().Sum32()
+		newFileMode        = w.newFileMode
+		syncBeforeClose    = w.syncBeforeClose
+	)
+
 	return func() error {
 		return writeCheckpointFile(
 			checkpointFilePath,
 			digestChecksum,
 			digest.NewBuffer(),
 			newFileMode,
+			syncBeforeClose,
 		)
 	}, nil
 }
@@ -390,14 +399,23 @@ func (w *writer) closeWOIndex() error {
 		return err
 	}
 
-	return closeAll(
+	fds := []digest.FdWithDigestWriter{
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
 		w.summariesFdWithDigest,
 		w.bloomFilterFdWithDigest,
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
-	)
+	}
+
+	if w.syncBeforeClose {
+		if err := digest.SyncAll(fds...); err != nil {
+			_ = digest.CloseAll(fds...)
+			return err
+		}
+	}
+
+	return digest.CloseAll(fds...)
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
@@ -641,6 +659,7 @@ func writeCheckpointFile(
 	digestChecksum uint32,
 	digestBuf digest.Buffer,
 	newFileMode os.FileMode,
+	syncBeforeClose bool,
 ) error {
 	fd, err := OpenWritable(checkpointFilePath, newFileMode)
 	if err != nil {
@@ -652,9 +671,11 @@ func writeCheckpointFile(
 		_ = fd.Close()
 		return err
 	}
-	if err := fd.Sync(); err != nil {
-		_ = fd.Close()
-		return err
+	if syncBeforeClose {
+		if err := fd.Sync(); err != nil {
+			_ = fd.Close()
+			return err
+		}
 	}
 	return fd.Close()
 }
