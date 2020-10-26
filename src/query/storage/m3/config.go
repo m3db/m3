@@ -174,6 +174,7 @@ type ClustersStaticConfigurationOptions struct {
 func (c ClustersStaticConfiguration) NewStaticClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
 	var (
 		numUnaggregatedClusterNamespaces int
@@ -313,8 +314,17 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 		}
 	}
 
-	return NewClusters(unaggregatedClusterNamespace,
+	clusters, err := NewClusters(unaggregatedClusterNamespace,
 		aggregatedClusterNamespaces...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := clusterNamespacesWatcher.Update(clusters.ClusterNamespaces()); err != nil {
+		return nil, err
+	}
+
+	return clusters, nil
 }
 
 // NB(nate): exists primarily for testing.
@@ -325,14 +335,16 @@ type newClustersFn func(DynamicClusterOptions) (Clusters, error)
 func (c ClustersStaticConfiguration) NewDynamicClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
-	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts)
+	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts, clusterNamespacesWatcher)
 }
 
 func (c ClustersStaticConfiguration) newDynamicClusters(
 	newFn newClustersFn,
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
 	clients := make([]client.Client, 0, len(c))
 	for _, clusterCfg := range c {
@@ -404,6 +416,7 @@ func (c ClustersStaticConfiguration) newDynamicClusters(
 
 	dcOpts := NewDynamicClusterOptions().
 		SetDynamicClusterNamespaceConfiguration(cfgs).
+		SetClusterNamespacesWatcher(clusterNamespacesWatcher).
 		SetInstrumentOptions(instrumentOpts)
 
 	return newFn(dcOpts)
