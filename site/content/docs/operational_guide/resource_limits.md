@@ -145,7 +145,7 @@ limits:
 
     # If true this results in causing a query error if the query exceeds 
     # the series or blocks limit for any given individual storage node per query.
-    requireExhaustive: false
+    requireExhaustive: true
 
     # If set this limits the max number of datapoints allowed to be used by a
     # given query. This is applied at the query service after the result has 
