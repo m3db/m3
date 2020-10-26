@@ -149,6 +149,18 @@ func (n *countValuesNode) Process(
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
+func isValid(ln string) bool {
+	if len(ln) == 0 {
+		return false
+	}
+	for i, b := range ln {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
+}
+
 func (n *countValuesNode) ProcessBlock(
 	queryCtx *models.QueryContext,
 	ID parser.NodeID,
@@ -161,6 +173,11 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	params := n.op.params
+	labelName := removeQuotes(unwrapParenthesis(params.StringParameter))
+	if !isValid(labelName) {
+		return nil, fmt.Errorf("invalid label name %q", labelName)
+	}
+
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
@@ -207,7 +224,7 @@ func (n *countValuesNode) ProcessBlock(
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: []byte(n.op.opType),
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
-					Name:  []byte(n.op.params.StringParameter),
+					Name:  []byte(labelName),
 					Value: utils.FormatFloatToBytes(k),
 				}),
 			}
@@ -245,6 +262,23 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	return builder.Build(), nil
+}
+
+func unwrapParenthesis(s string) string {
+	for len(s) > 0 && s[0] == '(' && s[len(s)-1] == ')' {
+		s = s[1:len(s)-1]
+	}
+	return s
+}
+
+func removeQuotes(s string) string {
+	if len(s) > 0 && s[0] == '"' {
+		s = s[1:]
+	}
+	if len(s) > 0 && s[len(s)-1] == '"' {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // pads vals with enough NaNs to match size
