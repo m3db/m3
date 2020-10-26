@@ -274,7 +274,7 @@ func (bsc BootstrapConfiguration) New(
 			}
 			bs = uninitialized.NewUninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
-			return nil, fmt.Errorf("unknown bootstrapper: %s", b)
+			return nil, fmt.Errorf("unknown bootstrapper: %s", orderedBootstrappers[i])
 		}
 	}
 

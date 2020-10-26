@@ -304,7 +304,7 @@ type PerQueryLimitsConfiguration struct {
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
+	RequireExhaustive *bool `yaml:"requireExhaustive"`
 }
 
 // AsFetchOptionsBuilderLimitsOptions converts this configuration to

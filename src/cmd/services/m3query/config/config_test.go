@@ -91,11 +91,13 @@ func TestConfigLoading(t *testing.T) {
 	var cfg Configuration
 	require.NoError(t, xconfig.LoadFile(&cfg, testConfigFile, xconfig.Options{}))
 
+	var requireExhaustive bool
+	requireExhaustive = true
 	assert.Equal(t, &LimitsConfiguration{
 		PerQuery: PerQueryLimitsConfiguration{
 			MaxFetchedSeries:  12000,
 			MaxFetchedDocs:    11000,
-			RequireExhaustive: true,
+			RequireExhaustive: &requireExhaustive,
 		},
 	}, &cfg.Limits)
 	// TODO: assert on more fields here.

@@ -422,14 +422,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
-	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(
-		instrumentOptions,
-	)
-	if err != nil {
-		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
-	}
-
-	defer chainedEnforceCloser.Close()
 	if fn := runOpts.BackendStorageTransform; fn != nil {
 		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
 	}
@@ -437,7 +429,6 @@ func Run(runOpts RunOptions) {
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
-		SetGlobalEnforcer(chainedEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
@@ -491,7 +482,7 @@ func Run(runOpts RunOptions) {
 		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
-		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
+		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)

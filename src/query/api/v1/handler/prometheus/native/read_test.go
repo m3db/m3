@@ -199,7 +199,6 @@ func newTestSetup(
 	engineOpts := executor.NewEngineOptions().
 		SetStore(mockStorage).
 		SetLookbackDuration(time.Minute).
-		SetGlobalEnforcer(nil).
 		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
 	if mockEngine != nil {

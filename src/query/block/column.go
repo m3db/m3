@@ -25,9 +25,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
-	xcost "github.com/m3db/m3/src/x/cost"
 
 	"github.com/uber-go/tally"
 )
@@ -39,7 +37,6 @@ type column struct {
 // ColumnBlockBuilder builds a block optimized for column iteration.
 type ColumnBlockBuilder struct {
 	block           *columnBlock
-	enforcer        cost.ChainedEnforcer
 	blockDatapoints tally.Counter
 }
 
@@ -174,7 +171,6 @@ func NewColumnBlockBuilder(
 	meta Metadata,
 	seriesMeta []SeriesMeta) Builder {
 	return ColumnBlockBuilder{
-		enforcer: queryCtx.Enforcer.Child(cost.BlockLevel),
 		blockDatapoints: queryCtx.Scope.Tagged(
 			map[string]string{"type": "generated"}).Counter("datapoints"),
 		block: &columnBlock{
@@ -192,11 +188,6 @@ func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 		return fmt.Errorf("idx out of range for append: %d", idx)
 	}
 
-	r := cb.enforcer.Add(1)
-	if r.Error != nil {
-		return r.Error
-	}
-
 	cb.blockDatapoints.Inc(1)
 
 	columns[idx].Values = append(columns[idx].Values, value)
@@ -208,11 +199,6 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	columns := cb.block.columns
 	if len(columns) <= idx {
 		return fmt.Errorf("idx out of range for append: %d", idx)
-	}
-
-	r := cb.enforcer.Add(xcost.Cost(len(values)))
-	if r.Error != nil {
-		return r.Error
 	}
 
 	cb.blockDatapoints.Inc(int64(len(values)))
@@ -269,22 +255,17 @@ func (cb ColumnBlockBuilder) SetRow(
 		cb.block.columns[i].Values[idx] = v
 	}
 
-	r := cb.enforcer.Add(xcost.Cost(len(values)))
-	if r.Error != nil {
-		return r.Error
-	}
-
 	cb.block.seriesMeta[idx] = meta
 	return nil
 }
 
 // Build builds the block.
 func (cb ColumnBlockBuilder) Build() Block {
-	return NewAccountedBlock(cb.block, cb.enforcer)
+	return cb.block
 }
 
 // BuildAsType builds the block, forcing it to the given BlockType.
 func (cb ColumnBlockBuilder) BuildAsType(blockType BlockType) Block {
 	cb.block.blockType = blockType
-	return NewAccountedBlock(cb.block, cb.enforcer)
+	return cb.block
 }

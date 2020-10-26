@@ -68,7 +68,7 @@ type respError struct {
 // NewRenderHandler returns a new render handler around the given storage.
 func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
-		opts.Enforcer(), opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
+		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &renderHandler{
 		engine:           native.NewEngine(wrappedStore),
 		queryContextOpts: opts.QueryContextOptions(),
