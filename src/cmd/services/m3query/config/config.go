@@ -22,7 +22,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -39,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/debug/config"
-	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
@@ -618,9 +616,8 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	if cfg.Scheme == models.TypeDefault {
-		// If no config has been set, error.
-		docLink := xdocs.Path("how_to/query#migration")
-		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
+		// Default to quoted if unspecified.
+		cfg.Scheme = models.TypeQuoted
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)
