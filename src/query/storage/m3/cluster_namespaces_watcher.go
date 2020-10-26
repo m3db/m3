@@ -55,6 +55,7 @@ func (n *clusterNamespacesWatcher) RegisterListener(listener ClusterNamespacesLi
 
 	// Deliver the current cluster namespaces, synchronously, if already set.
 	if namespaces != nil {
+		<-watch.C() // Consume initial notification
 		listener.OnUpdate(namespaces.(ClusterNamespaces))
 	}
 
