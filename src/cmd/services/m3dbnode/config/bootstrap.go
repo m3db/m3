@@ -47,12 +47,12 @@ var (
 	// order in which bootstrappers are run
 	// (run in ascending order of precedence)
 	orderedBootstrappers = []string{
-		uninitialized.UninitializedTopologyBootstrapperName,
-		// Peers and commitlog must come after uninitialized topology bootrapping.
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Peers and commitlog must come before the uninitialized topology bootrapping.
 		peers.PeersBootstrapperName,
 		commitlog.CommitLogBootstrapperName,
-		// Filesystem bootstrapping must be last.
-		bfs.FileSystemBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
 	}
 )
 
@@ -192,8 +192,10 @@ func (bsc BootstrapConfiguration) New(
 		bs     bootstrap.BootstrapperProvider
 		fsOpts = opts.CommitLogOptions().FilesystemOptions()
 	)
-	for _, b := range orderedBootstrappers {
-		switch b {
+	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
+	// I.e. each bootstrapper wraps the preceding bootstrapper, and so the outer-most bootstrapper is run first.
+	for i := len(orderedBootstrappers) - 1; i >= 0; i-- {
+		switch orderedBootstrappers[i] {
 		case bootstrapper.NoOpAllBootstrapperName:
 			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
