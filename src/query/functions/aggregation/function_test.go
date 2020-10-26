@@ -177,7 +177,7 @@ var equalValuePrecisionTest = []struct {
 	},
 }
 
-func TestEqualValueVariancePrecision(t *testing.T) {
+func TestVarianceFnEqualValuePrecision(t *testing.T) {
 	for _, tt := range equalValuePrecisionTest {
 		t.Run(tt.name, func(t *testing.T) {
 			bucket := make([]int, len(tt.values))
@@ -190,7 +190,7 @@ func TestEqualValueVariancePrecision(t *testing.T) {
 	}
 }
 
-func TestEqualValueStddevPrecision(t *testing.T) {
+func TestStddevFnEqualValuePrecision(t *testing.T) {
 	for _, tt := range equalValuePrecisionTest {
 		t.Run(tt.name, func(t *testing.T) {
 			bucket := make([]int, len(tt.values))
