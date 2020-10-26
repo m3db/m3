@@ -80,7 +80,7 @@ func (h *GetHandler) ServeHTTP(
 
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *GetHandler) ServeHTTP(
 		nanosToDurationMap, err := nanosToDuration(resp)
 		if err != nil {
 			logger.Error("error converting nano fields to duration", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 

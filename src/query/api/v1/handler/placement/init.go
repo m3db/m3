@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -73,7 +74,7 @@ func (h *InitHandler) ServeHTTP(
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -81,18 +82,18 @@ func (h *InitHandler) ServeHTTP(
 	if err != nil {
 		if err == kv.ErrAlreadyExists {
 			logger.Error("placement already exists", zap.Error(err))
-			xhttp.Error(w, err, http.StatusConflict)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusConflict))
 			return
 		}
 		logger.Error("unable to initialize placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -103,11 +104,12 @@ func (h *InitHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *xhttp.ParseError) {
+func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, error) {
 	defer r.Body.Close()
+
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return initReq, nil

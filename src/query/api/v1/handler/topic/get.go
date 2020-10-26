@@ -72,21 +72,21 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	t, err := service.Get(topicName(r.Header))
 	if err != nil {
 		logger.Error("unable to get topic", zap.Error(err))
-		xhttp.Error(w, err, http.StatusNotFound)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 		return
 	}
 
 	pb, err := topic.ToProto(t)
 	if err != nil {
 		logger.Error("unable to get topic protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

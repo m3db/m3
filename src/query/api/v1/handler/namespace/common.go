@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -62,7 +63,7 @@ var (
 	// M3DBServiceSchemaPathName is the M3DB service schema API path.
 	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 
-	errNamespaceNotFound = errors.New("unable to find a namespace with specified name")
+	errNamespaceNotFound = xhttp.NewError(errors.New("unable to find a namespace with specified name"), http.StatusNotFound)
 )
 
 // Handler represents a generic handler for namespace endpoints.

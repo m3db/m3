@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -73,25 +74,21 @@ func (h *AddHandler) ServeHTTP(
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	placement, err := h.Add(svc, r, req)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if _, ok := err.(unsafeAddError); ok {
-			status = http.StatusBadRequest
-		}
 		logger.Error("unable to add placement", zap.Error(err))
-		xhttp.Error(w, err, status)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -103,11 +100,12 @@ func (h *AddHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *xhttp.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, error) {
 	defer r.Body.Close()
+
 	addReq := new(admin.PlacementAddRequest)
 	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return addReq, nil

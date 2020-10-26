@@ -75,7 +75,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -85,18 +85,18 @@ func (h *DeleteAllHandler) ServeHTTP(
 			logger.Info("cannot delete placement",
 				zap.String("service", svc.ServiceName),
 				zap.Error(err))
-			xhttp.Error(w, err, http.StatusNotFound)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 			return
 		}
 
 		logger.Error("unable to fetch placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	if err := service.Delete(); err != nil {
 		logger.Error("error deleting placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 		if err != nil {
 			logger.Error("error removing aggregator keys for instances",
 				zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 	}

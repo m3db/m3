@@ -212,7 +212,7 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	for _, instanceProto := range instancesProto {
 		instance, err := placement.NewInstanceFromProto(instanceProto)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.NewInvalidParamsError(err)
 		}
 		res = append(res, instance)
 	}
@@ -367,25 +367,17 @@ type m3aggregatorPlacementOpts struct {
 	propagationDelay time.Duration
 }
 
-type unsafeAddError struct {
-	hosts string
-}
-
-func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
-}
-
 func validateAllAvailable(p placement.Placement) error {
-	badInsts := []string{}
+	var bad []string
 	for _, inst := range p.Instances() {
 		if !inst.IsAvailable() {
-			badInsts = append(badInsts, inst.ID())
+			bad = append(bad, inst.ID())
 		}
 	}
-	if len(badInsts) > 0 {
-		return unsafeAddError{
-			hosts: strings.Join(badInsts, ","),
-		}
+	if len(bad) > 0 {
+		str := strings.Join(bad, ", ")
+		err := fmt.Errorf("instances do not have all shards available: [%s]", str)
+		return xerrors.NewInvalidParamsError(err)
 	}
 	return nil
 }
@@ -412,7 +404,7 @@ func parseServiceMiddleware(
 		)
 		svc.ServiceName, err = parseServiceFromRequest(r)
 		if err != nil {
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 			return
 		}
 

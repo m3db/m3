@@ -26,6 +26,7 @@ import (
 	"time"
 
 	xclock "github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
@@ -51,18 +52,23 @@ func TestQueryLimits(t *testing.T) {
 
 	// Limit from docs.
 	queryLimits.DocsLimit().Inc(2)
-	require.Error(t, queryLimits.AnyExceeded())
+	err = queryLimits.AnyExceeded()
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
 
 	queryLimits, err = NewQueryLimits(docOpts, bytesOpts, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
-	require.NoError(t, queryLimits.AnyExceeded())
+	err = queryLimits.AnyExceeded()
+	require.NoError(t, err)
 
 	// Limit from bytes.
 	queryLimits.BytesReadLimit().Inc(2)
-	require.Error(t, queryLimits.AnyExceeded())
+	err = queryLimits.AnyExceeded()
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestLookbackLimit(t *testing.T) {
@@ -141,6 +147,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
+		require.True(t, xerrors.IsInvalidParams(err))
 		exceededCount++
 	}
 	err = limit.exceeded()
@@ -148,6 +155,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
+		require.True(t, xerrors.IsInvalidParams(err))
 		exceededCount++
 	}
 	return exceededCount

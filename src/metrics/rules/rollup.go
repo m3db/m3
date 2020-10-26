@@ -318,6 +318,7 @@ func (rc *rollupRule) addSnapshot(
 	rawFilter string,
 	rollupTargets []rollupTarget,
 	meta UpdateMetadata,
+	keepOriginal bool,
 ) error {
 	snapshot, err := newRollupRuleSnapshotFromFields(
 		name,
@@ -327,7 +328,7 @@ func (rc *rollupRule) addSnapshot(
 		nil,
 		meta.updatedAtNanos,
 		meta.updatedBy,
-		false,
+		keepOriginal,
 	)
 	if err != nil {
 		return err
@@ -366,6 +367,7 @@ func (rc *rollupRule) revive(
 	rawFilter string,
 	targets []rollupTarget,
 	meta UpdateMetadata,
+	keepOriginal bool,
 ) error {
 	n, err := rc.name()
 	if err != nil {
@@ -374,7 +376,7 @@ func (rc *rollupRule) revive(
 	if !rc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
-	return rc.addSnapshot(name, rawFilter, targets, meta)
+	return rc.addSnapshot(name, rawFilter, targets, meta, keepOriginal)
 }
 
 func (rc *rollupRule) history() ([]view.RollupRule, error) {

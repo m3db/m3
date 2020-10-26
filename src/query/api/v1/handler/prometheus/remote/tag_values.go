@@ -85,20 +85,20 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
 		logger.Error("unable to parse tag values to query", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to get tag values", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -107,7 +107,7 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = prometheus.RenderTagValuesResultsJSON(w, result)
 	if err != nil {
 		logger.Error("unable to render tag values", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 	}
 }
 

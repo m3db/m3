@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
@@ -58,7 +59,7 @@ var (
 	// M3CoordinatorDeleteURL is the url for the placement delete handler for the M3Coordinator service.
 	M3CoordinatorDeleteURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, placementIDPath)
 
-	errEmptyID = errors.New("must specify placement ID to delete")
+	errEmptyID = xerrors.NewInvalidParamsError(errors.New("must specify placement ID to delete"))
 )
 
 // DeleteHandler is the handler for placement deletes.
@@ -81,7 +82,7 @@ func (h *DeleteHandler) ServeHTTP(
 	)
 	if id == "" {
 		logger.Error("no placement ID provided to delete", zap.Error(errEmptyID))
-		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
+		xhttp.WriteError(w, errEmptyID)
 		return
 	}
 
@@ -92,21 +93,21 @@ func (h *DeleteHandler) ServeHTTP(
 
 	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	curPlacement, err := service.Placement()
 	if err != nil {
 		logger.Error("unable to fetch placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	instance, ok := curPlacement.Instance(id)
 	if !ok {
 		err = fmt.Errorf("instance not found: %s", id)
-		xhttp.Error(w, err, http.StatusNotFound)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 		return
 	}
 
@@ -122,13 +123,13 @@ func (h *DeleteHandler) ServeHTTP(
 		newPlacement, err = service.RemoveInstances(toRemove)
 		if err != nil {
 			logger.Error("unable to delete instances", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 	} else {
 		if err := validateAllAvailable(curPlacement); err != nil {
 			logger.Warn("unable to remove instance, some shards not available", zap.Error(err), zap.String("instance", id))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 			return
 		}
 
@@ -136,21 +137,21 @@ func (h *DeleteHandler) ServeHTTP(
 		if !ok {
 			logger.Error("instance not found in placement", zap.String("instance", id))
 			err := fmt.Errorf("instance %s not found in placement", id)
-			xhttp.Error(w, err, http.StatusNotFound)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 			return
 		}
 
 		newPlacement, err = algo.RemoveInstances(curPlacement, toRemove)
 		if err != nil {
 			logger.Error("unable to generate placement with instances removed", zap.String("instance", id), zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 
 		newPlacement, err = service.CheckAndSet(newPlacement, curPlacement.Version())
 		if err != nil {
 			logger.Error("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 	}
@@ -176,7 +177,7 @@ func (h *DeleteHandler) ServeHTTP(
 			if err != nil {
 				logger.Error("error removing aggregator keys for instances",
 					zap.Error(err))
-				xhttp.Error(w, err, http.StatusInternalServerError)
+				xhttp.WriteError(w, err)
 				return
 			}
 		}
@@ -185,7 +186,7 @@ func (h *DeleteHandler) ServeHTTP(
 	placementProto, err := newPlacement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

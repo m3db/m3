@@ -75,8 +75,14 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQuerySeriesLimit = 10000
+	// By default, cap total series to prevent results of
+	// extremely large sizes consuming too much memory.
+	defaultStorageQuerySeriesLimit = 100_000
 	defaultStorageQueryDocsLimit   = 0 // Default OFF.
+
+	// By default, raise errors instead of truncating results so
+	// users do not experience see unexpected results.
+	defaultRequireExhaustive = true
 )
 
 // Configuration is the configuration for the query service.
@@ -314,10 +320,15 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		docsLimit = v
 	}
 
+	requireExhaustive := defaultRequireExhaustive
+	if r := l.RequireExhaustive; r != nil {
+		requireExhaustive = *r
+	}
+
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
-		RequireExhaustive: l.RequireExhaustive,
+		RequireExhaustive: requireExhaustive,
 	}
 }
 
