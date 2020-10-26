@@ -182,8 +182,7 @@ func (d *dynamicCluster) updateNamespaces(
 	d.Unlock()
 
 	if err := d.clusterNamespacesWatcher.Update(d.ClusterNamespaces()); err != nil {
-		d.logger.Error("failed to update cluster namespaces watcher. downstream components relying on namespace "+
-			"updates to regenerate configuration will not be notified", zap.Error(err))
+		d.logger.Error("failed to update cluster namespaces watcher", zap.Error(err))
 	}
 }
 

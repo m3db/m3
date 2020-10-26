@@ -100,7 +100,10 @@ func TestNewClustersFromConfig(t *testing.T) {
 		},
 	}
 
-	clusters, err := cfg.NewStaticClusters(instrument.NewOptions(), ClustersStaticConfigurationOptions{}, NewClusterNamespacesWatcher())
+	clusters, err := cfg.NewStaticClusters(
+		instrument.NewOptions(),
+		ClustersStaticConfigurationOptions{},
+		NewClusterNamespacesWatcher())
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes

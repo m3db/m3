@@ -29,7 +29,7 @@ type clusterNamespacesWatcher struct {
 	watchable xwatch.Watchable
 }
 
-// NewClusterNamespacesWatcher creates a new ClusterNamespacesWatcher
+// NewClusterNamespacesWatcher creates a new ClusterNamespacesWatcher.
 func NewClusterNamespacesWatcher() ClusterNamespacesWatcher {
 	watchable := xwatch.NewWatchable()
 	return &clusterNamespacesWatcher{watchable: watchable}

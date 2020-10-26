@@ -93,7 +93,7 @@ func TestDynamicClustersInitialization(t *testing.T) {
 		nsInitializer: nsInitializer,
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg})
+	opts := newTestOptions(cfg)
 
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 		nsInitializer: nsInitializer,
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg})
+	opts := newTestOptions(cfg)
 
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 		nsInitializer: nsInitializer2,
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg, cfg2})
+	opts := newTestOptions(cfg, cfg2)
 
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
@@ -311,7 +311,7 @@ func TestDynamicClustersNotReadyNamespace(t *testing.T) {
 		nsInitializer: nsInitializer,
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg})
+	opts := newTestOptions(cfg)
 
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
@@ -341,7 +341,7 @@ func TestDynamicClustersEmptyNamespacesThenUpdates(t *testing.T) {
 		nsInitializer: nsInitializer,
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg})
+	opts := newTestOptions(cfg)
 
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
@@ -393,13 +393,13 @@ func TestDynamicClustersInitFailures(t *testing.T) {
 		},
 	}
 
-	opts := newTestOptions([]DynamicClusterNamespaceConfiguration{cfg})
+	opts := newTestOptions(cfg)
 
 	_, err := NewDynamicClusters(opts)
 	require.Error(t, err)
 }
 
-func newTestOptions(cfgs []DynamicClusterNamespaceConfiguration) DynamicClusterOptions {
+func newTestOptions(cfgs ...DynamicClusterNamespaceConfiguration) DynamicClusterOptions {
 	return NewDynamicClusterOptions().
 		SetDynamicClusterNamespaceConfiguration(cfgs).
 		SetInstrumentOptions(instrument.NewOptions()).
