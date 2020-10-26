@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -563,7 +562,8 @@ func Run(runOpts RunOptions) {
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
 		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
-			instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
+			instrumentOptions, logger, m3dbClusters, clusterNamespacesWatcher,
+			downsamplerAndWriter)
 		if ok {
 			defer server.Close()
 		}
@@ -1036,6 +1036,7 @@ func startCarbonIngestion(
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 ) (xserver.Server, bool) {
 	ingesterCfg := cfg.Ingester
@@ -1070,65 +1071,12 @@ func startCarbonIngestion(
 		logger.Fatal("carbon ingestion is only supported when connecting to M3DB clusters directly")
 	}
 
-	// Validate provided rules.
-	var (
-		clusterNamespaces = m3dbClusters.ClusterNamespaces()
-		rules             = ingestcarbon.CarbonIngesterRules{
-			Rules: ingesterCfg.RulesOrDefault(clusterNamespaces),
-		}
-	)
-	for _, rule := range rules.Rules {
-		// Sort so we can detect duplicates.
-		sort.Slice(rule.Policies, func(i, j int) bool {
-			if rule.Policies[i].Resolution == rule.Policies[j].Resolution {
-				return rule.Policies[i].Retention < rule.Policies[j].Retention
-			}
-
-			return rule.Policies[i].Resolution < rule.Policies[j].Resolution
-		})
-
-		var lastPolicy config.CarbonIngesterStoragePolicyConfiguration
-		for i, policy := range rule.Policies {
-			if i > 0 && policy == lastPolicy {
-				logger.Fatal(
-					"cannot include the same storage policy multiple times for a single carbon ingestion rule",
-					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
-			}
-
-			if i > 0 && !rule.Aggregation.EnabledOrDefault() && policy.Resolution != lastPolicy.Resolution {
-				logger.Fatal(
-					"cannot include multiple storage policies with different resolutions if aggregation is disabled",
-					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
-			}
-
-			_, ok := m3dbClusters.AggregatedClusterNamespace(m3.RetentionResolution{
-				Resolution: policy.Resolution,
-				Retention:  policy.Retention,
-			})
-
-			// Disallow storage policies that don't match any known M3DB clusters.
-			if !ok {
-				logger.Fatal(
-					"cannot enable carbon ingestion without a corresponding aggregated M3DB namespace",
-					zap.String("resolution", policy.Resolution.String()), zap.String("retention", policy.Retention.String()))
-			}
-		}
-	}
-
-	if len(rules.Rules) == 0 {
-		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
-		return nil, false
-	}
-
-	if len(ingesterCfg.Rules) == 0 {
-		logger.Info("no carbon ingestion rules were provided, all carbon metrics will be written to all aggregated M3DB namespaces")
-	}
-
 	// Create ingester.
 	ingester, err := ingestcarbon.NewIngester(
-		downsamplerAndWriter, rules, ingestcarbon.Options{
+		downsamplerAndWriter, clusterNamespacesWatcher, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
+			IngesterConfig:    ingesterCfg,
 		})
 	if err != nil {
 		logger.Fatal("unable to create carbon ingester", zap.Error(err))
