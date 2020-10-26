@@ -128,6 +128,10 @@ func (h *AddHandler) Add(
 ) (nsproto.Registry, error) {
 	var emptyReg nsproto.Registry
 
+	if err := validateNamespaceAddRequest(addReq); err != nil {
+		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("invalid namespace request options: %v", err))
+	}
+
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
 	if err != nil {
 		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("bad namespace metadata: %v", err))
@@ -175,4 +179,18 @@ func (h *AddHandler) Add(
 	}
 
 	return *protoRegistry, nil
+}
+
+// Validate create-specific inputs only. Validation that applies to namespaces regardless of create/update/etc,
+// belong in the option-specific Validate functions which are invoked on every change operation.
+func validateNamespaceAddRequest(r *admin.NamespaceAddRequest) error {
+	indexBlockSize := r.Options.RetentionOptions.BlockSizeNanos
+	retentionBlockSize := r.Options.IndexOptions.BlockSizeNanos
+	if indexBlockSize != retentionBlockSize {
+		return fmt.Errorf("index and retention block size must match (%v, %v)",
+			indexBlockSize,
+			retentionBlockSize,
+		)
+	}
+	return nil
 }

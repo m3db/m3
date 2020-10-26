@@ -176,8 +176,7 @@ func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
 			continue
 		}
 
-		retentionOpts := md.Options().RetentionOptions()
-		retention := retentionOpts.RetentionPeriod()
+		retention := md.Options().RetentionOptions().RetentionPeriod()
 		for _, agg := range aggOpts.Aggregations() {
 			if agg.Aggregated {
 				key := resolutionRetentionKey{
@@ -191,16 +190,6 @@ func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
 				}
 				resolutionRetentionMap[key] = true
 			}
-		}
-
-		indexOpts := md.Options().IndexOptions()
-		indexBlockSize := indexOpts.BlockSize()
-		retentionBlockSize := retentionOpts.BlockSize()
-		if indexBlockSize != retentionBlockSize {
-			return fmt.Errorf("index and retention block size must match (%v, %v)",
-				indexBlockSize,
-				retentionBlockSize,
-			)
 		}
 	}
 
