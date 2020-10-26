@@ -21,7 +21,6 @@
 package utils
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -222,9 +221,11 @@ func TestNegativeCapacityHeap(t *testing.T) {
 }
 
 func equalPairs(t *testing.T, expected, actual []ValueIndexPair) {
-	e := fmt.Sprint(expected)
-	a := fmt.Sprint(actual)
-	assert.Equal(t, e, a)
+	assert.Equal(t, len(expected), len(actual))
+	for i, e := range expected {
+		test.EqualsWithNans(t, e.Val, actual[i].Val)
+		assert.Equal(t, e.Index, actual[i].Index)
+	}
 }
 
 func TestFlushOrdered(t *testing.T) {
