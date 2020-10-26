@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -280,7 +281,8 @@ func TestSchemaReset(t *testing.T) {
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		fmt.Sprintf("response: %s", body))
 
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest("DELETE", "/schema",
@@ -292,6 +294,7 @@ func TestSchemaReset(t *testing.T) {
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		fmt.Sprintf("response: %s", body))
 	assert.Equal(t, "{}", string(body))
 }

@@ -267,7 +267,7 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		require.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
+		require.Equal(t, `{"error":"instances do not have all shards available: [host2]"}`+"\n", string(body))
 	}
 
 	// Test OK

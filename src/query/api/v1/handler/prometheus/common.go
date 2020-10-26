@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/golang/snappy"
 )
@@ -68,31 +68,25 @@ type ParsePromCompressedRequestResult struct {
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
 func ParsePromCompressedRequest(
 	r *http.Request,
-) (ParsePromCompressedRequestResult, *xhttp.ParseError) {
+) (ParsePromCompressedRequestResult, error) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(err)
 	}
+
 	defer body.Close()
+
 	compressed, err := ioutil.ReadAll(body)
-
 	if err != nil {
-		return ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusInternalServerError)
-	}
-
-	if len(compressed) == 0 {
-		return ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(fmt.Errorf("empty request body"),
-				http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{}, err
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
 		return ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+			xerrors.NewInvalidParamsError(err)
 	}
 
 	return ParsePromCompressedRequestResult{
@@ -121,13 +115,13 @@ func ParseRequestTimeout(
 
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return 0, fmt.Errorf("%s: invalid 'timeout': %v",
-			xhttp.ErrInvalidParams, err)
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': %v", err))
 	}
 
 	if duration > maxTimeout {
-		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v",
-			xhttp.ErrInvalidParams, maxTimeout)
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': greater than %v", maxTimeout))
 	}
 
 	return duration, nil
@@ -146,18 +140,18 @@ type TagCompletionQueries struct {
 // any errors.
 func ParseTagCompletionParamsToQueries(
 	r *http.Request,
-) (TagCompletionQueries, *xhttp.ParseError) {
+) (TagCompletionQueries, error) {
 	tagCompletionQueries := TagCompletionQueries{}
 	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
 		time.Unix(0, 0))
 	if err != nil {
-		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xerrors.NewInvalidParamsError(err)
 	}
 
 	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
 		time.Now())
 	if err != nil {
-		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xerrors.NewInvalidParamsError(err)
 	}
 
 	// If there is a result type field present, parse it and set
@@ -171,16 +165,16 @@ func ParseTagCompletionParamsToQueries(
 		case "tagNamesOnly":
 			nameOnly = true
 		default:
-			return tagCompletionQueries, xhttp.NewParseError(
-				errors.ErrInvalidResultParamError, http.StatusBadRequest)
+			return tagCompletionQueries, xerrors.NewInvalidParamsError(
+				errors.ErrInvalidResultParamError)
 		}
 	}
 
 	tagCompletionQueries.NameOnly = nameOnly
 	queries, err := parseTagCompletionQueries(r)
 	if err != nil {
-		return tagCompletionQueries, xhttp.NewParseError(
-			fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
+		err = fmt.Errorf(errFormatStr, queryParam, err)
+		return tagCompletionQueries, xerrors.NewInvalidParamsError(err)
 	}
 
 	tagQueries := make([]*storage.CompleteTagsQuery, 0, len(queries))
@@ -193,7 +187,7 @@ func ParseTagCompletionParamsToQueries(
 
 		matchers, err := models.MatchersFromString(query)
 		if err != nil {
-			return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
+			return tagCompletionQueries, xerrors.NewInvalidParamsError(err)
 		}
 
 		tagQuery.TagMatchers = matchers
@@ -213,7 +207,7 @@ func ParseTagCompletionParamsToQueries(
 func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	queries, ok := r.URL.Query()[queryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
-		return nil, errors.ErrNoQueryFound
+		return nil, xerrors.NewInvalidParamsError(errors.ErrNoQueryFound)
 	}
 
 	return queries, nil
@@ -224,23 +218,23 @@ func ParseSeriesMatchQuery(
 	r *http.Request,
 	parseOpts xpromql.ParseOptions,
 	tagOptions models.TagOptions,
-) ([]*storage.FetchQuery, *xhttp.ParseError) {
+) ([]*storage.FetchQuery, error) {
 	r.ParseForm()
 	matcherValues := r.Form["match[]"]
 	if len(matcherValues) == 0 {
-		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(errors.ErrInvalidMatchers)
 	}
 
 	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
 		time.Unix(0, 0))
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
 		time.Now())
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	queries := make([]*storage.FetchQuery, len(matcherValues))
@@ -248,12 +242,12 @@ func ParseSeriesMatchQuery(
 	for i, s := range matcherValues {
 		promMatchers, err := fn(s)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xerrors.NewInvalidParamsError(err)
 		}
 
 		matchers, err := xpromql.LabelMatchersToModelMatcher(promMatchers, tagOptions)
 		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, xerrors.NewInvalidParamsError(err)
 		}
 
 		queries[i] = &storage.FetchQuery{
