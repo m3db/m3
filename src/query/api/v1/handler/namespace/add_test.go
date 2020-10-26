@@ -204,22 +204,38 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 }
 
 func TestValidateNewMetadata(t *testing.T) {
+	// Valid.
 	addReq := new(admin.NamespaceAddRequest)
 	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
 	require.NoError(t, err)
-
-	// Valid.
 	require.NoError(t, validateNewMetadata(md))
 
+	// Valid without index options.
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
+	addReq.Options.IndexOptions = nil
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
+	require.NoError(t, validateNewMetadata(md))
+
+	// Invalid without retention options.
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions = nil
+	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 / 2
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.Error(t, err)
+	require.Equal(t, "retention options must be set", err.Error())
+
+	// Prevent mismatching block sizes.
 	addReq = new(admin.NamespaceAddRequest)
 	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
 	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000
 	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 * 2
 	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
 	require.NoError(t, err)
-
-	// Prevent mismatching block sizes.
 	err = validateNewMetadata(md)
 	require.Error(t, err)
 	require.Equal(t, "index and retention block size must match (2h0m0s, 4h0m0s)", err.Error())
