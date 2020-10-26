@@ -30,6 +30,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
@@ -63,7 +64,7 @@ const testAddJSON = `
 				"blockSizeNanos": 7200000000000
 			},
 			"stagingState": {
-				"status": 1
+				"status": "INITIALIZING"
 			},
 			"extendedOptions": {
 				"@type": "testm3db.io/m3.test.PingResponse",
@@ -202,17 +203,24 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestValidateNamespaceAddRequest(t *testing.T) {
+func TestValidateNewMetadata(t *testing.T) {
 	addReq := new(admin.NamespaceAddRequest)
 	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
 
 	// Valid.
-	require.NoError(t, validateNamespaceAddRequest(addReq))
+	require.NoError(t, validateNewMetadata(md))
+
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000
+	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 * 2
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
 
 	// Prevent mismatching block sizes.
-	addReq.Options.RetentionOptions.BlockSizeNanos = 100000
-	addReq.Options.IndexOptions.BlockSizeNanos = 200000
-	err := validateNamespaceAddRequest(addReq)
+	err = validateNewMetadata(md)
 	require.Error(t, err)
-	require.Equal(t, "index and retention block size must match (100000, 200000)", err.Error())
+	require.Equal(t, "index and retention block size must match (2h0m0s, 4h0m0s)", err.Error())
 }
