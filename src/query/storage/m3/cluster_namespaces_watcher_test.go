@@ -113,6 +113,11 @@ func TestClusterNamespacesWatcherRegisterListenerNamespacesAlreadySet(t *testing
 	watcher.RegisterListener(listener)
 
 	<-updateCh
+
+	// Add a short sleep to ensure we don't receive a duplicate (and undesired) call
+	time.Sleep(250 * time.Millisecond)
+
+	require.Equal(t, 1, listener.callCount)
 }
 
 func createClusterNamespaces(t *testing.T, ctrl *gomock.Controller) ClusterNamespaces {
@@ -129,12 +134,14 @@ func createClusterNamespaces(t *testing.T, ctrl *gomock.Controller) ClusterNames
 }
 
 type testListener struct {
-	updateCh chan bool
-	expected ClusterNamespaces
-	t        *testing.T
+	updateCh  chan bool
+	expected  ClusterNamespaces
+	t         *testing.T
+	callCount int
 }
 
 func (l *testListener) OnUpdate(namespaces ClusterNamespaces) {
 	require.Equal(l.t, l.expected, namespaces)
 	l.updateCh <- true
+	l.callCount++
 }
