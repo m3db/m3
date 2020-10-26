@@ -58,9 +58,6 @@ const (
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
-	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
-		"generation scheme is required in coordinator configuration settings. " +
-		"More information is available here: %s"
 
 	defaultQueryTimeout = 30 * time.Second
 

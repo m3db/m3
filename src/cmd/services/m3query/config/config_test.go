@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	xconfig "github.com/m3db/m3/src/x/config"
-	xdocs "github.com/m3db/m3/src/x/docs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +35,11 @@ import (
 
 const testConfigFile = "./testdata/config.yml"
 
-func TestTagOptionsFromEmptyConfigErrors(t *testing.T) {
+func TestDefaultTagOptionsFromEmptyConfig(t *testing.T) {
 	cfg := TagOptionsConfiguration{}
 	opts, err := TagOptionsFromConfig(cfg)
-	require.Error(t, err)
-	require.Nil(t, opts)
+	require.NoError(t, err)
+	require.Equal(t, models.TypeQuoted, opts.IDSchemeType())
 }
 
 func TestTagOptionsFromConfigWithIDGenerationScheme(t *testing.T) {
@@ -144,11 +143,8 @@ func TestDefaultTagOptionsConfigErrors(t *testing.T) {
 	var cfg TagOptionsConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
-
-	docLink := xdocs.Path("how_to/query#migration")
-	expectedError := fmt.Sprintf(errNoIDGenerationScheme, docLink)
-	require.EqualError(t, err, expectedError)
-	require.Nil(t, opts)
+	require.NoError(t, err)
+	require.Equal(t, models.TypeQuoted, opts.IDSchemeType())
 }
 
 func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
