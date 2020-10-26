@@ -233,6 +233,8 @@ func (r *dynamicRegistry) run() {
 			r.logger.Warn("dynamic namespace registry received older version, skipping",
 				zap.Int("version", val.Version()))
 			continue
+		} else if !ok {
+			r.logger.Debug("current value for dynamic registry is nil. this should only happen on initialization")
 		}
 
 		m, err := getMapFromUpdate(val, r.opts.ForceColdWritesEnabled())
@@ -249,6 +251,8 @@ func (r *dynamicRegistry) run() {
 			r.logger.Warn("dynamic namespace registry received identical update, skipping",
 				zap.Int("version", val.Version()))
 			continue
+		} else if !ok {
+			r.logger.Debug("current map for dynamic registry is nil. this should only happen on initialization")
 		}
 
 		r.logger.Info("dynamic namespace registry updated to version",
