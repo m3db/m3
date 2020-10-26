@@ -179,37 +179,6 @@ func TestOptionsValidateBlockSizePositive(t *testing.T) {
 	require.Error(t, o1.Validate())
 }
 
-func TestOptionsValidateBlockSizesMustMatch(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	rOpts := retention.NewMockOptions(ctrl)
-	iOpts := NewMockIndexOptions(ctrl)
-	o1 := NewOptions().
-		SetRetentionOptions(rOpts).
-		SetIndexOptions(iOpts)
-
-	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
-
-	// Test mismatch.
-	rSize := 2 * time.Hour
-	iSize := 3 * time.Hour
-	rOpts.EXPECT().Validate().AnyTimes().Return(nil)
-	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
-	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0)).AnyTimes()
-	rOpts.EXPECT().BlockSize().DoAndReturn(func() time.Duration {
-		return rSize
-	}).AnyTimes()
-	iOpts.EXPECT().BlockSize().DoAndReturn(func() time.Duration {
-		return iSize
-	}).AnyTimes()
-	require.Error(t, o1.Validate())
-
-	// Test match.
-	rSize = iSize
-	require.NoError(t, o1.Validate())
-}
-
 func TestOptionsValidateNoIndexing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
