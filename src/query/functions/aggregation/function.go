@@ -129,9 +129,9 @@ func varianceFn(values []float64, bucket []int) float64 {
 	// Using Welford's online algorithm for calculating variance
 	// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
 	//
-	// This algorithm is used in Prometheus and also should provides better numerical precision than
+	// This algorithm is used in Prometheus and also should provide better numerical precision than
 	// the straight-forward implementation of the variance formula. The algorithm iterates through the values
-	// and at each step recalculates the mean and variance of the values seen so far.
+	// and at the each step recalculates mean and variance of the values seen so far.
 
 	count := 0
 	partialMean := 0.0
