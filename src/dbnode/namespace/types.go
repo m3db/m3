@@ -297,6 +297,14 @@ type DynamicOptions interface {
 	// ForceColdWritesEnabled returns whether or not to force enable cold writes
 	// for all ns.
 	ForceColdWritesEnabled() bool
+
+	// SetAllowEmptyInitialNamespaceRegistry sets whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicOptions
+
+	// AllowEmptyInitialNamespaceRegistry returns whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	AllowEmptyInitialNamespaceRegistry() bool
 }
 
 // NamespaceWatch watches for namespace updates.

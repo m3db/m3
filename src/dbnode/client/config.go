@@ -287,7 +287,8 @@ func (c Configuration) NewAdminClient(
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
 	cfgParams := environment.ConfigurationParameters{
-		InstrumentOpts: iopts,
+		InstrumentOpts:                     iopts,
+		AllowEmptyInitialNamespaceRegistry: true,
 	}
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
