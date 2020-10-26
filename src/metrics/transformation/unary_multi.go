@@ -37,6 +37,9 @@ import "time"
 // extra 0 value since the value is stored 1 second after the actual datapoint. This degrades the timestamp encoding
 // since the timestamps are no longer at a fixed interval. In practice we see a 3x increase in storage for these
 // aggregated counters.
+//
+// Currently only a single extra datapoint per aggregation is supported. If multiple transforms in an aggregation emit
+// an additional datapoint, only the last one is used.
 func transformReset() UnaryMultiOutputTransform {
 	return UnaryMultiOutputTransformFn(func(dp Datapoint) (Datapoint, Datapoint) {
 		return dp, Datapoint{Value: 0, TimeNanos: dp.TimeNanos + int64(time.Second)}

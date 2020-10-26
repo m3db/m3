@@ -411,7 +411,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		toFlush := make([]transformation.Datapoint, 0, 2)
+		var extraDp transformation.Datapoint
 		value := lockedAgg.aggregation.ValueOf(aggType)
 		for _, transformOp := range transformations {
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
@@ -458,8 +458,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 
-				res, extraDp := unaryMultiOp.Evaluate(curr)
-				toFlush = append(toFlush, extraDp)
+				var res transformation.Datapoint
+				res, extraDp = unaryMultiOp.Evaluate(curr)
 				value = res.Value
 			}
 		}
@@ -469,10 +469,14 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		}
 
 		if !e.parsedPipeline.HasRollup {
+			toFlush := make([]transformation.Datapoint, 0, 2)
 			toFlush = append(toFlush, transformation.Datapoint{
 				TimeNanos: timeNanos,
 				Value:     value,
 			})
+			if extraDp.TimeNanos != 0 {
+				toFlush = append(toFlush, extraDp)
+			}
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
