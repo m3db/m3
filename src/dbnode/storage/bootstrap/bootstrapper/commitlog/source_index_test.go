@@ -59,7 +59,7 @@ func TestBootstrapIndex(t *testing.T) {
 		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
-		indexBlockSize   = 2 * time.Hour
+		indexBlockSize   = 4 * time.Hour
 		namespaceOptions = namespaceOptions.
 					SetRetentionOptions(
 				namespaceOptions.
@@ -199,7 +199,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 		opts             = testDefaultOpts
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		dataBlockSize    = 2 * time.Hour
-		indexBlockSize   = 2 * time.Hour
+		indexBlockSize   = 4 * time.Hour
 		namespaceOptions = namespace.NewOptions().
 					SetRetentionOptions(
 				namespace.NewOptions().
