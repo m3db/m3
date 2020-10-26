@@ -1,5 +1,36 @@
 # Changelog
 
+# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+
+## Backwards Incompatible Changes
+
+### Configuration
+- **M3DB**: `db.bootstrap.bootstrappers` removed
+- **M3Coordinator**: `cluster.namespaces.storageMetricsType` removed
+- **M3Coordinator**: `tagOptions.tagOptions` no longer supports `legacy` type
+- **M3Query**: `limits.perQuery.maxComputedDatapoints` removed
+- **M3Query**: `limits.perQuery.maxFetchedDatapoints` removed
+- **M3Query**: `limits.global.maxFetchedDatapoints` removed
+- **M3Query**: `cache` removed
+- **M3Query**: `listenAddress` changed to always be resolved as a string from config. Format changed from
+```
+listenAddress:
+  config: "..."
+  value: "..."
+```
+to 
+```
+listenAddress: "..."
+```
+
+### API
+- **M3DB**: `/services/m3db/database/config/bootstrappers` dynamic bootstappers endpoint removed
+- **M3Coordinator**: `/api/v1/namespace` changed to `/api/v1/services/m3db/namespace`
+- **M3Coordinator**: `/api/v1/namespace/init` changed to `/api/v1/services/m3db/namespace/init`
+- **M3Coordinator**: `/api/v1/namespace/unagg` changed to `/api/v1/services/m3db/namespace/unagg`
+- **M3Coordinator**: `/api/v1/placement` changed to `/api/v1/services/m3db/placement`
+- **M3Coordinator**: `/api/v1/placement/init` changed to `/api/v1/services/m3db/placement/init`
+
 # 0.15.17
 
 ## Features 
@@ -485,7 +516,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 ## Features
 
 - **M3Query**: Add multi-zone and multi-region configuration for coordinator ([#1687](https://github.com/m3db/m3/pull/1687))
-- **M3Query**: Add debug param to `GET` `/api/v1/services/m3db/namespace` endpoint for better readability ([#1698](https://github.com/m3db/m3/pull/1698))
+- **M3Query**: Add debug param to `GET` `/api/v1/namespace` endpoint for better readability ([#1698](https://github.com/m3db/m3/pull/1698))
 - **M3Coordinator**: Add "ingest_latency" histogram metric and return datapoint too old/new errors with offending timestamps ([#1716](https://github.com/m3db/m3/pull/1716))
 
 ## Performance
