@@ -149,18 +149,6 @@ func (n *countValuesNode) Process(
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func isValid(ln string) bool {
-	if len(ln) == 0 {
-		return false
-	}
-	for i, b := range ln {
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
-			return false
-		}
-	}
-	return true
-}
-
 func (n *countValuesNode) ProcessBlock(
 	queryCtx *models.QueryContext,
 	ID parser.NodeID,
@@ -173,7 +161,7 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	params := n.op.params
-	labelName := removeQuotes(unwrapParenthesis(params.StringParameter))
+	labelName := trimQuotes(trimParentheses(params.StringParameter))
 	if !isValid(labelName) {
 		return nil, fmt.Errorf("invalid label name %q", labelName)
 	}
@@ -223,7 +211,7 @@ func (n *countValuesNode) ProcessBlock(
 			// Add the metas of this bucketBlock right after the previous block
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: []byte(n.op.opType),
-				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
+				Tags: metas[bucketIndex].Tags.Clone().AddOrUpdateTag(models.Tag{
 					Name:  []byte(labelName),
 					Value: utils.FormatFloatToBytes(k),
 				}),
@@ -264,19 +252,18 @@ func (n *countValuesNode) ProcessBlock(
 	return builder.Build(), nil
 }
 
-func unwrapParenthesis(s string) string {
-	for len(s) > 0 && s[0] == '(' && s[len(s)-1] == ')' {
-		s = s[1:len(s)-1]
-	}
-	return s
+func trimParentheses(s string) string {
+	return trim(s, '(', ')')
 }
 
-func removeQuotes(s string) string {
-	if len(s) > 0 && s[0] == '"' {
-		s = s[1:]
-	}
-	if len(s) > 0 && s[len(s)-1] == '"' {
-		s = s[:len(s)-1]
+func trimQuotes(s string) string {
+	return trim(s, '"', '"')
+}
+
+// trims given string value removing startsWith and endsWith characters
+func trim(s string, startsWith, endsWith uint8) string {
+	for len(s) > 0 && s[0] == startsWith && s[len(s)-1] == endsWith {
+		s = s[1:len(s)-1]
 	}
 	return s
 }
@@ -289,6 +276,21 @@ func padValuesWithNaNs(vals bucketColumn, size int) bucketColumn {
 	}
 
 	return vals
+}
+
+// IsValid is true if the label name matches the pattern of "^[a-zA-Z_][a-zA-Z0-9_]*$". This
+// method, however, does not use regex for the check but a much faster
+// hardcoded implementation.
+func isValid(ln string) bool {
+	if len(ln) == 0 {
+		return false
+	}
+	for i, b := range ln {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
 }
 
 // count values takes a value array and a bucket list, returns a map of
