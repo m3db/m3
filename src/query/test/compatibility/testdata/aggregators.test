@@ -240,12 +240,10 @@ load 5m
 	version{job="app-server", instance="0", group="canary"}		7
 	version{job="app-server", instance="1", group="canary"}		7
 
-# FAILING issue #14 (count_values)
 eval instant at 5m count_values("version", version)
 	{version="6"} 5
 	{version="7"} 2
 	{version="8"} 2
-
 
 eval instant at 5m count_values(((("version"))), version)
        {version="6"} 5

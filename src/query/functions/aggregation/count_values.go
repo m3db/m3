@@ -211,7 +211,7 @@ func (n *countValuesNode) ProcessBlock(
 			// Add the metas of this bucketBlock right after the previous block
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: []byte(n.op.opType),
-				Tags: metas[bucketIndex].Tags.Clone().AddOrUpdateTag(models.Tag{
+				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
 					Name:  []byte(labelName),
 					Value: utils.FormatFloatToBytes(k),
 				}),
