@@ -269,8 +269,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		return block.LeaseState{Volume: 0}, nil
 	}).AnyTimes()
 	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.
-		SetBlockLeaseManager(mockBlockLeaseManager).
-		SetCacheBlocksOnRetrieve(true)
+		SetBlockLeaseManager(mockBlockLeaseManager)
 
 	// Generate data.
 	for _, shard := range shards {
