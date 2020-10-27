@@ -104,7 +104,6 @@ type dbNamespace struct {
 	sync.RWMutex
 
 	closed             bool
-	readOnly           bool
 	shutdownCh         chan struct{}
 	id                 ident.ID
 	shardSet           sharding.ShardSet
@@ -1257,7 +1256,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	// If repair is enabled we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	if n.readOnly || !(n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()) {
+	if n.Metadata().ReadOnly() || !(n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()) {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1583,14 +1582,6 @@ func (n *dbNamespace) Index() (NamespaceIndex, error) {
 		return nil, errNamespaceIndexingDisabled
 	}
 	return n.reverseIndex, nil
-}
-
-func (n *dbNamespace) ReadOnly() bool {
-	return n.readOnly
-}
-
-func (n *dbNamespace) SetReadOnly(value bool) {
-	n.readOnly = value
 }
 
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {

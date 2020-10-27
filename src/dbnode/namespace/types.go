@@ -213,11 +213,18 @@ type SchemaRegistry interface {
 
 // Metadata represents namespace metadata information
 type Metadata interface {
-	// Equal returns true if the provide value is equal to this one
+	// Equal returns true if the provided value is equal to this one
 	Equal(value Metadata) bool
 
 	// ID is the ID of the namespace
 	ID() ident.ID
+
+
+	// ReadOnly returns true if the Namespace is read only.
+	ReadOnly() bool
+
+	// SetReadOnly sets the value of ReadOnly option.
+	SetReadOnly(value bool)
 
 	// Options is the namespace options
 	Options() Options

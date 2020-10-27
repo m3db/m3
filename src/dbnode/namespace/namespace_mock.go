@@ -956,6 +956,32 @@ func (mr *MockMetadataMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockMetadata)(nil).ID))
 }
 
+// ReadOnly mocks base method
+func (m *MockMetadata) ReadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReadOnly indicates an expected call of ReadOnly
+func (mr *MockMetadataMockRecorder) ReadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockMetadata)(nil).ReadOnly))
+}
+
+// SetReadOnly mocks base method
+func (m *MockMetadata) SetReadOnly(value bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetReadOnly", value)
+}
+
+// SetReadOnly indicates an expected call of SetReadOnly
+func (mr *MockMetadataMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockMetadata)(nil).SetReadOnly), value)
+}
+
 // Options mocks base method
 func (m *MockMetadata) Options() Options {
 	m.ctrl.T.Helper()

@@ -34,8 +34,9 @@ var (
 )
 
 type metadata struct {
-	id   ident.ID
-	opts Options
+	id       ident.ID
+	readOnly bool
+	opts     Options
 }
 
 // NewMetadata creates a new namespace metadata
@@ -64,12 +65,20 @@ func (m *metadata) ID() ident.ID {
 	return m.id
 }
 
+func (m *metadata) ReadOnly() bool {
+	return m.readOnly
+}
+
+func (m *metadata) SetReadOnly(value bool) {
+	m.readOnly = value
+}
+
 func (m *metadata) Options() Options {
 	return m.opts
 }
 
 func (m *metadata) Equal(value Metadata) bool {
-	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
+	return m.id.Equal(value.ID()) && m.readOnly == value.ReadOnly() && m.Options().Equal(value.Options())
 }
 
 // ForceColdWritesEnabledForMetadatas forces cold writes to be enabled for all ns.
