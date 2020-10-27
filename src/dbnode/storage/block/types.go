@@ -481,6 +481,26 @@ type LeaseDescriptor struct {
 	BlockStart time.Time
 }
 
+// HashableLeaseDescriptor is a lease descriptor that can be used as a map key.
+type HashableLeaseDescriptor struct {
+	namespace  string
+	shard      uint32
+	blockStart time.Time
+}
+
+// HashableLeaseDescriptor transforms LeaseDescriptor into a HashableLeaseDescriptor.
+func NewHashableLeaseDescriptor(descriptor LeaseDescriptor) HashableLeaseDescriptor {
+	ns := ""
+	if descriptor.Namespace != nil {
+		ns = descriptor.Namespace.String()
+	}
+	return HashableLeaseDescriptor{
+		namespace:  ns,
+		shard:      descriptor.Shard,
+		blockStart: descriptor.BlockStart,
+	}
+}
+
 // LeaseState is the current state of a lease which can be
 // requested to be updated.
 type LeaseState struct {
