@@ -78,6 +78,12 @@ var (
 	// By default, raise errors instead of truncating results so
 	// users do not experience see unexpected results.
 	defaultRequireExhaustive = true
+
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
+	}
 )
 
 // Configuration is the configuration for the query service.
@@ -122,7 +128,7 @@ type Configuration struct {
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
@@ -159,6 +165,14 @@ type Configuration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// WriteWorkerPoolOrDefault returns the write worker pool config or default.
+func (c Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.WriteWorkerPool != nil {
+		return *c.WriteWorkerPool
+	}
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.

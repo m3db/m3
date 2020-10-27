@@ -99,9 +99,8 @@ var (
 		},
 	}
 
-	defaultDownsamplerAndWriterWorkerPoolSize = 1024
-	defaultCarbonIngesterWorkerPoolSize       = 1024
-	defaultPerCPUMultiProcess                 = 0.5
+	defaultCarbonIngesterWorkerPoolSize = 1024
+	defaultPerCPUMultiProcess           = 0.5
 )
 
 type cleanupFn func() error
@@ -321,7 +320,7 @@ func Run(runOpts RunOptions) {
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
-		cfg.WriteWorkerPool,
+		cfg.WriteWorkerPoolOrDefault(),
 		scope)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Error(err))
@@ -439,6 +438,7 @@ func Run(runOpts RunOptions) {
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
 		backendStorage,
 		downsampler,
+		cfg.WriteWorkerPoolOrDefault(),
 		instrumentOptions,
 	)
 	if err != nil {
@@ -1109,15 +1109,15 @@ func startCarbonIngestion(
 func newDownsamplerAndWriter(
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
+	workerPoolPolicy xconfig.WorkerPoolPolicy,
 	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
-	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true).
-		SetKillWorkerProbability(0.001)
-	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(
-		defaultDownsamplerAndWriterWorkerPoolSize, downAndWriterWorkerPoolOpts)
+	downAndWriterWorkerPoolOpts, writePoolSize := workerPoolPolicy.Options()
+	downAndWriterWorkerPoolOpts = downAndWriterWorkerPoolOpts.SetInstrumentOptions(iOpts.
+		SetMetricsScope(iOpts.MetricsScope().SubScope("ingest-writer-worker-pool")))
+	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, downAndWriterWorkerPoolOpts)
 	if err != nil {
 		return nil, err
 	}
