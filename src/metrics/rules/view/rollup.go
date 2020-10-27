@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -52,6 +52,7 @@ type RollupRule struct {
 	Targets             []RollupTarget `json:"targets" validate:"required,dive,required"`
 	LastUpdatedBy       string         `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64          `json:"lastUpdatedAtMillis"`
+	KeepOriginal        bool           `json:"keepOriginal"`
 }
 
 // Equal determines whether two rollup rules are equal.
@@ -65,6 +66,7 @@ func (r *RollupRule) Equal(other *RollupRule) bool {
 	return r.ID == other.ID &&
 		r.Name == other.Name &&
 		r.Filter == other.Filter &&
+		r.KeepOriginal == other.KeepOriginal &&
 		rollupTargets(r.Targets).Equal(other.Targets)
 }
 

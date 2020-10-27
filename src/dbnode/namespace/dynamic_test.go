@@ -38,7 +38,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) DynamicOptions {
+func newTestSetup(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) (DynamicOptions, *kv.MockStore) {
 	_, watch, err := watchable.Watch()
 	require.NoError(t, err)
 
@@ -56,7 +56,7 @@ func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatcha
 				SetMetricsScope(ts)).
 		SetConfigServiceClient(mockCSClient)
 
-	return opts
+	return opts, mockKVStore
 }
 
 func numInvalidUpdates(opts DynamicOptions) int64 {
@@ -88,38 +88,13 @@ func TestInitializerNoTimeout(t *testing.T) {
 	w := newTestWatchable(t, value)
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 	reg, err := init.Init()
 	require.NoError(t, err)
 
-	rw, err := reg.Watch()
-	require.NoError(t, err)
-	rMap := rw.Get()
-	mds := rMap.Metadatas()
-	require.Len(t, mds, 1)
-	md := mds[0]
-	require.Equal(t, "testns1", md.ID().String())
-	require.Equal(t, expectedNsValue.BootstrapEnabled, md.Options().BootstrapEnabled())
-	require.Equal(t, expectedNsValue.CleanupEnabled, md.Options().CleanupEnabled())
-	require.Equal(t, expectedNsValue.FlushEnabled, md.Options().FlushEnabled())
-	require.Equal(t, expectedNsValue.RepairEnabled, md.Options().RepairEnabled())
-	require.Equal(t, expectedNsValue.WritesToCommitLog, md.Options().WritesToCommitLog())
+	requireNamespaceInRegistry(t, reg, expectedNsValue)
 
-	ropts := expectedNsValue.RetentionOptions
-	observedRopts := md.Options().RetentionOptions()
-	require.Equal(t, ropts.BlockDataExpiry, observedRopts.BlockDataExpiry())
-	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodNanos,
-		toNanosInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
-	require.Equal(t, ropts.BlockSizeNanos, toNanosInt64(observedRopts.BlockSize()))
-	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
-	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
-
-	latest, found := md.Options().SchemaHistory().GetLatest()
-	require.True(t, found)
-	require.EqualValues(t, "third", latest.DeployId())
-
-	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
 }
 
@@ -132,7 +107,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	w := newTestWatchable(t, singleTestValue())
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
@@ -171,7 +146,7 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
@@ -204,7 +179,7 @@ func TestInitializerUpdateWithNilValue(t *testing.T) {
 	w := newTestWatchable(t, singleTestValue())
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
@@ -234,7 +209,7 @@ func TestInitializerUpdateWithNilInitialValue(t *testing.T) {
 	w := newTestWatchable(t, nil)
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	require.NoError(t, w.Update(nil))
@@ -252,7 +227,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
@@ -286,7 +261,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(t, ctrl, w)
+	opts, _ := newTestSetup(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
@@ -323,6 +298,97 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 		break
 	}
 	require.NoError(t, reg.Close())
+}
+
+func TestInitializerAllowEmptyEnabled_EmptyRegistry(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	w := newTestWatchable(t, nil)
+	defer w.Close()
+
+	opts, mockKV := newTestSetup(t, ctrl, w)
+	opts = opts.SetAllowEmptyInitialNamespaceRegistry(true)
+
+	mockKV.EXPECT().Get(defaultNsRegistryKey).Return(nil, kv.ErrNotFound)
+
+	init := NewDynamicInitializer(opts)
+	reg, err := init.Init()
+	require.NoError(t, err)
+
+	rw, err := reg.Watch()
+	require.NoError(t, err)
+	rMap := rw.Get()
+	require.Nil(t, rMap)
+
+	// Trigger update to add namespace
+	value := singleTestValue()
+	expectedNsValue := value.Namespaces["testns1"]
+	w.Update(value)
+
+	<-rw.C()
+
+	requireNamespaceInRegistry(t, reg, expectedNsValue)
+
+	require.NoError(t, rw.Close())
+	require.NoError(t, reg.Close())
+}
+
+func TestInitializerAllowEmptyEnabled_ExistingRegistry(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	value := singleTestValue()
+	expectedNsValue := value.Namespaces["testns1"]
+	w := newTestWatchable(t, value)
+	defer w.Close()
+
+	opts, mockKV := newTestSetup(t, ctrl, w)
+	opts = opts.SetAllowEmptyInitialNamespaceRegistry(true)
+
+	mockKV.EXPECT().Get(defaultNsRegistryKey).Return(value, nil)
+
+	init := NewDynamicInitializer(opts)
+	reg, err := init.Init()
+	require.NoError(t, err)
+
+	requireNamespaceInRegistry(t, reg, expectedNsValue)
+
+	require.NoError(t, reg.Close())
+}
+
+func requireNamespaceInRegistry(t *testing.T, reg Registry, expectedNsValue *nsproto.NamespaceOptions) {
+	rw, err := reg.Watch()
+	require.NoError(t, err)
+	rMap := rw.Get()
+	mds := rMap.Metadatas()
+	require.Len(t, mds, 1)
+	md := mds[0]
+	require.Equal(t, "testns1", md.ID().String())
+	require.Equal(t, expectedNsValue.BootstrapEnabled, md.Options().BootstrapEnabled())
+	require.Equal(t, expectedNsValue.CleanupEnabled, md.Options().CleanupEnabled())
+	require.Equal(t, expectedNsValue.FlushEnabled, md.Options().FlushEnabled())
+	require.Equal(t, expectedNsValue.RepairEnabled, md.Options().RepairEnabled())
+	require.Equal(t, expectedNsValue.WritesToCommitLog, md.Options().WritesToCommitLog())
+
+	ropts := expectedNsValue.RetentionOptions
+	observedRopts := md.Options().RetentionOptions()
+	require.Equal(t, ropts.BlockDataExpiry, observedRopts.BlockDataExpiry())
+	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodNanos,
+		toNanosInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
+	require.Equal(t, ropts.BlockSizeNanos, toNanosInt64(observedRopts.BlockSize()))
+	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
+	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
+
+	latest, found := md.Options().SchemaHistory().GetLatest()
+	require.True(t, found)
+	require.EqualValues(t, "third", latest.DeployId())
+
+	require.NoError(t, rw.Close())
 }
 
 func singleTestValue() *testValue {
