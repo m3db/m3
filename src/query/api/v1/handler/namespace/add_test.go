@@ -124,7 +124,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 					"testNamespace": xjson.Map{
 						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled":          true,
 						"writesToCommitLog":     true,
 						"cleanupEnabled":        true,

@@ -162,7 +162,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -338,7 +338,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -467,7 +467,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -601,7 +601,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -865,7 +865,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -1022,7 +1022,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -1239,7 +1239,7 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -1281,7 +1281,7 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 							]
 						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
