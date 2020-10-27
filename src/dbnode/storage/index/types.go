@@ -92,6 +92,8 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
+	// Optional. Force work with provided namespace
+	Namespace ident.ID
 }
 
 // WideQueryOptions enables users to specify constraints and

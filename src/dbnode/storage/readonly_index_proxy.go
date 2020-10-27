@@ -37,6 +37,7 @@ import (
 var errNamespaceIndexReadOnly = errors.New("write operation on read only namespace index")
 
 type readOnlyIndexProxy struct {
+	sourceNs   ident.ID
 	underlying NamespaceIndex
 }
 
@@ -63,6 +64,7 @@ func (r readOnlyIndexProxy) Query(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
+	opts.Namespace = r.sourceNs
 	return r.underlying.Query(ctx, query, opts)
 }
 
@@ -125,8 +127,11 @@ func (r readOnlyIndexProxy) Close() error {
 
 // NewReadOnlyIndexProxy builds a new NamespaceIndex that proxies only read
 // operations, and no-ops on write operations.
-func NewReadOnlyIndexProxy(underlying NamespaceIndex) NamespaceIndex {
-	return readOnlyIndexProxy{underlying: underlying}
+func NewReadOnlyIndexProxy(sourceNs ident.ID, underlying NamespaceIndex) NamespaceIndex {
+	return readOnlyIndexProxy{
+		sourceNs:   sourceNs,
+		underlying: underlying,
+	}
 }
 
 func noopOnColdFlushDone() error {
