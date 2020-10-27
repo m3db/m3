@@ -21,8 +21,6 @@
 package searcher
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -57,9 +55,6 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		if err != nil {
 			return nil, err
 		}
-		if pl == nil {
-			return nil, fmt.Errorf("conjunction searchers must resolve postings lists")
-		}
 
 		intersects = append(intersects, pl)
 	}
@@ -68,9 +63,6 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		pl, err := sr.Search(r)
 		if err != nil {
 			return nil, err
-		}
-		if pl == nil {
-			return nil, fmt.Errorf("conjunction searchers must resolve postings lists")
 		}
 
 		negations = append(negations, pl)

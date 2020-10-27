@@ -99,6 +99,9 @@ func TestReadOnlyBitmap(t *testing.T) {
 
 				list := NewPostingsListFromBitmap(b)
 
+				// Note: Do not reuse buffer before done with
+				// read only map that is backed by the bytes from the
+				// bufer.
 				buff.Reset()
 				_, err := b.WriteTo(buff)
 				require.NoError(t, err)
