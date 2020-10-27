@@ -43,7 +43,7 @@ type cache struct {
 	namespaceDetails     []NamespaceDetails
 	infoFilesByNamespace InfoFilesByNamespace
 	iOpts                instrument.Options
-	hasRead              bool
+	hasPopulatedInfo     bool
 }
 
 // NewCache creates a cache specifically to be used during the bootstrap process.
@@ -88,15 +88,15 @@ func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 func (c *cache) Evict() {
 	c.Lock()
 	defer c.Unlock()
-	c.hasRead = false
+	c.hasPopulatedInfo = false
 }
 
 func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
 	c.Lock()
 	defer c.Unlock()
-	if !c.hasRead {
+	if !c.hasPopulatedInfo {
 		c.populateInfoFilesByNamespaceWithLock()
-		c.hasRead = true
+		c.hasPopulatedInfo = true
 	}
 	return c.infoFilesByNamespace
 }
