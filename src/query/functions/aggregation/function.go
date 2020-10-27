@@ -133,9 +133,11 @@ func varianceFn(values []float64, bucket []int) float64 {
 	// the straight-forward implementation of the variance formula. The algorithm iterates through the values
 	// and at the each step recalculates mean and variance of the values seen so far.
 
-	count := 0
-	partialMean := 0.0
-	partialVarTimesCount := 0.0 // for better precision, calculate `variance * count` and divide at the end
+	var (
+		count                = 0
+		partialMean          = 0.0
+		partialVarTimesCount = 0.0 // for better precision, calculate `variance * count` and divide at the end
+	)
 
 	for _, idx := range bucket {
 		v := values[idx]
