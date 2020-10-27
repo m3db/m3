@@ -59,7 +59,7 @@ var (
 // BootstrapConfiguration specifies the config for bootstrappers.
 type BootstrapConfiguration struct {
 	// Filesystem bootstrapper configuration.
-	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
+	Filesystem *BootstrapFilesystemConfiguration `yaml:"filesystem"`
 
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`

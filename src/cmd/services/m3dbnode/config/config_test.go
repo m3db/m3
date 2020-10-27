@@ -99,7 +99,7 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-      fs:
+      filesystem:
           numProcessorsPerCPU: 0.42
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: false
@@ -111,7 +111,7 @@ db:
           calculationType: fixed
           size: 2097152
 
-  fs:
+  filesystem:
       filePathPrefix: /var/lib/m3db
       writeBufferSize: 65536
       dataReadBufferSize: 65536
@@ -413,7 +413,7 @@ func TestConfiguration(t *testing.T) {
   writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
-    fs:
+    filesystem:
       numProcessorsPerCPU: 0.42
       migration: null
     commitlog:
@@ -428,7 +428,7 @@ func TestConfiguration(t *testing.T) {
       size: 100
       cacheRegexp: false
       cacheTerms: false
-  fs:
+  filesystem:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
     dataReadBufferSize: 65536
