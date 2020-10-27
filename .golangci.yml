@@ -161,26 +161,42 @@ linters-settings:
 
 linters:
   enable:
-    - megacheck
+    - deadcode
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
     - gci
+    - goconst
     - gocritic
+    - gocyclo
+    - godox
+    - goimports
+    - golint
+    - gosimple
     - govet
+    - ineffassign
+    - lll
+    - maligned
+    - megacheck
+    - misspell
+    - prealloc
+    - staticcheck
+    - structcheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - wsl
   enable-all: false
   disable:
-    - maligned
-    - prealloc
-    - dupl
-    - lll
-    - wsl
     - gomnd
-    - godox
     - gochecknoinits
     # Globals gonna global
     - gochecknoglobals
     # Overly harsh about long functions
     - funlen
-    # Overly aggressive about unused assignments
-    - dogsled
     # Linter that checks that every comment ends in a period.
     - godot
     # Linter that makes you always use _test packages.
@@ -263,4 +279,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: 2ca175b09f91db22d02aa31a12f5f1ceff9c8034
+  new-from-rev: 6cd7b07ff4b690b7b48e5c3233b094c75fc69852
