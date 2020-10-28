@@ -7,10 +7,10 @@
   # the build. This is relative to the base directory if one has been set, or the
   # root directory if a base has not been set. This sample publishes the
   # directory located at the absolute path "root/project/build-output"
-  publish = "site/public/"
+  publish = "/site/public/"
   
-  command = "hugo"  
-  HUGO_VERSION = "0.75.1"
+  command = "make site-build -C ../"  
+  HUGO_VERSION = "0.76.5"
 
 [[redirects]]
   from = "/misc/writing_docs/"
@@ -18,21 +18,21 @@
 
 [[redirects]]
   from = "https://m3metrics.io/*"
-  to = "https://docs-test.m3db.io/:splat"
+  to = "https://m3db.io/:splat"
 
 [[redirects]]
   from = "https://m3db.netlify.com/*"
-  to = "https://docs-test.m3db.io/:splat"
+  to = "https://m3db.io/:splat"
 
 [[redirects]]
   from = "https://docs.m3db.io/*"
-  to = "https://docs-test.m3db.io/:splat"
+  to = "https://m3db.io/docs/:splat"
+
+[[redirects]]
+  from = "/docs/how_to/single_node"
+  to = "docs/quickstart"
 
 # TODO: Fix this with new content type
 [[redirects]]
   from = "/talks"
   to = "docs/overview/media"
-
-[[redirects]]
-  from = "/*"
-  to = "https://docs-test.m3db.io/docs/:splat"  

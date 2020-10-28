@@ -199,6 +199,9 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
           "aggregated": false
         }
       ]
+    },
+    "stagingState": {
+      "status": "INITIALIZING"
     }
   }
 }'
@@ -232,8 +235,10 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
           }
         }
       ]
+    },
+    "stagingState": {
+      "status": "INITIALIZING"
     }
-
   }
 }'
 echo "Done initializing namespaces"
@@ -242,6 +247,11 @@ echo "Validating namespace"
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_30s_24h.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
+
+echo "Waiting for namespaces to be ready"
+[ $(curl -sSf -X POST localhost:7201/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"metrics_0_30m\", \"force\": true }" | grep -c true) -eq 1 ]
+[ $(curl -sSf -X POST localhost:7201/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"metrics_30s_24h\", \"force\": true }" | grep -c true) -eq 1 ]
+echo "Done waiting for namespaces to be ready"
 
 echo "Initializing topology"
 if [[ "$USE_MULTI_DB_NODES" = true ]] ; then

@@ -1354,6 +1354,34 @@ func (mr *MockDynamicOptionsMockRecorder) ForceColdWritesEnabled() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceColdWritesEnabled", reflect.TypeOf((*MockDynamicOptions)(nil).ForceColdWritesEnabled))
 }
 
+// SetAllowEmptyInitialNamespaceRegistry mocks base method
+func (m *MockDynamicOptions) SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAllowEmptyInitialNamespaceRegistry", value)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+// SetAllowEmptyInitialNamespaceRegistry indicates an expected call of SetAllowEmptyInitialNamespaceRegistry
+func (mr *MockDynamicOptionsMockRecorder) SetAllowEmptyInitialNamespaceRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAllowEmptyInitialNamespaceRegistry", reflect.TypeOf((*MockDynamicOptions)(nil).SetAllowEmptyInitialNamespaceRegistry), value)
+}
+
+// AllowEmptyInitialNamespaceRegistry mocks base method
+func (m *MockDynamicOptions) AllowEmptyInitialNamespaceRegistry() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllowEmptyInitialNamespaceRegistry")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AllowEmptyInitialNamespaceRegistry indicates an expected call of AllowEmptyInitialNamespaceRegistry
+func (mr *MockDynamicOptionsMockRecorder) AllowEmptyInitialNamespaceRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllowEmptyInitialNamespaceRegistry", reflect.TypeOf((*MockDynamicOptions)(nil).AllowEmptyInitialNamespaceRegistry))
+}
+
 // MockNamespaceWatch is a mock of NamespaceWatch interface
 type MockNamespaceWatch struct {
 	ctrl     *gomock.Controller

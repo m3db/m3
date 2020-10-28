@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 )
 
 var (
@@ -147,7 +146,7 @@ func (m *leaseManager) UpdateOpenLeases(
 	// return before being released.
 	m.Unlock()
 
-	hashableDescriptor := newHashableLeaseDescriptor(descriptor)
+	hashableDescriptor := NewHashableLeaseDescriptor(descriptor)
 	if _, ok := m.updateOpenLeasesInProgress.LoadOrStore(hashableDescriptor, struct{}{}); ok {
 		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
 		// is not held for the duration) to ensure that Leaser's receive all updates
@@ -191,22 +190,4 @@ func (m *leaseManager) isRegistered(leaser Leaser) bool {
 		}
 	}
 	return false
-}
-
-type hashableLeaseDescriptor struct {
-	namespace  string
-	shard      uint32
-	blockStart time.Time
-}
-
-func newHashableLeaseDescriptor(descriptor LeaseDescriptor) hashableLeaseDescriptor {
-	ns := ""
-	if descriptor.Namespace != nil {
-		ns = descriptor.Namespace.String()
-	}
-	return hashableLeaseDescriptor{
-		namespace:  ns,
-		shard:      descriptor.Shard,
-		blockStart: descriptor.BlockStart,
-	}
 }

@@ -731,8 +731,9 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 	require.Equal(t, errRuleNotFound, err)
 
 	view := view.RollupRule{
-		Name:   "foo",
-		Filter: "tag1:value tag2:value",
+		Name:         "foo",
+		Filter:       "tag1:value tag2:value",
+		KeepOriginal: true,
 		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -768,6 +769,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 		tombstoned:   false,
 		cutoverNanos: nowNanos + 10,
 		rawFilter:    "tag1:value tag2:value",
+		keepOriginal: true,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -936,9 +938,10 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 	require.NoError(t, err)
 
 	view := view.RollupRule{
-		ID:     "rollupRule5",
-		Name:   "rollupRule5.snapshot2",
-		Filter: "test:bar",
+		ID:           "rollupRule5",
+		Name:         "rollupRule5.snapshot2",
+		Filter:       "test:bar",
+		KeepOriginal: true,
 		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -974,6 +977,7 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 		tombstoned:   false,
 		cutoverNanos: nowNanos + 10,
 		rawFilter:    "test:bar",
+		keepOriginal: true,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{

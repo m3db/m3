@@ -198,6 +198,24 @@ func GetInnerNonRetryableError(err error) error {
 	return nil
 }
 
+// IsMultiError returns true if this is a multi-error error.
+func IsMultiError(err error) bool {
+	_, ok := GetInnerMultiError(err)
+	return ok
+}
+
+// GetInnerMultiError returns an inner multi-error error
+// if contained by this error, nil otherwise.
+func GetInnerMultiError(err error) (MultiError, bool) {
+	for err != nil {
+		if v, ok := err.(MultiError); ok {
+			return v, true
+		}
+		err = InnerError(err)
+	}
+	return MultiError{}, false
+}
+
 // MultiError is an immutable error that packages a list of errors.
 //
 // TODO(xichen): we may want to limit the number of errors included.
@@ -265,6 +283,17 @@ func (e MultiError) Add(err error) MultiError {
 func (e MultiError) FinalError() error {
 	if e.err == nil {
 		return nil
+	}
+	allInvalidParamsErr := IsInvalidParams(e.err)
+	for _, containedErr := range e.errors {
+		if !IsInvalidParams(containedErr) {
+			allInvalidParamsErr = false
+			break
+		}
+	}
+	if allInvalidParamsErr {
+		// Make sure to correctly wrap this error as an invalid params error.
+		return NewInvalidParamsError(e)
 	}
 	return e
 }

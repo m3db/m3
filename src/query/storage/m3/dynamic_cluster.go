@@ -38,13 +38,15 @@ var (
 	errAlreadyInitialized                         = errors.New("instance already initialized")
 	errDynamicClusterNamespaceConfigurationNotSet = errors.New("dynamicClusterNamespaceConfiguration not set")
 	errInstrumentOptionsNotSet                    = errors.New("instrumentOptions not set")
+	errClusterNamespacesWatcherNotSet             = errors.New("clusterNamespacesWatcher not set")
 	errNsWatchAlreadyClosed                       = errors.New("namespace watch already closed")
 )
 
 type dynamicCluster struct {
-	clusterCfgs []DynamicClusterNamespaceConfiguration
-	logger      *zap.Logger
-	iOpts       instrument.Options
+	clusterCfgs              []DynamicClusterNamespaceConfiguration
+	logger                   *zap.Logger
+	iOpts                    instrument.Options
+	clusterNamespacesWatcher ClusterNamespacesWatcher
 
 	sync.RWMutex
 
@@ -60,25 +62,17 @@ type dynamicCluster struct {
 
 // NewDynamicClusters creates an implementation of the Clusters interface
 // supports dynamic updating of cluster namespaces.
-func NewDynamicClusters(_ DynamicClusterOptions) (Clusters, error) {
-	return nil, errors.New("dynamic cluster configuration not yet supported")
-}
-
-// TODO(nate): Replace constructor above with this method
-// once namespace staging is complete.
-//
-// newDynamicClusters creates an implementation of the Clusters interface
-// supports dynamic updating of cluster namespaces.
-func newDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
+func NewDynamicClusters(opts DynamicClusterOptions) (Clusters, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
 	cluster := &dynamicCluster{
-		clusterCfgs:             opts.DynamicClusterNamespaceConfiguration(),
-		logger:                  opts.InstrumentOptions().Logger(),
-		iOpts:                   opts.InstrumentOptions(),
-		namespacesByEtcdCluster: make(map[int]clusterNamespaceLookup),
+		clusterCfgs:              opts.DynamicClusterNamespaceConfiguration(),
+		logger:                   opts.InstrumentOptions().Logger(),
+		iOpts:                    opts.InstrumentOptions(),
+		clusterNamespacesWatcher: opts.ClusterNamespacesWatcher(),
+		namespacesByEtcdCluster:  make(map[int]clusterNamespaceLookup),
 	}
 
 	if err := cluster.init(); err != nil {
@@ -137,27 +131,33 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterID int, cfg DynamicCluste
 		return err
 	}
 
-	// Get a namespace watch
+	// Get a namespace watch.
 	watch, err := registry.Watch()
 	if err != nil {
 		return err
 	}
 
-	// Wait till first namespaces value is received and set the value.
-	d.logger.Info("resolving namespaces with namespace watch", zap.Int("cluster", etcdClusterID))
-	<-watch.C()
-
+	// Set method to invoke upon receiving updates and start watching.
 	updater := func(namespaces namespace.Map) error {
 		d.updateNamespaces(etcdClusterID, cfg, namespaces)
 		return nil
 	}
+
+	nsMap := watch.Get()
+	if nsMap != nil {
+		// When watches are created, a notification is generated if the initial value is not nil. Therefore,
+		// since we've performed a successful get, consume the initial notification so that once the nsWatch is
+		// started below, we do not trigger a duplicate update.
+		<-watch.C()
+		d.updateNamespaces(etcdClusterID, cfg, nsMap)
+	} else {
+		d.logger.Debug("initial namespace get was empty")
+	}
+
 	nsWatch := namespace.NewNamespaceWatch(updater, watch, d.iOpts)
 	if err = nsWatch.Start(); err != nil {
 		return err
 	}
-
-	nsMap := watch.Get()
-	d.updateNamespaces(etcdClusterID, cfg, nsMap)
 
 	d.Lock()
 	d.nsWatches = append(d.nsWatches, nsWatch)
@@ -180,6 +180,10 @@ func (d *dynamicCluster) updateNamespaces(
 	d.updateNamespacesByEtcdClusterWithLock(etcdClusterID, clusterCfg, newNamespaces)
 	d.updateClusterNamespacesWithLock()
 	d.Unlock()
+
+	if err := d.clusterNamespacesWatcher.Update(d.ClusterNamespaces()); err != nil {
+		d.logger.Error("failed to update cluster namespaces watcher", zap.Error(err))
+	}
 }
 
 func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
@@ -187,8 +191,6 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 	clusterCfg DynamicClusterNamespaceConfiguration,
 	newNamespaces namespace.Map,
 ) {
-	// TODO(nate): incorporate checking if new namespace is ready once staging state has landed.
-
 	// Check if existing namespaces still exist or need to be updated.
 	existing, ok := d.namespacesByEtcdCluster[etcdClusterID]
 	if !ok {
@@ -229,6 +231,18 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 	// Check for new namespaces to add.
 	for _, newNsMd := range newNamespaces.Metadatas() {
 		if existing.exists(newNsMd.ID().String()) {
+			continue
+		}
+
+		stagingState := newNsMd.Options().StagingState()
+		switch stagingState.Status() {
+		case namespace.UnknownStagingStatus:
+			d.logger.Error("namespace has unknown staging status",
+				zap.String("namespace", newNsMd.ID().String()))
+			continue
+		case namespace.InitializingStagingStatus:
+			d.logger.Debug("ignoring namespace while initializing",
+				zap.String("namespace", newNsMd.ID().String()))
 			continue
 		}
 
@@ -348,7 +362,9 @@ func (d *dynamicCluster) updateClusterNamespacesWithLock() {
 		}
 	}
 
-	newNamespaces = append(newNamespaces, newUnaggregatedNamespace)
+	if newUnaggregatedNamespace != nil {
+		newNamespaces = append(newNamespaces, newUnaggregatedNamespace)
+	}
 	for _, ns := range newAggregatedNamespaces {
 		newNamespaces = append(newNamespaces, ns)
 	}

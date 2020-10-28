@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -77,25 +78,21 @@ func (h *ReplaceHandler) ServeHTTP(
 
 	req, pErr := h.parseRequest(r)
 	if pErr != nil {
-		xhttp.Error(w, pErr.Inner(), pErr.Code())
+		xhttp.WriteError(w, pErr)
 		return
 	}
 
 	placement, err := h.Replace(svc, r, req)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if _, ok := err.(unsafeAddError); ok {
-			status = http.StatusBadRequest
-		}
 		logger.Error("unable to replace instance", zap.Error(err))
-		xhttp.Error(w, err, status)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -107,12 +104,12 @@ func (h *ReplaceHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *ReplaceHandler) parseRequest(r *http.Request) (*admin.PlacementReplaceRequest, *xhttp.ParseError) {
+func (h *ReplaceHandler) parseRequest(r *http.Request) (*admin.PlacementReplaceRequest, error) {
 	defer r.Body.Close()
 
 	req := &admin.PlacementReplaceRequest{}
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return req, nil

@@ -27,8 +27,11 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/m3db/m3/src/x/tallytest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestEnsureSyntaxPerlTreatsAnchorsAsTextTerminator(t *testing.T) {
@@ -410,4 +413,21 @@ func dumpRegexpHelper(b *strings.Builder, re *syntax.Regexp) {
 		}
 	}
 	b.WriteByte('}')
+}
+
+func TestRegexpCache(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+
+	SetRegexpCacheOptions(RegexpCacheOptions{Size: 1, Scope: scope})
+	defer SetRegexpCacheOptions(RegexpCacheOptions{Size: 0})
+
+	_, err := CompileRegex([]byte("foo.*bar"))
+	require.NoError(t, err)
+
+	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "m3ninx.regexp.cache.miss", nil)
+
+	_, err = CompileRegex([]byte("foo.*bar"))
+	require.NoError(t, err)
+
+	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "m3ninx.regexp.cache.hit", nil)
 }
