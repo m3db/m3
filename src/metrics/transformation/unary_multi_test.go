@@ -35,7 +35,6 @@ func TestReset(t *testing.T) {
 	this, other := reset.Evaluate(dp)
 	require.Equal(t, dp, this)
 	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, other)
-
 }
 
 func TestUnaryMultiParse(t *testing.T) {
