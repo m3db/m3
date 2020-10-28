@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -118,12 +118,19 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = xerrors.NewMultiError()
 	)
-	r.incrementReportPending()
-	counter := unaggregated.Counter{ID: id.Bytes(), Value: value}
-	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
-	if !stagedMetadatas.IsDropPolicyApplied() {
+	r.incrementReportPending()
+
+	var (
+		counter         = unaggregated.Counter{ID: id.Bytes(), Value: value}
+		matchResult     = r.matcher.ForwardMatch(id, fromNanos, toNanos)
+		numNewIDs       = matchResult.NumNewRollupIDs()
+		stagedMetadatas = matchResult.ForExistingIDAt(fromNanos)
+		hasDropPolicy   = stagedMetadatas.IsDropPolicyApplied()
+		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
+	)
+
+	if !dropOriginal {
 		err := r.client.WriteUntimedCounter(counter, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -158,12 +165,19 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = xerrors.NewMultiError()
 	)
-	r.incrementReportPending()
-	batchTimer := unaggregated.BatchTimer{ID: id.Bytes(), Values: value}
-	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
-	if !stagedMetadatas.IsDropPolicyApplied() {
+	r.incrementReportPending()
+
+	var (
+		batchTimer      = unaggregated.BatchTimer{ID: id.Bytes(), Values: value}
+		matchResult     = r.matcher.ForwardMatch(id, fromNanos, toNanos)
+		numNewIDs       = matchResult.NumNewRollupIDs()
+		stagedMetadatas = matchResult.ForExistingIDAt(fromNanos)
+		hasDropPolicy   = stagedMetadatas.IsDropPolicyApplied()
+		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
+	)
+
+	if !dropOriginal {
 		err := r.client.WriteUntimedBatchTimer(batchTimer, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -197,12 +211,19 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = xerrors.NewMultiError()
 	)
-	r.incrementReportPending()
-	gauge := unaggregated.Gauge{ID: id.Bytes(), Value: value}
-	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
-	if !stagedMetadatas.IsDropPolicyApplied() {
+	r.incrementReportPending()
+
+	var (
+		gauge           = unaggregated.Gauge{ID: id.Bytes(), Value: value}
+		matchResult     = r.matcher.ForwardMatch(id, fromNanos, toNanos)
+		numNewIDs       = matchResult.NumNewRollupIDs()
+		stagedMetadatas = matchResult.ForExistingIDAt(fromNanos)
+		hasDropPolicy   = stagedMetadatas.IsDropPolicyApplied()
+		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
+	)
+
+	if !dropOriginal {
 		err := r.client.WriteUntimedGauge(gauge, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)

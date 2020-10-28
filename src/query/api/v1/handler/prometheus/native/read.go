@@ -104,15 +104,25 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer timer.Stop()
 
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
+	iOpts := h.opts.InstrumentOpts()
+	logger := logging.WithContext(ctx, iOpts)
 
 	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		logger.Error("could not parse request", zap.Error(rErr.Inner()))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		logger.Error("could not parse request", zap.Error(rErr))
+		xhttp.WriteError(w, rErr)
 		return
 	}
+	ctx = logging.NewContext(ctx,
+		iOpts,
+		zap.String("query", parsedOptions.Params.Query),
+		zap.Time("start", parsedOptions.Params.Start),
+		zap.Time("end", parsedOptions.Params.End),
+		zap.Duration("step", parsedOptions.Params.Step),
+		zap.Duration("timeout", parsedOptions.Params.Timeout),
+		zap.Duration("fetchTimeout", parsedOptions.FetchOpts.Timeout),
+	)
 
 	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsedOptions.CancelWatcher = watcher
@@ -127,7 +137,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Any("parsedOptions", parsedOptions))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

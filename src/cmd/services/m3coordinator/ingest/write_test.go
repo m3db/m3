@@ -242,7 +242,7 @@ func TestDownsampleAndWriteWithBadTags(t *testing.T) {
 
 	// Make sure we get a validation error for downsample code path
 	// and for the raw unaggregate write code path.
-	multiErr, ok := err.(xerrors.MultiError)
+	multiErr, ok := xerrors.GetInnerMultiError(err)
 	require.True(t, ok)
 	require.Equal(t, 2, multiErr.NumErrors())
 	// Make sure all are invalid params errors.

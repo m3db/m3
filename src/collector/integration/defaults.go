@@ -126,6 +126,7 @@ func defaultRollupRulesConfig() []*rulepb.RollupRule {
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
+					KeepOriginal: true,
 					TargetsV2: []*rulepb.RollupTargetV2{
 						{
 							Pipeline: &pipelinepb.Pipeline{

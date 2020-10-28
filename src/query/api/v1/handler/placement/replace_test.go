@@ -136,7 +136,7 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	default:
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
+		assert.Equal(t, `{"error":"instances do not have all shards available: [A, B]"}`+"\n", string(body))
 	}
 }
 

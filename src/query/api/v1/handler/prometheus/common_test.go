@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"mime/multipart"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/stretchr/testify/assert"
@@ -49,21 +49,21 @@ func TestPromCompressedReadNoBody(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", nil)
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
-	assert.Equal(t, err.Code(), http.StatusBadRequest)
+	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestPromCompressedReadEmptyBody(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{}))
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
-	assert.Equal(t, err.Code(), http.StatusBadRequest)
+	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestPromCompressedReadInvalidEncoding(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{'a'}))
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
-	assert.Equal(t, err.Code(), http.StatusBadRequest)
+	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestTimeoutParseWithHeader(t *testing.T) {
@@ -82,6 +82,7 @@ func TestTimeoutParseWithHeader(t *testing.T) {
 	req.Header.Add("timeout", "invalid")
 	_, err = ParseRequestTimeout(req, 15*time.Second)
 	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestTimeoutParseWithPostRequestParam(t *testing.T) {

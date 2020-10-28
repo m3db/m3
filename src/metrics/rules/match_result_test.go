@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -33,11 +34,40 @@ import (
 )
 
 func TestMatchResultProperties(t *testing.T) {
-	r := NewMatchResult(1, 1000, nil, nil)
-	require.Equal(t, 1, r.Version())
-	require.Equal(t, int64(1000), r.ExpireAtNanos())
-	require.False(t, r.HasExpired(0))
-	require.True(t, r.HasExpired(1000))
+	cases := []struct {
+		version      int
+		expires      int64
+		keepOriginal bool
+	}{
+		{
+			version:      1,
+			expires:      1000,
+			keepOriginal: false,
+		},
+		{
+			version:      2,
+			expires:      2000,
+			keepOriginal: true,
+		},
+	}
+
+	for i, tt := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r := NewMatchResult(
+				tt.version,
+				tt.expires,
+				nil,
+				nil,
+				tt.keepOriginal,
+			)
+
+			require.Equal(t, tt.version, r.Version())
+			require.Equal(t, tt.expires, r.ExpireAtNanos())
+			require.False(t, r.HasExpired(tt.expires-1))
+			require.True(t, r.HasExpired(tt.expires))
+			require.Equal(t, tt.keepOriginal, r.KeepOriginal())
+		})
+	}
 }
 
 func TestMatchResult(t *testing.T) {
@@ -197,7 +227,7 @@ func TestMatchResult(t *testing.T) {
 		},
 	}
 
-	res := NewMatchResult(0, testExpireAtNanos, testForExistingID, testForNewRollupIDs)
+	res := NewMatchResult(0, testExpireAtNanos, testForExistingID, testForNewRollupIDs, false)
 	for _, input := range inputs {
 		require.Equal(t, input.expectedForExistingID, res.ForExistingIDAt(input.matchAtNanos))
 		require.Equal(t, len(input.expectedForNewRollupIDs), res.NumNewRollupIDs())
