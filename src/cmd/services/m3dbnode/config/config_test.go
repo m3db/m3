@@ -413,6 +413,7 @@ func TestConfiguration(t *testing.T) {
   writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
+    mode: null
     filesystem:
       numProcessorsPerCPU: 0.42
       migration: null

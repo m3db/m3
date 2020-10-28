@@ -378,7 +378,7 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 }
 
 func (bsc BootstrapConfiguration) orderedBootstrappers() []string {
-	if bsc.BootstrapMode == nil && *bsc.BootstrapMode == PreferPeersBootstrapMode {
+	if bsc.BootstrapMode != nil && *bsc.BootstrapMode == PreferPeersBootstrapMode {
 		return preferPeersOrderedBootstrappers
 	}
 	return defaultOrderedBootstrappers
