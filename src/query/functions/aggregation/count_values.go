@@ -161,7 +161,7 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	params := n.op.params
-	labelName := trimQuotes(trimParentheses(params.StringParameter))
+	labelName := params.StringParameter
 	if !isValid(labelName) {
 		return nil, fmt.Errorf("invalid label name %q", labelName)
 	}
@@ -250,22 +250,6 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	return builder.Build(), nil
-}
-
-func trimParentheses(s string) string {
-	return trim(s, '(', ')')
-}
-
-func trimQuotes(s string) string {
-	return trim(s, '"', '"')
-}
-
-// trims given string value removing startsWith and endsWith characters
-func trim(s string, startsWith, endsWith uint8) string {
-	for len(s) > 0 && s[0] == startsWith && s[len(s)-1] == endsWith {
-		s = s[1:len(s)-1]
-	}
-	return s
 }
 
 // pads vals with enough NaNs to match size

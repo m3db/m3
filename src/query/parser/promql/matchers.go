@@ -106,11 +106,39 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	}
 
 	if op == aggregation.CountValuesType {
-		nodeInformation.StringParameter = expr.Param.String()
+		paren := unwrapParenExpr(expr.Param)
+		val, err := resolveStringArgument(paren)
+		if err != nil {
+			return nil, err
+		}
+		nodeInformation.StringParameter = val
 		return aggregation.NewCountValuesOp(op, nodeInformation)
 	}
 
 	return aggregation.NewAggregationOp(op, nodeInformation)
+}
+
+func unwrapParenExpr(expr promql.Expr) promql.Expr {
+	for {
+		if paren, ok := expr.(*promql.ParenExpr); ok {
+			expr = paren.Expr
+		} else {
+			return expr
+		}
+	}
+}
+
+func resolveStringArgument(expr promql.Expr) (string, error) {
+	if expr == nil {
+		return "", fmt.Errorf("expression is nil")
+	}
+
+	switch n := expr.(type) {
+	case *promql.StringLiteral:
+		return n.Val, nil
+	default:
+		return expr.String(), nil
+	}
 }
 
 func getAggOpType(opType promql.ItemType) string {
