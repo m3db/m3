@@ -38,17 +38,53 @@ import (
 
 func TestMultiBitmap(t *testing.T) {
 	rng := rand.New(rand.NewSource(seed))
-
 	each := 8
-	numRegular := 2
-	// numUnion := 2
-	// numNegate := 1
-	// numNegateUnion := 2
-	numUnion := 0
-	numNegate := 0
-	numNegateUnion := 0
-	tests := []struct {
-		attempts    int
+
+	type testCasePostingsCombinators struct {
+		numRegular     int
+		numUnion       int
+		numNegate      int
+		numNegateUnion int
+	}
+
+	type testCasePostingsDistribution struct {
+		insertCount int
+		insertRange int
+	}
+
+	type testCase struct {
+		testCasePostingsCombinators
+		testCasePostingsDistribution
+	}
+
+	combinators := []testCasePostingsCombinators{
+		{
+			numRegular:     2,
+			numUnion:       0,
+			numNegate:      0,
+			numNegateUnion: 0,
+		},
+		{
+			numRegular:     2,
+			numUnion:       2,
+			numNegate:      0,
+			numNegateUnion: 0,
+		},
+		{
+			numRegular:     2,
+			numUnion:       2,
+			numNegate:      1,
+			numNegateUnion: 0,
+		},
+		{
+			numRegular:     2,
+			numUnion:       2,
+			numNegate:      1,
+			numNegateUnion: 2,
+		},
+	}
+
+	distributions := []struct {
 		insertCount int
 		insertRange int
 	}{
@@ -88,9 +124,19 @@ func TestMultiBitmap(t *testing.T) {
 			insertRange: 131072,
 		},
 		{
-			insertCount: 4096,
+			insertCount: 65536,
 			insertRange: 262144,
 		},
+	}
+
+	var tests []testCase
+	for _, c := range combinators {
+		for _, d := range distributions {
+			tests = append(tests, testCase{
+				testCasePostingsCombinators:  c,
+				testCasePostingsDistribution: d,
+			})
+		}
 	}
 
 	for _, test := range tests {
@@ -101,30 +147,34 @@ func TestMultiBitmap(t *testing.T) {
 		}
 		for i := 0; i < each; i++ {
 			t.Run(fmt.Sprintf("attempt=%d, test=+%v", i, test), func(t *testing.T) {
-				allReadOnly, err := NewReadOnlyBitmapRange(0, uint64(test.insertRange+1))
+				allReadOnly, err := NewReadOnlyBitmapRange(0, uint64(test.insertRange))
 				require.NoError(t, err)
 
-				reg, regReadOnly := genRandBitmapsAndReadOnlyBitmaps(t, numRegular, genOpts)
-				union, unionReadOnly := genRandBitmapsAndReadOnlyBitmaps(t, numUnion, genOpts)
-				negate, negateReadOnly := genRandBitmapsAndReadOnlyBitmaps(t, numNegate, genOpts)
-				negateUnion, negateUnionReadOnly := genRandBitmapsAndReadOnlyBitmaps(t, numNegateUnion, genOpts)
+				reg, regReadOnly :=
+					genRandBitmapsAndReadOnlyBitmaps(t, test.numRegular, genOpts)
+				union, unionReadOnly :=
+					genRandBitmapsAndReadOnlyBitmaps(t, test.numUnion, genOpts)
+				negate, negateReadOnly :=
+					genRandBitmapsAndReadOnlyBitmaps(t, test.numNegate, genOpts)
+				negateUnion, negateUnionReadOnly :=
+					genRandBitmapsAndReadOnlyBitmaps(t, test.numNegateUnion, genOpts)
 
 				// First create the inner multi-bitmaps.
 				multiInner := concat(regReadOnly)
 
-				if numUnion > 0 {
+				if test.numUnion > 0 {
 					innerUnion, err := UnionReadOnly(unionReadOnly)
 					require.NoError(t, err)
 					multiInner = append(multiInner, innerUnion)
 				}
 
-				if numNegate > 0 {
+				if test.numNegate > 0 {
 					innerNegate, err := IntersectAndNegateReadOnly(lists(allReadOnly), negateReadOnly)
 					require.NoError(t, err)
 					multiInner = append(multiInner, innerNegate)
 				}
 
-				if numNegateUnion > 0 {
+				if test.numNegateUnion > 0 {
 					innerNegateUnionUnion, err := UnionReadOnly(negateUnionReadOnly)
 					require.NoError(t, err)
 					innerNegateUnion, err := IntersectAndNegateReadOnly(lists(allReadOnly), lists(innerNegateUnionUnion))
@@ -149,19 +199,20 @@ func TestMultiBitmap(t *testing.T) {
 					bitmap = bitmap.Intersect(bitmapFromPostings(t, pl))
 				}
 				// Intersect with union.
-				if numUnion > 0 {
+				if test.numUnion > 0 {
 					pl, err := Union(union)
 					require.NoError(t, err)
 					bitmap = bitmap.Intersect(bitmapFromPostings(t, pl))
 				}
 				// Intersect with negate.
-				if numNegate > 0 {
+				if test.numNegate > 0 {
+					// Create top level multi-bitmap.
 					for _, pl := range negate {
 						bitmap = bitmap.Difference(bitmapFromPostings(t, pl))
 					}
 				}
 				// Intersect with negate of union.
-				if numNegateUnion > 0 {
+				if test.numNegateUnion > 0 {
 					pl, err := Union(negateUnion)
 					require.NoError(t, err)
 					bitmap = bitmap.Difference(bitmapFromPostings(t, pl))
@@ -171,8 +222,10 @@ func TestMultiBitmap(t *testing.T) {
 				// Check for equality.
 				equal := postings.Equal(multi, transformed)
 				if !equal {
+					fmt.Printf("negate: %v\n", postingsString(negate[0]))
 					msg := fmt.Sprintf("multi-bitmap: %s\nstandard: %s\n",
 						postingsString(multi), postingsString(transformed))
+
 					if debug := os.Getenv("TEST_DEBUG_DIR"); debug != "" {
 						e0 := ioutil.WriteFile(path.Join(debug, "actual.json"), []byte(postingsJSON(t, multi)), 0666)
 						e1 := ioutil.WriteFile(path.Join(debug, "expected.json"), []byte(postingsJSON(t, transformed)), 0666)
@@ -242,7 +295,8 @@ func genRandBitmapAndReadOnlyBitmap(
 	// references it.
 	bitmap := roaring.NewBitmap()
 
-	max := uint64(opts.rng.Int63n(int64(opts.insertRange)))
+	// Guarantee at least one.
+	max := uint64(opts.rng.Int63n(int64(opts.insertRange-1))) + 1
 	for j := 0; j < opts.insertCount; j++ {
 		value := opts.rng.Uint64() % max
 		bitmap.DirectAdd(value)

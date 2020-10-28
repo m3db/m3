@@ -269,9 +269,6 @@ type containerIterator interface {
 }
 
 type containerOpContext struct {
-	// siblings is how many other containers at this container there is
-	// being operated on.
-	siblings int
 	// tempBitmap is useful for temporary scratch operations and allows
 	// for all sub-operations to share it rather than one per underlying
 	// container iterator.
@@ -309,7 +306,6 @@ func appendContainerItersWithOp(
 		switch {
 		case elem.multiBitmap != nil:
 			it = elem.multiBitmap.containerIterator()
-
 		case elem.bitmap != nil:
 			it = elem.bitmap.containerIterator()
 		}
@@ -356,7 +352,6 @@ func (i *multiBitmapIterator) Next() bool {
 			// All are unions.
 			unions := i.filter(i.multiContainerIter.containerIters, multiContainerOpUnion)
 			ctx := containerOpContext{
-				siblings:   len(unions) - 1,
 				tempBitmap: i.tempBitmap,
 			}
 			for _, iter := range unions {
@@ -381,9 +376,7 @@ func (i *multiBitmapIterator) Next() bool {
 			// Start bitmap as set, guaranteed to have one intersect call.
 			i.bitmap.Reset(true)
 
-			currNegate := len(i.filter(i.multiContainerIter.containerIters, multiContainerOpNegate))
 			ctx := containerOpContext{
-				siblings:   currIntersect + currNegate - 1,
 				tempBitmap: i.tempBitmap,
 			}
 			// Perform intersects.
@@ -510,7 +503,9 @@ type multiBitmapContainersIterator struct {
 	multiBitmapOptions
 
 	err                error
+	initial            []containerIteratorAndOp
 	iters              []containerIteratorAndOp
+	filtered           []containerIteratorAndOp
 	multiContainerIter multiBitmapContainerIterator
 	first              bool
 }
@@ -527,13 +522,15 @@ func newMultiBitmapContainersIterator(
 	iters = appendContainerItersWithOp(iters, opts.intersectNegate, multiContainerOpNegate)
 	return &multiBitmapContainersIterator{
 		multiBitmapOptions: opts,
+		initial:            iters,
+		iters:              iters,
 	}
 }
 
 func (i *multiBitmapContainersIterator) NextContainer() bool {
-	if i.err != nil || len(i.iters) != 0 {
+	if i.err != nil || len(i.iters) == 0 {
 		// Exhausted.
-		return true
+		return false
 	}
 
 	if i.first {
@@ -560,6 +557,25 @@ func (i *multiBitmapContainersIterator) NextContainer() bool {
 	return true
 }
 
+func (i *multiBitmapContainersIterator) filter(
+	iters []containerIteratorAndOp,
+	op multiContainerOp,
+) []containerIteratorAndOp {
+	// Reuse filter slice.
+	if i.filtered == nil {
+		// Alloc at longest possible slice, which is total iters
+		// created for the multi bitmap iterator.
+		i.filtered = make([]containerIteratorAndOp, 0, len(i.iters))
+	}
+	i.filtered = i.filtered[:0]
+	for _, iter := range iters {
+		if iter.op == op {
+			i.filtered = append(i.filtered, iter)
+		}
+	}
+	return i.filtered
+}
+
 func (i *multiBitmapContainersIterator) ContainerKey() uint64 {
 	return i.multiContainerIter.containerKey
 }
@@ -571,10 +587,9 @@ func (i *multiBitmapContainersIterator) ContainerUnion(
 	switch i.op { // Validated at creation
 	case multiBitmapOpUnion:
 		// Can just blindly union into target since also a union.
-		for _, iter := range i.multiContainerIter.containerIters {
-			if iter.op == multiContainerOpUnion {
-				iter.it.ContainerUnion(ctx, target)
-			}
+		union := i.filter(i.multiContainerIter.containerIters, multiContainerOpUnion)
+		for _, iter := range union {
+			iter.it.ContainerUnion(ctx, target)
 		}
 	case multiBitmapOpIntersect:
 		// Need to build intermediate and union with target.
@@ -651,10 +666,9 @@ func (i *multiBitmapContainersIterator) getTempUnion(
 	ctx containerOpContext,
 ) *bitmapContainer {
 	tempBitmap := getBitmapContainer()
-	for _, iter := range i.multiContainerIter.containerIters {
-		if iter.op == multiContainerOpUnion {
-			iter.it.ContainerUnion(ctx, tempBitmap)
-		}
+	union := i.filter(i.multiContainerIter.containerIters, multiContainerOpUnion)
+	for _, iter := range union {
+		iter.it.ContainerUnion(ctx, tempBitmap)
 	}
 	return tempBitmap
 }
@@ -663,16 +677,36 @@ func (i *multiBitmapContainersIterator) getTempIntersectAndNegate(
 	ctx containerOpContext,
 ) *bitmapContainer {
 	tempBitmap := getBitmapContainer()
-	for _, iter := range i.multiContainerIter.containerIters {
-		if iter.op == multiContainerOpIntersect {
-			iter.it.ContainerIntersect(ctx, tempBitmap)
-		}
+
+	totalIntersect := len(i.filter(i.initial, multiContainerOpIntersect))
+	intersect := i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect)
+	currIntersect := len(intersect)
+
+	// NB(r): Only intersect if all iterators have a container, otherwise
+	// there is zero overlap and so intersecting always results in
+	// no results for this container.
+	if totalIntersect != currIntersect {
+		return tempBitmap
 	}
-	for _, iter := range i.multiContainerIter.containerIters {
-		if iter.op == multiContainerOpIntersect {
-			iter.it.ContainerNegate(ctx, tempBitmap)
-		}
+
+	if currIntersect == 0 {
+		// No intersections so only possible negations of nothing.
+		return tempBitmap
 	}
+
+	// Will be intersecting, first operation needs to be a copy, so
+	// set all bits to 1 for and-ing to provide effective copy.
+	tempBitmap.Reset(true)
+
+	for _, iter := range intersect {
+		iter.it.ContainerIntersect(ctx, tempBitmap)
+	}
+
+	negate := i.filter(i.multiContainerIter.containerIters, multiContainerOpNegate)
+	for _, iter := range negate {
+		iter.it.ContainerNegate(ctx, tempBitmap)
+	}
+
 	return tempBitmap
 }
 

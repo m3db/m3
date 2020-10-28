@@ -81,7 +81,7 @@ func TestReadOnlyBitmap(t *testing.T) {
 			insertRange: 131072,
 		},
 		{
-			insertCount: 4096,
+			insertCount: 65536,
 			insertRange: 262144,
 		},
 	}

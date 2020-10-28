@@ -68,6 +68,14 @@ func (t containerType) String() string {
 	}
 }
 
+func highbits(v uint64) uint64 {
+	return v >> 16
+}
+
+func lowbits(v uint64) uint16 {
+	return uint16(v & 0xFFFF)
+}
+
 var _ postings.List = (*ReadOnlyBitmap)(nil)
 
 // ReadOnlyBitmap is a read only roaring Bitmap of
@@ -412,9 +420,6 @@ func (b *ReadOnlyBitmap) indexOfKey(value uint64) (uint64, bool) {
 	return 0, false
 }
 
-func highbits(v uint64) uint64 { return v >> 16 }
-func lowbits(v uint64) uint16  { return uint16(v & 0xFFFF) }
-
 var _ postings.Iterator = (*readOnlyBitmapIterator)(nil)
 
 type readOnlyBitmapIterator struct {
@@ -623,14 +628,6 @@ func (i *readOnlyBitmapContainerIterator) ContainerUnion(
 	target *bitmapContainer,
 ) {
 	if bitmap, ok := i.container.bitmap(); ok {
-		if ctx.siblings == 0 {
-			// Special case, if no other containers at same key and this is a
-			// bitmap container then we can just immediately iterate over that
-			// no copying required.
-			target.SetReadOnly(bitmap.values)
-			return
-		}
-
 		unionBitmapInPlace(target.bitmap, bitmap.values)
 		return
 	}
@@ -658,14 +655,6 @@ func (i *readOnlyBitmapContainerIterator) ContainerIntersect(
 	target *bitmapContainer,
 ) {
 	if bitmap, ok := i.container.bitmap(); ok {
-		if ctx.siblings == 0 {
-			// Special case, if no other containers at same key and this is a
-			// bitmap container then we can just immediately iterate over that
-			// no copying required.
-			target.SetReadOnly(bitmap.values)
-			return
-		}
-
 		intersectBitmapInPlace(target.bitmap, bitmap.values)
 		return
 	}
@@ -833,6 +822,7 @@ func newReadOnlyBitmapRangeContainerIterator(
 	return &readOnlyBitmapRangeContainerIterator{
 		startInclusive: int64(startInclusive),
 		endInclusive:   int64(endExclusive - 1),
+		key:            int64(startInclusive) / containerValues,
 	}
 }
 
@@ -848,18 +838,9 @@ func (i *readOnlyBitmapRangeContainerIterator) validKey() bool {
 	return i.key <= i.endInclusive/containerValues
 }
 
-func (i *readOnlyBitmapRangeContainerIterator) keyStart() uint64 {
-	return uint64(i.key) << 16
-}
-
-func (i *readOnlyBitmapRangeContainerIterator) keyEnd() uint64 {
-	return uint64(i.key+1) << 16
-}
-
 func (i *readOnlyBitmapRangeContainerIterator) NextContainer() bool {
 	if !i.first {
 		i.first = true
-		i.key = i.startInclusive / containerValues
 		return i.validKey()
 	}
 
@@ -879,14 +860,14 @@ func (i *readOnlyBitmapRangeContainerIterator) ContainerUnion(
 	ctx containerOpContext,
 	target *bitmapContainer,
 ) {
-	start := i.keyStart()
+	start := uint64(0)
 	if i.startInKey() {
-		start = uint64(i.startInclusive)
+		start = uint64(i.startInclusive) % containerValues
 	}
 
-	end := i.keyEnd()
+	end := uint64(containerValues) - 1
 	if i.endInKey() {
-		end = uint64(i.endInclusive)
+		end = uint64(i.endInclusive) % containerValues
 	}
 
 	// Set from [start, end+1) to union.
@@ -897,14 +878,14 @@ func (i *readOnlyBitmapRangeContainerIterator) ContainerIntersect(
 	ctx containerOpContext,
 	target *bitmapContainer,
 ) {
-	start := i.keyStart()
+	start := uint64(0)
 	if i.startInKey() {
-		start = uint64(i.startInclusive)
+		start = uint64(i.startInclusive) % containerValues
 	}
 
-	end := i.keyEnd()
+	end := uint64(containerValues) - 1
 	if i.endInKey() {
-		end = uint64(i.endInclusive)
+		end = uint64(i.endInclusive) % containerValues
 	}
 
 	// Create temp overlay and intersect with that.
@@ -917,14 +898,14 @@ func (i *readOnlyBitmapRangeContainerIterator) ContainerNegate(
 	ctx containerOpContext,
 	target *bitmapContainer,
 ) {
-	start := i.keyStart()
+	start := uint64(0)
 	if i.startInKey() {
-		start = uint64(i.startInclusive)
+		start = uint64(i.startInclusive) % containerValues
 	}
 
-	end := i.keyEnd()
+	end := uint64(containerValues) - 1
 	if i.endInKey() {
-		end = uint64(i.endInclusive)
+		end = uint64(i.endInclusive) % containerValues
 	}
 
 	// Create temp overlay and intersect with that.
