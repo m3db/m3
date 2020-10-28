@@ -55,7 +55,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
@@ -89,16 +88,6 @@ const (
 )
 
 var (
-	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
-			{
-				Namespace: "default",
-				Type:      storagemetadata.UnaggregatedMetricsType,
-				Retention: 2 * 24 * time.Hour,
-			},
-		},
-	}
-
 	defaultCarbonIngesterWorkerPoolSize = 1024
 	defaultPerCPUMultiProcess           = 0.5
 )
@@ -400,7 +389,7 @@ func Run(runOpts RunOptions) {
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -777,6 +766,7 @@ func newDownsampler(
 
 func initClusters(
 	cfg config.Configuration,
+	dbCfg *dbconfig.DBConfiguration,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
@@ -818,7 +808,10 @@ func initClusters(
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
-			localCfg = defaultLocalConfiguration
+			localCfg = &config.LocalConfiguration{}
+		}
+		if len(localCfg.Namespaces) > 0 {
+			staticNamespaceConfig = true
 		}
 
 		if dbClientCh == nil {
@@ -830,16 +823,27 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clustersCfg := m3.ClustersStaticConfiguration{
-			m3.ClusterStaticConfiguration{
-				Namespaces: localCfg.Namespaces,
-			},
+		clusterStaticConfig := m3.ClusterStaticConfiguration{
+			Namespaces: localCfg.Namespaces,
+		}
+		if !staticNamespaceConfig {
+			if dbCfg == nil {
+				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+			}
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
 		}
 
-		clusters, err = clustersCfg.NewStaticClusters(instrumentOpts, m3.ClustersStaticConfigurationOptions{
+		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}
+		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
-		}, clusterNamespacesWatcher)
+		}
+
+		if staticNamespaceConfig {
+			clusters, err = clustersCfg.NewStaticClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		} else {
+			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		}
 		if err != nil {
 			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
