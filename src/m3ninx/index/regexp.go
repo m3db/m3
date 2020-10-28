@@ -21,17 +21,23 @@
 package index
 
 import (
+	"context"
 	"fmt"
 	re "regexp"
 	"regexp/syntax"
+	"sync"
 
 	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
+	"github.com/m3db/m3/src/x/cache"
+
+	"github.com/uber-go/tally"
 )
 
 var (
 	// dotStartCompiledRegex is a CompileRegex that matches any input.
 	// NB: It can be accessed through DotStartCompiledRegex().
 	dotStarCompiledRegex CompiledRegex
+	cacheContext         = context.Background()
 )
 
 func init() {
@@ -40,6 +46,62 @@ func init() {
 		panic(err.Error())
 	}
 	dotStarCompiledRegex = re
+}
+
+var (
+	// cache for regexes, as per Go std lib:
+	// A Regexp is safe for concurrent use by multiple goroutines, except for
+	// configuration methods, such as Longest.
+	// The vellum Regexp is also safe for concurrent use as it is query for
+	// states but does not mutate internal state.
+	regexpCacheLock    sync.RWMutex
+	regexpCache        *cache.LRU
+	regexpCacheSize    int
+	regexpCacheMetrics *cacheMetrics
+)
+
+type cacheMetrics struct {
+	hit           tally.Counter
+	miss          tally.Counter
+	errors        tally.Counter
+	unwrapSuccess tally.Counter
+	unwrapError   tally.Counter
+}
+
+// RegexpCacheOptions is a set of regexp cache options.
+type RegexpCacheOptions struct {
+	Size  int
+	Scope tally.Scope
+}
+
+// SetRegexpCacheOptions sets the regex cache options, size zero disables cache.
+func SetRegexpCacheOptions(opts RegexpCacheOptions) {
+	regexpCacheLock.Lock()
+	defer regexpCacheLock.Unlock()
+
+	if opts.Size < 1 {
+		regexpCache = nil
+		regexpCacheMetrics = nil
+		return
+	}
+
+	scope := tally.NoopScope
+	if opts.Scope != nil {
+		scope = opts.Scope
+	}
+
+	scope = scope.SubScope("m3ninx").SubScope("regexp").SubScope("cache")
+	regexpCache = cache.NewLRU(&cache.LRUOptions{
+		MaxEntries: opts.Size,
+		Metrics:    scope.SubScope("lru"),
+	})
+	regexpCacheMetrics = &cacheMetrics{
+		hit:           scope.Counter("hit"),
+		miss:          scope.Counter("miss"),
+		errors:        scope.Counter("errors"),
+		unwrapSuccess: scope.SubScope("unwrap").Counter("success"),
+		unwrapError:   scope.SubScope("unwrap").Counter("error"),
+	}
 }
 
 // DotStarCompiledRegex returns a regexp which matches ".*".
@@ -54,8 +116,32 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	// Due to peculiarities in the implementation of Vellum, we have to make certain modifications
 	// to all incoming regular expressions to ensure compatibility between them.
 
-	// first, we parse the regular expression into the equivalent regex
 	reString := string(r)
+
+	// Check cache first.
+	regexpCacheLock.RLock()
+	cacheLRU := regexpCache
+	cacheLRUMetrics := regexpCacheMetrics
+	regexpCacheLock.RUnlock()
+
+	if cacheLRU != nil && cacheLRUMetrics != nil {
+		cached, err := regexpCache.GetWithTTL(cacheContext, reString, nil)
+		if err != nil && err != cache.ErrEntryNotFound {
+			cacheLRUMetrics.errors.Inc(1)
+		} else if err == cache.ErrEntryNotFound || cached == nil {
+			cacheLRUMetrics.miss.Inc(1)
+		} else {
+			cacheLRUMetrics.hit.Inc(1)
+			if unwrapped, ok := cached.(*CompiledRegex); ok {
+				cacheLRUMetrics.unwrapSuccess.Inc(1)
+				return *unwrapped, nil
+			}
+			// Unable to unwrap into expected type.
+			cacheLRUMetrics.unwrapError.Inc(1)
+		}
+	}
+
+	// first, we parse the regular expression into the equivalent regex
 	reAst, err := parseRegexp(reString)
 	if err != nil {
 		return CompiledRegex{}, err
@@ -93,6 +179,14 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	compiledRegex.FST = fstRE
 	compiledRegex.PrefixBegin = start
 	compiledRegex.PrefixEnd = end
+
+	// Update cache if cache existed when we checked.
+	if cacheLRU != nil {
+		// Copy of compiled regex.
+		copied := compiledRegex
+		// No need to lock on Put since cache is locked.
+		cacheLRU.Put(reString, &copied)
+	}
 
 	return compiledRegex, nil
 }
