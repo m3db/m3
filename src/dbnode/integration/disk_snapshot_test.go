@@ -32,9 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -294,7 +292,8 @@ func TestDiskIndexSnapshotSimple(t *testing.T) {
 		log.Info("waiting for index snapshot files to flush",
 			zap.Any("ns", ns.ID()))
 		xclock.WaitUntil(func() bool {
-			numDocsPerBlockStart, err := getNumDocsPerBlockStart(ns.ID(), fsOpts)
+			numDocsPerBlockStart, err := getNumDocsPerBlockStart(
+				ns.ID(), fsOpts, persist.FileSetSnapshotType)
 			require.NoError(t, err)
 			totalNumDocs := 0
 			for _, numDocs := range numDocsPerBlockStart {
@@ -329,7 +328,8 @@ func TestDiskIndexSnapshotSimple(t *testing.T) {
 		log.Info("waiting for old index snapshot files to be cleaned up",
 			zap.Any("ns", ns.ID()))
 		xclock.WaitUntil(func() bool {
-			numDocsPerBlockStart, err := getNumDocsPerBlockStart(ns.ID(), fsOpts)
+			numDocsPerBlockStart, err := getNumDocsPerBlockStart(
+				ns.ID(), fsOpts, persist.FileSetSnapshotType)
 			require.NoError(t, err)
 			totalNumDocs := 0
 			for _, numDocs := range numDocsPerBlockStart {
@@ -347,48 +347,6 @@ func TestDiskIndexSnapshotSimple(t *testing.T) {
 type indexSnapshotInfo struct {
 	Info        index.IndexVolumeInfo
 	VolumeIndex int
-}
-
-func getNumDocsPerBlockStart(
-	nsID ident.ID,
-	fsOpts fs.Options,
-) (map[xtime.UnixNano]int, error) {
-	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
-	infoFiles := fs.ReadIndexInfoFiles(
-		fsOpts.FilePathPrefix(),
-		nsID,
-		fsOpts.InfoReaderBufferSize(),
-		persist.FileSetSnapshotType,
-	)
-	// Grab the latest snapshot file for each blockstart.
-	latestSnapshotInfoPerBlockStart := make(map[xtime.UnixNano]indexSnapshotInfo)
-	for _, f := range infoFiles {
-		snapshot, ok := latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)]
-		if !ok {
-			latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexSnapshotInfo{
-				Info:        f.Info,
-				VolumeIndex: f.ID.VolumeIndex,
-			}
-			continue
-		}
-
-		if f.ID.VolumeIndex > snapshot.VolumeIndex {
-			latestSnapshotInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexSnapshotInfo{
-				Info:        f.Info,
-				VolumeIndex: f.ID.VolumeIndex,
-			}
-		}
-	}
-	for blockStart, snapshot := range latestSnapshotInfoPerBlockStart {
-		for _, segment := range snapshot.Info.Segments {
-			metadata := fswriter.Metadata{}
-			if err := metadata.Unmarshal(segment.Metadata); err != nil {
-				return nil, err
-			}
-			numDocsPerBlockStart[blockStart] += int(metadata.NumDocs)
-		}
-	}
-	return numDocsPerBlockStart, nil
 }
 
 type testOnColdFlush struct {

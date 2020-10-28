@@ -29,6 +29,7 @@ import (
 	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -196,6 +197,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	numDocsPerBlockStart, err := getNumDocsPerBlockStart(
 		ns1.ID(),
 		setups[1].FilesystemOpts(),
+		persist.FileSetFlushType,
 	)
 	require.NoError(t, err)
 	numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
@@ -211,12 +213,14 @@ type indexInfo struct {
 func getNumDocsPerBlockStart(
 	nsID ident.ID,
 	fsOpts fs.Options,
+	fileType persist.FileSetType,
 ) (map[xtime.UnixNano]int, error) {
 	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
 	infoFiles := fs.ReadIndexInfoFiles(
 		fsOpts.FilePathPrefix(),
 		nsID,
 		fsOpts.InfoReaderBufferSize(),
+		fileType,
 	)
 	// Grab the latest index info file for each blockstart.
 	latestIndexInfoPerBlockStart := make(map[xtime.UnixNano]indexInfo)
