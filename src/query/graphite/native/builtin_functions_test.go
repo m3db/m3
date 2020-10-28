@@ -1958,6 +1958,46 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 	}
 }
 
+func TestAsPercentWithNilTotal(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	nan := math.NaN()
+	tests := []struct {
+		valuesStep int
+		values     []float64
+		outputStep int
+		output     []float64
+	}{
+		{
+			60,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
+			60,
+			[]float64{100, 100, 100, nan, 100},
+		},
+	}
+
+	for _, test := range tests {
+		timeSeries := ts.NewSeries(ctx, "<values>", ctx.StartTime,
+			common.NewTestSeriesValues(ctx, test.valuesStep, test.values))
+		r, err := asPercent(ctx, singlePathSpec{
+			Values: []*ts.Series{timeSeries},
+		}, nil)
+		require.NoError(t, err)
+
+		output := r.Values
+		require.Equal(t, 1, len(output))
+		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
+		expectedName := fmt.Sprintf("asPercent(<values>, sumSeries(<values>))")
+		assert.Equal(t, expectedName, output[0].Name())
+
+		for step := 0; step < output[0].Len(); step++ {
+			v := output[0].ValueAt(step)
+			xtest.Equalish(t, math.Trunc(v), test.output[step])
+		}
+	}
+}
+
 func TestAsPercentWithSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
