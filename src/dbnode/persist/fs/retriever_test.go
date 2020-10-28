@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -276,7 +278,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		for _, blockStart := range blockStarts {
 			for _, volume := range volumes {
 				w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, volume)
-				for i := 0; i < idsPerShard; i++ {
 					idString := fmt.Sprintf("foo.%d", i)
 					shardIDStrings[shard] = append(shardIDStrings[shard], idString)
 
