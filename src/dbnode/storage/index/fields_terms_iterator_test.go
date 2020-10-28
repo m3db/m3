@@ -238,7 +238,9 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	colorRegexp, err := idx.NewRegexpQuery([]byte("color"), []byte("^(red|yellow)$"))
 	require.NoError(t, err)
 
-	reader, err := seg.Reader()
+	// Make sure to use fst segment so that read only bitmaps returned.
+	fstSeg := fst.ToTestSegment(t, seg, testFstOptions)
+	reader, err := fstSeg.Reader()
 	require.NoError(t, err)
 
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{

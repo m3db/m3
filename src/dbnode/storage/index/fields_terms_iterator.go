@@ -73,7 +73,7 @@ type fieldsAndTermsIter struct {
 		postings postings.List
 	}
 
-	restrictByPostings          *roaring.ReadOnlyBitmap
+	restrictByPostings          postings.List
 	restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
 }
 
@@ -100,7 +100,9 @@ func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIterato
 }
 
 func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+	restrictByPostingsIntersect := fti.restrictByPostingsIntersect
 	*fti = fieldsAndTermsIterZeroed
+	fti.restrictByPostingsIntersect = restrictByPostingsIntersect
 	fti.reader = reader
 	fti.opts = opts
 	if reader == nil {
@@ -130,13 +132,7 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 	}
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
-	// TODO: This will be a read only bitmap, need to update.
-	bitmap, ok := roaring.ReadOnlyBitmapFromPostingsList(pl)
-	if !ok {
-		return errUnpackBitmapFromPostingsList
-	}
-
-	fti.restrictByPostings = bitmap
+	fti.restrictByPostings = pl
 
 	return nil
 }
@@ -211,17 +207,15 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 			return true, nil
 		}
 
-		// TODO: This will be a read only bitmap, need to update.
-		bitmap, ok := roaring.ReadOnlyBitmapFromPostingsList(fti.current.postings)
-		if !ok {
-			return false, errUnpackBitmapFromPostingsList
-		}
-
 		// Check term isn't part of at least some of the documents we're
 		// restricted to providing results for based on intersection
 		// count.
 		restrictBy := fti.restrictByPostings
-		match := fti.restrictByPostingsIntersect.Intersects(restrictBy, bitmap)
+		curr := fti.current.postings
+		match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
+		if err != nil {
+			return false, err
+		}
 		if match {
 			// Matches, this is next result.
 			return true, nil

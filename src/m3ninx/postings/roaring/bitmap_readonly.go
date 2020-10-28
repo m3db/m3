@@ -43,7 +43,8 @@ const (
 )
 
 var (
-	errNotPilosaRoaring = errors.New("not pilosa roaring format")
+	errNotPilosaRoaring  = errors.New("not pilosa roaring format")
+	errNotReadOnlyBitmap = errors.New("not read only bitmap")
 )
 
 type containerType byte
@@ -100,14 +101,27 @@ func NewReadOnlyBitmapIntersectCheck() *ReadOnlyBitmapIntersectCheck {
 	}
 }
 
-func (c *ReadOnlyBitmapIntersectCheck) Intersects(a, b *ReadOnlyBitmap) bool {
-	c.intersect[0] = multiBitmapIterable{bitmap: a}
-	c.intersect[1] = multiBitmapIterable{bitmap: b}
+func (c *ReadOnlyBitmapIntersectCheck) Intersects(a, b postings.List) (bool, error) {
+	if pl, ok := a.(*ReadOnlyBitmap); ok {
+		c.intersect[0] = multiBitmapIterable{bitmap: pl}
+	} else if pl, ok := a.(*multiBitmap); ok {
+		c.intersect[0] = multiBitmapIterable{multiBitmap: pl}
+	} else {
+		return false, errNotReadOnlyBitmap
+	}
+	if pl, ok := b.(*ReadOnlyBitmap); ok {
+		c.intersect[1] = multiBitmapIterable{bitmap: pl}
+	} else if pl, ok := b.(*multiBitmap); ok {
+		c.intersect[1] = multiBitmapIterable{multiBitmap: pl}
+	} else {
+		return false, errNotReadOnlyBitmap
+	}
+
 	c.multiBitmapIterator.Reset(multiBitmapOptions{
 		op:        multiBitmapOpIntersect,
 		intersect: c.intersect,
 	})
-	return c.multiBitmapIterator.Next()
+	return c.multiBitmapIterator.Next(), nil
 }
 
 var _ postings.List = (*ReadOnlyBitmap)(nil)
