@@ -34,10 +34,10 @@ func TestTermsReuse(t *testing.T) {
 	require.NoError(t, terms.post([]byte("term"), postings.ID(1)))
 	require.Equal(t, terms.size(), 1)
 	require.Equal(t, terms.postings.Len(), 1)
-	require.Equal(t, terms.postingsListUnion.Len(), 1)
+	require.Equal(t, terms.postingsListUnion.CountSlow(), 1)
 
 	terms.reset()
 	require.Equal(t, terms.size(), 0)
 	require.Equal(t, terms.postings.Len(), 0)
-	require.Equal(t, terms.postingsListUnion.Len(), 0)
+	require.Equal(t, terms.postingsListUnion.CountSlow(), 0)
 }

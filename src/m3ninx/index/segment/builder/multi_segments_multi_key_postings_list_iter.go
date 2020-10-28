@@ -41,14 +41,12 @@ type multiKeyPostingsListIterator struct {
 	currIters             []keyIterator
 	currReaders           []index.Reader
 	currFieldPostingsList postings.MutableList
-	bitmapIter            *bitmap.Iterator
 }
 
 func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
 	i := &multiKeyPostingsListIterator{
 		currFieldPostingsList: roaring.NewPostingsListFromBitmap(b),
-		bitmapIter:            &bitmap.Iterator{},
 	}
 	i.reset()
 	return i
@@ -158,19 +156,12 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 		// We have to taken into account the offset and duplicates
 		var (
-			iter           = i.bitmapIter
+			iter           = pl.Iterator()
 			duplicates     = fieldsKeyIter.segment.duplicatesAsc
 			negativeOffset postings.ID
 		)
-		bitmap, ok := roaring.BitmapFromPostingsList(pl)
-		if !ok {
-			i.err = errPostingsListNotRoaring
-			return false
-		}
-
-		iter.Reset(bitmap)
-		for v, eof := iter.Next(); !eof; v, eof = iter.Next() {
-			curr := postings.ID(v)
+		for iter.Next() {
+			curr := iter.Current()
 			for len(duplicates) > 0 && curr > duplicates[0] {
 				duplicates = duplicates[1:]
 				negativeOffset++
@@ -183,9 +174,17 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			}
 			value := curr + fieldsKeyIter.segment.offset - negativeOffset
 			if err := i.currFieldPostingsList.Insert(value); err != nil {
+				iter.Close()
 				i.err = err
 				return false
 			}
+		}
+
+		err = iter.Err()
+		iter.Close()
+		if err != nil {
+			i.err = err
+			return false
 		}
 	}
 	return true
