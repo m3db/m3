@@ -23,7 +23,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -98,16 +97,14 @@ func (m *BootstrapMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
-	strs := make([]string, 0, len(validBootstrapModes))
 	for _, valid := range validBootstrapModes {
 		if str == valid.String() {
 			*m = valid
 			return nil
 		}
-		strs = append(strs, "'"+valid.String()+"'")
 	}
 	return fmt.Errorf("invalid BootstrapMode '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
+		str, validBootstrapModes)
 }
 
 // String returns the bootstrap mode as a string
