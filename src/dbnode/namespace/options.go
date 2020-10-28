@@ -48,8 +48,8 @@ const (
 	// Namespace with cold writes disabled by default.
 	defaultColdWritesEnabled = false
 
-	// Namespace caches retrieved blocks by default.
-	defaultCacheBlocksOnRetrieve = true
+	// Namespace does not cache retrieved blocks by default.
+	defaultCacheBlocksOnRetrieve = false
 )
 
 var (
