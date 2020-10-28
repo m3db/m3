@@ -9,7 +9,7 @@ m3query is used to query data that is stored in M3DB. For instance, if you are u
 
 ## Configuration
 
-Before setting up m3query, make sure that you have at least [one M3DB node running](/docs/how_to/single_node). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
+Before setting up m3query, make sure that you have at least [one M3DB node running](/docs/quickstart). In order to start m3query, you need to configure a `yaml` file, that will be used to connect to M3DB. Here is a link to a [sample config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml) file that is used for an embedded etcd cluster within M3DB.
 
 ### Running
 
@@ -24,7 +24,7 @@ Or you can run it with Docker using the Docker file located at `$GOPATH/src/gith
 
 ### Namespaces
 
-All namespaces that you wish to query from must be configured when [setting up M3DB](/docs/how_to/single_node). If you wish to add or change an existing namespace, please follow the namespace operational guide [here](/docs/operational_guide/namespace_configuration).
+All namespaces that you wish to query from must be configured when [setting up M3DB](/docs/quickstart). If you wish to add or change an existing namespace, please follow the namespace operational guide [here](/docs/operational_guide/namespace_configuration).
 
 ### etcd
 

@@ -286,13 +286,12 @@ load 10s
 	data{test="uneven samples",point="c"} 4
 	foo .8
 
-# FAILING issue #8 (quantile)
-#eval instant at 1m quantile without(point)(0.8, data)
-#	{test="two samples"} 0.8
-#	{test="three samples"} 1.6
-#	{test="uneven samples"} 2.8
+eval instant at 1m quantile without(point)(0.8, data)
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
 
-# Bug #5276.
+# FAILING issue #56. scalar() as a quantile()/topk()/bottomk() argument produces NaN
 #eval instant at 1m quantile without(point)(scalar(foo), data)
 #	{test="two samples"} 0.8
 #	{test="three samples"} 1.6

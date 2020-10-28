@@ -44,7 +44,7 @@ func makeQuantileFn(opType string, q float64) (aggregationFn, bool) {
 }
 
 func bucketedQuantileFn(q float64, values []float64, bucket []int) float64 {
-	if len(bucket) == 0 || len(values) == 0 {
+	if math.IsNaN(q) || len(bucket) == 0 || len(values) == 0 {
 		return math.NaN()
 	}
 
