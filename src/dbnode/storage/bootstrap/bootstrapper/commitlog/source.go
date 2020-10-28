@@ -891,19 +891,13 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
 			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
-			if mostRecentCompleteSnapshotForShardBlock.IsZero() {
-				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
-					l.Error(fmt.Sprintf("zero value snapshot for shard: %d blockStart: %v", shard, blockStart))
-				})
-			}
 			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) {
 				// There is no snapshot file for this time, and even if there was, there would
 				// be no point in reading it. In this specific case its not an error scenario
 				// because the fact that snapshotTime == blockStart means we already accounted
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
-				s.log.Debug("no index snapshots for blockStart",
+				s.log.Debug("no snapshots for shard and blockStart",
 					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
 				continue
 			}
@@ -1029,17 +1023,14 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 ) error {
 	iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 	for blockStart, snapshot := range mostRecentIndexSnapshotsByBlock {
-		if snapshot.fileSet.CachedSnapshotTime.Equal(blockStart.ToTime()) ||
-			// Should never happen
-			snapshot.fileSet.IsZero() {
+		if snapshot.fileSet.CachedSnapshotTime.Equal(blockStart.ToTime()) {
 			// There is no snapshot file for this time, and even if there was, there would
 			// be no point in reading it. In this specific case its not an error scenario
 			// because the fact that snapshotTime == blockStart means we already accounted
 			// for the fact that this snapshot did not exist when we were deciding which
 			// commit logs to read.
-			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
-				l.Error(fmt.Sprintf("no index snapshots for blockStart: %v", blockStart.ToTime()))
-			})
+			s.log.Debug("no index snapshots for blockStart",
+				zap.Time("blockStart", blockStart.ToTime()))
 			continue
 		}
 
