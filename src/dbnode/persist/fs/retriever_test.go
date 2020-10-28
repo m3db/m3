@@ -278,6 +278,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		for _, blockStart := range blockStarts {
 			for _, volume := range volumes {
 				w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, volume)
+				for i := 0; i < idsPerShard; i++ {
 					idString := fmt.Sprintf("foo.%d", i)
 					shardIDStrings[shard] = append(shardIDStrings[shard], idString)
 
