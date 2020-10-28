@@ -902,3 +902,17 @@ func (mr *MockSeriesRefMockRecorder) LoadBlock(block, writeType interface{}) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockSeriesRef)(nil).LoadBlock), block, writeType)
 }
+
+// LoadBlockAndIndex mocks base method
+func (m *MockSeriesRef) LoadBlockAndIndex(block block.DatabaseBlock, writeType series.WriteType) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoadBlockAndIndex", block, writeType)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LoadBlockAndIndex indicates an expected call of LoadBlockAndIndex
+func (mr *MockSeriesRefMockRecorder) LoadBlockAndIndex(block, writeType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlockAndIndex", reflect.TypeOf((*MockSeriesRef)(nil).LoadBlockAndIndex), block, writeType)
+}

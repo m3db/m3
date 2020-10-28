@@ -165,7 +165,7 @@ func (r *ReadThroughSegment) Freeze() {
 	r.segment.Freeze()
 }
 
-func (r *ReadThroughSegment) State() fst.IndexSegmentState {
+func (r *ReadThroughSegment) State() (fst.IndexSegmentState, error) {
 	return r.segment.State()
 }
 

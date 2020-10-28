@@ -137,7 +137,7 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	/// LoadBlock loads a single block into the series.
+	// LoadBlock loads a single block into the series.
 	LoadBlock(
 		block block.DatabaseBlock,
 		writeType WriteType,

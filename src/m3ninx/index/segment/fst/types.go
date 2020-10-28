@@ -66,7 +66,7 @@ type Segment interface {
 	// fst seg has reached a terminal state in the compaction process.
 	Freeze()
 	// State returns the state of the underlying fst seg (either compactable or frozen).
-	State() IndexSegmentState
+	State() (IndexSegmentState, error)
 }
 
 // Writer writes out a FST segment from the provided elements.

@@ -36,9 +36,5 @@ Both data and index snapshotting happens in the warm flush life cycle. Each snap
 
 We perform data and index snapshot cleanup before we perform snapshotting in the warm flush lifecycle. The cleanup and snapshot processes cannot be run concurrently as the cleanup process relies on the latest snapshot UUID to perform cleanup. The snapshot cleanup logic for index and data snapshots are as follows:
 
-data snapshots - delete everything but the latest snapshot UUID
-index snapshots - delete everything up to the snapshot version loaded into memory (happens when we bootstrap from index snapshots) if set or delete everything but the latest snapshot UUID
-
-## Future plans
-
-We will be migrating to 1:1 sizing of index and TSDB blocks.
+- Data snapshots: Delete everything but the latest snapshot UUID.
+- Index snapshots: Delete everything up to the snapshot version loaded into memory (happens when we bootstrap from index snapshots) if set or delete everything but the latest snapshot UUID.

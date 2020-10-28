@@ -232,6 +232,18 @@ func (entry *Entry) LoadBlock(
 	return entry.Series.LoadBlock(block, writeType)
 }
 
+// LoadBlockAndIndex loads a single block into the series and attempts to index the series
+// if not already attempted.
+func (entry *Entry) LoadBlockAndIndex(
+	block block.DatabaseBlock,
+	writeType series.WriteType,
+) error {
+	if err := entry.maybeIndex(block.StartTime()); err != nil {
+		return err
+	}
+	return entry.LoadBlock(block, writeType)
+}
+
 func (entry *Entry) maybeIndex(timestamp time.Time) error {
 	idx := entry.indexWriter
 	if idx == nil {

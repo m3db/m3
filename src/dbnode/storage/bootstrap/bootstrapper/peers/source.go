@@ -455,7 +455,9 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				}
 
 				for _, block := range entry.Blocks.AllBlocks() {
-					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+					// NB(bodu): Since we aren't fetching peer index blocks, we must index all fetched data blocks
+					// during the loading phase.
+					if err := ref.Series.LoadBlockAndIndex(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}

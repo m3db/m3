@@ -235,7 +235,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	}
 
 	var streamErr error
-	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
+	mockSeries := NewMockSeriesRef(a.ctrl)
 
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).

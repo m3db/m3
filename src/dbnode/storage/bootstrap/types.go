@@ -495,4 +495,11 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+
+	// LoadBlockAndIndex loads a single block into the series and attempts to index the series
+	// if not already attempted.
+	LoadBlockAndIndex(
+		block block.DatabaseBlock,
+		writeType series.WriteType,
+	) error
 }

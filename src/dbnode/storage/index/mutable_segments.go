@@ -494,7 +494,11 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 	// Freeze terminal segments.
 	for _, seg := range plan.UnusedSegments {
 		if fstSeg, ok := seg.Segment.(fst.Segment); ok {
-			if fstSeg.State() != fst.FrozenIndexSegmentState {
+			state, err := fstSeg.State()
+			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+				l.Error("error freezing terminal segments", zap.Error(err))
+			})
+			if state != fst.FrozenIndexSegmentState {
 				fstSeg.Freeze()
 			}
 		}

@@ -215,13 +215,13 @@ func (r *fsSegment) Freeze() {
 	r.data.State = FrozenIndexSegmentState
 }
 
-func (r *fsSegment) State() IndexSegmentState {
+func (r *fsSegment) State() (IndexSegmentState, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
-		return 0
+		return 0, errReaderClosed
 	}
-	return r.data.State
+	return r.data.State, nil
 }
 
 func (r *fsSegment) Size() int64 {

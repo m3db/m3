@@ -200,7 +200,7 @@ func (s *commitLogSource) Read(
 		fsOpts          = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix  = fsOpts.FilePathPrefix()
 		namespaceIter   = namespaces.Namespaces.Iter()
-		indexResults    = make([]result.IndexBootstrapResult, 0, len(namespaceIter))
+		indexResults    = make(map[bootstrap.NamespacesMapHash]result.IndexBootstrapResult, len(namespaceIter))
 	)
 	defer doneReadingData()
 
@@ -208,7 +208,7 @@ func (s *commitLogSource) Read(
 	s.log.Info("read snapshots start")
 	span.LogEvent("read_snapshots_start")
 
-	for _, elem := range namespaceIter {
+	for key, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
 
@@ -270,7 +270,7 @@ func (s *commitLogSource) Read(
 		); err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
-		indexResults = append(indexResults, indexResult)
+		indexResults[key] = indexResult
 	}
 
 	s.log.Info("read snapshots done",
@@ -287,13 +287,10 @@ func (s *commitLogSource) Read(
 		s.log.Debug("commit log already read in a previous pass, using previous result.")
 	}
 
-	var (
-		bootstrapResult = bootstrap.NamespaceResults{
-			Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
-		}
-		indexResultIdx int
-	)
-	for _, elem := range namespaceIter {
+	bootstrapResult := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+	for key, elem := range namespaceIter {
 		ns := elem.Value()
 		id := ns.Metadata.ID()
 		dataResult := result.NewDataBootstrapResult()
@@ -303,7 +300,8 @@ func (s *commitLogSource) Read(
 		}
 		var indexResult result.IndexBootstrapResult
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			indexResult = indexResults[indexResultIdx]
+			// We should have a result for each ns at this point.
+			indexResult = indexResults[key]
 			if s.commitLogResult.shouldReturnUnfulfilled {
 				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
@@ -315,7 +313,6 @@ func (s *commitLogSource) Read(
 			DataResult:  dataResult,
 			IndexResult: indexResult,
 		})
-		indexResultIdx++
 	}
 
 	return bootstrapResult, nil
@@ -903,8 +900,10 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// because the fact that snapshotTime == blockStart means we already accounted
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
-				s.log.Debug("no snapshots for shard and blockStart",
-					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
+				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+					l.Error(fmt.Sprintf("no snapshots for shard: %d blockStart: %v", shard, blockStart))
+				})
 				continue
 			}
 
@@ -1027,6 +1026,7 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 	indexResult result.IndexBootstrapResult,
 	mostRecentIndexSnapshotsByBlock map[xtime.UnixNano]indexSnapshot,
 ) error {
+	iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 	for blockStart, snapshot := range mostRecentIndexSnapshotsByBlock {
 		if snapshot.fileSet.CachedSnapshotTime.Equal(blockStart.ToTime()) ||
 			// Should never happen
@@ -1036,8 +1036,9 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 			// because the fact that snapshotTime == blockStart means we already accounted
 			// for the fact that this snapshot did not exist when we were deciding which
 			// commit logs to read.
-			s.log.Debug("no index snapshots for blockStart",
-				zap.Time("blockStart", blockStart.ToTime()))
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+				l.Error(fmt.Sprintf("no index snapshots for blockStart: %v", blockStart.ToTime()))
+			})
 			continue
 		}
 
@@ -1045,8 +1046,9 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 			// NB(bodu): This should not happen since we are only writing index snapshots
 			// with a specified index volume type (either cold or warm). If there was no index
 			// snapshot for this block start then we are skipping based on above criteria.
-			s.log.Error("no index volume type for snapshot blockStart",
-				zap.Time("blockStart", blockStart.ToTime()))
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+				l.Error(fmt.Sprintf("no index volume type for snapshot blockStart: %v", blockStart.ToTime()))
+			})
 			continue
 		}
 		indexVolumeType := idxpersist.IndexVolumeType(snapshot.info.IndexVolumeType.Value)
