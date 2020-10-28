@@ -38,6 +38,7 @@ type standardFollowerFlusherMetrics struct {
 	resolutionNotFound   tally.Counter
 	kvUpdates            tally.Counter
 	flushWindowsNotEnded tally.Counter
+	zeroLastFlushTime    tally.Counter
 }
 
 func newStandardFlusherMetrics(scope tally.Scope) standardFollowerFlusherMetrics {
@@ -46,6 +47,7 @@ func newStandardFlusherMetrics(scope tally.Scope) standardFollowerFlusherMetrics
 		resolutionNotFound:   scope.Counter("resolution-not-found"),
 		kvUpdates:            scope.Counter("kv-updates"),
 		flushWindowsNotEnded: scope.Counter("flush-windows-not-ended"),
+		zeroLastFlushTime:    scope.Counter("zero-last-flushed-time"),
 	}
 }
 
@@ -56,6 +58,7 @@ type forwardedFollowerFlusherMetrics struct {
 	numForwardedTimesNotFound tally.Counter
 	kvUpdates                 tally.Counter
 	flushWindowsNotEnded      tally.Counter
+	zeroLastFlushTime         tally.Counter
 }
 
 func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetrics {
@@ -66,6 +69,7 @@ func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetri
 		numForwardedTimesNotFound: scope.Counter("num-forwarded-times-not-found"),
 		kvUpdates:                 scope.Counter("kv-updates"),
 		flushWindowsNotEnded:      scope.Counter("flush-windows-not-ended"),
+		zeroLastFlushTime:         scope.Counter("zero-last-flushed-time"),
 	}
 }
 
@@ -234,7 +238,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 		return false
 	}
 
-	for _, shardFlushTimes := range mgr.processed.ByShard {
+	for shardID, shardFlushTimes := range mgr.processed.ByShard {
 		// If the shard is tombstoned, there is no need to examine its flush times.
 		if shardFlushTimes.Tombstoned {
 			continue
@@ -243,10 +247,18 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// Check that for standard metrics, all the open windows containing the process
 		// start time are closed, meaning the standard metrics that didn't make to the
 		// process have been flushed successfully downstream.
-		if !mgr.canLead(shardFlushTimes.StandardByResolution, mgr.metrics.standard) {
+		if !mgr.canLead(
+			"standard",
+			int(shardID),
+			shardFlushTimes.StandardByResolution,
+			mgr.metrics.standard) {
 			return false
 		}
-		if !mgr.canLead(shardFlushTimes.TimedByResolution, mgr.metrics.timed) {
+		if !mgr.canLead(
+			"timed",
+			int(shardID),
+			shardFlushTimes.TimedByResolution,
+			mgr.metrics.timed) {
 			return false
 		}
 
@@ -254,6 +266,8 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// time, meaning the forwarded metrics that didn't make to the process have been
 		// flushed successfully downstream.
 		for windowNanos, fbr := range shardFlushTimes.ForwardedByResolution {
+			mgr.logger.Warn("ForwardedByResolution is nil",
+				zap.Int("shardID", int(shardID)))
 			if fbr == nil {
 				mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
 				return false
@@ -268,6 +282,14 @@ func (mgr *followerFlushManager) CanLead() bool {
 				waitTillFlushedTime = waitTillFlushedTime.Add(-windowSize)
 			}
 			for _, lastFlushedNanos := range fbr.ByNumForwardedTimes {
+				if lastFlushedNanos == 0 {
+					mgr.logger.Warn("Encountered zero lastFlushedNanos",
+						zap.Int64("windowNanos", windowNanos),
+						zap.String("flusherType", "forwarded"),
+						zap.Int("shardID", int(shardID)))
+					mgr.metrics.forwarded.zeroLastFlushTime.Inc(1)
+				}
+
 				if lastFlushedNanos <= waitTillFlushedTime.UnixNano() {
 					mgr.metrics.forwarded.flushWindowsNotEnded.Inc(1)
 					return false
@@ -280,10 +302,20 @@ func (mgr *followerFlushManager) CanLead() bool {
 }
 
 func (mgr *followerFlushManager) canLead(
+	flusherType string,
+	shardID int,
 	flushTimes map[int64]int64,
 	metrics standardFollowerFlusherMetrics,
 ) bool {
 	for windowNanos, lastFlushedNanos := range flushTimes {
+		if lastFlushedNanos == 0 {
+			mgr.logger.Warn("Encountered zero lastFlushedNanos",
+				zap.Int64("windowNanos", windowNanos),
+				zap.String("flusherType", flusherType),
+				zap.Int("shardID", shardID))
+			metrics.zeroLastFlushTime.Inc(1)
+		}
+
 		windowSize := time.Duration(windowNanos)
 		windowEndAt := mgr.openedAt.Truncate(windowSize)
 		if windowEndAt.Before(mgr.openedAt) {
