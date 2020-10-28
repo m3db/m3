@@ -17,7 +17,7 @@ shard time ranges to the next bootstrapper (as does every bootstrapper).
 
 ### TSDB data on disk missing index data
 
-There are a few cases where TSDB blocks may be missing an index block on disk.
+There are a few cases where TSDB blocks on disk may be missing an index block on disk.
   1. TSDB blocks smaller than index blocks
     - TSDB blocks can exist on disk that don't cover the entire index block
   2. Node crash between a succesful warm TSDB flush(es) (for the entire index block)
