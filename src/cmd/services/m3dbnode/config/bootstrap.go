@@ -21,7 +21,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -44,20 +46,86 @@ var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.125
 
-	// order in which bootstrappers are run
-	// (run in ascending order of precedence)
-	orderedBootstrappers = []string{
+	// default order in which bootstrappers are run
+	// (run in ascending order of precedence).
+	defaultOrderedBootstrappers = []string{
 		// Filesystem bootstrapping must be first.
 		bfs.FileSystemBootstrapperName,
 		// Peers and commitlog must come before the uninitialized topology bootrapping.
+		commitlog.CommitLogBootstrapperName,
+		peers.PeersBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
+	}
+
+	// bootstrapper order where peers is prefered over commitlog.
+	preferPeersOrderedBootstrappers = []string{
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Prefer peers over commitlog.
 		peers.PeersBootstrapperName,
 		commitlog.CommitLogBootstrapperName,
 		uninitialized.UninitializedTopologyBootstrapperName,
 	}
+
+	validBootstrapModes = []BootstrapMode{
+		DefaultBootstrapMode,
+		PreferPeersBootstrapMode,
+	}
+
+	errReadBootstrapModeInvalid = errors.New("bootstrap mode invalid")
 )
+
+// BootstrapMode defines the mode in which bootstrappers are run.
+type BootstrapMode uint
+
+const (
+	// DefaultBootstrapMode executes bootstrappers in default order.
+	DefaultBootstrapMode BootstrapMode = iota
+	// PreferPeersBootstrapMode executes peers before commitlog bootstrapper.
+	PreferPeersBootstrapMode
+)
+
+// UnmarshalYAML unmarshals an BootstrapMode into a valid type from string.
+func (m *BootstrapMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// If unspecified, use default mode.
+	if str == "" {
+		*m = DefaultBootstrapMode
+		return nil
+	}
+
+	strs := make([]string, 0, len(validBootstrapModes))
+	for _, valid := range validBootstrapModes {
+		if str == valid.String() {
+			*m = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf("invalid BootstrapMode '%s' valid types are: %s",
+		str, strings.Join(strs, ", "))
+}
+
+// String returns the bootstrap mode as a string
+func (m BootstrapMode) String() string {
+	switch m {
+	case DefaultBootstrapMode:
+		return "default"
+	case PreferPeersBootstrapMode:
+		return "prefer_peers"
+	}
+	return "default"
+}
 
 // BootstrapConfiguration specifies the config for bootstrappers.
 type BootstrapConfiguration struct {
+	// BootstrapMode defines the mode in which bootstrappers are run.
+	BootstrapMode *BootstrapMode `yaml:"mode"`
+
 	// Filesystem bootstrapper configuration.
 	Filesystem *BootstrapFilesystemConfiguration `yaml:"filesystem"`
 
@@ -189,8 +257,9 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	var (
-		bs     bootstrap.BootstrapperProvider
-		fsOpts = opts.CommitLogOptions().FilesystemOptions()
+		bs                   bootstrap.BootstrapperProvider
+		fsOpts               = opts.CommitLogOptions().FilesystemOptions()
+		orderedBootstrappers = bsc.orderedBootstrappers()
 	)
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	// I.e. each bootstrapper wraps the preceding bootstrapper, and so the outer-most bootstrapper is run first.
@@ -306,4 +375,11 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 		return *cfg
 	}
 	return newDefaultBootstrapPeersConfiguration()
+}
+
+func (bsc BootstrapConfiguration) orderedBootstrappers() []string {
+	if bsc.BootstrapMode == nil && *bsc.BootstrapMode == PreferPeersBootstrapMode {
+		return preferPeersOrderedBootstrappers
+	}
+	return defaultOrderedBootstrappers
 }
