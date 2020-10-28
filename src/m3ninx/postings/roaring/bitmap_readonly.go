@@ -39,6 +39,7 @@ const (
 	bitmapN            = 1024
 	runCountHeaderSize = uint32(2)
 	containerValues    = 2 << 15 // 2^16 or 65k
+	maxBitmap          = 0xFFFFFFFFFFFFFFFF
 )
 
 var (
@@ -53,6 +54,19 @@ const (
 	containerBitmap
 	containerRun
 )
+
+func (t containerType) String() string {
+	switch t {
+	case containerArray:
+		return "array"
+	case containerBitmap:
+		return "bitmap"
+	case containerRun:
+		return "run"
+	default:
+		return "unknown"
+	}
+}
 
 var _ postings.List = (*ReadOnlyBitmap)(nil)
 
@@ -101,8 +115,8 @@ func (b *ReadOnlyBitmap) Reset(data []byte) error {
 	b.rangeStartInclusive = 0
 	b.rangeEndExclusive = 0
 
+	// Reset to nil.
 	if len(data) == 0 {
-		// Reset to nil
 		b.data = nil
 		b.keyN = 0
 		return nil
@@ -126,16 +140,15 @@ func (b *ReadOnlyBitmap) Reset(data []byte) error {
 	}
 
 	// Read key count in bytes sizeof(cookie):(sizeof(cookie)+sizeof(uint32)).
-	keyN := uint64(binary.LittleEndian.Uint32(data[4:8]))
-
-	minBytesN := headerBaseSize + keyN*12 + keyN*4
-	if uint64(len(data)) < minBytesN {
-		return fmt.Errorf("bitmap too small: need=%d, actual=%d",
-			minBytesN, len(data))
-	}
-
+	b.keyN = uint64(binary.LittleEndian.Uint32(data[4:8]))
 	b.data = data
-	b.keyN = keyN
+
+	// Validate all the containers.
+	for i := uint64(0); i < b.keyN; i++ {
+		if _, err := b.containerAtIndex(i); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -179,12 +192,45 @@ func (r runReadOnlyContainer) contains(v uint16) bool {
 	return idx < n && v >= r.values[idx].start && v <= r.values[idx].last
 }
 
+func (c readOnlyContainer) validate() error {
+	switch c.containerType {
+	case containerBitmap:
+		need := int(c.offset) + 8*bitmapN // entry uint64 bitmap 8 bytes
+		if len(c.data) < need {
+			return fmt.Errorf("data too small for bitmap: needs=%d, actual=%d",
+				need, len(c.data))
+		}
+		return nil
+	case containerArray:
+		need := int(c.offset) + 2*int(c.cardinality) // entry is uint16 2 bytes
+		if len(c.data) < need {
+			return fmt.Errorf("data too small for array: needs=%d, actual=%d",
+				need, len(c.data))
+		}
+		return nil
+	case containerRun:
+		need := int(c.offset) + int(runCountHeaderSize)
+		if len(c.data) < need {
+			return fmt.Errorf("data too small for runs header: needs=%d, actual=%d",
+				need, len(c.data))
+		}
+		runCount := binary.LittleEndian.Uint16(c.data[c.offset : c.offset+runCountHeaderSize])
+		need = int(c.offset) + int(runCountHeaderSize) + 4*int(runCount) // entry is two uint16s 4 bytes
+		if len(c.data) < need {
+			return fmt.Errorf("data too small for runs values: needs=%d, actual=%d",
+				need, len(c.data))
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown container: %d", c.containerType)
+}
+
 func (c readOnlyContainer) bitmap() (bitmapReadOnlyContainer, bool) {
 	if c.containerType != containerBitmap {
 		return bitmapReadOnlyContainer{}, false
 	}
 	return bitmapReadOnlyContainer{
-		values: (*[0xFFFFFFF]uint64)(unsafe.Pointer(&c.data[c.offset]))[:bitmapN:bitmapN],
+		values: (*[0xFFFFFFF]uint64)(unsafe.Pointer(&c.data[c.offset]))[:bitmapN],
 	}, true
 }
 
@@ -193,7 +239,7 @@ func (c readOnlyContainer) array() (arrayReadOnlyContainer, bool) {
 		return arrayReadOnlyContainer{}, false
 	}
 	return arrayReadOnlyContainer{
-		values: (*[0xFFFFFFF]uint16)(unsafe.Pointer(&c.data[c.offset]))[:c.cardinality:c.cardinality],
+		values: (*[0xFFFFFFF]uint16)(unsafe.Pointer(&c.data[c.offset]))[:c.cardinality],
 	}, true
 }
 
@@ -203,7 +249,7 @@ func (c readOnlyContainer) runs() (runReadOnlyContainer, bool) {
 	}
 	runCount := binary.LittleEndian.Uint16(c.data[c.offset : c.offset+runCountHeaderSize])
 	return runReadOnlyContainer{
-		values: (*[0xFFFFFFF]interval16)(unsafe.Pointer(&c.data[c.offset+runCountHeaderSize]))[:runCount:runCount],
+		values: (*[0xFFFFFFF]interval16)(unsafe.Pointer(&c.data[c.offset+runCountHeaderSize]))[:runCount],
 	}, true
 }
 
@@ -221,19 +267,49 @@ func (b *ReadOnlyBitmap) container(key uint64) (readOnlyContainer, bool) {
 	if !ok {
 		return readOnlyContainer{}, false
 	}
-	return b.containerAtIndex(index), true
+	// All offsets validated at construction time, safe to ignore the
+	// error here.
+	// If we had to return an error to Contains(...) and Iterator() then
+	// we wouldn't be able to implement the API contract.
+	// Today we also have this same issue with existing mmap backed roaring
+	// bitmaps from pilosa, so it doesn't reduce or expand our risk exposure.
+	container, _ := b.containerAtIndex(index)
+	return container, true
 }
 
-func (b *ReadOnlyBitmap) containerAtIndex(index uint64) readOnlyContainer {
-	meta := b.data[headerBaseSize+index*12:]
-	offsets := b.data[headerBaseSize+b.keyN*12+index*4:]
-	return readOnlyContainer{
+func (b *ReadOnlyBitmap) containerAtIndex(index uint64) (readOnlyContainer, error) {
+	const (
+		metaTypeStart = 8
+		metaTypeEnd   = 10
+		metaCardStart = 10
+		metaCardEnd   = 12
+		offsetStart   = 0
+		offsetEnd     = 4
+	)
+	metaIdx := headerBaseSize + index*12
+	offsetIdx := headerBaseSize + b.keyN*12 + index*4
+	size := uint64(len(b.data))
+	if size < metaIdx+metaCardEnd {
+		return readOnlyContainer{}, fmt.Errorf(
+			"data too small: need=%d, actual=%d", metaIdx+metaCardEnd, size)
+	}
+	if size < offsetIdx+offsetEnd {
+		return readOnlyContainer{}, fmt.Errorf(
+			"data too small: need=%d, actual=%d", offsetIdx+offsetEnd, size)
+	}
+	meta := b.data[metaIdx:]
+	offsets := b.data[offsetIdx:]
+	container := readOnlyContainer{
 		data:          b.data,
 		key:           b.keyAtIndex(int(index)),
-		containerType: containerType(binary.LittleEndian.Uint16(meta[8:10])),
-		cardinality:   uint16(binary.LittleEndian.Uint16(meta[10:12])) + 1,
-		offset:        binary.LittleEndian.Uint32(offsets[0:4]),
+		containerType: containerType(binary.LittleEndian.Uint16(meta[metaTypeStart:metaTypeEnd])),
+		cardinality:   uint16(binary.LittleEndian.Uint16(meta[metaCardStart:metaCardEnd])) + 1,
+		offset:        binary.LittleEndian.Uint32(offsets[offsetStart:offsetEnd]),
 	}
+	if err := container.validate(); err != nil {
+		return readOnlyContainer{}, err
+	}
+	return container, nil
 }
 
 func (b *ReadOnlyBitmap) Contains(id postings.ID) bool {
@@ -270,7 +346,14 @@ func (b *ReadOnlyBitmap) IsEmpty() bool {
 func (b *ReadOnlyBitmap) count() int {
 	l := 0
 	for i := uint64(0); i < b.keyN; i++ {
-		l += int(b.containerAtIndex(i).cardinality)
+		// All offsets validated at construction time, safe to ignore the
+		// error here.
+		// If we had to return an error to Contains(...) and Iterator() then
+		// we wouldn't be able to implement the API contract.
+		// Today we also have this same issue with existing mmap backed roaring
+		// bitmaps from pilosa, so it doesn't reduce or expand our risk exposure.
+		container, _ := b.containerAtIndex(i)
+		l += int(container.cardinality)
 	}
 	return l
 }
@@ -336,6 +419,7 @@ var _ postings.Iterator = (*readOnlyBitmapIterator)(nil)
 
 type readOnlyBitmapIterator struct {
 	b                  *ReadOnlyBitmap
+	err                error
 	containerIndex     int
 	containerExhausted bool
 	container          readOnlyContainer
@@ -386,7 +470,7 @@ func (i *readOnlyBitmapIterator) setContainer(c readOnlyContainer) {
 }
 
 func (i *readOnlyBitmapIterator) Next() bool {
-	if i.containerIndex >= int(i.b.keyN) {
+	if i.err != nil || i.containerIndex >= int(i.b.keyN) {
 		// Already exhausted.
 		return false
 	}
@@ -397,8 +481,15 @@ func (i *readOnlyBitmapIterator) Next() bool {
 		if i.containerIndex >= int(i.b.keyN) {
 			return false
 		}
+
+		container, err := i.b.containerAtIndex(uint64(i.containerIndex))
+		if err != nil {
+			i.err = err
+			return false
+		}
+
 		i.containerExhausted = false
-		i.setContainer(i.b.containerAtIndex(uint64(i.containerIndex)))
+		i.setContainer(container)
 	}
 
 	if i.container.containerType == containerBitmap {
@@ -489,6 +580,7 @@ var _ containerIterator = (*readOnlyBitmapContainerIterator)(nil)
 
 type readOnlyBitmapContainerIterator struct {
 	b              *ReadOnlyBitmap
+	err            error
 	containerIndex int
 	container      readOnlyContainer
 }
@@ -503,11 +595,22 @@ func newReadOnlyBitmapContainerIterator(
 }
 
 func (i *readOnlyBitmapContainerIterator) NextContainer() bool {
+	if i.err != nil && i.containerIndex >= int(i.b.keyN) {
+		return false
+	}
+
 	i.containerIndex++
 	if i.containerIndex >= int(i.b.keyN) {
 		return false
 	}
-	i.container = i.b.containerAtIndex(uint64(i.containerIndex))
+
+	container, err := i.b.containerAtIndex(uint64(i.containerIndex))
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	i.container = container
 	return true
 }
 
@@ -624,7 +727,12 @@ func (i *readOnlyBitmapContainerIterator) ContainerNegate(
 	}
 }
 
-const maxBitmap = 0xFFFFFFFFFFFFFFFF
+func (i *readOnlyBitmapContainerIterator) Err() error {
+	return i.err
+}
+
+func (i *readOnlyBitmapContainerIterator) Close() {
+}
 
 // bitmapSetRange sets all bits in [i, j) the same as pilosa's
 // bitmapSetRangeIgnoreN.
@@ -823,4 +931,11 @@ func (i *readOnlyBitmapRangeContainerIterator) ContainerNegate(
 	ctx.tempBitmap.Reset(false)
 	bitmapSetRange(ctx.tempBitmap.bitmap, start, end+1)
 	differenceBitmapInPlace(target.bitmap, ctx.tempBitmap.bitmap)
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) Err() error {
+	return nil
+}
+
+func (i *readOnlyBitmapRangeContainerIterator) Close() {
 }

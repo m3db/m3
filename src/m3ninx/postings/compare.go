@@ -45,7 +45,8 @@ func Equal(a, b List) bool {
 		if !otherIter.Next() {
 			return false
 		}
-		if iter.Current() != otherIter.Current() {
+		curr, otherCurr := iter.Current(), otherIter.Current()
+		if curr != otherCurr {
 			return false
 		}
 	}

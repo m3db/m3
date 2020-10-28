@@ -45,8 +45,9 @@ func UnionReadOnly(unions []postings.List) (postings.List, error) {
 		}
 
 		mb, ok := elem.(*multiBitmap)
-		if !ok {
+		if ok {
 			union = append(union, multiBitmapIterable{multiBitmap: mb})
+			continue
 		}
 
 		return nil, ErrNotReadOnlyBitmaps
@@ -72,8 +73,9 @@ func IntersectAndNegateReadOnly(
 		}
 
 		mb, ok := elem.(*multiBitmap)
-		if !ok {
+		if ok {
 			intersect = append(intersect, multiBitmapIterable{multiBitmap: mb})
+			continue
 		}
 
 		return nil, ErrNotReadOnlyBitmaps
@@ -88,8 +90,9 @@ func IntersectAndNegateReadOnly(
 		}
 
 		mb, ok := elem.(*multiBitmap)
-		if !ok {
+		if ok {
 			negate = append(negate, multiBitmapIterable{multiBitmap: mb})
+			continue
 		}
 
 		return nil, ErrNotReadOnlyBitmaps
@@ -156,7 +159,10 @@ type multiBitmapOptions struct {
 }
 
 func (o multiBitmapOptions) validate() error {
-	return o.op.validate()
+	if err := o.op.validate(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func newMultiBitmap(opts multiBitmapOptions) (*multiBitmap, error) {
@@ -229,6 +235,8 @@ var _ postings.Iterator = (*multiBitmapIterator)(nil)
 type multiBitmapIterator struct {
 	multiBitmapOptions
 
+	err                error
+	initial            []containerIteratorAndOp
 	iters              []containerIteratorAndOp
 	filtered           []containerIteratorAndOp
 	multiContainerIter multiBitmapContainerIterator
@@ -256,6 +264,8 @@ type containerIterator interface {
 	ContainerUnion(ctx containerOpContext, target *bitmapContainer)
 	ContainerIntersect(ctx containerOpContext, target *bitmapContainer)
 	ContainerNegate(ctx containerOpContext, target *bitmapContainer)
+	Err() error
+	Close()
 }
 
 type containerOpContext struct {
@@ -280,6 +290,7 @@ func newMultiBitmapIterator(
 	iters = appendContainerItersWithOp(iters, opts.intersectNegate, multiContainerOpNegate)
 	i := &multiBitmapIterator{
 		multiBitmapOptions: opts,
+		initial:            iters,
 		iters:              iters,
 		bitmap:             getBitmapContainer(),
 		tempBitmap:         getBitmapContainer(),
@@ -316,10 +327,21 @@ func appendContainerItersWithOp(
 }
 
 func (i *multiBitmapIterator) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
 	for !i.bitmapIter.Next() {
 		// Reset to next containers.
-		var ok bool
-		i.iters, ok = i.multiContainerIter.resetAndReturnValid(i.iters)
+		var (
+			ok  bool
+			err error
+		)
+		i.iters, ok, err = i.multiContainerIter.resetAndReturnValid(i.iters)
+		if err != nil {
+			i.err = err
+			return false
+		}
 		if !ok {
 			// Entirely exhausted valid iterators.
 			return false
@@ -341,20 +363,36 @@ func (i *multiBitmapIterator) Next() bool {
 				iter.it.ContainerUnion(ctx, i.bitmap)
 			}
 		case multiBitmapOpIntersect:
+			totalIntersect := len(i.filter(i.initial, multiContainerOpIntersect))
+			currIntersect := len(i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect))
+
+			// NB(r): Only intersect if all iterators have a container, otherwise
+			// there is zero overlap and so intersecting always results in
+			// no results for this container.
+			if totalIntersect != currIntersect {
+				continue
+			}
+
+			if currIntersect == 0 {
+				// No intersections so only possible negations of nothing.
+				continue
+			}
+
 			// Start bitmap as set, guaranteed to have one intersect call.
 			i.bitmap.Reset(true)
 
-			intersects := i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect)
-			negates := i.filter(i.multiContainerIter.containerIters, multiContainerOpNegate)
+			currNegate := len(i.filter(i.multiContainerIter.containerIters, multiContainerOpNegate))
 			ctx := containerOpContext{
-				siblings:   len(intersects) + len(negates) - 1,
+				siblings:   currIntersect + currNegate - 1,
 				tempBitmap: i.tempBitmap,
 			}
 			// Perform intersects.
+			intersects := i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect)
 			for _, iter := range intersects {
 				iter.it.ContainerIntersect(ctx, i.bitmap)
 			}
 			// Now perform negations.
+			negates := i.filter(i.multiContainerIter.containerIters, multiContainerOpNegate)
 			for _, iter := range negates {
 				iter.it.ContainerNegate(ctx, i.bitmap)
 			}
@@ -392,10 +430,15 @@ func (i *multiBitmapIterator) Current() postings.ID {
 }
 
 func (i *multiBitmapIterator) Err() error {
-	return nil
+	return i.err
 }
 
 func (i *multiBitmapIterator) Close() error {
+	// Close any iters that are left if we abort early.
+	for _, iter := range i.iters {
+		iter.it.Close()
+	}
+
 	// Return bitmaps to pool.
 	putBitmapContainer(i.bitmap)
 	i.bitmap = nil
@@ -415,7 +458,7 @@ type multiBitmapContainerIterator struct {
 
 func (i *multiBitmapContainerIterator) resetAndReturnValid(
 	input []containerIteratorAndOp,
-) ([]containerIteratorAndOp, bool) {
+) ([]containerIteratorAndOp, bool, error) {
 	// Reset current state.
 	i.containerIters = i.containerIters[:0]
 
@@ -429,9 +472,15 @@ func (i *multiBitmapContainerIterator) resetAndReturnValid(
 		if i.hasPrevContainerKey && iterContainerKey == i.containerKey {
 			// Consequent iteration, bump to next container as needs to progress.
 			if !iter.it.NextContainer() {
-				// Don't include.
+				// Don't include, exhausted.
+				err := iter.it.Err()
+				iter.it.Close() // Always close
+				if err != nil {
+					return nil, false, err
+				}
 				continue
 			}
+
 			// Get next container key.
 			iterContainerKey = iter.it.ContainerKey()
 		}
@@ -452,7 +501,7 @@ func (i *multiBitmapContainerIterator) resetAndReturnValid(
 	i.containerKey = nextContainerKey
 	i.hasPrevContainerKey = true
 
-	return valid, len(valid) > 0
+	return valid, len(valid) > 0, nil
 }
 
 var _ containerIterator = (*multiBitmapContainersIterator)(nil)
@@ -460,6 +509,7 @@ var _ containerIterator = (*multiBitmapContainersIterator)(nil)
 type multiBitmapContainersIterator struct {
 	multiBitmapOptions
 
+	err                error
 	iters              []containerIteratorAndOp
 	multiContainerIter multiBitmapContainerIterator
 	first              bool
@@ -481,7 +531,7 @@ func newMultiBitmapContainersIterator(
 }
 
 func (i *multiBitmapContainersIterator) NextContainer() bool {
-	if len(i.iters) != 0 {
+	if i.err != nil || len(i.iters) != 0 {
 		// Exhausted.
 		return true
 	}
@@ -493,8 +543,15 @@ func (i *multiBitmapContainersIterator) NextContainer() bool {
 		return true
 	}
 
-	var ok bool
-	i.iters, ok = i.multiContainerIter.resetAndReturnValid(i.iters)
+	var (
+		ok  bool
+		err error
+	)
+	i.iters, ok, err = i.multiContainerIter.resetAndReturnValid(i.iters)
+	if err != nil {
+		i.err = err
+		return false
+	}
 	if !ok {
 		// Exhausted.
 		return false
@@ -583,6 +640,13 @@ func (i *multiBitmapContainersIterator) ContainerNegate(
 	}
 }
 
+func (i *multiBitmapContainersIterator) Err() error {
+	return i.err
+}
+
+func (i *multiBitmapContainersIterator) Close() {
+}
+
 func (i *multiBitmapContainersIterator) getTempUnion(
 	ctx containerOpContext,
 ) *bitmapContainer {
@@ -650,17 +714,18 @@ func newBitmapContainer() *bitmapContainer {
 func (b *bitmapContainer) Reset(set bool) {
 	if !set {
 		// Make sure "0" is the default value allocated here
-		// so this is compiled into a memset optimization.
+		// so this is compiled into a memclr optimization.
+		// https://codereview.appspot.com/137880043
 		for i := range b.allocated {
 			b.allocated[i] = 0
 		}
 	} else {
 		// Manually unroll loop to make it a little faster.
 		for i := 0; i < bitmapN; i += 4 {
-			b.allocated[i] = 1
-			b.allocated[i+1] = 1
-			b.allocated[i+2] = 1
-			b.allocated[i+3] = 1
+			b.allocated[i] = maxBitmap
+			b.allocated[i+1] = maxBitmap
+			b.allocated[i+2] = maxBitmap
+			b.allocated[i+3] = maxBitmap
 		}
 	}
 
