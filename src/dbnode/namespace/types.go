@@ -219,12 +219,14 @@ type Metadata interface {
 	// ID is the ID of the namespace
 	ID() ident.ID
 
-
 	// ReadOnly returns true if the Namespace is read only.
 	ReadOnly() bool
 
 	// SetReadOnly sets the value of ReadOnly option.
 	SetReadOnly(value bool)
+
+	// MaintainReverseIndex returns true if reverse index for this namespace needs to be maintained.
+	MaintainsReverseIndex() bool
 
 	// Options is the namespace options
 	Options() Options

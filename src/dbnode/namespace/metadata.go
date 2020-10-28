@@ -73,6 +73,10 @@ func (m *metadata) SetReadOnly(value bool) {
 	m.readOnly = value
 }
 
+func (m *metadata) MaintainsReverseIndex() bool {
+	return !m.readOnly && m.opts.IndexOptions().Enabled()
+}
+
 func (m *metadata) Options() Options {
 	return m.opts
 }

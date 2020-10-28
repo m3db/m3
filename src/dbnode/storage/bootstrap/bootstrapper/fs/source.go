@@ -158,7 +158,7 @@ func (s *fileSystemSource) Read(
 	s.runMigrations(ctx, infoFilesByNamespace)
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
-	// to more clearly deliniate which process is slower than the other.
+	// to more clearly delineate which process is slower than the other.
 	start := s.nowFn()
 	dataLogFields := []zapcore.Field{
 		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
@@ -193,7 +193,7 @@ func (s *fileSystemSource) Read(
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
-		if !md.Options().IndexOptions().Enabled() {
+		if !md.MaintainsReverseIndex() {
 			// Not bootstrapping for index.
 			s.log.Info("bootstrapping for namespace disabled by options",
 				zap.String("ns", md.ID().String()))
@@ -523,17 +523,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
+			overlapsWithInitialIndexRange = false
+			min, max                      = requestedRanges.MinMax()
+			blockStart                    = min.Truncate(indexBlockSize)
+			blockEnd                      = blockStart.Add(indexBlockSize)
+			iopts                         = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                    result.IndexBlock
+			err                           error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
+				overlapsWithInitialIndexRange = true
 			}
 		}
 
@@ -561,13 +561,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			persistCfg.FileSetType == persist.FileSetFlushType
 
 		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		satisfiedFlushRanges := noneRemaining || overlapsWithInitialIndexRange
 
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
@@ -576,10 +576,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+			zap.Bool("satisfiedFlushRanges", satisfiedFlushRanges),
 		}
 
-		if shouldFlush && satisifiedFlushRanges {
+		if shouldFlush && satisfiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
