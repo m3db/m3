@@ -76,6 +76,40 @@ func lowbits(v uint64) uint16 {
 	return uint16(v & 0xFFFF)
 }
 
+// ReadOnlyBitmapFromPostingsList returns a bitmap from a postings list if it
+// is a read only roaring bitmap postings list.
+func ReadOnlyBitmapFromPostingsList(pl postings.List) (*ReadOnlyBitmap, bool) {
+	result, ok := pl.(*ReadOnlyBitmap)
+	if !ok {
+		return nil, false
+	}
+	return result, true
+}
+
+// ReadOnlyBitmapIntersectCheck is a check that can be repeated
+// against read only bitmaps without allocations.
+type ReadOnlyBitmapIntersectCheck struct {
+	multiBitmapIterator *multiBitmapIterator
+	intersect           []multiBitmapIterable
+}
+
+func NewReadOnlyBitmapIntersectCheck() *ReadOnlyBitmapIntersectCheck {
+	return &ReadOnlyBitmapIntersectCheck{
+		multiBitmapIterator: newMultiBitmapIterator(multiBitmapOptions{}),
+		intersect:           make([]multiBitmapIterable, 2),
+	}
+}
+
+func (c *ReadOnlyBitmapIntersectCheck) Intersects(a, b *ReadOnlyBitmap) bool {
+	c.intersect[0] = multiBitmapIterable{bitmap: a}
+	c.intersect[1] = multiBitmapIterable{bitmap: b}
+	c.multiBitmapIterator.Reset(multiBitmapOptions{
+		op:        multiBitmapOpIntersect,
+		intersect: c.intersect,
+	})
+	return c.multiBitmapIterator.Next()
+}
+
 var _ postings.List = (*ReadOnlyBitmap)(nil)
 
 // ReadOnlyBitmap is a read only roaring Bitmap of

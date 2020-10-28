@@ -278,22 +278,29 @@ type containerOpContext struct {
 func newMultiBitmapIterator(
 	opts multiBitmapOptions,
 ) *multiBitmapIterator {
-	var (
-		n     = len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
-		iters = make([]containerIteratorAndOp, 0, n)
-	)
-	iters = appendContainerItersWithOp(iters, opts.union, multiContainerOpUnion)
-	iters = appendContainerItersWithOp(iters, opts.intersect, multiContainerOpIntersect)
-	iters = appendContainerItersWithOp(iters, opts.intersectNegate, multiContainerOpNegate)
 	i := &multiBitmapIterator{
-		multiBitmapOptions: opts,
-		initial:            iters,
-		iters:              iters,
-		bitmap:             getBitmapContainer(),
-		tempBitmap:         getBitmapContainer(),
+		bitmap:     getBitmapContainer(),
+		tempBitmap: getBitmapContainer(),
 	}
-	i.bitmapIter.Reset(0, i.bitmap)
+	i.Reset(opts)
 	return i
+}
+
+func (i *multiBitmapIterator) Reset(opts multiBitmapOptions) {
+	i.multiBitmapOptions = opts
+	n := len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
+	if i.iters == nil {
+		i.iters = make([]containerIteratorAndOp, 0, n)
+	}
+	i.iters = i.iters[:0]
+	i.iters = appendContainerItersWithOp(i.iters, opts.union, multiContainerOpUnion)
+	i.iters = appendContainerItersWithOp(i.iters, opts.intersect, multiContainerOpIntersect)
+	i.iters = appendContainerItersWithOp(i.iters, opts.intersectNegate, multiContainerOpNegate)
+	i.initial = i.iters[:]
+	i.err = nil
+	i.multiContainerIter = multiBitmapContainerIterator{}
+	i.bitmap.Reset(false)
+	i.bitmapIter.Reset(0, i.bitmap)
 }
 
 func appendContainerItersWithOp(

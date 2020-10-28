@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -74,7 +73,8 @@ type fieldsAndTermsIter struct {
 		postings postings.List
 	}
 
-	restrictByPostings *pilosaroaring.Bitmap
+	restrictByPostings          *roaring.ReadOnlyBitmap
+	restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
 }
 
 var (
@@ -89,7 +89,9 @@ type newFieldsAndTermsIteratorFn func(
 ) (fieldsAndTermsIterator, error)
 
 func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
-	iter := &fieldsAndTermsIter{}
+	iter := &fieldsAndTermsIter{
+		restrictByPostingsIntersect: roaring.NewReadOnlyBitmapIntersectCheck(),
+	}
 	err := iter.Reset(reader, opts)
 	if err != nil {
 		return nil, err
@@ -129,7 +131,7 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	// TODO: This will be a read only bitmap, need to update.
-	bitmap, ok := roaring.BitmapFromPostingsList(pl)
+	bitmap, ok := roaring.ReadOnlyBitmapFromPostingsList(pl)
 	if !ok {
 		return errUnpackBitmapFromPostingsList
 	}
@@ -210,17 +212,17 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 		}
 
 		// TODO: This will be a read only bitmap, need to update.
-		bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
+		bitmap, ok := roaring.ReadOnlyBitmapFromPostingsList(fti.current.postings)
 		if !ok {
 			return false, errUnpackBitmapFromPostingsList
 		}
 
-		// Check term isn part of at least some of the documents we're
+		// Check term isn't part of at least some of the documents we're
 		// restricted to providing results for based on intersection
 		// count.
-		// Note: IntersectionCount is significantly faster than intersecting and
-		// counting results and also does not allocate.
-		if n := fti.restrictByPostings.IntersectionCount(bitmap); n > 0 {
+		restrictBy := fti.restrictByPostings
+		match := fti.restrictByPostingsIntersect.Intersects(restrictBy, bitmap)
+		if match {
 			// Matches, this is next result.
 			return true, nil
 		}
