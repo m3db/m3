@@ -90,7 +90,7 @@ func SetRegexpCacheOptions(opts RegexpCacheOptions) {
 		scope = opts.Scope
 	}
 
-	scope = scope.SubScope("m3ninx").SubScope("regexp").SubScope("cache")
+	scope = scope.SubScope("m3ninx").SubScope("regexp")
 	regexpCache = cache.NewLRU(&cache.LRUOptions{
 		MaxEntries: opts.Size,
 		Metrics:    scope.SubScope("lru"),
