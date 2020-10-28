@@ -25,11 +25,11 @@ listenAddress: "..."
 
 ### API
 - **M3DB**: `/services/m3db/database/config/bootstrappers` dynamic bootstappers endpoint removed
-- **M3Coordinator**: `/api/v1/namespace` changed to `/api/v1/services/m3db/namespace`
-- **M3Coordinator**: `/api/v1/namespace/init` changed to `/api/v1/services/m3db/namespace/init`
-- **M3Coordinator**: `/api/v1/namespace/unagg` changed to `/api/v1/services/m3db/namespace/unagg`
-- **M3Coordinator**: `/api/v1/placement` changed to `/api/v1/services/m3db/placement`
-- **M3Coordinator**: `/api/v1/placement/init` changed to `/api/v1/services/m3db/placement/init`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace` in favor of stable preferred URL `/api/v1/services/m3db/namespace`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/init` in favor of stable preferred URL `/api/v1/services/m3db/namespace/init`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/unagg` in favor of stable preferred URL `/api/v1/services/m3db/namespace/unagg`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement` in favor of stable preferred URL `/api/v1/services/m3db/placement`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement/init` in favor of stable preferred URL `/api/v1/services/m3db/placement/init`
 
 ### Misc
 - **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
