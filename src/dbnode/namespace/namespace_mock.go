@@ -982,7 +982,7 @@ func (mr *MockMetadataMockRecorder) SetReadOnly(value interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockMetadata)(nil).SetReadOnly), value)
 }
 
-// MaintainReverseIndex mocks base method
+// MaintainsReverseIndex mocks base method
 func (m *MockMetadata) MaintainsReverseIndex() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaintainsReverseIndex")
@@ -990,8 +990,8 @@ func (m *MockMetadata) MaintainsReverseIndex() bool {
 	return ret0
 }
 
-// MaintainReverseIndex indicates an expected call of MaintainReverseIndex
-func (mr *MockMetadataMockRecorder) MaintainReverseIndex() *gomock.Call {
+// MaintainsReverseIndex indicates an expected call of MaintainsReverseIndex
+func (mr *MockMetadataMockRecorder) MaintainsReverseIndex() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaintainsReverseIndex", reflect.TypeOf((*MockMetadata)(nil).MaintainsReverseIndex))
 }
