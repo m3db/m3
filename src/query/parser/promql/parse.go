@@ -294,10 +294,20 @@ func (p *parseState) walk(node pql.Node) error {
 
 				argValues = append(argValues, val)
 			} else if argType == pql.ValueTypeString {
-				stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
+				val, err := resolveStringArgument(expr)
+				if err != nil {
+					return err
+				}
+
+				stringValues = append(stringValues, val)
 			} else {
-				if e, ok := expr.(*pql.MatrixSelector); ok {
-					argValues = append(argValues, e.Range)
+				if argType == pql.ValueTypeMatrix {
+					val, err := resolveMatrixRangeArgument(expr)
+					if err != nil {
+						return err
+					}
+
+					argValues = append(argValues, val)
 				}
 
 				if err := p.walk(expr); err != nil {
@@ -403,5 +413,27 @@ func (p *parseState) walk(node pql.Node) error {
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
+	}
+}
+
+func resolveStringArgument(expr pql.Expr) (string, error) {
+	switch e := expr.(type) {
+	case *pql.StringLiteral:
+		return e.Val, nil
+	case *pql.ParenExpr:
+		return resolveStringArgument(e.Expr)
+	default:
+		return "", fmt.Errorf("promql.resolveStringArgument: unexpected expression type %T", e)
+	}
+}
+
+func resolveMatrixRangeArgument(expr pql.Expr) (time.Duration, error) {
+	switch e := expr.(type) {
+	case *pql.MatrixSelector:
+		return e.Range, nil
+	case *pql.ParenExpr:
+		return resolveMatrixRangeArgument(e.Expr)
+	default:
+		return time.Duration(0), fmt.Errorf("promql.resolveMatrixRangeArgument: unexpected expression type %T", e)
 	}
 }

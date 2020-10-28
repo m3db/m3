@@ -503,6 +503,39 @@ func TestMissingTagsDoNotPanic(t *testing.T) {
 	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
 }
 
+var functionArgumentExpressionTests = []struct {
+	name  string
+	query string
+}{
+	{
+		"scalar argument",
+		"vector(((1)))",
+	},
+	{
+		"string argument",
+		`label_join(up, ("foo"), ((",")), ((("bar"))))`,
+	},
+	{
+		"vector argument",
+		"abs(((foo)))",
+	},
+	{
+		"matrix argument",
+		"stddev_over_time(((metric[1m])))",
+	},
+}
+
+func TestExpressionsInFunctionArgumentsDoNotError(t *testing.T) {
+	for _, tt := range functionArgumentExpressionTests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := Parse(tt.query, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			_, _, err = p.DAG()
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestCustomParseOptions(t *testing.T) {
 	q := "query"
 	v := "foo"
