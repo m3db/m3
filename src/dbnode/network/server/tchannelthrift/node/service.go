@@ -732,8 +732,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		Exhaustive: queryResult.Exhaustive,
 		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, results.Size()),
 	}
-	nsID := results.Namespace()
-	nsIDBytes := nsID.Bytes()
+	nsIDBytes := ns.Bytes()
 
 	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
@@ -742,14 +741,14 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
-	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+	if err := s.fetchReadEncoded(ctx, db, response, results, ns, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+		if err := s.fetchReadResults(ctx, response, ns, encodedDataResults); err != nil {
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return nil, err
 		}

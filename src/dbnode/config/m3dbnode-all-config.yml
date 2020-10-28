@@ -147,7 +147,7 @@ db:
     # and snapshotting to prevent them from interfering with the commitlog. Increasing
     # this value can make node adds significantly faster if the underlyign disk can
     # support the throughput.
-    throughputLimitMbps: 100.0
+    throughputLimitMbps: 1000.0
     throughputCheckEvery: 128
 
   # This feature is currently not working, do not enable.
