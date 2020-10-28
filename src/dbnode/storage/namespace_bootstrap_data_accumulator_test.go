@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -83,7 +82,7 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	defer ctrl.Finish()
 	var (
 		ns      = NewMockdatabaseNamespace(ctrl)
-		series  = series.NewMockDatabaseSeries(ctrl)
+		series  = bootstrap.NewMockSeriesRef(ctrl)
 		acc     = NewDatabaseNamespaceDataAccumulator(ns)
 		shardID = uint32(7)
 
@@ -138,7 +137,7 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		release = &releaser{}
 		ref     = SeriesReadWriteRef{
 			UniqueIndex:         uniqueIdx,
-			Series:              series.NewMockDatabaseSeries(ctrl),
+			Series:              bootstrap.NewMockSeriesRef(ctrl),
 			ReleaseReadWriteRef: release,
 		}
 	)

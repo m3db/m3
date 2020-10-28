@@ -335,11 +335,12 @@ func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
 }
 
 // State mocks base method
-func (m *MockSegment) State() IndexSegmentState {
+func (m *MockSegment) State() (IndexSegmentState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "State")
 	ret0, _ := ret[0].(IndexSegmentState)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // State indicates an expected call of State
