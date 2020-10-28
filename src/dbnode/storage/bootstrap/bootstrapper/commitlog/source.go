@@ -891,19 +891,20 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
 			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
-
-			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) ||
-				// Should never happen
-				mostRecentCompleteSnapshotForShardBlock.IsZero() {
+			if mostRecentCompleteSnapshotForShardBlock.IsZero() {
+				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+					l.Error(fmt.Sprintf("zero value snapshot for shard: %d blockStart: %v", shard, blockStart))
+				})
+			}
+			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) {
 				// There is no snapshot file for this time, and even if there was, there would
 				// be no point in reading it. In this specific case its not an error scenario
 				// because the fact that snapshotTime == blockStart means we already accounted
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
-				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
-					l.Error(fmt.Sprintf("no snapshots for shard: %d blockStart: %v", shard, blockStart))
-				})
+				s.log.Debug("no index snapshots for blockStart",
+					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
 				continue
 			}
 
