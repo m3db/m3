@@ -429,8 +429,8 @@ func TestConfiguration(t *testing.T) {
       size: 100
       cacheRegexp: false
       cacheTerms: false
-  filesystem:
     regexp: null
+  filesystem:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
     dataReadBufferSize: 65536
