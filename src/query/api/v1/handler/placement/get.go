@@ -46,10 +46,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBGetURL is the old url for the placement get handler, maintained for
-	// backwards compatibility.
-	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
-
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
 	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)

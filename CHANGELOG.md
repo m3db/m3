@@ -1,5 +1,39 @@
 # Changelog
 
+# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+
+## Backwards Incompatible Changes
+
+### Configuration
+- **M3DB**: `db.bootstrap.bootstrappers` removed
+- **M3Coordinator**: `cluster.namespaces.storageMetricsType` removed
+- **M3Coordinator**: `tagOptions.tagOptions` no longer supports `legacy` type
+- **M3Query**: `limits.perQuery.maxComputedDatapoints` removed
+- **M3Query**: `limits.perQuery.maxFetchedDatapoints` removed
+- **M3Query**: `limits.global.maxFetchedDatapoints` removed
+- **M3Query**: `cache` removed
+- **M3Query**: `listenAddress` changed to always be resolved as a string from config. Format changed from
+```
+listenAddress:
+  config: "..."
+  value: "..."
+```
+to 
+```
+listenAddress: "..."
+```
+
+### API
+- **M3DB**: `/services/m3db/database/config/bootstrappers` dynamic bootstappers endpoint removed
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace` in favor of stable preferred URL `/api/v1/services/m3db/namespace`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/init` in favor of stable preferred URL `/api/v1/services/m3db/namespace/init`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/unagg` in favor of stable preferred URL `/api/v1/services/m3db/namespace/unagg`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement` in favor of stable preferred URL `/api/v1/services/m3db/placement`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement/init` in favor of stable preferred URL `/api/v1/services/m3db/placement/init`
+
+### Misc
+- **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
+
 # 0.15.17
 
 ## Features 

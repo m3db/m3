@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
@@ -195,13 +194,7 @@ func TestFetchByQuery(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(res, nil)
 
-	childEnforcer := cost.NewMockChainedEnforcer(ctrl)
-	childEnforcer.EXPECT().Close()
-
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
-
-	wrapper := NewM3WrappedStorage(store, enforcer, testM3DBOpts,
+	wrapper := NewM3WrappedStorage(store, testM3DBOpts,
 		instrument.NewOptions(), M3WrappedStorageOptions{})
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
@@ -243,7 +236,7 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 	query := "a."
 	ctx := xctx.New()
-	wrapper := NewM3WrappedStorage(store, nil, testM3DBOpts,
+	wrapper := NewM3WrappedStorage(store, testM3DBOpts,
 		instrument.NewOptions(), M3WrappedStorageOptions{})
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)

@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -117,7 +116,6 @@ func (s *m3storage) FetchProm(
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result,
 		s.opts.ReadWorkerPool(),
-		options.Enforcer,
 		s.opts.TagOptions(),
 	)
 
@@ -147,11 +145,6 @@ func FetchResultToBlockResult(
 		Start:    start,
 		Duration: query.End.Sub(start),
 		StepSize: query.Interval,
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
 	}
 
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
