@@ -284,7 +284,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 			for _, lastFlushedNanos := range fbr.ByNumForwardedTimes {
 				if lastFlushedNanos == 0 {
 					mgr.logger.Warn("Encountered zero lastFlushedNanos",
-						zap.Int64("windowNanos", windowNanos),
+						zap.Duration("windowNanos", windowSize),
 						zap.String("flusherType", "forwarded"),
 						zap.Int("shardID", int(shardID)))
 					mgr.metrics.forwarded.zeroLastFlushTime.Inc(1)
@@ -308,15 +308,15 @@ func (mgr *followerFlushManager) canLead(
 	metrics standardFollowerFlusherMetrics,
 ) bool {
 	for windowNanos, lastFlushedNanos := range flushTimes {
+		windowSize := time.Duration(windowNanos)
 		if lastFlushedNanos == 0 {
 			mgr.logger.Warn("Encountered zero lastFlushedNanos",
-				zap.Int64("windowNanos", windowNanos),
+				zap.Duration("windowNanos", windowSize),
 				zap.String("flusherType", flusherType),
 				zap.Int("shardID", shardID))
 			metrics.zeroLastFlushTime.Inc(1)
 		}
 
-		windowSize := time.Duration(windowNanos)
 		windowEndAt := mgr.openedAt.Truncate(windowSize)
 		if windowEndAt.Before(mgr.openedAt) {
 			windowEndAt = windowEndAt.Add(windowSize)
