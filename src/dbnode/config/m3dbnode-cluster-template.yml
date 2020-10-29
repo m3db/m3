@@ -1,6 +1,5 @@
 coordinator:
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   local:
     namespaces:
@@ -78,11 +77,6 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
 
@@ -99,5 +93,5 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     filePathPrefix: /var/lib/m3db

@@ -118,7 +118,8 @@ func deprecationCheck(cfg interface{}, df []string) []string {
 		}
 		name := reflect.TypeOf(cfg).Field(i).Name
 		if strings.HasPrefix(name, deprecatedPrefix) && !v.IsZero() {
-			// Only log as deprecated if actually using (not zero value).
+			// Exclude unset deprecated config values from
+			// raising warnings via checking IsZero.
 			df = append(df, name)
 		}
 	}
