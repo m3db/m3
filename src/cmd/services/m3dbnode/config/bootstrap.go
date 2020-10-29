@@ -66,7 +66,7 @@ var (
 		uninitialized.UninitializedTopologyBootstrapperName,
 	}
 
-	// bootstrapper order where peers is prefered over commitlog.
+	// bootstrapper order where commitlog is excluded.
 	excludeCommitLogOrderedBootstrappers = []string{
 		// Filesystem bootstrapping must be first.
 		bfs.FileSystemBootstrapperName,
