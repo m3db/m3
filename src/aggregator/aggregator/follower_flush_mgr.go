@@ -248,17 +248,19 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// start time are closed, meaning the standard metrics that didn't make to the
 		// process have been flushed successfully downstream.
 		if !mgr.canLead(
-			"standard",
+			standardMetricListType,
 			int(shardID),
 			shardFlushTimes.StandardByResolution,
-			mgr.metrics.standard) {
+			mgr.metrics.standard,
+		) {
 			return false
 		}
 		if !mgr.canLead(
-			"timed",
+			timedMetricListType,
 			int(shardID),
 			shardFlushTimes.TimedByResolution,
-			mgr.metrics.timed) {
+			mgr.metrics.timed,
+		) {
 			return false
 		}
 
@@ -266,9 +268,9 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// time, meaning the forwarded metrics that didn't make to the process have been
 		// flushed successfully downstream.
 		for windowNanos, fbr := range shardFlushTimes.ForwardedByResolution {
-			mgr.logger.Warn("ForwardedByResolution is nil",
-				zap.Int("shardID", int(shardID)))
 			if fbr == nil {
+				mgr.logger.Warn("ForwardedByResolution is nil",
+					zap.Int("shardID", int(shardID)))
 				mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
 				return false
 			}
@@ -284,9 +286,9 @@ func (mgr *followerFlushManager) CanLead() bool {
 
 			for numForwardedTimes, lastFlushedNanos := range fbr.ByNumForwardedTimes {
 				if lastFlushedNanos == 0 {
-					mgr.logger.Warn("Encountered a window that was never flushed by leader",
-						zap.String("windowSize", windowSize.String()),
-						zap.String("flusherType", "forwarded"),
+					mgr.logger.Info("Encountered a window that was never flushed by leader",
+						zap.Stringer("windowSize", windowSize),
+						zap.Stringer("flusherType", forwardedMetricListType),
 						zap.Int("shardID", int(shardID)),
 						zap.Int32("numForwardedTimes", numForwardedTimes))
 					mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
@@ -312,16 +314,12 @@ func (mgr *followerFlushManager) CanLead() bool {
 // This is case is possible when leader encounters a metric at some resolution
 // window for the first time in the shard it owns.
 func (mgr *followerFlushManager) canLeadNotFushed(windowSize time.Duration) bool {
-	earliestPossibleWindowStart := mgr.nowFn().Add(-windowSize)
-	if mgr.openedAt.Before(earliestPossibleWindowStart) {
-		return true
-	}
-
-	return false
+	windowStartAt := mgr.nowFn().Truncate(windowSize)
+	return mgr.openedAt.Before(windowStartAt)
 }
 
 func (mgr *followerFlushManager) canLead(
-	flusherType string,
+	flusherType metricListType,
 	shardID int,
 	flushTimes map[int64]int64,
 	metrics standardFollowerFlusherMetrics,
@@ -329,9 +327,9 @@ func (mgr *followerFlushManager) canLead(
 	for windowNanos, lastFlushedNanos := range flushTimes {
 		windowSize := time.Duration(windowNanos)
 		if lastFlushedNanos == 0 {
-			mgr.logger.Warn("Encountered a window that was never flushed by leader",
-				zap.String("windowSize", windowSize.String()),
-				zap.String("flusherType", flusherType),
+			mgr.logger.Info("Encountered a window that was never flushed by leader",
+				zap.Stringer("windowSize", windowSize),
+				zap.Stringer("flusherType", flusherType),
 				zap.Int("shardID", int(shardID)))
 			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 

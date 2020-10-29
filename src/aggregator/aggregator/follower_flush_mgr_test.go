@@ -133,37 +133,15 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 }
 
 func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	doneCh := make(chan struct{})
-	electionManager := NewMockElectionManager(ctrl)
-	electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
-	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
-	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	window := 10 * time.Minute
 	testFlushTimes := &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
-			0: &schema.ShardFlushTimes{
+			123: &schema.ShardFlushTimes{
 				StandardByResolution: map[int64]int64{
-					10000000000:  0, // 10s
-					60000000000:  0, // 1m
-					600000000000: 0, // 10m
+					window.Nanoseconds(): 0,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					// 10s
-					10000000000: &schema.ForwardedFlushTimesForResolution{
-						ByNumForwardedTimes: map[int32]int64{
-							1: 0,
-						},
-					},
-					// 1 m
-					60000000000: &schema.ForwardedFlushTimesForResolution{
-						ByNumForwardedTimes: map[int32]int64{
-							1: 0,
-						},
-					},
-					// 10m
-					600000000000: &schema.ForwardedFlushTimesForResolution{
+					window.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
 						ByNumForwardedTimes: map[int32]int64{
 							1: 0,
 						},
@@ -173,13 +151,42 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		},
 	}
 
-	mgr.processed = testFlushTimes
+	runTestFn := func(
+		t *testing.T,
+		followerOpenedAt time.Time,
+		expectedCanLead bool,
+	) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mgr.openedAt = time.Now().Add(-9 * time.Minute)
-	require.False(t, mgr.CanLead())
+		doneCh := make(chan struct{})
+		electionManager := NewMockElectionManager(ctrl)
+		electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
+		opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+		mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 
-	mgr.openedAt = time.Now().Add(-11 * time.Minute)
-	require.True(t, mgr.CanLead())
+		mgr.processed = testFlushTimes
+		mgr.openedAt = followerOpenedAt
+		require.Equal(t, expectedCanLead, mgr.CanLead())
+	}
+
+	t.Run("opened_on_the_window_start", func(t *testing.T) {
+		followerOpenedAt := time.Now().Truncate(window)
+		expectedCanLead := false
+		runTestFn(t, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("opened_after_the_window_start", func(t *testing.T) {
+		followerOpenedAt := time.Now().Truncate(window).Add(1 * time.Second)
+		expectedCanLead := false
+		runTestFn(t, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("opened_before_the_window_start", func(t *testing.T) {
+		followerOpenedAt := time.Now().Truncate(window).Add(-1 * time.Second)
+		expectedCanLead := true
+		runTestFn(t, followerOpenedAt, expectedCanLead)
+	})
 }
 
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
