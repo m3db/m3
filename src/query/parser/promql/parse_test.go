@@ -385,6 +385,7 @@ var binaryParseTests = []struct {
 
 	// Various spacing
 	{"up/ up", functions.FetchType, functions.FetchType, binary.DivType},
+	{"up-up", functions.FetchType, functions.FetchType, binary.MinusType},
 	{"10 -up", scalar.ScalarType, functions.FetchType, binary.MinusType},
 	{"up*10", functions.FetchType, scalar.ScalarType, binary.MultiplyType},
 	{"up!=10", functions.FetchType, scalar.ScalarType, binary.NotEqType},
