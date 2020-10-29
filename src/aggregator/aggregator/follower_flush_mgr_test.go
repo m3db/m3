@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/x/watch"
 
@@ -129,6 +130,56 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3640, 0)
 	require.False(t, mgr.CanLead())
+}
+
+func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	doneCh := make(chan struct{})
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	testFlushTimes := &schema.ShardSetFlushTimes{
+		ByShard: map[uint32]*schema.ShardFlushTimes{
+			0: &schema.ShardFlushTimes{
+				StandardByResolution: map[int64]int64{
+					10000000000:  0, // 10s
+					60000000000:  0, // 1m
+					600000000000: 0, // 10m
+				},
+				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
+					// 10s
+					10000000000: &schema.ForwardedFlushTimesForResolution{
+						ByNumForwardedTimes: map[int32]int64{
+							1: 0,
+						},
+					},
+					// 1 m
+					60000000000: &schema.ForwardedFlushTimesForResolution{
+						ByNumForwardedTimes: map[int32]int64{
+							1: 0,
+						},
+					},
+					// 10m
+					600000000000: &schema.ForwardedFlushTimesForResolution{
+						ByNumForwardedTimes: map[int32]int64{
+							1: 0,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mgr.processed = testFlushTimes
+
+	mgr.openedAt = time.Now().Add(-9 * time.Minute)
+	require.False(t, mgr.CanLead())
+
+	mgr.openedAt = time.Now().Add(-11 * time.Minute)
+	require.True(t, mgr.CanLead())
 }
 
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {

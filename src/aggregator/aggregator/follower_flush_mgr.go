@@ -38,7 +38,7 @@ type standardFollowerFlusherMetrics struct {
 	resolutionNotFound   tally.Counter
 	kvUpdates            tally.Counter
 	flushWindowsNotEnded tally.Counter
-	zeroLastFlushTime    tally.Counter
+	windowsNeverFlushed  tally.Counter
 }
 
 func newStandardFlusherMetrics(scope tally.Scope) standardFollowerFlusherMetrics {
@@ -47,7 +47,7 @@ func newStandardFlusherMetrics(scope tally.Scope) standardFollowerFlusherMetrics
 		resolutionNotFound:   scope.Counter("resolution-not-found"),
 		kvUpdates:            scope.Counter("kv-updates"),
 		flushWindowsNotEnded: scope.Counter("flush-windows-not-ended"),
-		zeroLastFlushTime:    scope.Counter("zero-last-flushed-time"),
+		windowsNeverFlushed:  scope.Counter("windows-never-flushed"),
 	}
 }
 
@@ -58,7 +58,7 @@ type forwardedFollowerFlusherMetrics struct {
 	numForwardedTimesNotFound tally.Counter
 	kvUpdates                 tally.Counter
 	flushWindowsNotEnded      tally.Counter
-	zeroLastFlushTime         tally.Counter
+	windowNeverFlushed        tally.Counter
 }
 
 func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetrics {
@@ -69,7 +69,7 @@ func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetri
 		numForwardedTimesNotFound: scope.Counter("num-forwarded-times-not-found"),
 		kvUpdates:                 scope.Counter("kv-updates"),
 		flushWindowsNotEnded:      scope.Counter("flush-windows-not-ended"),
-		zeroLastFlushTime:         scope.Counter("zero-last-flushed-time"),
+		windowNeverFlushed:        scope.Counter("windows-never-flushed"),
 	}
 }
 
@@ -281,13 +281,19 @@ func (mgr *followerFlushManager) CanLead() bool {
 			if waitTillFlushedTime.Equal(mgr.openedAt) {
 				waitTillFlushedTime = waitTillFlushedTime.Add(-windowSize)
 			}
-			for _, lastFlushedNanos := range fbr.ByNumForwardedTimes {
+
+			for numForwardedTimes, lastFlushedNanos := range fbr.ByNumForwardedTimes {
 				if lastFlushedNanos == 0 {
-					mgr.logger.Warn("Encountered zero lastFlushedNanos",
-						zap.Duration("windowNanos", windowSize),
+					mgr.logger.Warn("Encountered a window that was never flushed by leader",
+						zap.String("windowSize", windowSize.String()),
 						zap.String("flusherType", "forwarded"),
-						zap.Int("shardID", int(shardID)))
-					mgr.metrics.forwarded.zeroLastFlushTime.Inc(1)
+						zap.Int("shardID", int(shardID)),
+						zap.Int32("numForwardedTimes", numForwardedTimes))
+					mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
+
+					if mgr.canLeadNotFushed(windowSize) {
+						continue
+					}
 				}
 
 				if lastFlushedNanos <= waitTillFlushedTime.UnixNano() {
@@ -301,6 +307,19 @@ func (mgr *followerFlushManager) CanLead() bool {
 	return true
 }
 
+// canLeadNotFlushed determines whether the follower can takeover leadership
+// for the window that was not (yet) flushed by leader.
+// This is case is possible when leader encounters a metric at some resolution
+// window for the first time in the shard it owns.
+func (mgr *followerFlushManager) canLeadNotFushed(windowSize time.Duration) bool {
+	earliestPossibleWindowStart := mgr.nowFn().Add(-windowSize)
+	if mgr.openedAt.Before(earliestPossibleWindowStart) {
+		return true
+	}
+
+	return false
+}
+
 func (mgr *followerFlushManager) canLead(
 	flusherType string,
 	shardID int,
@@ -310,11 +329,15 @@ func (mgr *followerFlushManager) canLead(
 	for windowNanos, lastFlushedNanos := range flushTimes {
 		windowSize := time.Duration(windowNanos)
 		if lastFlushedNanos == 0 {
-			mgr.logger.Warn("Encountered zero lastFlushedNanos",
-				zap.Duration("windowNanos", windowSize),
+			mgr.logger.Warn("Encountered a window that was never flushed by leader",
+				zap.String("windowSize", windowSize.String()),
 				zap.String("flusherType", flusherType),
-				zap.Int("shardID", shardID))
-			metrics.zeroLastFlushTime.Inc(1)
+				zap.Int("shardID", int(shardID)))
+			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
+
+			if mgr.canLeadNotFushed(windowSize) {
+				continue
+			}
 		}
 
 		windowEndAt := mgr.openedAt.Truncate(windowSize)
