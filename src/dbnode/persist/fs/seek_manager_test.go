@@ -44,6 +44,8 @@ const (
 var (
 	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
 		SetBlockLeaseManager(&block.NoopLeaseManager{}).
+		// Test with caching enabled.
+		SetCacheBlocksOnRetrieve(true).
 		// Default value is determined by available CPUs, but for testing
 		// we want to have this been consistent across hardware.
 		SetFetchConcurrency(defaultTestingFetchConcurrency)

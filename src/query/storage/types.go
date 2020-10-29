@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -130,9 +129,6 @@ type FetchOptions struct {
 	Step time.Duration
 	// LookbackDuration if set overrides the default lookback duration.
 	LookbackDuration *time.Duration
-	// Enforcer is used to enforce resource limits on the number of datapoints
-	// used by a given query. Limits are imposed at time of decompression.
-	Enforcer cost.ChainedEnforcer
 	// Scope is used to report metrics about the fetch.
 	Scope tally.Scope
 	// Timeout is the timeout for the request.

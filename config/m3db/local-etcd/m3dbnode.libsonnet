@@ -28,9 +28,6 @@ function(coordinator={}, db={}) {
       "samplingRate": 1.0,
       "extended": "none"
     },
-    "limits": {
-      "maxComputedDatapoints": 10000
-    },
     "tagOptions": {
       // Configuration setting for generating metric IDs from tags.
       "idScheme": "quoted"
@@ -66,12 +63,6 @@ function(coordinator={}, db={}) {
     "writeNewSeriesLimitPerSecond": 1048576,
     "writeNewSeriesBackoffDuration": "2ms",
     "bootstrap": {
-      "bootstrappers": [
-        "filesystem",
-        "commitlog",
-        "peers",
-        "uninitialized_topology"
-      ],
       "commitlog": {
         "returnUnfulfilledForCorruptCommitLogFiles": false
       }

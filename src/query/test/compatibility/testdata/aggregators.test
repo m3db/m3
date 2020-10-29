@@ -101,13 +101,11 @@ load 5m
   http_requests{job="api-server", instance="1", group="production"} 0+1.33x10
   http_requests{job="api-server", instance="0", group="canary"} 0+1.33x10
 
-# FAILING issue #10. (it is almost zero)
-#eval instant at 50m stddev(http_requests)
-#  {} 0.0
+eval instant at 50m stddev(http_requests)
+  {} 0.0
 
-# FAILING issue #11. (it is almost zero)
-#eval instant at 50m stdvar(http_requests)
-#  {} 0.0
+eval instant at 50m stdvar(http_requests)
+  {} 0.0
 
 
 

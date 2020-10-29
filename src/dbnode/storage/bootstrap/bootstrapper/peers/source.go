@@ -238,7 +238,7 @@ func (s *peersSource) readData(
 	)
 
 	if persistConfig.Enabled &&
-		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
+		seriesCachePolicy != series.CacheAll &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
 		shouldPersist = true
 	}
@@ -534,8 +534,7 @@ func (s *peersSource) flush(
 	}
 
 	seriesCachePolicy := s.opts.ResultOptions().SeriesCachePolicy()
-	if seriesCachePolicy != series.CacheRecentlyRead &&
-		seriesCachePolicy != series.CacheLRU {
+	if seriesCachePolicy == series.CacheAll {
 		// Should never happen.
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
 		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {

@@ -104,12 +104,6 @@ function(cluster, coordinator={}, db={}) {
     "writeNewSeriesLimitPerSecond": 1048576,
     "writeNewSeriesBackoffDuration": "2ms",
     "bootstrap": {
-      "bootstrappers": [
-        "filesystem",
-        "commitlog",
-        "peers",
-        "uninitialized_topology"
-      ],
       "commitlog": {
         "returnUnfulfilledForCorruptCommitLogFiles": false
       }

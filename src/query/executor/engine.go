@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
@@ -48,10 +47,6 @@ type QueryOptions struct {
 func NewEngine(
 	engineOpts EngineOptions,
 ) Engine {
-	if engineOpts.GlobalEnforcer() == nil {
-		engineOpts = engineOpts.SetGlobalEnforcer(qcost.NoopChainedEnforcer())
-	}
-
 	return &engine{
 		metrics: newEngineMetrics(engineOpts.InstrumentOptions().MetricsScope()),
 		opts:    engineOpts,
@@ -120,8 +115,6 @@ func (e *engine) ExecuteExpr(
 	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
 ) (block.Block, error) {
-	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
-	defer perQueryEnforcer.Close()
 	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
@@ -143,7 +136,7 @@ func (e *engine) ExecuteExpr(
 	defer sp.Finish()
 
 	scope := e.opts.InstrumentOptions().MetricsScope()
-	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
+	queryCtx := models.NewQueryContext(ctx, scope,
 		opts.QueryContextOptions)
 
 	if err := state.Execute(queryCtx); err != nil {

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,23 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cost
+package cache
 
-import "go.uber.org/atomic"
+import (
+	"context"
+	"time"
+)
 
-type tracker struct {
-	total *atomic.Float64
+// NewNoop returns a new no-op cache.
+func NewNoop() Cache {
+	return &noopCache{}
 }
 
-// NewTracker returns a new Tracker which maintains a simple running total of all the
-// costs it has seen so far.
-func NewTracker() Tracker         { return tracker{total: atomic.NewFloat64(0)} }
-func (t tracker) Add(c Cost) Cost { return Cost(t.total.Add(float64(c))) }
-func (t tracker) Current() Cost   { return Cost(t.total.Load()) }
+type noopCache struct{}
 
-type noopTracker struct{}
+func (n *noopCache) Put(_ string, _ interface{})                           {}
+func (n *noopCache) PutWithTTL(_ string, _ interface{}, ttl time.Duration) {}
 
-// NewNoopTracker returns a tracker which always always returns a cost of 0.
-func NewNoopTracker() Tracker         { return noopTracker{} }
-func (t noopTracker) Add(c Cost) Cost { return 0 }
-func (t noopTracker) Current() Cost   { return 0 }
+func (n *noopCache) Get(ctx context.Context, key string, loader LoaderFunc) (interface{}, error) {
+	return loader(ctx, key)
+}
+
+func (n *noopCache) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
+	val, _, err := loader(ctx, key)
+	return val, err
+}
+
+var _ Cache = &noopCache{}
