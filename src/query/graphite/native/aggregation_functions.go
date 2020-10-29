@@ -583,7 +583,7 @@ func getParts(series *ts.Series) {
 func getAggregationKey(series *ts.Series, nodes []int) string {
 	parts := getParts(series)
 
-	var keys []string
+	keys := make([]string, 0, len(nodes))
 	for _, n := range nodes {
 		if n < 0 {
 			n = len(parts) + n
