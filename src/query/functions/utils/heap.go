@@ -35,17 +35,28 @@ type ValueIndexPair struct {
 type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
 func maxHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val || math.IsNaN(i.Val) && math.IsNaN(j.Val) {
+	if equalWithNaNs(i.Val, j.Val) {
 		return i.Index > j.Index
 	}
-	return i.Val < j.Val || math.IsNaN(i.Val) && !math.IsNaN(j.Val)
+	return i.Val < j.Val || lesserIfNaNs(i.Val, j.Val)
 }
 
 func minHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val || math.IsNaN(i.Val) && math.IsNaN(j.Val) {
+	if equalWithNaNs(i.Val, j.Val) {
 		return i.Index > j.Index
 	}
-	return i.Val > j.Val || math.IsNaN(i.Val) && !math.IsNaN(j.Val)
+	return i.Val > j.Val || lesserIfNaNs(i.Val, j.Val)
+}
+
+// Compares two floats for equality with NaNs taken into account.
+func equalWithNaNs(i,j float64) bool {
+	return i == j || math.IsNaN(i) && math.IsNaN(j)
+}
+
+// Checks which value is less if first of them is NaN.
+// Basically, we do not want to add NaNs to the heap when it has reached it's cap so this fn should be used to prevent this.
+func lesserIfNaNs(i,j float64) bool {
+	return math.IsNaN(i) && !math.IsNaN(j)
 }
 
 // Compares two float64 values which one is lesser with NaNs. NaNs are always sorted away.
@@ -56,13 +67,6 @@ func LesserWithNaNs(i, j float64) bool {
 // Compares two float64 values which one is greater with NaNs. NaNs are always sorted away.
 func GreaterWithNaNs(i, j float64) bool {
 	return i > j || math.IsNaN(j) && !math.IsNaN(i)
-}
-
-func Min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // FloatHeap is a heap that can be given a maximum size
@@ -166,7 +170,7 @@ func (fh *FloatHeap) Flush() []ValueIndexPair {
 func (fh *FloatHeap) OrderedFlush() []ValueIndexPair {
 	flushed := fh.Flush()
 	sort.Slice(flushed, func(i, j int) bool {
-		return fh.floatHeap.less(flushed[j], flushed[i])
+		return !fh.floatHeap.less(flushed[i], flushed[j]) //reverse sort
 	})
 	return flushed
 }

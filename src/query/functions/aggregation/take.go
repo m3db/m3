@@ -143,7 +143,12 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 
 	seriesCount := maxSeriesCount(buckets)
 	if instantaneous {
-		heap := utils.NewFloatHeap(takeTop, utils.Min(n.op.k, seriesCount))
+		heapSize := seriesCount
+		if n.op.k < seriesCount {
+			heapSize = n.op.k
+		}
+
+		heap := utils.NewFloatHeap(takeTop, heapSize)
 		return n.processBlockInstantaneous(heap, queryCtx, meta, stepIter, seriesMetas, buckets)
 	}
 
@@ -231,11 +236,11 @@ func (n *takeNode) processBlockInstantaneous(
 }
 
 func mapToValuesAndSeriesMetas(takenSortedValues []valueAndMeta) ([]float64, []block.SeriesMeta) {
-	blockValues := make([]float64, len(takenSortedValues))
-	blockSeries := make([]block.SeriesMeta, len(takenSortedValues))
-	for i, sortedValue := range takenSortedValues {
-		blockValues[i] = sortedValue.val
-		blockSeries[i] = sortedValue.seriesMeta
+	blockValues := make([]float64, 0, len(takenSortedValues))
+	blockSeries := make([]block.SeriesMeta, 0, len(takenSortedValues))
+	for _, sortedValue := range takenSortedValues {
+		blockValues = append(blockValues, sortedValue.val)
+		blockSeries = append(blockSeries, sortedValue.seriesMeta)
 	}
 	return blockValues, blockSeries
 }
