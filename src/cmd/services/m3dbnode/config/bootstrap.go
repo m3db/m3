@@ -66,9 +66,19 @@ var (
 		uninitialized.UninitializedTopologyBootstrapperName,
 	}
 
+	// bootstrapper order where peers is prefered over commitlog.
+	excludeCommitLogOrderedBootstrappers = []string{
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Commitlog excluded.
+		peers.PeersBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
+	}
+
 	validBootstrapModes = []BootstrapMode{
 		DefaultBootstrapMode,
 		PreferPeersBootstrapMode,
+		ExcludeCommitLogBootstrapMode,
 	}
 
 	errReadBootstrapModeInvalid = errors.New("bootstrap mode invalid")
@@ -82,6 +92,8 @@ const (
 	DefaultBootstrapMode BootstrapMode = iota
 	// PreferPeersBootstrapMode executes peers before commitlog bootstrapper.
 	PreferPeersBootstrapMode
+	// ExcludeCommitLogBootstrapMode executes all default bootstrappers except commitlog.
+	ExcludeCommitLogBootstrapMode
 )
 
 // UnmarshalYAML unmarshals an BootstrapMode into a valid type from string.
@@ -114,6 +126,8 @@ func (m BootstrapMode) String() string {
 		return "default"
 	case PreferPeersBootstrapMode:
 		return "prefer_peers"
+	case ExcludeCommitLogBootstrapMode:
+		return "exclude_commitlog"
 	}
 	return "unknown"
 }
@@ -375,8 +389,15 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 }
 
 func (bsc BootstrapConfiguration) orderedBootstrappers() []string {
-	if bsc.BootstrapMode != nil && *bsc.BootstrapMode == PreferPeersBootstrapMode {
-		return preferPeersOrderedBootstrappers
+	if bsc.BootstrapMode != nil {
+		switch *bsc.BootstrapMode {
+		case DefaultBootstrapMode:
+			return defaultOrderedBootstrappers
+		case PreferPeersBootstrapMode:
+			return preferPeersOrderedBootstrappers
+		case ExcludeCommitLogBootstrapMode:
+			return excludeCommitLogOrderedBootstrappers
+		}
 	}
 	return defaultOrderedBootstrappers
 }
