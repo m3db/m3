@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
+package protobuf
 
-option go_package = "github.com/m3db/m3/src/metrics/generated/proto/policypb";
+import (
+	"runtime"
+	"testing"
 
-package policypb;
+	"github.com/m3db/m3/src/metrics/policy"
+)
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
+func BenchmarkDecodeStoragePolicy(b *testing.B) {
+	var (
+		enc = NewAggregatedEncoder(nil)
+		dec = NewAggregatedDecoder(nil)
+		sp  policy.StoragePolicy
+		err error
+	)
+	if err := enc.Encode(testAggregatedMetric1, 2000); err != nil {
+		b.Fatal(err)
+	}
 
-message Resolution {
-  int64 window_size = 1;
-  int64 precision = 2;
-}
+	buf := enc.Buffer().Bytes()
+	b.ResetTimer()
 
-message Retention {
-  int64 period = 1;
-}
-
-message StoragePolicy {
-  Resolution resolution = 1 [(gogoproto.nullable) = false];
-  Retention retention = 2 [(gogoproto.nullable) = false];
-}
-
-message Policy {
-  StoragePolicy storage_policy = 1;
-  repeated aggregationpb.AggregationType aggregation_types = 2;
-}
-
-enum DropPolicy {
-  NONE = 0;
-  DROP_MUST = 1;
-  DROP_IF_ONLY_MATCH = 2;
+	for i := 0; i < b.N; i++ {
+		_ = dec.Decode(buf)
+		if sp, err = dec.StoragePolicy(); err != nil {
+			b.FailNow()
+		}
+		dec.Close()
+	}
+	runtime.KeepAlive(sp)
 }

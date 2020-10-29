@@ -27,8 +27,10 @@ import (
 
 // AggregatedDecoder is a decoder for decoding aggregated metrics.
 type AggregatedDecoder struct {
-	pool AggregatedDecoderPool
-	pb   metricpb.AggregatedMetric
+	pool  AggregatedDecoderPool
+	pb    metricpb.AggregatedMetric
+	sp    policy.StoragePolicy
+	spErr error
 }
 
 // NewAggregatedDecoder creates an aggregated decoder.
@@ -40,7 +42,11 @@ func NewAggregatedDecoder(p AggregatedDecoderPool) *AggregatedDecoder {
 
 // Decode decodes the aggregated metric from the given bytes.
 func (d *AggregatedDecoder) Decode(b []byte) error {
-	return d.pb.Unmarshal(b)
+	if err := d.pb.Unmarshal(b); err != nil {
+		return err
+	}
+	d.spErr = d.sp.FromProto(d.pb.Metric.StoragePolicy)
+	return nil
 }
 
 // ID returns the decoded id.
@@ -60,7 +66,7 @@ func (d AggregatedDecoder) Value() float64 {
 
 // StoragePolicy returns the decoded storage policy.
 func (d AggregatedDecoder) StoragePolicy() (policy.StoragePolicy, error) {
-	return policy.NewStoragePolicyFromProto(&d.pb.Metric.StoragePolicy)
+	return d.sp, d.spErr
 }
 
 // EncodeNanos returns the decoded encodeNanos.
@@ -70,7 +76,8 @@ func (d AggregatedDecoder) EncodeNanos() int64 {
 
 // Close closes the decoder.
 func (d *AggregatedDecoder) Close() {
-	resetAggregatedMetricProto(&d.pb)
+	d.sp, d.spErr = policy.StoragePolicy{}, nil
+	ReuseAggregatedMetricProto(&d.pb)
 	if d.pool != nil {
 		d.pool.Put(d)
 	}
