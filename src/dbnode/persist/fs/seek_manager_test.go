@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -43,6 +44,8 @@ const (
 var (
 	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
 		SetBlockLeaseManager(&block.NoopLeaseManager{}).
+		// Test with caching enabled.
+		SetCacheBlocksOnRetrieve(true).
 		// Default value is determined by available CPUs, but for testing
 		// we want to have this been consistent across hardware.
 		SetFetchConcurrency(defaultTestingFetchConcurrency)
@@ -101,7 +104,7 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	var (
-		ctrl   = gomock.NewController(t)
+		ctrl   = xtest.NewController(t)
 		shards = []uint32{2, 5, 9, 478, 1023}
 		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	)
@@ -143,7 +146,7 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		sharding.DefaultHashFn(1),
 	)
 	require.NoError(t, err)
-	// Pick a start time thats within retention so the background loop doesn't close
+	// Pick a start time that's within retention so the background loop doesn't close
 	// the seeker.
 	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
 	require.NoError(t, m.Open(metadata, shardSet))
@@ -216,12 +219,89 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	require.NoError(t, m.Close())
 }
 
+func TestSeekerManagerUpdateOpenLeaseConcurrentNotAllowed(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	var (
+		ctrl     = xtest.NewController(t)
+		shards   = []uint32{1, 2}
+		m        = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+		metadata = testNs1Metadata(t)
+		// Pick a start time that's within retention so the background loop doesn't close the seeker.
+		blockStart = time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
+	)
+	defer ctrl.Finish()
+
+	descriptor1 := block.LeaseDescriptor{
+		Namespace:  metadata.ID(),
+		Shard:      1,
+		BlockStart: blockStart,
+	}
+
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		if volume == 1 {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// Call UpdateOpenLease while within another UpdateOpenLease call.
+				_, err := m.UpdateOpenLease(descriptor1, block.LeaseState{Volume: 2})
+				if shard == 1 {
+					// Concurrent call is made with the same shard id (and other values).
+					require.Equal(t, errConcurrentUpdateOpenLeaseNotAllowed, err)
+				} else {
+					// Concurrent call is made with a different shard id (2) and so it should pass.
+					require.NoError(t, err)
+				}
+			}()
+			wg.Wait()
+		}
+		mock := NewMockDataFileSetSeeker(ctrl)
+		mock.EXPECT().ConcurrentClone().Return(mock, nil).AnyTimes()
+		mock.EXPECT().Close().AnyTimes()
+		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, m.Open(metadata, shardSet))
+
+	for _, shardID := range shards {
+		seeker, err := m.Borrow(shardID, blockStart)
+		require.NoError(t, err)
+		require.NoError(t, m.Return(shardID, blockStart, seeker))
+	}
+
+	updateResult, err := m.UpdateOpenLease(descriptor1, block.LeaseState{Volume: 1})
+	require.NoError(t, err)
+	require.Equal(t, block.UpdateOpenLease, updateResult)
+
+	descriptor2 := descriptor1
+	descriptor2.Shard = 2
+	updateResult, err = m.UpdateOpenLease(descriptor2, block.LeaseState{Volume: 1})
+	require.NoError(t, err)
+	require.Equal(t, block.UpdateOpenLease, updateResult)
+
+	require.NoError(t, m.Close())
+}
+
 // TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
 // open seekers lazily if they're not already open.
 func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
@@ -271,7 +351,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
@@ -450,7 +530,7 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	var (
-		ctrl   = gomock.NewController(t)
+		ctrl   = xtest.NewController(t)
 		shards = []uint32{1, 2}
 		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	)

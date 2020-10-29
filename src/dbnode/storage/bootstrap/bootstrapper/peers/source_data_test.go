@@ -270,6 +270,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
+		series.CacheNone,
 		series.CacheRecentlyRead,
 		series.CacheLRU,
 	} {

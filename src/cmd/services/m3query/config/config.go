@@ -77,8 +77,20 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQuerySeriesLimit = 10000
+	// By default, cap total series to prevent results of
+	// extremely large sizes consuming too much memory.
+	defaultStorageQuerySeriesLimit = 100_000
 	defaultStorageQueryDocsLimit   = 0 // Default OFF.
+
+	// By default, raise errors instead of truncating results so
+	// users do not experience see unexpected results.
+	defaultRequireExhaustive = true
+
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
+	}
 )
 
 // Configuration is the configuration for the query service.
@@ -123,7 +135,7 @@ type Configuration struct {
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
@@ -169,6 +181,14 @@ type Configuration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// WriteWorkerPoolOrDefault returns the write worker pool config or default.
+func (c Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.WriteWorkerPool != nil {
+		return *c.WriteWorkerPool
+	}
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -355,7 +375,7 @@ type PerQueryLimitsConfiguration struct {
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
+	RequireExhaustive *bool `yaml:"requireExhaustive"`
 
 	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
 	// used by a given query, this is applied at the query service after the
@@ -391,10 +411,15 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		docsLimit = v
 	}
 
+	requireExhaustive := defaultRequireExhaustive
+	if r := l.RequireExhaustive; r != nil {
+		requireExhaustive = *r
+	}
+
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
-		RequireExhaustive: l.RequireExhaustive,
+		RequireExhaustive: requireExhaustive,
 	}
 }
 
@@ -508,7 +533,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	}
 
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
-	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	policies := make([]CarbonIngesterStoragePolicyConfiguration, 0, len(namespaces))
 	for _, ns := range namespaces {
 		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{

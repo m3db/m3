@@ -91,11 +91,11 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	}
 
 	op := getAggOpType(opType)
-	if op == common.UnknownOpType {
+	switch op {
+	case common.UnknownOpType:
 		return nil, fmt.Errorf("operator not supported: %s", opType)
-	}
 
-	if op == aggregation.BottomKType || op == aggregation.TopKType {
+	case aggregation.BottomKType, aggregation.TopKType:
 		val, err := resolveScalarArgument(expr.Param)
 		if err != nil {
 			return nil, err
@@ -103,13 +103,19 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 
 		nodeInformation.Parameter = val
 		return aggregation.NewTakeOp(op, nodeInformation)
-	}
 
-	if op == aggregation.CountValuesType {
+	case aggregation.CountValuesType:
 		nodeInformation.StringParameter = expr.Param.String()
 		return aggregation.NewCountValuesOp(op, nodeInformation)
-	}
 
+	case aggregation.QuantileType:
+		val, err := resolveScalarArgument(expr.Param)
+		if err != nil {
+			return nil, err
+		}
+
+		nodeInformation.Parameter = val
+	}
 	return aggregation.NewAggregationOp(op, nodeInformation)
 }
 

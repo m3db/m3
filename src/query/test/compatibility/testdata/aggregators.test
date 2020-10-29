@@ -101,13 +101,11 @@ load 5m
   http_requests{job="api-server", instance="1", group="production"} 0+1.33x10
   http_requests{job="api-server", instance="0", group="canary"} 0+1.33x10
 
-# FAILING issue #10. (it is almost zero)
-#eval instant at 50m stddev(http_requests)
-#  {} 0.0
+eval instant at 50m stddev(http_requests)
+  {} 0.0
 
-# FAILING issue #11. (it is almost zero)
-#eval instant at 50m stdvar(http_requests)
-#  {} 0.0
+eval instant at 50m stdvar(http_requests)
+  {} 0.0
 
 
 
@@ -285,13 +283,12 @@ load 10s
 	data{test="uneven samples",point="c"} 4
 	foo .8
 
-# FAILING issue #8 (quantile)
-#eval instant at 1m quantile without(point)(0.8, data)
-#	{test="two samples"} 0.8
-#	{test="three samples"} 1.6
-#	{test="uneven samples"} 2.8
+eval instant at 1m quantile without(point)(0.8, data)
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
 
-# Bug #5276.
+# FAILING issue #56. scalar() as a quantile()/topk()/bottomk() argument produces NaN
 #eval instant at 1m quantile without(point)(scalar(foo), data)
 #	{test="two samples"} 0.8
 #	{test="three samples"} 1.6
