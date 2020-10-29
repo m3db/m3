@@ -105,8 +105,7 @@ func medianSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList,
 		return ts.NewSeriesList(), err
 	}
 	numSteps := ts.NumSteps(start, end, millisPerStep)
-	values   := ts.NewValues(ctx, millisPerStep, numSteps)
-
+	values := ts.NewValues(ctx, millisPerStep, numSteps)
 
 	valuesAtTime := make([]float64, len(normalized.Values))
 	for i := 0; i < numSteps; i++ {
@@ -564,22 +563,27 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 	return groupByNodes(ctx, series, fname, []int{node}...)
 }
 
-func findFirstMetricExpression(seriesName string) string {
+func findFirstMetricExpression(seriesName string) (string, bool) {
 	idxOfRightParen := strings.Index(seriesName, ")")
+	if idxOfRightParen == -1 {
+		return "", false
+	}
 	substring := seriesName[:idxOfRightParen]
 	idxOfLeftParen := strings.LastIndex(substring, "(")
-	return seriesName[idxOfLeftParen+1:idxOfRightParen]
+	if idxOfLeftParen == -1 {
+		return "", false
+	}
+	return seriesName[idxOfLeftParen+1 : idxOfRightParen], true
 }
 
-func getParts(series *ts.Series) {
-  seriesName := series.Name()
-  if metricExpr, ok := findFirstMetricExpression(seriesName); ok {
-    seriesName = metricExpr
-  }
-  return strings.Split(seriesName, ".")
+func getParts(series *ts.Series) []string {
+	seriesName := series.Name()
+	if metricExpr, ok := findFirstMetricExpression(seriesName); ok {
+		seriesName = metricExpr
+	}
+	return strings.Split(seriesName, ".")
 }
 
-}
 func getAggregationKey(series *ts.Series, nodes []int) string {
 	parts := getParts(series)
 
@@ -591,6 +595,8 @@ func getAggregationKey(series *ts.Series, nodes []int) string {
 
 		if n < len(parts) {
 			keys = append(keys, parts[n])
+		} else {
+			keys = append(keys, "")
 		}
 	}
 	return strings.Join(keys, ".")
@@ -602,9 +608,7 @@ func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) map[string][]
 	if len(nodes) > 0 {
 		for _, s := range seriesList.Values {
 			key := getAggregationKey(s, nodes)
-			if key != "" {
-				metaSeries[key] = append(metaSeries[key], s)
-			}
+			metaSeries[key] = append(metaSeries[key], s)
 		}
 	}
 

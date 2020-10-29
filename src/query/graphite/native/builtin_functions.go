@@ -1070,7 +1070,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 	case nil:
 		// if total is nil, the total is the sum of all the input series
 		toNormalize = input.Values
-		var err error = nil
+		var err error
 		summedSeries, err := sumSeries(ctx, multiplePathSpecs(input))
 		if err != nil {
 			return ts.NewSeriesList(), err
