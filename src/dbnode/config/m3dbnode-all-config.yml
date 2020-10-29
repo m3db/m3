@@ -105,6 +105,7 @@ db:
 
   bootstrap:
     commitlog:
+      # Whether tail end of corrupted commit logs cause an error on bootstrap.
       returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
