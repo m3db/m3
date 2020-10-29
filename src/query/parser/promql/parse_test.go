@@ -536,6 +536,28 @@ func TestExpressionsInFunctionArgumentsDoNotError(t *testing.T) {
 	}
 }
 
+var invalidFunctionArgumentsTests = []string{
+	"vector(())",
+	"vector((1)",
+	"vector(metric)",
+	`label_join(up, "f" + "oo", ",", "ba" + "r")`,
+	`label_join(up, 1, ",", 2)`,
+	`label_join("up", "foo", ",", "bar")`,
+	"abs(1)",
+	"abs(())",
+	"stddev_over_time(metric[1m]+1)",
+	"stddev_over_time(metric)",
+}
+
+func TestParseInvalidFunctionArgumentsErrors(t *testing.T) {
+	for _, q := range invalidFunctionArgumentsTests {
+		t.Run(q, func(t *testing.T) {
+			_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestCustomParseOptions(t *testing.T) {
 	q := "query"
 	v := "foo"
