@@ -504,8 +504,8 @@ func TestMissingTagsDoNotPanic(t *testing.T) {
 }
 
 var functionArgumentExpressionTests = []struct {
-	name  string
-	query string
+	name string
+	q    string
 }{
 	{
 		"scalar argument",
@@ -528,7 +528,7 @@ var functionArgumentExpressionTests = []struct {
 func TestExpressionsInFunctionArgumentsDoNotError(t *testing.T) {
 	for _, tt := range functionArgumentExpressionTests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := Parse(tt.query, time.Second, models.NewTagOptions(), NewParseOptions())
+			p, err := Parse(tt.q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			_, _, err = p.DAG()
 			require.NoError(t, err)
