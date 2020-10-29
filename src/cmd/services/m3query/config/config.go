@@ -40,6 +40,7 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
+	"github.com/m3db/m3/src/x/debug/config"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
@@ -76,8 +77,20 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQuerySeriesLimit = 10000
+	// By default, cap total series to prevent results of
+	// extremely large sizes consuming too much memory.
+	defaultStorageQuerySeriesLimit = 100_000
 	defaultStorageQueryDocsLimit   = 0 // Default OFF.
+
+	// By default, raise errors instead of truncating results so
+	// users do not experience see unexpected results.
+	defaultRequireExhaustive = true
+
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
+	}
 )
 
 // Configuration is the configuration for the query service.
@@ -122,12 +135,12 @@ type Configuration struct {
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
 
-	// Downsample configurates how the metrics should be downsampled.
+	// Downsample configures how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
 	// Ingest is the ingest server.
@@ -151,6 +164,9 @@ type Configuration struct {
 	// Experimental is the configuration for the experimental API group.
 	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
 
+	// StoreMetricsType controls if metrics type is stored or not.
+	StoreMetricsType *bool `yaml:"storeMetricsType"`
+
 	// Cache configurations.
 	//
 	// Deprecated: cache configurations are no longer supported. Remove from file
@@ -162,6 +178,17 @@ type Configuration struct {
 
 	// MultiProcess is the multi-process configuration.
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
+
+	// Debug configuration.
+	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// WriteWorkerPoolOrDefault returns the write worker pool config or default.
+func (c Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.WriteWorkerPool != nil {
+		return *c.WriteWorkerPool
+	}
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -348,7 +375,7 @@ type PerQueryLimitsConfiguration struct {
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
+	RequireExhaustive *bool `yaml:"requireExhaustive"`
 
 	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
 	// used by a given query, this is applied at the query service after the
@@ -384,10 +411,15 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		docsLimit = v
 	}
 
+	requireExhaustive := defaultRequireExhaustive
+	if r := l.RequireExhaustive; r != nil {
+		requireExhaustive = *r
+	}
+
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
-		RequireExhaustive: l.RequireExhaustive,
+		RequireExhaustive: requireExhaustive,
 	}
 }
 
@@ -428,6 +460,22 @@ type CarbonConfiguration struct {
 	ShiftStepsStart int `yaml:"shiftStepsStart"`
 	// ShiftStepsEnd sets a constant set of steps to shift end by.
 	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// ShiftStepsStartWhenAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the start is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsStartWhenAtResolutionBoundary *int `yaml:"shiftStepsStartWhenAtResolutionBoundary"`
+	// ShiftStepsEndWhenAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the end is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsEndWhenAtResolutionBoundary *int `yaml:"shiftStepsEndWhenAtResolutionBoundary"`
+	// ShiftStepsStartWhenEndAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the end is an exact match to the resolution boundary
+	// of a query AND the start is not an exact match to the resolution boundary.
+	ShiftStepsStartWhenEndAtResolutionBoundary *int `yaml:"shiftStepsStartWhenEndAtResolutionBoundary"`
+	// ShiftStepsEndWhenStartAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the start is an exact match to the resolution boundary
+	// of a query AND the end is not an exact match to the resolution boundary.
+	ShiftStepsEndWhenStartAtResolutionBoundary *int `yaml:"shiftStepsEndWhenStartAtResolutionBoundary"`
 	// RenderPartialStart sets whether to render partial datapoints when
 	// the start time is between a datapoint's resolution step size.
 	RenderPartialStart bool `yaml:"renderPartialStart"`
@@ -485,7 +533,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	}
 
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
-	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	policies := make([]CarbonIngesterStoragePolicyConfiguration, 0, len(namespaces))
 	for _, ns := range namespaces {
 		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{

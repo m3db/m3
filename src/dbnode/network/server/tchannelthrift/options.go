@@ -44,7 +44,7 @@ type options struct {
 	maxOutstandingReadRequests  int
 }
 
-// NewOptions creates new options
+// NewOptions creates new options.
 func NewOptions() Options {
 	// Use a zero size pool by default, override from config.
 	poolOptions := pool.NewObjectPoolOptions().

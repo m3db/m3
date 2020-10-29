@@ -225,6 +225,7 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
+
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -488,7 +489,7 @@ func (b *block) queryWithSpan(
 	}()
 
 	for iter.Next() {
-		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -518,8 +519,7 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
-	return exhaustive, nil
+	return opts.exhaustive(size, docsCount), nil
 }
 
 func (b *block) closeAsync(closer io.Closer) {
@@ -535,8 +535,10 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.docsLimit.Inc(len(batch)); err != nil {
-		return batch, 0, 0, err
+	if results.EnforceLimits() {
+		if err := b.docsLimit.Inc(len(batch)); err != nil {
+			return batch, 0, 0, err
+		}
 	}
 
 	// checkout the lifetime of the query before adding results.
@@ -671,7 +673,7 @@ func (b *block) aggregateWithSpan(
 	}
 
 	for _, reader := range readers {
-		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -682,7 +684,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
-			if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+			if opts.LimitsExceeded(size, docsCount) {
 				break
 			}
 
@@ -716,8 +718,7 @@ func (b *block) aggregateWithSpan(
 		}
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
-	return exhaustive, nil
+	return opts.exhaustive(size, docsCount), nil
 }
 
 func (b *block) appendFieldAndTermToBatch(
@@ -796,8 +797,10 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := b.docsLimit.Inc(len(batch)); err != nil {
-		return batch, 0, 0, err
+	if results.EnforceLimits() {
+		if err := b.docsLimit.Inc(len(batch)); err != nil {
+			return batch, 0, 0, err
+		}
 	}
 
 	// checkout the lifetime of the query before adding results.

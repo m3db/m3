@@ -94,6 +94,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 							Metadatas: metadata.StagedMetadatas{},
 						},
 					},
+					true,
 				)
 			})
 

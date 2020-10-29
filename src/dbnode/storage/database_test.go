@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -44,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -52,6 +54,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
@@ -210,7 +213,7 @@ func dbAddNewMockNamespace(
 }
 
 func TestDatabaseOpen(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -224,7 +227,7 @@ func TestDatabaseOpen(t *testing.T) {
 }
 
 func TestDatabaseClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -238,7 +241,7 @@ func TestDatabaseClose(t *testing.T) {
 }
 
 func TestDatabaseTerminate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -251,8 +254,8 @@ func TestDatabaseTerminate(t *testing.T) {
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 
-func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseReadEncodedNamespaceNonExistent(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -262,12 +265,13 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"),
+		ident.StringID("foo"), time.Now(), time.Now())
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseReadEncoded(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -291,8 +295,74 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	require.Nil(t, err)
 }
 
-func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
+		index.Query{}, time.Now(), nil, index.IterationOptions{})
+	require.True(t, dberrors.IsUnknownNamespaceError(err))
+}
+
+func TestDatabaseIndexChecksum(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	nsID := ident.StringID("testns1")
+	seriesID := ident.StringID("bar")
+	end := time.Now()
+	start := end.Add(-time.Hour)
+
+	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
+	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
+		Return(
+			xio.IndexChecksum{
+				ID:               ident.StringID("foo"),
+				MetadataChecksum: 5,
+			}, nil)
+	mockNamespace := NewMockdatabaseNamespace(ctrl)
+	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+		Return(indexChecksumWithID, nil)
+
+	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
+	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
+		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
+	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+		Return(indexChecksumWithoutID, nil)
+	d.namespaces.Set(nsID, mockNamespace)
+
+	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	require.NoError(t, err)
+	checksum, err := res.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	assert.Equal(t, "foo", checksum.ID.String())
+	assert.Equal(t, 5, int(checksum.MetadataChecksum))
+
+	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	checksum, err = res.RetrieveIndexChecksum()
+	require.NoError(t, err)
+	require.NoError(t, err)
+	assert.Nil(t, checksum.ID)
+	assert.Equal(t, 7, int(checksum.MetadataChecksum))
+}
+
+func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -310,8 +380,8 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
-func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseFetchBlocks(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -338,7 +408,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseNamespaces(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -358,7 +428,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 }
 
 func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -374,7 +444,7 @@ func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
 }
 
 func TestDatabaseAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -407,7 +477,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 }
 
 func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -441,7 +511,7 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 }
 
 func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -476,7 +546,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -520,7 +590,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 }
 
 func TestDatabaseAddNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -581,7 +651,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -638,7 +708,7 @@ func TestDatabaseCreateSchemaNotSet(t *testing.T) {
 	protoTestDatabaseOptions := DefaultTestOptions().
 		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Start the database with two namespaces, one miss configured (missing schema).
@@ -673,7 +743,7 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	protoTestDatabaseOptions := DefaultTestOptions().
 		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Start db with no namespaces.
@@ -764,7 +834,7 @@ func TestDatabaseNamespaceIndexFunctionsNoCommitlog(t *testing.T) {
 }
 
 func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -772,7 +842,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -852,21 +922,166 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ns.EXPECT().Close().Return(nil)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 5)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[2].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[3].OperationName)
-	assert.Equal(t, "root", spans[4].OperationName)
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+	exSpans := []string{
+		tracepoint.DBQueryIDs,
+		tracepoint.DBQueryIDs,
+		tracepoint.DBAggregateQuery,
+		tracepoint.DBAggregateQuery,
+		"root",
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
+}
+
+type wideQueryTestFn func(
+	ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+	ns *MockdatabaseNamespace, d *db, q index.Query,
+	now time.Time, shards []uint32, iterOpts index.IterationOptions,
+)
+
+func TestWideQuery(t *testing.T) {
+	readMismatchTest := func(
+		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+		ns *MockdatabaseNamespace, d *db, q index.Query,
+		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+			ident.StringID("foo"), gomock.Any()).
+			Return(block.EmptyStreamedChecksum, nil)
+
+		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
+		require.NoError(t, err)
+
+		_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+		require.Error(t, err)
+	}
+
+	exSpans := []string{
+		tracepoint.DBIndexChecksum,
+		tracepoint.DBWideQuery,
+		tracepoint.DBWideQuery,
+		"root",
+	}
+
+	testWideFunction(t, readMismatchTest, exSpans)
+}
+
+func TestReadMismatches(t *testing.T) {
+	readMismatchTest := func(
+		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
+		ns *MockdatabaseNamespace, d *db, q index.Query,
+		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
+		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
+			ident.StringID("foo"), gomock.Any()).
+			Return(wide.EmptyStreamedMismatch, nil)
+
+		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
+		require.NoError(t, err)
+
+		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
+		require.Error(t, err)
+	}
+
+	exSpans := []string{
+		tracepoint.DBFetchMismatch,
+		tracepoint.DBReadMismatches,
+		tracepoint.DBReadMismatches,
+		"root",
+	}
+
+	testWideFunction(t, readMismatchTest, exSpans)
+}
+
+func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	commitLog := d.commitLog
+	d.commitLog = nil
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	require.NoError(t, d.Open())
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	var (
+		q = index.Query{
+			Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+		}
+
+		now      = time.Now()
+		iterOpts = index.IterationOptions{}
+		wideOpts = index.WideQueryOptions{
+			StartInclusive:   now.Truncate(2 * time.Hour),
+			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
+			IterationOptions: iterOpts,
+			BatchSize:        1024,
+		}
+	)
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	shards := []uint32{1, 2, 3}
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ index.Query,
+			collector chan *ident.IDBatch,
+			opts index.WideQueryOptions,
+		) error {
+			assert.Equal(t, opts.StartInclusive, wideOpts.StartInclusive)
+			assert.Equal(t, opts.EndExclusive, wideOpts.EndExclusive)
+			assert.Equal(t, opts.IterationOptions, wideOpts.IterationOptions)
+			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
+			assert.Equal(t, opts.ShardsQueried, shards)
+			go func() {
+				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch.ReadyForProcessing()
+				collector <- batch
+				close(collector)
+			}()
+			return nil
+		})
+
+	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("random err"))
+
+	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
+	ns.EXPECT().Close().Return(nil)
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitLog
+	require.NoError(t, d.Close())
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -889,7 +1104,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 }
 
 func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -948,7 +1163,7 @@ type indexedErr struct {
 
 func testDatabaseWriteBatch(t *testing.T,
 	tagged bool, commitlogEnabled bool, skipAll bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -956,7 +1171,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -1102,12 +1317,12 @@ func testDatabaseWriteBatch(t *testing.T,
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseBootstrapState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1138,7 +1353,7 @@ func TestDatabaseBootstrapState(t *testing.T) {
 }
 
 func TestDatabaseFlushState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1166,7 +1381,7 @@ func TestDatabaseFlushState(t *testing.T) {
 }
 
 func TestDatabaseIsBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1184,7 +1399,7 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 }
 
 func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -1192,7 +1407,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	d.commitLog = nil
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
@@ -1262,12 +1477,12 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.Equal(t, 2, len(errHandler.errs))
 	require.Equal(t, err, errHandler.errs[0].err)
 	require.Equal(t, err, errHandler.errs[1].err)
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseIsOverloaded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)

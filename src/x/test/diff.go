@@ -45,6 +45,13 @@ func MustPrettyJSONMap(t *testing.T, value xjson.Map) string {
 	return string(pretty)
 }
 
+// MustPrettyJSONArray returns an indented JSON string of the object.
+func MustPrettyJSONArray(t *testing.T, value xjson.Array) string {
+	pretty, err := json.MarshalIndent(value, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
+}
+
 // MustPrettyJSONString returns an indented version of the JSON.
 func MustPrettyJSONString(t *testing.T, str string) string {
 	var unmarshalled map[string]interface{}

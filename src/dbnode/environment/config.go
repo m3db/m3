@@ -199,6 +199,10 @@ type ConfigurationParameters struct {
 	HostID                 string
 	NewDirectoryMode       os.FileMode
 	ForceColdWritesEnabled bool
+	// AllowEmptyInitialNamespaceRegistry determines whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	// This is used when configuring the namespaceInitializer.
+	AllowEmptyInitialNamespaceRegistry bool
 }
 
 // UnmarshalYAML normalizes the config into a list of services.
@@ -297,7 +301,8 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			SetConfigServiceClient(configSvcClient).
 			SetNamespaceRegistryKey(kvconfig.NamespacesKey).
-			SetForceColdWritesEnabled(cfgParams.ForceColdWritesEnabled)
+			SetForceColdWritesEnabled(cfgParams.ForceColdWritesEnabled).
+			SetAllowEmptyInitialNamespaceRegistry(cfgParams.AllowEmptyInitialNamespaceRegistry)
 		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 		serviceID := services.NewServiceID().

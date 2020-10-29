@@ -449,13 +449,13 @@ func TestCleanup(t *testing.T) {
 
 	blockStart := time.Now()
 	var shard uint32 = 1
-	fsId := FileSetFileIdentifier{
+	fsID := FileSetFileIdentifier{
 		Namespace:   md.ID(),
 		Shard:       shard,
 		BlockStart:  blockStart,
 		VolumeIndex: 0,
 	}
-	writeFilesetToDisk(t, fsId, fsOpts)
+	writeFilesetToDisk(t, fsID, fsOpts)
 
 	// Verify fileset exists
 	exists, err := DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 0)
@@ -476,7 +476,7 @@ func TestCleanup(t *testing.T) {
 	preparer, err := pm.StartFlushPersist()
 	require.NoError(t, err)
 
-	err = merger.MergeAndCleanup(fsId, NewNoopMergeWith(), fsId.VolumeIndex+1, preparer,
+	err = merger.MergeAndCleanup(fsID, NewNoopMergeWith(), fsID.VolumeIndex+1, preparer,
 		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{}, false)
 	require.NoError(t, err)
 
@@ -504,12 +504,12 @@ func TestCleanupOnceBootstrapped(t *testing.T) {
 	require.Error(t, err)
 }
 
-func writeFilesetToDisk(t *testing.T, fsId FileSetFileIdentifier, fsOpts Options) {
+func writeFilesetToDisk(t *testing.T, fsID FileSetFileIdentifier, fsOpts Options) {
 	w, err := NewWriter(fsOpts)
 	require.NoError(t, err)
 
 	writerOpts := DataWriterOpenOptions{
-		Identifier: fsId,
+		Identifier: fsID,
 		BlockSize:  2 * time.Hour,
 	}
 	err = w.Open(writerOpts)

@@ -26,6 +26,7 @@ var (
 	defaultPostingsListCacheSize   = 2 << 11 // 4096
 	defaultPostingsListCacheRegexp = true
 	defaultPostingsListCacheTerms  = true
+	defaultRegexpCacheSize         = 256
 )
 
 // CacheConfigurations is the cache configurations.
@@ -35,6 +36,9 @@ type CacheConfigurations struct {
 
 	// PostingsList cache policy.
 	PostingsList *PostingsListCacheConfiguration `yaml:"postingsList"`
+
+	// Regexp cache policy.
+	Regexp *RegexpCacheConfiguration `yaml:"regexp"`
 }
 
 // SeriesConfiguration returns the series cache configuration or default
@@ -53,8 +57,16 @@ func (c CacheConfigurations) PostingsListConfiguration() PostingsListCacheConfig
 	if c.PostingsList == nil {
 		return PostingsListCacheConfiguration{}
 	}
-
 	return *c.PostingsList
+}
+
+// RegexpConfiguration returns the regexp cache configuration or default
+// if none is specified.
+func (c CacheConfigurations) RegexpConfiguration() RegexpCacheConfiguration {
+	if c.Regexp == nil {
+		return RegexpCacheConfiguration{}
+	}
+	return *c.Regexp
 }
 
 // SeriesCacheConfiguration is the series cache configuration.
@@ -79,7 +91,7 @@ type PostingsListCacheConfiguration struct {
 
 // SizeOrDefault returns the provided size or the default value is none is
 // provided.
-func (p *PostingsListCacheConfiguration) SizeOrDefault() int {
+func (p PostingsListCacheConfiguration) SizeOrDefault() int {
 	if p.Size == nil {
 		return defaultPostingsListCacheSize
 	}
@@ -89,7 +101,7 @@ func (p *PostingsListCacheConfiguration) SizeOrDefault() int {
 
 // CacheRegexpOrDefault returns the provided cache regexp configuration value
 // or the default value is none is provided.
-func (p *PostingsListCacheConfiguration) CacheRegexpOrDefault() bool {
+func (p PostingsListCacheConfiguration) CacheRegexpOrDefault() bool {
 	if p.CacheRegexp == nil {
 		return defaultPostingsListCacheRegexp
 	}
@@ -99,10 +111,25 @@ func (p *PostingsListCacheConfiguration) CacheRegexpOrDefault() bool {
 
 // CacheTermsOrDefault returns the provided cache terms configuration value
 // or the default value is none is provided.
-func (p *PostingsListCacheConfiguration) CacheTermsOrDefault() bool {
+func (p PostingsListCacheConfiguration) CacheTermsOrDefault() bool {
 	if p.CacheTerms == nil {
 		return defaultPostingsListCacheTerms
 	}
 
 	return *p.CacheTerms
+}
+
+// RegexpCacheConfiguration is a compiled regexp cache for query regexps.
+type RegexpCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
+// SizeOrDefault returns the provided size or the default value is none is
+// provided.
+func (c RegexpCacheConfiguration) SizeOrDefault() int {
+	if c.Size == nil {
+		return defaultRegexpCacheSize
+	}
+
+	return *c.Size
 }

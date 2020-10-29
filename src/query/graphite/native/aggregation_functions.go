@@ -94,6 +94,36 @@ func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 	return combineSeries(ctx, series, wrapPathExpr(maxSeriesFnName, ts.SeriesList(series)), ts.Max)
 }
 
+// medianSeries takes a list of series and returns a new series containing the
+// median value across the series at each datapoint
+func medianSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+	if len(series.Values) == 0 {
+		return ts.NewSeriesList(), nil
+	}
+	normalized, start, end, millisPerStep, err := common.Normalize(ctx, ts.SeriesList(series))
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	numSteps := ts.NumSteps(start, end, millisPerStep)
+	values   := ts.NewValues(ctx, millisPerStep, numSteps)
+
+
+	valuesAtTime := make([]float64, len(normalized.Values))
+	for i := 0; i < numSteps; i++ {
+		for j, series := range normalized.Values {
+			valuesAtTime[j] = series.ValueAt(i)
+		}
+		values.SetValueAt(i, ts.Median(valuesAtTime, len(valuesAtTime)))
+	}
+
+	name := wrapPathExpr(medianSeriesFnName, ts.SeriesList(series))
+	output := ts.NewSeries(ctx, name, start, values)
+	return ts.SeriesList{
+		Values:   []*ts.Series{output},
+		Metadata: series.Metadata,
+	}, nil
+}
+
 // lastSeries takes a list of series and returns a new series containing the
 // last value at each datapoint
 func lastSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
@@ -193,15 +223,13 @@ func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries *ts.S
 
 // divideSeries divides one series list by another single series
 func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
+	if len(dividendSeriesList.Values) == 0 || len(divisorSeriesList.Values) == 0 {
+		return ts.NewSeriesList(), nil
+	}
 	if len(divisorSeriesList.Values) != 1 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries second argument must reference exactly one series but instead has %d",
 			len(divisorSeriesList.Values)))
-		return ts.NewSeriesList(), err
-	}
-	if len(dividendSeriesList.Values) == 0 {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
-			"divideSeries first argument must reference at least one series"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -257,6 +285,8 @@ func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.Ser
 		return minSeries(ctx, multiplePathSpecs(series))
 	case maxFnName, maxSeriesFnName:
 		return maxSeries(ctx, multiplePathSpecs(series))
+	case medianFnName, medianSeriesFnName:
+		return medianSeries(ctx, multiplePathSpecs(series))
 	case avgFnName, averageFnName, averageSeriesFnName:
 		return averageSeries(ctx, multiplePathSpecs(series))
 	case multiplyFnName, multiplySeriesFnName:
@@ -541,8 +571,7 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 		}
 
 		if n >= len(parts) || n < 0 {
-			err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by node %d; not enough parts", s.Name(), node))
-			return ts.NewSeriesList(), err
+			return aggregate(ctx, series, fname)
 		}
 
 		key := parts[n]
@@ -583,8 +612,7 @@ func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, node
 				}
 
 				if n >= len(parts) || n < 0 {
-					err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by nodes %v; not enough parts", s.Name(), nodes))
-					return ts.NewSeriesList(), err
+					return aggregate(ctx, series, fname)
 				}
 
 				keys = append(keys, parts[n])
