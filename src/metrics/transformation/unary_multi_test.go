@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package block
+package transformation
 
-import "github.com/m3db/m3/src/query/cost"
+import (
+	"testing"
+	"time"
 
-// AccountedBlock is a wrapper for a block which enforces limits on the number
-// of datapoints used by the block.
-type AccountedBlock struct {
-	Block
+	"github.com/stretchr/testify/require"
+)
 
-	enforcer cost.ChainedEnforcer
+func TestReset(t *testing.T) {
+	reset, err := Reset.UnaryMultiOutputTransform()
+	require.NoError(t, err)
+	now := time.Now()
+	dp := Datapoint{Value: 1000, TimeNanos: now.UnixNano()}
+	this, other := reset.Evaluate(dp)
+	require.Equal(t, dp, this)
+	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, other)
 }
 
-// NewAccountedBlock wraps the given block and enforces datapoint limits.
-func NewAccountedBlock(
-	wrapped Block,
-	enforcer cost.ChainedEnforcer,
-) *AccountedBlock {
-	return &AccountedBlock{
-		Block:    wrapped,
-		enforcer: enforcer,
-	}
-}
-
-// Close closes the block, and marks the number of datapoints used
-// by this block as finished.
-func (ab *AccountedBlock) Close() error {
-	ab.enforcer.Close()
-	return ab.Block.Close()
+func TestUnaryMultiParse(t *testing.T) {
+	parsed, err := ParseType("Reset")
+	require.NoError(t, err)
+	require.Equal(t, Reset, parsed)
 }

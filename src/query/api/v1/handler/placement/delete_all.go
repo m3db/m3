@@ -41,10 +41,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBDeleteAllURL is the old url for the handler to delete all placements, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
-
 	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3DB service.
 	M3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
