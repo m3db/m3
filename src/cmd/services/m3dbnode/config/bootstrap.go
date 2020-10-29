@@ -115,7 +115,7 @@ func (m BootstrapMode) String() string {
 	case PreferPeersBootstrapMode:
 		return "prefer_peers"
 	}
-	return "default"
+	return "unknown"
 }
 
 // BootstrapConfiguration specifies the config for bootstrappers.
