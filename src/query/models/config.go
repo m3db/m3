@@ -26,7 +26,6 @@ import (
 )
 
 var validIDSchemes = []IDSchemeType{
-	TypeLegacy,
 	TypeQuoted,
 	TypePrependMeta,
 	TypeGraphite,
@@ -38,7 +37,7 @@ func (t IDSchemeType) Validate() error {
 		return errors.New("id scheme type not set")
 	}
 
-	if t >= TypeLegacy && t <= TypeGraphite {
+	if t >= TypeQuoted && t <= TypeGraphite {
 		return nil
 	}
 
@@ -50,8 +49,6 @@ func (t IDSchemeType) String() string {
 	switch t {
 	case TypeDefault:
 		return ""
-	case TypeLegacy:
-		return "legacy"
 	case TypeQuoted:
 		return "quoted"
 	case TypePrependMeta:

@@ -43,10 +43,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBInitURL is the old url for the placement init handler, maintained for backwards
-	// compatibility. (with the POST method).
-	DeprecatedM3DBInitURL = path.Join(handler.RoutePrefixV1, PlacementPathName, initPathName)
-
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
 	M3DBInitURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, initPathName)
 

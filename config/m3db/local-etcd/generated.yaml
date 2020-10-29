@@ -1,9 +1,5 @@
 "coordinator":
-  "limits":
-    "maxComputedDatapoints": 10000
-  "listenAddress":
-    "type": "config"
-    "value": "0.0.0.0:7201"
+  "listenAddress": "0.0.0.0:7201"
   "local":
     "namespaces":
     - "namespace": "default"
@@ -24,11 +20,6 @@
     "idScheme": "quoted"
 "db":
   "bootstrap":
-    "bootstrappers":
-    - "filesystem"
-    - "commitlog"
-    - "peers"
-    - "uninitialized_topology"
     "commitlog":
       "returnUnfulfilledForCorruptCommitLogFiles": false
   "cache":
