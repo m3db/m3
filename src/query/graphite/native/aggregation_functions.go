@@ -571,13 +571,13 @@ func findFirstMetricExpression(seriesName string) string {
 	return seriesName[idxOfLeftParen+1:idxOfRightParen]
 }
 
-func getParts(series *ts.Series) []string {
-	seriesName := series.Name()
-	if strings.Contains(seriesName, ")") {
-		seriesName = findFirstMetricExpression(seriesName)
-	}
-
-	return strings.Split(seriesName, ".")
+func getParts(series *ts.Series) {
+  seriesName := series.Name()
+  if metricExpr, ok := findFirstMetricExpression(seriesName); ok {
+    seriesName = metricExpr
+  }
+  return strings.Split(seriesName, ".")
+}
 
 }
 func getAggregationKey(series *ts.Series, nodes []int) string {
