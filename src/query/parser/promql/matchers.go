@@ -133,12 +133,11 @@ func resolveStringArgument(expr promql.Expr) (string, error) {
 		return "", fmt.Errorf("expression is nil")
 	}
 
-	switch n := expr.(type) {
-	case *promql.StringLiteral:
-		return n.Val, nil
-	default:
-		return expr.String(), nil
+	if str, ok := expr.(*promql.StringLiteral); ok {
+		return str.Val, nil
 	}
+
+	return expr.String(), nil
 }
 
 func getAggOpType(opType promql.ItemType) string {

@@ -162,7 +162,7 @@ func (n *countValuesNode) ProcessBlock(
 
 	params := n.op.params
 	labelName := params.StringParameter
-	if !isValid(labelName) {
+	if !models.IsValid(labelName) {
 		return nil, fmt.Errorf("invalid label name %q", labelName)
 	}
 
@@ -260,21 +260,6 @@ func padValuesWithNaNs(vals bucketColumn, size int) bucketColumn {
 	}
 
 	return vals
-}
-
-// IsValid is true if the label name matches the pattern of "^[a-zA-Z_][a-zA-Z0-9_]*$". This
-// method, however, does not use regex for the check but a much faster
-// hardcoded implementation.
-func isValid(ln string) bool {
-	if len(ln) == 0 {
-		return false
-	}
-	for i, b := range ln {
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
-			return false
-		}
-	}
-	return true
 }
 
 // count values takes a value array and a bucket list, returns a map of

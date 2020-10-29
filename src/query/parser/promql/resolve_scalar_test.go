@@ -91,8 +91,8 @@ var stringResolverTests = []struct {
 	funcString string
 	expected   string
 }{
-	{"(((\"value\")))", "value"},
-	{"\"value\"", "value"},
+	{`((("value")))`, "value"},
+	{`"value"`, "value"},
 }
 
 func TestStringResolver(t *testing.T) {
