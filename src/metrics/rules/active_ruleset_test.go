@@ -567,6 +567,34 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 	}
 }
 
+func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
+	inputs := []testMatchInput{
+		{
+			id:           "rtagName1=rtagValue1",
+			matchFrom:    25000,
+			matchTo:      25001,
+			keepOriginal: true,
+		},
+	}
+
+	as := newActiveRuleSet(
+		0,
+		nil,
+		testKeepOriginalRollupRules(t),
+		testTagsFilterOptions(),
+		mockNewID,
+		nil,
+	)
+
+	for i, input := range inputs {
+		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
+			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			require.Equal(t, res.keepOriginal, input.keepOriginal)
+			require.Equal(t, 3, res.NumNewRollupIDs())
+		})
+	}
+}
+
 func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	inputs := []testMatchInput{
 		{
@@ -3603,6 +3631,109 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	return []*mappingRule{mappingRule1, mappingRule2, mappingRule3, mappingRule4,
 		mappingRule5, mappingRule6, mappingRule7, mappingRule8, mappingRule9,
 		mappingRule10, mappingRule11}
+}
+
+func testKeepOriginalRollupRules(t *testing.T) []*rollupRule {
+	filter, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"rtagName1": filters.FilterValue{Pattern: "rtagValue1"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+
+	rollupRule1 := &rollupRule{
+		uuid: "rollupRule1",
+		snapshots: []*rollupRuleSnapshot{
+			&rollupRuleSnapshot{
+				name:         "rollupRule1.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: false,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       b("rName1"),
+									Tags:          bs("rtagName1"),
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule2 := &rollupRule{
+		uuid: "rollupRule2",
+		snapshots: []*rollupRuleSnapshot{
+			&rollupRuleSnapshot{
+				name:         "rollupRule2.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: true,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       b("rName2"),
+									Tags:          bs("rtagName1"),
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule3 := &rollupRule{
+		uuid: "rollupRule3",
+		snapshots: []*rollupRuleSnapshot{
+			&rollupRuleSnapshot{
+				name:         "rollupRule3.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: true,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       b("rName3"),
+									Tags:          bs("rtagName1"),
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3}
 }
 
 func testRollupRules(t *testing.T) []*rollupRule {
