@@ -19,9 +19,6 @@
   "tagOptions":
     "idScheme": "quoted"
 "db":
-  "bootstrap":
-    "commitlog":
-      "returnUnfulfilledForCorruptCommitLogFiles": false
   "cache":
     "postingsList":
       "size": 262144

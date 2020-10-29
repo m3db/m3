@@ -56,10 +56,6 @@ data:
       writeNewSeriesLimitPerSecond: 1048576
       writeNewSeriesBackoffDuration: 2ms
 
-      bootstrap:
-        commitlog:
-          returnUnfulfilledForCorruptCommitLogFiles: false
-
       commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
