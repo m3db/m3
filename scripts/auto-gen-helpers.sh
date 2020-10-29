@@ -1,5 +1,12 @@
 #!/bin/bash
-source "${GOPATH}/src/github.com/m3db/m3/.ci/variables.sh"
+
+if [ -z "$GOPATH" ]; then
+  # assume a developer is running locally without a GOPATH
+  source .ci/variables.sh
+else
+  source "${GOPATH}/src/github.com/m3db/m3/.ci/variables.sh"
+fi
+
 
 set -e
 

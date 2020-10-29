@@ -717,6 +717,18 @@ func (mr *MockCacheMockRecorder) ReadInfoFiles() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadInfoFiles", reflect.TypeOf((*MockCache)(nil).ReadInfoFiles))
 }
 
+// Evict mocks base method
+func (m *MockCache) Evict() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Evict")
+}
+
+// Evict indicates an expected call of Evict
+func (mr *MockCacheMockRecorder) Evict() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Evict", reflect.TypeOf((*MockCache)(nil).Evict))
+}
+
 // MockCacheOptions is a mock of CacheOptions interface
 type MockCacheOptions struct {
 	ctrl     *gomock.Controller

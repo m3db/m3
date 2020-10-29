@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -41,8 +40,6 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -58,7 +55,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
@@ -73,7 +69,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
@@ -93,19 +88,8 @@ const (
 )
 
 var (
-	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
-			{
-				Namespace: "default",
-				Type:      storagemetadata.UnaggregatedMetricsType,
-				Retention: 2 * 24 * time.Hour,
-			},
-		},
-	}
-
-	defaultDownsamplerAndWriterWorkerPoolSize = 1024
-	defaultCarbonIngesterWorkerPoolSize       = 1024
-	defaultPerCPUMultiProcess                 = 0.5
+	defaultCarbonIngesterWorkerPoolSize = 1024
+	defaultPerCPUMultiProcess           = 0.5
 )
 
 type cleanupFn func() error
@@ -290,6 +274,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	var (
+		clusterNamespacesWatcher   m3.ClusterNamespacesWatcher
 		backendStorage             storage.Storage
 		clusterClient              clusterclient.Client
 		downsampler                downsample.Downsampler
@@ -324,7 +309,7 @@ func Run(runOpts RunOptions) {
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
-		cfg.WriteWorkerPool,
+		cfg.WriteWorkerPoolOrDefault(),
 		scope)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Error(err))
@@ -403,8 +388,8 @@ func Run(runOpts RunOptions) {
 	case "":
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
+			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -413,7 +398,7 @@ func Run(runOpts RunOptions) {
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			cfg, m3dbClusters, m3dbPoolWrapper,
 			runOpts, queryCtxOpts, tsdbOpts,
-			runOpts.DownsamplerReadyCh, rwOpts, instrumentOptions)
+			runOpts.DownsamplerReadyCh, clusterNamespacesWatcher, rwOpts, instrumentOptions)
 
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -450,6 +435,7 @@ func Run(runOpts RunOptions) {
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
 		backendStorage,
 		downsampler,
+		cfg.WriteWorkerPoolOrDefault(),
 		instrumentOptions,
 	)
 	if err != nil {
@@ -578,7 +564,8 @@ func Run(runOpts RunOptions) {
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
 		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
-			instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
+			instrumentOptions, logger, m3dbClusters, clusterNamespacesWatcher,
+			downsamplerAndWriter)
 		if ok {
 			defer server.Close()
 		}
@@ -599,6 +586,7 @@ func newM3DBStorage(
 	queryContextOptions models.QueryContextOptions,
 	tsdbOpts tsdb.Options,
 	downsamplerReadyCh chan<- struct{},
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	rwOpts xio.Options,
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
@@ -655,7 +643,6 @@ func newM3DBStorage(
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		autoMappingRules, err := newDownsamplerAutoMappingRules(namespaces)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -663,7 +650,7 @@ func newM3DBStorage(
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
 			downsampler, err := newDownsampler(
 				cfg.Downsample, clusterClient,
-				fanoutStorage, autoMappingRules,
+				fanoutStorage, clusterNamespacesWatcher,
 				tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
 			if err != nil {
 				return nil, err
@@ -702,6 +689,8 @@ func newM3DBStorage(
 			logger.Error("error during storage cleanup", zap.Error(lastErr))
 		}
 
+		clusterNamespacesWatcher.Close()
+
 		if err := clusters.Close(); err != nil {
 			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")
 			// Make sure the previous error is at least logged
@@ -718,7 +707,7 @@ func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
-	autoMappingRules []downsample.AutoMappingRule,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
@@ -757,7 +746,7 @@ func newDownsampler(
 		Storage:                    storage,
 		ClusterClient:              clusterManagementClient,
 		RulesKVStore:               kvStore,
-		AutoMappingRules:           autoMappingRules,
+		ClusterNamespacesWatcher:   clusterNamespacesWatcher,
 		ClockOptions:               clock.NewOptions(),
 		InstrumentOptions:          instrumentOpts,
 		TagEncoderOptions:          tagEncoderOptions,
@@ -775,69 +764,43 @@ func newDownsampler(
 	return downsampler, nil
 }
 
-func newDownsamplerAutoMappingRules(
-	namespaces []m3.ClusterNamespace,
-) ([]downsample.AutoMappingRule, error) {
-	var autoMappingRules []downsample.AutoMappingRule
-	for _, namespace := range namespaces {
-		opts := namespace.Options()
-		attrs := opts.Attributes()
-		if attrs.MetricsType == storagemetadata.AggregatedMetricsType {
-			downsampleOpts, err := opts.DownsampleOptions()
-			if err != nil {
-				errFmt := "unable to resolve downsample options for namespace: %v"
-				return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
-			}
-			if downsampleOpts.All {
-				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
-					xtime.Second, attrs.Retention)
-				autoMappingRules = append(autoMappingRules, downsample.AutoMappingRule{
-					// NB(r): By default we will apply just keep all last values
-					// since coordinator only uses downsampling with Prometheus
-					// remote write endpoint.
-					// More rich static configuration mapping rules can be added
-					// in the future but they are currently not required.
-					Aggregations: []aggregation.Type{aggregation.Last},
-					Policies:     policy.StoragePolicies{storagePolicy},
-				})
-			}
-		}
-	}
-	return autoMappingRules, nil
-}
-
 func initClusters(
 	cfg config.Configuration,
+	dbCfg *dbconfig.DBConfiguration,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
-) (m3.Clusters, *pools.PoolWrapper, error) {
+) (m3.Clusters, m3.ClusterNamespacesWatcher, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
 
 	var (
-		logger      = instrumentOpts.Logger()
-		clusters    m3.Clusters
-		poolWrapper *pools.PoolWrapper
-		nsCount     int
-		err         error
+		logger                   = instrumentOpts.Logger()
+		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
+		clusters                 m3.Clusters
+		poolWrapper              *pools.PoolWrapper
+		staticNamespaceConfig    bool
+		err                      error
 	)
 	if len(cfg.Clusters) > 0 {
 		for _, clusterCfg := range cfg.Clusters {
-			nsCount += len(clusterCfg.Namespaces)
+			if len(clusterCfg.Namespaces) > 0 {
+				staticNamespaceConfig = true
+				break
+			}
 		}
 		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions:      true,
 			CustomAdminOptions: customAdminOptions,
 		}
-		if nsCount == 0 {
-			// No namespaces defined in config -- pull namespace data from etcd.
-			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts)
+		if staticNamespaceConfig {
+			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts, clusterNamespacesWatcher)
 		} else {
-			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts)
+			// No namespaces defined in config -- pull namespace data from etcd.
+			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
@@ -845,11 +808,14 @@ func initClusters(
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
-			localCfg = defaultLocalConfiguration
+			localCfg = &config.LocalConfiguration{}
+		}
+		if len(localCfg.Namespaces) > 0 {
+			staticNamespaceConfig = true
 		}
 
 		if dbClientCh == nil {
-			return nil, nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
 		sessionInitChan := make(chan struct{})
@@ -857,19 +823,29 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clustersCfg := m3.ClustersStaticConfiguration{
-			m3.ClusterStaticConfiguration{
-				Namespaces: localCfg.Namespaces,
-			},
+		clusterStaticConfig := m3.ClusterStaticConfiguration{
+			Namespaces: localCfg.Namespaces,
+		}
+		if !staticNamespaceConfig {
+			if dbCfg == nil {
+				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+			}
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
 		}
 
-		clusters, err = clustersCfg.NewStaticClusters(instrumentOpts,
-			m3.ClustersStaticConfigurationOptions{
-				ProvidedSession:    session,
-				CustomAdminOptions: customAdminOptions,
-			})
+		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}
+		cfgOptions := m3.ClustersStaticConfigurationOptions{
+			ProvidedSession:    session,
+			CustomAdminOptions: customAdminOptions,
+		}
+
+		if staticNamespaceConfig {
+			clusters, err = clustersCfg.NewStaticClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		} else {
+			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		}
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
@@ -884,7 +860,7 @@ func initClusters(
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, poolWrapper, nil
+	return clusters, clusterNamespacesWatcher, poolWrapper, nil
 }
 
 func newStorages(
@@ -1077,6 +1053,7 @@ func startCarbonIngestion(
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 ) (xserver.Server, bool) {
 	ingesterCfg := cfg.Ingester
@@ -1111,65 +1088,12 @@ func startCarbonIngestion(
 		logger.Fatal("carbon ingestion is only supported when connecting to M3DB clusters directly")
 	}
 
-	// Validate provided rules.
-	var (
-		clusterNamespaces = m3dbClusters.ClusterNamespaces()
-		rules             = ingestcarbon.CarbonIngesterRules{
-			Rules: ingesterCfg.RulesOrDefault(clusterNamespaces),
-		}
-	)
-	for _, rule := range rules.Rules {
-		// Sort so we can detect duplicates.
-		sort.Slice(rule.Policies, func(i, j int) bool {
-			if rule.Policies[i].Resolution == rule.Policies[j].Resolution {
-				return rule.Policies[i].Retention < rule.Policies[j].Retention
-			}
-
-			return rule.Policies[i].Resolution < rule.Policies[j].Resolution
-		})
-
-		var lastPolicy config.CarbonIngesterStoragePolicyConfiguration
-		for i, policy := range rule.Policies {
-			if i > 0 && policy == lastPolicy {
-				logger.Fatal(
-					"cannot include the same storage policy multiple times for a single carbon ingestion rule",
-					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
-			}
-
-			if i > 0 && !rule.Aggregation.EnabledOrDefault() && policy.Resolution != lastPolicy.Resolution {
-				logger.Fatal(
-					"cannot include multiple storage policies with different resolutions if aggregation is disabled",
-					zap.String("pattern", rule.Pattern), zap.Duration("resolution", policy.Resolution), zap.Duration("retention", policy.Retention))
-			}
-
-			_, ok := m3dbClusters.AggregatedClusterNamespace(m3.RetentionResolution{
-				Resolution: policy.Resolution,
-				Retention:  policy.Retention,
-			})
-
-			// Disallow storage policies that don't match any known M3DB clusters.
-			if !ok {
-				logger.Fatal(
-					"cannot enable carbon ingestion without a corresponding aggregated M3DB namespace",
-					zap.String("resolution", policy.Resolution.String()), zap.String("retention", policy.Retention.String()))
-			}
-		}
-	}
-
-	if len(rules.Rules) == 0 {
-		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
-		return nil, false
-	}
-
-	if len(ingesterCfg.Rules) == 0 {
-		logger.Info("no carbon ingestion rules were provided, all carbon metrics will be written to all aggregated M3DB namespaces")
-	}
-
 	// Create ingester.
 	ingester, err := ingestcarbon.NewIngester(
-		downsamplerAndWriter, rules, ingestcarbon.Options{
+		downsamplerAndWriter, clusterNamespacesWatcher, ingestcarbon.Options{
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
+			IngesterConfig:    ingesterCfg,
 		})
 	if err != nil {
 		logger.Fatal("unable to create carbon ingester", zap.Error(err))
@@ -1202,15 +1126,15 @@ func startCarbonIngestion(
 func newDownsamplerAndWriter(
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
+	workerPoolPolicy xconfig.WorkerPoolPolicy,
 	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
-	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true).
-		SetKillWorkerProbability(0.001)
-	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(
-		defaultDownsamplerAndWriterWorkerPoolSize, downAndWriterWorkerPoolOpts)
+	downAndWriterWorkerPoolOpts, writePoolSize := workerPoolPolicy.Options()
+	downAndWriterWorkerPoolOpts = downAndWriterWorkerPoolOpts.SetInstrumentOptions(iOpts.
+		SetMetricsScope(iOpts.MetricsScope().SubScope("ingest-writer-worker-pool")))
+	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, downAndWriterWorkerPoolOpts)
 	if err != nil {
 		return nil, err
 	}

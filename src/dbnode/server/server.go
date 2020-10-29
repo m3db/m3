@@ -73,6 +73,7 @@ import (
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
@@ -412,6 +413,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not construct postings list cache", zap.Error(err))
 	}
 	defer stopReporting()
+
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iopts.MetricsScope(),
+	})
 
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
