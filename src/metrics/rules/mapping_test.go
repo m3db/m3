@@ -51,11 +51,11 @@ var (
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(10 * time.Second),
 						Precision:  int64(time.Second),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(24 * time.Hour),
 					},
 				},
@@ -73,11 +73,11 @@ var (
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(time.Minute),
 						Precision:  int64(time.Minute),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(24 * time.Hour),
 					},
 				},
@@ -87,11 +87,11 @@ var (
 			},
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(5 * time.Minute),
 						Precision:  int64(time.Minute),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(48 * time.Hour),
 					},
 				},
@@ -113,29 +113,29 @@ var (
 		LastUpdatedBy:      "someone",
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 720 * time.Hour.Nanoseconds(),
 				},
 			},
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Hour.Nanoseconds(),
 					Precision:  time.Hour.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 365 * 24 * time.Hour.Nanoseconds(),
 				},
 			},
@@ -156,11 +156,11 @@ var (
 		},
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 1800 * time.Hour.Nanoseconds(),
 				},
 			},
@@ -430,11 +430,11 @@ func TestNewMappingRuleSnapshotStoragePoliciesAndDropPolicy(t *testing.T) {
 	proto := &rulepb.MappingRuleSnapshot{
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
