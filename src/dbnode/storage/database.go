@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -991,7 +992,6 @@ func (d *db) WideQuery(
 	query index.Query,
 	queryStart time.Time,
 	shards []uint32,
-	iterOpts index.IterationOptions,
 ) (wide.QueryIterator, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -1003,7 +1003,9 @@ func (d *db) WideQuery(
 		batchSize  = d.opts.WideBatchSize()
 		blockSize  = n.Options().IndexOptions().BlockSize()
 		blockStart = queryStart.Truncate(blockSize)
+		iterOpts   = d.opts.IterationOptions()
 	)
+
 	opts, err := index.NewWideQueryOptions(blockStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
@@ -1328,6 +1330,14 @@ func (d *db) AggregateTiles(
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return 0, err
+	}
+
+	opts.QueryFunc = func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error) {
+		queryCtx := context.NewContext()
+		defer queryCtx.Close()
+
+		query := index.Query{Query: idx.NewAllQuery()}
+		return d.WideQuery(queryCtx, sourceNsID, query, blockStart, shards)
 	}
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)

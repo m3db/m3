@@ -194,15 +194,15 @@ curl -sS -X POST localhost:9003/writetagged -d '{
 And reading the metrics you've written:
 
 ```json
-curl -sS -X POST http://localhost:9003/query -d '{
-  "namespace": "metrics",
+curl -sS -X POST http://localhost:19003/query -d '{
+  "namespace": "default",
   "query": {
     "regexp": {
-      "field": "city",
-      "regexp": ".*"
+      "field": "__name__",
+      "regexp": "up"
     }
   },
-  "rangeStart": 0,
+  "rangeStart":  '"$(date "+%s")"',
   "rangeEnd": '"$(date "+%s")"'
 }' | jq .
 ```

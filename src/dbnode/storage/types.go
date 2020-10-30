@@ -183,7 +183,6 @@ type Database interface {
 		query index.Query,
 		start time.Time,
 		shards []uint32,
-		iterOpts index.IterationOptions,
 	) (wide.QueryIterator, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
@@ -641,11 +640,10 @@ type databaseShard interface {
 	AggregateTiles(
 		sourceNsID ident.ID,
 		sourceShardID uint32,
-		blockReaders []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
+		queryShardIterators []wide.QueryIterator,
 		opts AggregateTilesOptions,
-		targetSchemaDesc namespace.SchemaDescr,
+		targetSchemaDescr namespace.SchemaDescr,
 	) (int64, error)
 
 	// LatestVolume returns the latest volume for the combination of shard+blockStart.
@@ -1239,6 +1237,12 @@ type Options interface {
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
 
+	// SetIterationOptions sets experimental iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns experimental iteration options.
+	IterationOptions() index.IterationOptions
+
 	// SetMemoryTracker sets the MemoryTracker.
 	SetMemoryTracker(memTracker MemoryTracker) Options
 
@@ -1356,12 +1360,20 @@ type newFSMergeWithMemFn func(
 // NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
 type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 
+// AggregateQueryFunc is a function for retrievign the query iterator
+// for a given block start and shard set.
+type AggregateQueryFunc func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error)
+
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
-	// Start and End specify the aggregation window.
-	Start, End time.Time
+	// Start secifies the start of the aggreation window.
+	Start time.Time
+	// End specifies the end of the  aggregation window.
+	End time.Time
 	// Step is the downsampling step.
 	Step time.Duration
+	// QueryFunc is the aggregate query function.
+	QueryFunc AggregateQueryFunc
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.

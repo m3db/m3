@@ -683,11 +683,3 @@ type CrossBlockReader interface {
 	// ID, encodedTags, records, and underlying data are invalidated on each call to Next().
 	Current() (id ident.BytesID, encodedTags ts.EncodedTags, records []BlockRecord)
 }
-
-// CrossBlockIterator iterates across BlockRecords.
-type CrossBlockIterator interface {
-	encoding.Iterator
-
-	// Reset resets the iterator to the given block records.
-	Reset(records []BlockRecord)
-}

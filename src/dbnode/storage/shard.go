@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/downsample"
@@ -2662,69 +2663,30 @@ func (s *dbShard) Repair(
 func (s *dbShard) AggregateTiles(
 	sourceNsID ident.ID,
 	sourceShardID uint32,
-	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
-	sourceBlockVolumes []shardBlockVolume,
+	queryShardIterators []wide.QueryIterator,
 	opts AggregateTilesOptions,
 	targetSchemaDescr namespace.SchemaDescr,
 ) (int64, error) {
-	if len(blockReaders) != len(sourceBlockVolumes) {
-		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
-	}
-
-	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
-		for _, reader := range openBlockReaders {
-			reader.Close()
+		for _, iter := range queryShardIterators {
+			iter.Close()
 		}
 	}()
 
-	maxEntries := 0
-	for sourceBlockPos, blockReader := range blockReaders {
-		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
-		openOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:   sourceNsID,
-				Shard:       sourceShardID,
-				BlockStart:  sourceBlockVolume.blockStart,
-				VolumeIndex: sourceBlockVolume.latestVolume,
-			},
-			FileSetType:      persist.FileSetFlushType,
-			StreamingEnabled: true,
-		}
-
-		if err := blockReader.Open(openOpts); err != nil {
-			if err == fs.ErrCheckpointFileNotFound {
-				// A very recent source block might not have been flushed yet.
-				continue
-			}
-			s.logger.Error("blockReader.Open",
-				zap.Error(err),
-				zap.Time("blockStart", sourceBlockVolume.blockStart),
-				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
-			return 0, err
-		}
-		if blockReader.Entries() > maxEntries {
-			maxEntries = blockReader.Entries()
-		}
-
-		openBlockReaders = append(openBlockReaders, blockReader)
-	}
-
-	crossBlockReader, err := fs.NewCrossBlockReader(openBlockReaders, s.opts.InstrumentOptions())
+	crossShardIterator, err := wide.NewCrossShardIterator(queryShardIterators)
 	if err != nil {
 		s.logger.Error("NewCrossBlockReader", zap.Error(err))
 		return 0, err
 	}
-	defer crossBlockReader.Close()
+	defer crossShardIterator.Close()
 
 	tileOpts := tile.Options{
-		FrameSize:          opts.Step,
-		Start:              xtime.ToUnixNano(opts.Start),
-		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
+		FrameSize: opts.Step,
+		Start:     xtime.ToUnixNano(opts.Start),
 	}
 
-	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
+	readerIter, err := tile.NewSeriesBlockIterator(crossShardIterator, tileOpts)
 	if err != nil {
 		s.logger.Error("error when creating new series block iterator", zap.Error(err))
 		return 0, err

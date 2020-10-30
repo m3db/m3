@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -40,8 +40,8 @@ func newSequentialIterator(
 	start time.Time,
 	step time.Duration,
 	numPoints int,
-) fs.CrossBlockIterator {
-	it := fs.NewMockCrossBlockIterator(ctrl)
+) wide.QuerySeriesIterator {
+	it := wide.NewMockQuerySeriesIterator(ctrl)
 	currVal, currTs, currTsNano := 0.0, start, xtime.ToUnixNano(start)
 	for i := 0; i < numPoints; i++ {
 		i := i

@@ -23,8 +23,7 @@ package tile
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -56,7 +55,7 @@ type SeriesFrameIterator interface {
 	Reset(
 		start xtime.UnixNano,
 		step time.Duration,
-		iter fs.CrossBlockIterator,
+		iter wide.QuerySeriesIterator,
 	) error
 }
 
@@ -79,10 +78,6 @@ type Options struct {
 	FrameSize time.Duration
 	// Start is the start time for the iterator in nanos from epoch.
 	Start xtime.UnixNano
-	// EncodingOpts are options for the encoder.
-	EncodingOpts encoding.Options
-	// ReaderIteratorPool yields ReaderIterators.
-	ReaderIteratorPool encoding.ReaderIteratorPool
 }
 
 // SeriesBlockFrame contains either all raw values

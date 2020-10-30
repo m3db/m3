@@ -107,6 +107,21 @@ type QuerySeriesIterator interface {
 	SeriesMetadata() SeriesMetadata
 }
 
+// CrossShardIterator iterates across series across all shards in a block record.
+type CrossShardIterator interface {
+	// Next moves to the next series.
+	Next() bool
+
+	// Current is the current series iterator, invalidated on calls to Next().
+	Current() QuerySeriesIterator
+
+	// Err returns the error encountered.
+	Err() error
+
+	// Close closes the iterator and if pooled will return to the pool.
+	Close()
+}
+
 // CrossBlockIterator iterates across series in a block record.
 type CrossBlockIterator interface {
 	// Next moves to the next series.

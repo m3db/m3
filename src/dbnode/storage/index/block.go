@@ -453,6 +453,7 @@ func (b *block) queryWithSpan(
 	if err != nil {
 		return false, err
 	}
+	// get size here.
 
 	// Register the executor to close when context closes
 	// so can avoid copying the results into the map and just take
