@@ -195,7 +195,7 @@ func (b baseBootstrapper) Bootstrap(
 			finalResults.Results.Set(id, finalResult)
 		}
 	}
-
+	src/dbnode/storage/namespace.go
 	return finalResults, nil
 }
 

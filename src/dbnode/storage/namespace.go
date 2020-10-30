@@ -60,7 +60,7 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
-	errNamespaceReadOnly = errors.New("cannot write to a read only namespace")
+	errNamespaceReadOnly         = errors.New("cannot write to a read only namespace")
 )
 
 type commitLogWriter interface {
