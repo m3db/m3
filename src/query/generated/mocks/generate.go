@@ -27,7 +27,6 @@
 //go:generate sh -c "mockgen -package=ingest -destination=$GOPATH/src/$PACKAGE/src/cmd/services/m3coordinator/ingest/write_mock.go $PACKAGE/src/cmd/services/m3coordinator/ingest DownsamplerAndWriter"
 //go:generate sh -c "mockgen -package=transform -destination=$GOPATH/src/$PACKAGE/src/query/executor/transform/types_mock.go $PACKAGE/src/query/executor/transform OpNode"
 //go:generate sh -c "mockgen -package=executor -destination=$GOPATH/src/$PACKAGE/src/query/executor/types_mock.go $PACKAGE/src/query/executor Engine"
-//go:generate sh -c "mockgen -package=cost -destination=$GOPATH/src/github.com/m3db/m3/src/query/cost/cost_mock.go $PACKAGE/src/query/cost ChainedEnforcer,ChainedReporter"
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/src/query/graphite/storage/storage_mock.go $PACKAGE/src/query/graphite/storage Storage"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).

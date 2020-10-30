@@ -1,5 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7202"
+listenAddress: 0.0.0.0:7202
 
 logging:
   level: info

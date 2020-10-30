@@ -23,7 +23,6 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
@@ -41,8 +40,7 @@ func NewFetchOptions() *FetchOptions {
 			FanoutAggregated:          FanoutDefault,
 			FanoutAggregatedOptimized: FanoutDefault,
 		},
-		Enforcer: cost.NoopChainedEnforcer(),
-		Scope:    tally.NoopScope,
+		Scope: tally.NoopScope,
 	}
 }
 

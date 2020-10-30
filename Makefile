@@ -63,8 +63,6 @@ SERVICES :=     \
 	m3query       \
 	m3collector   \
 	m3em_agent    \
-	m3nsch_server \
-	m3nsch_client \
 	m3comparator  \
 	r2ctl         \
 
@@ -78,7 +76,6 @@ SUBDIRS :=    \
 	dbnode      \
 	query       \
 	m3em        \
-	m3nsch      \
 	m3ninx      \
 	aggregator  \
 	ctl         \

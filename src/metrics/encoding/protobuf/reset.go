@@ -24,14 +24,6 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 )
 
-func resetAggregatedMetricProto(pb *metricpb.AggregatedMetric) {
-	if pb == nil {
-		return
-	}
-	resetTimedMetricWithStoragePolicyProto(&pb.Metric)
-	pb.EncodeNanos = 0
-}
-
 // ReuseMetricWithMetadatasProto allows for zero-alloc reuse of
 // *metricpb.MetricWithMetadatas by deep resetting the internal slices
 // and when using gogoprotobuf's unmarshal function will reuse the slices
@@ -58,6 +50,16 @@ func ReuseMetricWithMetadatasProto(pb *metricpb.MetricWithMetadatas) {
 	resetTimedMetricWithMetadataProto(pb.TimedMetricWithMetadata)
 	resetTimedMetricWithMetadatasProto(pb.TimedMetricWithMetadatas)
 	resetTimedMetricWithStoragePolicyProto(pb.TimedMetricWithStoragePolicy)
+}
+
+// ReuseAggregatedMetricProto allows for zero-alloc reuse of
+// *metricpb.AggregatedMetric
+func ReuseAggregatedMetricProto(pb *metricpb.AggregatedMetric) {
+	if pb == nil {
+		return
+	}
+	resetTimedMetricWithStoragePolicyProto(&pb.Metric)
+	pb.EncodeNanos = 0
 }
 
 func resetCounterWithMetadatasProto(pb *metricpb.CounterWithMetadatas) {

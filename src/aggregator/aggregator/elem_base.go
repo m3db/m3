@@ -37,9 +37,9 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
-	"go.uber.org/zap"
 
 	"github.com/willf/bitset"
+	"go.uber.org/zap"
 )
 
 const (
@@ -166,6 +166,7 @@ type elemBase struct {
 	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
+	addToReset                      bool
 
 	// Mutable states.
 	tombstoned           bool
@@ -179,6 +180,7 @@ func newElemBase(opts Options) elemBase {
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
 		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
+		addToReset:   opts.AddToReset(),
 	}
 }
 
@@ -197,6 +199,13 @@ func (e *elemBase) resetSetData(
 		l := e.opts.InstrumentOptions().Logger()
 		l.Error("error parsing pipeline", zap.Error(err))
 		return err
+	}
+	if e.addToReset {
+		for i := range parsed.Transformations {
+			if parsed.Transformations[i].Type() == transformation.Add {
+				parsed.Transformations[i], _ = transformation.Reset.NewOp()
+			}
+		}
 	}
 	e.id = id
 	e.sp = sp

@@ -1,8 +1,7 @@
 # m3query configuration for local development setup. Mostly the same as m3query-local-etcd.yml, but using fewer
 # resources (threads primarily).
 
-listenAddress:
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
