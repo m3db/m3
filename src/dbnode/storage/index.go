@@ -1383,8 +1383,7 @@ func (i *nsIndex) Snapshot(
 	}
 	i.snapshotState.Unlock()
 
-	_, err = prepared.Close()
-	return err
+	return prepared.Close()
 }
 
 func (i *nsIndex) sanitizeAllowDuplicatesWriteError(err error) error {

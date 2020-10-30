@@ -418,7 +418,7 @@ func TestNamespaceIndexSnapshotColdBlock(t *testing.T) {
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
 	prepared := persist.PreparedIndexSnapshotPersist{
 		Persist: func(fst.SegmentData) error { return nil },
-		Close:   func() ([]segment.Segment, error) { closed = true; return nil, nil },
+		Close:   func() error { closed = true; return nil },
 	}
 
 	shards := make(map[uint32]struct{})
@@ -480,7 +480,7 @@ func TestNamespaceIndexSnapshotWarmBlock(t *testing.T) {
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
 	prepared := persist.PreparedIndexSnapshotPersist{
 		Persist: func(fst.SegmentData) error { return nil },
-		Close:   func() ([]segment.Segment, error) { closed = true; return nil, nil },
+		Close:   func() error { closed = true; return nil },
 	}
 
 	shards := make(map[uint32]struct{})

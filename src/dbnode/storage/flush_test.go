@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -410,9 +409,9 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 
 	prepared := persist.PreparedIndexSnapshotPersist{
 		Persist: func(fst.SegmentData) error { return nil },
-		Close: func() ([]segment.Segment, error) {
+		Close: func() error {
 			preparedSnapshotPersistClosed++
-			return nil, nil
+			return nil
 		},
 	}
 	now := time.Unix(0, 0)

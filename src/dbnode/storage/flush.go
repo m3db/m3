@@ -380,7 +380,7 @@ func (m *flushManager) writeEmptyIndexSnapshots(
 			}
 			prepared, snapshotErr := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
 			if snapshotErr == nil {
-				_, snapshotErr = prepared.Close()
+				snapshotErr = prepared.Close()
 			}
 			multiErr = multiErr.Add(snapshotErr)
 		}
