@@ -193,7 +193,7 @@ func (s *fileSystemSource) Read(
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
-		if !md.MaintainsReverseIndex() {
+		if !namespace.MaintainsReverseIndex() {
 			// Not bootstrapping for index.
 			s.log.Info("bootstrapping for namespace disabled by options",
 				zap.String("ns", md.ID().String()))

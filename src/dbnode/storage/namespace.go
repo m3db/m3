@@ -678,7 +678,7 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (SeriesWrite, error) {src/dbnode/namespace/types.go
+) (SeriesWrite, error) {
 	if n.ReadOnly() {
 		return SeriesWrite{}, errNamespaceReadOnly
 	}

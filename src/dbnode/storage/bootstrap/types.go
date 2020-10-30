@@ -222,6 +222,7 @@ type Namespace struct {
 	// IndexRunOptions are the options for the index bootstrap for this
 	// namespace.
 	IndexRunOptions NamespaceRunOptions
+	readOnly bool
 }
 
 // NamespaceRunOptions are the run options for a bootstrap process run.
@@ -495,4 +496,8 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+}
+
+func (n *Namespace) MaintainsReverseIndex() bool {
+	return !n.readOnly && n.Metadata.Options().IndexOptions().Enabled()
 }
