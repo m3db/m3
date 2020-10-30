@@ -291,6 +291,12 @@ type Namespace interface {
 
 	// StorageOptions returns storage options.
 	StorageOptions() Options
+
+	// ReadOnly returns true if this Namespace is read only.
+	ReadOnly() bool
+
+	// SetReadOnly sets the value of ReadOnly option.
+	SetReadOnly(value bool)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
