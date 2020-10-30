@@ -3,9 +3,7 @@ title: Shard
 id: shard
 date: 2019-06-15
 full_link: 
-short_description: >
-   I am a test term.
-
+short_description: Distribution of time series data
 aka: 
 tags:
 - example

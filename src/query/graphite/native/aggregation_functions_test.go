@@ -176,6 +176,38 @@ func TestAggregate(t *testing.T) {
 	}, 15.0, 15.0, 17.0, 17.0, "invalid max value for step %d")
 }
 
+func TestAggregateSeriesMedian(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s3", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{5, 100, 45})),
+		}
+	)
+
+	expectedResults := []common.TestSeries{
+		{
+			Name: "medianSeries(servers.s2,servers.s1,servers.s3)",
+			Data: []float64{10, 80, 45},
+		},
+	}
+	result, err := aggregate(ctx, singlePathSpec{
+		Values: inputs,
+	}, "median")
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, 60000, start, expectedResults, result.Values)
+}
+
 type mockEngine struct {
 	fn func(
 		ctx context.Context,
@@ -307,7 +339,6 @@ func TestDivideSeries(t *testing.T) {
 func TestDivideSeriesError(t *testing.T) {
 	ctx, consolidationTestSeries := newConsolidationTestSeries()
 	defer ctx.Close()
-
 
 	// error - multiple divisor series
 	_, err := divideSeries(ctx, singlePathSpec{

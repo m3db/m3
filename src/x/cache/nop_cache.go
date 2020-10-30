@@ -25,23 +25,23 @@ import (
 	"time"
 )
 
-// NewNop returns a new nop cache.
-func NewNop() Cache {
-	return &nopCache{}
+// NewNoop returns a new no-op cache.
+func NewNoop() Cache {
+	return &noopCache{}
 }
 
-type nopCache struct{}
+type noopCache struct{}
 
-func (n *nopCache) Put(_ string, _ interface{})                           {}
-func (n *nopCache) PutWithTTL(_ string, _ interface{}, ttl time.Duration) {}
+func (n *noopCache) Put(_ string, _ interface{})                           {}
+func (n *noopCache) PutWithTTL(_ string, _ interface{}, ttl time.Duration) {}
 
-func (n *nopCache) Get(ctx context.Context, key string, loader LoaderFunc) (interface{}, error) {
+func (n *noopCache) Get(ctx context.Context, key string, loader LoaderFunc) (interface{}, error) {
 	return loader(ctx, key)
 }
 
-func (n *nopCache) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
+func (n *noopCache) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
 	val, _, err := loader(ctx, key)
 	return val, err
 }
 
-var _ Cache = &nopCache{}
+var _ Cache = &noopCache{}

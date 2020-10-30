@@ -282,7 +282,21 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
-	require.Error(t, err)
+	require.EqualError(t, err, errorIndexEntryChecksumMismatch.Error())
+}
+
+func TestDecodeIndexEntryIncompleteFile(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
+	)
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+
+	enc.buf.Truncate(len(enc.Bytes()) - 4)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	_, err := dec.DecodeIndexEntry(nil)
+	require.EqualError(t, err, "decode index entry encountered error: EOF")
 }
 
 var decodeIndexChecksumTests = []struct {

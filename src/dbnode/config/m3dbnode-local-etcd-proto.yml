@@ -1,6 +1,5 @@
 coordinator:
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   local:
     namespaces:
@@ -20,9 +19,6 @@ coordinator:
     sanitization: prometheus
     samplingRate: 1.0
     extended: none
-
-  limits:
-    maxComputedDatapoints: 10000
 
   tagOptions:
     # Configuration setting for generating metric IDs from tags.
@@ -59,15 +55,6 @@ db:
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
 
-  bootstrap:
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
-    commitlog:
-      returnUnfulfilledForCorruptCommitLogFiles: false
-
   cache:
     series:
       policy: lru
@@ -81,7 +68,7 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     filePathPrefix: /var/lib/m3db
 
   config:

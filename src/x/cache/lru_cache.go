@@ -178,6 +178,8 @@ func NewLRU(opts *LRUOptions) *LRU {
 		tallyScope = tally.NoopScope
 	}
 
+	tallyScope = tallyScope.SubScope("lru-cache")
+
 	now := opts.Now
 	if now == nil {
 		now = time.Now

@@ -173,6 +173,9 @@ type AggregatorConfiguration struct {
 
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
+
+	// AddToReset is the yaml config for aggregator.Options.AddToReset
+	AddToReset bool `yaml:"addToReset"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -258,7 +261,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts := aggregator.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
-		SetVerboseErrors(c.VerboseErrors)
+		SetVerboseErrors(c.VerboseErrors).
+		SetAddToReset(c.AddToReset)
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {

@@ -32,7 +32,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,13 +46,6 @@ func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
 	})
 
 	return tags
-}
-
-func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
-	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
-	actual := tags.ID()
-	assert.Equal(t, idLen(tags), len(actual))
-	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
 }
 
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
@@ -82,14 +74,6 @@ func TestLongTagNewIDOutOfOrderGraphite(t *testing.T) {
 
 	actual := tags.ID()
 	assert.Equal(t, []byte("v0.v1.v2.v3.v4.v5.v6.v7.v8.v9.v10.v11.v12"), actual)
-}
-
-func TestHashedID(t *testing.T) {
-	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
-	actual := tags.HashedID()
-
-	expected := xxhash.Sum64String("t1=v1,t2=v2,t3=v3,t4=v4,")
-	assert.Equal(t, expected, actual)
 }
 
 func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
@@ -580,7 +564,6 @@ func TestEmptyTags(t *testing.T) {
 		idType   IDSchemeType
 		expected string
 	}{
-		{TypeLegacy, ""},
 		{TypePrependMeta, ""},
 		{TypeGraphite, ""},
 		{TypeQuoted, "{}"},
@@ -609,7 +592,6 @@ var tagIDSchemes = []struct {
 	name   string
 	scheme IDSchemeType
 }{
-	{"___legacy", TypeLegacy},
 	{"_graphite", TypeGraphite},
 	{"__prepend", TypePrependMeta},
 	// only simple quotable tag values.

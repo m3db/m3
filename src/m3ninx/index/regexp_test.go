@@ -418,8 +418,8 @@ func dumpRegexpHelper(b *strings.Builder, re *syntax.Regexp) {
 func TestRegexpCache(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 
-	SetRegexpCacheSize(RegexpCacheOptions{Size: 1, Scope: scope})
-	defer SetRegexpCacheSize(RegexpCacheOptions{Size: 0})
+	SetRegexpCacheOptions(RegexpCacheOptions{Size: 1, Scope: scope})
+	defer SetRegexpCacheOptions(RegexpCacheOptions{Size: 0})
 
 	_, err := CompileRegex([]byte("foo.*bar"))
 	require.NoError(t, err)

@@ -37,12 +37,13 @@ var (
 )
 
 type cache struct {
-	sync.Once
+	sync.Mutex
 
 	fsOpts               fs.Options
 	namespaceDetails     []NamespaceDetails
 	infoFilesByNamespace InfoFilesByNamespace
 	iOpts                instrument.Options
+	hasPopulatedInfo     bool
 }
 
 // NewCache creates a cache specifically to be used during the bootstrap process.
@@ -53,9 +54,10 @@ func NewCache(options CacheOptions) (Cache, error) {
 		return nil, err
 	}
 	return &cache{
-		fsOpts:           options.FilesystemOptions(),
-		namespaceDetails: options.NamespaceDetails(),
-		iOpts:            options.InstrumentOptions(),
+		fsOpts:               options.FilesystemOptions(),
+		namespaceDetails:     options.NamespaceDetails(),
+		infoFilesByNamespace: make(InfoFilesByNamespace, len(options.NamespaceDetails())),
+		iOpts:                options.InstrumentOptions(),
 	}, nil
 }
 
@@ -83,22 +85,38 @@ func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 	return infoFileResults, nil
 }
 
+func (c *cache) Evict() {
+	c.Lock()
+	defer c.Unlock()
+	c.hasPopulatedInfo = false
+}
+
 func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
-	c.Once.Do(func() {
-		c.infoFilesByNamespace = make(InfoFilesByNamespace, len(c.namespaceDetails))
-		for _, finder := range c.namespaceDetails {
-			result := make(InfoFileResultsPerShard, len(finder.Shards))
-			for _, shard := range finder.Shards {
-				result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
-					finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
-					persist.FileSetFlushType)
-			}
-
-			c.infoFilesByNamespace[finder.Namespace] = result
-		}
-	})
-
+	c.Lock()
+	defer c.Unlock()
+	if !c.hasPopulatedInfo {
+		c.populateInfoFilesByNamespaceWithLock()
+		c.hasPopulatedInfo = true
+	}
 	return c.infoFilesByNamespace
+}
+
+func (c *cache) populateInfoFilesByNamespaceWithLock() {
+	for _, finder := range c.namespaceDetails {
+		// NB(bodu): It is okay to reuse the info files by ns results per shard here
+		// as the shards were set in the cache ctor and do not change per invocation.
+		result, ok := c.infoFilesByNamespace[finder.Namespace]
+		if !ok {
+			result = make(InfoFileResultsPerShard, len(finder.Shards))
+		}
+		for _, shard := range finder.Shards {
+			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
+				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
+				persist.FileSetFlushType)
+		}
+
+		c.infoFilesByNamespace[finder.Namespace] = result
+	}
 }
 
 type cacheOptions struct {

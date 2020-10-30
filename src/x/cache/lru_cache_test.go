@@ -36,6 +36,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+func metric(key string) string {
+	return "lru-cache." + key
+}
+
 func TestLRU_Get_SingleLoadPerKey(t *testing.T) {
 	tt := newLRUTester(3, 0)
 
@@ -84,12 +88,12 @@ func TestLRU_Get_SingleLoadPerKey(t *testing.T) {
 
 	// Make sure we're reporting proper metrics
 	snapshot := tt.metrics.Snapshot()
-	tallytest.AssertCounterValue(t, 2, snapshot, loadAttemptsCounter, nil)
-	tallytest.AssertCounterValue(t, 2, snapshot, loadsCounter, successTags)
-	tallytest.AssertCounterValue(t, 0, snapshot, loadsCounter, failureTags)
-	tallytest.AssertCounterValue(t, 2, snapshot, accessCounter, missesTags)
-	tallytest.AssertCounterValue(t, 8, snapshot, accessCounter, hitsTags)
-	tallytest.AssertGaugeValue(t, 2, snapshot, entriesGauge, nil)
+	tallytest.AssertCounterValue(t, 2, snapshot, metric(loadAttemptsCounter), nil)
+	tallytest.AssertCounterValue(t, 2, snapshot, metric(loadsCounter), successTags)
+	tallytest.AssertCounterValue(t, 0, snapshot, metric(loadsCounter), failureTags)
+	tallytest.AssertCounterValue(t, 2, snapshot, metric(accessCounter), missesTags)
+	tallytest.AssertCounterValue(t, 8, snapshot, metric(accessCounter), hitsTags)
+	tallytest.AssertGaugeValue(t, 2, snapshot, metric(entriesGauge), nil)
 }
 
 func TestLRU_Get_HonorsContext(t *testing.T) {
@@ -219,7 +223,7 @@ func TestLRU_Get_EvictsExpiredEntriesPriorToLoading(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "key-2-00001", val)
 	snapshot := tt.metrics.Snapshot()
-	tallytest.AssertGaugeValue(t, 3, snapshot, entriesGauge, nil)
+	tallytest.AssertGaugeValue(t, 3, snapshot, metric(entriesGauge), nil)
 	assert.True(t, tt.c.has("key-0", false))
 	assert.True(t, tt.c.has("key-1", false))
 	assert.True(t, tt.c.has("key-2", false))
@@ -229,7 +233,7 @@ func TestLRU_Get_EvictsExpiredEntriesPriorToLoading(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "key-3-00001", val)
 	snapshot = tt.metrics.Snapshot()
-	tallytest.AssertGaugeValue(t, 2, snapshot, entriesGauge, nil)
+	tallytest.AssertGaugeValue(t, 2, snapshot, metric(entriesGauge), nil)
 	assert.False(t, tt.c.has("key-0", false)) // removed due to expiry
 	assert.False(t, tt.c.has("key-1", false)) // removed due to expiry
 	assert.True(t, tt.c.has("key-2", false))  // not expired
@@ -259,7 +263,7 @@ func TestLRU_Get_EvictsExpiredEntriesPriorToLoading(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "key-5-00001", val)
 	snapshot = tt.metrics.Snapshot()
-	tallytest.AssertGaugeValue(t, 2, snapshot, entriesGauge, nil)
+	tallytest.AssertGaugeValue(t, 2, snapshot, metric(entriesGauge), nil)
 	assert.False(t, tt.c.has("key-0", false)) // removed due to expiry
 	assert.False(t, tt.c.has("key-1", false)) // removed due to expiry
 	assert.False(t, tt.c.has("key-2", false)) // removed due to expiry

@@ -95,7 +95,7 @@ Forwarding from [::1]:7201 -> 7201
 
 ```shell
 # Create an initial cluster topology
-curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
+curl -sSf -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
     "num_shards": 1024,
     "replication_factor": 3,
     "instances": [
@@ -132,7 +132,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
 
 ```shell
 # Create a namespace to hold your metrics
-curl -X POST localhost:7201/api/v1/namespace -d '{
+curl -X POST localhost:7201/api/v1/services/m3db/namespace -d '{
   "name": "default",
   "options": {
     "bootstrapEnabled": true,
@@ -262,7 +262,7 @@ Forwarding from [::1]:7201 -> 7201
 ```
 
 ```shell
-curl -sSf -X POST localhost:7201/api/v1/placement -d '{
+curl -sSf -X POST localhost:7201/api/v1/services/m3db/placement -d '{
     "instances": [
         {
             "id": "m3dbnode-3",

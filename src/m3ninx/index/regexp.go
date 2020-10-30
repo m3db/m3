@@ -27,10 +27,10 @@ import (
 	"regexp/syntax"
 	"sync"
 
-	"github.com/uber-go/tally"
-
 	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
 	"github.com/m3db/m3/src/x/cache"
+
+	"github.com/uber-go/tally"
 )
 
 var (
