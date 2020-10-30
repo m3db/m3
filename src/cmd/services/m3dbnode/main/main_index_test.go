@@ -350,13 +350,6 @@ db:
     writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
 
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
-
     commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
@@ -364,7 +357,7 @@ db:
             calculationType: fixed
             size: 2097152
 
-    fs:
+    filesystem:
         filePathPrefix: {{.DataDir}}
         writeBufferSize: 65536
         dataReadBufferSize: 65536

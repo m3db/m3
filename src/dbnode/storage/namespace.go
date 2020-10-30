@@ -60,6 +60,7 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
+	errNamespaceReadOnly         = errors.New("cannot write to a read only namespace")
 )
 
 type commitLogWriter interface {
@@ -104,6 +105,7 @@ type dbNamespace struct {
 	sync.RWMutex
 
 	closed             bool
+	readOnly           bool
 	shutdownCh         chan struct{}
 	id                 ident.ID
 	shardSet           sharding.ShardSet
@@ -677,6 +679,10 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
@@ -702,6 +708,10 @@ func (n *dbNamespace) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
@@ -1140,7 +1150,7 @@ func (n *dbNamespace) WarmFlush(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	if !n.nopts.FlushEnabled() {
+	if n.ReadOnly() || !n.nopts.FlushEnabled() {
 		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1256,7 +1266,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	// If repair is enabled we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	if !n.nopts.ColdWritesEnabled() && !n.nopts.RepairEnabled() {
+	enabled := n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()
+	if n.ReadOnly() || !enabled {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1582,6 +1593,14 @@ func (n *dbNamespace) Index() (NamespaceIndex, error) {
 		return nil, errNamespaceIndexingDisabled
 	}
 	return n.reverseIndex, nil
+}
+
+func (n *dbNamespace) ReadOnly() bool {
+	return n.readOnly
+}
+
+func (n *dbNamespace) SetReadOnly(value bool) {
+	n.readOnly = value
 }
 
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {

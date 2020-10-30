@@ -103,7 +103,12 @@ func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
 
 func (c *cache) populateInfoFilesByNamespaceWithLock() {
 	for _, finder := range c.namespaceDetails {
-		result := make(InfoFileResultsPerShard, len(finder.Shards))
+		// NB(bodu): It is okay to reuse the info files by ns results per shard here
+		// as the shards were set in the cache ctor and do not change per invocation.
+		result, ok := c.infoFilesByNamespace[finder.Namespace]
+		if !ok {
+			result = make(InfoFileResultsPerShard, len(finder.Shards))
+		}
 		for _, shard := range finder.Shards {
 			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
 				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),

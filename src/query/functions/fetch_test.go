@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -133,7 +132,7 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 		transformtest.Options(t, transform.OptionsParams{}))
 
 	ctx := models.NewQueryContext(context.Background(),
-		tally.NoopScope, cost.NoopChainedEnforcer(),
+		tally.NoopScope,
 		models.QueryContextOptions{
 			RestrictFetchType: &models.RestrictFetchTypeQueryContextOptions{
 				MetricsType:   uint(storagemetadata.AggregatedMetricsType),

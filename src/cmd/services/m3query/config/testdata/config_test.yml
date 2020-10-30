@@ -1,5 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
@@ -54,7 +53,5 @@ clusters:
 
 limits:
   perQuery:
-    maxComputedDatapoints: 12000
-    maxFetchedDatapoints: 11000
-  global:
-    maxFetchedDatapoints: 13000
+    maxFetchedSeries: 12000
+    maxFetchedDocs: 11000

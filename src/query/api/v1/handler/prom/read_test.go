@@ -64,7 +64,6 @@ func setupTest(t *testing.T) testHandlers {
 	instrumentOpts := instrument.NewOptions()
 	engineOpts := executor.NewEngineOptions().
 		SetLookbackDuration(time.Minute).
-		SetGlobalEnforcer(nil).
 		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
 	hOpts := options.EmptyHandlerOptions().
