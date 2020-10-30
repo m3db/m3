@@ -390,6 +390,20 @@ func (mr *MockFlushTimesManagerMockRecorder) StoreAsync(arg0 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreAsync", reflect.TypeOf((*MockFlushTimesManager)(nil).StoreAsync), arg0)
 }
 
+// StoreAsyncIfNotExists mocks base method
+func (m *MockFlushTimesManager) StoreAsyncIfNotExists(arg0 *flush.ShardSetFlushTimes) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StoreAsyncIfNotExists", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StoreAsyncIfNotExists indicates an expected call of StoreAsyncIfNotExists
+func (mr *MockFlushTimesManagerMockRecorder) StoreAsyncIfNotExists(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreAsyncIfNotExists", reflect.TypeOf((*MockFlushTimesManager)(nil).StoreAsyncIfNotExists), arg0)
+}
+
 // Watch mocks base method
 func (m *MockFlushTimesManager) Watch() (watch.Watch, error) {
 	m.ctrl.T.Helper()

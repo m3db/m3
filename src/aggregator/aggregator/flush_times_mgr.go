@@ -68,6 +68,8 @@ type FlushTimesManager interface {
 	// StoreAsync stores the flush times asynchronously.
 	StoreAsync(value *schema.ShardSetFlushTimes) error
 
+	StoreAsyncIfNotExists(value *schema.ShardSetFlushTimes) error
+
 	// Close closes the flush times manager.
 	Close() error
 }
@@ -200,14 +202,27 @@ func (mgr *flushTimesManager) Watch() (watch.Watch, error) {
 }
 
 func (mgr *flushTimesManager) StoreAsync(value *schema.ShardSetFlushTimes) error {
+	return mgr.storeAsync(flushTimesUpdate{
+		Payload:value,
+		NotExist: false,
+	})
+}
+
+func (mgr *flushTimesManager) StoreAsyncIfNotExists(value *schema.ShardSetFlushTimes) error {
+	return mgr.storeAsync(flushTimesUpdate{
+		Payload:value,
+		NotExist: true,
+	})
+}
+
+func (mgr *flushTimesManager) storeAsync(update flushTimesUpdate) error {
 	mgr.RLock()
 	defer mgr.RUnlock()
 
 	if mgr.state != flushTimesManagerOpen {
 		return errFlushTimesManagerNotOpenOrClosed
 	}
-	mgr.persistWatchable.Update(value)
-	return nil
+	return mgr.persistWatchable.Update(update)
 }
 
 func (mgr *flushTimesManager) Close() error {
@@ -272,10 +287,18 @@ func (mgr *flushTimesManager) persistFlushTimes(persistWatch watch.Watch) {
 		case <-mgr.doneCh:
 			return
 		case <-persistWatch.C():
-			flushTimes := persistWatch.Get().(*schema.ShardSetFlushTimes)
+			flushTimes := persistWatch.Get().(flushTimesUpdate)
 			persistStart := mgr.nowFn()
 			persistErr := mgr.flushTimesPersistRetrier.Attempt(func() error {
-				_, err := mgr.flushTimesStore.Set(mgr.flushTimesKey, flushTimes)
+				var err error
+				if flushTimes.NotExist {
+					_, err = mgr.flushTimesStore.Set(mgr.flushTimesKey, flushTimes.Payload)
+				} else {
+					_, err = mgr.flushTimesStore.SetIfNotExists(
+						mgr.flushTimesKey,
+						flushTimes.Payload,
+					)
+				}
 				return err
 			})
 			duration := mgr.nowFn().Sub(persistStart)
@@ -376,6 +399,12 @@ func (sc flushTimesChecker) HasFlushed(
 	// All metrics have been flushed past the target time.
 	sc.metrics.allFlushed.Inc(1)
 	return true
+}
+
+type flushTimesUpdate struct {
+	Payload *schema.ShardSetFlushTimes
+	// Whether or not to only apply the update with if-not-exist semantics.
+	NotExist bool
 }
 
 func fullyFlushed(flushtimes map[int64]int64, targetNanos int64) bool {

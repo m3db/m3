@@ -223,15 +223,30 @@ func (mgr *followerFlushManager) OnFlusherAdded(
 // * The instance is campaigning.
 // * All the aggregation windows since the flush manager is opened have ended.
 func (mgr *followerFlushManager) CanLead() bool {
+	canLead, _ := mgr.LeaderStatus()
+	return canLead
+}
+
+func (mgr *followerFlushManager) LeaderStatus() (bool, LeaderStatus) {
 	mgr.RLock()
 	defer mgr.RUnlock()
 
 	if !mgr.electionManager.IsCampaigning() {
 		mgr.metrics.notCampaigning.Inc(1)
-		return false
+		return false, LeaderStatusNotCampaigning
 	}
 	if mgr.processed == nil {
-		return false
+		return false, LeaderStatusWaitingForFlushTimes
+	}
+
+	// Nothing has actually been flushed yet; check that we've been up at least as long
+	// as the leader.
+	if len(mgr.processed.ByShard) == 0 && mgr.processed.LastPersistedNanos != 0 {
+		if mgr.openedAt.UnixNano() < mgr.processed.LastPersistedNanos {
+			return true, LeaderStatusUpLongerThanHeartBeat
+		} else {
+			return false, LeaderStatusUpLessThanHeartBeat
+		}
 	}
 
 	for _, shardFlushTimes := range mgr.processed.ByShard {
@@ -244,10 +259,10 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// start time are closed, meaning the standard metrics that didn't make to the
 		// process have been flushed successfully downstream.
 		if !mgr.canLead(shardFlushTimes.StandardByResolution, mgr.metrics.standard) {
-			return false
+			return false, LeaderStatusShardsNotCutover
 		}
 		if !mgr.canLead(shardFlushTimes.TimedByResolution, mgr.metrics.timed) {
-			return false
+			return false, LeaderStatusShardsNotCutover
 		}
 
 		// Check that the forwarded metrics have been flushed past the process start
@@ -256,7 +271,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 		for windowNanos, fbr := range shardFlushTimes.ForwardedByResolution {
 			if fbr == nil {
 				mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
-				return false
+				return false, LeaderStatusShardsNotCutover
 			}
 			// Since the timestamps of the forwarded metrics are aligned to the resolution
 			// boundaries, we simply need to make sure that all forwarded metrics in or before
@@ -270,13 +285,13 @@ func (mgr *followerFlushManager) CanLead() bool {
 			for _, lastFlushedNanos := range fbr.ByNumForwardedTimes {
 				if lastFlushedNanos <= waitTillFlushedTime.UnixNano() {
 					mgr.metrics.forwarded.flushWindowsNotEnded.Inc(1)
-					return false
+					return false, LeaderStatusShardsNotCutover
 				}
 			}
 		}
 	}
 
-	return true
+	return true, LeaderStatusFollowerCanLead
 }
 
 func (mgr *followerFlushManager) canLead(
