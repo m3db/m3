@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -93,9 +92,6 @@ func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
 		opts:            opts,
 		instant:         instant,
 	}
-
-	maxDatapoints := opts.Config().Limits.MaxComputedDatapoints()
-	h.promReadMetrics.maxDatapoints.Update(float64(maxDatapoints))
 	return h
 }
 
@@ -147,11 +143,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.instant {
 		renderResultsInstantaneousJSON(w, result, h.opts.Config().ResultOptions.KeepNans)
-		return
-	}
-
-	if parsedOptions.Params.FormatType == models.FormatM3QL {
-		renderM3QLResultsJSON(w, result.Series, parsedOptions.Params)
 		return
 	}
 

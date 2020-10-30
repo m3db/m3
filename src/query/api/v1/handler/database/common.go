@@ -64,24 +64,10 @@ func RegisterRoutes(
 		wrapped(createHandler).ServeHTTP).
 		Methods(CreateHTTPMethod)
 
-	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
-		NewConfigGetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
-		Methods(ConfigGetBootstrappersHTTPMethod)
-	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
-		NewConfigSetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
-		Methods(ConfigSetBootstrappersHTTPMethod)
-
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
 	r.HandleFunc(CreateURL, wrapped(createHandler).ServeHTTP).Methods(CreateHTTPMethod)
 	r.HandleFunc(CreateNamespaceURL, wrapped(createHandler).ServeHTTP).Methods(CreateNamespaceHTTPMethod)
-
-	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
-		NewConfigGetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
-		Methods(ConfigGetBootstrappersHTTPMethod)
-	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
-		NewConfigSetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
-		Methods(ConfigSetBootstrappersHTTPMethod)
 
 	return nil
 }

@@ -171,6 +171,9 @@ func (s *peersSource) Read(
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
+	// NB(bodu): We need to evict the info file cache before reading index data since we've
+	// maybe fetched blocks from peers so the cached info file state is now stale.
+	cache.Evict()
 	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
@@ -185,9 +188,6 @@ func (s *peersSource) Read(
 			continue
 		}
 
-		// NB(bodu): We need to evict the info file cache before reading index data since we've
-		// maybe fetched blocks from peers so the cached info file state is now stale.
-		cache.Evict()
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			span,

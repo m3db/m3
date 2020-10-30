@@ -107,16 +107,10 @@ func (p StoragePolicy) Proto() (*policypb.StoragePolicy, error) {
 
 // ToProto converts the storage policy to a protobuf message in place.
 func (p StoragePolicy) ToProto(pb *policypb.StoragePolicy) error {
-	if pb.Resolution == nil {
-		pb.Resolution = &policypb.Resolution{}
-	}
-	if err := p.resolution.ToProto(pb.Resolution); err != nil {
+	if err := p.resolution.ToProto(&pb.Resolution); err != nil {
 		return err
 	}
-	if pb.Retention == nil {
-		pb.Retention = &policypb.Retention{}
-	}
-	p.retention.ToProto(pb.Retention)
+	p.retention.ToProto(&pb.Retention)
 	return nil
 }
 
