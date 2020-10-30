@@ -60,6 +60,7 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
+	errNamespaceReadOnly = errors.New("cannot write to a read only namespace")
 )
 
 type commitLogWriter interface {
@@ -678,6 +679,10 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
@@ -703,6 +708,10 @@ func (n *dbNamespace) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))

@@ -202,6 +202,27 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	require.False(t, seriesWrite.WasWritten)
 }
 
+func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.SetReadOnly(true)
+
+	id := ident.StringID("foo")
+	now := time.Now()
+
+	seriesWrite, err := ns.Write(ctx, id, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
+	require.False(t, seriesWrite.WasWritten)
+
+	seriesWrite, err = ns.WriteTagged(ctx, id, ident.EmptyTagIterator, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
+	require.False(t, seriesWrite.WasWritten)
+}
+
 func TestNamespaceWriteShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
