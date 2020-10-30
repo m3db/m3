@@ -230,6 +230,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 	mgr.RLock()
 	defer mgr.RUnlock()
 
+	now := mgr.nowFn()
 	if !mgr.electionManager.IsCampaigning() {
 		mgr.metrics.notCampaigning.Inc(1)
 		return false
@@ -248,6 +249,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// start time are closed, meaning the standard metrics that didn't make to the
 		// process have been flushed successfully downstream.
 		if !mgr.canLead(
+			now,
 			standardMetricListType,
 			int(shardID),
 			shardFlushTimes.StandardByResolution,
@@ -256,6 +258,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 			return false
 		}
 		if !mgr.canLead(
+			now,
 			timedMetricListType,
 			int(shardID),
 			shardFlushTimes.TimedByResolution,
@@ -293,7 +296,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 						zap.Int32("numForwardedTimes", numForwardedTimes))
 					mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-					if mgr.canLeadNotFushed(windowSize) {
+					if mgr.canLeadNotFushed(now, windowSize) {
 						continue
 					}
 				}
@@ -313,12 +316,13 @@ func (mgr *followerFlushManager) CanLead() bool {
 // for the window that was not (yet) flushed by leader.
 // This is case is possible when leader encounters a metric at some resolution
 // window for the first time in the shard it owns.
-func (mgr *followerFlushManager) canLeadNotFushed(windowSize time.Duration) bool {
-	windowStartAt := mgr.nowFn().Truncate(windowSize)
+func (mgr *followerFlushManager) canLeadNotFushed(now time.Time, windowSize time.Duration) bool {
+	windowStartAt := now.Truncate(windowSize)
 	return mgr.openedAt.Before(windowStartAt)
 }
 
 func (mgr *followerFlushManager) canLead(
+	now time.Time,
 	flusherType metricListType,
 	shardID int,
 	flushTimes map[int64]int64,
@@ -333,7 +337,7 @@ func (mgr *followerFlushManager) canLead(
 				zap.Int("shardID", int(shardID)))
 			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-			if mgr.canLeadNotFushed(windowSize) {
+			if mgr.canLeadNotFushed(now, windowSize) {
 				continue
 			}
 		}
