@@ -135,15 +135,16 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 
 func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 	now := time.Unix(24*60*60, 0)
-	window := 10 * time.Minute
+	window10m := 10 * time.Minute
+	window1m := time.Minute
 	testFlushTimes := &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
 			123: &schema.ShardFlushTimes{
 				StandardByResolution: map[int64]int64{
-					window.Nanoseconds(): 0,
+					window10m.Nanoseconds(): 0,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					window.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+					window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
 						ByNumForwardedTimes: map[int32]int64{
 							1: 0,
 						},
@@ -155,6 +156,7 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 
 	runTestFn := func(
 		t *testing.T,
+		flushTimes *schema.ShardSetFlushTimes,
 		followerOpenedAt time.Time,
 		expectedCanLead bool,
 	) {
@@ -172,27 +174,69 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 			SetClockOptions(clockOpts)
 		mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 
-		mgr.processed = testFlushTimes
+		mgr.processed = flushTimes
 		mgr.openedAt = followerOpenedAt
 		require.Equal(t, expectedCanLead, mgr.CanLead())
 	}
 
 	t.Run("opened_on_the_window_start", func(t *testing.T) {
-		followerOpenedAt := now.Truncate(window)
+		followerOpenedAt := now.Truncate(window10m)
 		expectedCanLead := false
-		runTestFn(t, followerOpenedAt, expectedCanLead)
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
 	})
 
 	t.Run("opened_after_the_window_start", func(t *testing.T) {
-		followerOpenedAt := now.Truncate(window).Add(1 * time.Second)
+		followerOpenedAt := now.Truncate(window10m).Add(1 * time.Second)
 		expectedCanLead := false
-		runTestFn(t, followerOpenedAt, expectedCanLead)
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
 	})
 
 	t.Run("opened_before_the_window_start", func(t *testing.T) {
-		followerOpenedAt := now.Truncate(window).Add(-1 * time.Second)
+		followerOpenedAt := now.Truncate(window10m).Add(-1 * time.Second)
 		expectedCanLead := true
-		runTestFn(t, followerOpenedAt, expectedCanLead)
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("standard_flushed_ok_and_unflushed_bad", func(t *testing.T) {
+		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
+			ByShard: map[uint32]*schema.ShardFlushTimes{
+				123: &schema.ShardFlushTimes{
+					StandardByResolution: map[int64]int64{
+						window1m.Nanoseconds():  now.Add(1 * time.Second).UnixNano(),
+						window10m.Nanoseconds(): 0,
+					},
+				},
+			},
+		}
+
+		followerOpenedAt := now
+		expectedCanLead := false
+		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("forwarded_flushed_ok_and_unflushed_bad", func(t *testing.T) {
+		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
+			ByShard: map[uint32]*schema.ShardFlushTimes{
+				123: &schema.ShardFlushTimes{
+					ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
+						window1m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+							ByNumForwardedTimes: map[int32]int64{
+								1: now.Truncate(window1m).Add(1 * time.Second).UnixNano(),
+							},
+						},
+						window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+							ByNumForwardedTimes: map[int32]int64{
+								1: 0,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		followerOpenedAt := now
+		expectedCanLead := false
+		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
 	})
 }
 
