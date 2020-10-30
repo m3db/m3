@@ -130,13 +130,11 @@ func RegisterRoutes(
 	// Get M3DB namespaces.
 	getHandler := wrapped(
 		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 
 	// Add M3DB namespaces.
 	addHandler := wrapped(
 		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 
 	// Update M3DB namespaces.
@@ -147,7 +145,6 @@ func RegisterRoutes(
 	// Delete M3DB namespaces.
 	deleteHandler := wrapped(
 		applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 
 	// Deploy M3DB schemas.

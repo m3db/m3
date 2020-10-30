@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +35,7 @@ import (
 
 func makeTestQueryContext() *models.QueryContext {
 	return models.NewQueryContext(context.Background(),
-		tally.NoopScope, cost.NoopChainedEnforcer(),
+		tally.NoopScope,
 		models.QueryContextOptions{})
 }
 

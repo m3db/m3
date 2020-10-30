@@ -43,10 +43,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
-	// backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
-
 	// M3DBAddURL is the url for the placement add handler (with the POST method)
 	// for the M3DB service.
 	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)

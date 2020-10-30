@@ -136,7 +136,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 
 				test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 				metaOne := block.SeriesMeta{
-					Name: []byte("t1=v1,"),
+					Name: []byte("{t1=\"v1\"}"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v1"),
@@ -144,7 +144,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 				}
 
 				metaTwo := block.SeriesMeta{
-					Name: []byte("t1=v2,"),
+					Name: []byte("{t1=\"v2\"}"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v2"),
@@ -338,7 +338,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 
 	for i, m := range sink.Metas {
 		expected := fmt.Sprint(expected[i])
-		expectedName := fmt.Sprintf("tag=%s,", expected)
+		expectedName := fmt.Sprintf("{tag=\"%s\"}", expected)
 		assert.Equal(t, expectedName, string(m.Name))
 		require.Equal(t, 1, m.Tags.Len())
 		tag, found := m.Tags.Get([]byte(tagName))

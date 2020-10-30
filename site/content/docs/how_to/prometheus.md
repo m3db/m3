@@ -29,9 +29,8 @@ Start by downloading the config template. Update the namespaces and the client s
 You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as unaggregated since it's required by default to have a cluster that receives all Prometheus metrics unaggregated. In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality here.
 
 It should look something like:
-listenAddress:
-  type: "config"
-  value: "0.0.0.0:7201"
+```yaml
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
@@ -86,32 +85,41 @@ clusters:
          jitter: true
        backgroundHealthCheckFailLimit: 4
        backgroundHealthCheckFailThrottleFactor: 0.5
+```
 
 Now start the process up:
-m3coordinator -f <config-name.yml>
+`m3coordinator -f <config-name.yml>`
 
 Or, use the docker container:
+```
 docker pull quay.io/m3db/m3coordinator:latest
 docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
+```
 
 ### Prometheus configuration
 Add to your Prometheus configuration the m3coordinator sidecar remote read/write endpoints, something like:
+```
 remote_read:
   - url: "http://localhost:7201/api/v1/prom/remote/read"
     # To test reading even when local Prometheus has the data
     read_recent: true
 remote_write:
   - url: "http://localhost:7201/api/v1/prom/remote/write"
+```
 
 Also, we recommend adding M3DB and M3Coordinator/M3Query to your list of jobs under scrape_configs so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured M3DB Grafana dashboard.
+```
 - job_name: 'm3db'
   static_configs:
     - targets: ['<M3DB_HOST_NAME_1>:7203', '<M3DB_HOST_NAME_2>:7203', '<M3DB_HOST_NAME_3>:7203']
 - job_name: 'm3coordinator'
   static_configs:
     - targets: ['<M3COORDINATOR_HOST_NAME_1>:7203']
+```
 
 NOTE: If you are running M3DB with embedded M3Coordinator, you should only have one job. We recommend just calling this job m3. For example:
+```
 - job_name: 'm3'
   static_configs:
     - targets: ['<HOST_NAME>:7203']
+```
