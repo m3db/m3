@@ -529,35 +529,9 @@ func TestPersistenceManagerPrepareIndexSnapshotSuccess(t *testing.T) {
 	writer.EXPECT().WriteSegmentFileSet(segDataWriter).Return(nil)
 	require.NoError(t, prepared.Persist(segData))
 
-	reader := NewMockIndexFileSetReader(ctrl)
-	pm.indexPM.newReaderFn = func(Options) (IndexFileSetReader, error) {
-		return reader, nil
-	}
-
-	reader.EXPECT().Open(xtest.CmpMatcher(IndexReaderOpenOptions{
-		Identifier:  writerOpts.Identifier,
-		FileSetType: persist.FileSetSnapshotType,
-	}, m3test.IdentTransformer)).Return(IndexReaderOpenResult{}, nil)
-
-	file := NewMockIndexSegmentFile(ctrl)
-	gomock.InOrder(
-		reader.EXPECT().SegmentFileSets().Return(1),
-		reader.EXPECT().ReadSegmentFileSet().Return(file, nil),
-		reader.EXPECT().ReadSegmentFileSet().Return(nil, io.EOF),
-	)
-	fsSeg := m3ninxfs.NewMockSegment(ctrl)
-	pm.indexPM.newPersistentSegmentFn = func(
-		fset m3ninxpersist.IndexSegmentFileSet, opts m3ninxfs.Options,
-	) (m3ninxfs.Segment, error) {
-		require.Equal(t, file, fset)
-		return fsSeg, nil
-	}
-
 	writer.EXPECT().Close().Return(nil)
-	segs, err := prepared.Close()
+	err = prepared.Close()
 	require.NoError(t, err)
-	require.Len(t, segs, 1)
-	require.Equal(t, fsSeg, segs[0])
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {

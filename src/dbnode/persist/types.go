@@ -198,11 +198,15 @@ type PreparedIndexFlushPersist struct {
 	Close   IndexCloser
 }
 
+// IndexSnapshotCloser is a function that performs cleanup after persisting the index snapshots
+// for a (namespace, blockStart) combination.
+type IndexSnapshotCloser func() error
+
 // PreparedIndexSnapshotPersist is an object that wraps holds a index snapshot
 // persist function and a closer.
 type PreparedIndexSnapshotPersist struct {
 	Persist     IndexSnapshotFn
-	Close       IndexCloser
+	Close       IndexSnapshotCloser
 	VolumeIndex int
 }
 

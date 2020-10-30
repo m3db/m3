@@ -309,7 +309,7 @@ func (pm *persistManager) PrepareIndexFlush(opts persist.IndexPrepareOptions) (p
 
 	// provide persistManager hooks into PreparedIndexFlushPersist object
 	prepared.Persist = pm.persistIndex
-	prepared.Close = pm.closeIndex
+	prepared.Close = pm.closeIndexAndReadIndexSegments
 
 	return prepared, nil
 }
@@ -433,26 +433,29 @@ func (pm *persistManager) persistIndexSnapshot(data fst.SegmentData) error {
 	return nil
 }
 
-func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
+func (pm *persistManager) closeIndex() error {
 	// ensure StartIndexPersist was called
 	if !pm.indexPM.initialized {
-		return nil, errPersistManagerNotPersisting
+		return errPersistManagerNotPersisting
 	}
 	pm.indexPM.initialized = false
 
 	// i.e. we're done writing all segments for PreparedIndexFlushPersist.
 	// so we can close the writer.
 	if err := pm.indexPM.writer.Close(); err != nil {
-		return nil, err
+		return err
 	}
 
-	// only attempt to retrieve data if we have not encountered errors during
-	// any writes.
-	if err := pm.indexPM.writeErr; err != nil {
+	// return any write errors
+	return pm.indexPM.writeErr
+}
+
+func (pm *persistManager) closeIndexAndReadIndexSegments() ([]segment.Segment, error) {
+	if err := pm.closeIndex(); err != nil {
 		return nil, err
 	}
-
-	// and then we get persistent segments backed by mmap'd data so the index
+	// Only attempt to retrieve data if we have not encountered errors during
+	// any writes. We get persistent segments backed by mmap'd data so the index
 	// can safely evict the segment's we have just persisted.
 	return ReadIndexSegments(ReadIndexSegmentsOptions{
 		ReaderOptions: IndexReaderOpenOptions{
