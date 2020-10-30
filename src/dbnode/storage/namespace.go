@@ -1141,7 +1141,7 @@ func (n *dbNamespace) WarmFlush(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	if !n.nopts.FlushEnabled() {
+	if n.ReadOnly() || !n.nopts.FlushEnabled() {
 		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}

@@ -449,6 +449,16 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
+func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.bootstrapState = Bootstrapped
+	ns.SetReadOnly(true)
+	require.NoError(t, ns.WarmFlush(time.Now(), nil))
+	require.NoError(t, ns.ColdFlush(nil))
+}
+
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
