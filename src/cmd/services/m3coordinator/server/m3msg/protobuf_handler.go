@@ -47,7 +47,6 @@ type handlerMetrics struct {
 	metricAccepted               tally.Counter
 	droppedMetricBlackholePolicy tally.Counter
 	droppedMetricDecodeError     tally.Counter
-	droppedMetricDecodeMalformed tally.Counter
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
@@ -60,9 +59,6 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		}).Counter("dropped"),
 		droppedMetricBlackholePolicy: messageScope.Tagged(map[string]string{
 			"reason": "blackhole-policy",
-		}).Counter("dropped"),
-		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
-			"reason": "decode-malformed",
 		}).Counter("dropped"),
 	}
 }
@@ -111,18 +107,11 @@ func (h *pbHandler) Process(msg consumer.Message) {
 		h.m.droppedMetricDecodeError.Inc(1)
 		return
 	}
-	sp, err := dec.StoragePolicy()
-	if err != nil {
-		h.logger.Error("invalid storage policy", zap.Error(err))
-		h.m.droppedMetricDecodeMalformed.Inc(1)
-		return
-	}
-
 	h.m.metricAccepted.Inc(1)
 
 	h.wg.Add(1)
 	r := NewProtobufCallback(msg, dec, h.wg)
-
+	sp := dec.StoragePolicy()
 	// If storage policy is blackholed, ack the message immediately and don't
 	// bother passing down the write path.
 	for _, blackholeSp := range h.blackholePolicies {

@@ -192,16 +192,14 @@ func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) erro
 	if str == "" {
 		return errClusterConnectConsistencyLevelUnspecified
 	}
-	strs := make([]string, 0, len(validConnectConsistencyLevels))
 	for _, valid := range validConnectConsistencyLevels {
 		if str == valid.String() {
 			*l = valid
 			return nil
 		}
-		strs = append(strs, "'"+valid.String()+"'")
 	}
 	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
+		str, validConnectConsistencyLevels)
 }
 
 // ReadConsistencyLevel is the consistency level for reading from a cluster

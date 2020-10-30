@@ -96,11 +96,11 @@ var (
 						Filter:       "tag1:value1 tag2:value2",
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(10 * time.Second),
 									Precision:  int64(time.Second),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
@@ -119,20 +119,20 @@ var (
 						Filter:       "tag3:value3 tag4:value4",
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(time.Minute),
 									Precision:  int64(time.Minute),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(5 * time.Minute),
 									Precision:  int64(time.Minute),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(48 * time.Hour),
 								},
 							},
@@ -159,11 +159,11 @@ var (
 						},
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(10 * time.Second),
 									Precision:  int64(time.Second),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
@@ -202,11 +202,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
@@ -237,20 +237,20 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(5 * time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(48 * time.Hour),
 										},
 									},
@@ -283,11 +283,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
@@ -318,20 +318,20 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(5 * time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(48 * time.Hour),
 										},
 									},
@@ -365,11 +365,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},

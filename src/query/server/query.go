@@ -409,13 +409,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
-	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
-		instrumentOptions)
-	if err != nil {
-		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
-	}
-
-	defer chainedEnforceCloser.Close()
 	if fn := runOpts.BackendStorageTransform; fn != nil {
 		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
 	}
@@ -423,7 +416,6 @@ func Run(runOpts RunOptions) {
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
-		SetGlobalEnforcer(chainedEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
@@ -478,7 +470,7 @@ func Run(runOpts RunOptions) {
 		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
-		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
+		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
@@ -496,12 +488,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
-	listenAddress, err := cfg.ListenAddress.Resolve()
-	if err != nil {
-		logger.Fatal("unable to get listen address", zap.Error(err))
-	}
-
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srv := &http.Server{Addr: cfg.ListenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -509,10 +496,10 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := listenerOpts.Listen("tcp", listenAddress)
+	listener, err := listenerOpts.Listen("tcp", cfg.ListenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
-			zap.String("address", listenAddress),
+			zap.String("address", cfg.ListenAddress),
 			zap.Error(err))
 	}
 	if runOpts.ListenerCh != nil {
@@ -522,7 +509,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
-				zap.String("address", listenAddress),
+				zap.String("address", cfg.ListenAddress),
 				zap.Error(err))
 		}
 	}()

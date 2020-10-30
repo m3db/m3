@@ -1,8 +1,7 @@
 # Include this field if you want to enable an embedded M3Coordinator instance.
 coordinator:
   # Address for M3Coordinator to listen for traffic.
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   # All configured M3DB namespaces must be listed in this config if running an
   # embedded M3Coordinator instance.
@@ -29,9 +28,6 @@ coordinator:
     # Sampling rate for metrics, use 1.0 for no sampling.
     samplingRate: 1.0
     extended: none
-
-  limits:
-    maxComputedDatapoints: 10000
 
   tagOptions:
     # Configuration setting for generating metric IDs from tags.
@@ -108,15 +104,8 @@ db:
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:
-    # Order in which to run the bootstrappers. Don't change these values unless
-    # you know what you're doing as non-standard configurations can cause data
-    # loss or make recovery from disaster scenarios difficult.
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
     commitlog:
+      # Whether tail end of corrupted commit logs cause an error on bootstrap.
       returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
@@ -135,7 +124,7 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     # Directory to store M3DB data in.
     filePathPrefix: /var/lib/m3db
     # Various fixed-sized buffers used for M3DB I/O.

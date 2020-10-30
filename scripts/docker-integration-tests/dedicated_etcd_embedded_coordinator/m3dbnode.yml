@@ -1,6 +1,5 @@
 coordinator:
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   logging:
     level: info
@@ -49,15 +48,6 @@ db:
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
 
-  bootstrap:
-    # Intentionally disable peers bootstrapper to ensure it doesn't interfere with test.
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - uninitialized_topology
-    commitlog:
-      returnUnfulfilledForCorruptCommitLogFiles: false
-
   cache:
     series:
       policy: lru
@@ -69,7 +59,7 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     filePathPrefix: /var/lib/m3db
 
   config:

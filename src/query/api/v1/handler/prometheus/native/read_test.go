@@ -22,10 +22,7 @@ package native
 
 import (
 	"context"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -171,64 +168,6 @@ func testPromReadHandlerRead(
 	}
 }
 
-type M3QLResp []struct {
-	Target     string            `json:"target"`
-	Tags       map[string]string `json:"tags"`
-	Datapoints [][]float64       `json:"datapoints"`
-	StepSizeMs int               `json:"step_size_ms"`
-}
-
-func TestM3PromReadHandlerRead(t *testing.T) {
-	testM3PromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testM3PromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testM3PromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		headers.LimitHeaderSeriesLimitApplied)
-}
-
-func testM3PromReadHandlerRead(
-	t *testing.T,
-	resultMeta block.ResultMetadata,
-	ex string,
-) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-
-	setup := newTestSetup(timeoutOpts, nil)
-	promRead := setup.Handlers.read
-
-	seriesMeta := test.NewSeriesMeta("dummy", len(values))
-	meta := block.Metadata{
-		Bounds:         bounds,
-		Tags:           models.NewTags(0, models.NewTagOptions()),
-		ResultMetadata: resultMeta,
-	}
-
-	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
-	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
-
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.Header.Add(headers.RenderFormat, "m3ql")
-	req.URL.RawQuery = defaultParams().Encode()
-
-	recorder := httptest.NewRecorder()
-	promRead.ServeHTTP(recorder, req)
-
-	header := recorder.Header().Get(headers.LimitHeader)
-	assert.Equal(t, ex, header)
-
-	var m3qlResp M3QLResp
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
-
-	assert.Len(t, m3qlResp, 2)
-	assert.Equal(t, "dummy0", m3qlResp[0].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"},
-		m3qlResp[0].Tags)
-	assert.Equal(t, 10000, m3qlResp[0].StepSizeMs)
-	assert.Equal(t, "dummy1", m3qlResp[1].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"},
-		m3qlResp[1].Tags)
-	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
-}
-
 func newReadRequest(t *testing.T, params url.Values) *http.Request {
 	req, err := http.NewRequest("GET", PromReadURL, nil)
 	require.NoError(t, err)
@@ -260,7 +199,6 @@ func newTestSetup(
 	engineOpts := executor.NewEngineOptions().
 		SetStore(mockStorage).
 		SetLookbackDuration(time.Minute).
-		SetGlobalEnforcer(nil).
 		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
 	if mockEngine != nil {
@@ -298,133 +236,6 @@ func newTestSetup(
 		FetchOpts:   storage.NewFetchOptions(),
 		TimeoutOpts: timeoutOpts,
 		options:     opts,
-	}
-}
-
-func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
-	setup := newTestSetup(timeoutOpts, nil)
-	opts := setup.Handlers.read.opts
-	setup.Handlers.read.opts = opts.SetConfig(config.Configuration{
-		Limits: config.LimitsConfiguration{
-			PerQuery: config.PerQueryLimitsConfiguration{
-				PrivateMaxComputedDatapoints: 3599,
-			},
-		},
-	})
-
-	params := defaultParams()
-	params.Set(startParam, time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC).
-		Format(time.RFC3339Nano))
-	params.Set(endParam, time.Date(2018, 1, 1, 1, 0, 0, 0, time.UTC).
-		Format(time.RFC3339Nano))
-	params.Set(handleroptions.StepParam, (time.Second).String())
-	req := newReadRequest(t, params)
-
-	recorder := httptest.NewRecorder()
-	setup.Handlers.read.ServeHTTP(recorder, req)
-	resp := recorder.Result()
-
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-
-	d, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	// not a public struct in xhttp, but it's small.
-	var errResp struct {
-		Error string `json:"error"`
-	}
-	require.NoError(t, json.Unmarshal(d, &errResp))
-
-	expected := "querying from 2018-01-01 00:00:00 +0000 UTC to 2018-01-01 01:00:00 +0000 UTC with step size 1s " +
-		"would result in too many datapoints (end - start / step > 3599). Either decrease the query resolution " +
-		"(?step=XX), decrease the time window, or increase the limit (`limits.maxComputedDatapoints`)"
-	assert.Equal(t, expected, errResp.Error)
-}
-
-func TestPromReadHandler_validateRequest(t *testing.T) {
-	dt := func(year int, month time.Month, day, hour int) time.Time {
-		return time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
-	}
-
-	cases := []struct {
-		name          string
-		params        models.RequestParams
-		max           int
-		errorExpected bool
-	}{{
-		name: "under limit",
-		params: models.RequestParams{
-			Step:  time.Second,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           3601,
-		errorExpected: false,
-	}, {
-		name: "at limit",
-		params: models.RequestParams{
-			Step:  time.Second,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           3600,
-		errorExpected: false,
-	}, {
-		name: "over limit",
-		params: models.RequestParams{
-			Step:  time.Second,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           3599,
-		errorExpected: true,
-	}, {
-		name: "large query, limit disabled (0)",
-		params: models.RequestParams{
-			Step:  time.Second,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           0,
-		errorExpected: false,
-	}, {
-		name: "large query, limit disabled (negative)",
-		params: models.RequestParams{
-			Step:  time.Second,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           -50,
-		errorExpected: false,
-	}, {
-		name: "uneven step over limit",
-		params: models.RequestParams{
-			Step:  34 * time.Minute,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 11),
-		},
-		max:           1,
-		errorExpected: true,
-	}, {
-		name: "uneven step under limit",
-		params: models.RequestParams{
-			Step:  34 * time.Minute,
-			Start: dt(2018, 1, 1, 0),
-			End:   dt(2018, 1, 1, 1),
-		},
-		max:           2,
-		errorExpected: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateRequest(tc.params, tc.max)
-			if tc.errorExpected {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
 	}
 }
 

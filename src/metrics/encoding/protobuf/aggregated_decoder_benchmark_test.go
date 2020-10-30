@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,50 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cmd
+package protobuf
 
 import (
-	"log"
+	"runtime"
+	"testing"
 
-	"github.com/m3db/m3/src/m3nsch/coordinator"
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
-var (
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "start the load generation",
-		Long:  "Start kicks off the load generation on each agent process",
-		Run:   startExec,
-		Example: `# Start the load generation process on various agents:
-./m3nsch_client -e "<agent1_host:agent1_port>,...,<agentN_host>:<agentN_port>" start`,
-	}
-)
-
-func startExec(_ *cobra.Command, _ []string) {
-	if !gFlags.isValid() {
-		log.Fatalf("unable to execute, invalid flags\n%s", M3nschCmd.UsageString())
-	}
-
+func BenchmarkDecodeStoragePolicy(b *testing.B) {
 	var (
-		iopts      = instrument.NewOptions()
-		logger     = iopts.Logger()
-		mOpts      = coordinator.NewOptions(iopts)
-		coord, err = coordinator.New(mOpts, gFlags.endpoints)
+		enc = NewAggregatedEncoder(nil)
+		dec = NewAggregatedDecoder(nil)
+		sp  policy.StoragePolicy
 	)
-
-	if err != nil {
-		logger.Fatal("unable to create coordinator", zap.Error(err))
-	}
-	defer coord.Teardown()
-
-	err = coord.Start()
-	if err != nil {
-		logger.Fatal("unable to start workload", zap.Error(err))
+	if err := enc.Encode(testAggregatedMetric1, 2000); err != nil {
+		b.Fatal(err)
 	}
 
-	logger.Info("workload started!")
+	buf := enc.Buffer().Bytes()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = dec.Decode(buf)
+		sp = dec.StoragePolicy()
+		dec.Close()
+	}
+	runtime.KeepAlive(sp)
 }

@@ -68,7 +68,7 @@ This value can be set much lower than the default value for workloads in which a
 ### Ignoring Corrupt Commitlogs on Bootstrap
 
 If M3DB is shut down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
-However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
+However, in situations where SIGKILL is used, the process exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either **(a)** come up successfully and tolerate an ostensibly minor amount of data or loss, or **(b)** attempt to stream the missing data from its peers.
 This behavior is controlled by the following default configuration:
 

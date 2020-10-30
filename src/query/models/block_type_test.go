@@ -28,8 +28,6 @@ import (
 
 func TestFetchedBlockType(t *testing.T) {
 	assert.NoError(t, TypeSingleBlock.Validate())
-	assert.EqualError(t, TypeDecodedBlock.Validate(),
-		ErrDecodedBlockDeprecated.Error())
 	assert.EqualError(t, TypeMultiBlock.Validate(),
 		ErrMultiBlockDisabled.Error())
 	assert.EqualError(t, FetchedBlockType(3).Validate(),

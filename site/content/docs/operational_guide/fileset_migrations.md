@@ -16,7 +16,7 @@ Migrations are enabled by setting the following fields in the M3 configuration (
 ```yaml
 db:
   bootstrap:
-    fs:
+    filesystem:
       migration:
         targetMigrationVersion: "1.1"
         # Optional. Defaults to the number of available CPUs / 2.

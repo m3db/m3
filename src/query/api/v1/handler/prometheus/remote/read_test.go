@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -132,13 +131,11 @@ func TestParseExpr(t *testing.T) {
 func newEngine(
 	s storage.Storage,
 	lookbackDuration time.Duration,
-	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) executor.Engine {
 	engineOpts := executor.NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
-		SetGlobalEnforcer(enforcer).
 		SetInstrumentOptions(instrumentOpts)
 
 	return executor.NewEngine(engineOpts)
@@ -167,7 +164,7 @@ func readHandler(store storage.Storage,
 		},
 	}
 	iOpts := instrument.NewOptions()
-	engine := newEngine(store, defaultLookbackDuration, nil, iOpts)
+	engine := newEngine(store, defaultLookbackDuration, iOpts)
 	opts := options.EmptyHandlerOptions().
 		SetEngine(engine).
 		SetInstrumentOpts(iOpts).
@@ -185,7 +182,7 @@ func TestPromReadParsing(t *testing.T) {
 			SeriesLimit: 100,
 		},
 	}
-	engine := newEngine(storage, defaultLookbackDuration, nil,
+	engine := newEngine(storage, defaultLookbackDuration,
 		instrument.NewOptions())
 
 	opts := options.EmptyHandlerOptions().
@@ -297,7 +294,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 			SeriesLimit: 100,
 		},
 	}
-	engine := newEngine(storage, defaultLookbackDuration, nil,
+	engine := newEngine(storage, defaultLookbackDuration,
 		instrument.NewOptions())
 	opts := options.EmptyHandlerOptions().
 		SetEngine(engine).
