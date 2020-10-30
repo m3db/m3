@@ -1266,7 +1266,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	// If repair is enabled we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	if n.ReadOnly() || !(n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()) {
+	enabled := n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()
+	if n.ReadOnly() || !enabled {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
