@@ -7,9 +7,7 @@ metadata:
   name: m3coordinator-dedicated-test-cluster
 data:
   coordinator.yaml: |+
-    listenAddress:
-      type: "config"
-      value: "0.0.0.0:7201"
+    listenAddress: 0.0.0.0:7201
     metrics:
       scope:
         prefix: "coordinator"

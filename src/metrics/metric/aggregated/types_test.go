@@ -142,11 +142,11 @@ var (
 	testForwardMetadata1Proto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: time.Minute.Nanoseconds(),
 				Precision:  time.Minute.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (12 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -167,11 +167,11 @@ var (
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: 10 * time.Second.Nanoseconds(),
 				Precision:  time.Second.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (6 * time.Hour).Nanoseconds(),
 			},
 		},

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tdigest
+package transformation
 
 import (
-	"github.com/m3db/m3/src/x/pool"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-type centroidsPool struct {
-	pool pool.BucketizedObjectPool
+func TestReset(t *testing.T) {
+	reset, err := Reset.UnaryMultiOutputTransform()
+	require.NoError(t, err)
+	now := time.Now()
+	dp := Datapoint{Value: 1000, TimeNanos: now.UnixNano()}
+	this, other := reset.Evaluate(dp)
+	require.Equal(t, dp, this)
+	require.Equal(t, Datapoint{Value: 0, TimeNanos: now.Add(time.Second).UnixNano()}, other)
 }
 
-// NewCentroidsPool creates a new centroids pool.
-func NewCentroidsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) CentroidsPool {
-	return &centroidsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
-}
-
-func (p *centroidsPool) Init() {
-	p.pool.Init(func(capacity int) interface{} {
-		return make([]Centroid, 0, capacity)
-	})
-}
-
-func (p *centroidsPool) Get(capacity int) []Centroid {
-	return p.pool.Get(capacity).([]Centroid)
-}
-
-func (p *centroidsPool) Put(value []Centroid) {
-	value = value[:0]
-	p.pool.Put(value, cap(value))
+func TestUnaryMultiParse(t *testing.T) {
+	parsed, err := ParseType("Reset")
+	require.NoError(t, err)
+	require.Equal(t, Reset, parsed)
 }

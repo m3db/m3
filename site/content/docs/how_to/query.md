@@ -58,7 +58,9 @@ If you run Statsite, m3agg, or some other aggregation tier, you will want to set
 
 ## ID generation
 
-The default generation scheme for IDs, `legacy`, is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either `quoted` or `prepend_meta`. `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:
+As of 1.0, the default generation scheme for IDs is `quoted`. If you are using the deprecated `legacy` scheme, please contact the M3 project contributors on the open source Slack channel.
+
+The `quoted` generation scheme yields the most human-readable IDs, whereas `prepend_meta` is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:
 
 ```yaml
 tagOptions:

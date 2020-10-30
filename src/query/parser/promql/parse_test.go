@@ -178,6 +178,35 @@ func TestAggregateParses(t *testing.T) {
 	}
 }
 
+var aggregationWithTagListTests = []string{
+	// different number of tags
+	"sum(up) by (t1,)",
+	"sum(up) by (t1,t2)",
+	"sum(up) without (t1)",
+	"sum(up) without (t1, t2, t3)",
+
+	// trailing comma in tag list
+	"sum(up) by (t1,)",
+	"sum(up) without (t1, t2,)",
+
+	// alternative form
+	"sum by (t) (up)",
+	"sum by (t,) (up)",
+	"sum without (t) (up)",
+	"sum without (t,) (up)",
+}
+
+func TestAggregationWithTagListDoesNotError(t *testing.T) {
+	for _, q := range aggregationWithTagListTests {
+		t.Run(q, func(t *testing.T) {
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			_, _, err = p.DAG()
+			require.NoError(t, err)
+		})
+	}
+}
+
 var linearParseTests = []struct {
 	q            string
 	expectedType string
@@ -353,6 +382,15 @@ var binaryParseTests = []struct {
 	{"up and up", functions.FetchType, functions.FetchType, binary.AndType},
 	{"up or up", functions.FetchType, functions.FetchType, binary.OrType},
 	{"up unless up", functions.FetchType, functions.FetchType, binary.UnlessType},
+
+	// Various spacing
+	{"up/ up", functions.FetchType, functions.FetchType, binary.DivType},
+	{"up-up", functions.FetchType, functions.FetchType, binary.MinusType},
+	{"10 -up", scalar.ScalarType, functions.FetchType, binary.MinusType},
+	{"up*10", functions.FetchType, scalar.ScalarType, binary.MultiplyType},
+	{"up!=10", functions.FetchType, scalar.ScalarType, binary.NotEqType},
+	{"10   <up", scalar.ScalarType, functions.FetchType, binary.LesserType},
+	{"up>=   10", functions.FetchType, scalar.ScalarType, binary.GreaterEqType},
 }
 
 func TestBinaryParses(t *testing.T) {

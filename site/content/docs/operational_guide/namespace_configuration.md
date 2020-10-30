@@ -42,7 +42,7 @@ The "advanced" API allows you to configure every aspect of the namespace that yo
 Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
 
 ```shell
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace -d '{
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace -d '{
   "name": "default_unaggregated",
   "options": {
     "bootstrapEnabled": true,
@@ -71,9 +71,9 @@ Adding a namespace does not require restarting M3DB, but will require modifying 
 
 ### Deleting a Namespace
 
-Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
+Deleting a namespace is a simple as using the `DELETE` `/api/v1/services/m3db/namespace` API on an M3Coordinator instance.
 
-`curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace/<NAMESPACE_NAME>`
+`curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/<NAMESPACE_NAME>`
 
 Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
 
@@ -85,7 +85,7 @@ Also, be very careful not to restart the M3DB nodes after deleting the namespace
 
 ### Viewing a Namespace
 
-In order to view a namespace and its attributes, use the `GET` `/api/v1/namespace` API on a M3Coordinator instance.
+In order to view a namespace and its attributes, use the `GET` `/api/v1/services/m3db/namespace` API on a M3Coordinator instance.
 Additionally, for readability/debugging purposes, you can add the `debug=true` parameter to the URL to view block sizes, buffer sizes, etc.
 in duration format as opposed to nanoseconds (default).
 

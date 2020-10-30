@@ -252,6 +252,10 @@ func (p *parseState) walk(node pql.Node) error {
 			return nil
 		}
 
+		for i, expr := range n.Args {
+			n.Args[i] = unwrapParenExpr(expr)
+		}
+
 		var (
 			// argTypes describes Prom's expected argument types for this call.
 			argTypes = n.Func.ArgTypes
