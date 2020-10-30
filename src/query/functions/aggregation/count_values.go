@@ -161,6 +161,11 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	params := n.op.params
+	labelName := params.StringParameter
+	if !models.IsValid(labelName) {
+		return nil, fmt.Errorf("invalid label name %q", labelName)
+	}
+
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
@@ -207,7 +212,7 @@ func (n *countValuesNode) ProcessBlock(
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: []byte(n.op.opType),
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
-					Name:  []byte(n.op.params.StringParameter),
+					Name:  []byte(labelName),
 					Value: utils.FormatFloatToBytes(k),
 				}),
 			}
