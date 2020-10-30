@@ -32,7 +32,6 @@ func BenchmarkDecodeStoragePolicy(b *testing.B) {
 		enc = NewAggregatedEncoder(nil)
 		dec = NewAggregatedDecoder(nil)
 		sp  policy.StoragePolicy
-		err error
 	)
 	if err := enc.Encode(testAggregatedMetric1, 2000); err != nil {
 		b.Fatal(err)
@@ -43,9 +42,7 @@ func BenchmarkDecodeStoragePolicy(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_ = dec.Decode(buf)
-		if sp, err = dec.StoragePolicy(); err != nil {
-			b.FailNow()
-		}
+		sp = dec.StoragePolicy()
 		dec.Close()
 	}
 	runtime.KeepAlive(sp)
