@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tdigest
+package protobuf
 
 import (
-	"github.com/m3db/m3/src/x/pool"
+	"runtime"
+	"testing"
+
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
-type centroidsPool struct {
-	pool pool.BucketizedObjectPool
-}
+func BenchmarkDecodeStoragePolicy(b *testing.B) {
+	var (
+		enc = NewAggregatedEncoder(nil)
+		dec = NewAggregatedDecoder(nil)
+		sp  policy.StoragePolicy
+	)
+	if err := enc.Encode(testAggregatedMetric1, 2000); err != nil {
+		b.Fatal(err)
+	}
 
-// NewCentroidsPool creates a new centroids pool.
-func NewCentroidsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) CentroidsPool {
-	return &centroidsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
-}
+	buf := enc.Buffer().Bytes()
+	b.ResetTimer()
 
-func (p *centroidsPool) Init() {
-	p.pool.Init(func(capacity int) interface{} {
-		return make([]Centroid, 0, capacity)
-	})
-}
-
-func (p *centroidsPool) Get(capacity int) []Centroid {
-	return p.pool.Get(capacity).([]Centroid)
-}
-
-func (p *centroidsPool) Put(value []Centroid) {
-	value = value[:0]
-	p.pool.Put(value, cap(value))
+	for i := 0; i < b.N; i++ {
+		_ = dec.Decode(buf)
+		sp = dec.StoragePolicy()
+		dec.Close()
+	}
+	runtime.KeepAlive(sp)
 }
