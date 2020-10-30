@@ -290,14 +290,17 @@ func (mgr *followerFlushManager) CanLead() bool {
 			for numForwardedTimes, lastFlushedNanos := range fbr.ByNumForwardedTimes {
 				if lastFlushedNanos == 0 {
 					mgr.logger.Info("Encountered a window that was never flushed by leader",
+						zap.Time("now", now),
 						zap.Stringer("windowSize", windowSize),
 						zap.Stringer("flusherType", forwardedMetricListType),
 						zap.Int("shardID", int(shardID)),
 						zap.Int32("numForwardedTimes", numForwardedTimes))
 					mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-					if mgr.canLeadNotFushed(now, windowSize) {
+					if mgr.canLeadNotFlushed(now, windowSize) {
 						continue
+					} else {
+						return false
 					}
 				}
 
@@ -316,7 +319,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 // for the window that was not (yet) flushed by leader.
 // This is case is possible when leader encounters a metric at some resolution
 // window for the first time in the shard it owns.
-func (mgr *followerFlushManager) canLeadNotFushed(now time.Time, windowSize time.Duration) bool {
+func (mgr *followerFlushManager) canLeadNotFlushed(now time.Time, windowSize time.Duration) bool {
 	windowStartAt := now.Truncate(windowSize)
 	return mgr.openedAt.Before(windowStartAt)
 }
@@ -332,12 +335,13 @@ func (mgr *followerFlushManager) canLead(
 		windowSize := time.Duration(windowNanos)
 		if lastFlushedNanos == 0 {
 			mgr.logger.Info("Encountered a window that was never flushed by leader",
+				zap.Time("now", now),
 				zap.Stringer("windowSize", windowSize),
 				zap.Stringer("flusherType", flusherType),
 				zap.Int("shardID", int(shardID)))
 			mgr.metrics.forwarded.windowNeverFlushed.Inc(1)
 
-			if mgr.canLeadNotFushed(now, windowSize) {
+			if mgr.canLeadNotFlushed(now, windowSize) {
 				continue
 			}
 		}

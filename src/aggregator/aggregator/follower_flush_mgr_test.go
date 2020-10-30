@@ -26,6 +26,7 @@ import (
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -133,6 +134,7 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 }
 
 func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
+	now := time.Unix(24*60*60, 0)
 	window := 10 * time.Minute
 	testFlushTimes := &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
@@ -162,7 +164,12 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		doneCh := make(chan struct{})
 		electionManager := NewMockElectionManager(ctrl)
 		electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
-		opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+		clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
+			return now
+		})
+		opts := NewFlushManagerOptions().
+			SetElectionManager(electionManager).
+			SetClockOptions(clockOpts)
 		mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 
 		mgr.processed = testFlushTimes
@@ -171,19 +178,19 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 	}
 
 	t.Run("opened_on_the_window_start", func(t *testing.T) {
-		followerOpenedAt := time.Now().Truncate(window)
+		followerOpenedAt := now.Truncate(window)
 		expectedCanLead := false
 		runTestFn(t, followerOpenedAt, expectedCanLead)
 	})
 
 	t.Run("opened_after_the_window_start", func(t *testing.T) {
-		followerOpenedAt := time.Now().Truncate(window).Add(1 * time.Second)
+		followerOpenedAt := now.Truncate(window).Add(1 * time.Second)
 		expectedCanLead := false
 		runTestFn(t, followerOpenedAt, expectedCanLead)
 	})
 
 	t.Run("opened_before_the_window_start", func(t *testing.T) {
-		followerOpenedAt := time.Now().Truncate(window).Add(-1 * time.Second)
+		followerOpenedAt := now.Truncate(window).Add(-1 * time.Second)
 		expectedCanLead := true
 		runTestFn(t, followerOpenedAt, expectedCanLead)
 	})
