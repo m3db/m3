@@ -31,7 +31,7 @@ import (
 )
 
 // TimestampIterator encapsulates all the state required for iterating over
-// delta-of-delta compresed timestamps.
+// delta-of-delta compressed timestamps.
 type TimestampIterator struct {
 	PrevTime      xtime.UnixNano
 	PrevTimeDelta time.Duration

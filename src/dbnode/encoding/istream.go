@@ -35,7 +35,7 @@ type istream struct {
 	remaining uint          // bits remaining in current to be read
 }
 
-// NewIStream creates a new Istream
+// NewIStream creates a new IStream
 func NewIStream(reader io.Reader, bufioSize int) IStream {
 	return &istream{
 		r: bufio.NewReaderSize(reader, bufioSize),
