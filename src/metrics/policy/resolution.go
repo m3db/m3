@@ -36,7 +36,8 @@ const (
 
 var (
 	emptyResolution       Resolution
-	errNilResolutionProto = errors.New("nil resolution proto message")
+	emptyResolutionProto  = policypb.Resolution{}
+	errNilResolutionProto = errors.New("empty resolution proto message")
 )
 
 // Resolution is the sampling resolution for datapoints.
@@ -60,8 +61,8 @@ func (r Resolution) ToProto(pb *policypb.Resolution) error {
 }
 
 // FromProto converts the protobuf message to a resolution in place.
-func (r *Resolution) FromProto(pb *policypb.Resolution) error {
-	if pb == nil {
+func (r *Resolution) FromProto(pb policypb.Resolution) error {
+	if pb == emptyResolutionProto {
 		return errNilResolutionProto
 	}
 	precision, err := xtime.UnitFromDuration(time.Duration(pb.Precision))

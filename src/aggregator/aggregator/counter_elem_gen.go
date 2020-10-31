@@ -411,10 +411,12 @@ func (e *CounterElem) processValueWithAggregationLock(
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
+		var extraDp transformation.Datapoint
 		value := lockedAgg.aggregation.ValueOf(aggType)
 		for _, transformOp := range transformations {
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
+			unaryMultiOp, isUnaryMultiOp := transformOp.UnaryMultiOutputTransform()
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
@@ -450,7 +452,15 @@ func (e *CounterElem) processValueWithAggregationLock(
 				}
 
 				value = res.Value
+			case isUnaryMultiOp:
+				curr := transformation.Datapoint{
+					TimeNanos: timeNanos,
+					Value:     value,
+				}
 
+				var res transformation.Datapoint
+				res, extraDp = unaryMultiOp.Evaluate(curr)
+				value = res.Value
 			}
 		}
 
@@ -459,11 +469,22 @@ func (e *CounterElem) processValueWithAggregationLock(
 		}
 
 		if !e.parsedPipeline.HasRollup {
-			switch e.idPrefixSuffixType {
-			case NoPrefixNoSuffix:
-				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
-			case WithPrefixWithSuffix:
-				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
+			toFlush := make([]transformation.Datapoint, 0, 2)
+			toFlush = append(toFlush, transformation.Datapoint{
+				TimeNanos: timeNanos,
+				Value:     value,
+			})
+			if extraDp.TimeNanos != 0 {
+				toFlush = append(toFlush, extraDp)
+			}
+			for _, point := range toFlush {
+				switch e.idPrefixSuffixType {
+				case NoPrefixNoSuffix:
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, e.sp)
+				case WithPrefixWithSuffix:
+					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
+						point.TimeNanos, point.Value, e.sp)
+				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()

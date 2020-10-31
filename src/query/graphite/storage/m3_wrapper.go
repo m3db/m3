@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -48,7 +47,6 @@ var (
 
 type m3WrappedStore struct {
 	m3             storage.Storage
-	enforcer       cost.ChainedEnforcer
 	m3dbOpts       m3db.Options
 	instrumentOpts instrument.Options
 	opts           M3WrappedStorageOptions
@@ -78,18 +76,12 @@ type seriesMetadata struct {
 // storage instance.
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
-	enforcer cost.ChainedEnforcer,
 	m3dbOpts m3db.Options,
 	instrumentOpts instrument.Options,
 	opts M3WrappedStorageOptions,
 ) Storage {
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
 	return &m3WrappedStore{
 		m3:             m3storage,
-		enforcer:       enforcer,
 		m3dbOpts:       m3dbOpts,
 		instrumentOpts: instrumentOpts,
 		opts:           opts,
@@ -396,12 +388,9 @@ func (s *m3WrappedStore) FetchByQuery(
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
 	fetchOptions.SeriesLimit = fetchOpts.Limit
-	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
-	defer perQueryEnforcer.Close()
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
-	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
 		FanoutAggregated:          storage.FanoutDefault,

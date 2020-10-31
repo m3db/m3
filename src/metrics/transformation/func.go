@@ -66,3 +66,16 @@ type BinaryTransformFn func(prev, curr Datapoint) Datapoint
 func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint) Datapoint {
 	return fn(prev, curr)
 }
+
+// UnaryMultiOutputTransform is like UnaryTransform, but can output an additional datapoint.
+// The additional datapoint is not passed to subsequent transforms.
+type UnaryMultiOutputTransform interface {
+	Evaluate(dp Datapoint) (Datapoint, Datapoint)
+}
+
+// UnaryMultiOutputTransformFn implements UnaryMultiOutputTransform as a function.
+type UnaryMultiOutputTransformFn func(dp Datapoint) (Datapoint, Datapoint)
+
+func (fn UnaryMultiOutputTransformFn) Evaluate(dp Datapoint) (Datapoint, Datapoint) {
+	return fn(dp)
+}

@@ -16,9 +16,7 @@ You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and 
 It should look something like:
 
 ```yaml
-listenAddress:
-  type: "config"
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info

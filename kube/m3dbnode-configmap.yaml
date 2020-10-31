@@ -6,9 +6,7 @@ metadata:
 data:
   m3dbnode.yml: |+
     coordinator:
-      listenAddress:
-        type: "config"
-        value: "0.0.0.0:7201"
+      listenAddress: 0.0.0.0:7201
       local:
         namespaces:
             - namespace: default
@@ -58,15 +56,6 @@ data:
       writeNewSeriesLimitPerSecond: 1048576
       writeNewSeriesBackoffDuration: 2ms
 
-      bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
-        commitlog:
-          returnUnfulfilledForCorruptCommitLogFiles: false
-
       commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
@@ -74,7 +63,7 @@ data:
           calculationType: fixed
           size: 2097152
 
-      fs:
+      filesystem:
         filePathPrefix: /var/lib/m3db
 
       config:

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package block
+package cache
 
-import "github.com/m3db/m3/src/query/cost"
+import (
+	"context"
+	"time"
+)
 
-// AccountedBlock is a wrapper for a block which enforces limits on the number
-// of datapoints used by the block.
-type AccountedBlock struct {
-	Block
-
-	enforcer cost.ChainedEnforcer
+// NewNoop returns a new no-op cache.
+func NewNoop() Cache {
+	return &noopCache{}
 }
 
-// NewAccountedBlock wraps the given block and enforces datapoint limits.
-func NewAccountedBlock(
-	wrapped Block,
-	enforcer cost.ChainedEnforcer,
-) *AccountedBlock {
-	return &AccountedBlock{
-		Block:    wrapped,
-		enforcer: enforcer,
-	}
+type noopCache struct{}
+
+func (n *noopCache) Put(_ string, _ interface{})                           {}
+func (n *noopCache) PutWithTTL(_ string, _ interface{}, ttl time.Duration) {}
+
+func (n *noopCache) Get(ctx context.Context, key string, loader LoaderFunc) (interface{}, error) {
+	return loader(ctx, key)
 }
 
-// Close closes the block, and marks the number of datapoints used
-// by this block as finished.
-func (ab *AccountedBlock) Close() error {
-	ab.enforcer.Close()
-	return ab.Block.Close()
+func (n *noopCache) GetWithTTL(ctx context.Context, key string, loader LoaderWithTTLFunc) (interface{}, error) {
+	val, _, err := loader(ctx, key)
+	return val, err
 }
+
+var _ Cache = &noopCache{}

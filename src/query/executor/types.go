@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/promql"
@@ -68,11 +67,6 @@ type EngineOptions interface {
 	// SetInstrumentOptions sets the instrument options and scope used
 	// for metrics.
 	SetInstrumentOptions(instrument.Options) EngineOptions
-
-	// GlobalEnforcer returns the query cost enforcer.
-	GlobalEnforcer() qcost.ChainedEnforcer
-	// SetGlobalEnforcer sets the query cost enforcer.
-	SetGlobalEnforcer(qcost.ChainedEnforcer) EngineOptions
 
 	// Store returns the storage.
 	Store() storage.Storage
