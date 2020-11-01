@@ -655,7 +655,11 @@ func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, reade
 	case persist.FileSetDataContentType:
 		dir = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
 		infoDigestFromDataFn = func(data []byte) (uint32, error) {
-			return digest.ToBuffer(data).ReadDigest(), nil
+			buf, err := digest.ToBuffer(data)
+			if err != nil {
+				return 0, err
+			}
+			return buf.ReadDigest(), nil
 		}
 	case persist.FileSetIndexContentType:
 		dir = NamespaceIndexSnapshotDirPath(filePathPrefix, id.Namespace)
@@ -831,7 +835,11 @@ func forEachInfoFile(
 		var expectedInfoDigest uint32
 		switch args.contentType {
 		case persist.FileSetDataContentType:
-			expectedInfoDigest = digest.ToBuffer(digestData).ReadDigest()
+			buf, err := digest.ToBuffer(digestData)
+			if err != nil {
+				continue
+			}
+			expectedInfoDigest = buf.ReadDigest()
 		case persist.FileSetIndexContentType:
 			if err := indexDigests.Unmarshal(digestData); err != nil {
 				continue

@@ -52,8 +52,14 @@ func TestWriteDigestToFile(t *testing.T) {
 }
 
 func TestReadDigest(t *testing.T) {
-	buf := ToBuffer([]byte{0x0, 0x1, 0x0, 0x1, 0x0, 0x1})
+	buf, err := ToBuffer([]byte{0x0, 0x1, 0x0, 0x1, 0x0, 0x1})
+	require.NoError(t, err)
 	require.Equal(t, uint32(0x1000100), buf.ReadDigest())
+}
+
+func TestReadDigestInsufficientBytes(t *testing.T) {
+	_, err := ToBuffer([]byte{0x0})
+	require.Equal(t, err, errBufferSizeTooSmall)
 }
 
 func TestReadDigestFromFile(t *testing.T) {
