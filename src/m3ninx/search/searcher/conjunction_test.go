@@ -21,6 +21,7 @@
 package searcher
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -67,14 +68,32 @@ func TestConjunctionSearcher(t *testing.T) {
 
 	gomock.InOrder(
 		// Get the postings lists for the first Reader.
-		firstSearcher.EXPECT().Search(firstReader).Return(firstPL1, nil),
-		secondSearcher.EXPECT().Search(firstReader).Return(secondPL1, nil),
-		thirdSearcher.EXPECT().Search(firstReader).Return(thirdPL1, nil),
+		firstSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, firstPL1), nil
+			}),
+		secondSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, secondPL1), nil
+			}),
+		thirdSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, thirdPL1), nil
+			}),
 
 		// Get the postings lists for the second Reader.
-		firstSearcher.EXPECT().Search(secondReader).Return(firstPL2, nil),
-		secondSearcher.EXPECT().Search(secondReader).Return(secondPL2, nil),
-		thirdSearcher.EXPECT().Search(secondReader).Return(thirdPL2, nil),
+		firstSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, firstPL2), nil
+			}),
+		secondSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, secondPL2), nil
+			}),
+		thirdSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, thirdPL2), nil
+			}),
 	)
 
 	var (
@@ -119,4 +138,18 @@ func TestConjunctionSearcherError(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func mustReadOnlyBitmap(t *testing.T, pl postings.List) *roaring.ReadOnlyBitmap {
+	b, ok := roaring.BitmapFromPostingsList(pl)
+	require.True(t, ok)
+
+	buff := bytes.NewBuffer(nil)
+	_, err := b.WriteTo(buff)
+	require.NoError(t, err)
+
+	readOnlyBitmap, err := roaring.NewReadOnlyBitmap(buff.Bytes())
+	require.NoError(t, err)
+
+	return readOnlyBitmap
 }

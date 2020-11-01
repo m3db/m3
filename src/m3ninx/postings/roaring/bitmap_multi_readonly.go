@@ -292,11 +292,17 @@ func (i *multiBitmapIterator) Reset(opts multiBitmapOptions) {
 	if i.iters == nil {
 		i.iters = make([]containerIteratorAndOp, 0, n)
 	}
+	if i.initial == nil {
+		i.initial = make([]containerIteratorAndOp, 0, n)
+	}
 	i.iters = i.iters[:0]
-	i.iters = appendContainerItersWithOp(i.iters, opts.union, multiContainerOpUnion)
-	i.iters = appendContainerItersWithOp(i.iters, opts.intersect, multiContainerOpIntersect)
-	i.iters = appendContainerItersWithOp(i.iters, opts.intersectNegate, multiContainerOpNegate)
-	i.initial = i.iters[:]
+	i.initial = i.initial[:0]
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.union, multiContainerOpUnion)
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.intersect, multiContainerOpIntersect)
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.intersectNegate, multiContainerOpNegate)
 	i.err = nil
 	i.multiContainerIter = multiBitmapContainerIterator{}
 	i.bitmap.Reset(false)
@@ -304,10 +310,11 @@ func (i *multiBitmapIterator) Reset(opts multiBitmapOptions) {
 }
 
 func appendContainerItersWithOp(
-	slice []containerIteratorAndOp,
+	initial []containerIteratorAndOp,
+	iters []containerIteratorAndOp,
 	iterables []multiBitmapIterable,
 	op multiContainerOp,
-) []containerIteratorAndOp {
+) ([]containerIteratorAndOp, []containerIteratorAndOp) {
 	for _, elem := range iterables {
 		var it containerIterator
 		switch {
@@ -317,16 +324,21 @@ func appendContainerItersWithOp(
 			it = elem.bitmap.containerIterator()
 		}
 
+		initial = append(initial, containerIteratorAndOp{
+			it: it,
+			op: op,
+		})
+
 		if !it.NextContainer() {
 			continue
 		}
 
-		slice = append(slice, containerIteratorAndOp{
+		iters = append(iters, containerIteratorAndOp{
 			it: it,
 			op: op,
 		})
 	}
-	return slice
+	return initial, iters
 }
 
 func (i *multiBitmapIterator) Next() bool {
@@ -521,12 +533,16 @@ func newMultiBitmapContainersIterator(
 	opts multiBitmapOptions,
 ) *multiBitmapContainersIterator {
 	var (
-		n     = len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
-		iters = make([]containerIteratorAndOp, 0, n)
+		n       = len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
+		iters   = make([]containerIteratorAndOp, 0, n)
+		initial = make([]containerIteratorAndOp, 0, n)
 	)
-	iters = appendContainerItersWithOp(iters, opts.union, multiContainerOpUnion)
-	iters = appendContainerItersWithOp(iters, opts.intersect, multiContainerOpIntersect)
-	iters = appendContainerItersWithOp(iters, opts.intersectNegate, multiContainerOpNegate)
+	initial, iters = appendContainerItersWithOp(initial, iters,
+		opts.union, multiContainerOpUnion)
+	initial, iters = appendContainerItersWithOp(initial, iters,
+		opts.intersect, multiContainerOpIntersect)
+	initial, iters = appendContainerItersWithOp(initial, iters,
+		opts.intersectNegate, multiContainerOpNegate)
 	return &multiBitmapContainersIterator{
 		multiBitmapOptions: opts,
 		initial:            iters,
@@ -538,13 +554,6 @@ func (i *multiBitmapContainersIterator) NextContainer() bool {
 	if i.err != nil || len(i.iters) == 0 {
 		// Exhausted.
 		return false
-	}
-
-	if i.first {
-		// Always have some valid iterators since we wouldn't
-		// have enqueued if not.
-		i.first = false
-		return true
 	}
 
 	var (
