@@ -60,6 +60,15 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 	}
 }
 
+func NewReaderIterator64(data []byte, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
+	return &readerIterator{
+		is:           encoding.NewIStream64(data),
+		opts:         opts,
+		tsIterator:   NewTimestampIterator(opts, false),
+		intOptimized: intOptimized,
+	}
+}
+
 // Next moves to the next item
 func (it *readerIterator) Next() bool {
 	if !it.hasNext() {

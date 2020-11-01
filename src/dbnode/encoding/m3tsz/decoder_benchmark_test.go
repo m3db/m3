@@ -51,9 +51,9 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 	var (
 		sampleSeriesCount = len(sampleSeriesBase64)
 		sampleSeries      = make([][]byte, 0, sampleSeriesCount)
-		encodingOpts = encoding.NewOptions()
-		reader       = bytes.NewReader(nil)
-		rnd          = rand.New(rand.NewSource(42))
+		encodingOpts      = encoding.NewOptions()
+		reader            = bytes.NewReader(nil)
+		rnd               = rand.New(rand.NewSource(42))
 	)
 
 	for _, b64 := range sampleSeriesBase64 {
@@ -71,6 +71,36 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		reader.Reset(seriesRun[i])
 		iter := NewReaderIterator(reader, true, encodingOpts)
+		for iter.Next() {
+			_, _, _ = iter.Current()
+		}
+		require.NoError(b, iter.Err())
+	}
+}
+
+// BenchmarkM3TSZDecode64-12    	   17222	     69151 ns/op
+func BenchmarkM3TSZDecode64(b *testing.B) {
+	var (
+		sampleSeriesCount = len(sampleSeriesBase64)
+		sampleSeries      = make([][]byte, 0, sampleSeriesCount)
+		encodingOpts      = encoding.NewOptions()
+		rnd               = rand.New(rand.NewSource(42))
+	)
+
+	for _, b64 := range sampleSeriesBase64 {
+		data, err := base64.StdEncoding.DecodeString(b64)
+		require.NoError(b, err)
+		sampleSeries = append(sampleSeries, data)
+	}
+
+	seriesRun := make([][]byte, 0, b.N)
+	for i := 0; i < b.N; i++ {
+		seriesRun = append(seriesRun, sampleSeries[rnd.Intn(sampleSeriesCount)])
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iter := NewReaderIterator64(seriesRun[i], true, encodingOpts)
 		for iter.Next() {
 			_, _, _ = iter.Current()
 		}
