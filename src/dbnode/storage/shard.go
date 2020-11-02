@@ -2713,12 +2713,13 @@ func (s *dbShard) AggregateTiles(
 
 	nextVolume := latestTargetVolume + 1
 	writerOpenOpts := fs.StreamingWriterOpenOptions{
-		NamespaceID:         s.namespace.ID(),
-		ShardID:             s.ID(),
-		BlockStart:          opts.Start,
-		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
-		VolumeIndex:         nextVolume,
-		PlannedRecordsCount: uint(maxEntries),
+		NamespaceID: s.namespace.ID(),
+		ShardID:     s.ID(),
+		BlockStart:  opts.Start,
+		BlockSize:   s.namespace.Options().RetentionOptions().BlockSize(),
+		VolumeIndex: nextVolume,
+		// FIXME: update after https://github.com/m3db/m3/pull/2791 lands
+		// PlannedRecordsCount: uint(maxEntries),
 	}
 	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err

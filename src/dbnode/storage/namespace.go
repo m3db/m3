@@ -1721,7 +1721,6 @@ func (n *dbNamespace) aggregateTiles(
 	n.RUnlock()
 
 	var (
-		fsOptions    = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
 		targetShards = n.OwnedShards()
 		shards       = make([]uint32, 0, len(targetShards))
 

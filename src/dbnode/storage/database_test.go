@@ -306,7 +306,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
-		index.Query{}, time.Now(), nil, index.IterationOptions{})
+		index.Query{}, time.Now(), nil)
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
@@ -943,7 +943,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 type wideQueryTestFn func(
 	ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 	ns *MockdatabaseNamespace, d *db, q index.Query,
-	now time.Time, shards []uint32, iterOpts index.IterationOptions,
+	now time.Time, shards []uint32,
 )
 
 func exhaustWideQueryIter(
@@ -998,16 +998,16 @@ func TestWideQuery(t *testing.T) {
 	readMismatchTest := func(
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		now time.Time, shards []uint32) {
 		ns.EXPECT().FetchWideEntry(gomock.Any(),
 			ident.StringID("foo"), gomock.Any()).
 			Return(block.EmptyStreamedWideEntry, nil)
 
-		iter, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
+		iter, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards)
 		require.NoError(t, err)
 		exhaustWideQueryIter(t, iter)
 
-		iter, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
+		iter, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil)
 		require.NoError(t, err)
 		errs := exhaustWideQueryIterResult(t, iter)
 		require.Error(t, errs[0])
@@ -1086,7 +1086,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
 
-	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
+	testFn(ctx, t, ctrl, ns, d, q, now, shards)
 	ns.EXPECT().Close().Return(nil)
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitLog
@@ -1543,11 +1543,15 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	opts.QueryFunc = func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error) {
+		return nil, nil
+	}
+
 	require.Error(t, err)
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(sourceNs, gomock.Any()).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)

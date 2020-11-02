@@ -323,8 +323,7 @@ func TestWideFetch(t *testing.T) {
 	log.Info("filesets found on disk")
 
 	var (
-		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte(wideTagName), []byte("val.*"))}
-		iterOpts = index.IterationOptions{}
+		query = index.Query{Query: idx.MustCreateRegexpQuery([]byte(wideTagName), []byte("val.*"))}
 	)
 
 	// Test sharding on query which matches every element.
@@ -351,7 +350,7 @@ func TestWideFetch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
 			iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
-				now, tt.shards, iterOpts)
+				now, tt.shards)
 			require.NoError(t, err)
 
 			chk := wideQueryIterSeries(t, iter)
@@ -398,7 +397,7 @@ func TestWideFetch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
 			iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
-				now, tt.shards, iterOpts)
+				now, tt.shards)
 			require.NoError(t, err)
 
 			chk := wideQueryIterSeries(t, iter)
@@ -432,7 +431,7 @@ func TestWideFetch(t *testing.T) {
 			for j := 0; j < runs; j++ {
 				ctx := context.NewContext()
 				iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
-					now, nil, iterOpts)
+					now, nil)
 
 				if err != nil {
 					runError = fmt.Errorf("query err: %v", err)

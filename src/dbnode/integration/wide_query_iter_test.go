@@ -1,3 +1,5 @@
+// +build integration
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -145,13 +147,12 @@ func TestWideQueryIterator(t *testing.T) {
 	log.Info("filesets found on disk")
 
 	var (
-		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte("abc"), []byte("def.*"))}
-		iterOpts = index.IterationOptions{}
+		query = index.Query{Query: idx.MustCreateRegexpQuery([]byte("abc"), []byte("def.*"))}
 	)
 
 	ctx := context.NewContext()
 	iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
-		now, testSetup.ShardSet().AllIDs(), iterOpts)
+		now, testSetup.ShardSet().AllIDs())
 	require.NoError(t, err)
 
 	var (

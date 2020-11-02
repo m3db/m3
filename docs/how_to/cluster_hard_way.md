@@ -195,14 +195,14 @@ And reading the metrics you've written:
 
 ```json
 curl -sS -X POST http://localhost:19003/query -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "query": {
     "regexp": {
-      "field": "__name__",
-      "regexp": "up"
+      "field": "city",
+      "regexp": ".*"
     }
   },
-  "rangeStart":  '"$(date "+%s")"',
+  "rangeStart":  0,
   "rangeEnd": '"$(date "+%s")"'
 }' | jq .
 ```
