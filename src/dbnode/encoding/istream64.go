@@ -40,11 +40,6 @@ func NewIStream64(data []byte) IStream {
 	return &istream64{data: data}
 }
 
-func (is *istream64) ReadBit() (Bit, error) {
-	res, err := is.ReadBits(1)
-	return Bit(res), err
-}
-
 func (is *istream64) Read(b []byte) (int, error) {
 	var i int
 	for ; i < len(b); i++ {
@@ -60,6 +55,11 @@ func (is *istream64) Read(b []byte) (int, error) {
 func (is *istream64) ReadByte() (byte, error) {
 	res, err := is.ReadBits(8)
 	return byte(res), err
+}
+
+func (is *istream64) ReadBit() (Bit, error) {
+	res, err := is.ReadBits(1)
+	return Bit(res), err
 }
 
 func (is *istream64) ReadBits(numBits uint) (uint64, error) {
