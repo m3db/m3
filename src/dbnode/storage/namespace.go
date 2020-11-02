@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -1735,28 +1734,20 @@ func (n *dbNamespace) aggregateTiles(
 	n.RUnlock()
 
 	var (
-		targetShards = n.OwnedShards()
-		shards       = make([]uint32, 0, len(targetShards))
-
-		steps = int(lastSourceBlockEnd.Sub(targetBlockStart) / sourceBlockSize)
-		iters = make([]wide.QueryIterator, 0, steps)
+		targetShards      = n.OwnedShards()
+		bytesPool         = sourceNs.StorageOptions().BytesPool()
+		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
+		blockReaders      []fs.DataFileSetReader
+		sourceBlockStarts []time.Time
 	)
 
-	for idx, shard := range targetShards {
-		// NB: unowned shards are nil, ignore them here.
-		if shard != nil {
-			shards = append(shards, uint32(idx))
-		}
-	}
-
-	for i := 0; i < steps; i++ {
-		blockStart := targetBlockStart.Add(sourceBlockSize * time.Duration(i))
-		iter, err := opts.QueryFunc(blockStart, shards)
+	for sourceBlockStart := targetBlockStart; sourceBlockStart.Before(lastSourceBlockEnd); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(bytesPool, fsOptions)
 		if err != nil {
 			return 0, err
 		}
-
-		iters = append(iters, iter)
+		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
+		blockReaders = append(blockReaders, reader)
 	}
 
 	var processedTileCount int64
@@ -1766,13 +1757,24 @@ func (n *dbNamespace) aggregateTiles(
 			return 0, fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
 		}
 
+		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
+		for _, sourceBlockStart := range sourceBlockStarts {
+			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
+			if err != nil {
+				n.log.Error("error getting shards latest volume",
+					zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
+				return 0, err
+			}
+			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
+		}
+
 		writer, err := fs.NewStreamingWriter(n.opts.CommitLogOptions().FilesystemOptions())
 		if err != nil {
 			return 0, err
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), sourceShard.ID(), writer, iters, opts, nsCtx.Schema)
+			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
 		if err != nil {
