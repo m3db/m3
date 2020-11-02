@@ -64,8 +64,7 @@ func TestReadOnlyIndexProxySuppress(t *testing.T) {
 	assert.Equal(t, namespaceIndexTickResult{}, res)
 	assert.NoError(t, err)
 
-	_, err = roIdx.WarmFlush(nil, nil)
-	assert.NoError(t, err)
+	assert.NoError(t, roIdx.WarmFlush(nil, nil))
 
 	_, err = roIdx.ColdFlush(nil)
 	assert.NoError(t, err)

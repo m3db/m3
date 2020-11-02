@@ -1604,12 +1604,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, flush interfa
 }
 
 // FlushIndex mocks base method
-func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) ([]time.Time, error) {
+func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushIndex", flush)
-	ret0, _ := ret[0].([]time.Time)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // FlushIndex indicates an expected call of FlushIndex
@@ -2576,12 +2575,11 @@ func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock
 }
 
 // WarmFlush mocks base method
-func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) ([]time.Time, error) {
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
-	ret0, _ := ret[0].([]time.Time)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WarmFlush indicates an expected call of WarmFlush

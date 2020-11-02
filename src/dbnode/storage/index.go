@@ -860,12 +860,31 @@ func (i *nsIndex) Bootstrap(
 		i.state.Unlock()
 	}()
 
-	var multiErr xerrors.MultiError
+	var (
+		multiErr  xerrors.MultiError
+		fsOpts    = i.opts.CommitLogOptions().FilesystemOptions()
+		infoFiles = i.readIndexInfoFilesFn(
+			fsOpts.FilePathPrefix(),
+			i.nsMetadata.ID(),
+			fsOpts.InfoReaderBufferSize(),
+			persist.FileSetFlushType,
+		)
+	)
 	for blockStart, blockResults := range bootstrapResults {
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
+		}
+		// NB(bodu): For warm snapshots, we need to make sure that we haven't already successfully warm
+		// flushed this block. We can run into this case when the node crashes between a successful warm
+		// flush and the next index snapshot.
+		if _, ok := blockResults.GetBlock(idxpersist.SnapshotWarmIndexVolumeType); ok {
+			if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, blockStart.ToTime()) {
+				// If we have warm snapshots and the block has been warm flushed already,
+				// we just discard the warm snapshot data.
+				blockResults.DeleteBlock(idxpersist.SnapshotWarmIndexVolumeType)
+			}
 		}
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
@@ -953,15 +972,15 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-) ([]time.Time, error) {
+) error {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return nil, nil
+		return nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Determine the current flush indexing concurrency.
@@ -975,7 +994,7 @@ func (i *nsIndex) WarmFlush(
 
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer builder.Close()
 
@@ -985,13 +1004,12 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var (
-		blockStarts []time.Time
-		evicted     int
+		evicted int
 	)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
@@ -1008,7 +1026,7 @@ func (i *nsIndex) WarmFlush(
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
 		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
-			return nil, err
+			return err
 		}
 
 		evicted++
@@ -1026,12 +1044,9 @@ func (i *nsIndex) WarmFlush(
 
 		// NB(bodu): We should reset any snapshot loaded version to default after a successful warm flush.
 		i.setSnapshotStateVersionLoaded(block.StartTime(), snapshotVersionUnset)
-		// Track successfully warm flushed block starts.
-		blockStarts = append(blockStarts, block.StartTime())
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	// Return block starts that we have succesfully warm flushed.
-	return blockStarts, nil
+	return nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {

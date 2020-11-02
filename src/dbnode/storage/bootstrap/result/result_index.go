@@ -328,6 +328,11 @@ func (b IndexBlockByVolumeType) SetBlock(volumeType persist.IndexVolumeType, blo
 	b.data[volumeType] = block
 }
 
+// DeleteBlock deletes an index block volume type if exists.
+func (b IndexBlockByVolumeType) DeleteBlock(volumeType persist.IndexVolumeType) {
+	delete(b.data, volumeType)
+}
+
 // Iter returns the underlying iterable map data.
 func (b IndexBlockByVolumeType) Iter() map[persist.IndexVolumeType]IndexBlock {
 	return b.data
