@@ -462,11 +462,11 @@ type Options interface {
 	WriterBufferSize() int
 
 	// SetInfoReaderBufferSize sets the buffer size for reading TSDB info,
-	//  digest and checkpoint files.
+	// digest and checkpoint files.
 	SetInfoReaderBufferSize(value int) Options
 
 	// InfoReaderBufferSize returns the buffer size for reading TSDB info,
-	//  digest and checkpoint files.
+	// digest and checkpoint files.
 	InfoReaderBufferSize() int
 
 	// SetDataReaderBufferSize sets the buffer size for reading TSDB data and index files.
