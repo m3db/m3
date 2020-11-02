@@ -329,6 +329,9 @@ type MutableSeriesIterators interface {
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
 	Decode(reader io.Reader) ReaderIterator
+
+	// Decode64 decodes the encoded data slice of bytes.
+	Decode64(data []byte) ReaderIterator
 }
 
 // NewDecoderFn creates a new decoder.

@@ -41,7 +41,10 @@ func NewDecoder(intOptimized bool, opts encoding.Options) encoding.Decoder {
 
 // Decode decodes the encoded data captured by the reader.
 func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
-	it := NewReaderIterator64(nil, dec.intOptimized, dec.opts)
-	it.Reset(reader, nil)
-	return it
+	return NewReaderIterator(reader, dec.intOptimized, dec.opts)
+}
+
+// Decode decodes the encoded slice of bytes.
+func (dec *decoder) Decode64(data []byte) encoding.ReaderIterator {
+	return NewReaderIterator64(data, dec.intOptimized, dec.opts)
 }

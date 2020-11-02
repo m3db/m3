@@ -34,8 +34,7 @@ func TestIStream64ReadBits(t *testing.T) {
 		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
 	}
 
-	o := NewIStream64(byteStream)
-	is := o.(*istream64)
+	is := NewIStream64(byteStream)
 	numBits := []uint{1, 3, 4, 8, 7, 2, 64, 64}
 	var res []uint64
 	for _, v := range numBits {
@@ -56,8 +55,7 @@ func TestIStream64ReadByte(t *testing.T) {
 		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
 	}
 
-	o := NewIStream64(byteStream)
-	is := o.(*istream64)
+	is := NewIStream64(byteStream)
 	var res []byte
 	for range byteStream {
 		read, err := is.ReadByte()
@@ -98,8 +96,7 @@ func TestIStream64PeekBitsSuccess(t *testing.T) {
 
 func TestIStream64PeekBitsError(t *testing.T) {
 	byteStream := []byte{0x1, 0x2}
-	o := NewIStream64(byteStream)
-	is := o.(*istream64)
+	is := NewIStream64(byteStream)
 	res, err := is.PeekBits(20)
 	require.EqualError(t, err, io.EOF.Error())
 	require.Equal(t, uint64(0), res)
@@ -107,8 +104,7 @@ func TestIStream64PeekBitsError(t *testing.T) {
 
 func TestIStream64ReadAfterPeekBits(t *testing.T) {
 	byteStream := []byte{0xab, 0xcd}
-	o := NewIStream64(byteStream)
-	is := o.(*istream64)
+	is := NewIStream64(byteStream)
 	res, err := is.PeekBits(10)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0x2af), res)
@@ -129,6 +125,52 @@ func TestIStream64ReadAfterPeekBits(t *testing.T) {
 	}
 	_, err = is.ReadBits(8)
 	require.EqualError(t, err, io.EOF.Error())
+}
+
+func TestIStream64PeekAfterReadBits(t *testing.T) {
+	byteStream := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA}
+	is := NewIStream64(byteStream)
+
+	res, err := is.ReadBits(16)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x102), res)
+
+	res, err = is.PeekBits(63)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A)>>1, res)
+
+	res, err = is.PeekBits(64)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A), res)
+
+	res, err = is.ReadBits(1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), res)
+
+	res, err = is.PeekBits(63)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A), res)
+
+	res, err = is.PeekBits(64)
+	require.EqualError(t, err, io.EOF.Error())
+}
+
+func TestIStream64RemainingBitsInCurrentByte(t *testing.T) {
+	byteStream := []byte{0xff, 0, 0x42}
+	is := NewIStream64(byteStream)
+	for _, b := range byteStream {
+		for i := 0; i < 8; i++ {
+			var expected uint
+			if i > 0 {
+				expected = uint(8 - i)
+			}
+			require.Equal(t, expected, is.RemainingBitsInCurrentByte())
+			bit, err := is.ReadBit()
+			require.NoError(t, err)
+			expectedBit := Bit(b>>i)&1
+			require.Equal(t, expectedBit, bit)
+		}
+	}
 }
 
 func TestIStream64ResetIStream(t *testing.T) {

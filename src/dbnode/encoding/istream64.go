@@ -96,7 +96,6 @@ func (is *istream64) PeekBits(numBits uint) (uint64, error) {
 	return (res << bitsNeeded) | readBitsInWord(next, bitsNeeded), nil
 }
 
-//TODO: tests
 func (is *istream64) RemainingBitsInCurrentByte() uint {
 	return is.remaining % 8
 }
@@ -116,6 +115,7 @@ func (is *istream64) consumeBuffer(numBits uint) uint64 {
 
 func (is *istream64) peekWordFromStream() (uint64, uint, error) {
 	if is.index+8 <= len(is.data) {
+		// NB: this compiles to a single 64 bit load followed by a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
 		return binary.BigEndian.Uint64(is.data[is.index:]), 64, nil
 	}
 	if is.index >= len(is.data) {
@@ -132,10 +132,11 @@ func (is *istream64) peekWordFromStream() (uint64, uint, error) {
 
 func (is *istream64) readWordFromStream() error {
 	if is.index+8 <= len(is.data) {
+		// NB: this compiles to a single 64 bit load followed by a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
 		is.current = binary.BigEndian.Uint64(is.data[is.index:])
 		is.remaining = 64
 		is.index += 8
-		return is.err
+		return nil
 	}
 	if is.index >= len(is.data) {
 		is.current = 0

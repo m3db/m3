@@ -1508,6 +1508,20 @@ func (mr *MockDecoderMockRecorder) Decode(reader interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode", reflect.TypeOf((*MockDecoder)(nil).Decode), reader)
 }
 
+// Decode64 mocks base method
+func (m *MockDecoder) Decode64(data []byte) ReaderIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Decode64", data)
+	ret0, _ := ret[0].(ReaderIterator)
+	return ret0
+}
+
+// Decode64 indicates an expected call of Decode64
+func (mr *MockDecoderMockRecorder) Decode64(data interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode64", reflect.TypeOf((*MockDecoder)(nil).Decode64), data)
+}
+
 // MockIStream is a mock of IStream interface
 type MockIStream struct {
 	ctrl     *gomock.Controller
