@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -144,7 +145,8 @@ func TestNamespaceReadyFailIfNoClusters(t *testing.T) {
 	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		fmt.Sprintf("response: %s", w.Body.String()))
 }
 
 func TestNamespaceReadyFailIfNamespaceMissing(t *testing.T) {

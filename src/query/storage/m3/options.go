@@ -25,8 +25,9 @@ import (
 )
 
 type dynamicClusterOptions struct {
-	config []DynamicClusterNamespaceConfiguration
-	iOpts  instrument.Options
+	config                   []DynamicClusterNamespaceConfiguration
+	iOpts                    instrument.Options
+	clusterNamespacesWatcher ClusterNamespacesWatcher
 }
 
 // NewDynamicClusterOptions returns new DynamicClusterOptions.
@@ -42,6 +43,9 @@ func (d *dynamicClusterOptions) Validate() error {
 	}
 	if d.iOpts == nil {
 		return errInstrumentOptionsNotSet
+	}
+	if d.clusterNamespacesWatcher == nil {
+		return errClusterNamespacesWatcherNotSet
 	}
 
 	return nil
@@ -67,4 +71,14 @@ func (d *dynamicClusterOptions) SetInstrumentOptions(value instrument.Options) D
 
 func (d *dynamicClusterOptions) InstrumentOptions() instrument.Options {
 	return d.iOpts
+}
+
+func (d *dynamicClusterOptions) SetClusterNamespacesWatcher(value ClusterNamespacesWatcher) DynamicClusterOptions {
+	opts := *d
+	opts.clusterNamespacesWatcher = value
+	return &opts
+}
+
+func (d *dynamicClusterOptions) ClusterNamespacesWatcher() ClusterNamespacesWatcher {
+	return d.clusterNamespacesWatcher
 }

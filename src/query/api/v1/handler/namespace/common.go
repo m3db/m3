@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -62,7 +63,7 @@ var (
 	// M3DBServiceSchemaPathName is the M3DB service schema API path.
 	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 
-	errNamespaceNotFound = errors.New("unable to find a namespace with specified name")
+	errNamespaceNotFound = xhttp.NewError(errors.New("unable to find a namespace with specified name"), http.StatusNotFound)
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -129,13 +130,11 @@ func RegisterRoutes(
 	// Get M3DB namespaces.
 	getHandler := wrapped(
 		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 
 	// Add M3DB namespaces.
 	addHandler := wrapped(
 		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 
 	// Update M3DB namespaces.
@@ -146,7 +145,6 @@ func RegisterRoutes(
 	// Delete M3DB namespaces.
 	deleteHandler := wrapped(
 		applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 
 	// Deploy M3DB schemas.

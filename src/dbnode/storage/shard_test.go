@@ -99,7 +99,10 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+		Index:  index,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -213,7 +216,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
-	entry := lookup.NewEntry(mockSeries, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: mockSeries,
+	})
 	s.Lock()
 	s.insertNewShardEntryWithLock(entry)
 	s.Unlock()
@@ -460,7 +465,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -535,7 +542,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -633,7 +642,9 @@ func TestShardColdFlush(t *testing.T) {
 		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
-		shard.list.PushBack(lookup.NewEntry(curr, 0))
+		shard.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
@@ -835,7 +846,9 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(series.SnapshotResult{}, nil)
-		s.list.PushBack(lookup.NewEntry(entry, 0))
+		s.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
+			Series: entry,
+		}))
 	}
 
 	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
@@ -853,7 +866,9 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+		Series: series,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -869,7 +884,9 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 		Options:     shard.seriesOpts,
 	})
 	shard.Lock()
-	entry := lookup.NewEntry(seriesEntry, 0)
+	entry := lookup.NewEntry(lookup.NewEntryOptions{
+		Series: seriesEntry,
+	})
 	for i := int32(0); i < count; i++ {
 		entry.IncrementReaderWriterCount()
 	}

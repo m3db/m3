@@ -80,10 +80,10 @@ func TestPromWriteParsing(t *testing.T) {
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 
-	r, opts, _, err := handler.(*PromWriteHandler).parseRequest(req)
+	r, err := handler.(*PromWriteHandler).parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, len(r.Timeseries), 2)
-	require.Equal(t, ingest.WriteOptions{}, opts)
+	require.Equal(t, len(r.Request.Timeseries), 2)
+	require.Equal(t, ingest.WriteOptions{}, r.Options)
 }
 
 func TestPromWrite(t *testing.T) {
@@ -341,7 +341,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 
 	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
 	assert.Equal(t, annotation.Payload{
-		MetricType: annotation.MetricType_COUNTER,
+		MetricType:        annotation.MetricType_COUNTER,
 		HandleValueResets: true,
 	}, secondAnnotationPayload, "second annotation invalidated")
 }

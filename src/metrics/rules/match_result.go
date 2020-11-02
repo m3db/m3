@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,13 @@ import (
 
 var (
 	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(kv.UninitializedVersion, timeNanosMax, metadata.DefaultStagedMetadatas, nil)
+	EmptyMatchResult = NewMatchResult(
+		kv.UninitializedVersion,
+		timeNanosMax,
+		metadata.DefaultStagedMetadatas,
+		nil,
+		false,
+	)
 )
 
 // IDWithMetadatas is a pair of metric ID and the associated staged metadatas.
@@ -59,6 +65,7 @@ type MatchResult struct {
 	// produced by a rollup rule whose rollup pipeline contains a rollup operation
 	// as its first step.
 	forNewRollupIDs []IDWithMetadatas
+	keepOriginal    bool
 }
 
 // NewMatchResult creates a new match result.
@@ -67,12 +74,14 @@ func NewMatchResult(
 	expireAtNanos int64,
 	forExistingID metadata.StagedMetadatas,
 	forNewRollupIDs []IDWithMetadatas,
+	keepOriginal bool,
 ) MatchResult {
 	return MatchResult{
 		version:         version,
 		expireAtNanos:   expireAtNanos,
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
+		keepOriginal:    keepOriginal,
 	}
 }
 
@@ -100,6 +109,12 @@ func (r *MatchResult) ForNewRollupIDsAt(idx int, timeNanos int64) IDWithMetadata
 	forNewRollupID := r.forNewRollupIDs[idx]
 	metadatas := activeStagedMetadatasAt(forNewRollupID.Metadatas, timeNanos)
 	return IDWithMetadatas{ID: forNewRollupID.ID, Metadatas: metadatas}
+}
+
+// KeepOriginal returns true if the original source metric for a rollup rule
+// should be kept, and false if it should be dropped.
+func (r *MatchResult) KeepOriginal() bool {
+	return r.keepOriginal
 }
 
 // activeStagedMetadatasAt returns the active staged metadatas at a given time, assuming

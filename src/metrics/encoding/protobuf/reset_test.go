@@ -118,23 +118,23 @@ func TestReuseMetricWithMetadatasProtoNilProto(t *testing.T) {
 	require.NotPanics(t, func() { ReuseMetricWithMetadatasProto(nil) })
 }
 
-func TestResetAggregatedMetricProto(t *testing.T) {
+func TestReuseAggregatedMetricProto(t *testing.T) {
 	input := &metricpb.AggregatedMetric{
 		Metric: metricpb.TimedMetricWithStoragePolicy{
 			TimedMetric: testTimedMetricBeforeResetProto,
 			StoragePolicy: policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: (6 * time.Hour).Nanoseconds(),
 				},
 			},
 		},
 		EncodeNanos: 1234,
 	}
-	resetAggregatedMetricProto(input)
+	ReuseAggregatedMetricProto(input)
 	require.Equal(t, metricpb.AggregatedMetric{
 		Metric: metricpb.TimedMetricWithStoragePolicy{
 			TimedMetric:   metricpb.TimedMetric{Id: []byte{}},

@@ -107,19 +107,17 @@ func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 	w.Write(b)
 }
 
-func respondError(w http.ResponseWriter, err error, code int) {
+func respondError(w http.ResponseWriter, err error) {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, err := json.Marshal(&response{
+	b, marshalErr := json.Marshal(&response{
 		Status: statusError,
 		Error:  err.Error(),
 	})
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if marshalErr != nil {
+		xhttp.WriteError(w, marshalErr)
 		return
 	}
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	w.WriteHeader(code)
-	w.Write(b)
+	xhttp.WriteError(w, err, xhttp.WithErrorResponse(b))
 }

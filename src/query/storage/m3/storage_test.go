@@ -858,11 +858,7 @@ func TestInvalidBlockTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	query := &storage.FetchQuery{}
-	fetchOpts := &storage.FetchOptions{BlockType: models.TypeDecodedBlock}
-	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
-	assert.Error(t, err)
-
-	fetchOpts.BlockType = models.TypeMultiBlock
+	fetchOpts := &storage.FetchOptions{BlockType: models.TypeMultiBlock}
 	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
 	assert.Error(t, err)
 }

@@ -1056,7 +1056,6 @@ func (s *dbShard) writeAndIndex(
 func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
-	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, _, err := s.tryRetrieveWritableSeries(id)
@@ -1067,7 +1066,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	if entry != nil {
 		// The read/write ref is already incremented.
 		return SeriesReadWriteRef{
-			Series:              entry.Series,
+			Series:              entry,
 			Shard:               s.shard,
 			UniqueIndex:         entry.Index,
 			ReleaseReadWriteRef: entry,
@@ -1089,21 +1088,18 @@ func (s *dbShard) SeriesReadWriteRef(
 	// lock is still contended but at least series writes due to commit log
 	// bootstrapping do not interrupt normal writes waiting for ability
 	// to write to an individual series.
-	at := s.nowFn()
 	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType:      insertSyncIncReaderWriterCount,
-		hasPendingIndex: opts.ReverseIndex,
-		pendingIndex: dbShardPendingIndex{
-			timestamp:  at,
-			enqueuedAt: at,
-		},
+		insertType: insertSyncIncReaderWriterCount,
+		// NB(bodu): We transparently index in the series ref when
+		// bootstrapping now instead of when grabbing a ref.
+		hasPendingIndex: false,
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
 
 	return SeriesReadWriteRef{
-		Series:              entry.Series,
+		Series:              entry,
 		Shard:               s.shard,
 		UniqueIndex:         entry.Index,
 		ReleaseReadWriteRef: entry,
@@ -1276,7 +1272,12 @@ func (s *dbShard) newShardEntry(
 		OnEvictedFromWiredList: s,
 		Options:                s.seriesOpts,
 	})
-	return lookup.NewEntry(newSeries, uniqueIndex), nil
+	return lookup.NewEntry(lookup.NewEntryOptions{
+		Series:      newSeries,
+		Index:       uniqueIndex,
+		IndexWriter: s.reverseIndex,
+		NowFn:       s.nowFn,
+	}), nil
 }
 
 type insertAsyncResult struct {

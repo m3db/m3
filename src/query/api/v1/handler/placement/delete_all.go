@@ -41,10 +41,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBDeleteAllURL is the old url for the handler to delete all placements, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
-
 	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3DB service.
 	M3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
@@ -79,7 +75,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -89,18 +85,18 @@ func (h *DeleteAllHandler) ServeHTTP(
 			logger.Info("cannot delete placement",
 				zap.String("service", svc.ServiceName),
 				zap.Error(err))
-			xhttp.Error(w, err, http.StatusNotFound)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 			return
 		}
 
 		logger.Error("unable to fetch placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	if err := service.Delete(); err != nil {
 		logger.Error("error deleting placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -127,7 +123,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 		if err != nil {
 			logger.Error("error removing aggregator keys for instances",
 				zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 	}

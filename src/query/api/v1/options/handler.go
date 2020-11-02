@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
@@ -147,11 +146,6 @@ type HandlerOptions interface {
 	// SetTimeoutOpts sets the timeout options.
 	SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions
 
-	// Enforcer returns the enforcer.
-	Enforcer() cost.ChainedEnforcer
-	// SetEnforcer sets the enforcer.
-	SetEnforcer(e cost.ChainedEnforcer) HandlerOptions
-
 	// FetchOptionsBuilder returns the fetch options builder.
 	FetchOptionsBuilder() handleroptions.FetchOptionsBuilder
 	// SetFetchOptionsBuilder sets the fetch options builder.
@@ -235,7 +229,6 @@ type handlerOptions struct {
 	createdAt             time.Time
 	tagOptions            models.TagOptions
 	timeoutOpts           *prometheus.TimeoutOpts
-	enforcer              cost.ChainedEnforcer
 	fetchOptionsBuilder   handleroptions.FetchOptionsBuilder
 	queryContextOptions   models.QueryContextOptions
 	instrumentOpts        instrument.Options
@@ -269,7 +262,6 @@ func NewHandlerOptions(
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-	enforcer cost.ChainedEnforcer,
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder,
 	queryContextOptions models.QueryContextOptions,
 	instrumentOpts instrument.Options,
@@ -305,7 +297,6 @@ func NewHandlerOptions(
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
 		instrumentOpts:        instrumentOpts,
@@ -428,16 +419,6 @@ func (o *handlerOptions) TimeoutOpts() *prometheus.TimeoutOpts {
 func (o *handlerOptions) SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions {
 	opts := *o
 	opts.timeoutOpts = t
-	return &opts
-}
-
-func (o *handlerOptions) Enforcer() cost.ChainedEnforcer {
-	return o.enforcer
-}
-
-func (o *handlerOptions) SetEnforcer(e cost.ChainedEnforcer) HandlerOptions {
-	opts := *o
-	opts.enforcer = e
 	return &opts
 }
 
