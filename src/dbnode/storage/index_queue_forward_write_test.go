@@ -208,9 +208,9 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 }
 
 func TestNamespaceForwardIndexWideQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -224,7 +224,10 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
-	queryTimes := []time.Time{now, nextBlockTime}
+	queryTimes := []time.Time{
+		now.Truncate(blockSize),
+		nextBlockTime.Truncate(blockSize),
+	}
 	for _, ts := range queryTimes {
 		collector := make(chan *ident.IDBatch)
 		doneCh := make(chan struct{})

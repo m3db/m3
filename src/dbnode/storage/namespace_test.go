@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
@@ -1408,15 +1409,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		sourceNsID                    = ident.StringID("source")
-		targetNsID                    = ident.StringID("target")
-		sourceBlockSize               = time.Hour
-		targetBlockSize               = 2 * time.Hour
-		start                         = time.Now().Truncate(targetBlockSize)
-		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
-		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		sourceShard0ID         uint32 = 10
-		sourceShard1ID         uint32 = 20
+		sourceNsID             = ident.StringID("source")
+		targetNsID             = ident.StringID("target")
+		sourceBlockSize        = time.Hour
+		targetBlockSize        = 2 * time.Hour
+		start                  = time.Now().Truncate(targetBlockSize)
+		opts                   = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
+		sourceShard0ID  uint32 = 10
+		sourceShard1ID  uint32 = 20
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1438,13 +1438,9 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 
 	sourceShard0.EXPECT().ID().Return(sourceShard0ID)
 	sourceShard0.EXPECT().IsBootstrapped().Return(true)
-	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
-	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
 
 	sourceShard1.EXPECT().ID().Return(sourceShard1ID)
 	sourceShard1.EXPECT().IsBootstrapped().Return(true)
-	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
-	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
 	targetShard1 := NewMockdatabaseShard(ctrl)
@@ -1454,12 +1450,21 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ID().Return(uint32(0))
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
-	sourceBlockVolumes0 := []shardBlockVolume{{start, 5}, {secondSourceBlockStart, 15}}
-	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
+	opts.QueryFunc = func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error) {
+		assert.Equal(t, []uint32{0, 1}, shards)
+		if blockStart.Equal(start) {
+			return nil, nil
+		} else if blockStart.Equal(start.Add(sourceBlockSize)) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("unknown start: %v", blockStart)
+	}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID,
+		gomock.Any(), gomock.Any(), gomock.Any(), targetNs.Schema()).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID,
+		gomock.Any(), gomock.Any(), gomock.Any(), targetNs.Schema()).Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 

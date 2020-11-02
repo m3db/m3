@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -204,12 +203,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
-// FetchIndexChecksum reads index checksum blocks using just a block retriever.
-func (r Reader) FetchIndexChecksum(
+// FetchWideEntry reads wide entries using just a block retriever.
+func (r Reader) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	var (
 		nowFn = r.opts.ClockOptions().NowFn()
 		now   = nowFn()
@@ -220,66 +219,26 @@ func (r Reader) FetchIndexChecksum(
 	if blockStart.Before(earliest) {
 		// NB: this block is falling out of retention; return empty result rather
 		// than iterating over it.
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 
 	if r.retriever == nil {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 	// Try to stream from disk
 	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	} else if !isRetrievable {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
-	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
+	streamedEntry, err := r.retriever.StreamWideEntry(ctx,
 		r.id, blockStart, nsCtx)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	}
 
-	return streamedBlock, nil
-}
-
-// FetchReadMismatch compiles read mismatches using a block retriever and
-// an incoming batchReader.
-func (r Reader) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	var (
-		nowFn = r.opts.ClockOptions().NowFn()
-		now   = nowFn()
-		ropts = r.opts.RetentionOptions()
-	)
-
-	earliest := retention.FlushTimeStart(ropts, now)
-	if blockStart.Before(earliest) {
-		// NB: this block is falling out of retention; return empty result rather
-		// than iterating over it.
-		return wide.EmptyStreamedMismatch, nil
-	}
-
-	if r.retriever == nil {
-		return wide.EmptyStreamedMismatch, nil
-	}
-	// Try to stream from disk
-	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	} else if !isRetrievable {
-		return wide.EmptyStreamedMismatch, nil
-	}
-	streamedMismatches, err := r.retriever.StreamReadMismatches(ctx,
-		mismatchChecker, r.id, blockStart, nsCtx)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	}
-
-	return streamedMismatches, nil
+	return streamedEntry, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using
