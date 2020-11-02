@@ -146,8 +146,8 @@ func TestMultiBitmap(t *testing.T) {
 			insertCount: test.insertCount,
 		}
 		for i := 0; i < each; i++ {
-			t.Run(fmt.Sprintf("attempt=%d, test=+%v", i, test), func(t *testing.T) {
-				allReadOnly, err := NewReadOnlyBitmapRange(0, uint64(test.insertRange))
+			t.Run(fmt.Sprintf("i=%d, test=+%v", i, test), func(t *testing.T) {
+				allReadOnly, err := NewReadOnlyRangePostingsList(0, uint64(test.insertRange))
 				require.NoError(t, err)
 
 				reg, regReadOnly :=

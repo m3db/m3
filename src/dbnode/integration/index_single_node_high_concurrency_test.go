@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -377,7 +378,7 @@ func testIndexSingleNodeHighConcurrency(
 		// Now check all of them are individually indexed.
 		var (
 			fetchWg        sync.WaitGroup
-			notIndexedErrs []error
+			notIndexedErrs []string
 			notIndexedLock sync.Mutex
 		)
 		for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
@@ -401,10 +402,18 @@ func testIndexSingleNodeHighConcurrency(
 							found := isIndexed(t, session, md.ID(), id, tags)
 							return found
 						}, 30*time.Second)
+
+						// Final check to get the corrersponding error/mismatch.
+						indexed, err := isIndexedChecked(t, session, md.ID(), id, tags)
 						if !indexed {
-							err := fmt.Errorf("not indexed series: i=%d, j=%d", i, j)
+							if err != nil {
+								err = fmt.Errorf("not indexed: i=%d, j=%d, err=%v", i, j, err)
+							} else {
+								err = fmt.Errorf("not indexed: i=%d, j=%d, err=none", i, j)
+							}
+
 							notIndexedLock.Lock()
-							notIndexedErrs = append(notIndexedErrs, err)
+							notIndexedErrs = append(notIndexedErrs, err.Error())
 							notIndexedLock.Unlock()
 						}
 					})
@@ -414,7 +423,8 @@ func testIndexSingleNodeHighConcurrency(
 		fetchWg.Wait()
 
 		require.Equal(t, 0, len(notIndexedErrs),
-			fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
+			fmt.Sprintf("not indexed errors: [%v]",
+				strings.Join(notIndexedErrs[:min(5, len(notIndexedErrs))], ", ")))
 	}
 
 	log.Info("data indexing verify done", zap.Duration("took", time.Since(start)))

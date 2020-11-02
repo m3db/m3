@@ -21,7 +21,6 @@
 package roaring
 
 import (
-	"errors"
 	"fmt"
 	"math/bits"
 	"sync"
@@ -29,28 +28,16 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	// ErrNotReadOnlyBitmaps returned from operations that expect read only bitmaps.
-	ErrNotReadOnlyBitmaps = errors.New("not read only bitmaps")
-)
-
 // UnionReadOnly expects postings lists to all be read only.
 func UnionReadOnly(unions []postings.List) (postings.List, error) {
-	union := make([]multiBitmapIterable, 0, len(unions))
+	union := make([]readOnlyIterable, 0, len(unions))
 	for _, elem := range unions {
-		b, ok := elem.(*ReadOnlyBitmap)
-		if ok {
-			union = append(union, multiBitmapIterable{bitmap: b})
-			continue
+		b, ok := elem.(readOnlyIterable)
+		if !ok {
+			return nil, ErrNotReadOnlyBitmap
 		}
 
-		mb, ok := elem.(*multiBitmap)
-		if ok {
-			union = append(union, multiBitmapIterable{multiBitmap: mb})
-			continue
-		}
-
-		return nil, ErrNotReadOnlyBitmaps
+		union = append(union, b)
 	}
 
 	return newMultiBitmap(multiBitmapOptions{
@@ -64,38 +51,24 @@ func IntersectAndNegateReadOnly(
 	intersects []postings.List,
 	negates []postings.List,
 ) (postings.List, error) {
-	intersect := make([]multiBitmapIterable, 0, len(intersects))
+	intersect := make([]readOnlyIterable, 0, len(intersects))
 	for _, elem := range intersects {
-		b, ok := elem.(*ReadOnlyBitmap)
-		if ok {
-			intersect = append(intersect, multiBitmapIterable{bitmap: b})
-			continue
+		b, ok := elem.(readOnlyIterable)
+		if !ok {
+			return nil, ErrNotReadOnlyBitmap
 		}
 
-		mb, ok := elem.(*multiBitmap)
-		if ok {
-			intersect = append(intersect, multiBitmapIterable{multiBitmap: mb})
-			continue
-		}
-
-		return nil, ErrNotReadOnlyBitmaps
+		intersect = append(intersect, b)
 	}
 
-	negate := make([]multiBitmapIterable, 0, len(negates))
+	negate := make([]readOnlyIterable, 0, len(negates))
 	for _, elem := range negates {
-		b, ok := elem.(*ReadOnlyBitmap)
-		if ok {
-			negate = append(negate, multiBitmapIterable{bitmap: b})
-			continue
+		b, ok := elem.(readOnlyIterable)
+		if !ok {
+			return nil, ErrNotReadOnlyBitmap
 		}
 
-		mb, ok := elem.(*multiBitmap)
-		if ok {
-			negate = append(negate, multiBitmapIterable{multiBitmap: mb})
-			continue
-		}
-
-		return nil, ErrNotReadOnlyBitmaps
+		negate = append(negate, b)
 	}
 
 	return newMultiBitmap(multiBitmapOptions{
@@ -105,7 +78,49 @@ func IntersectAndNegateReadOnly(
 	})
 }
 
+// ReadOnlyBitmapIntersectCheck is a check that can be repeated
+// against read only bitmaps without allocations.
+type ReadOnlyBitmapIntersectCheck struct {
+	multiBitmapIterator *multiBitmapIterator
+	intersect           []readOnlyIterable
+}
+
+// NewReadOnlyBitmapIntersectCheck creates a new bitmap intersect checker,
+// it is zero allocation once allocated to compare two bitmaps.
+func NewReadOnlyBitmapIntersectCheck() *ReadOnlyBitmapIntersectCheck {
+	return &ReadOnlyBitmapIntersectCheck{
+		multiBitmapIterator: newMultiBitmapIterator(multiBitmapOptions{}),
+		intersect:           make([]readOnlyIterable, 2),
+	}
+}
+
+// Intersects returns whether two posting lists intersect or not.
+func (c *ReadOnlyBitmapIntersectCheck) Intersects(a, b postings.List) (bool, error) {
+	if pl, ok := a.(readOnlyIterable); ok {
+		c.intersect[0] = pl
+	} else {
+		return false, ErrNotReadOnlyBitmap
+	}
+	if pl, ok := b.(readOnlyIterable); ok {
+		c.intersect[1] = pl
+	} else {
+		return false, ErrNotReadOnlyBitmap
+	}
+
+	c.multiBitmapIterator.Reset(multiBitmapOptions{
+		op:        multiBitmapOpIntersect,
+		intersect: c.intersect,
+	})
+	return c.multiBitmapIterator.Next(), nil
+}
+
+// Close will close the intersect checker.
+func (c *ReadOnlyBitmapIntersectCheck) Close() error {
+	return c.multiBitmapIterator.Close()
+}
+
 var _ postings.List = (*multiBitmap)(nil)
+var _ readOnlyIterable = (*multiBitmap)(nil)
 
 type multiBitmapOp uint8
 
@@ -133,29 +148,31 @@ type multiBitmap struct {
 	multiBitmapOptions
 }
 
-// multiBitmapIterable either contains a bitmap or another multi-iter.
-type multiBitmapIterable struct {
-	multiBitmap *multiBitmap
-	bitmap      *ReadOnlyBitmap
+type readOnlyIterable interface {
+	Contains(id postings.ID) bool
+	ContainerIterator() containerIterator
 }
 
-func (i multiBitmapIterable) Contains(id postings.ID) bool {
-	if i.multiBitmap != nil {
-		return i.multiBitmap.Contains(id)
-	}
-	return i.bitmap.Contains(id)
+type containerIterator interface {
+	NextContainer() bool
+	ContainerKey() uint64
+	ContainerUnion(ctx containerOpContext, target *bitmapContainer)
+	ContainerIntersect(ctx containerOpContext, target *bitmapContainer)
+	ContainerNegate(ctx containerOpContext, target *bitmapContainer)
+	Err() error
+	Close()
 }
 
 type multiBitmapOptions struct {
 	op multiBitmapOp
 
 	// union is valid when multiBitmapOpUnion, no other options valid.
-	union []multiBitmapIterable
+	union []readOnlyIterable
 
 	// intersect is valid when multiBitmapOpIntersect used.
-	intersect []multiBitmapIterable
+	intersect []readOnlyIterable
 	// intersectNegate is valid when multiBitmapOpIntersect used.
-	intersectNegate []multiBitmapIterable
+	intersectNegate []readOnlyIterable
 }
 
 func (o multiBitmapOptions) validate() error {
@@ -222,7 +239,7 @@ func (i *multiBitmap) Iterator() postings.Iterator {
 	return newMultiBitmapIterator(i.multiBitmapOptions)
 }
 
-func (i *multiBitmap) containerIterator() containerIterator {
+func (i *multiBitmap) ContainerIterator() containerIterator {
 	return newMultiBitmapContainersIterator(i.multiBitmapOptions)
 }
 
@@ -257,16 +274,6 @@ const (
 	multiContainerOpIntersect
 	multiContainerOpNegate
 )
-
-type containerIterator interface {
-	NextContainer() bool
-	ContainerKey() uint64
-	ContainerUnion(ctx containerOpContext, target *bitmapContainer)
-	ContainerIntersect(ctx containerOpContext, target *bitmapContainer)
-	ContainerNegate(ctx containerOpContext, target *bitmapContainer)
-	Err() error
-	Close()
-}
 
 type containerOpContext struct {
 	// tempBitmap is useful for temporary scratch operations and allows
@@ -312,17 +319,11 @@ func (i *multiBitmapIterator) Reset(opts multiBitmapOptions) {
 func appendContainerItersWithOp(
 	initial []containerIteratorAndOp,
 	iters []containerIteratorAndOp,
-	iterables []multiBitmapIterable,
+	iterables []readOnlyIterable,
 	op multiContainerOp,
 ) ([]containerIteratorAndOp, []containerIteratorAndOp) {
 	for _, elem := range iterables {
-		var it containerIterator
-		switch {
-		case elem.multiBitmap != nil:
-			it = elem.multiBitmap.containerIterator()
-		case elem.bitmap != nil:
-			it = elem.bitmap.containerIterator()
-		}
+		it := elem.ContainerIterator()
 
 		initial = append(initial, containerIteratorAndOp{
 			it: it,
@@ -783,10 +784,10 @@ func (b *bitmapContainer) Reset(set bool) {
 	b.bitmap = b.allocated
 }
 
-func (b *bitmapContainer) SetReadOnly(curr []uint64) {
-	// SetReadOnly should be used with care, only for single bitmap
-	// iteration.
-	b.bitmap = curr
+func (b *bitmapContainer) readOnlyContainer() bitmapReadOnlyContainer {
+	return bitmapReadOnlyContainer{
+		values: b.bitmap,
+	}
 }
 
 type bitmapContainerIterator struct {

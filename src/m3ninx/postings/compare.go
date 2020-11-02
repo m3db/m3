@@ -28,9 +28,11 @@ func Equal(a, b List) bool {
 		return false
 	}
 
-	iter := a.Iterator()
-	otherIter := b.Iterator()
+	return EqualIterator(a.Iterator(), b.Iterator())
+}
 
+// EqualIterator compares two posting lists iterators for equality.
+func EqualIterator(iter, otherIter Iterator) bool {
 	closed := false
 	defer func() {
 		if !closed {

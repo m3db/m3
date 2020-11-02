@@ -574,7 +574,7 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.List, e
 	// NB(r): Important this is a read only bitmap since we perform
 	// operations on postings lists and expect them all to be read only
 	// postings lists.
-	return roaring.NewReadOnlyBitmapRange(0, uint64(r.numDocs))
+	return roaring.NewReadOnlyRangePostingsList(0, uint64(r.numDocs))
 }
 
 func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {

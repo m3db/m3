@@ -260,6 +260,9 @@ func (fti *fieldsAndTermsIter) Close() error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
+	if fti.restrictByPostingsIntersect != nil {
+		multiErr = multiErr.Add(fti.restrictByPostingsIntersect.Close())
+	}
 	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }
