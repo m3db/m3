@@ -22,6 +22,7 @@ package promql
 
 import (
 	"fmt"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
