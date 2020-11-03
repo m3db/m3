@@ -114,9 +114,21 @@ func (fti *fieldsAndTermsIter) Reset(
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) error {
+	// Keep restrict by postings intersect check until completely closed.
 	restrictByPostingsIntersect := fti.restrictByPostingsIntersect
+
+	// Close per use items.
+	if multiErr := fti.closePerUse(); multiErr.FinalError() != nil {
+		return multiErr.FinalError()
+	}
+
+	// Zero state.
 	*fti = fieldsAndTermsIterZeroed
+
+	// Restore restrict by postings intersect check.
 	fti.restrictByPostingsIntersect = restrictByPostingsIntersect
+
+	// Set per use fields.
 	fti.reader = reader
 	fti.opts = opts
 	if reader == nil {
@@ -329,7 +341,7 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close() error {
+func (fti *fieldsAndTermsIter) closePerUse() xerrors.MultiError {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
@@ -337,6 +349,11 @@ func (fti *fieldsAndTermsIter) Close() error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
+	return multiErr
+}
+
+func (fti *fieldsAndTermsIter) Close() error {
+	multiErr := fti.closePerUse()
 	if fti.restrictByPostingsIntersect != nil {
 		multiErr = multiErr.Add(fti.restrictByPostingsIntersect.Close())
 	}
