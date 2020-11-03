@@ -291,27 +291,17 @@ func (p *parseState) walk(node pql.Node) error {
 			argType := argTypes[i]
 			expr := expressions[i]
 			if argType == pql.ValueTypeScalar {
-				val, err := resolveScalarArgument(unwrapParenExpr(expr))
+				val, err := resolveScalarArgument(expr)
 				if err != nil {
 					return err
 				}
 
 				argValues = append(argValues, val)
 			} else if argType == pql.ValueTypeString {
-				val, err := resolveStringArgument(unwrapParenExpr(expr))
-				if err != nil {
-					return err
-				}
-
-				stringValues = append(stringValues, val)
+				stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
 			} else {
-				if argType == pql.ValueTypeMatrix {
-					val, err := resolveMatrixRangeArgument(unwrapParenExpr(expr))
-					if err != nil {
-						return err
-					}
-
-					argValues = append(argValues, val)
+				if e, ok := expr.(*pql.MatrixSelector); ok {
+					argValues = append(argValues, e.Range)
 				}
 
 				if err := p.walk(expr); err != nil {

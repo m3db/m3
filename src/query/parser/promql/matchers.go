@@ -22,8 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -145,18 +143,6 @@ func resolveStringArgument(expr promql.Expr) (string, error) {
 	}
 
 	return expr.String(), nil
-}
-
-func resolveMatrixRangeArgument(expr promql.Expr) (time.Duration, error) {
-	if expr == nil {
-		return time.Duration(0), fmt.Errorf("expression is nil")
-	}
-
-	if str, ok := expr.(*promql.MatrixSelector); ok {
-		return str.Range, nil
-	}
-
-	return time.Duration(0), nil
 }
 
 func getAggOpType(opType promql.ItemType) string {
