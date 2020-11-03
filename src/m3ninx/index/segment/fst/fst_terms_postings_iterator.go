@@ -39,15 +39,19 @@ var postingsIterRoaringPoolingConfig = pilosaroaring.ContainerPoolingConfigurati
 	MaxKeysAndContainersSliceLength: 128 * 10,
 }
 
+var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
+var _ sgmt.FieldsPostingsListIterator = &fstTermsPostingsIter{}
+
 type fstTermsPostingsIter struct {
 	bitmap       *roaring.ReadOnlyBitmap
 	legacyBitmap *pilosaroaring.Bitmap
 	legacyList   postings.List
 
-	seg       *fsSegment
-	termsIter *fstTermsIter
-	currTerm  []byte
-	err       error
+	seg          *fsSegment
+	termsIter    *fstTermsIter
+	currTerm     []byte
+	fieldOffsets bool
+	err          error
 }
 
 func newFSTTermsPostingsIter() *fstTermsPostingsIter {
@@ -69,8 +73,6 @@ func newFSTTermsPostingsIter() *fstTermsPostingsIter {
 	return i
 }
 
-var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
-
 func (f *fstTermsPostingsIter) clear() {
 	if index.MigrationReadOnlyPostings() {
 		f.bitmap.Reset(nil)
@@ -80,17 +82,20 @@ func (f *fstTermsPostingsIter) clear() {
 	f.seg = nil
 	f.termsIter = nil
 	f.currTerm = nil
+	f.fieldOffsets = false
 	f.err = nil
 }
 
 func (f *fstTermsPostingsIter) reset(
 	seg *fsSegment,
 	termsIter *fstTermsIter,
+	fieldOffsets bool,
 ) {
 	f.clear()
 
 	f.seg = seg
 	f.termsIter = termsIter
+	f.fieldOffsets = fieldOffsets
 }
 
 func (f *fstTermsPostingsIter) Next() bool {
@@ -109,10 +114,10 @@ func (f *fstTermsPostingsIter) Next() bool {
 	f.seg.RLock()
 	if index.MigrationReadOnlyPostings() {
 		f.err = f.seg.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
-			currOffset)
+			currOffset, f.fieldOffsets)
 	} else {
 		f.err = f.seg.unmarshalBitmapNotClosedMaybeFinalizedWithLock(f.legacyBitmap,
-			currOffset)
+			currOffset, f.fieldOffsets)
 	}
 	f.seg.RUnlock()
 

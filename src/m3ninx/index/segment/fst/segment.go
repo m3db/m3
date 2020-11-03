@@ -372,7 +372,7 @@ func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPos
 		fst:         i.r.fieldsFST,
 		finalizeFST: false,
 	})
-	i.postingsIter.reset(i.r, i.fieldsIter)
+	i.postingsIter.reset(i.r, i.fieldsIter, true)
 	return i.postingsIter, nil
 }
 
@@ -399,31 +399,79 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 		fst:         termsFST,
 		finalizeFST: true,
 	})
-	i.postingsIter.reset(i.r, i.fieldsIter)
+	i.postingsIter.reset(i.r, i.fieldsIter, false)
 	return i.postingsIter, nil
 }
 
-func (r *fsSegment) unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(b *roaring.ReadOnlyBitmap, offset uint64) error {
+func (r *fsSegment) unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(
+	b *roaring.ReadOnlyBitmap,
+	offset uint64,
+	fieldsOffset bool,
+) error {
 	if r.finalized {
 		return errReaderFinalized
 	}
 
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
-	if err != nil {
-		return fmt.Errorf("unable to retrieve postings data: %v", err)
+	var postingsBytes []byte
+	if fieldsOffset {
+		protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, offset)
+		if err != nil {
+			return err
+		}
+
+		var fieldData fswriter.FieldData
+		if err := fieldData.Unmarshal(protoBytes); err != nil {
+			return err
+		}
+
+		postingsOffset := fieldData.FieldPostingsListOffset
+		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
+		if err != nil {
+			return fmt.Errorf("unable to retrieve postings data: %v", err)
+		}
+	} else {
+		var err error
+		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
+		if err != nil {
+			return fmt.Errorf("unable to retrieve postings data: %v", err)
+		}
 	}
 
 	return b.Reset(postingsBytes)
 }
 
-func (r *fsSegment) unmarshalBitmapNotClosedMaybeFinalizedWithLock(b *pilosaroaring.Bitmap, offset uint64) error {
+func (r *fsSegment) unmarshalBitmapNotClosedMaybeFinalizedWithLock(
+	b *pilosaroaring.Bitmap,
+	offset uint64,
+	fieldsOffset bool,
+) error {
 	if r.finalized {
 		return errReaderFinalized
 	}
 
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
-	if err != nil {
-		return fmt.Errorf("unable to retrieve postings data: %v", err)
+	var postingsBytes []byte
+	if fieldsOffset {
+		protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, offset)
+		if err != nil {
+			return err
+		}
+
+		var fieldData fswriter.FieldData
+		if err := fieldData.Unmarshal(protoBytes); err != nil {
+			return err
+		}
+
+		postingsOffset := fieldData.FieldPostingsListOffset
+		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
+		if err != nil {
+			return fmt.Errorf("unable to retrieve postings data: %v", err)
+		}
+	} else {
+		var err error
+		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
+		if err != nil {
+			return fmt.Errorf("unable to retrieve postings data: %v", err)
+		}
 	}
 
 	return b.UnmarshalBinary(postingsBytes)
@@ -848,10 +896,11 @@ var _ sgmt.Reader = (*fsSegmentReader)(nil)
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed        bool
-	ctx           context.Context
-	fsSegment     *fsSegment
-	termsIterable *termsIterable
+	closed         bool
+	ctx            context.Context
+	fsSegment      *fsSegment
+	fieldsIterable *termsIterable
+	termsIterable  *termsIterable
 }
 
 func newReader(
@@ -882,11 +931,11 @@ func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	if sr.termsIterable == nil {
-		sr.termsIterable = newTermsIterable(sr.fsSegment)
+	if sr.fieldsIterable == nil {
+		sr.fieldsIterable = newTermsIterable(sr.fsSegment)
 	}
 	sr.fsSegment.RLock()
-	iter, err := sr.termsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
+	iter, err := sr.fieldsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
 	sr.fsSegment.RUnlock()
 	return iter, err
 }
