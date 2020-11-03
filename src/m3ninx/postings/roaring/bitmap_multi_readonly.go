@@ -546,7 +546,7 @@ func newMultiBitmapContainersIterator(
 		opts.intersectNegate, multiContainerOpNegate)
 	return &multiBitmapContainersIterator{
 		multiBitmapOptions: opts,
-		initial:            iters,
+		initial:            initial,
 		iters:              iters,
 	}
 }

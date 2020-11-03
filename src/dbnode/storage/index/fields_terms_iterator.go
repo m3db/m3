@@ -50,23 +50,23 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
-func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsIterator, error) {
+func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 	if o.fieldIterFn == nil {
-		return r.Fields()
+		return r.FieldsPostingsList()
 	}
 	return o.fieldIterFn(r)
 }
 
 type allowFn func(field []byte) bool
 
-type newFieldIterFn func(r segment.Reader) (segment.FieldsIterator, error)
+type newFieldIterFn func(r segment.Reader) (segment.FieldsPostingsListIterator, error)
 
 type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
 	err       error
-	fieldIter segment.FieldsIterator
+	fieldIter segment.FieldsPostingsListIterator
 	termIter  segment.TermsIterator
 
 	current struct {
@@ -166,10 +166,43 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 	}
 
 	for fieldIter.Next() {
-		field := fieldIter.Current()
+		field, curr := fieldIter.Current()
 		if !fti.opts.allow(field) {
 			continue
 		}
+
+		if index.MigrationReadOnlyPostings() && fti.restrictByPostings != nil {
+			// Check term isn't part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			restrictBy := fti.restrictByPostings
+			match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
+			if err != nil {
+				fti.err = err
+				return false
+			}
+			if !match {
+				// No match.
+				continue
+			}
+		} else if !index.MigrationReadOnlyPostings() && fti.restrictByPostingsBitmap != nil {
+			bitmap, ok := roaring.BitmapFromPostingsList(curr)
+			if !ok {
+				fti.err = errUnpackBitmapFromPostingsList
+				return false
+			}
+
+			// Check term isn part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			// Note: IntersectionCount is significantly faster than intersecting and
+			// counting results and also does not allocate.
+			if n := fti.restrictByPostingsBitmap.IntersectionCount(bitmap); n < 1 {
+				// No match.
+				continue
+			}
+		}
+
 		fti.current.field = field
 		return true
 	}

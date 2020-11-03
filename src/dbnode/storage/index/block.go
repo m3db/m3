@@ -615,7 +615,7 @@ func (b *block) aggregateWithSpan(
 			}
 			return aggOpts.FieldFilter.Allow(field)
 		},
-		fieldIterFn: func(r segment.Reader) (segment.FieldsIterator, error) {
+		fieldIterFn: func(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 			// NB(prateek): we default to using the regular (FST) fields iterator
 			// unless we have a predefined list of fields we know we need to restrict
 			// our search to, in which case we iterate that list and check if known values
@@ -627,7 +627,7 @@ func (b *block) aggregateWithSpan(
 			// to this function is expected to have (FieldsFilter) pretty small. If that changes
 			// in the future, we can revisit this.
 			if len(aggOpts.FieldFilter) == 0 {
-				return r.Fields()
+				return r.FieldsPostingsList()
 			}
 			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},
