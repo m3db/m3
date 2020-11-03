@@ -186,7 +186,7 @@ func TestDynamicClustersWithUpdates(t *testing.T) {
 			downsample: &ClusterNamespaceDownsampleOptions{All: true},
 		})
 
-		return found && assertClusterNamespaceIDs(clusters, []ident.ID{defaultTestNs1ID, defaultTestNs2ID})
+		return found && assertClusterNamespaceIDs(clusters.ClusterNamespaces(), []ident.ID{defaultTestNs1ID, defaultTestNs2ID})
 	}, time.Second))
 }
 
@@ -286,7 +286,7 @@ func TestDynamicClustersWithMultipleInitializers(t *testing.T) {
 		fooNsID, barNsID})
 }
 
-func TestDynamicClustersNotReadyNamespace(t *testing.T) {
+func TestDynamicClustersNonReadyNamespace(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -325,6 +325,7 @@ func TestDynamicClustersNotReadyNamespace(t *testing.T) {
 		}})
 
 	requireClusterNamespaceIDs(t, clusters, []ident.ID{defaultTestNs1ID})
+	requireNonReadyClusterNamespaceIDs(t, clusters, []ident.ID{defaultTestNs2ID, ident.StringID("foo")})
 }
 
 func TestDynamicClustersEmptyNamespacesThenUpdates(t *testing.T) {
@@ -373,7 +374,7 @@ func TestDynamicClustersEmptyNamespacesThenUpdates(t *testing.T) {
 				Retention:   48 * time.Hour,
 			}})
 
-		return found && assertClusterNamespaceIDs(clusters, []ident.ID{defaultTestNs1ID, defaultTestNs2ID})
+		return found && assertClusterNamespaceIDs(clusters.ClusterNamespaces(), []ident.ID{defaultTestNs1ID, defaultTestNs2ID})
 	}, time.Second))
 }
 
@@ -434,16 +435,20 @@ type mapParams struct {
 	nsOpts namespace.Options
 }
 
-func requireClusterNamespaceIDs(t *testing.T, clusters Clusters, ids []ident.ID) {
-	require.True(t, assertClusterNamespaceIDs(clusters, ids))
+func requireNonReadyClusterNamespaceIDs(t *testing.T, clusters Clusters, ids []ident.ID) {
+	require.True(t, assertClusterNamespaceIDs(clusters.NonReadyClusterNamespaces(), ids))
 }
 
-func assertClusterNamespaceIDs(clusters Clusters, ids []ident.ID) bool {
+func requireClusterNamespaceIDs(t *testing.T, clusters Clusters, ids []ident.ID) {
+	require.True(t, assertClusterNamespaceIDs(clusters.ClusterNamespaces(), ids))
+}
+
+func assertClusterNamespaceIDs(actual ClusterNamespaces, ids []ident.ID) bool {
 	var (
 		nsIds       = make([]string, 0, len(ids))
 		expectedIds = make([]string, 0, len(ids))
 	)
-	for _, ns := range clusters.ClusterNamespaces() {
+	for _, ns := range actual {
 		nsIds = append(nsIds, ns.NamespaceID().String())
 	}
 	for _, id := range ids {
