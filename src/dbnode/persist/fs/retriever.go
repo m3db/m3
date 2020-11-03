@@ -399,7 +399,6 @@ func (r *blockRetriever) fetchBatch(
 		}
 	}()
 
-	// Resolve the seeker from the seeker mgr.
 	var err error
 	seeker, err = seekerMgr.Borrow(shard, blockStart)
 	if err != nil {

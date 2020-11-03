@@ -1036,16 +1036,10 @@ func (d *db) WideQuery(
 			streamedWideEntries = append(streamedWideEntries, streamedWideEntry)
 		}
 
-		for i, streamedWideEntry := range streamedWideEntries {
+		for _, streamedWideEntry := range streamedWideEntries {
 			checksum, err := streamedWideEntry.RetrieveWideEntry()
 			if err != nil {
 				return err
-			}
-
-			// TODO: use index checksum value to call downstreams.
-			useID := i == len(batch.IDs)-1
-			if !useID {
-				checksum.ID.Finalize()
 			}
 
 			collectedChecksums = append(collectedChecksums, checksum)

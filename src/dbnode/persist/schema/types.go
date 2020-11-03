@@ -85,7 +85,7 @@ type WideEntry struct {
 	MetadataChecksum int64
 }
 
-// IndexEntryHasher hashes an index entrsy.
+// IndexEntryHasher hashes an index entry.
 type IndexEntryHasher interface {
 	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
 	// and the computed data checksum.

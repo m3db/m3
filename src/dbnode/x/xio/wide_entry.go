@@ -28,6 +28,8 @@ import (
 // WideEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry.
 type WideEntry struct {
+	finalized bool
+
 	Shard            uint32
 	ID               ident.ID
 	Size             int64
@@ -45,6 +47,11 @@ func (c WideEntry) Empty() bool {
 
 // Finalize finalizes the wide entry.
 func (c *WideEntry) Finalize() {
+	if c.Empty() || c.finalized {
+		return
+	}
+
+	c.finalized = true
 	if c.EncodedTags != nil {
 		c.EncodedTags.DecRef()
 		c.EncodedTags.Finalize()

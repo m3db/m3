@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -57,8 +58,8 @@ const (
 )
 
 type shardedWideEntry struct {
-	shard     uint32
-	checksums []schema.WideEntry
+	shard   uint32
+	entries []schema.WideEntry
 }
 
 // buildExpectedChecksumsByShard sorts the given IDs into ascending shard order,
@@ -69,9 +70,9 @@ func buildExpectedChecksumsByShard(
 	shardSet sharding.ShardSet,
 	batchSize int,
 ) []schema.WideEntry {
-	shardedChecksums := make([]shardedWideEntry, 0, len(ids))
+	shardedEntries := make([]shardedWideEntry, 0, len(ids))
 	for i, id := range ids {
-		checksum := schema.WideEntry{
+		entry := schema.WideEntry{
 			IndexEntry: schema.IndexEntry{
 				ID: []byte(id),
 			},
@@ -94,13 +95,13 @@ func buildExpectedChecksumsByShard(
 		}
 
 		found := false
-		for idx, sharded := range shardedChecksums {
+		for idx, sharded := range shardedEntries {
 			if shard != sharded.shard {
 				continue
 			}
 
 			found = true
-			shardedChecksums[idx].checksums = append(sharded.checksums, checksum)
+			shardedEntries[idx].entries = append(sharded.entries, entry)
 			break
 		}
 
@@ -108,36 +109,28 @@ func buildExpectedChecksumsByShard(
 			continue
 		}
 
-		shardedChecksums = append(shardedChecksums, shardedWideEntry{
-			shard:     shard,
-			checksums: []schema.WideEntry{checksum},
+		shardedEntries = append(shardedEntries, shardedWideEntry{
+			shard:   shard,
+			entries: []schema.WideEntry{entry},
 		})
 	}
 
-	sort.Slice(shardedChecksums, func(i, j int) bool {
-		return shardedChecksums[i].shard < shardedChecksums[j].shard
+	sort.Slice(shardedEntries, func(i, j int) bool {
+		return shardedEntries[i].shard < shardedEntries[j].shard
 	})
 
-	var checksums []schema.WideEntry
-	for _, sharded := range shardedChecksums {
-		checksums = append(checksums, sharded.checksums...)
+	var entries []schema.WideEntry
+	for _, sharded := range shardedEntries {
+		entries = append(entries, sharded.entries...)
 	}
 
 	// NB: IDs should only be included for documents that conclude a batch.
-	l := len(checksums)
+	l := len(entries)
 	if l == 0 {
-		return checksums
+		return entries
 	}
 
-	// NB: only look at the last `l-1` elements, as the last element should
-	// always have its ID.
-	for i, checksum := range checksums[:l-1] {
-		if (i+1)%batchSize != 0 {
-			checksums[i].ID = checksum.ID[:0]
-		}
-	}
-
-	return checksums
+	return entries
 }
 
 func assertTags(
