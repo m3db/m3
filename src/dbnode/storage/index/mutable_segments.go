@@ -358,16 +358,11 @@ func (m *mutableSegments) Close() {
 	m.optsListener.Close()
 }
 
-func (m *mutableSegments) addOnDiskSegments(segments []result.Segment) error {
-	m.Lock()
-	defer m.Unlock()
-	if m.state == mutableSegmentsStateClosed {
-		return errMutableSegmentsAlreadyClosed
-	}
+// Index block handles locking when adding on disk segments.
+func (m *mutableSegments) addOnDiskSegmentsWithoutLock(segments []result.Segment) {
 	for _, s := range segments {
 		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(s.Segment(), m.opts))
 	}
-	return nil
 }
 
 func (m *mutableSegments) cleanupOnDiskSegmentsWithLock() {
@@ -498,6 +493,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("error freezing terminal segments", zap.Error(err))
 				})
+				continue
 			}
 			if state != fst.FrozenIndexSegmentState {
 				fstSeg.Freeze()

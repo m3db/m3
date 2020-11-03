@@ -855,9 +855,9 @@ func (b *block) AddResults(
 		case idxpersist.SnapshotColdIndexVolumeType:
 			// NB(bodu): There is always at least 1 cold mutable segment.
 			coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
-			coldBlock.addOnDiskSegments(results.Segments())
+			coldBlock.addOnDiskSegmentsWithoutLock(results.Segments())
 		case idxpersist.SnapshotWarmIndexVolumeType:
-			b.mutableSegments.addOnDiskSegments(results.Segments())
+			b.mutableSegments.addOnDiskSegmentsWithoutLock(results.Segments())
 		default:
 			multiErr = multiErr.Add(b.addResults(volumeType, results))
 		}

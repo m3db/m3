@@ -242,29 +242,31 @@ func (s *commitLogSource) Read(
 			}
 		}
 
-		// Read index snapshot files
-		indexSnapshotFiles, err := s.indexSnapshotFilesFn(
-			filePathPrefix,
-			ns.Metadata.ID(),
-		)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
+		// Read index snapshot files if indexing is enabled.
+		if ns.Metadata.Options().IndexOptions().Enabled() {
+			indexSnapshotFiles, err := s.indexSnapshotFilesFn(
+				filePathPrefix,
+				ns.Metadata.ID(),
+			)
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+			indexBlockSize := ns.Metadata.Options().IndexOptions().BlockSize()
+			indexInfoFiles := s.readIndexInfoFilesFn(filePathPrefix, ns.Metadata.ID(),
+				fsOpts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
+			// Get latest index snapshot per block start
+			mostRecentIndexSnapshotsByBlock := s.mostRecentCompleteIndexSnapshotByBlock(
+				shardTimeRanges, indexBlockSize, indexSnapshotFiles, indexInfoFiles, fsOpts)
+			indexResult := result.NewIndexBootstrapResult()
+			if err := s.bootstrapIndexSnapshots(
+				ns.Metadata,
+				indexResult,
+				mostRecentIndexSnapshotsByBlock,
+			); err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+			indexResults[ns.Metadata.ID().String()] = indexResult
 		}
-		indexBlockSize := ns.Metadata.Options().IndexOptions().BlockSize()
-		indexInfoFiles := s.readIndexInfoFilesFn(filePathPrefix, ns.Metadata.ID(),
-			fsOpts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
-		// Get latest index snapshot per block start
-		mostRecentIndexSnapshotsByBlock := s.mostRecentCompleteIndexSnapshotByBlock(
-			shardTimeRanges, indexBlockSize, indexSnapshotFiles, indexInfoFiles, fsOpts)
-		indexResult := result.NewIndexBootstrapResult()
-		if err := s.bootstrapIndexSnapshots(
-			ns.Metadata,
-			indexResult,
-			mostRecentIndexSnapshotsByBlock,
-		); err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
-		indexResults[ns.Metadata.ID().String()] = indexResult
 	}
 
 	s.log.Info("read snapshots done",
@@ -294,7 +296,7 @@ func (s *commitLogSource) Read(
 		}
 		var indexResult result.IndexBootstrapResult
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			// We should have a result for each ns at this point.
+			// We should have a result for each ns at this point if indexing is enabled.
 			indexResult = indexResults[ns.Metadata.ID().String()]
 			if s.commitLogResult.shouldReturnUnfulfilled {
 				shardTimeRanges := ns.IndexRunOptions.ShardTimeRanges
