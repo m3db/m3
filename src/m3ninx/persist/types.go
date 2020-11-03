@@ -70,6 +70,7 @@ type MutableSegmentFileSetWriter interface {
 type FSTSegmentDataFileSetWriter interface {
 	IndexSegmentFileSetWriter
 
+	// Reset resets the writer to write the provided segment data.
 	Reset(fst.SegmentData) error
 }
 

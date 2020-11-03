@@ -599,12 +599,11 @@ func SnapshotTimeAndID(
 	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error reading index snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
 	}
 	switch id.FileSetContentType {
 	case persist.FileSetDataContentType:
-		decoder := msgpack.NewDecoder(nil)
-		return dataSnapshotTimeAndID(infoBytes, decoder)
+		return dataSnapshotTimeAndID(infoBytes)
 	case persist.FileSetIndexContentType:
 		return indexSnapshotTimeAndID(infoBytes)
 	}
@@ -613,8 +612,8 @@ func SnapshotTimeAndID(
 
 func dataSnapshotTimeAndID(
 	infoBytes []byte,
-	decoder *msgpack.Decoder,
 ) (time.Time, uuid.UUID, error) {
+	decoder := msgpack.NewDecoder(nil)
 	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
@@ -1475,7 +1474,7 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, indexDirName, dataDirName, namespace.String())
 }
 
-// NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
+// NamespaceIndexSnapshotDirPath returns the path to the index snapshots directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(IndexSnapshotsDirPath(prefix), namespace.String())
 }

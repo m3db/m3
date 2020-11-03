@@ -896,8 +896,12 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 	require.Equal(t, false, f.HasCompleteCheckpointFile())
 }
 
-func TestSnapshotDirPath(t *testing.T) {
+func TestSnapshotsDirPath(t *testing.T) {
 	require.Equal(t, "prefix/snapshots", SnapshotsDirPath("prefix"))
+}
+
+func TestIndexSnapshotsDirPath(t *testing.T) {
+	require.Equal(t, "prefix/snapshots_index", IndexSnapshotsDirPath("prefix"))
 }
 
 func TestNamespaceSnapshotsDirPath(t *testing.T) {

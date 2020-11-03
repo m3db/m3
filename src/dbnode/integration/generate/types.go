@@ -97,12 +97,15 @@ type Writer interface {
 		snapshotInterval time.Duration,
 	) error
 
+	// WriteIndex writes index files for data in series maps.
 	WriteIndex(
 		nsCtx ns.Context,
 		shardSet sharding.ShardSet,
 		seriesMaps SeriesBlocksByStart,
 	) error
 
+	// WriteIndexWithPredicate writes index files for all data in series maps that
+	// passes the predicate test.
 	WriteIndexWithPredicate(
 		nsCtx ns.Context,
 		shardSet sharding.ShardSet,
@@ -110,6 +113,8 @@ type Writer interface {
 		pred WriteDatapointPredicate,
 	) error
 
+	// WriteIndexSnapshotWithPredicate writes index snapshot files for all data in series maps that
+	// passes the predicate test.
 	WriteIndexSnapshotWithPredicate(
 		nsCtx ns.Context,
 		shardSet sharding.ShardSet,

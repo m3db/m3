@@ -846,8 +846,9 @@ func (b *block) AddResults(
 		min, max := results.Fulfilled().MinMax()
 		if min.Before(b.blockStart) || max.After(b.blockEnd) {
 			blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
-			return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+			err := fmt.Errorf("fulfilled range %s is outside of index block range: %s",
 				results.Fulfilled().SummaryString(), blockRange.String())
+			multiErr = multiErr.Add(err)
 		}
 
 		switch volumeType {
@@ -1099,7 +1100,7 @@ func (b *block) RotateColdMutableSegments() {
 	))
 }
 
-func (b *block) MemorySegmentsData(
+func (b *block) AppendMemorySegmentsData(
 	ctx context.Context,
 	results []fst.SegmentData,
 ) ([]fst.SegmentData, error) {
@@ -1109,12 +1110,12 @@ func (b *block) MemorySegmentsData(
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
-	results, err = b.mutableSegments.MemorySegmentsData(ctx, results)
+	results, err = b.mutableSegments.AppendMemorySegmentsData(ctx, results)
 	if err != nil {
 		return nil, err
 	}
 	for _, coldSeg := range b.coldMutableSegments {
-		results, err = coldSeg.MemorySegmentsData(ctx, results)
+		results, err = coldSeg.AppendMemorySegmentsData(ctx, results)
 		if err != nil {
 			return nil, err
 		}

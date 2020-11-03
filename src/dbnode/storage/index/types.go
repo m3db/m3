@@ -404,8 +404,8 @@ type Block interface {
 	// new cold mutable segment to write to.
 	RotateColdMutableSegments()
 
-	// MemorySegmentsData returns all in memory segments data.
-	MemorySegmentsData(
+	// AppendMemorySegmentsData appends all in memory segments data to the results.
+	AppendMemorySegmentsData(
 		ctx context.Context,
 		results []fst.SegmentData,
 	) ([]fst.SegmentData, error)
@@ -1015,7 +1015,7 @@ func (s BlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool)
 	return s.snapshot, s.bootstrapped
 }
 
-// BootstrappedBlockStateSnapshot represents a bootstrapped  block state snapshot.
+// BootstrappedBlockStateSnapshot represents a bootstrapped block state snapshot.
 type BootstrappedBlockStateSnapshot struct {
 	Snapshot map[xtime.UnixNano]BlockState
 }

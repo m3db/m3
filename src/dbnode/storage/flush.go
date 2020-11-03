@@ -167,7 +167,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces, startTime, rotatedCommitlogID, snapshotID); err != nil {
+	if err = m.indexFlush(namespaces, rotatedCommitlogID, snapshotID); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -216,7 +216,6 @@ func (m *flushManager) dataAndIndexSnapshot(
 	rotatedCommitlogID persist.CommitLogFile,
 	snapshotID uuid.UUID,
 ) error {
-
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
 		return err
@@ -283,7 +282,6 @@ func (m *flushManager) dataAndIndexSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
-	startTime time.Time,
 	rotatedCommitlogID persist.CommitLogFile,
 	snapshotID uuid.UUID,
 ) error {

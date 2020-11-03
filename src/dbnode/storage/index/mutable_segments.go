@@ -239,7 +239,7 @@ func (m *mutableSegments) Len() int {
 	return len(m.foregroundSegments) + len(m.backgroundSegments) + len(m.onDiskSegments)
 }
 
-func (m *mutableSegments) MemorySegmentsData(
+func (m *mutableSegments) AppendMemorySegmentsData(
 	ctx context.Context,
 	results []fst.SegmentData,
 ) ([]fst.SegmentData, error) {
@@ -275,17 +275,18 @@ func (m *mutableSegments) NeedsEviction() bool {
 	m.RLock()
 	defer m.RUnlock()
 
-	var needsEviction bool
-	for _, seg := range m.foregroundSegments {
-		needsEviction = needsEviction || seg.Segment().Size() > 0
+	for _, segs := range [][]*readableSeg{
+		m.foregroundSegments,
+		m.backgroundSegments,
+		m.onDiskSegments,
+	} {
+		for _, seg := range segs {
+			if seg.Segment().Size() > 0 {
+				return true
+			}
+		}
 	}
-	for _, seg := range m.backgroundSegments {
-		needsEviction = needsEviction || seg.Segment().Size() > 0
-	}
-	for _, seg := range m.onDiskSegments {
-		needsEviction = needsEviction || seg.Segment().Size() > 0
-	}
-	return needsEviction
+	return false
 }
 
 func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
@@ -295,17 +296,15 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 	var (
 		numSegments, numDocs int64
 	)
-	for _, seg := range m.foregroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	for _, seg := range m.backgroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	for _, seg := range m.onDiskSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
+	for _, segs := range [][]*readableSeg{
+		m.foregroundSegments,
+		m.backgroundSegments,
+		m.onDiskSegments,
+	} {
+		for _, seg := range segs {
+			numSegments++
+			numDocs += seg.Segment().Size()
+		}
 	}
 	return numSegments, numDocs
 }

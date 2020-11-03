@@ -893,8 +893,8 @@ func (i *nsIndex) Bootstrap(
 			switch volumeType {
 			case idxpersist.SnapshotColdIndexVolumeType, idxpersist.SnapshotWarmIndexVolumeType:
 				// Only set if the volume index in the results is set.
-				if results.VolumeIndex() >= 0 {
-					i.setSnapshotStateVersionLoaded(blockStart.ToTime(), results.VolumeIndex())
+				if volumeIndex := results.VolumeIndex(); volumeIndex >= 0 {
+					i.setSnapshotStateVersionLoaded(blockStart.ToTime(), volumeIndex)
 				}
 			}
 		}
@@ -911,12 +911,11 @@ func (i *nsIndex) Bootstrapped() bool {
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
+	i.state.Lock()
 	var (
 		result             namespaceIndexTickResult
-		deletedBlockStarts = make([]xtime.UnixNano, 0)
+		deletedBlockStarts = make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
 	)
-
-	i.state.Lock()
 	defer func() {
 		i.updateBlockStartsWithLock()
 		i.state.Unlock()
@@ -1381,22 +1380,20 @@ func (i *nsIndex) Snapshot(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	// NB(bodu): Although snapshottng currently happens in a single thread but lock
+	// NB(bodu): Although snapshotting currently happens in a single thread but lock
 	// on the resusable segments data resource to be safe.
 	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
 	i.snapshotState.segmentsData = i.snapshotState.segmentsData[:0]
-	i.snapshotState.segmentsData, err = block.MemorySegmentsData(ctx, i.snapshotState.segmentsData)
+	i.snapshotState.segmentsData, err = block.AppendMemorySegmentsData(ctx, i.snapshotState.segmentsData)
 	if err != nil {
-		i.snapshotState.Unlock()
 		return err
 	}
 	for _, segmentData := range i.snapshotState.segmentsData {
 		if err := prepared.Persist(segmentData); err != nil {
-			i.snapshotState.Unlock()
 			return err
 		}
 	}
-	i.snapshotState.Unlock()
 
 	return prepared.Close()
 }
@@ -2210,13 +2207,13 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 
 	var results []fst.SegmentData
 	for _, block := range i.state.blocksByTime {
-		results, err = block.MemorySegmentsData(ctx, results)
+		results = results[:0]
+		results, err = block.AppendMemorySegmentsData(ctx, results)
 		if err != nil {
 			return err
 		}
 
 		for numSegment, segmentData := range results {
-
 			indexWriter, err := fs.NewIndexWriter(fsOpts)
 			if err != nil {
 				return err
@@ -2259,13 +2256,14 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
 	i.state.RLock()
 	bootstrapped := i.state.bootstrapState == Bootstrapped
+	i.state.RUnlock()
 	if !bootstrapped {
 		// Needs to be bootstrapped.
-		i.state.RUnlock()
 		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 	}
-	i.state.RUnlock()
 
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
 	snapshot := make(map[xtime.UnixNano]index.BlockState, len(i.snapshotState.statesByTime))
 	for time, state := range i.snapshotState.statesByTime {
 		snapshot[time] = state

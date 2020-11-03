@@ -154,7 +154,7 @@ type DataCloser func() error
 // DeferCloser returns a DataCloser that persists the data checkpoint file when called.
 type DeferCloser func() (DataCloser, error)
 
-// PreparedDataPersist is an object that wraps holds a persist function and a closer.
+// PreparedDataPersist is an object that wraps a persist function and a closer.
 type PreparedDataPersist struct {
 	Persist    DataFn
 	Close      DataCloser
@@ -192,7 +192,7 @@ type IndexSnapshotFn func(fst.SegmentData) error
 // immutable Segment.
 type IndexCloser func() ([]segment.Segment, error)
 
-// PreparedIndexFlushPersist is an object that wraps holds a index data persist function and a closer.
+// PreparedIndexFlushPersist is an object that wraps a index data persist function and a closer.
 type PreparedIndexFlushPersist struct {
 	Persist IndexFlushFn
 	Close   IndexCloser

@@ -157,46 +157,19 @@ func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
 }
 
+// SegmentData returns in memory data for a segment.
 func (r *ReadThroughSegment) SegmentData(ctx context.Context) (fst.SegmentData, error) {
 	return r.segment.SegmentData(ctx)
 }
 
+// Freeze marks the segment state as frozen (no longer compactable).
 func (r *ReadThroughSegment) Freeze() {
 	r.segment.Freeze()
 }
 
+// State returns the segment state (frozen/compactable).
 func (r *ReadThroughSegment) State() (fst.IndexSegmentState, error) {
 	return r.segment.State()
-}
-
-func (s *ReadThroughSegment) Doc(id postings.ID) (doc.Document, error) {
-	return s.Doc(id)
-}
-
-func (s *ReadThroughSegment) Docs(pl postings.List) (doc.Iterator, error) {
-	return s.Docs(pl)
-}
-
-func (s *ReadThroughSegment) MatchAll() (postings.MutableList, error) {
-	return s.MatchAll()
-}
-
-func (s *ReadThroughSegment) MatchField(field []byte) (postings.List, error) {
-	return s.MatchField(field)
-}
-
-func (s *ReadThroughSegment) MatchRegexp(
-	field []byte,
-	compiled index.CompiledRegex,
-) (postings.List, error) {
-	return s.MatchRegexp(field, compiled)
-}
-
-func (s *ReadThroughSegment) MatchTerm(
-	field []byte,
-	term []byte,
-) (postings.List, error) {
-	return s.MatchTerm(field, term)
 }
 
 type readThroughSegmentReader struct {

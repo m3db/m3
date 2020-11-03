@@ -1391,7 +1391,7 @@ func (n *dbNamespace) Snapshot(
 	var (
 		seriesPersist int
 		multiErr      xerrors.MultiError
-		shardIDs      = make(map[uint32]struct{})
+		shardIDs      = make(map[uint32]struct{}, len(n.OwnedShards()))
 	)
 	for _, shard := range n.OwnedShards() {
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)

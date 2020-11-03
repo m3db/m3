@@ -228,15 +228,11 @@ func (s *commitLogSource) Read(
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
-
-		mostRecentCompleteSnapshotByBlockShard, err := s.mostRecentSnapshotByBlockShard(
-			ns.Metadata, shardTimeRanges, snapshotFilesByShard)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
+		blockSize := ns.Metadata.Options().RetentionOptions().BlockSize()
+		mostRecentCompleteSnapshotByBlockShard := s.mostRecentCompleteSnapshotByBlockShard(
+			shardTimeRanges, blockSize, snapshotFilesByShard, fsOpts)
 
 		// Start by reading any available snapshot files.
-		blockSize := ns.Metadata.Options().RetentionOptions().BlockSize()
 		for shard, tr := range shardTimeRanges.Iter() {
 			err := s.bootstrapShardSnapshots(
 				ns.Metadata, accumulator, shard, tr, blockSize,
@@ -254,14 +250,12 @@ func (s *commitLogSource) Read(
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
+		indexBlockSize := ns.Metadata.Options().IndexOptions().BlockSize()
 		indexInfoFiles := s.readIndexInfoFilesFn(filePathPrefix, ns.Metadata.ID(),
 			fsOpts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
 		// Get latest index snapshot per block start
-		mostRecentIndexSnapshotsByBlock, err := s.mostRecentIndexSnapshotsByBlock(
-			ns.Metadata, shardTimeRanges, indexSnapshotFiles, indexInfoFiles)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
+		mostRecentIndexSnapshotsByBlock := s.mostRecentCompleteIndexSnapshotByBlock(
+			shardTimeRanges, indexBlockSize, indexSnapshotFiles, indexInfoFiles, fsOpts)
 		indexResult := result.NewIndexBootstrapResult()
 		if err := s.bootstrapIndexSnapshots(
 			ns.Metadata,
@@ -655,8 +649,7 @@ func (s *commitLogSource) snapshotFilesByShard(
 // mostRecentCompleteSnapshotByBlockShard returns a
 // map[xtime.UnixNano]map[uint32]fs.FileSetFile with the contract that
 // for each shard/block combination in shardsTimeRanges, an entry will
-// exist in the map such that FileSetFile.CachedSnapshotTime is the
-// actual cached snapshot time, or the blockStart.
+// exist in the map if a valid snapshot was found.
 func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
@@ -678,16 +671,14 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 				)
 
 				defer func() {
+					if mostRecentSnapshot.IsZero() {
+						// Do nothing if we could not find a valid snapshot.
+						return
+					}
+
 					existing := mostRecentSnapshotsByBlockShard[currBlockUnixNanos]
 					if existing == nil {
 						existing = map[uint32]fs.FileSetFile{}
-					}
-
-					if mostRecentSnapshot.IsZero() {
-						// If we were unable to determine the most recent snapshot time for a given
-						// shard/blockStart combination, then just fall back to using the blockStart
-						// time as that will force us to read the entire commit log for that duration.
-						mostRecentSnapshot.CachedSnapshotTime = currBlockStart
 					}
 					existing[shard] = mostRecentSnapshot
 					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
@@ -707,8 +698,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 					return
 				}
 
-				// Make sure we're able to read the snapshot time. This will also set the
-				// CachedSnapshotTime field so that we can rely upon it from here on out.
+				// Make sure we're able to read the snapshot time.
 				_, _, err := mostRecentSnapshotVolume.SnapshotTimeAndID()
 				if err != nil {
 					namespace := mostRecentSnapshot.ID.Namespace
@@ -725,9 +715,6 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 							zap.Error(err),
 						).
 						Error("error resolving snapshot time for snapshot file")
-
-					// If we couldn't determine the snapshot time for the snapshot file, then rely
-					// on the defer to fallback to using the block start time.
 					return
 				}
 
@@ -745,11 +732,10 @@ type indexSnapshot struct {
 	fulfilled result.ShardTimeRanges
 }
 
-// mostRecentCompleteSnapshotByBlock returns a
+// mostRecentCompleteIndexSnapshotByBlock returns a
 // map[xtime.UnixNano]fs.FileSetFile with the contract that
 // for each block in shardsTimeRanges, an entry will
-// exist in the map such that FileSetFile.CachedSnapshotTime is the
-// actual cached snapshot time, or the blockStart.
+// exist in the map if there exists a valid snapshot.
 func (s *commitLogSource) mostRecentCompleteIndexSnapshotByBlock(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
@@ -779,10 +765,8 @@ func (s *commitLogSource) mostRecentCompleteIndexSnapshotByBlock(
 
 			defer func() {
 				if mostRecentSnapshot.IsZero() {
-					// If we were unable to determine the most recent snapshot time for a given
-					// blockStart, then just fall back to using the blockStart time as that will
-					// force us to read the entire commit log for that duration.
-					mostRecentSnapshot.CachedSnapshotTime = currBlockStart
+					// Do nothing if no valid snapshot is found.
+					return
 				}
 				fulfilled := bootstrapper.IntersectingShardTimeRanges(
 					shardsTimeRanges,
@@ -811,8 +795,7 @@ func (s *commitLogSource) mostRecentCompleteIndexSnapshotByBlock(
 				return
 			}
 
-			// Make sure we're able to read the snapshot time. This will also set the
-			// CachedSnapshotTime field so that we can rely upon it from here on out.
+			// Make sure we're able to read the snapshot time.
 			_, _, err := mostRecentSnapshotVolume.SnapshotTimeAndID()
 			if err != nil {
 				namespace := mostRecentSnapshot.ID.Namespace
@@ -826,9 +809,6 @@ func (s *commitLogSource) mostRecentCompleteIndexSnapshotByBlock(
 					zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilePaths),
 					zap.Error(err),
 				).Error("error resolving snapshot time for index snapshot file")
-
-				// If we couldn't determine the snapshot time for the snapshot file, then rely
-				// on the defer to fallback to using the block start time.
 				return
 			}
 
@@ -889,14 +869,14 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		}
 
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
-			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
-			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) {
-				// There is no snapshot file for this time, and even if there was, there would
-				// be no point in reading it. In this specific case its not an error scenario
-				// because the fact that snapshotTime == blockStart means we already accounted
-				// for the fact that this snapshot did not exist when we were deciding which
-				// commit logs to read.
+			snapshotsForBlock, ok := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
+			if !ok {
+				s.log.Debug("no snapshots for blockStart",
+					zap.Time("blockStart", blockStart))
+				continue
+			}
+			mostRecentCompleteSnapshotForShardBlock, ok := snapshotsForBlock[shard]
+			if !ok {
 				s.log.Debug("no snapshots for shard and blockStart",
 					zap.Uint32("shard", shard), zap.Time("blockStart", blockStart))
 				continue
@@ -1023,17 +1003,6 @@ func (s *commitLogSource) bootstrapIndexSnapshots(
 ) error {
 	iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 	for blockStart, snapshot := range mostRecentIndexSnapshotsByBlock {
-		if snapshot.fileSet.CachedSnapshotTime.Equal(blockStart.ToTime()) {
-			// There is no snapshot file for this time, and even if there was, there would
-			// be no point in reading it. In this specific case its not an error scenario
-			// because the fact that snapshotTime == blockStart means we already accounted
-			// for the fact that this snapshot did not exist when we were deciding which
-			// commit logs to read.
-			s.log.Debug("no index snapshots for blockStart",
-				zap.Time("blockStart", blockStart.ToTime()))
-			continue
-		}
-
 		if snapshot.info.IndexVolumeType == nil {
 			// NB(bodu): This should not happen since we are only writing index snapshots
 			// with a specified index volume type (either cold or warm). If there was no index
@@ -1095,68 +1064,6 @@ func (s *commitLogSource) bootstrapIndexBlockSnapshot(
 	indexBlockByVolumeType.SetBlock(indexVolumeType, result.NewIndexBlock(snapshottedSegments, fulfilled))
 	indexResult.Add(indexBlockByVolumeType, nil)
 	return nil
-}
-
-func (s *commitLogSource) mostRecentSnapshotByBlockShard(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
-) (
-	map[xtime.UnixNano]map[uint32]fs.FileSetFile,
-	error,
-) {
-	blockSize := ns.Options().RetentionOptions().BlockSize()
-
-	mostRecentCompleteSnapshotByBlockShard := s.mostRecentCompleteSnapshotByBlockShard(
-		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
-	for block, mostRecentByShard := range mostRecentCompleteSnapshotByBlockShard {
-		for shard, mostRecent := range mostRecentByShard {
-
-			if mostRecent.CachedSnapshotTime.IsZero() {
-				// Should never happen.
-				return nil, instrument.InvariantErrorf(
-					"shard: %d and block: %s had zero value for most recent snapshot time",
-					shard, block.ToTime().String())
-			}
-
-			s.log.Debug("most recent snapshot for block",
-				zap.Time("blockStart", block.ToTime()),
-				zap.Uint32("shard", shard),
-				zap.Time("mostRecent", mostRecent.CachedSnapshotTime))
-		}
-	}
-
-	return mostRecentCompleteSnapshotByBlockShard, nil
-}
-
-func (s *commitLogSource) mostRecentIndexSnapshotsByBlock(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	indexSnapshotFiles fs.FileSetFilesSlice,
-	indexInfoFiles []fs.ReadIndexInfoFileResult,
-) (
-	map[xtime.UnixNano]indexSnapshot,
-	error,
-) {
-	blockSize := ns.Options().RetentionOptions().BlockSize()
-
-	mostRecentCompleteIndexSnapshotByBlock := s.mostRecentCompleteIndexSnapshotByBlock(
-		shardsTimeRanges, blockSize, indexSnapshotFiles, indexInfoFiles,
-		s.opts.CommitLogOptions().FilesystemOptions())
-	for block, mostRecent := range mostRecentCompleteIndexSnapshotByBlock {
-		if mostRecent.fileSet.CachedSnapshotTime.IsZero() {
-			// Should never happen.
-			return nil, instrument.InvariantErrorf(
-				"block: %s had zero value for most recent index snapshot time",
-				block.ToTime().String())
-		}
-
-		s.log.Debug("most recent index snapshot for block",
-			zap.Time("blockStart", block.ToTime()),
-			zap.Time("mostRecent", mostRecent.fileSet.CachedSnapshotTime))
-	}
-
-	return mostRecentCompleteIndexSnapshotByBlock, nil
 }
 
 // TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
