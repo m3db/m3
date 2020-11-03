@@ -427,7 +427,7 @@ func TestNamespaceIndexSnapshotColdBlock(t *testing.T) {
 
 	blockStart := now.Add(-test.indexBlockSize)
 	mockBlock := index.NewMockBlock(ctrl)
-	mockBlock.EXPECT().MemorySegmentsData(gomock.Any(), gomock.Any()).Return([]fst.SegmentData{fst.SegmentData{}}, nil)
+	mockBlock.EXPECT().AppendMemorySegmentsData(gomock.Any(), gomock.Any()).Return([]fst.SegmentData{fst.SegmentData{}}, nil)
 	mockBlock.EXPECT().IsSealed().Return(true)
 	mockBlock.EXPECT().NumSegments().Return(1)
 	mockBlock.EXPECT().StartTime().Return(blockStart)
@@ -489,7 +489,7 @@ func TestNamespaceIndexSnapshotWarmBlock(t *testing.T) {
 
 	blockStart := now.Add(-test.indexBlockSize)
 	mockBlock := index.NewMockBlock(ctrl)
-	mockBlock.EXPECT().MemorySegmentsData(gomock.Any(), gomock.Any()).Return([]fst.SegmentData{fst.SegmentData{}}, nil)
+	mockBlock.EXPECT().AppendMemorySegmentsData(gomock.Any(), gomock.Any()).Return([]fst.SegmentData{fst.SegmentData{}}, nil)
 	mockBlock.EXPECT().IsSealed().Return(false)
 	mockBlock.EXPECT().NumSegments().Return(1)
 	mockBlock.EXPECT().StartTime().Return(blockStart).AnyTimes()
