@@ -74,7 +74,7 @@ steps:
     <<: *common
   - name: "Integration (dbnode cache=LRU postings=default) %n"
     parallelism: 2
-    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
+    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru m3db_postings_ro=false
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -82,7 +82,7 @@ steps:
     <<: *common
   - name: "Integration (dbnode cache=LRU postings=read_only) %n"
     parallelism: 2
-    command: M3DB_READ_ONLY_POSTINGS=true make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
+    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru m3db_postings_ro=true
     plugins:
       docker-compose#v2.5.1:
         run: app
