@@ -126,6 +126,12 @@ func readNamespaceSegments(
 			continue
 		}
 
+		log.Info("reading block segments",
+			zap.String("namespace", nsID.String()),
+			zap.String("blockStart", infoFile.ID.BlockStart.String()),
+			zap.Int64("blockStartUnixNano", infoFile.ID.BlockStart.UnixNano()),
+			zap.Strings("files", infoFile.AbsoluteFilePaths))
+
 		segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
