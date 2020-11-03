@@ -249,6 +249,29 @@ func TestMultiBitmap(t *testing.T) {
 	}
 }
 
+func TestMultiBitmapWithEmptyReadOnlyBitmap(t *testing.T) {
+	bitmap := roaring.NewBitmap()
+	bitmap.DirectAdd(1)
+	bitmap.DirectAdd(3)
+	bitmap.DirectAdd(5)
+
+	readOnly := newReadOnlyBitmap(t, bitmap)
+
+	emptyReadOnly, err := NewReadOnlyBitmap(nil)
+	require.NoError(t, err)
+
+	for _, lists := range [][]postings.List{
+		[]postings.List{readOnly, emptyReadOnly},
+		[]postings.List{emptyReadOnly, readOnly},
+	} {
+		multi, err := IntersectAndNegateReadOnly(lists, nil)
+		require.NoError(t, err)
+
+		emptyRegular := NewPostingsList()
+		require.True(t, postings.Equal(emptyRegular, multi))
+	}
+}
+
 func bitmapFromPostings(t *testing.T, pl postings.List) *roaring.Bitmap {
 	b, ok := BitmapFromPostingsList(pl)
 	require.True(t, ok)
@@ -303,17 +326,7 @@ func genRandBitmapAndReadOnlyBitmap(
 	}
 
 	list := NewPostingsListFromBitmap(bitmap)
-
-	// Note: do not reuse buffer since read only bitmap
-	// references them.
-	buff := bytes.NewBuffer(nil)
-	_, err := bitmap.WriteTo(buff)
-	require.NoError(t, err)
-
-	readOnly, err := NewReadOnlyBitmap(buff.Bytes())
-	require.NoError(t, err)
-
-	return list, readOnly
+	return list, newReadOnlyBitmap(t, bitmap)
 }
 
 func postingsString(pl postings.List) string {
@@ -339,4 +352,17 @@ func postingsJSON(t *testing.T, pl postings.List) string {
 	data, err := json.MarshalIndent(out, "", "  ")
 	require.NoError(t, err)
 	return string(data)
+}
+
+func newReadOnlyBitmap(t *testing.T, b *roaring.Bitmap) *ReadOnlyBitmap {
+	// Note: do not reuse buffer since read only bitmap
+	// references them.
+	buff := bytes.NewBuffer(nil)
+	_, err := b.WriteTo(buff)
+	require.NoError(t, err)
+
+	readOnly, err := NewReadOnlyBitmap(buff.Bytes())
+	require.NoError(t, err)
+
+	return readOnly
 }

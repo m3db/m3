@@ -36,5 +36,8 @@ func NewEmptySearcher() search.Searcher {
 }
 
 func (s *emptySearcher) Search(r index.Reader) (postings.List, error) {
-	return roaring.NewReadOnlyBitmap(nil)
+	if index.MigrationReadOnlyPostings() {
+		return roaring.NewReadOnlyBitmap(nil)
+	}
+	return roaring.NewPostingsList(), nil
 }

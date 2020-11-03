@@ -22,11 +22,14 @@ package pilosa
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	idxroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3dbx/pilosa/roaring"
 )
+
+var errNotPilosaRoaringBitmap = errors.New("not pilosa roaring bitmap")
 
 // Encoder helps serialize a Pilosa RoaringBitmap
 type Encoder struct {
@@ -50,14 +53,12 @@ func (e *Encoder) Reset() {
 func (e *Encoder) Encode(pl postings.List) ([]byte, error) {
 	e.scratchBuffer.Reset()
 
-	// Optimistically try to see if we can extract from the postings list itself
+	// Only work with pilosa roaring bitmaps since any other format
+	// will cause large allocations to re-encode as a pilosa postings list
+	// before writing it out.
 	bitmap, ok := idxroaring.BitmapFromPostingsList(pl)
 	if !ok {
-		var err error
-		bitmap, err = toPilosa(pl)
-		if err != nil {
-			return nil, err
-		}
+		return nil, errNotPilosaRoaringBitmap
 	}
 
 	if _, err := bitmap.WriteTo(&e.scratchBuffer); err != nil {
@@ -65,24 +66,6 @@ func (e *Encoder) Encode(pl postings.List) ([]byte, error) {
 	}
 
 	return e.scratchBuffer.Bytes(), nil
-}
-
-func toPilosa(pl postings.List) (*roaring.Bitmap, error) {
-	bitmap := roaring.NewBitmap()
-	iter := pl.Iterator()
-
-	for iter.Next() {
-		_, err := bitmap.Add(uint64(iter.Current()))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	return bitmap, nil
 }
 
 // Unmarshal unmarshals the provided bytes into a postings.List.

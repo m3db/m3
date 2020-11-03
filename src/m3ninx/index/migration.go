@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,28 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pilosa
+package index
 
 import (
-	"testing"
+	"os"
+	"strings"
 
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3dbx/pilosa/roaring"
-
-	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
-func TestIterator(t *testing.T) {
-	b := roaring.NewBitmap(1, 2, 4, 3)
-	iter := NewIterator(b.Iterator())
-	require.True(t, iter.Next())
-	require.Equal(t, postings.ID(1), iter.Current())
-	require.True(t, iter.Next())
-	require.Equal(t, postings.ID(2), iter.Current())
-	require.True(t, iter.Next())
-	require.Equal(t, postings.ID(3), iter.Current())
-	require.True(t, iter.Next())
-	require.Equal(t, postings.ID(4), iter.Current())
-	require.NoError(t, iter.Err())
-	require.NoError(t, iter.Close())
+func init() {
+	if strings.ToLower(os.Getenv("M3DB_READ_ONLY_POSTINGS")) == "true" {
+		// Once migration complete all code removed and unable to toggle this on.
+		SetMigrationReadOnlyPostings(true)
+	}
+}
+
+var migrationReadOnlyPostings = atomic.NewBool(false)
+
+// MigrationReadOnlyPostings returns whether the migration read only postings
+// execution is enabled or not.
+func MigrationReadOnlyPostings() bool {
+	return migrationReadOnlyPostings.Load()
+}
+
+// SetMigrationReadOnlyPostings sets whether the migration read only postings
+// execution is enabled or not.
+func SetMigrationReadOnlyPostings(v bool) {
+	migrationReadOnlyPostings.Store(v)
 }

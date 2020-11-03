@@ -49,6 +49,16 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 	return NewPostingsListFromBitmap(unioned), nil
 }
 
+// UnionInPlace unions in place a postings list with other inputs.
+func UnionInPlace(first postings.List, inputs []postings.List) error {
+	b, ok := BitmapFromPostingsList(first)
+	if !ok {
+		return errUnionRoaringOnly
+	}
+
+	return union(b, inputs)
+}
+
 func union(unionedBitmap *roaring.Bitmap, inputs []postings.List) error {
 	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
 	for _, in := range inputs {

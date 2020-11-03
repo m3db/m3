@@ -149,8 +149,18 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 		if fieldsKeyIter.segment.offset == 0 {
 			// No offset, which means is first segment we are combining from
-			// so can just direct union
-			i.currFieldPostingsList.Union(pl)
+			// so can just direct union.
+			if index.MigrationReadOnlyPostings() {
+				if err := i.currFieldPostingsList.AddIterator(pl.Iterator()); err != nil {
+					i.err = err
+					return false
+				}
+			} else {
+				if err := i.currFieldPostingsList.Union(pl); err != nil {
+					i.err = err
+					return false
+				}
+			}
 			continue
 		}
 

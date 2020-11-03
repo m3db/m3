@@ -232,7 +232,7 @@ func (t *termsDictionaryTestSuite) TestMatchTermNoResults() {
 				if pl == nil {
 					return false, fmt.Errorf("postings list returned should not be nil")
 				}
-				if pl.Len() != 0 {
+				if pl.CountSlow() != 0 {
 					return false, fmt.Errorf("postings list contains unexpected IDs")
 				}
 
@@ -288,7 +288,7 @@ func (t *termsDictionaryTestSuite) TestMatchRegexNoResults() {
 				if pl == nil {
 					return false, fmt.Errorf("postings list returned should not be nil")
 				}
-				if pl.Len() != 0 {
+				if pl.CountSlow() != 0 {
 					return false, fmt.Errorf("postings list contains unexpected IDs")
 				}
 

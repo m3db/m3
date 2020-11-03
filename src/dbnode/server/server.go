@@ -188,6 +188,14 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	// Log whether or not migration read only posting lists are enabled.
+	// Note: will be removed once read only postings lists deemed stable.
+	if m3ninxindex.MigrationReadOnlyPostings() {
+		logger.Info("read only postings lists enabled")
+	} else {
+		logger.Info("read only postings lists disabled")
+	}
+
 	// By default attempt to raise process limits, which is a benign operation.
 	skipRaiseLimits := strings.TrimSpace(os.Getenv(skipRaiseProcessLimitsEnvVar))
 	if skipRaiseLimits != skipRaiseProcessLimitsEnvVarTrue {

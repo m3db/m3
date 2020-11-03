@@ -343,7 +343,7 @@ func appendContainerItersWithOp(
 }
 
 func (i *multiBitmapIterator) Next() bool {
-	if i.err != nil {
+	if i.err != nil || len(i.iters) == 0 {
 		return false
 	}
 

@@ -12,6 +12,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
   m3coordinator01:
     expose:
       - "7202"

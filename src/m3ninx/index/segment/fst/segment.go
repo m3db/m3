@@ -34,11 +34,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
 	"github.com/m3dbx/vellum"
 )
@@ -385,7 +387,7 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 	return i.postingsIter, nil
 }
 
-func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b *roaring.ReadOnlyBitmap, offset uint64) error {
+func (r *fsSegment) unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(b *roaring.ReadOnlyBitmap, offset uint64) error {
 	if r.finalized {
 		return errReaderFinalized
 	}
@@ -396,6 +398,19 @@ func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b
 	}
 
 	return b.Reset(postingsBytes)
+}
+
+func (r *fsSegment) unmarshalBitmapNotClosedMaybeFinalizedWithLock(b *pilosaroaring.Bitmap, offset uint64) error {
+	if r.finalized {
+		return errReaderFinalized
+	}
+
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
+	if err != nil {
+		return fmt.Errorf("unable to retrieve postings data: %v", err)
+	}
+
+	return b.UnmarshalBinary(postingsBytes)
 }
 
 func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
@@ -418,10 +433,13 @@ func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
 	}
 	if !exists {
 		// i.e. we don't know anything about the term, so can early return an empty postings list
-		// NB(r): Important this is a read only bitmap since we perform
-		// operations on postings lists and expect them all to be read only
-		// postings lists.
-		return roaring.NewReadOnlyBitmap(nil)
+		if index.MigrationReadOnlyPostings() {
+			// NB(r): Important this is a read only bitmap since we perform
+			// operations on postings lists and expect them all to be read only
+			// postings lists.
+			return roaring.NewReadOnlyBitmap(nil)
+		}
+		return r.opts.PostingsListPool().Get(), nil
 	}
 
 	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
@@ -454,10 +472,13 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
-		// NB(r): Important this is a read only bitmap since we perform
-		// operations on postings lists and expect them all to be read only
-		// postings lists.
-		return roaring.NewReadOnlyBitmap(nil)
+		if index.MigrationReadOnlyPostings() {
+			// NB(r): Important this is a read only bitmap since we perform
+			// operations on postings lists and expect them all to be read only
+			// postings lists.
+			return roaring.NewReadOnlyBitmap(nil)
+		}
+		return r.opts.PostingsListPool().Get(), nil
 	}
 
 	fstCloser := x.NewSafeCloser(termsFST)
@@ -470,10 +491,13 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the term, so can early return an empty postings list
-		// NB(r): Important this is a read only bitmap since we perform
-		// operations on postings lists and expect them all to be read only
-		// postings lists.
-		return roaring.NewReadOnlyBitmap(nil)
+		if index.MigrationReadOnlyPostings() {
+			// NB(r): Important this is a read only bitmap since we perform
+			// operations on postings lists and expect them all to be read only
+			// postings lists.
+			return roaring.NewReadOnlyBitmap(nil)
+		}
+		return r.opts.PostingsListPool().Get(), nil
 	}
 
 	pl, err := r.retrievePostingsListWithRLock(postingsOffset)
@@ -510,10 +534,13 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
-		// NB(r): Important this is a read only bitmap since we perform
-		// operations on postings lists and expect them all to be read only
-		// postings lists.
-		return roaring.NewReadOnlyBitmap(nil)
+		if index.MigrationReadOnlyPostings() {
+			// NB(r): Important this is a read only bitmap since we perform
+			// operations on postings lists and expect them all to be read only
+			// postings lists.
+			return roaring.NewReadOnlyBitmap(nil)
+		}
+		return r.opts.PostingsListPool().Get(), nil
 	}
 
 	var (
@@ -546,9 +573,13 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		iterErr = iter.Next()
 	}
 
-	// NB(r): Can use union read only since we are guaranteed all
-	// postings lists are read only.
-	pl, err := roaring.UnionReadOnly(pls)
+	var pl postings.List
+	if index.MigrationReadOnlyPostings() {
+		// Perform a lazy fast union.
+		pl, err = roaring.UnionReadOnly(pls)
+	} else {
+		pl, err = roaring.Union(pls)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -571,10 +602,20 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.List, e
 		return nil, errReaderFinalized
 	}
 
-	// NB(r): Important this is a read only bitmap since we perform
-	// operations on postings lists and expect them all to be read only
-	// postings lists.
-	return roaring.NewReadOnlyRangePostingsList(0, uint64(r.numDocs))
+	if index.MigrationReadOnlyPostings() {
+		// NB(r): Important this is a read only postings since we perform
+		// operations on postings lists and expect them all to be read only
+		// postings lists.
+		return roaring.NewReadOnlyRangePostingsList(0, uint64(r.numDocs))
+	}
+
+	pl := r.opts.PostingsListPool().Get()
+	err := pl.AddRange(0, postings.ID(r.numDocs))
+	if err != nil {
+		return nil, err
+	}
+
+	return pl, nil
 }
 
 func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
@@ -628,8 +669,13 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
-	// Read only bitmap is a very low allocation postings list.
-	return roaring.NewReadOnlyBitmap(postingsBytes)
+
+	if index.MigrationReadOnlyPostings() {
+		// Read only bitmap is a very low allocation postings list.
+		return roaring.NewReadOnlyBitmap(postingsBytes)
+	}
+
+	return pilosa.Unmarshal(postingsBytes)
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, error) {

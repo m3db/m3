@@ -42,8 +42,18 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Integration (:docker:)"
+  - name: "Integration (:docker:, postings=default) %n"
     command: make clean install-vendor-m3 docker-integration-test
+    parallelism: 2
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.13.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
+  - name: "Integration (:docker:, postings=read_only)  %n"
+    command: M3DB_READ_ONLY_POSTINGS=true make clean install-vendor-m3 docker-integration-test
     parallelism: 2
     env:
       CGO_ENABLED: 0
@@ -62,17 +72,17 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-  - name: "Integration (dbnode Recently Read) %n"
+  - name: "Integration (dbnode cache=LRU postings=default) %n"
     parallelism: 2
-    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
+    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
     plugins:
       docker-compose#v2.5.1:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Integration (dbnode LRU) %n"
+  - name: "Integration (dbnode cache=LRU postings=read_only) %n"
     parallelism: 2
-    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
+    command: M3DB_READ_ONLY_POSTINGS=true make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
     plugins:
       docker-compose#v2.5.1:
         run: app

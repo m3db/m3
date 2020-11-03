@@ -21,6 +21,8 @@
 package searcher
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -68,7 +70,29 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		negations = append(negations, pl)
 	}
 
-	// Perform a lazy fast intersect and negate.
-	// TODO: Try and see if returns err, if so fallback to slower method?
-	return roaring.IntersectAndNegateReadOnly(intersects, negations)
+	if index.MigrationReadOnlyPostings() {
+		// Perform a lazy fast intersect and negate.
+		return roaring.IntersectAndNegateReadOnly(intersects, negations)
+	}
+
+	// Not running migration path, fallback.
+	first, ok := intersects[0].(postings.MutableList)
+	if !ok {
+		// Note not creating a "errNotMutable" like error since this path
+		// will be deprecated and we might forget to cleanup the err var.
+		return nil, fmt.Errorf("postings list for non-migration path not mutable")
+	}
+
+	result := first.Clone()
+	for i := 1; i < len(intersects); i++ {
+		if err := result.Intersect(intersects[i]); err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(negations); i++ {
+		if err := result.Difference(negations[i]); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }

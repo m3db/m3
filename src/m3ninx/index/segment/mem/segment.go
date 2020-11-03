@@ -466,7 +466,7 @@ func (s *memSegment) FieldsPostingsList() (segment.FieldsPostingsListIterator, e
 	if err := s.checkIsSealedWithRLock(); err != nil {
 		return nil, err
 	}
-	return s.termsDict.FieldsPostingsList(), nil
+	return s.termsDict.FieldsPostingsList()
 }
 
 func (s *memSegment) Terms(name []byte) (segment.TermsIterator, error) {

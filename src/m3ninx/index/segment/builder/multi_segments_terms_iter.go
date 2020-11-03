@@ -21,6 +21,7 @@
 package builder
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -137,8 +138,18 @@ func (i *termsIterFromSegments) Next() bool {
 
 		if termsKeyIter.segment.offset == 0 {
 			// No offset, which means is first segment we are combining from
-			// so can just direct union
-			i.currPostingsList.Union(list)
+			// so can just direct union.
+			if index.MigrationReadOnlyPostings() {
+				if err := i.currPostingsList.AddIterator(list.Iterator()); err != nil {
+					i.err = err
+					return false
+				}
+			} else {
+				if err := i.currPostingsList.Union(list); err != nil {
+					i.err = err
+					return false
+				}
+			}
 			continue
 		}
 
