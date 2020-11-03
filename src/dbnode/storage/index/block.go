@@ -681,7 +681,6 @@ func (b *block) aggregateWithSpan(
 		if err != nil {
 			return false, err
 		}
-		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
 			if opts.LimitsExceeded(size, docsCount) {
@@ -703,11 +702,12 @@ func (b *block) aggregateWithSpan(
 		if err := iter.Err(); err != nil {
 			return false, err
 		}
+	}
 
-		iterClosed = true
-		if err := iter.Close(); err != nil {
-			return false, err
-		}
+	// Close iterator just once, otherwise resources free'd before Reset called.
+	iterClosed = true
+	if err := iter.Close(); err != nil {
+		return false, err
 	}
 
 	// Add last batch to results if remaining.

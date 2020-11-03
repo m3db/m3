@@ -784,12 +784,6 @@ func (b *bitmapContainer) Reset(set bool) {
 	b.bitmap = b.allocated
 }
 
-func (b *bitmapContainer) readOnlyContainer() bitmapReadOnlyContainer {
-	return bitmapReadOnlyContainer{
-		values: b.bitmap,
-	}
-}
-
 type bitmapContainerIterator struct {
 	containerKey     uint64
 	bitmap           *bitmapContainer
