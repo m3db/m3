@@ -64,13 +64,13 @@ func main() {
 		golog.Fatalf("unable to create logger: %+v", err)
 	}
 
-	if *optPathPrefix != "" && *optValidate {
+	if *optOutputFile != "" && *optValidate {
 		log.Error("cannot write output and validate, do not set output file if validating")
 		getopt.Usage()
 		os.Exit(1)
 	}
 
-	if (*optPathPrefix == "" && !*optValidate) || *optOutputFile == "" {
+	if *optPathPrefix == "" || (*optOutputFile == "" && !*optValidate) {
 		getopt.Usage()
 		os.Exit(1)
 	}
