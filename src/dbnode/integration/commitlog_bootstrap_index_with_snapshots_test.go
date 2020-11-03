@@ -43,17 +43,16 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 
 	// Test setup
 	var (
-		rOpts          = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
-		blockSize      = rOpts.BlockSize()
-		indexBlockSize = 2 * blockSize
+		rOpts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
+		blockSize = rOpts.BlockSize()
 	)
 
 	nsOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(namespace.NewIndexOptions().
 			SetEnabled(true).
-			SetBlockSize(indexBlockSize),
-		)
+			SetBlockSize(blockSize),
+		).SetColdWritesEnabled(true)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
@@ -114,10 +113,14 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 			Start:     now,
 		},
 		{
-			IDs:       []string{bazSeries.ID.String()},
+			IDs: []string{bazSeries.ID.String()},
+			// NB(bodu): Each dp adds 1 sec to the start time, therefore the baz series
+			// only exists in snapshots due to the snapshot interval being 1 minute.
+			// This tests whether or not we can properly bootstrap a series that we fully
+			// rely on snapshots for.
 			Tags:      bazSeries.Tags,
 			NumPoints: 50,
-			Start:     now,
+			Start:     now.Truncate(blockSize),
 		},
 		{
 			IDs:       []string{unindexedSeries.ID.String()},
@@ -128,11 +131,6 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 	})
 
 	log.Info("writing data")
-	// TODO(bodu): Write index snapshots w/ a predicate to split up dps/series into
-	// snapshots AND commit logs after we fix series indexing for cold blocks from commit logs.
-	// For now jut write out all of the series into the snapshots and confirm that we can
-	// bootstrap successfully from index snapshots.
-	// For now, we cover the entire index block w/ the snapshot.
 	var (
 		snapshotInterval             = time.Minute
 		numDatapointsNotInSnapshots  = 0
@@ -161,9 +159,9 @@ func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 		ns2,
 	} {
 		writeIndexSnapshotsWithPredicate(
-			t, setup, seriesMaps, ns, snapshotsPred, indexBlockSize)
+			t, setup, seriesMaps, ns, snapshotsPred, snapshotInterval)
 		writeSnapshotsWithPredicate(
-			t, setup, seriesMaps, 0, ns, snapshotsPred, blockSize)
+			t, setup, seriesMaps, 0, ns, snapshotsPred, snapshotInterval)
 		writeCommitLogDataWithPredicate(
 			t, setup, commitLogOpts, seriesMaps, ns, commitLogPred)
 	}

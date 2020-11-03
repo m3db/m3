@@ -1107,6 +1107,12 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		)
 		worker.datapointsRead++
 
+		// TODO(bodu): Currently the entry Write transparently indexes the series if we have
+		// not yet attempted to index a series yet. For high cardinality workloads w/ low churn,
+		// this means that we end up doubly indexing series since they may already exist in the
+		// index snapshot. At some point in the future we should check that a series is not already
+		// in the index snapshot and/or on disk for cold blocks (this might be difficult/expensive to do)
+		// for the index block that covers this series write.
 		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc:         namespace.namespaceContext.Schema,

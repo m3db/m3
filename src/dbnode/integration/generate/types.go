@@ -79,6 +79,8 @@ type SeriesBlock []Series
 type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 
 // Writer writes generated data to disk.
+// NB(bodu): When writing index data/snapshots to disk, the writer uses the
+// block starts of the supplied seriesMaps arg.
 type Writer interface {
 	// WriteData writes the data as data files.
 	WriteData(
