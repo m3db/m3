@@ -110,7 +110,11 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour)
+	aggOpts, err := storage.NewAggregateTilesOptions(
+		dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour,
+		trgNs.ID(),
+		storageOpts.InstrumentOptions(),
+	)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation")
@@ -204,9 +208,9 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(blockSizeT)
 		nsOpts   = namespace.NewOptions().
-			SetRetentionOptions(rOpts).
-			SetIndexOptions(idxOpts).
-			SetColdWritesEnabled(true)
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(idxOpts).
+				SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT)
