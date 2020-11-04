@@ -576,6 +576,46 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 	return pl, nil
 }
 
+type regexpSearcher struct {
+	fstCloser  x.SafeCloser
+	iterCloser x.SafeCloser
+	iterAlloc  vellum.FSTIterator
+	iter       *vellum.FSTIterator
+	pls        []postings.List
+}
+
+func newRegexpSearcher() *regexpSearcher {
+	r := &regexpSearcher{
+		fstCloser:  x.NewSafeCloser(nil),
+		iterCloser: x.NewSafeCloser(nil),
+		pls:        make([]postings.List, 0, 16),
+	}
+	r.iter = &r.iterAlloc
+	return r
+}
+
+func (s *regexpSearcher) Reset() {
+	for i := range s.pls {
+		s.pls[i] = nil
+	}
+	s.pls = s.pls[:0]
+}
+
+var regexpSearcherPool = sync.Pool{
+	New: func() interface{} {
+		return newRegexpSearcher()
+	},
+}
+
+func getRegexpSearcher() *regexpSearcher {
+	return regexpSearcherPool.Get().(*regexpSearcher)
+}
+
+func putRegexpSearcher(v *regexpSearcher) {
+	v.Reset()
+	regexpSearcherPool.Put(v)
+}
+
 func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 	field []byte,
 	compiled index.CompiledRegex,
@@ -607,16 +647,14 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	var (
-		fstCloser     = x.NewSafeCloser(termsFST)
-		iter, iterErr = termsFST.Search(re, compiled.PrefixBegin, compiled.PrefixEnd)
-		iterCloser    = x.NewSafeCloser(iter)
-		// NB(prateek): way quicker to union the PLs together at the end, rathen than one at a time.
-		pls []postings.List // TODO: pool this slice allocation
-	)
+	searcher := getRegexpSearcher()
+	iterErr := searcher.iter.Reset(termsFST, compiled.PrefixBegin, compiled.PrefixEnd, re)
+	searcher.fstCloser.Reset(termsFST)
+	searcher.iterCloser.Reset(searcher.iter)
 	defer func() {
-		iterCloser.Close()
-		fstCloser.Close()
+		searcher.fstCloser.Close()
+		searcher.iterCloser.Close()
+		putRegexpSearcher(searcher)
 	}()
 
 	for {
@@ -628,31 +666,31 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 			return nil, iterErr
 		}
 
-		_, postingsOffset := iter.Current()
+		_, postingsOffset := searcher.iter.Current()
 		nextPl, err := r.retrievePostingsListWithRLock(postingsOffset)
 		if err != nil {
 			return nil, err
 		}
-		pls = append(pls, nextPl)
-		iterErr = iter.Next()
+		searcher.pls = append(searcher.pls, nextPl)
+		iterErr = searcher.iter.Next()
 	}
 
 	var pl postings.List
 	if index.MigrationReadOnlyPostings() {
 		// Perform a lazy fast union.
-		pl, err = roaring.UnionReadOnly(pls)
+		pl, err = roaring.UnionReadOnly(searcher.pls)
 	} else {
-		pl, err = roaring.Union(pls)
+		pl, err = roaring.Union(searcher.pls)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := iterCloser.Close(); err != nil {
+	if err := searcher.iterCloser.Close(); err != nil {
 		return nil, err
 	}
 
-	if err := fstCloser.Close(); err != nil {
+	if err := searcher.fstCloser.Close(); err != nil {
 		return nil, err
 	}
 

@@ -236,15 +236,49 @@ func (i *multiBitmap) CountSlow() int {
 }
 
 func (i *multiBitmap) Iterator() postings.Iterator {
-	return newMultiBitmapIterator(i.multiBitmapOptions)
+	iter := getMultiBitmapIterator()
+	iter.Reset(i.multiBitmapOptions)
+	return iter
 }
 
 func (i *multiBitmap) ContainerIterator() containerIterator {
-	return newMultiBitmapContainersIterator(i.multiBitmapOptions)
+	iter := getMultiBitmapContainersIterator()
+	iter.Reset(i.multiBitmapOptions)
+	return iter
 }
 
 func (i *multiBitmap) Equal(other postings.List) bool {
 	return postings.Equal(i, other)
+}
+
+var multiBitmapIteratorPool = sync.Pool{
+	New: func() interface{} {
+		return newMultiBitmapIterator(multiBitmapOptions{})
+	},
+}
+
+func getMultiBitmapIterator() *multiBitmapIterator {
+	return multiBitmapIteratorPool.Get().(*multiBitmapIterator)
+}
+
+func putMultiBitmapIterator(v *multiBitmapIterator) {
+	v.Reset(multiBitmapOptions{})
+	multiBitmapIteratorPool.Put(v)
+}
+
+var multiBitmapContainersIteratorPool = sync.Pool{
+	New: func() interface{} {
+		return newMultiBitmapContainersIterator(multiBitmapOptions{})
+	},
+}
+
+func getMultiBitmapContainersIterator() *multiBitmapContainersIterator {
+	return multiBitmapContainersIteratorPool.Get().(*multiBitmapContainersIterator)
+}
+
+func putMultiBitmapContainersIterator(v *multiBitmapContainersIterator) {
+	v.Reset(multiBitmapOptions{})
+	multiBitmapContainersIteratorPool.Put(v)
 }
 
 var _ postings.Iterator = (*multiBitmapIterator)(nil)
@@ -252,14 +286,15 @@ var _ postings.Iterator = (*multiBitmapIterator)(nil)
 type multiBitmapIterator struct {
 	multiBitmapOptions
 
-	err                error
+	bitmap     *bitmapContainer
+	tempBitmap *bitmapContainer
+	bitmapIter bitmapContainerIterator
+
 	initial            []containerIteratorAndOp
 	iters              []containerIteratorAndOp
 	filtered           []containerIteratorAndOp
+	err                error
 	multiContainerIter multiBitmapContainerIterator
-	bitmap             *bitmapContainer
-	bitmapIter         bitmapContainerIterator
-	tempBitmap         *bitmapContainer
 }
 
 type containerIteratorAndOp struct {
@@ -295,15 +330,31 @@ func newMultiBitmapIterator(
 
 func (i *multiBitmapIterator) Reset(opts multiBitmapOptions) {
 	i.multiBitmapOptions = opts
+
 	n := len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
-	if i.iters == nil {
-		i.iters = make([]containerIteratorAndOp, 0, n)
-	}
 	if i.initial == nil {
 		i.initial = make([]containerIteratorAndOp, 0, n)
 	}
-	i.iters = i.iters[:0]
+
+	if i.iters == nil {
+		i.iters = make([]containerIteratorAndOp, 0, n)
+	}
+
+	for j := range i.initial {
+		i.initial[j] = containerIteratorAndOp{}
+	}
 	i.initial = i.initial[:0]
+
+	for j := range i.iters {
+		i.iters[j] = containerIteratorAndOp{}
+	}
+	i.iters = i.iters[:0]
+
+	for j := range i.filtered {
+		i.filtered[j] = containerIteratorAndOp{}
+	}
+	i.filtered = i.filtered[:0]
+
 	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
 		opts.union, multiContainerOpUnion)
 	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
@@ -452,13 +503,12 @@ func (i *multiBitmapIterator) Close() error {
 		iter.it.Close()
 	}
 
-	// Return bitmaps to pool.
-	putBitmapContainer(i.bitmap)
-	i.bitmap = nil
-	putBitmapContainer(i.tempBitmap)
-	i.tempBitmap = nil
-	// No longer reference the bitmap from iterator.
-	i.bitmapIter.Reset(0, nil)
+	// No longer reference anything any longer.
+	i.Reset(multiBitmapOptions{})
+
+	// Return this ref to the pool for re-use.
+	putMultiBitmapIterator(i)
+
 	return nil
 }
 
@@ -522,33 +572,60 @@ var _ containerIterator = (*multiBitmapContainersIterator)(nil)
 type multiBitmapContainersIterator struct {
 	multiBitmapOptions
 
-	err                error
+	tempBitmap *bitmapContainer
+
 	initial            []containerIteratorAndOp
 	iters              []containerIteratorAndOp
 	filtered           []containerIteratorAndOp
+	err                error
 	multiContainerIter multiBitmapContainerIterator
-	first              bool
 }
 
 func newMultiBitmapContainersIterator(
 	opts multiBitmapOptions,
 ) *multiBitmapContainersIterator {
-	var (
-		n       = len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
-		iters   = make([]containerIteratorAndOp, 0, n)
-		initial = make([]containerIteratorAndOp, 0, n)
-	)
-	initial, iters = appendContainerItersWithOp(initial, iters,
-		opts.union, multiContainerOpUnion)
-	initial, iters = appendContainerItersWithOp(initial, iters,
-		opts.intersect, multiContainerOpIntersect)
-	initial, iters = appendContainerItersWithOp(initial, iters,
-		opts.intersectNegate, multiContainerOpNegate)
-	return &multiBitmapContainersIterator{
-		multiBitmapOptions: opts,
-		initial:            initial,
-		iters:              iters,
+	i := &multiBitmapContainersIterator{
+		tempBitmap: getBitmapContainer(),
 	}
+	i.Reset(opts)
+	return i
+}
+
+func (i *multiBitmapContainersIterator) Reset(opts multiBitmapOptions) {
+	i.multiBitmapOptions = opts
+
+	n := len(opts.union) + len(opts.intersect) + len(opts.intersectNegate)
+	if i.initial == nil {
+		i.initial = make([]containerIteratorAndOp, 0, n)
+	}
+
+	if i.iters == nil {
+		i.iters = make([]containerIteratorAndOp, 0, n)
+	}
+
+	for j := range i.initial {
+		i.initial[j] = containerIteratorAndOp{}
+	}
+	i.initial = i.initial[:0]
+
+	for j := range i.iters {
+		i.iters[j] = containerIteratorAndOp{}
+	}
+	i.iters = i.iters[:0]
+
+	for j := range i.filtered {
+		i.filtered[j] = containerIteratorAndOp{}
+	}
+	i.filtered = i.filtered[:0]
+
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.union, multiContainerOpUnion)
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.intersect, multiContainerOpIntersect)
+	i.initial, i.iters = appendContainerItersWithOp(i.initial, i.iters,
+		opts.intersectNegate, multiContainerOpNegate)
+	i.err = nil
+	i.multiContainerIter = multiBitmapContainerIterator{}
 }
 
 func (i *multiBitmapContainersIterator) NextContainer() bool {
@@ -614,8 +691,6 @@ func (i *multiBitmapContainersIterator) ContainerUnion(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
-		defer putBitmapContainer(tempBitmap)
-
 		unionBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -631,8 +706,6 @@ func (i *multiBitmapContainersIterator) ContainerIntersect(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempUnion(ctx)
-		defer putBitmapContainer(tempBitmap)
-
 		intersectBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	case multiBitmapOpIntersect:
 		// Need to build intermediate and intersect with target.
@@ -640,8 +713,6 @@ func (i *multiBitmapContainersIterator) ContainerIntersect(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
-		defer putBitmapContainer(tempBitmap)
-
 		intersectBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -657,8 +728,6 @@ func (i *multiBitmapContainersIterator) ContainerNegate(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempUnion(ctx)
-		defer putBitmapContainer(tempBitmap)
-
 		differenceBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	case multiBitmapOpIntersect:
 		// Need to build intermediate and intersect with target.
@@ -666,8 +735,6 @@ func (i *multiBitmapContainersIterator) ContainerNegate(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
-		defer putBitmapContainer(tempBitmap)
-
 		differenceBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -677,12 +744,23 @@ func (i *multiBitmapContainersIterator) Err() error {
 }
 
 func (i *multiBitmapContainersIterator) Close() {
+	// Close any iters that are left if we abort early.
+	for _, iter := range i.iters {
+		iter.it.Close()
+	}
+
+	// Release all refs.
+	i.Reset(multiBitmapOptions{})
+
+	// Return to pool.
+	putMultiBitmapContainersIterator(i)
 }
 
 func (i *multiBitmapContainersIterator) getTempUnion(
 	ctx containerOpContext,
 ) *bitmapContainer {
-	tempBitmap := getBitmapContainer()
+	tempBitmap := i.tempBitmap
+	tempBitmap.Reset(false)
 	union := i.filter(i.multiContainerIter.containerIters, multiContainerOpUnion)
 	for _, iter := range union {
 		iter.it.ContainerUnion(ctx, tempBitmap)
@@ -693,7 +771,7 @@ func (i *multiBitmapContainersIterator) getTempUnion(
 func (i *multiBitmapContainersIterator) getTempIntersectAndNegate(
 	ctx containerOpContext,
 ) *bitmapContainer {
-	tempBitmap := getBitmapContainer()
+	tempBitmap := i.tempBitmap
 
 	totalIntersect := len(i.filter(i.initial, multiContainerOpIntersect))
 	intersect := i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect)
@@ -703,11 +781,13 @@ func (i *multiBitmapContainersIterator) getTempIntersectAndNegate(
 	// there is zero overlap and so intersecting always results in
 	// no results for this container.
 	if totalIntersect != currIntersect {
+		tempBitmap.Reset(false)
 		return tempBitmap
 	}
 
 	if currIntersect == 0 {
 		// No intersections so only possible negations of nothing.
+		tempBitmap.Reset(false)
 		return tempBitmap
 	}
 
