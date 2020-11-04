@@ -844,7 +844,7 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, er
 	}
 
 	r.termFSTs.Lock()
-	defer r.termFSTs.Lock()
+	defer r.termFSTs.Unlock()
 
 	fst, ok = r.termFSTs.fstMap.Get(field)
 	if ok {
