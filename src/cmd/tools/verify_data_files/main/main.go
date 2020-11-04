@@ -165,6 +165,10 @@ func run(opts runOptions) {
 
 	log.Info("verifying file sets", zap.Int("numFileSets", len(fileSetFiles)))
 	for _, fileSet := range fileSetFiles {
+		if !fileSet.HasCompleteCheckpointFile() {
+			continue // Don't validate file sets without checkpoint file.
+		}
+
 		log.Info("verifying file set file", zap.Any("fileSet", fileSet))
 		if err := verifyFileSet(verifyFileSetOptions{
 			filePathPrefix:      filePathPrefix,
