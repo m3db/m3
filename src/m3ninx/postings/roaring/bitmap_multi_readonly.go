@@ -572,8 +572,6 @@ var _ containerIterator = (*multiBitmapContainersIterator)(nil)
 type multiBitmapContainersIterator struct {
 	multiBitmapOptions
 
-	tempBitmap *bitmapContainer
-
 	initial            []containerIteratorAndOp
 	iters              []containerIteratorAndOp
 	filtered           []containerIteratorAndOp
@@ -584,9 +582,7 @@ type multiBitmapContainersIterator struct {
 func newMultiBitmapContainersIterator(
 	opts multiBitmapOptions,
 ) *multiBitmapContainersIterator {
-	i := &multiBitmapContainersIterator{
-		tempBitmap: getBitmapContainer(),
-	}
+	i := &multiBitmapContainersIterator{}
 	i.Reset(opts)
 	return i
 }
@@ -691,6 +687,8 @@ func (i *multiBitmapContainersIterator) ContainerUnion(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
+		defer putBitmapContainer(tempBitmap)
+
 		unionBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -706,6 +704,8 @@ func (i *multiBitmapContainersIterator) ContainerIntersect(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempUnion(ctx)
+		defer putBitmapContainer(tempBitmap)
+
 		intersectBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	case multiBitmapOpIntersect:
 		// Need to build intermediate and intersect with target.
@@ -713,6 +713,8 @@ func (i *multiBitmapContainersIterator) ContainerIntersect(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
+		defer putBitmapContainer(tempBitmap)
+
 		intersectBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -728,6 +730,8 @@ func (i *multiBitmapContainersIterator) ContainerNegate(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempUnion(ctx)
+		defer putBitmapContainer(tempBitmap)
+
 		differenceBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	case multiBitmapOpIntersect:
 		// Need to build intermediate and intersect with target.
@@ -735,6 +739,8 @@ func (i *multiBitmapContainersIterator) ContainerNegate(
 		// may use it when we call iter.it.ContainerFoo(...) so
 		// we use a specific intermediary here.
 		tempBitmap := i.getTempIntersectAndNegate(ctx)
+		defer putBitmapContainer(tempBitmap)
+
 		differenceBitmapInPlace(target.bitmap, tempBitmap.bitmap)
 	}
 }
@@ -759,19 +765,22 @@ func (i *multiBitmapContainersIterator) Close() {
 func (i *multiBitmapContainersIterator) getTempUnion(
 	ctx containerOpContext,
 ) *bitmapContainer {
-	tempBitmap := i.tempBitmap
+	tempBitmap := getBitmapContainer()
+
 	tempBitmap.Reset(false)
+
 	union := i.filter(i.multiContainerIter.containerIters, multiContainerOpUnion)
 	for _, iter := range union {
 		iter.it.ContainerUnion(ctx, tempBitmap)
 	}
+
 	return tempBitmap
 }
 
 func (i *multiBitmapContainersIterator) getTempIntersectAndNegate(
 	ctx containerOpContext,
 ) *bitmapContainer {
-	tempBitmap := i.tempBitmap
+	tempBitmap := getBitmapContainer()
 
 	totalIntersect := len(i.filter(i.initial, multiContainerOpIntersect))
 	intersect := i.filter(i.multiContainerIter.containerIters, multiContainerOpIntersect)

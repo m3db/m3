@@ -149,9 +149,11 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		docsIndexReader:      docsIndexReader,
 		docsThirdPartyReader: docsThirdPartyReader,
 
-		data:    data,
-		opts:    opts,
-		numDocs: metadata.NumDocs,
+		data: data,
+		opts: opts,
+
+		termFSTs: vellumFSTs{fstMap: newFSTMap(fstMapOptions{})},
+		numDocs:  metadata.NumDocs,
 	}
 
 	// NB(r): The segment uses the context finalization to finalize
@@ -179,7 +181,64 @@ type fsSegment struct {
 	data                 SegmentData
 	opts                 Options
 
-	numDocs int64
+	termFSTs vellumFSTs
+	numDocs  int64
+}
+
+type vellumFSTs struct {
+	sync.RWMutex
+	fstMap     *fstMap
+	readerPool *fstReaderPool
+}
+
+type vellumFST struct {
+	fst        *vellum.FST
+	readerPool *fstReaderPool
+}
+
+func newVellumFST(fst *vellum.FST) vellumFST {
+	return vellumFST{
+		fst:        fst,
+		readerPool: newFSTReaderPool(fst),
+	}
+}
+
+func (f vellumFST) Get(key []byte) (uint64, bool, error) {
+	reader, err := f.readerPool.Get()
+	if err != nil {
+		return 0, false, err
+	}
+	result, exists, err := reader.Get(key)
+	// Always return reader to pool.
+	f.readerPool.Put(reader)
+	return result, exists, err
+}
+
+type fstReaderPool struct {
+	pool sync.Pool
+}
+
+func newFSTReaderPool(fst *vellum.FST) *fstReaderPool {
+	return &fstReaderPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				r, _ := fst.Reader()
+				return r
+			},
+		},
+	}
+}
+
+func (p *fstReaderPool) Get() (*vellum.Reader, error) {
+	v := p.pool.Get().(*vellum.Reader)
+	if v == nil {
+		return nil, fmt.Errorf("vellum reader failed to initialize")
+	}
+	return v, nil
+}
+
+func (p *fstReaderPool) Put(v *vellum.Reader) {
+	p.pool.Put(v)
 }
 
 func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
@@ -221,12 +280,8 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 	}
 
 	_, exists, err = termsFST.Get(docID)
-	closeErr := termsFST.Close()
-	if err != nil {
-		return false, err
-	}
 
-	return exists, closeErr
+	return exists, err
 }
 
 func (r *fsSegment) ContainsField(field []byte) (bool, error) {
@@ -270,11 +325,26 @@ func (r *fsSegment) Close() error {
 
 func (r *fsSegment) Finalize() {
 	r.Lock()
+	if r.finalized {
+		r.Unlock()
+		return
+	}
+
+	r.finalized = true
+
+	r.termFSTs.Lock()
+	for _, elem := range r.termFSTs.fstMap.Iter() {
+		vellumFST := elem.Value()
+		vellumFST.fst.Close()
+	}
+	r.termFSTs.Unlock()
+
 	r.fieldsFST.Close()
+
 	if r.data.Closer != nil {
 		r.data.Closer.Close()
 	}
-	r.finalized = true
+
 	r.Unlock()
 }
 
@@ -396,8 +466,8 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 
 	i.fieldsIter.reset(fstTermsIterOpts{
 		seg:         i.r,
-		fst:         termsFST,
-		finalizeFST: true,
+		fst:         termsFST.fst,
+		finalizeFST: false,
 	})
 	i.postingsIter.reset(i.r, i.fieldsIter, false)
 	return i.postingsIter, nil
@@ -545,9 +615,6 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	fstCloser := x.NewSafeCloser(termsFST)
-	defer fstCloser.Close()
-
 	postingsOffset, exists, err := termsFST.Get(term)
 	if err != nil {
 		return nil, err
@@ -569,15 +636,10 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return nil, err
 	}
 
-	if err := fstCloser.Close(); err != nil {
-		return nil, err
-	}
-
 	return pl, nil
 }
 
 type regexpSearcher struct {
-	fstCloser  x.SafeCloser
 	iterCloser x.SafeCloser
 	iterAlloc  vellum.FSTIterator
 	iter       *vellum.FSTIterator
@@ -586,7 +648,6 @@ type regexpSearcher struct {
 
 func newRegexpSearcher() *regexpSearcher {
 	r := &regexpSearcher{
-		fstCloser:  x.NewSafeCloser(nil),
 		iterCloser: x.NewSafeCloser(nil),
 		pls:        make([]postings.List, 0, 16),
 	}
@@ -648,11 +709,9 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 	}
 
 	searcher := getRegexpSearcher()
-	iterErr := searcher.iter.Reset(termsFST, compiled.PrefixBegin, compiled.PrefixEnd, re)
-	searcher.fstCloser.Reset(termsFST)
+	iterErr := searcher.iter.Reset(termsFST.fst, compiled.PrefixBegin, compiled.PrefixEnd, re)
 	searcher.iterCloser.Reset(searcher.iter)
 	defer func() {
-		searcher.fstCloser.Close()
 		searcher.iterCloser.Close()
 		putRegexpSearcher(searcher)
 	}()
@@ -687,10 +746,6 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 	}
 
 	if err := searcher.iterCloser.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := searcher.fstCloser.Close(); err != nil {
 		return nil, err
 	}
 
@@ -780,27 +835,47 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 	return pilosa.Unmarshal(postingsBytes)
 }
 
-func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, error) {
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
+	r.termFSTs.RLock()
+	fst, ok := r.termFSTs.fstMap.Get(field)
+	r.termFSTs.RUnlock()
+	if ok {
+		return fst, true, nil
+	}
+
+	r.termFSTs.Lock()
+	defer r.termFSTs.Lock()
+
+	fst, ok = r.termFSTs.fstMap.Get(field)
+	if ok {
+		return fst, true, nil
+	}
+
 	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
 	if err != nil {
-		return nil, false, err
+		return vellumFST{}, false, err
 	}
 
 	if !exists {
-		return nil, false, nil
+		return vellumFST{}, false, nil
 	}
 
 	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
 	if err != nil {
-		return nil, false, fmt.Errorf("error while decoding terms fst: %v", err)
+		return vellumFST{}, false, fmt.Errorf("error while decoding terms fst: %v", err)
 	}
 
 	termsFST, err := vellum.Load(termsFSTBytes)
 	if err != nil {
-		return nil, false, fmt.Errorf("error while loading terms fst: %v", err)
+		return vellumFST{}, false, fmt.Errorf("error while loading terms fst: %v", err)
 	}
 
-	return termsFST, true, nil
+	// Save FST to FST map.
+	vellumFST := newVellumFST(termsFST)
+	r.termFSTs.fstMap.Set(field, vellumFST)
+
+	// Return result.
+	return vellumFST, true, nil
 }
 
 // retrieveTermsBytesWithRLock assumes the base []byte slice is a collection of
