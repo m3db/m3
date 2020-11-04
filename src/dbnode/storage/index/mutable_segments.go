@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -45,8 +46,8 @@ import (
 )
 
 var (
-	errUnableToWriteBlockConcurrent            = errors.New("unable to write, index block is being written to already")
 	errMutableSegmentsAlreadyClosed            = errors.New("mutable segments already closed")
+	errUnableToWriteBlockConcurrent            = errors.New("unable to write, index block is being written to already")
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
@@ -67,6 +68,7 @@ type mutableSegments struct {
 
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
+	onDiskSegments     []*readableSeg
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -196,6 +198,9 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
 	m.RLock()
 	defer m.RUnlock()
+	if m.state == mutableSegmentsStateClosed {
+		return nil, nil
+	}
 
 	var err error
 	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
@@ -204,6 +209,11 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 	}
 
 	readers, err = m.addReadersWithLock(m.backgroundSegments, readers)
+	if err != nil {
+		return nil, err
+	}
+
+	readers, err = m.addReadersWithLock(m.onDiskSegments, readers)
 	if err != nil {
 		return nil, err
 	}
@@ -226,18 +236,23 @@ func (m *mutableSegments) Len() int {
 	m.RLock()
 	defer m.RUnlock()
 
-	return len(m.foregroundSegments) + len(m.backgroundSegments)
+	return len(m.foregroundSegments) + len(m.backgroundSegments) + len(m.onDiskSegments)
 }
 
-func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+func (m *mutableSegments) AppendMemorySegmentsData(
+	ctx context.Context,
+	results []fst.SegmentData,
+) ([]fst.SegmentData, error) {
 	m.RLock()
 	defer m.RUnlock()
+	if m.state == mutableSegmentsStateClosed {
+		return nil, nil
+	}
 
-	// NB(r): This is for debug operations, do not bother about allocations.
-	var results []fst.SegmentData
 	for _, segs := range [][]*readableSeg{
 		m.foregroundSegments,
 		m.backgroundSegments,
+		m.onDiskSegments,
 	} {
 		for _, seg := range segs {
 			fstSegment, ok := seg.Segment().(fst.Segment)
@@ -260,14 +275,18 @@ func (m *mutableSegments) NeedsEviction() bool {
 	m.RLock()
 	defer m.RUnlock()
 
-	var needsEviction bool
-	for _, seg := range m.foregroundSegments {
-		needsEviction = needsEviction || seg.Segment().Size() > 0
+	for _, segs := range [][]*readableSeg{
+		m.foregroundSegments,
+		m.backgroundSegments,
+		m.onDiskSegments,
+	} {
+		for _, seg := range segs {
+			if seg.Segment().Size() > 0 {
+				return true
+			}
+		}
 	}
-	for _, seg := range m.backgroundSegments {
-		needsEviction = needsEviction || seg.Segment().Size() > 0
-	}
-	return needsEviction
+	return false
 }
 
 func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
@@ -277,13 +296,15 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 	var (
 		numSegments, numDocs int64
 	)
-	for _, seg := range m.foregroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	for _, seg := range m.backgroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
+	for _, segs := range [][]*readableSeg{
+		m.foregroundSegments,
+		m.backgroundSegments,
+		m.onDiskSegments,
+	} {
+		for _, seg := range segs {
+			numSegments++
+			numDocs += seg.Segment().Size()
+		}
 	}
 	return numSegments, numDocs
 }
@@ -310,6 +331,15 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 			Size:    seg.Segment().Size(),
 		})
 	}
+	for _, seg := range m.onDiskSegments {
+		_, mutable := seg.Segment().(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    FlushedSegment,
+			Mutable: mutable,
+			Age:     seg.Age(),
+			Size:    seg.Segment().Size(),
+		})
+	}
 
 	reporter.ReportIndexingStats(BlockIndexingStats{
 		IndexConcurrency: m.writeIndexingConcurrency,
@@ -319,9 +349,30 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 func (m *mutableSegments) Close() {
 	m.Lock()
 	defer m.Unlock()
+	if m.state == mutableSegmentsStateClosed {
+		return
+	}
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
+	m.cleanupOnDiskSegmentsWithLock()
 	m.optsListener.Close()
+}
+
+// Index block handles locking when adding on disk segments.
+func (m *mutableSegments) addOnDiskSegmentsWithoutLock(segments []result.Segment) {
+	for _, s := range segments {
+		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(s.Segment(), m.opts))
+	}
+}
+
+func (m *mutableSegments) cleanupOnDiskSegmentsWithLock() {
+	// Check if need to close all the compacted segments due to
+	// mutableSegments being closed.
+	if !m.shouldEvictCompactedSegmentsWithLock() {
+		return
+	}
+	m.closeCompactedSegmentsWithLock(m.onDiskSegments)
+	m.onDiskSegments = nil
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
@@ -434,6 +485,22 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 		}
 	}
 
+	// Freeze terminal segments.
+	for _, seg := range plan.UnusedSegments {
+		if fstSeg, ok := seg.Segment.(fst.Segment); ok {
+			state, err := fstSeg.State()
+			if err != nil {
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("error freezing terminal segments", zap.Error(err))
+				})
+				continue
+			}
+			if state != fst.FrozenIndexSegmentState {
+				fstSeg.Freeze()
+			}
+		}
+	}
+
 	for i, task := range plan.Tasks {
 		err := m.backgroundCompactWithTask(task, log,
 			logger.With(zap.Int("task", i)))
@@ -481,12 +548,12 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	// Add a read through cache for repeated expensive queries against
 	// background compacted segments since they can live for quite some
 	// time and accrue a large set of documents.
-	if immSeg, ok := compacted.(segment.ImmutableSegment); ok {
+	if fstSeg, ok := compacted.(fst.Segment); ok {
 		var (
 			plCache         = m.opts.PostingsListCache()
 			readThroughOpts = m.opts.ReadThroughSegmentOptions()
 		)
-		compacted = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+		compacted = NewReadThroughSegment(fstSeg, plCache, readThroughOpts)
 	}
 
 	// Rotate out the replaced frozen segments and add the compacted one.

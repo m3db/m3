@@ -874,20 +874,6 @@ func (mr *MockBlockMockRecorder) IsSealed() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockBlock)(nil).IsSealed))
 }
 
-// NeedsMutableSegmentsEvicted mocks base method
-func (m *MockBlock) NeedsMutableSegmentsEvicted() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NeedsMutableSegmentsEvicted")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// NeedsMutableSegmentsEvicted indicates an expected call of NeedsMutableSegmentsEvicted
-func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsMutableSegmentsEvicted))
-}
-
 // EvictMutableSegments mocks base method
 func (m *MockBlock) EvictMutableSegments() error {
 	m.ctrl.T.Helper()
@@ -942,19 +928,33 @@ func (mr *MockBlockMockRecorder) RotateColdMutableSegments() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateColdMutableSegments", reflect.TypeOf((*MockBlock)(nil).RotateColdMutableSegments))
 }
 
-// MemorySegmentsData mocks base method
-func (m *MockBlock) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+// AppendMemorySegmentsData mocks base method
+func (m *MockBlock) AppendMemorySegmentsData(ctx context.Context, results []fst.SegmentData) ([]fst.SegmentData, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MemorySegmentsData", ctx)
+	ret := m.ctrl.Call(m, "AppendMemorySegmentsData", ctx, results)
 	ret0, _ := ret[0].([]fst.SegmentData)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// MemorySegmentsData indicates an expected call of MemorySegmentsData
-func (mr *MockBlockMockRecorder) MemorySegmentsData(ctx interface{}) *gomock.Call {
+// AppendMemorySegmentsData indicates an expected call of AppendMemorySegmentsData
+func (mr *MockBlockMockRecorder) AppendMemorySegmentsData(ctx, results interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemorySegmentsData", reflect.TypeOf((*MockBlock)(nil).MemorySegmentsData), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendMemorySegmentsData", reflect.TypeOf((*MockBlock)(nil).AppendMemorySegmentsData), ctx, results)
+}
+
+// NumSegments mocks base method
+func (m *MockBlock) NumSegments() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumSegments")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// NumSegments indicates an expected call of NumSegments
+func (mr *MockBlockMockRecorder) NumSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSegments", reflect.TypeOf((*MockBlock)(nil).NumSegments))
 }
 
 // Close mocks base method

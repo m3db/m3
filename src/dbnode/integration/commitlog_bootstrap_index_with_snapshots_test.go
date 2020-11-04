@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,89 +31,49 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
-	testFilesystemBootstrapIndexWithIndexingEnabled(t,
-		testFilesystemBootstrapIndexWithIndexingEnabledOptions{})
-}
-
-// TestFilesystemBootstrapIndexWithIndexingEnabledAndCheckTickFreeMmap makes
-// sure that bootstrapped segments free mmap calls occur.
-func TestFilesystemBootstrapIndexWithIndexingEnabledAndCheckTickFreeMmap(t *testing.T) {
-	testFilesystemBootstrapIndexWithIndexingEnabled(t,
-		testFilesystemBootstrapIndexWithIndexingEnabledOptions{
-			test: func(t *testing.T, setup TestSetup) {
-				var (
-					cancellable             = context.NewCancellable()
-					numSegmentsBootstrapped int64
-					freeMmap                int64
-				)
-				for _, ns := range setup.DB().Namespaces() {
-					idx, err := ns.Index()
-					require.NoError(t, err)
-
-					result, err := idx.Tick(cancellable, time.Now())
-					require.NoError(t, err)
-
-					numSegmentsBootstrapped += result.NumSegmentsBootstrapped
-					freeMmap += result.FreeMmap
-				}
-
-				log := setup.StorageOpts().InstrumentOptions().Logger()
-				log.Info("ticked namespaces",
-					zap.Int64("numSegmentsBootstrapped", numSegmentsBootstrapped),
-					zap.Int64("freeMmap", freeMmap))
-				require.True(t, numSegmentsBootstrapped > 0)
-				require.True(t, freeMmap > 0)
-			},
-		})
-}
-
-type testFilesystemBootstrapIndexWithIndexingEnabledOptions struct {
-	// test is an extended test to run at the end of the core bootstrap test.
-	test func(t *testing.T, setup TestSetup)
-}
-
-func testFilesystemBootstrapIndexWithIndexingEnabled(
-	t *testing.T,
-	testOpts testFilesystemBootstrapIndexWithIndexingEnabledOptions,
-) {
+func TestCommitLogIndexBootstrapWithSnapshots(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
+	// Test setup
 	var (
-		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(6 * blockSize).SetBlockSize(blockSize)
-		idxOpts   = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(2 * blockSize)
-		nOpts     = namespace.NewOptions().SetRetentionOptions(rOpts).SetIndexOptions(idxOpts)
+		rOpts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
+		blockSize = rOpts.BlockSize()
 	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
-	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
-	require.NoError(t, err)
 
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(blockSize),
+		).SetColdWritesEnabled(true)
+	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
+	require.NoError(t, err)
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
-	// Test setup
 	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
-	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
-		WithFileSystem: true,
-	}))
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
+		SetFlushInterval(defaultIntegrationTestFlushInterval)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
+
+	log := setup.StorageOpts().InstrumentOptions().Logger()
+	log.Info("commit log bootstrap test")
 
 	// Write test data
+	log.Info("generating data")
 	now := setup.NowFn()()
-
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
@@ -129,18 +89,22 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
 	}
 
+	unindexedSeries := generate.Series{
+		ID: ident.StringID("unindexed"),
+	}
+
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{
 			IDs:       []string{fooSeries.ID.String()},
 			Tags:      fooSeries.Tags,
 			NumPoints: 100,
-			Start:     now.Add(-3 * blockSize),
+			Start:     now.Add(-blockSize),
 		},
 		{
 			IDs:       []string{barSeries.ID.String()},
 			Tags:      barSeries.Tags,
 			NumPoints: 100,
-			Start:     now.Add(-3 * blockSize),
+			Start:     now.Add(-blockSize),
 		},
 		{
 			IDs:       []string{fooSeries.ID.String()},
@@ -149,21 +113,68 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 			Start:     now,
 		},
 		{
-			IDs:       []string{bazSeries.ID.String()},
+			IDs: []string{bazSeries.ID.String()},
+			// NB(bodu): Each dp adds 1 sec to the start time, therefore the baz series
+			// only exists in snapshots due to the snapshot interval being 1 minute.
+			// This tests whether or not we can properly bootstrap a series that we fully
+			// rely on snapshots for.
 			Tags:      bazSeries.Tags,
 			NumPoints: 50,
+			Start:     now.Truncate(blockSize),
+		},
+		{
+			IDs:       []string{unindexedSeries.ID.String()},
+			Tags:      ident.Tags{},
+			NumPoints: 1,
 			Start:     now,
 		},
 	})
 
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
-	require.NoError(t, writeTestIndexToDisk(ns1, setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
-	require.NoError(t, writeTestIndexToDisk(ns2, setup, nil))
+	log.Info("writing data")
+	var (
+		snapshotInterval             = time.Minute
+		numDatapointsNotInSnapshots  = 0
+		numDatapointsNotInCommitLogs = 0
+		snapshotsPred                = func(dp generate.TestValue) bool {
+			blockStart := dp.Timestamp.Truncate(blockSize)
+			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
+				return true
+			}
 
+			numDatapointsNotInSnapshots++
+			return false
+		}
+		commitLogPred = func(dp generate.TestValue) bool {
+			blockStart := dp.Timestamp.Truncate(blockSize)
+			if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
+				return true
+			}
+
+			numDatapointsNotInCommitLogs++
+			return false
+		}
+	)
+	for _, ns := range []namespace.Metadata{
+		ns1,
+		ns2,
+	} {
+		writeIndexSnapshotsWithPredicate(
+			t, setup, seriesMaps, ns, snapshotsPred, snapshotInterval)
+		writeSnapshotsWithPredicate(
+			t, setup, seriesMaps, 0, ns, snapshotsPred, snapshotInterval)
+		writeCommitLogDataWithPredicate(
+			t, setup, commitLogOpts, seriesMaps, ns, commitLogPred)
+	}
+	// Ensure we've excluded some dps from data/index snapshot and commitlog files.
+	require.True(t, numDatapointsNotInSnapshots > 0) // This num is 2x'ed but its fine.
+	require.True(t, numDatapointsNotInCommitLogs > 0)
+	log.Info("finished writing data")
+
+	// Setup bootstrapper after writing data so filesystem inspection can find it.
+	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
+
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
-	log := setup.StorageOpts().InstrumentOptions().Logger()
-	log.Debug("filesystem bootstrap test")
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
@@ -173,9 +184,10 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 		log.Debug("server is now down")
 	}()
 
-	// Verify data matches what we expect
+	// Verify in-memory data match what we expect - all writes from seriesMaps
+	// should be present
 	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	verifySeriesMaps(t, setup, testNamespaces[1], nil)
+	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
 
 	// Issue some index queries
 	session, err := setup.M3DBClient().DefaultSession()
@@ -212,8 +224,4 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries},
 	})
-
-	if testOpts.test != nil {
-		testOpts.test(t, setup)
-	}
 }

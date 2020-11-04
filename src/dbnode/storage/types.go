@@ -429,9 +429,7 @@ type databaseNamespace interface {
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
-	FlushIndex(
-		flush persist.IndexFlush,
-	) error
+	FlushIndex(flush persist.IndexFlush) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
 	ColdFlush(
@@ -439,7 +437,12 @@ type databaseNamespace interface {
 	) error
 
 	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(
+		blockStart,
+		snapshotTime time.Time,
+		flush persist.SnapshotPreparer,
+		infoFiles []fs.ReadIndexInfoFileResult,
+	) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -633,7 +636,7 @@ type databaseShard interface {
 		onFlush persist.OnFlushSeries,
 	) (ShardColdFlush, error)
 
-	// Snapshot snapshot's the unflushed WarmWrites in this shard.
+	// Snapshot snapshots the unflushed WarmWrites in this shard.
 	Snapshot(
 		blockStart time.Time,
 		snapshotStart time.Time,
@@ -782,6 +785,19 @@ type NamespaceIndex interface {
 
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
+
+	// Snapshot in-memory index data to disk for faster bootstrapping.
+	Snapshot(
+		shards map[uint32]struct{},
+		blockStart,
+		snapshotTime time.Time,
+		snapshotPersist persist.SnapshotPreparer,
+		infoFiles []fs.ReadIndexInfoFileResult,
+	) error
+
+	// BlockStatesSnapshot returns per index block state. Currently, the per
+	// block state only captures the loaded index snaphot version (if any).
+	BlockStatesSnapshot() index.BlockStateSnapshot
 
 	// Close will release the index resources and close the index.
 	Close() error

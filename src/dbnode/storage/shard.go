@@ -179,7 +179,7 @@ type dbShard struct {
 	filesetsFn               filesetsFn
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
-	snapshotFilesFn          snapshotFilesFn
+	snapshotFilesFn          fs.SnapshotFilesFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool

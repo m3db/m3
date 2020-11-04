@@ -339,7 +339,7 @@ func writeTestDataToDisk(
 	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
 	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
@@ -352,9 +352,32 @@ func writeTestSnapshotsToDiskWithPredicate(
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
 	return writer.WriteSnapshotWithPredicate(
 		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
+}
+
+func writeTestIndexToDisk(
+	metadata namespace.Metadata,
+	setup TestSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
+	return writer.WriteIndex(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps)
+}
+
+func writeTestIndexSnapshotsToDiskWithPredicate(
+	metadata namespace.Metadata,
+	setup TestSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+	pred generate.WriteDatapointPredicate,
+	snapshotInterval time.Duration,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts, metadata.Options().IndexOptions()))
+	return writer.WriteIndexSnapshotWithPredicate(
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

@@ -51,13 +51,15 @@ var (
 
 	errSnapshotTimeAndIDZero = errors.New("tried to read snapshot time and ID of zero value")
 	errNonSnapshotFileset    = errors.New("tried to determine snapshot time and id of non-snapshot")
+	errInvalidContentType    = errors.New("invalid content type")
 )
 
 const (
-	dataDirName       = "data"
-	indexDirName      = "index"
-	snapshotDirName   = "snapshots"
-	commitLogsDirName = "commitlogs"
+	dataDirName          = "data"
+	indexDirName         = "index"
+	snapshotDirName      = "snapshots"
+	snapshotIndexDirName = "snapshots_index"
+	commitLogsDirName    = "commitlogs"
 
 	// The maximum number of delimeters ('-' or '.') that is expected in a
 	// (base) filename.
@@ -595,30 +597,49 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 // SnapshotTimeAndID returns the metadata for the snapshot.
 func SnapshotTimeAndID(
 	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
-	decoder := msgpack.NewDecoder(nil)
-	return snapshotTimeAndID(filePathPrefix, id, decoder)
-}
-
-func snapshotTimeAndID(
-	filePathPrefix string,
-	id FileSetFileIdentifier,
-	decoder *msgpack.Decoder,
-) (time.Time, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
 		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
 	}
+	switch id.FileSetContentType {
+	case persist.FileSetDataContentType:
+		return dataSnapshotTimeAndID(infoBytes)
+	case persist.FileSetIndexContentType:
+		return indexSnapshotTimeAndID(infoBytes)
+	}
+	return time.Time{}, nil, errInvalidContentType
+}
 
+func dataSnapshotTimeAndID(
+	infoBytes []byte,
+) (time.Time, uuid.UUID, error) {
+	decoder := msgpack.NewDecoder(nil)
 	decoder.Reset(msgpack.NewByteDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error decoding data snapshot info file: %v", err)
 	}
 
 	var parsedSnapshotID uuid.UUID
 	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from data snapshot info file: %v", err)
+	}
+
+	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
+}
+
+func indexSnapshotTimeAndID(
+	infoBytes []byte,
+) (time.Time, uuid.UUID, error) {
+	var info index.IndexVolumeInfo
+	if err := info.Unmarshal(infoBytes); err != nil {
+		return time.Time{}, nil, err
+	}
+	var parsedSnapshotID uuid.UUID
+	err := parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from index snapshot info file: %v", err)
 	}
 
 	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
@@ -626,11 +647,36 @@ func snapshotTimeAndID(
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
 	var (
-		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
-		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
+		dir                  string
+		infoDigestFromDataFn func(data []byte) (uint32, error)
+	)
+	switch id.FileSetContentType {
+	case persist.FileSetDataContentType:
+		dir = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+		infoDigestFromDataFn = func(data []byte) (uint32, error) {
+			buf, err := digest.ToBuffer(data)
+			if err != nil {
+				return 0, err
+			}
+			return buf.ReadDigest(), nil
+		}
+	case persist.FileSetIndexContentType:
+		dir = NamespaceIndexSnapshotDirPath(filePathPrefix, id.Namespace)
+		infoDigestFromDataFn = func(data []byte) (uint32, error) {
+			var indexDigest index.IndexDigests
+			if err := indexDigest.Unmarshal(data); err != nil {
+				return 0, err
+			}
+			return indexDigest.InfoDigest, nil
+		}
 
-		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
-		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+	default:
+		return nil, errInvalidContentType
+	}
+	var (
+		checkpointFilePath = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
+		digestFilePath     = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
+		infoFilePath       = filesetPathFromTimeAndIndex(dir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
 	)
 
 	checkpointFd, err := os.Open(checkpointFilePath)
@@ -657,7 +703,10 @@ func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, reade
 	}
 
 	// Read and validate the info file
-	expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+	expectedInfoDigest, err := infoDigestFromDataFn(digestData)
+	if err != nil {
+		return nil, err
+	}
 	return readAndValidate(
 		infoFilePath, readerBufferSize, expectedInfoDigest)
 }
@@ -785,7 +834,11 @@ func forEachInfoFile(
 		var expectedInfoDigest uint32
 		switch args.contentType {
 		case persist.FileSetDataContentType:
-			expectedInfoDigest = digest.ToBuffer(digestData).ReadDigest()
+			buf, err := digest.ToBuffer(digestData)
+			if err != nil {
+				continue
+			}
+			expectedInfoDigest = buf.ReadDigest()
 		case persist.FileSetIndexContentType:
 			if err := indexDigests.Unmarshal(digestData); err != nil {
 				continue
@@ -885,11 +938,12 @@ func ReadIndexInfoFiles(
 	filePathPrefix string,
 	namespace ident.ID,
 	readerBufferSize int,
+	fileSetType persist.FileSetType,
 ) []ReadIndexInfoFileResult {
 	var infoFileResults []ReadIndexInfoFileResult
 	forEachInfoFile(
 		forEachInfoFileSelector{
-			fileSetType:    persist.FileSetFlushType,
+			fileSetType:    fileSetType,
 			contentType:    persist.FileSetIndexContentType,
 			filePathPrefix: filePathPrefix,
 			namespace:      namespace,
@@ -922,7 +976,7 @@ func SortedSnapshotMetadataFiles(opts Options) (
 	[]SnapshotMetadata, []SnapshotMetadataErrorWithPaths, error) {
 	var (
 		prefix           = opts.FilePathPrefix()
-		snapshotsDirPath = SnapshotDirPath(prefix)
+		snapshotsDirPath = SnapshotsDirPath(prefix)
 	)
 
 	// Glob for metadata files directly instead of their checkpoint files.
@@ -1312,6 +1366,9 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
+				// FileSetContentType is used to determine which dir to read from
+				// so we populate it here since it is not written to disk.
+				FileSetContentType: args.contentType,
 			}, args.filePathPrefix)
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestVolumeIndex != volumeIndex {
 			filesetFiles = append(filesetFiles, latestFileSetFile)
@@ -1320,6 +1377,9 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
+				// FileSetContentType is used to determine which dir to read from
+				// so we populate it here since it is not written to disk.
+				FileSetContentType: args.contentType,
 			}, args.filePathPrefix)
 		}
 		latestBlockStart = currentFileBlockStart
@@ -1399,11 +1459,6 @@ func IndexDataDirPath(prefix string) string {
 	return path.Join(prefix, indexDirName, dataDirName)
 }
 
-// SnapshotDirPath returns the path to the snapshot directory belong to a db
-func SnapshotDirPath(prefix string) string {
-	return path.Join(prefix, snapshotDirName)
-}
-
 // NamespaceDataDirPath returns the path to the data directory for a given namespace.
 func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
@@ -1419,14 +1474,19 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, indexDirName, dataDirName, namespace.String())
 }
 
-// NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
+// NamespaceIndexSnapshotDirPath returns the path to the index snapshots directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
-	return path.Join(prefix, indexDirName, snapshotDirName, namespace.String())
+	return path.Join(IndexSnapshotsDirPath(prefix), namespace.String())
 }
 
 // SnapshotsDirPath returns the path to the snapshots directory.
 func SnapshotsDirPath(prefix string) string {
 	return path.Join(prefix, snapshotDirName)
+}
+
+// IndexSnapshotsDirPath returns the path to the index snapshots directory.
+func IndexSnapshotsDirPath(prefix string) string {
+	return path.Join(prefix, snapshotIndexDirName)
 }
 
 // ShardDataDirPath returns the path to the data directory for a given shard.
@@ -1578,9 +1638,8 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 
 	var currentSnapshotIndex = -1
 	for _, snapshot := range snapshotFiles {
-		if snapshot.ID.BlockStart.Equal(blockStart) {
+		if snapshot.ID.BlockStart.Equal(blockStart) && snapshot.ID.VolumeIndex > currentSnapshotIndex {
 			currentSnapshotIndex = snapshot.ID.VolumeIndex
-			break
 		}
 	}
 

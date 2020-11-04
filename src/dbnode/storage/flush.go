@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -63,7 +64,7 @@ type flushManagerMetrics struct {
 	// is not overly aggressive.
 	maxBlocksSnapshottedByNamespace tally.Gauge
 	dataWarmFlushDuration           tally.Timer
-	dataSnapshotDuration            tally.Timer
+	dataAndIndexSnapshotDuration    tally.Timer
 	indexFlushDuration              tally.Timer
 	commitLogRotationDuration       tally.Timer
 }
@@ -75,7 +76,7 @@ func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
 		isIndexFlushing:                 scope.Gauge("index-flush"),
 		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
 		dataWarmFlushDuration:           scope.Timer("data-warm-flush-duration"),
-		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
+		dataAndIndexSnapshotDuration:    scope.Timer("data-and-index-snapshot-duration"),
 		indexFlushDuration:              scope.Timer("index-flush-duration"),
 		commitLogRotationDuration:       scope.Timer("commit-log-rotation-duration"),
 	}
@@ -96,8 +97,9 @@ type flushManager struct {
 
 	lastSuccessfulSnapshotStartTime atomic.Int64 // == xtime.UnixNano
 
-	logger *zap.Logger
-	nowFn  clock.NowFn
+	logger               *zap.Logger
+	nowFn                clock.NowFn
+	readIndexInfoFilesFn fs.ReadIndexInfoFilesFn
 }
 
 func newFlushManager(
@@ -107,13 +109,14 @@ func newFlushManager(
 ) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:  database,
-		commitlog: commitlog,
-		opts:      opts,
-		pm:        opts.PersistManager(),
-		metrics:   newFlushManagerMetrics(scope),
-		logger:    opts.InstrumentOptions().Logger(),
-		nowFn:     opts.ClockOptions().NowFn(),
+		database:             database,
+		commitlog:            commitlog,
+		opts:                 opts,
+		pm:                   opts.PersistManager(),
+		metrics:              newFlushManagerMetrics(scope),
+		logger:               opts.InstrumentOptions().Logger(),
+		nowFn:                opts.ClockOptions().NowFn(),
+		readIndexInfoFilesFn: fs.ReadIndexInfoFiles,
 	}
 }
 
@@ -152,15 +155,19 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	start := m.nowFn()
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	m.metrics.commitLogRotationDuration.Record(m.nowFn().Sub(start))
-	if err == nil {
-		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
+	rotateCommitlogSuccess := err == nil
+	// We want to use the same snapshot ID across all both data/index snapshotting and
+	// writing of empty snapshots to disk after a successful index flush.
+	snapshotID := uuid.NewUUID()
+	if rotateCommitlogSuccess {
+		if err = m.dataAndIndexSnapshot(namespaces, startTime, rotatedCommitlogID, snapshotID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	} else {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces); err != nil {
+	if err = m.indexFlush(namespaces, rotatedCommitlogID, snapshotID); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -203,18 +210,16 @@ func (m *flushManager) dataWarmFlush(
 	return multiErr.FinalError()
 }
 
-func (m *flushManager) dataSnapshot(
+func (m *flushManager) dataAndIndexSnapshot(
 	namespaces []databaseNamespace,
 	startTime time.Time,
 	rotatedCommitlogID persist.CommitLogFile,
+	snapshotID uuid.UUID,
 ) error {
-	snapshotID := uuid.NewUUID()
-
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
 		return err
 	}
-
 	m.setState(flushManagerSnapshotInProgress)
 	var (
 		start                           = m.nowFn()
@@ -222,6 +227,17 @@ func (m *flushManager) dataSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
+		// NB(bodu): Read in index info files and pass them in for determining
+		// whether or not snapshots are warm or cold. We do this here so we're not
+		// doing dupe work per block start.
+		fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
+		infoFiles := m.readIndexInfoFilesFn(
+			fsOpts.FilePathPrefix(),
+			ns.ID(),
+			fsOpts.InfoReaderBufferSize(),
+			persist.FileSetFlushType,
+		)
+
 		snapshotBlockStarts, err := m.namespaceSnapshotTimes(ns, startTime)
 		if err != nil {
 			detailedErr := fmt.Errorf(
@@ -236,7 +252,11 @@ func (m *flushManager) dataSnapshot(
 		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
-				snapshotBlockStart, startTime, snapshotPersist)
+				snapshotBlockStart,
+				startTime,
+				snapshotPersist,
+				infoFiles,
+			)
 
 			if err != nil {
 				detailedErr := fmt.Errorf(
@@ -256,12 +276,14 @@ func (m *flushManager) dataSnapshot(
 	if finalErr == nil {
 		m.lastSuccessfulSnapshotStartTime.Store(int64(xtime.ToUnixNano(startTime)))
 	}
-	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
+	m.metrics.dataAndIndexSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
 }
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
+	rotatedCommitlogID persist.CommitLogFile,
+	snapshotID uuid.UUID,
 ) error {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {

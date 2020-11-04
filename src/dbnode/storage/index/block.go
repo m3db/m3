@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/persist"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/x/context"
@@ -338,10 +339,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
-	expectedReaders := b.mutableSegments.Len()
-	for _, coldSeg := range b.coldMutableSegments {
-		expectedReaders += coldSeg.Len()
-	}
+	expectedReaders := b.numSegmentsWithRLock()
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		expectedReaders += len(group.segments)
 		return nil
@@ -833,18 +831,6 @@ func (b *block) AddResults(
 	b.Lock()
 	defer b.Unlock()
 
-	multiErr := xerrors.NewMultiError()
-	for volumeType, results := range resultsByVolumeType.Iter() {
-		multiErr = multiErr.Add(b.addResults(volumeType, results))
-	}
-
-	return multiErr.FinalError()
-}
-
-func (b *block) addResults(
-	volumeType persist.IndexVolumeType,
-	results result.IndexBlock,
-) error {
 	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
 	// of topology changes. i.e. if the current m3db process is assigned new shards,
 	// we need to include their data in the index.
@@ -854,14 +840,36 @@ func (b *block) addResults(
 		return errUnableToBootstrapBlockClosed
 	}
 
-	// First check fulfilled is correct
-	min, max := results.Fulfilled().MinMax()
-	if min.Before(b.blockStart) || max.After(b.blockEnd) {
-		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
-		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
-			results.Fulfilled().SummaryString(), blockRange.String())
+	multiErr := xerrors.NewMultiError()
+	for volumeType, results := range resultsByVolumeType.Iter() {
+		// First check fulfilled is correct
+		min, max := results.Fulfilled().MinMax()
+		if min.Before(b.blockStart) || max.After(b.blockEnd) {
+			blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
+			err := fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+				results.Fulfilled().SummaryString(), blockRange.String())
+			multiErr = multiErr.Add(err)
+		}
+
+		switch volumeType {
+		case idxpersist.SnapshotColdIndexVolumeType:
+			// NB(bodu): There is always at least 1 cold mutable segment.
+			coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
+			coldBlock.addOnDiskSegmentsWithoutLock(results.Segments())
+		case idxpersist.SnapshotWarmIndexVolumeType:
+			b.mutableSegments.addOnDiskSegmentsWithoutLock(results.Segments())
+		default:
+			multiErr = multiErr.Add(b.addResults(volumeType, results))
+		}
 	}
 
+	return multiErr.FinalError()
+}
+
+func (b *block) addResults(
+	volumeType persist.IndexVolumeType,
+	results result.IndexBlock,
+) error {
 	shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
 	if !ok {
 		shardRangesSegments = make([]blockShardRangesSegments, 0)
@@ -876,9 +884,9 @@ func (b *block) addResults(
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		elem := seg.Segment()
-		if immSeg, ok := elem.(segment.ImmutableSegment); ok {
-			// only wrap the immutable segments with a read through cache.
-			elem = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+		if fstSeg, ok := elem.(fst.Segment); ok {
+			// only wrap the fst segments with a read through cache.
+			elem = NewReadThroughSegment(fstSeg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, elem)
 	}
@@ -1020,24 +1028,6 @@ func (b *block) IsSealed() bool {
 	return b.IsSealedWithRLock()
 }
 
-func (b *block) NeedsMutableSegmentsEvicted() bool {
-	b.RLock()
-	defer b.RUnlock()
-
-	// Check any mutable segments that can be evicted after a flush.
-	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
-
-	// Check boostrapped segments and to see if any of them need an eviction.
-	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
-		if mutableSeg, ok := seg.(segment.MutableSegment); ok {
-			anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
-		}
-		return nil
-	})
-
-	return anyMutableSegmentNeedsEviction
-}
-
 func (b *block) EvictMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
@@ -1047,7 +1037,7 @@ func (b *block) EvictMutableSegments() error {
 
 	b.mutableSegments.Close()
 
-	// Close any other mutable segments that was added.
+	// Close any other mutable segments that were added.
 	multiErr := xerrors.NewMultiError()
 	for _, shardRangesSegments := range b.shardRangesSegmentsByVolumeType {
 		for idx := range shardRangesSegments {
@@ -1110,24 +1100,41 @@ func (b *block) RotateColdMutableSegments() {
 	))
 }
 
-func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+func (b *block) AppendMemorySegmentsData(
+	ctx context.Context,
+	results []fst.SegmentData,
+) ([]fst.SegmentData, error) {
 	b.RLock()
 	defer b.RUnlock()
+	var err error
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
-	data, err := b.mutableSegments.MemorySegmentsData(ctx)
+	results, err = b.mutableSegments.AppendMemorySegmentsData(ctx, results)
 	if err != nil {
 		return nil, err
 	}
 	for _, coldSeg := range b.coldMutableSegments {
-		coldData, err := coldSeg.MemorySegmentsData(ctx)
+		results, err = coldSeg.AppendMemorySegmentsData(ctx, results)
 		if err != nil {
 			return nil, err
 		}
-		data = append(data, coldData...)
 	}
-	return data, nil
+	return results, nil
+}
+
+func (b *block) NumSegments() int {
+	b.RLock()
+	defer b.RUnlock()
+	return b.numSegmentsWithRLock()
+}
+
+func (b *block) numSegmentsWithRLock() int {
+	count := b.mutableSegments.Len()
+	for _, coldSeg := range b.coldMutableSegments {
+		count += coldSeg.Len()
+	}
+	return count
 }
 
 func (b *block) Close() error {

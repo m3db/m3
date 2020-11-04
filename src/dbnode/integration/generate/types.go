@@ -79,6 +79,8 @@ type SeriesBlock []Series
 type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 
 // Writer writes generated data to disk.
+// NB(bodu): When writing index data/snapshots to disk, the writer uses the
+// block starts of the supplied seriesMaps arg.
 type Writer interface {
 	// WriteData writes the data as data files.
 	WriteData(
@@ -94,6 +96,32 @@ type Writer interface {
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		volume int,
+		snapshotInterval time.Duration,
+	) error
+
+	// WriteIndex writes index files for data in series maps.
+	WriteIndex(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+	) error
+
+	// WriteIndexWithPredicate writes index files for all data in series maps that
+	// passes the predicate test.
+	WriteIndexWithPredicate(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
+	) error
+
+	// WriteIndexSnapshotWithPredicate writes index snapshot files for all data in series maps that
+	// passes the predicate test.
+	WriteIndexSnapshotWithPredicate(
+		nsCtx ns.Context,
+		shardSet sharding.ShardSet,
+		seriesMaps SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
 		snapshotInterval time.Duration,
 	) error
 
@@ -136,6 +164,12 @@ type Options interface {
 
 	// BlockSize returns the blockSize.
 	BlockSize() time.Duration
+
+	// SetIndexBlockSize sets the index blockSize.
+	SetIndexBlockSize(value time.Duration) Options
+
+	// IndexBlockSize returns the index blockSize.
+	IndexBlockSize() time.Duration
 
 	// SetFilePathPrefix sets the file path prefix for sharded TSDB files.
 	SetFilePathPrefix(value string) Options

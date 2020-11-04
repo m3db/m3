@@ -22,6 +22,7 @@ package digest
 
 import (
 	"encoding/binary"
+	"errors"
 	"os"
 )
 
@@ -33,6 +34,9 @@ const (
 var (
 	// Endianness is little endian
 	endianness = binary.LittleEndian
+	// errBufferSizeTooSmall is for when the buffer passed in to be
+	// converted to a digest buffer is of insufficient size.
+	errBufferSizeTooSmall = errors.New("buffer size too small")
 )
 
 // Buffer is a byte slice that facilitates digest reading and writing.
@@ -70,6 +74,9 @@ func (b Buffer) ReadDigestFromFile(fd *os.File) (uint32, error) {
 }
 
 // ToBuffer converts a byte slice to a digest buffer.
-func ToBuffer(buf []byte) Buffer {
-	return Buffer(buf[:DigestLenBytes])
+func ToBuffer(buf []byte) (Buffer, error) {
+	if len(buf) < DigestLenBytes {
+		return nil, errBufferSizeTooSmall
+	}
+	return Buffer(buf[:DigestLenBytes]), nil
 }

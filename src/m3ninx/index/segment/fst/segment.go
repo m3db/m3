@@ -57,10 +57,21 @@ var (
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
 )
 
+// IndexSegmentState is the state of an index segment.
+type IndexSegmentState int
+
+const (
+	// CompactableIndexSegmentState is a still compactable index segment.
+	CompactableIndexSegmentState IndexSegmentState = iota
+	// FrozenIndexSegmentState is a no longer compactable frozen index segment.
+	FrozenIndexSegmentState
+)
+
 // SegmentData represent the collection of required parameters to construct a Segment.
 type SegmentData struct {
 	Version  Version
 	Metadata []byte
+	State    IndexSegmentState
 
 	DocsData      mmap.Descriptor
 	DocsIdxData   mmap.Descriptor
@@ -193,6 +204,24 @@ func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
 	// until all readers have been closed.
 	r.ctx.DependsOn(ctx)
 	return r.data, nil
+}
+
+func (r *fsSegment) Freeze() {
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		return
+	}
+	r.data.State = FrozenIndexSegmentState
+}
+
+func (r *fsSegment) State() (IndexSegmentState, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return 0, errReaderClosed
+	}
+	return r.data.State, nil
 }
 
 func (r *fsSegment) Size() int64 {

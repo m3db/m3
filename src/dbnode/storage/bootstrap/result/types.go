@@ -76,8 +76,9 @@ type IndexBlockByVolumeType struct {
 
 // IndexBlock is an index block for a index volume type.
 type IndexBlock struct {
-	segments  []Segment
-	fulfilled ShardTimeRanges
+	segments    []Segment
+	fulfilled   ShardTimeRanges
+	volumeIndex int
 }
 
 // Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.

@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	persist0 "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -804,6 +805,20 @@ func (m *MockIndexSegmentFileSetWriter) SegmentMetadata() []byte {
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentMetadata))
+}
+
+// SegmentState mocks base method
+func (m *MockIndexSegmentFileSetWriter) SegmentState() fst.IndexSegmentState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SegmentState")
+	ret0, _ := ret[0].(fst.IndexSegmentState)
+	return ret0
+}
+
+// SegmentState indicates an expected call of SegmentState
+func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentState", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentState))
 }
 
 // SegmentType mocks base method

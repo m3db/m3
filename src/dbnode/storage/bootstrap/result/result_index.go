@@ -33,6 +33,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+const (
+	// Volume index of -1 means unset.
+	volumeIndexUnset = -1
+)
+
 // NewDefaultDocumentsBuilderAllocator returns a default mutable segment
 // allocator.
 func NewDefaultDocumentsBuilderAllocator() DocumentsBuilderAllocator {
@@ -258,8 +263,9 @@ func NewIndexBlock(
 		fulfilled = NewShardTimeRanges()
 	}
 	return IndexBlock{
-		segments:  segments,
-		fulfilled: fulfilled,
+		segments:    segments,
+		fulfilled:   fulfilled,
+		volumeIndex: volumeIndexUnset,
 	}
 }
 
@@ -288,6 +294,16 @@ func (b IndexBlock) Merged(other IndexBlock) IndexBlock {
 	return r
 }
 
+// VolumeIndex returns the volume index (if set) of the persisted index fileset.
+func (b IndexBlock) VolumeIndex() int {
+	return b.volumeIndex
+}
+
+// SetVolumeIndex sets the volume index of the persisted index fileset.
+func (b IndexBlock) SetVolumeIndex(i int) {
+	b.volumeIndex = i
+}
+
 // NewIndexBlockByVolumeType returns a new bootstrap index blocks by volume type result.
 func NewIndexBlockByVolumeType(blockStart time.Time) IndexBlockByVolumeType {
 	return IndexBlockByVolumeType{
@@ -310,6 +326,11 @@ func (b IndexBlockByVolumeType) GetBlock(volumeType persist.IndexVolumeType) (In
 // SetBlock sets an IndexBlock for volumeType.
 func (b IndexBlockByVolumeType) SetBlock(volumeType persist.IndexVolumeType, block IndexBlock) {
 	b.data[volumeType] = block
+}
+
+// DeleteBlock deletes an index block volume type if exists.
+func (b IndexBlockByVolumeType) DeleteBlock(volumeType persist.IndexVolumeType) {
+	delete(b.data, volumeType)
 }
 
 // Iter returns the underlying iterable map data.

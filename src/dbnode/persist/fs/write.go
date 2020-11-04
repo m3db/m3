@@ -604,7 +604,7 @@ func (w *writer) writeInfoFileContents(
 	summaries int,
 	entriesCount int64,
 ) error {
-	snapshotBytes, err := w.snapshotID.MarshalBinary()
+	snapshotIDBytes, err := w.snapshotID.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("error marshaling snapshot ID into bytes: %v", err)
 	}
@@ -613,7 +613,7 @@ func (w *writer) writeInfoFileContents(
 		BlockStart:   xtime.ToNanoseconds(w.start),
 		VolumeIndex:  w.volumeIndex,
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
-		SnapshotID:   snapshotBytes,
+		SnapshotID:   snapshotIDBytes,
 		BlockSize:    int64(w.blockSize),
 		Entries:      entriesCount,
 		MajorVersion: schema.MajorVersion,

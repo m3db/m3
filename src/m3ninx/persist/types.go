@@ -26,6 +26,7 @@ import (
 	"regexp"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/mmap"
 )
 
@@ -50,6 +51,7 @@ type IndexSegmentFileSetWriter interface {
 	MajorVersion() int
 	MinorVersion() int
 	SegmentMetadata() []byte
+	SegmentState() fst.IndexSegmentState
 	Files() []IndexSegmentFileType
 	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
 }
@@ -61,6 +63,15 @@ type MutableSegmentFileSetWriter interface {
 
 	// Reset resets the writer to write the provided mutable segment.
 	Reset(segment.Builder) error
+}
+
+// FSTSegmentDataFileSetWriter is a new IndexSegmentFileSetWriter for writing
+// out fst.SegmentData.
+type FSTSegmentDataFileSetWriter interface {
+	IndexSegmentFileSetWriter
+
+	// Reset resets the writer to write the provided segment data.
+	Reset(fst.SegmentData) error
 }
 
 // IndexFileSetReader is an index file set reader, it can read many segments.
@@ -105,6 +116,10 @@ const (
 	// DefaultIndexVolumeType is a default IndexVolumeType.
 	// This is the type if not otherwise specified.
 	DefaultIndexVolumeType IndexVolumeType = "default"
+	// SnapshotColdIndexVolumeType holds cold index snapshot data.
+	SnapshotColdIndexVolumeType IndexVolumeType = "snapshot_cold"
+	// SnapshotWarmIndexVolumeType holds warm index snapshot data.
+	SnapshotWarmIndexVolumeType IndexVolumeType = "snapshot_warm"
 )
 
 // IndexSegmentType is the type of an index file set.

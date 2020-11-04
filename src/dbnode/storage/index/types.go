@@ -386,19 +386,13 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any mutable segments
-	// that are not-empty and sealed.
-	// A sealed non-empty mutable segment needs to get evicted from memory as
-	// soon as it can be to reduce memory footprint.
-	NeedsMutableSegmentsEvicted() bool
-
 	// EvictMutableSegments closes any mutable segments, this is only applicable
 	// valid to be called once the block and hence mutable segments are sealed.
 	// It is expected that results have been added to the block that covers any
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any cold mutable segments
+	// NeedsColdMutableSegmentsEvicted returns whether this block has any cold mutable segments
 	// that are not-empty and sealed.
 	NeedsColdMutableSegmentsEvicted() bool
 
@@ -410,8 +404,14 @@ type Block interface {
 	// new cold mutable segment to write to.
 	RotateColdMutableSegments()
 
-	// MemorySegmentsData returns all in memory segments data.
-	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+	// AppendMemorySegmentsData appends all in memory segments data to the results.
+	AppendMemorySegmentsData(
+		ctx context.Context,
+		results []fst.SegmentData,
+	) ([]fst.SegmentData, error)
+
+	// NumSegments returns the number of index segments.
+	NumSegments() int
 
 	// Close will release any held resources and close the Block.
 	Close() error
@@ -989,4 +989,39 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
+}
+
+// BlockStateSnapshot represents a snapshot of a index block's state at
+// a moment in time.
+type BlockStateSnapshot struct {
+	bootstrapped bool
+	snapshot     BootstrappedBlockStateSnapshot
+}
+
+// NewBlockStateSnapshot constructs a new BlockStateSnapshot.
+func NewBlockStateSnapshot(
+	bootstrapped bool,
+	snapshot BootstrappedBlockStateSnapshot,
+) BlockStateSnapshot {
+	return BlockStateSnapshot{
+		bootstrapped: bootstrapped,
+		snapshot:     snapshot,
+	}
+}
+
+// UnwrapValue returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
+// snapshot is bootstrapped or not.
+func (s BlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool) {
+	return s.snapshot, s.bootstrapped
+}
+
+// BootstrappedBlockStateSnapshot represents a bootstrapped block state snapshot.
+type BootstrappedBlockStateSnapshot struct {
+	Snapshot map[xtime.UnixNano]BlockState
+}
+
+// BlockState contains the state of a block.
+type BlockState struct {
+	// SnapshotVersionLoaded represents snapshot version loaded into mem.
+	SnapshotVersionLoaded int
 }

@@ -455,7 +455,9 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				}
 
 				for _, block := range entry.Blocks.AllBlocks() {
-					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+					// NB(bodu): Since we aren't fetching peer index blocks, we must index all fetched data blocks
+					// during the loading phase.
+					if err := ref.Series.LoadBlockAndIndex(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}
@@ -943,6 +945,8 @@ func (s *peersSource) processReaders(
 			})
 		}
 	} else {
+		// TODO(bodu): We can remove the in-memory index segment building code path once
+		// we've fully migrated to 1:1 sizing of TSDB and index blocks.
 		s.log.Info("building in-memory index segment", buildIndexLogFields...)
 		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,

@@ -278,6 +278,18 @@ func (mr *MockSegmentMockRecorder) FreeMmap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FreeMmap", reflect.TypeOf((*MockSegment)(nil).FreeMmap))
 }
 
+// Freeze mocks base method
+func (m *MockSegment) Freeze() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Freeze")
+}
+
+// Freeze indicates an expected call of Freeze
+func (mr *MockSegmentMockRecorder) Freeze() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Freeze", reflect.TypeOf((*MockSegment)(nil).Freeze))
+}
+
 // Reader mocks base method
 func (m *MockSegment) Reader() (segment.Reader, error) {
 	m.ctrl.T.Helper()
@@ -320,6 +332,21 @@ func (m *MockSegment) Size() int64 {
 func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSegment)(nil).Size))
+}
+
+// State mocks base method
+func (m *MockSegment) State() (IndexSegmentState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "State")
+	ret0, _ := ret[0].(IndexSegmentState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// State indicates an expected call of State
+func (mr *MockSegmentMockRecorder) State() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockSegment)(nil).State))
 }
 
 // TermsIterable mocks base method

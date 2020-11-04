@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -554,7 +555,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil, []fs.ReadIndexInfoFileResult{}))
 }
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
@@ -606,6 +607,8 @@ func testSnapshotWithShardSnapshotErrs(
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetSnapshotEnabled(true))
 	defer closer()
+	idx := NewMockNamespaceIndex(ctrl)
+	ns.reverseIndex = idx
 	ns.bootstrapState = Bootstrapped
 	now := time.Now()
 	ns.nowFn = func() time.Time {
@@ -616,6 +619,7 @@ func testSnapshotWithShardSnapshotErrs(
 		shardBootstrapStates = ShardBootstrapStates{}
 		blockSize            = ns.Options().RetentionOptions().BlockSize()
 		blockStart           = now.Truncate(blockSize)
+		shardIDs             = make(map[uint32]struct{})
 	)
 
 	for i, tc := range shardMethodResults {
@@ -629,9 +633,11 @@ func testSnapshotWithShardSnapshotErrs(
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
+		shardIDs[shardID] = struct{}{}
 	}
+	idx.EXPECT().Snapshot(shardIDs, blockStart, now, gomock.Any(), gomock.Any()).Return(nil)
 
-	return ns.Snapshot(blockStart, now, nil)
+	return ns.Snapshot(blockStart, now, nil, []fs.ReadIndexInfoFileResult{})
 }
 
 func TestNamespaceTruncate(t *testing.T) {

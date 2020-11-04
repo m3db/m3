@@ -1632,17 +1632,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) ColdFlush(flush interface{}) *gomoc
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer, infoFiles []fs.ReadIndexInfoFileResult) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
+	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush, infoFiles)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush, infoFiles interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush, infoFiles)
 }
 
 // NeedsFlush mocks base method
@@ -2627,6 +2627,34 @@ func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions
 func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
+}
+
+// Snapshot mocks base method
+func (m *MockNamespaceIndex) Snapshot(shards map[uint32]struct{}, blockStart, snapshotTime time.Time, snapshotPersist persist.SnapshotPreparer, infoFiles []fs.ReadIndexInfoFileResult) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Snapshot", shards, blockStart, snapshotTime, snapshotPersist, infoFiles)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (mr *MockNamespaceIndexMockRecorder) Snapshot(shards, blockStart, snapshotTime, snapshotPersist, infoFiles interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).Snapshot), shards, blockStart, snapshotTime, snapshotPersist, infoFiles)
+}
+
+// BlockStatesSnapshot mocks base method
+func (m *MockNamespaceIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
+	ret0, _ := ret[0].(index.BlockStateSnapshot)
+	return ret0
+}
+
+// BlockStatesSnapshot indicates an expected call of BlockStatesSnapshot
+func (mr *MockNamespaceIndexMockRecorder) BlockStatesSnapshot() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStatesSnapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).BlockStatesSnapshot))
 }
 
 // Close mocks base method

@@ -172,7 +172,7 @@ type TestSetup interface {
 	BlockLeaseManager() block.LeaseManager
 	ShardSet() sharding.ShardSet
 	SetShardSet(sharding.ShardSet)
-	GeneratorOptions(retention.Options) generate.Options
+	GeneratorOptions(retention.Options, namespace.IndexOptions) generate.Options
 	MaybeResetClients() error
 	SchemaRegistry() namespace.SchemaRegistry
 	NamespaceMetadataOrFail(ident.ID) namespace.Metadata
@@ -625,7 +625,10 @@ func (ts *testSetup) NamespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	return nil
 }
 
-func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options {
+func (ts *testSetup) GeneratorOptions(
+	ropts retention.Options,
+	indexOpts namespace.IndexOptions,
+) generate.Options {
 	var (
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
@@ -637,6 +640,7 @@ func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options 
 		SetClockOptions(co).
 		SetRetentionPeriod(ropts.RetentionPeriod()).
 		SetBlockSize(ropts.BlockSize()).
+		SetIndexBlockSize(indexOpts.BlockSize()).
 		SetFilePathPrefix(fsOpts.FilePathPrefix()).
 		SetNewFileMode(fsOpts.NewFileMode()).
 		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).

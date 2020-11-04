@@ -116,7 +116,7 @@ type dbNamespace struct {
 	nopts              namespace.Options
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
-	snapshotFilesFn    snapshotFilesFn
+	snapshotFilesFn    fs.SnapshotFilesFn
 	log                *zap.Logger
 	bootstrapState     BootstrapState
 
@@ -1363,6 +1363,7 @@ func (n *dbNamespace) Snapshot(
 	blockStart,
 	snapshotTime time.Time,
 	snapshotPersist persist.SnapshotPreparer,
+	infoFiles []fs.ReadIndexInfoFileResult,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -1390,6 +1391,7 @@ func (n *dbNamespace) Snapshot(
 	var (
 		seriesPersist int
 		multiErr      xerrors.MultiError
+		shardIDs      = make(map[uint32]struct{}, len(n.OwnedShards()))
 	)
 	for _, shard := range n.OwnedShards() {
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
@@ -1400,9 +1402,21 @@ func (n *dbNamespace) Snapshot(
 		}
 
 		seriesPersist += result.SeriesPersist
+
+		shardIDs[shard.ID()] = struct{}{}
 	}
 
 	n.metrics.snapshotSeriesPersist.Inc(int64(seriesPersist))
+
+	if idx := n.reverseIndex; idx != nil {
+		multiErr = multiErr.Add(idx.Snapshot(
+			shardIDs,
+			blockStart,
+			snapshotTime,
+			snapshotPersist,
+			infoFiles,
+		))
+	}
 
 	res := multiErr.FinalError()
 	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))

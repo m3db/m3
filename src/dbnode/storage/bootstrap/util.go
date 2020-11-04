@@ -235,26 +235,30 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	}
 
 	var streamErr error
-	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
+	mockSeries := NewMockSeriesRef(a.ctrl)
 
+	loadBlockReturnFn := func(bl block.DatabaseBlock, _ series.WriteType) error {
+		reader, err := bl.Stream(context.NewContext())
+		if err != nil {
+			streamErr = err
+			return err
+		}
+
+		a.loadedBlockMap[stringID] = append(a.loadedBlockMap[stringID],
+			ReaderAtTime{
+				Start:  bl.StartTime(),
+				Reader: reader,
+				Tags:   decodedTags,
+			})
+
+		return nil
+	}
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(bl block.DatabaseBlock, _ series.WriteType) error {
-			reader, err := bl.Stream(context.NewContext())
-			if err != nil {
-				streamErr = err
-				return err
-			}
-
-			a.loadedBlockMap[stringID] = append(a.loadedBlockMap[stringID],
-				ReaderAtTime{
-					Start:  bl.StartTime(),
-					Reader: reader,
-					Tags:   decodedTags,
-				})
-
-			return nil
-		}).AnyTimes()
+		DoAndReturn(loadBlockReturnFn).AnyTimes()
+	mockSeries.EXPECT().
+		LoadBlockAndIndex(gomock.Any(), gomock.Any()).
+		DoAndReturn(loadBlockReturnFn).AnyTimes()
 
 	mockSeries.EXPECT().Write(
 		gomock.Any(), gomock.Any(), gomock.Any(),

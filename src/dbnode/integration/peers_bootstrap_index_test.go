@@ -29,11 +29,13 @@ import (
 	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -60,7 +62,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		SetBlockSize(blockSize)
 	nOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
-		SetIndexOptions(idxOpts)
+		SetIndexOptions(idxOpts).
+		SetColdWritesEnabled(true)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
 	opts := NewTestOptions(t).
@@ -155,6 +158,24 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 	}
 
+	// Ensure that the index data for qux has been written to disk for node-0 by the warm flush lifecycle.
+	// This means this data is not initially present but will ultimately end up on disk due after the
+	// warm flush lifecycle completes. We encounter this case only when the node crashes between a warm data flush
+	// and a warm index flush.
+	xclock.WaitUntil(func() bool {
+		numDocsPerBlockStart, err := getNumDocsPerBlockStart(
+			ns1.ID(),
+			setups[0].FilesystemOpts(),
+			persist.FileSetFlushType,
+		)
+		require.NoError(t, err)
+		numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
+		if !ok {
+			return false
+		}
+		return numDocs == 1
+	}, time.Minute)
+
 	// Issue some index queries to the second node which bootstrapped the metadata
 	session, err := setups[1].M3DBClient().DefaultSession()
 	require.NoError(t, err)
@@ -191,10 +212,12 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		expected:   []generate.Series{barSeries, bazSeries, quxSeries},
 	})
 
-	// Ensure that the index data for qux has been written to disk.
+	// Ensure that the index data for qux has been written to disk for node-1 by the peers bootstrapper.
+	// This means this data should show up once node-1 has been successfully bootstrapped.
 	numDocsPerBlockStart, err := getNumDocsPerBlockStart(
 		ns1.ID(),
 		setups[1].FilesystemOpts(),
+		persist.FileSetFlushType,
 	)
 	require.NoError(t, err)
 	numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
@@ -210,12 +233,14 @@ type indexInfo struct {
 func getNumDocsPerBlockStart(
 	nsID ident.ID,
 	fsOpts fs.Options,
+	fileType persist.FileSetType,
 ) (map[xtime.UnixNano]int, error) {
 	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
 	infoFiles := fs.ReadIndexInfoFiles(
 		fsOpts.FilePathPrefix(),
 		nsID,
 		fsOpts.InfoReaderBufferSize(),
+		fileType,
 	)
 	// Grab the latest index info file for each blockstart.
 	latestIndexInfoPerBlockStart := make(map[xtime.UnixNano]indexInfo)

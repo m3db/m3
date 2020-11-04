@@ -229,12 +229,19 @@ func (entry *Entry) LoadBlock(
 	block block.DatabaseBlock,
 	writeType series.WriteType,
 ) error {
-	// TODO(bodu): We can remove this once we have index snapshotting as index snapshots will
-	// contained snapshotted index segments that cover snapshotted data.
+	return entry.Series.LoadBlock(block, writeType)
+}
+
+// LoadBlockAndIndex loads a single block into the series and attempts to index the series
+// if not already attempted.
+func (entry *Entry) LoadBlockAndIndex(
+	block block.DatabaseBlock,
+	writeType series.WriteType,
+) error {
 	if err := entry.maybeIndex(block.StartTime()); err != nil {
 		return err
 	}
-	return entry.Series.LoadBlock(block, writeType)
+	return entry.LoadBlock(block, writeType)
 }
 
 func (entry *Entry) maybeIndex(timestamp time.Time) error {

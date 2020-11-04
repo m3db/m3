@@ -52,6 +52,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
@@ -86,15 +87,34 @@ const (
 	nsIndexReportStatsInterval          = 10 * time.Second
 
 	defaultFlushDocsBatchSize = 8192
+
+	// Use -1 for unset snapshot versions.
+	snapshotVersionUnset = -1
 )
 
 var (
 	allQuery = idx.NewAllQuery()
 )
 
+type snapshotState struct {
+	sync.RWMutex
+	statesByTime map[xtime.UnixNano]index.BlockState
+
+	// segmentsData is used to amortize allocs across the entire index
+	// snapshotting workload
+	segmentsData []fst.SegmentData
+}
+
+func newSnapshotState() snapshotState {
+	return snapshotState{
+		statesByTime: make(map[xtime.UnixNano]index.BlockState),
+	}
+}
+
 // nolint: maligned
 type nsIndex struct {
-	state nsIndexState
+	state         nsIndexState
+	snapshotState snapshotState
 
 	extendedRetentionPeriod time.Duration
 
@@ -111,7 +131,7 @@ type nsIndex struct {
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
 	indexFilesetsBeforeFn   indexFilesetsBeforeFn
 	deleteFilesFn           deleteFilesFn
-	readIndexInfoFilesFn    readIndexInfoFilesFn
+	readIndexInfoFilesFn    fs.ReadIndexInfoFilesFn
 
 	newBlockFn            index.NewBlockFn
 	logger                *zap.Logger
@@ -193,11 +213,6 @@ type indexFilesetsBeforeFn func(dir string,
 	nsID ident.ID,
 	exclusiveTime time.Time,
 ) ([]string, error)
-
-type readIndexInfoFilesFn func(filePathPrefix string,
-	namespace ident.ID,
-	readerBufferSize int,
-) []fs.ReadIndexInfoFileResult
 
 type newNamespaceIndexOpts struct {
 	md                      namespace.Metadata
@@ -327,6 +342,7 @@ func newNamespaceIndexWithOptions(
 			blocksByTime:   make(map[xtime.UnixNano]index.Block),
 			shardsAssigned: make(map[uint32]struct{}),
 		},
+		snapshotState: newSnapshotState(),
 
 		nowFn:                 nowFn,
 		blockSize:             nsMD.Options().IndexOptions().BlockSize(),
@@ -844,15 +860,43 @@ func (i *nsIndex) Bootstrap(
 		i.state.Unlock()
 	}()
 
-	var multiErr xerrors.MultiError
+	var (
+		multiErr  xerrors.MultiError
+		fsOpts    = i.opts.CommitLogOptions().FilesystemOptions()
+		infoFiles = i.readIndexInfoFilesFn(
+			fsOpts.FilePathPrefix(),
+			i.nsMetadata.ID(),
+			fsOpts.InfoReaderBufferSize(),
+			persist.FileSetFlushType,
+		)
+	)
 	for blockStart, blockResults := range bootstrapResults {
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
 		}
+		// NB(bodu): For warm snapshots, we need to make sure that we haven't already successfully warm
+		// flushed this block. We can run into this case when the node crashes between a successful warm
+		// flush and the next index snapshot.
+		if _, ok := blockResults.GetBlock(idxpersist.SnapshotWarmIndexVolumeType); ok {
+			if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, blockStart.ToTime()) {
+				// If we have warm snapshots and the block has been warm flushed already,
+				// we just discard the warm snapshot data.
+				blockResults.DeleteBlock(idxpersist.SnapshotWarmIndexVolumeType)
+			}
+		}
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
+		}
+		for volumeType, results := range blockResults.Iter() {
+			switch volumeType {
+			case idxpersist.SnapshotColdIndexVolumeType, idxpersist.SnapshotWarmIndexVolumeType:
+				// Only set if the volume index in the results is set.
+				if volumeIndex := results.VolumeIndex(); volumeIndex >= 0 {
+					i.setSnapshotStateVersionLoaded(blockStart.ToTime(), volumeIndex)
+				}
+			}
 		}
 	}
 
@@ -867,12 +911,21 @@ func (i *nsIndex) Bootstrapped() bool {
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
-	var result namespaceIndexTickResult
-
 	i.state.Lock()
+	var (
+		result             namespaceIndexTickResult
+		deletedBlockStarts = make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	)
 	defer func() {
 		i.updateBlockStartsWithLock()
 		i.state.Unlock()
+		// Delete snapshot states after holding lock on state to avoid
+		// a lock dependency.
+		i.snapshotState.Lock()
+		for _, blockStart := range deletedBlockStarts {
+			delete(i.snapshotState.statesByTime, blockStart)
+		}
+		i.snapshotState.Unlock()
 	}()
 
 	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(startTime)
@@ -890,6 +943,7 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
 			multiErr = multiErr.Add(block.Close())
 			delete(i.state.blocksByTime, blockStart)
+			deletedBlockStarts = append(deletedBlockStarts, blockStart)
 			result.NumBlocksEvicted++
 			result.NumBlocks--
 			continue
@@ -948,7 +1002,9 @@ func (i *nsIndex) WarmFlush(
 	i.metrics.flushIndexingConcurrency.Update(float64(concurrency))
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
-	var evicted int
+	var (
+		evicted int
+	)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
@@ -984,6 +1040,9 @@ func (i *nsIndex) WarmFlush(
 				zap.Time("blockStart", block.StartTime()),
 			)
 		}
+
+		// NB(bodu): We should reset any snapshot loaded version to default after a successful warm flush.
+		i.setSnapshotStateVersionLoaded(block.StartTime(), snapshotVersionUnset)
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
@@ -1009,6 +1068,8 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 		multiErr := xerrors.NewMultiError()
 		for _, block := range flushable {
 			multiErr = multiErr.Add(block.EvictColdMutableSegments())
+			// NB(bodu): We should reset any snapshot loaded version to default after a successful cold flush.
+			i.setSnapshotStateVersionLoaded(block.StartTime(), snapshotVersionUnset)
 		}
 		return multiErr.FinalError()
 	}, nil
@@ -1030,6 +1091,7 @@ func (i *nsIndex) flushableBlocks(
 		fsOpts.FilePathPrefix(),
 		i.nsMetadata.ID(),
 		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetFlushType,
 	)
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
@@ -1069,9 +1131,10 @@ func (i *nsIndex) canFlushBlockWithRLock(
 	case series.WarmWrite:
 		// NB(bodu): We should always attempt to warm flush sealed blocks to disk if
 		// there doesn't already exist data on disk. We're checking this instead of
-		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
-		// get marked as warm writes if there doesn't already exist data on disk and need to
-		// properly go through the warm flush lifecycle.
+		// if the index block has mutable segments that we can evict
+		// (original check implemented in `block.NeedsMutableSegmentsEvicted()`) since bootstrap writes for
+		// cold block starts get marked as warm writes if there doesn't already exist data
+		// on disk so they need to properly go through the warm flush lifecycle.
 		if !block.IsSealed() || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
 			return false, nil
 		}
@@ -1132,7 +1195,7 @@ func (i *nsIndex) flushBlock(
 		allShards[shard.ID()] = struct{}{}
 	}
 
-	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+	preparedPersist, err := flush.PrepareIndexFlush(persist.IndexPrepareOptions{
 		NamespaceMetadata: i.nsMetadata,
 		BlockStart:        indexBlock.StartTime(),
 		FileSetType:       persist.FileSetFlushType,
@@ -1162,12 +1225,11 @@ func (i *nsIndex) flushBlock(
 
 	closed = true
 
-	// Now return the immutable segments
 	return preparedPersist.Close()
 }
 
 func (i *nsIndex) flushBlockSegment(
-	preparedPersist persist.PreparedIndexPersist,
+	preparedPersist persist.PreparedIndexFlushPersist,
 	indexBlock index.Block,
 	shards []databaseShard,
 	builder segment.DocumentsBuilder,
@@ -1260,6 +1322,80 @@ func (i *nsIndex) flushBlockSegment(
 
 	// Finally flush this segment
 	return preparedPersist.Persist(builder)
+}
+
+func (i *nsIndex) Snapshot(
+	shards map[uint32]struct{},
+	blockStart,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
+	infoFiles []fs.ReadIndexInfoFileResult,
+) error {
+	i.state.RLock()
+	if i.state.closed {
+		i.state.RUnlock()
+		return errDbIndexAlreadyClosed
+	}
+	// Blocks are removed during ticks once they are out of retention, this means
+	// that we may snapshot data that's out of retention which is fine.
+	block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		// Do nothing if there is no index block to snapshot.
+		i.state.RUnlock()
+		return nil
+	}
+	i.state.RUnlock()
+
+	if block.NumSegments() == 0 {
+		// Do nothing if no index segments to snapshot.
+		return nil
+	}
+
+	// NB(bodu): There is a time window between when a block is sealed and when it is
+	// flushed that we are accumulating data in cold segments but we will snapshot to disk as
+	// warm segments. This is fine since we have not yet warm flushed this index block and loading
+	// all snapshotted segments into as warm mutable segments will place them in the correct lifecycle.
+	indexVolumeType := idxpersist.SnapshotWarmIndexVolumeType
+	// NB(bodu): If a block is sealed && there is flushed data on disk,
+	// then we're writing data into cold segments only.
+	if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, block.StartTime()) {
+		indexVolumeType = idxpersist.SnapshotColdIndexVolumeType
+	}
+
+	prepareOpts := persist.IndexPrepareSnapshotOptions{
+		IndexPrepareOptions: persist.IndexPrepareOptions{
+			NamespaceMetadata: i.nsMetadata,
+			BlockStart:        blockStart,
+			FileSetType:       persist.FileSetSnapshotType,
+			Shards:            shards,
+			IndexVolumeType:   indexVolumeType,
+		},
+		SnapshotTime: snapshotTime,
+	}
+	prepared, err := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// NB(bodu): Although snapshotting currently happens in a single thread but lock
+	// on the resusable segments data resource to be safe.
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
+	i.snapshotState.segmentsData = i.snapshotState.segmentsData[:0]
+	i.snapshotState.segmentsData, err = block.AppendMemorySegmentsData(ctx, i.snapshotState.segmentsData)
+	if err != nil {
+		return err
+	}
+	for _, segmentData := range i.snapshotState.segmentsData {
+		if err := prepared.Persist(segmentData); err != nil {
+			return err
+		}
+	}
+
+	return prepared.Close()
 }
 
 func (i *nsIndex) sanitizeAllowDuplicatesWriteError(err error) error {
@@ -1905,7 +2041,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 	}
 
 	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
-	// We need to seal cold blocks write away for cold writes.
+	// We need to seal cold blocks right away for cold writes.
 	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
 		if err := block.Seal(); err != nil {
 			return nil, err
@@ -1994,6 +2130,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		fsOpts.FilePathPrefix(),
 		i.nsMetadata.ID(),
 		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetFlushType,
 	)
 
 	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[xtime.UnixNano]map[idxpersist.IndexVolumeType][]fs.Segments)
@@ -2063,13 +2200,20 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 		FilesystemOptions().
 		SetFilePathPrefix(opts.OutputDirectory)
 
+	segDataWriter, err := idxpersist.NewFSTSegmentDataFileSetWriter()
+	if err != nil {
+		return err
+	}
+
+	var results []fst.SegmentData
 	for _, block := range i.state.blocksByTime {
-		segmentsData, err := block.MemorySegmentsData(ctx)
+		results = results[:0]
+		results, err = block.AppendMemorySegmentsData(ctx, results)
 		if err != nil {
 			return err
 		}
 
-		for numSegment, segmentData := range segmentsData {
+		for numSegment, segmentData := range results {
 			indexWriter, err := fs.NewIndexWriter(fsOpts)
 			if err != nil {
 				return err
@@ -2092,12 +2236,11 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 				return err
 			}
 
-			segWriter, err := idxpersist.NewFSTSegmentDataFileSetWriter(segmentData)
-			if err != nil {
+			if err := segDataWriter.Reset(segmentData); err != nil {
 				return err
 			}
 
-			if err := indexWriter.WriteSegmentFileSet(segWriter); err != nil {
+			if err := indexWriter.WriteSegmentFileSet(segDataWriter); err != nil {
 				return err
 			}
 
@@ -2108,6 +2251,48 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	}
 
 	return nil
+}
+
+func (i *nsIndex) BlockStatesSnapshot() index.BlockStateSnapshot {
+	i.state.RLock()
+	bootstrapped := i.state.bootstrapState == Bootstrapped
+	i.state.RUnlock()
+	if !bootstrapped {
+		// Needs to be bootstrapped.
+		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
+	}
+
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
+	snapshot := make(map[xtime.UnixNano]index.BlockState, len(i.snapshotState.statesByTime))
+	for time, state := range i.snapshotState.statesByTime {
+		snapshot[time] = state
+	}
+
+	return index.NewBlockStateSnapshot(true, index.BootstrappedBlockStateSnapshot{
+		Snapshot: snapshot,
+	})
+}
+
+func (i *nsIndex) setSnapshotStateVersionLoaded(blockStart time.Time, version int) {
+	i.snapshotState.Lock()
+	defer i.snapshotState.Unlock()
+	state := i.ensureSnapshotStateWithLock(blockStart)
+	state.SnapshotVersionLoaded = version
+	i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+}
+
+// ensureSnapshotStateWithLock gets snapshot state given a block start and ensures that it exists.
+func (i *nsIndex) ensureSnapshotStateWithLock(blockStart time.Time) index.BlockState {
+	state, ok := i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		state = index.BlockState{
+			// Unset values for snapshot version is -1.
+			SnapshotVersionLoaded: snapshotVersionUnset,
+		}
+		i.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	}
+	return state
 }
 
 func (i *nsIndex) Close() error {

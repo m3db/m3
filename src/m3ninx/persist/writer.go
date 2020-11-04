@@ -78,6 +78,12 @@ func (w *writer) SegmentMetadata() []byte {
 	return w.fsWriter.Metadata()
 }
 
+func (w *writer) SegmentState() fst.IndexSegmentState {
+	// NB(bodu): Flushed index segments are considered frozen
+	// since they are no longer compactable.
+	return fst.FrozenIndexSegmentState
+}
+
 func (w *writer) Files() []IndexSegmentFileType {
 	// NB(prateek): order is important here. It is the order of files written out,
 	// and needs to be maintained as it is below.
@@ -108,20 +114,13 @@ func (w *writer) WriteFile(fileType IndexSegmentFileType, iow io.Writer) error {
 
 // NewFSTSegmentDataFileSetWriter creates a new file set writer for
 // fst segment data.
-func NewFSTSegmentDataFileSetWriter(
-	data fst.SegmentData,
-) (IndexSegmentFileSetWriter, error) {
-	if err := data.Validate(); err != nil {
-		return nil, err
-	}
-
+func NewFSTSegmentDataFileSetWriter() (FSTSegmentDataFileSetWriter, error) {
 	docsWriter, err := fst.NewDocumentsWriter()
 	if err != nil {
 		return nil, err
 	}
 
 	return &fstSegmentDataWriter{
-		data:       data,
 		docsWriter: docsWriter,
 	}, nil
 }
@@ -130,10 +129,23 @@ type fstSegmentDataWriter struct {
 	data                fst.SegmentData
 	docsWriter          *fst.DocumentsWriter
 	docsDataFileWritten bool
+	segmentState        fst.IndexSegmentState
+}
+
+func (w *fstSegmentDataWriter) Reset(data fst.SegmentData) error {
+	if err := data.Validate(); err != nil {
+		return err
+	}
+	w.data = data
+	return nil
 }
 
 func (w *fstSegmentDataWriter) SegmentType() IndexSegmentType {
 	return FSTIndexSegmentType
+}
+
+func (w *fstSegmentDataWriter) SegmentState() fst.IndexSegmentState {
+	return w.data.State
 }
 
 func (w *fstSegmentDataWriter) MajorVersion() int {
