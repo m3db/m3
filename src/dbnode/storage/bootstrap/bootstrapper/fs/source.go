@@ -1008,7 +1008,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]result.Segment, 0, len(segments))
+		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
 		for _, segment := range readResult.Segments {
 			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
