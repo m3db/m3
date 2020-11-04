@@ -77,6 +77,12 @@ func ReadIndexSegments(
 		success  = false
 	)
 
+	if opts.FilesystemOptions.IndexReaderAutovalidateIndexSegments() {
+		if err = reader.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
 	// Need to do this to guarantee we release all resources in case of failure.
 	defer func() {
 		if !success {
