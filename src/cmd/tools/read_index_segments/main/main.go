@@ -95,7 +95,11 @@ func run(opts runOptions) {
 	log := opts.log
 
 	fsOpts := fs.NewOptions().
-		SetFilePathPrefix(opts.filePathPrefix)
+		SetFilePathPrefix(opts.filePathPrefix).
+		// Always validate checksums before reading and/or validating contents
+		// regardless of whether this is a validation run or just reading
+		// the raw files.
+		SetIndexReaderAutovalidateIndexSegments(true)
 
 	indexDirPath := fs.IndexDataDirPath(opts.filePathPrefix)
 
