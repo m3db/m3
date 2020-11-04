@@ -982,7 +982,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
-		segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
@@ -1009,7 +1009,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
 		persistedSegments := make([]result.Segment, 0, len(segments))
-		for _, segment := range segments {
+		for _, segment := range readResult.Segments {
 			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType

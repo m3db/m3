@@ -206,7 +206,7 @@ func readBlockSegments(
 
 	log.Info("reading block segments")
 
-	segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+	readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 		ReaderOptions: fs.IndexReaderOpenOptions{
 			Identifier:  infoFile.ID,
 			FileSetType: persist.FileSetFlushType,
@@ -218,7 +218,13 @@ func readBlockSegments(
 		return
 	}
 
-	for i, seg := range segments {
+	if readResult.Validated {
+		log.Info("validated segments")
+	} else {
+		log.Error("expected to validate segments but did not validate")
+	}
+
+	for i, seg := range readResult.Segments {
 		jw := json.NewWriter(out)
 		jw.BeginObject()
 
