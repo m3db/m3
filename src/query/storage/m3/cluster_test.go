@@ -205,6 +205,10 @@ func (n *noopCluster) ClusterNamespaces() ClusterNamespaces {
 	panic("implement me")
 }
 
+func (n *noopCluster) NonReadyClusterNamespaces() ClusterNamespaces {
+	panic("implement me")
+}
+
 func (n *noopCluster) UnaggregatedClusterNamespace() ClusterNamespace {
 	panic("implement me")
 }

@@ -2940,6 +2940,10 @@ func encodeAggregatedSeries(
 		processedTileCount++
 	}
 
+	if err := seriesIter.Err(); err != nil {
+		return 0, err
+	}
+
 	return processedTileCount, nil
 }
 
