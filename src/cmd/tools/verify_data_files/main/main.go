@@ -301,10 +301,16 @@ func readEntry(
 	data checked.Bytes,
 	checksum uint32,
 ) (readEntryResult, error) {
-	if !utf8.Valid(id.Bytes()) {
+	idValue := id.Bytes()
+	if len(idValue) == 0 {
 		return readEntryResult{invalidID: true},
 			fmt.Errorf("invalid id: err=%s, as_string=%s, as_hex=%x",
-				"non-utf8", id.Bytes(), id.Bytes())
+				"empty", idValue, idValue)
+	}
+	if !utf8.Valid(idValue) {
+		return readEntryResult{invalidID: true},
+			fmt.Errorf("invalid id: err=%s, as_string=%s, as_hex=%x",
+				"non-utf8", idValue, idValue)
 	}
 
 	for tags.Next() {
