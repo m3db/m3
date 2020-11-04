@@ -139,6 +139,10 @@ func run(opts runOptions) {
 		wg          sync.WaitGroup
 	)
 
+	log.Info("starting query",
+		zap.Int("concurrency", opts.concurrency),
+		zap.Bool("validateSegments", opts.validate))
+
 	workers := xsync.NewWorkerPool(opts.concurrency)
 	workers.Init()
 
@@ -185,6 +189,7 @@ func run(opts runOptions) {
 				log.Fatal("search execute error", zap.Error(err))
 			}
 
+			fields := make(map[string]string)
 			for iter.Next() {
 				d := iter.Current()
 
@@ -201,7 +206,16 @@ func run(opts runOptions) {
 					continue // Already printed.
 				}
 
-				log.Info("matched document", zap.String("id", key))
+				for k := range fields {
+					delete(fields, k)
+				}
+				for _, field := range d.Fields {
+					fields[string(field.Name)] = string(field.Value)
+				}
+
+				log.Info("matched document",
+					zap.String("id", key),
+					zap.Any("fields", fields))
 			}
 
 			if err := iter.Err(); err != nil {
