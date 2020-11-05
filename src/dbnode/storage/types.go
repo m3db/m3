@@ -1323,6 +1323,12 @@ type Options interface {
 
 	// NamespaceHooks returns the NamespaceHooks.
 	NamespaceHooks() NamespaceHooks
+
+	// SetAggregator sets the Aggregator.
+	SetAggregator(aggregator Aggregator) Options
+
+	// Aggregator returns the Aggregator.
+	Aggregator() Aggregator
 }
 
 // MemoryTracker tracks memory.
@@ -1393,6 +1399,21 @@ type AggregateTilesOptions struct {
 	Step       time.Duration
 	InsOptions instrument.Options
 }
+
+// Aggregator is the interface for AggregateTiles.
+type Aggregator interface {
+	// AggregateTiles does tile aggregation.
+	AggregateTiles(
+		opts AggregateTilesOptions,
+		ns Namespace,
+		shardID uint32,
+		readers []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
+	) (int64, error)
+}
+
+// NewAggregatorFn creates a new Aggregator.
+type NewAggregatorFn func(iOpts instrument.Options) Aggregator
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {

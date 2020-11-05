@@ -32,4 +32,5 @@ type StorageOptions struct {
 	TChanNodeServerFn      node.NewTChanNodeServerFn
 	BackgroundProcessFns   []storage.NewBackgroundProcessFn
 	NamespaceHooks         storage.NamespaceHooks
+	NewAggregatorFn        storage.NewAggregatorFn
 }

@@ -4992,6 +4992,34 @@ func (mr *MockOptionsMockRecorder) NamespaceHooks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceHooks", reflect.TypeOf((*MockOptions)(nil).NamespaceHooks))
 }
 
+// SetAggregator mocks base method
+func (m *MockOptions) SetAggregator(aggregator Aggregator) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAggregator", aggregator)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAggregator indicates an expected call of SetAggregator
+func (mr *MockOptionsMockRecorder) SetAggregator(aggregator interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregator", reflect.TypeOf((*MockOptions)(nil).SetAggregator), aggregator)
+}
+
+// Aggregator mocks base method
+func (m *MockOptions) Aggregator() Aggregator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Aggregator")
+	ret0, _ := ret[0].(Aggregator)
+	return ret0
+}
+
+// Aggregator indicates an expected call of Aggregator
+func (mr *MockOptionsMockRecorder) Aggregator() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregator", reflect.TypeOf((*MockOptions)(nil).Aggregator))
+}
+
 // MockMemoryTracker is a mock of MemoryTracker interface
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller
@@ -5077,6 +5105,44 @@ func (m *MockMemoryTracker) WaitForDec() {
 func (mr *MockMemoryTrackerMockRecorder) WaitForDec() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForDec", reflect.TypeOf((*MockMemoryTracker)(nil).WaitForDec))
+}
+
+// MockAggregator is a mock of Aggregator interface
+type MockAggregator struct {
+	ctrl     *gomock.Controller
+	recorder *MockAggregatorMockRecorder
+}
+
+// MockAggregatorMockRecorder is the mock recorder for MockAggregator
+type MockAggregatorMockRecorder struct {
+	mock *MockAggregator
+}
+
+// NewMockAggregator creates a new mock instance
+func NewMockAggregator(ctrl *gomock.Controller) *MockAggregator {
+	mock := &MockAggregator{ctrl: ctrl}
+	mock.recorder = &MockAggregatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAggregator) EXPECT() *MockAggregatorMockRecorder {
+	return m.recorder
+}
+
+// AggregateTiles mocks base method
+func (m *MockAggregator) AggregateTiles(opts AggregateTilesOptions, namespaceID ident.ID, shardID uint32, readers []fs.DataFileSetReader, writer fs.StreamingWriter, targetSchemaDescr namespace.SchemaDescr) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AggregateTiles", opts, namespaceID, shardID, readers, writer, targetSchemaDescr)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AggregateTiles indicates an expected call of AggregateTiles
+func (mr *MockAggregatorMockRecorder) AggregateTiles(opts, namespaceID, shardID, readers, writer, targetSchemaDescr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockAggregator)(nil).AggregateTiles), opts, namespaceID, shardID, readers, writer, targetSchemaDescr)
 }
 
 // MockNamespaceHooks is a mock of NamespaceHooks interface
