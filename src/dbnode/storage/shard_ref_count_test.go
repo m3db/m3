@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/clock"
-	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -271,7 +270,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
 
-	inserted := xclock.WaitUntil(func() bool {
+	inserted := clock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
 		return ok && counter == 3
 	}, 2*time.Second)
@@ -437,7 +436,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(idx.BlockStartForWriteTime(now))
 	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
-	inserted := xclock.WaitUntil(func() bool {
+	inserted := clock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
 		return ok && counter == 3
 	}, 5*time.Second)
