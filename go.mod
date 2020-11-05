@@ -24,6 +24,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/fatih/color v1.10.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
@@ -64,11 +65,11 @@ require (
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
-	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/onsi/ginkgo v1.13.0 // indirect
+	github.com/onsi/ginkgo v1.14.1 // indirect
+	github.com/onsi/gomega v1.10.2 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
