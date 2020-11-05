@@ -32,8 +32,6 @@ import (
 func TestIDSchemeValidation(t *testing.T) {
 	err := TypeDefault.Validate()
 	assert.EqualError(t, err, "id scheme type not set")
-	err = TypeLegacy.Validate()
-	assert.NoError(t, err)
 	err = TypePrependMeta.Validate()
 	assert.NoError(t, err)
 	err = TypeQuoted.Validate()
@@ -42,7 +40,7 @@ func TestIDSchemeValidation(t *testing.T) {
 	assert.NoError(t, err)
 	err = IDSchemeType(5).Validate()
 	assert.EqualError(t, err, "invalid config id schema type 'unknown':"+
-		" should be one of [legacy quoted prepend_meta graphite]")
+		" should be one of [quoted prepend_meta graphite]")
 }
 
 func TestMetricsTypeUnmarshalYAML(t *testing.T) {
@@ -51,7 +49,6 @@ func TestMetricsTypeUnmarshalYAML(t *testing.T) {
 	}
 
 	validParseSchemes := []IDSchemeType{
-		TypeLegacy,
 		TypeQuoted,
 		TypePrependMeta,
 	}

@@ -28,8 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
@@ -45,13 +43,11 @@ import (
 func newEngine(
 	s storage.Storage,
 	lookbackDuration time.Duration,
-	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) Engine {
 	engineOpts := NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
-		SetGlobalEnforcer(enforcer).
 		SetInstrumentOptions(instrumentOpts)
 
 	return NewEngine(engineOpts)
@@ -65,7 +61,7 @@ func TestExecute(t *testing.T) {
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
-	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
+	engine := newEngine(store, time.Minute, instrument.NewOptions())
 	_, err := engine.ExecuteProm(context.TODO(),
 		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
 	assert.NotNil(t, err)
@@ -74,12 +70,6 @@ func TestExecute(t *testing.T) {
 func TestExecuteExpr(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-
-	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
-	mockEnforcer.EXPECT().Close().Times(1)
-
-	mockParent := cost.NewMockChainedEnforcer(ctrl)
-	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
 	parser, err := promql.Parse("foo", time.Second,
 		models.NewTagOptions(), promql.NewParseOptions())
@@ -91,7 +81,7 @@ func TestExecuteExpr(t *testing.T) {
 			Blocks: []block.Block{block.NewMockBlock(ctrl)},
 		}, nil)
 	engine := newEngine(store, defaultLookbackDuration,
-		mockParent, instrument.NewOptions())
+		instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
 		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),

@@ -492,6 +492,43 @@ baz: null
 			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 	})
 
+	t.Run("DeprecatedNilValue", func(t *testing.T) {
+		// OK
+		var cfg configuration
+		fname := writeFile(t, goodConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname))
+		}()
+
+		err := LoadFile(&cfg, fname, Options{})
+		require.NoError(t, err)
+
+		df := []string{}
+		ss := deprecationCheck(cfg, df)
+		require.Equal(t, 0, len(ss))
+
+		// Deprecated nil/unset value should be ok and not printed
+		validConfig := `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+  - server1:8090
+  - server2:8010
+`
+		var cfg2 configurationDeprecated
+		fname2 := writeFile(t, validConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname2))
+		}()
+
+		err = LoadFile(&cfg2, fname2, Options{})
+		require.NoError(t, err)
+
+		actual := deprecationCheck(cfg2, df)
+		require.Equal(t, 0, len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", 0, actual))
+	})
+
 	t.Run("NestedConfig", func(t *testing.T) {
 		// Single Deprecation
 		var cfg nestedConfigurationDeprecated

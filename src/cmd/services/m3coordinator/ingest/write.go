@@ -294,13 +294,21 @@ func (d *downsamplerAndWriter) writeToStorage(
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		return d.writeWithOptions(ctx, storage.WriteQueryOptions{
+		// NB(r): Allocate the write query at the top
+		// of the pooled worker instead of need to pass
+		// the options down the stack which can cause
+		// the stack to grow (and sometimes cause stack splits).
+		writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
 			Annotation: annotation,
 			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
+		if err != nil {
+			return err
+		}
+		return d.store.Write(ctx, writeQuery)
 	}
 
 	var (
@@ -314,35 +322,32 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
+			// NB(r): Allocate the write query at the top
+			// of the pooled worker instead of need to pass
+			// the options down the stack which can cause
+			// the stack to grow (and sometimes cause stack splits).
+			writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
 				Annotation: annotation,
 				Attributes: storageAttributesFromPolicy(p),
 			})
+			if err == nil {
+				err = d.store.Write(ctx, writeQuery)
+			}
 			if err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
 				errLock.Unlock()
 			}
+
 			wg.Done()
 		})
 	}
 
 	wg.Wait()
 	return multiErr.FinalError()
-}
-
-func (d *downsamplerAndWriter) writeWithOptions(
-	ctx context.Context,
-	opts storage.WriteQueryOptions,
-) error {
-	writeQuery, err := storage.NewWriteQuery(opts)
-	if err != nil {
-		return err
-	}
-	return d.store.Write(ctx, writeQuery)
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
@@ -397,13 +402,20 @@ func (d *downsamplerAndWriter) WriteBatch(
 				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
-					err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
+					// NB(r): Allocate the write query at the top
+					// of the pooled worker instead of need to pass
+					// the options down the stack which can cause
+					// the stack to grow (and sometimes cause stack splits).
+					writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 						Tags:       value.Tags,
 						Datapoints: value.Datapoints,
 						Unit:       value.Unit,
 						Annotation: value.Annotation,
 						Attributes: storageAttributesFromPolicy(p),
 					})
+					if err == nil {
+						err = d.store.Write(ctx, writeQuery)
+					}
 					if err != nil {
 						addError(err)
 					}

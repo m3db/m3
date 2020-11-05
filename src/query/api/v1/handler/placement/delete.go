@@ -50,10 +50,6 @@ const (
 var (
 	placementIDPath = fmt.Sprintf("{%s}", placementIDVar)
 
-	// DeprecatedM3DBDeleteURL is the old url for the placement delete handler, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBDeleteURL = path.Join(handler.RoutePrefixV1, PlacementPathName, placementIDPath)
-
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
 	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, placementIDPath)
 

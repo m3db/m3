@@ -55,7 +55,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
@@ -89,19 +88,8 @@ const (
 )
 
 var (
-	defaultLocalConfiguration = &config.LocalConfiguration{
-		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
-			{
-				Namespace: "default",
-				Type:      storagemetadata.UnaggregatedMetricsType,
-				Retention: 2 * 24 * time.Hour,
-			},
-		},
-	}
-
-	defaultDownsamplerAndWriterWorkerPoolSize = 1024
-	defaultCarbonIngesterWorkerPoolSize       = 1024
-	defaultPerCPUMultiProcess                 = 0.5
+	defaultCarbonIngesterWorkerPoolSize = 1024
+	defaultPerCPUMultiProcess           = 0.5
 )
 
 type cleanupFn func() error
@@ -321,7 +309,7 @@ func Run(runOpts RunOptions) {
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
-		cfg.WriteWorkerPool,
+		cfg.WriteWorkerPoolOrDefault(),
 		scope)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Error(err))
@@ -401,7 +389,7 @@ func Run(runOpts RunOptions) {
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -421,13 +409,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
-	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
-		instrumentOptions)
-	if err != nil {
-		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
-	}
-
-	defer chainedEnforceCloser.Close()
 	if fn := runOpts.BackendStorageTransform; fn != nil {
 		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
 	}
@@ -435,7 +416,6 @@ func Run(runOpts RunOptions) {
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
-		SetGlobalEnforcer(chainedEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
@@ -447,6 +427,7 @@ func Run(runOpts RunOptions) {
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
 		backendStorage,
 		downsampler,
+		cfg.WriteWorkerPoolOrDefault(),
 		instrumentOptions,
 	)
 	if err != nil {
@@ -489,7 +470,7 @@ func Run(runOpts RunOptions) {
 		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
-		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
+		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
@@ -507,12 +488,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
-	listenAddress, err := cfg.ListenAddress.Resolve()
-	if err != nil {
-		logger.Fatal("unable to get listen address", zap.Error(err))
-	}
-
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srv := &http.Server{Addr: cfg.ListenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -520,10 +496,10 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := listenerOpts.Listen("tcp", listenAddress)
+	listener, err := listenerOpts.Listen("tcp", cfg.ListenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
-			zap.String("address", listenAddress),
+			zap.String("address", cfg.ListenAddress),
 			zap.Error(err))
 	}
 	if runOpts.ListenerCh != nil {
@@ -533,7 +509,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
-				zap.String("address", listenAddress),
+				zap.String("address", cfg.ListenAddress),
 				zap.Error(err))
 		}
 	}()
@@ -777,6 +753,7 @@ func newDownsampler(
 
 func initClusters(
 	cfg config.Configuration,
+	dbCfg *dbconfig.DBConfiguration,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
@@ -818,7 +795,10 @@ func initClusters(
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
-			localCfg = defaultLocalConfiguration
+			localCfg = &config.LocalConfiguration{}
+		}
+		if len(localCfg.Namespaces) > 0 {
+			staticNamespaceConfig = true
 		}
 
 		if dbClientCh == nil {
@@ -830,16 +810,27 @@ func initClusters(
 			return <-dbClientCh, nil
 		}, sessionInitChan)
 
-		clustersCfg := m3.ClustersStaticConfiguration{
-			m3.ClusterStaticConfiguration{
-				Namespaces: localCfg.Namespaces,
-			},
+		clusterStaticConfig := m3.ClusterStaticConfiguration{
+			Namespaces: localCfg.Namespaces,
+		}
+		if !staticNamespaceConfig {
+			if dbCfg == nil {
+				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+			}
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
 		}
 
-		clusters, err = clustersCfg.NewStaticClusters(instrumentOpts, m3.ClustersStaticConfigurationOptions{
+		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}
+		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
-		}, clusterNamespacesWatcher)
+		}
+
+		if staticNamespaceConfig {
+			clusters, err = clustersCfg.NewStaticClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		} else {
+			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
+		}
 		if err != nil {
 			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
@@ -1122,15 +1113,15 @@ func startCarbonIngestion(
 func newDownsamplerAndWriter(
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
+	workerPoolPolicy xconfig.WorkerPoolPolicy,
 	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
-	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true).
-		SetKillWorkerProbability(0.001)
-	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(
-		defaultDownsamplerAndWriterWorkerPoolSize, downAndWriterWorkerPoolOpts)
+	downAndWriterWorkerPoolOpts, writePoolSize := workerPoolPolicy.Options()
+	downAndWriterWorkerPoolOpts = downAndWriterWorkerPoolOpts.SetInstrumentOptions(iOpts.
+		SetMetricsScope(iOpts.MetricsScope().SubScope("ingest-writer-worker-pool")))
+	downAndWriteWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, downAndWriterWorkerPoolOpts)
 	if err != nil {
 		return nil, err
 	}

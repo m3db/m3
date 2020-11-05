@@ -103,17 +103,6 @@ function(cluster, coordinator={}, db={}) {
     "writeNewSeriesAsync": true,
     "writeNewSeriesLimitPerSecond": 1048576,
     "writeNewSeriesBackoffDuration": "2ms",
-    "bootstrap": {
-      "bootstrappers": [
-        "filesystem",
-        "commitlog",
-        "peers",
-        "uninitialized_topology"
-      ],
-      "commitlog": {
-        "returnUnfulfilledForCorruptCommitLogFiles": false
-      }
-    },
     "cache": {
       "series": {
         "policy": "lru"

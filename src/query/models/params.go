@@ -31,18 +31,12 @@ type FormatType int
 const (
 	// FormatPromQL returns results in Prom format
 	FormatPromQL FormatType = iota
-	// FormatM3QL returns results in M3QL format
-	FormatM3QL
 
 	infoMsg = "if this is causing issues for your use case, please file an " +
 		"issue on https://github.com/m3db/m3"
 )
 
 var (
-	// ErrDecodedBlockDeprecated indicates decoded blocks are deprecated.
-	ErrDecodedBlockDeprecated = fmt.Errorf("decoded block has been deprecated %s",
-		infoMsg)
-
 	// ErrMultiBlockDisabled indicates multi blocks are temporarily disabled.
 	ErrMultiBlockDisabled = fmt.Errorf("multiblock is temporarily disabled %s",
 		infoMsg)
@@ -61,12 +55,6 @@ const (
 	//
 	// NB: Currently disabled.
 	TypeMultiBlock
-	// TypeDecodedBlock represents a single block which contains all fetched series
-	// which get decoded.
-	//
-	// NB: this is a legacy block type, will be deprecated once there is
-	// sufficient confidence that other block types are performing correctly.
-	TypeDecodedBlock
 )
 
 // RequestParams represents the params from the request.
