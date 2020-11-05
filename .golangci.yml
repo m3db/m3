@@ -281,4 +281,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: 57da65a558cc40f7de2f7f5c7528ca6c6278488e
+  new-from-rev: 5a3a12bba59e058b7a4cee6ec472c3f5786f741b
