@@ -208,7 +208,7 @@ func newTestSetup(
 	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 	tagOpts := models.NewTagOptions()
 	limitsConfig := config.LimitsConfiguration{}
-	keepNans := false
+	keepNaNs := false
 
 	opts := options.EmptyHandlerOptions().
 		SetEngine(engine).
@@ -219,7 +219,7 @@ func newTestSetup(
 		SetConfig(config.Configuration{
 			Limits: limitsConfig,
 			ResultOptions: config.ResultOptions{
-				KeepNans: keepNans,
+				KeepNaNs: keepNaNs,
 			},
 		})
 

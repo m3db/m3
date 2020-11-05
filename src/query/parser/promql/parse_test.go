@@ -303,10 +303,12 @@ func TestSort(t *testing.T) {
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
-			assert.Len(t, transforms, 1)
+			assert.Len(t, transforms, 2)
 			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-			assert.Len(t, edges, 0)
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
 		})
 	}
 }
