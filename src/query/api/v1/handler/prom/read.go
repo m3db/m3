@@ -24,6 +24,7 @@ package prom
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -118,6 +119,10 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(res.Err), zap.String("query", request.Params.Query))
 		respondError(w, res.Err)
 		return
+	}
+
+	for _, warn := range resultMetadata.Warnings {
+		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
 	query := request.Params.Query
