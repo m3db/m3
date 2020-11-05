@@ -49,10 +49,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBDeleteURL is the deprecated url for the M3DB namespace delete handler.
-	// Maintained for backwards compatibility.
-	DeprecatedM3DBDeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
-
 	// M3DBDeleteURL is the url for the M3DB namespace delete handler.
 	M3DBDeleteURL = path.Join(
 		handler.RoutePrefixV1,

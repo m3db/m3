@@ -43,10 +43,6 @@ import (
 )
 
 var (
-	// DeprecatedM3DBAddURL is the old url for the namespace add handler, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
-
 	// M3DBAddURL is the url for the M3DB namespace add handler.
 	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 

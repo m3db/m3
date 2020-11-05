@@ -24,7 +24,9 @@ import (
 	"testing"
 	"time"
 
+	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -129,6 +131,113 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3640, 0)
 	require.False(t, mgr.CanLead())
+}
+
+func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
+	now := time.Unix(24*60*60, 0)
+	window10m := 10 * time.Minute
+	window1m := time.Minute
+	testFlushTimes := &schema.ShardSetFlushTimes{
+		ByShard: map[uint32]*schema.ShardFlushTimes{
+			123: &schema.ShardFlushTimes{
+				StandardByResolution: map[int64]int64{
+					window10m.Nanoseconds(): 0,
+				},
+				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
+					window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+						ByNumForwardedTimes: map[int32]int64{
+							1: 0,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	runTestFn := func(
+		t *testing.T,
+		flushTimes *schema.ShardSetFlushTimes,
+		followerOpenedAt time.Time,
+		expectedCanLead bool,
+	) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		doneCh := make(chan struct{})
+		electionManager := NewMockElectionManager(ctrl)
+		electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
+		clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
+			return now
+		})
+		opts := NewFlushManagerOptions().
+			SetElectionManager(electionManager).
+			SetClockOptions(clockOpts)
+		mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+
+		mgr.processed = flushTimes
+		mgr.openedAt = followerOpenedAt
+		require.Equal(t, expectedCanLead, mgr.CanLead())
+	}
+
+	t.Run("opened_on_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Truncate(window10m)
+		expectedCanLead := false
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("opened_after_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Truncate(window10m).Add(1 * time.Second)
+		expectedCanLead := false
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("opened_before_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Truncate(window10m).Add(-1 * time.Second)
+		expectedCanLead := true
+		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("standard_flushed_ok_and_unflushed_bad", func(t *testing.T) {
+		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
+			ByShard: map[uint32]*schema.ShardFlushTimes{
+				123: &schema.ShardFlushTimes{
+					StandardByResolution: map[int64]int64{
+						window1m.Nanoseconds():  now.Add(1 * time.Second).UnixNano(),
+						window10m.Nanoseconds(): 0,
+					},
+				},
+			},
+		}
+
+		followerOpenedAt := now
+		expectedCanLead := false
+		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
+	})
+
+	t.Run("forwarded_flushed_ok_and_unflushed_bad", func(t *testing.T) {
+		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
+			ByShard: map[uint32]*schema.ShardFlushTimes{
+				123: &schema.ShardFlushTimes{
+					ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
+						window1m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+							ByNumForwardedTimes: map[int32]int64{
+								1: now.Truncate(window1m).Add(1 * time.Second).UnixNano(),
+							},
+						},
+						window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+							ByNumForwardedTimes: map[int32]int64{
+								1: 0,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		followerOpenedAt := now
+		expectedCanLead := false
+		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
+	})
 }
 
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {

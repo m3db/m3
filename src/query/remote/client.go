@@ -243,8 +243,9 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(
-		result, c.opts.ReadWorkerPool(),
-		options.Enforcer, c.opts.TagOptions())
+		result,
+		c.opts.ReadWorkerPool(),
+		c.opts.TagOptions())
 }
 
 func (c *grpcClient) fetchRaw(

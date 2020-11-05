@@ -132,6 +132,12 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 		return false, xerrors.NewInvalidParamsError(fmt.Errorf("namespace %v not found", req.Name))
 	}
 
+	// Just return if namespace is already ready.
+	currentState := ns.Options().StagingState()
+	if currentState.Status() == namespace.ReadyStagingStatus {
+		return true, nil
+	}
+
 	// If we're not forcing the staging state, check db nodes to see if namespace is ready.
 	if !req.Force {
 		if err := h.checkDBNodes(req.Name); err != nil {
@@ -185,7 +191,7 @@ func (h *ReadyHandler) checkDBNodes(namespace string) error {
 		session client.Session
 		id      ident.ID
 	)
-	for _, clusterNamespace := range h.clusters.ClusterNamespaces() {
+	for _, clusterNamespace := range h.clusters.NonReadyClusterNamespaces() {
 		if clusterNamespace.NamespaceID().String() == namespace {
 			session = clusterNamespace.Session()
 			id = clusterNamespace.NamespaceID()
