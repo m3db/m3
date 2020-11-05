@@ -342,7 +342,7 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 
 	// and then we get persistent segments backed by mmap'd data so the index
 	// can safely evict the segment's we have just persisted.
-	return ReadIndexSegments(ReadIndexSegmentsOptions{
+	result, err := ReadIndexSegments(ReadIndexSegmentsOptions{
 		ReaderOptions: IndexReaderOpenOptions{
 			Identifier:  pm.indexPM.fileSetIdentifier,
 			FileSetType: pm.indexPM.fileSetType,
@@ -351,6 +351,11 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 		newReaderFn:            pm.indexPM.newReaderFn,
 		newPersistentSegmentFn: pm.indexPM.newPersistentSegmentFn,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Segments, nil
 }
 
 // DoneIndex is called by the databaseFlushManager to finish the index persist process.

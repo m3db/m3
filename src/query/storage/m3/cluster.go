@@ -48,8 +48,11 @@ var (
 type Clusters interface {
 	io.Closer
 
-	// ClusterNamespaces returns all known cluster namespaces.
+	// ClusterNamespaces returns all known and ready cluster namespaces.
 	ClusterNamespaces() ClusterNamespaces
+
+	// NonReadyClusterNamespaces returns all cluster namespaces not in the ready state.
+	NonReadyClusterNamespaces() ClusterNamespaces
 
 	// UnaggregatedClusterNamespace returns the valid unaggregated
 	// cluster namespace.
@@ -248,6 +251,11 @@ func NewClusters(
 
 func (c *clusters) ClusterNamespaces() ClusterNamespaces {
 	return c.namespaces
+}
+
+func (c *clusters) NonReadyClusterNamespaces() ClusterNamespaces {
+	// statically configured cluster namespaces are always considered ready.
+	return nil
 }
 
 func (c *clusters) UnaggregatedClusterNamespace() ClusterNamespace {
