@@ -68,18 +68,26 @@ const (
 
 var (
 	defaultLogging = xlog.Configuration{
-		Level: "info",
+		Level:  "info",
+		File:   "",
+		Fields: nil,
 	}
 	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
 	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
 	defaultMetrics                    = instrument.MetricsConfiguration{
 		RootScope: &instrument.ScopeConfiguration{
-			Prefix: "coordinator",
+			Prefix:            "coordinator",
+			ReportingInterval: 0,
+			CommonTags:        nil,
 		},
 		PrometheusReporter: &instrument.PrometheusConfiguration{
 			HandlerPath: "/metrics",
 			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
-			ListenAddress: "0.0.0.0:7203",
+			ListenAddress:            "0.0.0.0:7203",
+			TimerType:                "",
+			DefaultHistogramBuckets:  nil,
+			DefaultSummaryObjectives: nil,
+			OnError:                  "",
 		},
 		Sanitization:    &defaultMetricsSanitization,
 		SamplingRate:    1.0,
@@ -189,34 +197,38 @@ type Configuration struct {
 }
 
 // ListenAddressOrDefault returns the listen address or default.
-func (c Configuration) ListenAddressOrDefault() string {
+func (c *Configuration) ListenAddressOrDefault() string {
 	if c.ListenAddress != nil {
 		return *c.ListenAddress
 	}
+
 	return defaultListenAddress
 }
 
 // LoggingOrDefault returns the logging config or default.
-func (c Configuration) LoggingOrDefault() xlog.Configuration {
+func (c *Configuration) LoggingOrDefault() xlog.Configuration {
 	if c.Logging != nil {
 		return *c.Logging
 	}
+
 	return defaultLogging
 }
 
 // MetricsOrDefault returns the metrics config or default.
-func (c Configuration) MetricsOrDefault() instrument.MetricsConfiguration {
+func (c *Configuration) MetricsOrDefault() instrument.MetricsConfiguration {
 	if c.Metrics != nil {
 		return *c.Metrics
 	}
+
 	return defaultMetrics
 }
 
 // WriteWorkerPoolOrDefault returns the write worker pool config or default.
-func (c Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
 	if c.WriteWorkerPool != nil {
 		return *c.WriteWorkerPool
 	}
+
 	return defaultWriteWorkerPool
 }
 

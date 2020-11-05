@@ -53,17 +53,26 @@ const (
 
 var (
 	defaultLogging = xlog.Configuration{
-		Level: "info",
+		Level:  "info",
+		File:   "",
+		Fields: nil,
 	}
 	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
 	defaultMetricsExtendedMetricsType = instrument.DetailedExtendedMetrics
 	defaultMetrics                    = instrument.MetricsConfiguration{
+		RootScope: nil,
 		PrometheusReporter: &instrument.PrometheusConfiguration{
-			HandlerPath: "/metrics",
+			HandlerPath:              "/metrics",
+			ListenAddress:            "",
+			TimerType:                "",
+			DefaultHistogramBuckets:  nil,
+			DefaultSummaryObjectives: nil,
+			OnError:                  "",
 		},
 		Sanitization:    &defaultMetricsSanitization,
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+		M3Reporter:      nil,
 	}
 	defaultListenAddress                 = "0.0.0.0:9000"
 	defaultClusterListenAddress          = "0.0.0.0:9001"
@@ -77,10 +86,14 @@ var (
 	defaultCache                         = CacheConfigurations{
 		Series: &SeriesCacheConfiguration{
 			Policy: series.DefaultCachePolicy,
+			LRU:    nil,
 		},
 		PostingsList: &PostingsListCacheConfiguration{
-			Size: &defaultCachePostingsListSize,
+			Size:        &defaultCachePostingsListSize,
+			CacheRegexp: nil,
+			CacheTerms:  nil,
 		},
+		Regexp: nil,
 	}
 	defaultCommitLogPolicy = CommitLogPolicy{
 		FlushMaxBytes: 524288,
@@ -89,10 +102,23 @@ var (
 			Size:            2097152,
 			CalculationType: CalculationTypeFixed,
 		},
+		QueueChannel: nil,
 	}
 	defaultFilesystemPrefix = "/var/lib/m3db"
 	defaultFilesystem       = FilesystemConfiguration{
-		FilePathPrefix: &defaultFilesystemPrefix,
+		FilePathPrefix:                  &defaultFilesystemPrefix,
+		WriteBufferSize:                 nil,
+		DataReadBufferSize:              nil,
+		InfoReadBufferSize:              nil,
+		SeekReadBufferSize:              nil,
+		ThroughputLimitMbps:             nil,
+		ThroughputCheckEvery:            nil,
+		NewFileMode:                     nil,
+		NewDirectoryMode:                nil,
+		Mmap:                            nil,
+		ForceIndexSummariesMmapMemory:   nil,
+		ForceBloomFilterMmapMemory:      nil,
+		BloomFilterFalsePositivePercent: nil,
 	}
 )
 
@@ -216,6 +242,7 @@ func (c *DBConfiguration) LoggingOrDefault() xlog.Configuration {
 	if c.Logging == nil {
 		return defaultLogging
 	}
+
 	return *c.Logging
 }
 
@@ -224,6 +251,7 @@ func (c *DBConfiguration) MetricsOrDefault() instrument.MetricsConfiguration {
 	if c.Metrics == nil {
 		return defaultMetrics
 	}
+
 	return *c.Metrics
 }
 
@@ -232,6 +260,7 @@ func (c *DBConfiguration) ListenAddressOrDefault() string {
 	if c.ListenAddress == nil {
 		return defaultListenAddress
 	}
+
 	return *c.ListenAddress
 }
 
@@ -240,6 +269,7 @@ func (c *DBConfiguration) ClusterListenAddressOrDefault() string {
 	if c.ClusterListenAddress == nil {
 		return defaultClusterListenAddress
 	}
+
 	return *c.ClusterListenAddress
 }
 
@@ -248,6 +278,7 @@ func (c *DBConfiguration) HTTPNodeListenAddressOrDefault() string {
 	if c.HTTPNodeListenAddress == nil {
 		return defaultHTTPNodeListenAddress
 	}
+
 	return *c.HTTPNodeListenAddress
 }
 
@@ -256,6 +287,7 @@ func (c *DBConfiguration) HTTPClusterListenAddressOrDefault() string {
 	if c.HTTPClusterListenAddress == nil {
 		return defaultHTTPClusterListenAddress
 	}
+
 	return *c.HTTPClusterListenAddress
 }
 
@@ -264,6 +296,7 @@ func (c *DBConfiguration) DebugListenAddressOrDefault() string {
 	if c.DebugListenAddress == nil {
 		return defaultDebugListenAddress
 	}
+
 	return *c.DebugListenAddress
 }
 
@@ -272,6 +305,7 @@ func (c *DBConfiguration) CacheOrDefault() CacheConfigurations {
 	if c.Cache == nil {
 		return defaultCache
 	}
+
 	return *c.Cache
 }
 
@@ -280,6 +314,7 @@ func (c *DBConfiguration) FilesystemOrDefault() FilesystemConfiguration {
 	if c.Filesystem == nil {
 		return defaultFilesystem
 	}
+
 	return *c.Filesystem
 }
 
@@ -288,6 +323,7 @@ func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
 	if c.CommitLog == nil {
 		return defaultCommitLogPolicy
 	}
+
 	return *c.CommitLog
 }
 
@@ -296,6 +332,7 @@ func (c *DBConfiguration) GCPercentageOrDefault() int {
 	if c.GCPercentage == nil {
 		return defaultGCPercentage
 	}
+
 	return *c.GCPercentage
 }
 
@@ -304,6 +341,7 @@ func (c *DBConfiguration) WriteNewSeriesAsyncOrDefault() bool {
 	if c.WriteNewSeriesAsync == nil {
 		return defaultWriteNewSeriesAsync
 	}
+
 	return *c.WriteNewSeriesAsync
 }
 
@@ -312,6 +350,7 @@ func (c *DBConfiguration) WriteNewSeriesBackoffDurationOrDefault() time.Duration
 	if c.WriteNewSeriesBackoffDuration == nil {
 		return defaultWriteNewSeriesBackoffDuration
 	}
+
 	return *c.WriteNewSeriesBackoffDuration
 }
 
