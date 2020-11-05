@@ -53,7 +53,7 @@ func equalWithNaNs(i,j float64) bool {
 	return i == j || math.IsNaN(i) && math.IsNaN(j)
 }
 
-// Checks which value is less if first of them is NaN.
+// Compares NaNs.
 // Basically, we do not want to add NaNs to the heap when it has reached it's cap so this fn should be used to prevent this.
 func lesserIfNaNs(i,j float64) bool {
 	return math.IsNaN(i) && !math.IsNaN(j)
