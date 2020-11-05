@@ -1,4 +1,5 @@
 coordinator:
+  # TODO: remove below and set default
   listenAddress: 0.0.0.0:7201
 
   local:
@@ -7,9 +8,11 @@ coordinator:
         type: unaggregated
         retention: 48h
 
+  # TODO: remove below and set default
   logging:
     level: info
 
+  # TODO: remove below and set default
   metrics:
     scope:
       prefix: "coordinator"
@@ -20,47 +23,24 @@ coordinator:
     samplingRate: 1.0
     extended: none
 
+  # TODO: remove below and set default
   tagOptions:
     # Configuration setting for generating metric IDs from tags.
     idScheme: quoted
 
 db:
-  logging:
-    level: info
-
-  metrics:
-    prometheus:
-      handlerPath: /metrics
-    sanitization: prometheus
-    samplingRate: 1.0
-    extended: detailed
-
-  listenAddress: 0.0.0.0:9000
-  clusterListenAddress: 0.0.0.0:9001
-  httpNodeListenAddress: 0.0.0.0:9002
-  httpClusterListenAddress: 0.0.0.0:9003
-  debugListenAddress: 0.0.0.0:9004
-
   hostID:
     resolver: config
     value: m3db_local
 
-  client:
-    writeConsistencyLevel: majority
-    readConsistencyLevel: unstrict_majority
-
-  gcPercentage: 100
-
-  writeNewSeriesAsync: true
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
+  # TODO: remove below and set default
   cache:
     series:
       policy: lru
     postingsList:
       size: 262144
 
+  # TODO: remove below and set default
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
