@@ -35,6 +35,8 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
+  - name: "Services, Tools"
+    command: make clean install-vendor-m3 services tools
   - name: "Lint"
     command: make clean lint
     env:

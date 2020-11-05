@@ -92,6 +92,7 @@ linters-settings:
       - google.golang.org/protobuf/encoding/protojson
       - github.com/golang/protobuf/proto
       - google.golang.org/protobuf/proto
+      - github.com/tj/assert
     packages-with-error-messages:
       # specify an error message to output when a blacklisted package is used
       github.com/sirupsen/logrus: "logging is allowed only by logutils.Log"
@@ -99,6 +100,7 @@ linters-settings:
       google.golang.org/protobuf/encoding/protojson: "replace with github.com/gogo/protobuf/jsonpb"
       github.com/golang/protobuf/proto: "replace with github.com/gogo/protobuf/proto"
       google.golang.org/protobuf/proto: "replace with github.com/gogo/protobuf/proto"
+      github.com/tj/assert: "use github.com/stretchr/testify/assert"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -279,4 +281,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: 6cd7b07ff4b690b7b48e5c3233b094c75fc69852
+  new-from-rev: 57da65a558cc40f7de2f7f5c7528ca6c6278488e

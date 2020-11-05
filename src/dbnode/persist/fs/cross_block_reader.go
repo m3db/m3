@@ -52,7 +52,6 @@ type crossBlockReader struct {
 	err         error
 }
 
-
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
 // DataFileSetReaders must be configured to return the data in the order of index, and must be
 // provided in a slice sorted by block start time.
