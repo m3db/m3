@@ -21,11 +21,13 @@
 package algo
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -87,8 +89,8 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetShardCutoverNanosFn(timeNanosGen(2)).
 		SetShardCutoffNanosFn(timeNanosGen(3)))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.True(t, p.IsMirrored())
 	assert.Equal(t, 2, p.ReplicaFactor())
 	assert.Equal(t, int64(1), p.CutoverNanos())
@@ -98,8 +100,8 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.Error(t, err)
 
 	p, err = a.AddInstances(p, []placement.Instance{})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 
 	i7 := placement.NewInstance().
 		SetID("i7").
@@ -116,7 +118,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetWeight(4).
 		SetMetadata(placement.InstanceMetadata{DebugPort: 8})
 	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
 	validateDistribution(t, p, 1.01)
 
@@ -156,10 +158,12 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
 
 	p, err = a.RemoveInstances(p, []string{i7.ID(), i8.ID()})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
+	fmt.Println("before first replace")
+	printPlacement(p)
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i16").
@@ -168,9 +172,9 @@ func TestMirrorWorkflow(t *testing.T) {
 			SetShardSetID(3).
 			SetWeight(3),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	i9 := placement.NewInstance().
 		SetID("i9").
@@ -185,7 +189,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetShardSetID(5).
 		SetWeight(1)
 	p, err = a.AddInstances(p, []placement.Instance{i9, i10})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(5), p.MaxShardSetID())
 	validateDistribution(t, p, 1.01)
 
@@ -197,14 +201,14 @@ func TestMirrorWorkflow(t *testing.T) {
 			SetShardSetID(5).
 			SetWeight(1),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(5), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	p, err = a.RemoveInstances(p, []string{"i19", "i10"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(5), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 }
 
 func TestMirrorAddAndRevertBeforeCutover(t *testing.T) {
@@ -262,29 +266,29 @@ func TestMirrorAddAndRevertBeforeCutover(t *testing.T) {
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime })
 	a := NewAlgorithm(opts)
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	p1, err := a.AddInstances(p, []placement.Instance{i5, i6})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.True(t, allInitializing(p1, []string{"i5", "i6"}, nowNanos))
 
 	p2, err := a.RemoveInstances(p1, []string{"i5", "i6"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p2.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	_, ok := p2.Instance("i5")
 	assert.False(t, ok)
 	_, ok = p2.Instance("i6")
 	assert.False(t, ok)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.SetMaxShardSetID(3), p2)
 }
 
@@ -355,17 +359,17 @@ func TestMirrorAddMultiplePairs(t *testing.T) {
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime })
 	a := NewAlgorithm(opts)
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	p1, err := a.AddInstances(p, []placement.Instance{i5, i6, i7, i8})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p1.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.True(t, allInitializing(p1, []string{"i5", "i6", "i7", "i8"}, nowNanos))
 	i5, ok := p1.Instance("i5")
 	assert.True(t, ok)
@@ -382,30 +386,30 @@ func TestMirrorAddMultiplePairs(t *testing.T) {
 
 	// Removing all initializing nodes will trigger the revert path.
 	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i6", "i7", "i8"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p2.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	_, ok = p2.Instance("i5")
 	assert.False(t, ok)
 	_, ok = p2.Instance("i7")
 	assert.False(t, ok)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.SetMaxShardSetID(4), p2)
 
 	// Removing part of the initializing nodes will not trigger the revert path
 	// and will only do a normal revert.
 	p3, err := a.RemoveInstances(p1.Clone(), []string{"i7", "i8"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(4), p3.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p3))
+	require.NoError(t, placement.Validate(p3))
 	_, ok = p3.Instance("i5")
 	assert.True(t, ok)
 	newI7, ok := p3.Instance("i7")
 	assert.True(t, ok)
 	assert.True(t, newI7.IsLeaving())
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.SetMaxShardSetID(4), p2)
 }
 
@@ -464,19 +468,19 @@ func TestMirrorAddAndRevertAfterCutover(t *testing.T) {
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 
 	p1, err := a.AddInstances(p, []placement.Instance{i5, i6})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.False(t, allInitializing(p1, []string{"i5", "i6"}, nowNanos))
 
 	p2, err := a.RemoveInstances(p1, []string{"i5", "i6"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p2.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	i5, ok := p2.Instance("i5")
 	assert.True(t, ok)
 	assert.True(t, i5.IsLeaving())
@@ -540,23 +544,23 @@ func TestMirrorRemoveAndRevertBeforeCutover(t *testing.T) {
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime })
 	a := NewAlgorithm(opts)
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	p1, err := a.RemoveInstances(p, []string{"i5", "i6"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.True(t, allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
 
 	p2, err := a.AddInstances(p1, []placement.Instance{i5, i6})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p2.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	i5, ok := p2.Instance("i5")
 	assert.True(t, ok)
 	assert.Equal(t, i5.Shards().NumShards(), i5.Shards().NumShardsForState(shard.Available))
@@ -564,7 +568,7 @@ func TestMirrorRemoveAndRevertBeforeCutover(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, i6.Shards().NumShards(), i6.Shards().NumShardsForState(shard.Available))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p, p2)
 }
 
@@ -622,19 +626,19 @@ func TestMirrorRemoveAndRevertAfterCutover(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(3), p.MaxShardSetID())
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, placement.Validate(p))
 
 	p1, err := a.RemoveInstances(p, []string{"i5", "i6"})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
 	assert.False(t, allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
 
 	p2, err := a.AddInstances(p1, []placement.Instance{i5.SetShards(shard.NewShards(nil)), i6.SetShards(shard.NewShards(nil))})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(3), p2.MaxShardSetID())
 
 	i5, ok := p2.Instance("i5")
@@ -693,20 +697,29 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
+	fmt.Println("initial placement")
+	printPlacement(p)
 	p1, err := a.ReplaceInstances(p, []string{"i4"}, []placement.Instance{i5})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+
+	fmt.Println("after first replace")
+	printPlacement(p1)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.True(t, allLeaving(p1, []placement.Instance{i4}, nowNanos))
 	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
 
 	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i4})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+
+	fmt.Println("after second replace")
+	printPlacement(p2)
+
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 	i4, ok := p2.Instance("i4")
 	assert.True(t, ok)
@@ -763,13 +776,13 @@ func TestMirrorReplaceAndRevertAfterCutover(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p1, err := a.ReplaceInstances(p, []string{"i4"}, []placement.Instance{i5})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.False(t, allLeaving(p1, []placement.Instance{i4}, nowNanos))
 	assert.False(t, allInitializing(p1, []string{"i5"}, nowNanos))
@@ -784,9 +797,10 @@ func TestMirrorReplaceAndRevertAfterCutover(t *testing.T) {
 	ssI5 := i5.Shards()
 
 	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i4})
+	require.NoError(t, err)
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p2))
 
 	i4, ok = p2.Instance("i4")
 	assert.True(t, ok)
@@ -882,8 +896,8 @@ func TestMirrorAddInstancesError(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	_, err = a.AddInstances(p.Clone().SetIsMirrored(false), []placement.Instance{i5, i6})
@@ -896,8 +910,8 @@ func TestMirrorAddInstancesError(t *testing.T) {
 
 	// Allow adding back leaving instances.
 	p, err = a.RemoveInstances(p, []string{i3.ID(), i4.ID()})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p, err = a.AddInstances(p, []placement.Instance{
@@ -914,8 +928,8 @@ func TestMirrorAddInstancesError(t *testing.T) {
 			SetShardSetID(2).
 			SetWeight(2),
 	})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	// Duplicated shardset id.
@@ -973,8 +987,8 @@ func TestMirrorRemoveInstancesError(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	_, err = a.RemoveInstances(p.SetIsMirrored(false), []string{"i1", "i2"})
@@ -1030,8 +1044,8 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	_, err = a.ReplaceInstances(p.SetIsMirrored(false), []string{"i1"}, []placement.Instance{
@@ -1140,9 +1154,13 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		SetShardSetID(2).
 		SetWeight(2)
 
+	fmt.Println("initial")
+	printPlacement(p)
 	p2, err := a.ReplaceInstances(p, []string{"i1", "i4"}, []placement.Instance{replaceI1, replaceI4})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
+	fmt.Println("after replace")
+	printPlacement(p2)
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 
 	_, ok := p2.Instance("i1")
@@ -1164,8 +1182,12 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 			shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i4"),
 		}),
 	), newI4)
-	assert.NoError(t, placement.Validate(p2))
+
+	fmt.Println("after tweaks")
+	printPlacement(p2)
+	require.NoError(t, placement.Validate(p2))
 }
+
 
 func TestIncompatibleWithMirroredAlgo(t *testing.T) {
 	a := newMirroredAlgorithm(placement.NewOptions())
@@ -1204,7 +1226,7 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 		}))
 
 	res, err := groupInstancesByShardSetID([]placement.Instance{i1, i2}, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, len(res))
 	assert.Equal(t, placement.NewInstance().
 		SetID("1").
@@ -1266,14 +1288,14 @@ func TestReturnInitializingShards(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true)).(mirroredAlgorithm)
 	p1, err := a.returnInitializingShards(p.Clone(), []string{i3.ID(), i4.ID()})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, p1.NumInstances())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(1), p1.MaxShardSetID())
 	p2, err := a.returnInitializingShards(p.Clone(), []string{i4.ID(), i3.ID()})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, p2.NumInstances())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(1), p2.MaxShardSetID())
 }
 
@@ -1319,14 +1341,14 @@ func TestReclaimLeavingShards(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true)).(mirroredAlgorithm)
 	p1, err := a.reclaimLeavingShards(p.Clone(), []placement.Instance{i2, i1})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, p1.NumInstances())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(1), p1.MaxShardSetID())
 	p2, err := a.reclaimLeavingShards(p.Clone(), []placement.Instance{i1, i2})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, p2.NumInstances())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(1), p2.MaxShardSetID())
 }
 
@@ -1374,14 +1396,14 @@ func TestReclaimLeavingShardsWithAvailable(t *testing.T) {
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true)).(mirroredAlgorithm)
 	p1, err := a.reclaimLeavingShards(p.Clone(), []placement.Instance{i2, i1})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 4, p1.NumInstances())
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	p2, err := a.reclaimLeavingShards(p.Clone(), []placement.Instance{i1, i2})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 4, p2.NumInstances())
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 }
 
@@ -1423,8 +1445,8 @@ func TestMarkShardAsAvailableWithMirroredAlgo(t *testing.T) {
 		SetIsShardCutoverFn(genShardCutoverFn(oneHourInTheFuture)).
 		SetIsShardCutoffFn(genShardCutoffFn(oneHourInTheFuture, time.Hour)))
 	p, err = a.MarkShardsAvailable(p, "i2", 0)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 }
 
 func TestMarkShardAsAvailableBulkWithMirroredAlgo(t *testing.T) {
@@ -1453,8 +1475,8 @@ func TestMarkShardAsAvailableBulkWithMirroredAlgo(t *testing.T) {
 		SetIsShardCutoverFn(genShardCutoverFn(oneHourInTheFuture)).
 		SetIsShardCutoffFn(genShardCutoffFn(oneHourInTheFuture, time.Hour)))
 	p, err := a.MarkShardsAvailable(p, "i2", 0, 1)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 
 	mi2, ok := p.Instance("i2")
 	assert.True(t, ok)
@@ -1515,8 +1537,8 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 		SetPlacementCutoverNanosFn(timeNanosGen(1)).
 		SetShardStateMode(placement.StableShardStateOnly))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	i7 := placement.NewInstance().
@@ -1532,13 +1554,13 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 		SetShardSetID(4).
 		SetWeight(4)
 	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	p, err = a.RemoveInstances(p, []string{i7.ID(), i8.ID()})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
@@ -1549,8 +1571,8 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 			SetShardSetID(3).
 			SetWeight(3),
 	})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	i9 := placement.NewInstance().
@@ -1566,8 +1588,8 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 		SetShardSetID(5).
 		SetWeight(1)
 	p, err = a.AddInstances(p, []placement.Instance{i9, i10})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	p, err = a.ReplaceInstances(p, []string{"i9"}, []placement.Instance{
@@ -1578,12 +1600,12 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 			SetShardSetID(5).
 			SetWeight(1),
 	})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 
 	p, err = a.RemoveInstances(p, []string{"i19", "i10"})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	verifyAllShardsInAvailableState(t, p)
 }

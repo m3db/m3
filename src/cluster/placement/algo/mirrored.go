@@ -23,6 +23,8 @@ package algo
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -204,9 +206,13 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		return a.returnInitializingShards(p, leavingInstanceIDs)
 	}
 
-	if p, _, err = a.MarkAllShardsAvailable(p); err != nil {
-		return nil, err
+	p, err = a.markReplacingInstancesAvailable(p, leavingInstanceIDs)
+	if err != nil {
+	    return nil, err
 	}
+	// if p, _, err = a.MarkAllShardsAvailable(p); err != nil {
+	// 	return nil, err
+	// }
 
 	// At this point, all leaving instances in the placement are cleaned up.
 	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
@@ -224,6 +230,177 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	}
 	return p, nil
 }
+
+type leavingShardKey struct{
+	LeavingInstID string
+	ShardID       uint32
+}
+
+func (a mirroredAlgorithm) markReplacingInstancesAvailable(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {
+	// We need to map leaving shards to their new owners, but we only have the SourceID() on the
+	// initializing shards, not the other way around. Create a reverse map from the leaving shard
+	// ID to its new owner.
+
+
+	leavingShardIDToOwningInst := make(map[leavingShardKey]string)
+	for _, inst := range p.Instances() {
+		for _, s := range inst.Shards().All() {
+			if s.State() == shard.Initializing {
+				leavingShardIDToOwningInst[leavingShardKey{
+					ShardID:       s.ID(),
+					LeavingInstID: s.SourceID(),
+				}] = inst.ID()
+			}
+		}
+	}
+
+	shardSetIDToOwners := make(map[uint32][]placement.Instance)
+	for _, inst := range p.Instances() {
+		shardSetIDToOwners[inst.ShardSetID()] = append(shardSetIDToOwners[inst.ShardSetID()], inst)
+	}
+
+	// operate in terms of pairs.
+
+	nodesToHandle := make([]placement.Instance, 0, len(leavingInstanceIDs))
+	for _, leavingInstID := range leavingInstanceIDs {
+		leavingInst, ok := p.Instance(leavingInstID)
+		if !ok {
+			return nil, fmt.Errorf("leaving instance %s isn't in the placement", leavingInstID)
+		}
+
+		nodesToHandle = append(nodesToHandle, leavingInst)
+
+		// add the mirrors
+		mirrors, _ := shardSetIDToOwners[leavingInst.ShardSetID()]
+		mirrorsFound := 0
+		for _, mirror := range mirrors {
+			if mirror.ID() == leavingInstID {
+				continue
+			}
+
+			mirrorsFound++
+			nodesToHandle = append(nodesToHandle, mirror)
+		}
+
+		// amainsd: don't need to check number of mirrors here because there could be replaces etc.
+		//
+		// expectedMirrors := p.ReplicaFactor() - 1
+		// if mirrorsFound != expectedMirrors {
+		// 	return nil, fmt.Errorf(
+		// 		"expected to find %d replica nodes for leaving instance %s, but found %d",
+		// 		expectedMirrors,
+		// 		leavingInstID,
+		// 		mirrorsFound,
+		// 	)
+		// }
+	}
+
+	var err error
+	for _, leavingInst := range nodesToHandle {
+		p, err = a.markReplaceInstanceAvailable(p, leavingShardIDToOwningInst, leavingInst)
+		if err != nil {
+		    return nil, err
+		}
+
+		// also handle this node's mirrors
+	}
+	return p, nil
+}
+
+func (a mirroredAlgorithm) markReplaceInstanceAvailable(
+	p placement.Placement,
+	leavingShardIDToOwningInst map[leavingShardKey]string,
+	leavingInst placement.Instance,
+) (placement.Placement, error) {
+	leavingInstID := leavingInst.ID()
+
+	var err error
+	// find initializing shards
+	for _, s := range leavingInst.Shards().All() {
+		switch s.State() {
+		case shard.Available:
+			continue
+		case shard.Initializing:
+			p, err = a.MarkShardsAvailable(p, leavingInstID, s.ID())
+			if err != nil {
+			    return nil, err
+			}
+			// mark available
+		case shard.Leaving:
+			// find the pair, mark that available
+			newOwnerID, ok := leavingShardIDToOwningInst[leavingShardKey{
+				LeavingInstID: leavingInstID,
+				ShardID:       s.ID(),
+			}]
+			if !ok {
+				return nil, fmt.Errorf(
+					"couldn't find new owning instance for leaving shard %d on instance %s",
+					s.ID(),
+					leavingInstID,
+				)
+			}
+
+			p, err = a.MarkShardsAvailable(p, newOwnerID, s.ID())
+			if err != nil {
+				return nil, fmt.Errorf("marking shards available on new owning instance %s: %w", newOwnerID, err)
+			}
+		}
+	}
+
+	return p, nil
+
+	// initializingShards := leavingInst.Shards().ShardsForState(shard.Initializing)
+	// initializingShardIDs := make([]uint32, 0, len(initializingShards))
+	// for _, s := range initializingShards {
+	// 	initializingShardIDs = append(initializingShardIDs, s.ID())
+	// }
+	//
+	// p, err = a.MarkShardsAvailable(p, leavingInstID, initializingShardIDs...)
+	// if err != nil {
+	// 	return nil, fmt.Errorf(
+	// 		"failed to mark shards available for leaving instance %s: %w",
+	// 		leavingInstID,
+	// 		err,
+	// 	)
+	// }
+}
+
+// amainsd: cleanup
+func printInstances(instances []placement.Instance) {
+	if err := printInstancesToStream(os.Stdout, instances); err != nil {
+		// N.B.: printing to stdout basically shouldn't error; panic is appropriate here.
+		panic(err.Error())
+	}
+}
+
+func printInstancesToStream(out io.Writer, instances []placement.Instance) error {
+	for _, instance := range instances {
+		s := instance.Shards()
+		_, err := fmt.Fprintf(out, "instance %s shardset: %d, weight %d: %d Init, %d Available, %d Leaving, %d total\n",
+			instance.ID(), instance.ShardSetID(), instance.Weight(), s.NumShardsForState(shard.Initializing),
+			s.NumShardsForState(shard.Available), s.NumShardsForState(shard.Leaving), s.NumShards())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPlacement(p placement.Placement) {
+	if err := printPlacementToStream(os.Stdout, p); err != nil {
+		// printing to stdout shouldn't error; panic is appropriate if it does.
+		panic(err.Error())
+	}
+}
+
+func printPlacementToStream(out io.Writer, p placement.Placement) error {
+	if _, err := fmt.Fprintln(out, "shards distribution:"); err != nil {
+		return err
+	}
+
+	return printInstancesToStream(out, p.Instances())
+}
+
 
 func (a mirroredAlgorithm) MarkShardsAvailable(
 	p placement.Placement,
