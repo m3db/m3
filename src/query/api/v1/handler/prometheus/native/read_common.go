@@ -101,6 +101,7 @@ func parseRequest(
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOpts.DocsLimit,
+			Instantaneous:      instantaneous,
 		}}
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()

@@ -22,6 +22,8 @@ package utils
 
 import (
 	"container/heap"
+	"math"
+	"sort"
 )
 
 // ValueIndexPair is a pair of float value and index at which it exists
@@ -33,17 +35,38 @@ type ValueIndexPair struct {
 type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
 func maxHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val {
+	if equalWithNaNs(i.Val, j.Val) {
 		return i.Index > j.Index
 	}
-	return i.Val < j.Val
+	return i.Val < j.Val || lesserIfNaNs(i.Val, j.Val)
 }
 
 func minHeapLess(i, j ValueIndexPair) bool {
-	if i.Val == j.Val {
+	if equalWithNaNs(i.Val, j.Val) {
 		return i.Index > j.Index
 	}
-	return i.Val > j.Val
+	return i.Val > j.Val || lesserIfNaNs(i.Val, j.Val)
+}
+
+// Compares two floats for equality with NaNs taken into account.
+func equalWithNaNs(i,j float64) bool {
+	return i == j || math.IsNaN(i) && math.IsNaN(j)
+}
+
+// Compares NaNs.
+// Basically, we do not want to add NaNs to the heap when it has reached it's cap so this fn should be used to prevent this.
+func lesserIfNaNs(i,j float64) bool {
+	return math.IsNaN(i) && !math.IsNaN(j)
+}
+
+// Compares two float64 values which one is lesser with NaNs. NaNs are always sorted away.
+func LesserWithNaNs(i, j float64) bool {
+	return i < j || math.IsNaN(j) && !math.IsNaN(i)
+}
+
+// Compares two float64 values which one is greater with NaNs. NaNs are always sorted away.
+func GreaterWithNaNs(i, j float64) bool {
+	return i > j || math.IsNaN(j) && !math.IsNaN(i)
 }
 
 // FloatHeap is a heap that can be given a maximum size
@@ -82,7 +105,7 @@ func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 }
 
 // Push pushes a value and index pair to the heap
-func (fh FloatHeap) Push(value float64, index int) {
+func (fh *FloatHeap) Push(value float64, index int) {
 	h := fh.floatHeap
 	// If capacity is zero or negative, allow infinite size heap
 	if fh.capacity > 0 {
@@ -99,8 +122,8 @@ func (fh FloatHeap) Push(value float64, index int) {
 			// NB(arnikola): unfortunately, can't just replace first
 			// element as it may not respect internal order. Need to
 			// run heap.Fix() to rectify this
-			if fh.isMaxHeap && value > peek.Val ||
-				(!fh.isMaxHeap && value < peek.Val) {
+			if (fh.isMaxHeap && GreaterWithNaNs(value, peek.Val)) ||
+				(!fh.isMaxHeap && LesserWithNaNs(value, peek.Val)) {
 				h.heap[0] = ValueIndexPair{
 					Val:   value,
 					Index: index,
@@ -122,12 +145,12 @@ func (fh FloatHeap) Push(value float64, index int) {
 }
 
 // Len returns the current length of the heap
-func (fh FloatHeap) Len() int {
+func (fh *FloatHeap) Len() int {
 	return fh.floatHeap.Len()
 }
 
 // Cap returns the capacity of the heap
-func (fh FloatHeap) Cap() int {
+func (fh *FloatHeap) Cap() int {
 	return fh.capacity
 }
 
@@ -137,14 +160,23 @@ func (fh *FloatHeap) Reset() {
 }
 
 // Flush flushes the float heap and resets it. Does not guarantee order.
-func (fh FloatHeap) Flush() []ValueIndexPair {
+func (fh *FloatHeap) Flush() []ValueIndexPair {
 	values := fh.floatHeap.heap
 	fh.Reset()
 	return values
 }
 
+// OrderedFlush flushes the float heap and returns values in order.
+func (fh *FloatHeap) OrderedFlush() []ValueIndexPair {
+	flushed := fh.Flush()
+	sort.Slice(flushed, func(i, j int) bool {
+		return !fh.floatHeap.less(flushed[i], flushed[j]) //reverse sort
+	})
+	return flushed
+}
+
 // Peek reveals the top value of the heap without mutating the heap.
-func (fh FloatHeap) Peek() (ValueIndexPair, bool) {
+func (fh *FloatHeap) Peek() (ValueIndexPair, bool) {
 	h := fh.floatHeap.heap
 	if len(h) == 0 {
 		return ValueIndexPair{}, false

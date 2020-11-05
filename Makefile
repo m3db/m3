@@ -20,9 +20,6 @@ tools_bin_path       := $(abspath ./_tools/bin)
 combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
 mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
@@ -45,7 +42,6 @@ LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
-GOMETALINT_VERSION        := v2.0.5
 
 # Retool will look for tools.json in the nearest parent git directory if not
 # explicitly told the current dir. Allow setting the base dir so that tools can
@@ -86,12 +82,14 @@ TOOLS :=               \
 	read_data_files      \
 	read_index_files     \
 	read_index_segments  \
+	query_index_segments \
 	clone_fileset        \
 	dtest                \
 	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
 	m3ctl                \
+	linter               \
 
 .PHONY: setup
 setup:
@@ -167,7 +165,7 @@ tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
 
 .PHONY: all
-all: metalint test-ci-unit test-ci-integration services tools
+all: lint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-tools
@@ -176,10 +174,9 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
 	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
 	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/badtime
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
 	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
 	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(tools_bin_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint
 	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
 	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
@@ -187,11 +184,6 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 	GOBIN=$(tools_bin_path) go install github.com/wjdp/htmltest
-
-.PHONY: install-gometalinter
-install-gometalinter:
-	@mkdir -p $(tools_bin_path)
-	./scripts/install-gometalinter.sh -b $(tools_bin_path) -d $(GOMETALINT_VERSION)
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -264,8 +256,8 @@ SUBDIR_TARGETS := \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
-	all-gen         \
-	metalint
+	all-gen			\
+	lint
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -373,11 +365,12 @@ test-ci-integration-$(SUBDIR):
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
-.PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
-	@echo "--- metalinting $(SUBDIR)"
-	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+.PHONY: lint-$(SUBDIR)
+lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
+lint-$(SUBDIR): install-tools linter
+	@echo "--- :golang: Running linters on $(SUBDIR)"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/$(SUBDIR)/...
+	./bin/linter ./src/$(SUBDIR)/...
 
 endef
 
@@ -391,9 +384,7 @@ endef
 
 # generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
 # which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
-# NB: we skip metalint explicity as the default target below requires less invocations
-# of metalint and finishes faster.
-$(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
+$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
 
 # Builds the single kube bundle from individual manifest files.
 .PHONY: kube-gen-all
@@ -410,7 +401,7 @@ go-mod-tidy:
 .PHONY: all-gen
 all-gen: \
 	install-tools \
-	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(SUBDIR_TARGET)) \
 	kube-gen-all \
 	go-mod-tidy
 
@@ -460,12 +451,6 @@ else
 	bash -c "source $(SELF_DIR)/.nvm/nvm.sh; nvm install 6"
 	bash -c "source $(SELF_DIR)/.nvm/nvm.sh && nvm use 6 && $(node_cmd)"
 endif
-
-.PHONY: metalint
-metalint: install-gometalinter install-tools
-	@echo "--- metalinting src/"
-	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen

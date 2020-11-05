@@ -35,8 +35,17 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Services, Tools, Metalint"
-    command: make clean install-vendor-m3 services tools metalint
+  - name: "Services, Tools"
+    command: make clean install-vendor-m3 services tools
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Lint"
+    command: make clean lint
+    env:
+      CGO_ENABLED: 0
     plugins:
       docker-compose#v2.5.1:
         run: app

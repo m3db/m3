@@ -95,7 +95,11 @@ func run(opts runOptions) {
 	log := opts.log
 
 	fsOpts := fs.NewOptions().
-		SetFilePathPrefix(opts.filePathPrefix)
+		SetFilePathPrefix(opts.filePathPrefix).
+		// Always validate checksums before reading and/or validating contents
+		// regardless of whether this is a validation run or just reading
+		// the raw files.
+		SetIndexReaderAutovalidateIndexSegments(true)
 
 	indexDirPath := fs.IndexDataDirPath(opts.filePathPrefix)
 
@@ -202,7 +206,7 @@ func readBlockSegments(
 
 	log.Info("reading block segments")
 
-	segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+	readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 		ReaderOptions: fs.IndexReaderOpenOptions{
 			Identifier:  infoFile.ID,
 			FileSetType: persist.FileSetFlushType,
@@ -214,7 +218,13 @@ func readBlockSegments(
 		return
 	}
 
-	for i, seg := range segments {
+	if readResult.Validated {
+		log.Info("validated segments")
+	} else {
+		log.Error("expected to validate segments but did not validate")
+	}
+
+	for i, seg := range readResult.Segments {
 		jw := json.NewWriter(out)
 		jw.BeginObject()
 
