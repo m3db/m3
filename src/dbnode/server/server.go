@@ -440,6 +440,7 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
+
 	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
@@ -546,8 +547,8 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not get pooling policy", zap.Error(err))
 	}
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, poolingPolicy)
 
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, poolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -667,6 +668,7 @@ func Run(runOpts RunOptions) {
 	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
 		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
 	}
+
 	listenAddress := cfg.ListenAddressOrDefault()
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		listenAddress, contextPool, tchanOpts).ListenAndServe()
