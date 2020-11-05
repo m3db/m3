@@ -2044,7 +2044,7 @@ func (s *dbShard) UpdateFlushStates() {
 		// before terminating.
 		if currState.ColdVersionRetrievable < info.VolumeIndex {
 			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
-			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex, false)
 		}
 	}
 }
@@ -2617,10 +2617,14 @@ func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, vers
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionFlushed(
+	blockStart time.Time,
+	version int,
+	setInitialFileOpStatus bool,
+) {
 	s.flushState.Lock()
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	if !ok {
+	if !ok && setInitialFileOpStatus {
 		state.WarmStatus = fileOpSuccess
 	}
 	state.ColdVersionFlushed = version
@@ -2853,7 +2857,7 @@ func (s *dbShard) AggregateTiles(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		if err = s.finishWriting(opts.Start, nextVolume); err != nil {
+		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -3002,14 +3006,18 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
-func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
+func (s *dbShard) finishWriting(
+	startTime time.Time,
+	nextVersion int,
+	setInitialFileOpStatus bool,
+) error {
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
 	// allow the SeekerManager to open a lease on the latest version of the fileset files because
 	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
 	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
 	// evicted (which is the desired behavior because we haven't updated the open leases yet which
 	// means the newly written data is not available for querying via the SeekerManager yet.)
-	s.setFlushStateColdVersionFlushed(startTime, nextVersion)
+	s.setFlushStateColdVersionFlushed(startTime, nextVersion, setInitialFileOpStatus)
 
 	// Notify all block leasers that a new volume for the namespace/shard/blockstart
 	// has been created. This will block until all leasers have relinquished their
@@ -3066,7 +3074,7 @@ func (s shardColdFlush) Done() error {
 			continue
 		}
 
-		err := s.shard.finishWriting(startTime, nextVersion)
+		err := s.shard.finishWriting(startTime, nextVersion, false)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
