@@ -10,24 +10,6 @@ db:
     resolver: config
     value: m3db_local
 
-  # TODO: remove below and set default
-  cache:
-    series:
-      policy: lru
-    postingsList:
-      size: 262144
-
-  # TODO: remove below and set default
-  commitlog:
-    flushMaxBytes: 524288
-    flushEvery: 1s
-    queue:
-      calculationType: fixed
-      size: 2097152
-
-  filesystem:
-    filePathPrefix: /var/lib/m3db
-
   config:
       service:
           env: default_env

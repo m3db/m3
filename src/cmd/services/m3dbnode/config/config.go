@@ -73,6 +73,27 @@ var (
 	defaultGCPercentage                  = 100
 	defaultWriteNewSeriesAsync           = true
 	defaultWriteNewSeriesBackoffDuration = 2 * time.Millisecond
+	defaultCachePostingsListSize         = 262144
+	defaultCache                         = CacheConfigurations{
+		Series: &SeriesCacheConfiguration{
+			Policy: series.DefaultCachePolicy,
+		},
+		PostingsList: &PostingsListCacheConfiguration{
+			Size: &defaultCachePostingsListSize,
+		},
+	}
+	defaultCommitLogPolicy = CommitLogPolicy{
+		FlushMaxBytes: 524288,
+		FlushEvery:    time.Second * 1,
+		Queue: CommitLogQueuePolicy{
+			Size:            2097152,
+			CalculationType: CalculationTypeFixed,
+		},
+	}
+	defaultFilesystemPrefix = "/var/lib/m3db"
+	defaultFilesystem       = FilesystemConfiguration{
+		FilePathPrefix: &defaultFilesystemPrefix,
+	}
 )
 
 // Configuration is the top level configuration that includes both a DB
@@ -139,13 +160,13 @@ type DBConfiguration struct {
 	BlockRetrieve *BlockRetrievePolicy `yaml:"blockRetrieve"`
 
 	// Cache configurations.
-	Cache CacheConfigurations `yaml:"cache"`
+	Cache *CacheConfigurations `yaml:"cache"`
 
 	// The filesystem configuration for the node.
-	Filesystem FilesystemConfiguration `yaml:"filesystem"`
+	Filesystem *FilesystemConfiguration `yaml:"filesystem"`
 
 	// The commit log policy for the node.
-	CommitLog CommitLogPolicy `yaml:"commitlog"`
+	CommitLog *CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing data within a cluster.
 	Repair *RepairPolicy `yaml:"repair"`
@@ -244,6 +265,30 @@ func (c *DBConfiguration) DebugListenAddressOrDefault() string {
 		return defaultDebugListenAddress
 	}
 	return *c.DebugListenAddress
+}
+
+// CacheOrDefault returns the cache configuration or default.
+func (c *DBConfiguration) CacheOrDefault() CacheConfigurations {
+	if c.Cache == nil {
+		return defaultCache
+	}
+	return *c.Cache
+}
+
+// FilesystemOrDefault returns the filesystem configuration or default.
+func (c *DBConfiguration) FilesystemOrDefault() FilesystemConfiguration {
+	if c.Filesystem == nil {
+		return defaultFilesystem
+	}
+	return *c.Filesystem
+}
+
+// CommitLogOrDefault returns the commit log policy or default.
+func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
+	if c.CommitLog == nil {
+		return defaultCommitLogPolicy
+	}
+	return *c.CommitLog
 }
 
 // GCPercentageOrDefault returns the GC percentage or default.
