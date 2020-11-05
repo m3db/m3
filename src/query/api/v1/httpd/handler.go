@@ -379,17 +379,30 @@ func (h *Handler) registerProfileEndpoints() {
 	h.router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
 }
 
+type registeredRoute struct {
+	Path    string   `json:"path"`
+	Methods []string `json:"methods,omitempty"`
+}
+
 // Endpoints useful for viewing routes directory.
 func (h *Handler) registerRoutesEndpoint() {
 	h.router.HandleFunc(routesURL, func(w http.ResponseWriter, r *http.Request) {
-		var routes []string
+		var routes []registeredRoute
 		err := h.router.Walk(
 			func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 				str, err := route.GetPathTemplate()
 				if err != nil {
 					return err
 				}
-				routes = append(routes, str)
+				methods, _ := route.GetMethods()
+				if err != nil {
+					// Sometimes routes don't specify methods.
+					methods = nil
+				}
+				routes = append(routes, registeredRoute{
+					Path:    str,
+					Methods: methods,
+				})
 				return nil
 			})
 		if err != nil {
@@ -397,7 +410,7 @@ func (h *Handler) registerRoutesEndpoint() {
 			return
 		}
 		json.NewEncoder(w).Encode(struct {
-			Routes []string `json:"routes"`
+			Routes []registeredRoute `json:"routes"`
 		}{
 			Routes: routes,
 		})

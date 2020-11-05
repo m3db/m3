@@ -161,7 +161,6 @@ func RegisterRoutes(
 	readyHandler := wrapped(
 		applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
 	r.HandleFunc(M3DBReadyURL, readyHandler.ServeHTTP).Methods(ReadyHTTPMethod)
-
 }
 
 func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
