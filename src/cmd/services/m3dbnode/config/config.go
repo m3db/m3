@@ -265,9 +265,23 @@ func (c *DBConfiguration) WriteNewSeriesAsyncOrDefault() bool {
 // WriteNewSeriesBackoffDurationOrDefault returns the backoff duration for new series inserts.
 func (c *DBConfiguration) WriteNewSeriesBackoffDurationOrDefault() time.Duration {
 	if c.WriteNewSeriesBackoffDuration == nil {
-		return defaultWriteNewSeriesBackoffDuratio
+		return defaultWriteNewSeriesBackoffDuration
 	}
 	return *c.WriteNewSeriesBackoffDuration
+}
+
+// PoolingPolicyOrDefault returns the pooling policy or default.
+func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
+	var policy PoolingPolicy
+	if c.PoolingPolicy != nil {
+		policy = *c.PoolingPolicy
+	}
+
+	if err := policy.InitDefaultsAndValidate(); err != nil {
+		return PoolingPolicy{}, err
+	}
+
+	return policy, nil
 }
 
 // Validate validates the Configuration. We use this method to validate fields
@@ -277,10 +291,8 @@ func (c *DBConfiguration) Validate() error {
 		return err
 	}
 
-	if c.PoolingPolicy != nil {
-		if err := c.PoolingPolicy.Validate(); err != nil {
-			return err
-		}
+	if _, err := c.PoolingPolicyOrDefault(); err != nil {
+		return err
 	}
 
 	if err := c.Client.Validate(); err != nil {
