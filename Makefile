@@ -224,13 +224,6 @@ endif
 endif
 	$(tools_bin_path)/htmltest -c $(BUILD)/.htmltest.yml
 
-.PHONY: lint
-lint: export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
-lint: install-tools linter
-	@echo "--- :golang: Running linters"
-	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint
-	./bin/linter ./...
-
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
@@ -265,7 +258,8 @@ SUBDIR_TARGETS := \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
-	all-gen
+	all-gen			\
+	lint
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -372,6 +366,13 @@ test-ci-integration-$(SUBDIR):
 	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+
+.PHONY: lint-$(SUBDIR)
+lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
+lint-$(SUBDIR): install-tools linter
+	@echo "--- :golang: Running linters on $(SUBDIR)"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/$(SUBDIR)/...
+	./bin/linter ./src/$(SUBDIR)/...
 
 endef
 
