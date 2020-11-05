@@ -251,7 +251,7 @@ func (t *sampledTimer) Start() tally.Stopwatch {
 }
 
 func (t *sampledTimer) Stop(startTime tally.Stopwatch) {
-	if startTime == nullStopWatchStart { // nolint: badtime
+	if startTime == nullStopWatchStart {
 		// If startTime is nullStopWatchStart, do nothing.
 		return
 	}
