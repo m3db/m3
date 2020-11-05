@@ -51,7 +51,6 @@ import (
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	m3xclock "github.com/m3db/m3/src/x/clock"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -419,7 +418,7 @@ func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []node.ServiceNode) error
 // available, or the configured bootstrap timeout period; whichever is sooner. It returns
 // an error indicating if all the nodes finished bootstrapping.
 func (dt *DTestHarness) WaitUntilAllShardsAvailable() error {
-	allAvailable := m3xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
+	allAvailable := xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
 	if !allAvailable {
 		return fmt.Errorf("all shards not available")
 	}
