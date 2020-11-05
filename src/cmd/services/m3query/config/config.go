@@ -68,31 +68,22 @@ const (
 
 var (
 	defaultLogging = xlog.Configuration{
-		Level:  "info",
-		File:   "",
-		Fields: nil,
+		Level: "info",
 	}
 	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
 	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
 	defaultMetrics                    = instrument.MetricsConfiguration{
 		RootScope: &instrument.ScopeConfiguration{
-			Prefix:            "coordinator",
-			ReportingInterval: 0,
-			CommonTags:        nil,
+			Prefix: "coordinator",
 		},
 		PrometheusReporter: &instrument.PrometheusConfiguration{
 			HandlerPath: "/metrics",
 			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
-			ListenAddress:            "0.0.0.0:7203",
-			TimerType:                "",
-			DefaultHistogramBuckets:  nil,
-			DefaultSummaryObjectives: nil,
-			OnError:                  "",
+			ListenAddress: "0.0.0.0:7203",
 		},
 		Sanitization:    &defaultMetricsSanitization,
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
-		M3Reporter:      nil,
 	}
 
 	// 5m is the default lookback in Prometheus

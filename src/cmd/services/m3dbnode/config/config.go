@@ -53,26 +53,17 @@ const (
 
 var (
 	defaultLogging = xlog.Configuration{
-		Level:  "info",
-		File:   "",
-		Fields: nil,
+		Level: "info",
 	}
 	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
 	defaultMetricsExtendedMetricsType = instrument.DetailedExtendedMetrics
 	defaultMetrics                    = instrument.MetricsConfiguration{
-		RootScope: nil,
 		PrometheusReporter: &instrument.PrometheusConfiguration{
-			HandlerPath:              "/metrics",
-			ListenAddress:            "",
-			TimerType:                "",
-			DefaultHistogramBuckets:  nil,
-			DefaultSummaryObjectives: nil,
-			OnError:                  "",
+			HandlerPath: "/metrics",
 		},
 		Sanitization:    &defaultMetricsSanitization,
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
-		M3Reporter:      nil,
 	}
 	defaultListenAddress                 = "0.0.0.0:9000"
 	defaultClusterListenAddress          = "0.0.0.0:9001"
@@ -86,14 +77,10 @@ var (
 	defaultCache                         = CacheConfigurations{
 		Series: &SeriesCacheConfiguration{
 			Policy: series.DefaultCachePolicy,
-			LRU:    nil,
 		},
 		PostingsList: &PostingsListCacheConfiguration{
-			Size:        &defaultCachePostingsListSize,
-			CacheRegexp: nil,
-			CacheTerms:  nil,
+			Size: &defaultCachePostingsListSize,
 		},
-		Regexp: nil,
 	}
 	defaultCommitLogPolicy = CommitLogPolicy{
 		FlushMaxBytes: 524288,
@@ -102,23 +89,10 @@ var (
 			Size:            2097152,
 			CalculationType: CalculationTypeFixed,
 		},
-		QueueChannel: nil,
 	}
 	defaultFilesystemPrefix = "/var/lib/m3db"
 	defaultFilesystem       = FilesystemConfiguration{
-		FilePathPrefix:                  &defaultFilesystemPrefix,
-		WriteBufferSize:                 nil,
-		DataReadBufferSize:              nil,
-		InfoReadBufferSize:              nil,
-		SeekReadBufferSize:              nil,
-		ThroughputLimitMbps:             nil,
-		ThroughputCheckEvery:            nil,
-		NewFileMode:                     nil,
-		NewDirectoryMode:                nil,
-		Mmap:                            nil,
-		ForceIndexSummariesMmapMemory:   nil,
-		ForceBloomFilterMmapMemory:      nil,
-		BloomFilterFalsePositivePercent: nil,
+		FilePathPrefix: &defaultFilesystemPrefix,
 	}
 )
 
