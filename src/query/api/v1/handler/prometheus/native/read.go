@@ -141,15 +141,20 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handleroptions.AddWarningHeaders(w, result.Meta)
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
+	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
+	if !keepNaNs {
+		keepNaNs = result.Meta.KeepNaNs
+	}
+
 	if h.instant {
-		renderResultsInstantaneousJSON(w, result, h.opts.Config().ResultOptions.KeepNans)
+		renderResultsInstantaneousJSON(w, result, keepNaNs)
 		return
 	}
 
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
-		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNaNs,
 	})
 
 	if err != nil {

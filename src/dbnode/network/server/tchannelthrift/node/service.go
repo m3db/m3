@@ -585,13 +585,17 @@ func (s *service) aggregateTiles(
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}
-	opts, err := storage.NewAggregateTilesOptions(start, end, step)
-	if err != nil {
-		return 0, tterrors.NewBadRequestError(err)
-	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
+
+	opts, err := storage.NewAggregateTilesOptions(
+		start, end, step,
+		sourceNsID,
+		s.opts.InstrumentOptions())
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
 
 	processedTileCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {

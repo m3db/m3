@@ -1734,6 +1734,7 @@ func (n *dbNamespace) aggregateTiles(
 	n.RUnlock()
 
 	var (
+		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
 		targetShards      = n.OwnedShards()
 		bytesPool         = sourceNs.StorageOptions().BytesPool()
 		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
@@ -1777,6 +1778,7 @@ func (n *dbNamespace) aggregateTiles(
 			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
 
 		processedTileCount += shardProcessedTileCount
+		processedShards.Inc(1)
 		if err != nil {
 			return 0, fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 		}
