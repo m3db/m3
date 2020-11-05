@@ -157,7 +157,7 @@ type DBConfiguration struct {
 	PoolingPolicy *PoolingPolicy `yaml:"pooling"`
 
 	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	Discovery DiscoveryConfiguration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
@@ -188,6 +188,45 @@ type DBConfiguration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+type DiscoveryConfigurationType uint
+
+const (
+	ConfigType              DiscoveryConfigurationType = iota // config
+	M3DBSingleNodeType                                        // m3db_single_node
+	M3DBClusterType                                           // m3db_cluster
+	M3AggregatorClusterType                                   // m3aggregator_cluster
+
+)
+
+type DiscoveryConfiguration struct {
+	Type DiscoveryConfigurationType `yaml:"type"`
+
+	M3DBCluster *M3DBClusterDiscoveryConfiguration `yaml:"m3dbCluster"`
+
+	Config *environment.Configuration `yaml:"config"`
+}
+
+type M3DBClusterDiscoveryConfiguration struct {
+	Env       string   `yaml:"env"`
+	Zone      *string  `yaml:"zone"`
+	Endpoints []string `yaml:"endpoints"`
+}
+
+func (c M3DBClusterDiscoveryConfiguration) ZoneOrDefault() string {
+	if c.Zone == nil {
+		return "embedded"
+	}
+	return *c.Zone
+}
+
+func (c *DBConfiguration) DiscoveryConfiguration() (environment.Configuration, error) {
+	switch c.Discovery.Type {
+	// return a environment.Configuration based on discovery type
+	}
+	// This should be error if unknown type I believe.
+	return environment.Configuration{}, fmt.Errorf("unrecognized discovery type: %d", c.Type)
 }
 
 // LoggingOrDefault returns the logging configuration or defaults.

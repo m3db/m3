@@ -48,10 +48,37 @@ db:
       calculationType: fixed
       size: 2097152
 
+  # TODO: remove below and set default
   filesystem:
     filePathPrefix: /var/lib/m3db
 
-  config:
+  # M3DB single node example
+  discovery:
+    type: m3db_single_node
+
+  # M3DB cluster example
+  discovery:
+    type: m3db_cluster
+    m3dbCluster:
+      env: foo/m3-cluster-short
+      endpoints:
+        - etcd-0.etcd:2379
+        - etcd-1.etcd:2379
+        - etcd-2.etcd:2379
+
+  # M3 aggregator example
+  discovery:
+    type: m3aggregator_cluster
+    m3AggregatorCluster:
+      env: foo/m3-cluster-short
+      endpoints:
+        - etcd-0.etcd:2379
+        - etcd-1.etcd:2379
+        - etcd-2.etcd:2379
+
+  # Default custom config type (default enum value should default to "type: config")
+  discovery:
+    config:
       service:
           env: default_env
           zone: embedded
@@ -65,6 +92,21 @@ db:
           initialCluster:
               - hostID: m3db_local
                 endpoint: http://127.0.0.1:2380
+
+  # config:
+  #     service:
+  #         env: default_env
+  #         zone: embedded
+  #         service: m3db
+  #         cacheDir: /var/lib/m3kv
+  #         etcdClusters:
+  #             - zone: embedded
+  #               endpoints:
+  #                   - 127.0.0.1:2379
+  #     seedNodes:
+  #         initialCluster:
+  #             - hostID: m3db_local
+  #               endpoint: http://127.0.0.1:2380
 
   # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
   # for quick local setup (which this config will send data to).
