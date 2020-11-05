@@ -47,14 +47,20 @@ type ReadIndexSegmentsOptions struct {
 	newPersistentSegmentFn newPersistentSegmentFn
 }
 
+// ReadIndexSegmentsResult is the result of a call to ReadIndexSegments.
+type ReadIndexSegmentsResult struct {
+	Segments  []segment.Segment
+	Validated bool
+}
+
 // ReadIndexSegments will read a set of segments.
 func ReadIndexSegments(
 	opts ReadIndexSegmentsOptions,
-) ([]segment.Segment, error) {
+) (ReadIndexSegmentsResult, error) {
 	readerOpts := opts.ReaderOptions
 	fsOpts := opts.FilesystemOptions
 	if fsOpts == nil {
-		return nil, errFilesystemOptionsNotSpecified
+		return ReadIndexSegmentsResult{}, errFilesystemOptionsNotSpecified
 	}
 
 	newReader := opts.newReaderFn
@@ -69,13 +75,20 @@ func ReadIndexSegments(
 
 	reader, err := newReader(fsOpts)
 	if err != nil {
-		return nil, err
+		return ReadIndexSegmentsResult{}, err
 	}
 
 	var (
 		segments []segment.Segment
+		validate = opts.FilesystemOptions.IndexReaderAutovalidateIndexSegments()
 		success  = false
 	)
+
+	if validate {
+		if err = reader.Validate(); err != nil {
+			return ReadIndexSegmentsResult{}, err
+		}
+	}
 
 	// Need to do this to guarantee we release all resources in case of failure.
 	defer func() {
@@ -88,7 +101,7 @@ func ReadIndexSegments(
 	}()
 
 	if _, err := reader.Open(readerOpts); err != nil {
-		return nil, err
+		return ReadIndexSegmentsResult{}, err
 	}
 	segments = make([]segment.Segment, 0, reader.SegmentFileSets())
 
@@ -98,13 +111,13 @@ func ReadIndexSegments(
 			break
 		}
 		if err != nil {
-			return nil, err
+			return ReadIndexSegmentsResult{}, err
 		}
 
 		fstOpts := fsOpts.FSTOptions()
 		seg, err := newPersistentSegment(fileset, fstOpts)
 		if err != nil {
-			return nil, err
+			return ReadIndexSegmentsResult{}, err
 		}
 
 		segments = append(segments, seg)
@@ -113,5 +126,8 @@ func ReadIndexSegments(
 	// Indicate we don't need the defer() above to release any resources, as we are
 	// transferring ownership to the caller.
 	success = true
-	return segments, nil
+	return ReadIndexSegmentsResult{
+		Segments:  segments,
+		Validated: validate,
+	}, nil
 }

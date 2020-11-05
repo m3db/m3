@@ -27,14 +27,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	dts "github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/checked"
-	xcost "github.com/m3db/m3/src/x/cost"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -76,15 +74,13 @@ func verifyExpandPromSeries(
 ) {
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, num, 2)
 	fetchResult := fr(t, iters, makeTag("foo", "bar", num)...)
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
 	fetchResult.Metadata = block.ResultMetadata{
 		Exhaustive: ex,
 		LocalOnly:  true,
 		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
 	}
 
-	results, err := SeriesIteratorsToPromResult(fetchResult, pools, enforcer, nil)
+	results, err := SeriesIteratorsToPromResult(fetchResult, pools, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -306,7 +302,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	}
 
 	opts := models.NewTagOptions()
-	res, err := SeriesIteratorsToPromResult(buildIters(), nil, nil, opts)
+	res, err := SeriesIteratorsToPromResult(buildIters(), nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -314,7 +310,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, nil, opts)
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 }

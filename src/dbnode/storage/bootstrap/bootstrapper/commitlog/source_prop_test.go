@@ -134,7 +134,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
 						SetClockOptions(testCommitlogOpts.ClockOptions().SetNowFn(nowFn))
-				bootstrapOpts = testDefaultOpts.SetCommitLogOptions(commitLogOpts)
+				bootstrapOpts = testDefaultOpts.SetCommitLogOptions(commitLogOpts).
+						SetReturnUnfulfilledForCorruptCommitLogFiles(true)
 
 				start = input.currentTime.Truncate(blockSize)
 			)

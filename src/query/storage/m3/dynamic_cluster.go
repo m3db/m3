@@ -51,6 +51,7 @@ type dynamicCluster struct {
 	sync.RWMutex
 
 	allNamespaces           ClusterNamespaces
+	nonReadyNamespaces      ClusterNamespaces
 	unaggregatedNamespace   ClusterNamespace
 	aggregatedNamespaces    map[RetentionResolution]ClusterNamespace
 	namespacesByEtcdCluster map[int]clusterNamespaceLookup
@@ -234,18 +235,6 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 			continue
 		}
 
-		stagingState := newNsMd.Options().StagingState()
-		switch stagingState.Status() {
-		case namespace.UnknownStagingStatus:
-			d.logger.Error("namespace has unknown staging status",
-				zap.String("namespace", newNsMd.ID().String()))
-			continue
-		case namespace.InitializingStagingStatus:
-			d.logger.Debug("ignoring namespace while initializing",
-				zap.String("namespace", newNsMd.ID().String()))
-			continue
-		}
-
 		// Namespace has been added.
 		newClusterNamespaces, err := toClusterNamespaces(clusterCfg, newNsMd)
 		if err != nil {
@@ -326,13 +315,27 @@ func (d *dynamicCluster) updateClusterNamespacesWithLock() {
 
 	var (
 		newNamespaces            = make(ClusterNamespaces, 0, nsCount)
+		newNonReadyNamespaces    = make(ClusterNamespaces, 0, nsCount)
 		newAggregatedNamespaces  = make(map[RetentionResolution]ClusterNamespace)
 		newUnaggregatedNamespace ClusterNamespace
 	)
 
 	for _, nsMap := range d.namespacesByEtcdCluster {
-		for _, clusterNamespaces := range nsMap.metadataToClusterNamespaces {
+		for md, clusterNamespaces := range nsMap.metadataToClusterNamespaces {
 			for _, clusterNamespace := range clusterNamespaces {
+				status := md.Options().StagingState().Status()
+				// Don't make non-ready namespaces available for read/write in coordinator, but track
+				// them so that we can have the DB session available when we need to check their
+				// readiness in the /namespace/ready check.
+				if status != namespace.ReadyStagingStatus {
+					d.logger.Info("namespace has non-ready staging state status",
+						zap.String("namespace", md.ID().String()),
+						zap.String("status", status.String()))
+
+					newNonReadyNamespaces = append(newNonReadyNamespaces, clusterNamespace)
+					continue
+				}
+
 				attrs := clusterNamespace.Options().Attributes()
 				if attrs.MetricsType == storagemetadata.UnaggregatedMetricsType {
 					if newUnaggregatedNamespace != nil {
@@ -371,6 +374,7 @@ func (d *dynamicCluster) updateClusterNamespacesWithLock() {
 
 	d.unaggregatedNamespace = newUnaggregatedNamespace
 	d.aggregatedNamespaces = newAggregatedNamespaces
+	d.nonReadyNamespaces = newNonReadyNamespaces
 	d.allNamespaces = newNamespaces
 }
 
@@ -404,6 +408,14 @@ func (d *dynamicCluster) ClusterNamespaces() ClusterNamespaces {
 	d.RUnlock()
 
 	return allNamespaces
+}
+
+func (d *dynamicCluster) NonReadyClusterNamespaces() ClusterNamespaces {
+	d.RLock()
+	nonReadyNamespaces := d.nonReadyNamespaces
+	d.RUnlock()
+
+	return nonReadyNamespaces
 }
 
 func (d *dynamicCluster) UnaggregatedClusterNamespace() ClusterNamespace {

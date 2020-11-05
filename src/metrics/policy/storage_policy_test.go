@@ -38,31 +38,31 @@ var (
 	testStoragePolicy      = NewStoragePolicy(10*time.Second, xtime.Second, time.Hour)
 	testBadStoragePolicy   = NewStoragePolicy(10*time.Second, xtime.Unit(100), time.Hour)
 	testStoragePolicyProto = policypb.StoragePolicy{
-		Resolution: &policypb.Resolution{
+		Resolution: policypb.Resolution{
 			WindowSize: (10 * time.Second).Nanoseconds(),
 			Precision:  time.Second.Nanoseconds(),
 		},
-		Retention: &policypb.Retention{
+		Retention: policypb.Retention{
 			Period: time.Hour.Nanoseconds(),
 		},
 	}
 	testStoragePolicyProtoNoResolution = policypb.StoragePolicy{
-		Retention: &policypb.Retention{
+		Retention: policypb.Retention{
 			Period: time.Hour.Nanoseconds(),
 		},
 	}
 	testStoragePolicyProtoNoRetention = policypb.StoragePolicy{
-		Resolution: &policypb.Resolution{
+		Resolution: policypb.Resolution{
 			WindowSize: (10 * time.Second).Nanoseconds(),
 			Precision:  time.Second.Nanoseconds(),
 		},
 	}
 	testStoragePolicyProtoBadPrecision = policypb.StoragePolicy{
-		Resolution: &policypb.Resolution{
+		Resolution: policypb.Resolution{
 			WindowSize: (10 * time.Second).Nanoseconds(),
 			Precision:  2,
 		},
-		Retention: &policypb.Retention{
+		Retention: policypb.Retention{
 			Period: time.Hour.Nanoseconds(),
 		},
 	}
@@ -407,11 +407,11 @@ func TestNewStoragePolicyFromProto(t *testing.T) {
 	}{
 		{
 			s: &policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: int64(10 * time.Second),
 					Precision:  int64(time.Second),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: int64(24 * time.Hour),
 				},
 			},
@@ -419,11 +419,11 @@ func TestNewStoragePolicyFromProto(t *testing.T) {
 		},
 		{
 			s: &policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: int64(time.Minute),
 					Precision:  int64(time.Minute),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: int64(240 * time.Hour),
 				},
 			},

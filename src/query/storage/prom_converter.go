@@ -24,11 +24,9 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	xcost "github.com/m3db/m3/src/x/cost"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -38,7 +36,6 @@ const initRawFetchAllocSize = 32
 func iteratorToPromResult(
 	iter encoding.SeriesIterator,
 	tags models.Tags,
-	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*prompb.TimeSeries, error) {
 	samples := make([]prompb.Sample, 0, initRawFetchAllocSize)
@@ -54,11 +51,6 @@ func iteratorToPromResult(
 		return nil, err
 	}
 
-	r := enforcer.Add(xcost.Cost(len(samples)))
-	if r.Error != nil {
-		return nil, r.Error
-	}
-
 	return &prompb.TimeSeries{
 		Labels:  TagsToPromLabels(tags),
 		Samples: samples,
@@ -68,7 +60,6 @@ func iteratorToPromResult(
 // Fall back to sequential decompression if unable to decompress concurrently.
 func toPromSequentially(
 	fetchResult consolidators.SeriesFetchResult,
-	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
@@ -79,7 +70,7 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
-		series, err := iteratorToPromResult(iter, tags, enforcer, tagOptions)
+		series, err := iteratorToPromResult(iter, tags, tagOptions)
 		if err != nil {
 			return PromResult{}, err
 		}
@@ -99,7 +90,6 @@ func toPromSequentially(
 func toPromConcurrently(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
-	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
@@ -121,7 +111,7 @@ func toPromConcurrently(
 		wg.Add(1)
 		readWorkerPool.Go(func() {
 			defer wg.Done()
-			series, err := iteratorToPromResult(iter, tags, enforcer, tagOptions)
+			series, err := iteratorToPromResult(iter, tags, tagOptions)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -155,14 +145,13 @@ func toPromConcurrently(
 func seriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
-	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	if readWorkerPool == nil {
-		return toPromSequentially(fetchResult, enforcer, tagOptions)
+		return toPromSequentially(fetchResult, tagOptions)
 	}
 
-	return toPromConcurrently(fetchResult, readWorkerPool, enforcer, tagOptions)
+	return toPromConcurrently(fetchResult, readWorkerPool, tagOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -170,7 +159,6 @@ func seriesIteratorsToPromResult(
 func SeriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
-	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
@@ -178,12 +166,8 @@ func SeriesIteratorsToPromResult(
 		return PromResult{}, err
 	}
 
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
 	promResult, err := seriesIteratorsToPromResult(fetchResult,
-		readWorkerPool, enforcer, tagOptions)
+		readWorkerPool, tagOptions)
 	promResult.Metadata = fetchResult.Metadata
 	return promResult, err
 }

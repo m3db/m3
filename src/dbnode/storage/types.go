@@ -291,6 +291,12 @@ type Namespace interface {
 
 	// StorageOptions returns storage options.
 	StorageOptions() Options
+
+	// ReadOnly returns true if this Namespace is read only.
+	ReadOnly() bool
+
+	// SetReadOnly sets the value of ReadOnly option.
+	SetReadOnly(value bool)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -1384,7 +1390,8 @@ type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
 	Start, End time.Time
 	// Step is the downsampling step.
-	Step time.Duration
+	Step       time.Duration
+	InsOptions instrument.Options
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.

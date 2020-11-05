@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -73,6 +72,7 @@ import (
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
@@ -412,6 +412,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not construct postings list cache", zap.Error(err))
 	}
 	defer stopReporting()
+
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iopts.MetricsScope(),
+	})
 
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
@@ -848,52 +854,13 @@ func Run(runOpts RunOptions) {
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
-	bs, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-		rsOpts, opts, topoMapProvider, origin, m3dbClient)
+	bs, err := cfg.Bootstrap.New(
+		rsOpts, opts, topoMapProvider, origin, m3dbClient,
+	)
 	if err != nil {
 		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
-
 	opts = opts.SetBootstrapProcessProvider(bs)
-	timeout := bootstrapConfigInitTimeout
-
-	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers")
-	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
-		logger.Error("unable to start emitting bootstrap gauge",
-			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
-			zap.Error(err),
-		)
-	}
-	defer func() {
-		if err := bsGauge.Close(); err != nil {
-			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
-		}
-	}()
-
-	kvWatchBootstrappers(syncCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
-		func(bootstrappers []string) {
-			if len(bootstrappers) == 0 {
-				logger.Error("updated bootstrapper list is empty")
-				return
-			}
-
-			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-				rsOpts, opts, topoMapProvider, origin, m3dbClient)
-			if err != nil {
-				logger.Error("updated bootstrapper list failed", zap.Error(err))
-				return
-			}
-
-			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
-
-			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
-				logger.Error("unable to update bootstrap gauge with new bootstrappers",
-					zap.Strings("bootstrappers", bootstrappers),
-					zap.Error(err),
-				)
-			}
-		})
 
 	// Start the cluster services now that the M3DB client is available.
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
@@ -1306,53 +1273,6 @@ func setEncodersPerBlockLimitOnChange(
 	newRuntimeOpts := runtimeOpts.
 		SetEncodersPerBlockLimit(encoderLimit)
 	return runtimeOptsMgr.Update(newRuntimeOpts)
-}
-
-// this function will block for at most waitTimeout to try to get an initial value
-// before we kick off the bootstrap
-func kvWatchBootstrappers(
-	kv kv.Store,
-	logger *zap.Logger,
-	waitTimeout time.Duration,
-	defaultBootstrappers []string,
-	onUpdate func(bootstrappers []string),
-) {
-	vw, err := kv.Watch(kvconfig.BootstrapperKey)
-	if err != nil {
-		logger.Fatal("could not watch value for key with KV",
-			zap.String("key", kvconfig.BootstrapperKey))
-	}
-
-	initializedCh := make(chan struct{})
-
-	var initialized bool
-	go func() {
-		opts := util.NewOptions().SetLogger(logger)
-
-		for range vw.C() {
-			v, err := util.StringArrayFromValue(vw.Get(),
-				kvconfig.BootstrapperKey, defaultBootstrappers, opts)
-			if err != nil {
-				logger.Error("error converting KV update to string array",
-					zap.String("key", kvconfig.BootstrapperKey),
-					zap.Error(err),
-				)
-				continue
-			}
-
-			onUpdate(v)
-
-			if !initialized {
-				initialized = true
-				close(initializedCh)
-			}
-		}
-	}()
-
-	select {
-	case <-time.After(waitTimeout):
-	case <-initializedCh:
-	}
 }
 
 func withEncodingAndPoolingOptions(
