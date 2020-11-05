@@ -37,6 +37,7 @@ steps:
     <<: *common
   - name: "Services, Tools"
     command: make clean install-vendor-m3 services tools
+    <<: *common
   - name: "Lint"
     command: make clean lint
     env:
