@@ -92,6 +92,7 @@ var (
 		Sanitization:    &defaultMetricsSanitization,
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+		M3Reporter:      nil,
 	}
 
 	// 5m is the default lookback in Prometheus
