@@ -2857,7 +2857,7 @@ func (s *dbShard) AggregateTiles(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		// NB: setInitialFileOpStatus=true because there are no flushes happening in this
+		// NB: markWarmFlushStateSuccess=true because there are no flushes happening in this
 		// flow and we need to set WarmStatus to fileOpSuccess explicitly in order to make
 		// the new blocks readable.
 		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
@@ -3012,7 +3012,7 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 func (s *dbShard) finishWriting(
 	startTime time.Time,
 	nextVersion int,
-	setInitialFileOpStatus bool,
+	markWarmFlushStateSuccess bool,
 ) error {
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
 	// allow the SeekerManager to open a lease on the latest version of the fileset files because
@@ -3020,7 +3020,7 @@ func (s *dbShard) finishWriting(
 	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
 	// evicted (which is the desired behavior because we haven't updated the open leases yet which
 	// means the newly written data is not available for querying via the SeekerManager yet.)
-	s.setFlushStateColdVersionFlushed(startTime, nextVersion, setInitialFileOpStatus)
+	s.setFlushStateColdVersionFlushed(startTime, nextVersion, markWarmFlushStateSuccess)
 
 	// Notify all block leasers that a new volume for the namespace/shard/blockstart
 	// has been created. This will block until all leasers have relinquished their
