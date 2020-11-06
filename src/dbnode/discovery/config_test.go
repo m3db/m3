@@ -25,6 +25,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/environment"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,23 +36,8 @@ type: m3db_single_node
 `
 
 	hostID := "test_id"
+	envConfig := getEnvConfig(t, in, hostID)
 
-	fd, err := ioutil.TempFile("", "config.yaml")
-	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(in))
-	assert.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	assert.NoError(t, err)
-
-	envConfig, err := cfg.EnvironmentConfig(hostID)
-	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))
 
@@ -82,23 +68,8 @@ m3dbCluster:
 `
 
 	hostID := "test_id"
+	envConfig := getEnvConfig(t, in, hostID)
 
-	fd, err := ioutil.TempFile("", "config.yaml")
-	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(in))
-	assert.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	assert.NoError(t, err)
-
-	envConfig, err := cfg.EnvironmentConfig(hostID)
-	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Nil(t, envConfig.SeedNodes)
 
@@ -118,41 +89,25 @@ func TestM3AggregatorClusterType(t *testing.T) {
 	in := `
 type: m3aggregator_cluster
 m3AggregatorCluster:
-  env: a
-  zone: b
+  env: c
+  zone: d
   endpoints:
     - end_1
     - end_2
 `
 
 	hostID := "test_id"
+	envConfig := getEnvConfig(t, in, hostID)
 
-	fd, err := ioutil.TempFile("", "config.yaml")
-	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(in))
-	assert.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	assert.NoError(t, err)
-
-	envConfig, err := cfg.EnvironmentConfig(hostID)
-	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Nil(t, envConfig.SeedNodes)
-
 	s := envConfig.Services[0].Service
 	assert.Equal(t, defaultM3AggregatorService, s.Service)
-	assert.Equal(t, "a", s.Env)
-	assert.Equal(t, "b", s.Zone)
+	assert.Equal(t, "c", s.Env)
+	assert.Equal(t, "d", s.Zone)
 	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
 	assert.Equal(t, 1, len(s.ETCDClusters))
-	assert.Equal(t, "b", s.ETCDClusters[0].Zone)
+	assert.Equal(t, "d", s.ETCDClusters[0].Zone)
 	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
 	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
 	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
@@ -177,23 +132,8 @@ config:
 `
 
 	hostID := "test_id"
+	envConfig := getEnvConfig(t, in, hostID)
 
-	fd, err := ioutil.TempFile("", "config.yaml")
-	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(in))
-	assert.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	assert.NoError(t, err)
-
-	envConfig, err := cfg.EnvironmentConfig(hostID)
-	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))
 
@@ -210,4 +150,24 @@ config:
 	c := envConfig.SeedNodes.InitialCluster[0]
 	assert.Equal(t, "http://127.0.0.1:2380", c.Endpoint)
 	assert.Equal(t, "host_id", c.HostID)
+}
+
+func getEnvConfig(t *testing.T, in string, hostID string) environment.Configuration {
+	fd, err := ioutil.TempFile("", "config.yaml")
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(in))
+	assert.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	assert.NoError(t, err)
+
+	envConfig, err := cfg.EnvironmentConfig(hostID)
+	assert.NoError(t, err)
+	return envConfig
 }
