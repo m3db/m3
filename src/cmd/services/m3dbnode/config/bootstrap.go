@@ -163,6 +163,7 @@ func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration
 	if bsc.Verify == nil {
 		return BootstrapVerifyConfiguration{}
 	}
+
 	return *bsc.Verify
 }
 
@@ -178,6 +179,7 @@ func (c BootstrapVerifyConfiguration) VerifyIndexSegmentsOrDefault() bool {
 	if c.VerifyIndexSegments == nil {
 		return false
 	}
+
 	return *c.VerifyIndexSegments
 }
 
