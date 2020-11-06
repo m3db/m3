@@ -711,7 +711,9 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.True(t, allLeaving(p1, []placement.Instance{i4}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+
+	assertAllInitializing(t, p1, []string{"i5"}, nowNanos)
+	// assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
 
 	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i4})
 	require.NoError(t, err)
@@ -726,6 +728,27 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	assert.Equal(t, i4.Shards().NumShards(), i4.Shards().NumShardsForState(shard.Available))
 	_, ok = p2.Instance("i5")
 	assert.False(t, ok)
+}
+
+func assertAllInitializing(t *testing.T, p placement.Placement, instances []string, nowNanos int64) {
+	// assert.True(t, allInitializing(p, instances, nowNanos))
+
+	for _, instID := range instances {
+		inst, ok := p.Instance(instID)
+		require.True(t, ok)
+		assert.Equal(t, len(inst.Shards().ShardsForState(shard.Initializing)), inst.Shards().NumShards(), "instance %s", instID)
+		for _, s := range inst.Shards().All() {
+			require.True(
+				t,
+				s.CutoverNanos() > nowNanos,
+				"shard %d instance %s cutover %d now %d",
+				s.ID(),
+				instID,
+				s.CutoverNanos(),
+				nowNanos,
+			)
+		}
+	}
 }
 
 func TestMirrorReplaceAndRevertAfterCutover(t *testing.T) {
