@@ -609,6 +609,9 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0
       highWatermark: 0
   discovery:
+    type: null
+    m3dbCluster: null
+    m3AggregatorCluster: null
     config:
       services:
       - async: false
