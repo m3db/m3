@@ -345,8 +345,10 @@ func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
 // Validate validates the Configuration. We use this method to validate fields
 // where the validator package falls short.
 func (c *DBConfiguration) Validate() error {
-	if err := c.Filesystem.Validate(); err != nil {
-		return err
+	if c.Filesystem != nil {
+		if err := c.Filesystem.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if _, err := c.PoolingPolicyOrDefault(); err != nil {
