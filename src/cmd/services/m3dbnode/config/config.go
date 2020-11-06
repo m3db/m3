@@ -127,16 +127,16 @@ type DBConfiguration struct {
 	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// The host and port on which to listen for the node service.
-	ListenAddress *string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// The host and port on which to listen for the cluster service.
-	ClusterListenAddress *string `yaml:"clusterListenAddress" validate:"nonzero"`
+	ClusterListenAddress *string `yaml:"clusterListenAddress"`
 
 	// The HTTP host and port on which to listen for the node service.
-	HTTPNodeListenAddress *string `yaml:"httpNodeListenAddress" validate:"nonzero"`
+	HTTPNodeListenAddress *string `yaml:"httpNodeListenAddress"`
 
 	// The HTTP host and port on which to listen for the cluster service.
-	HTTPClusterListenAddress *string `yaml:"httpClusterListenAddress" validate:"nonzero"`
+	HTTPClusterListenAddress *string `yaml:"httpClusterListenAddress"`
 
 	// The host and port on which to listen for debug endpoints.
 	DebugListenAddress *string `yaml:"debugListenAddress"`

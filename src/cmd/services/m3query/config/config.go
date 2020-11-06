@@ -131,7 +131,7 @@ type Configuration struct {
 	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress *string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
