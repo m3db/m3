@@ -40,19 +40,19 @@ const (
 	defaultDiscoveryConfigType = ConfigType
 )
 
-var validDiscoveryConfigTypes = []DiscoveryConfigurationType{
+var validDiscoveryConfigTypes = []ConfigurationType{
 	ConfigType,
 	M3DBSingleNodeType,
 	M3DBClusterType,
 	M3AggregatorClusterType,
 }
 
-// DiscoveryConfigurationType defines the type of discovery configuration.
-type DiscoveryConfigurationType uint
+// ConfigurationType defines the type of discovery configuration.
+type ConfigurationType uint
 
 const (
 	// ConfigType defines a generic definition for service discovery via etcd.
-	ConfigType DiscoveryConfigurationType = iota
+	ConfigType ConfigurationType = iota
 	// M3DBSingleNodeType defines configuration for a single M3DB node via etcd.
 	M3DBSingleNodeType
 	// M3DBClusterType defines M3DB discovery via etcd.
@@ -61,8 +61,8 @@ const (
 	M3AggregatorClusterType
 )
 
-// UnmarshalYAML unmarshals an DiscoveryConfigurationType into a valid type from string.
-func (t *DiscoveryConfigurationType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML unmarshals an ConfigurationType into a valid type from string.
+func (t *ConfigurationType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -80,12 +80,12 @@ func (t *DiscoveryConfigurationType) UnmarshalYAML(unmarshal func(interface{}) e
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid DiscoveryConfigurationType '%s' valid types are: %s",
+	return fmt.Errorf("invalid ConfigurationType '%s' valid types are: %s",
 		str, validDiscoveryConfigTypes)
 }
 
 // String returns the discovery configuration type as a string.
-func (t DiscoveryConfigurationType) String() string {
+func (t ConfigurationType) String() string {
 	switch t {
 	case ConfigType:
 		return "config"
@@ -102,7 +102,7 @@ func (t DiscoveryConfigurationType) String() string {
 // Configuration defines how services are to be discovered.
 type Configuration struct {
 	// Type defines the type of discovery configuration being used.
-	Type *DiscoveryConfigurationType `yaml:"type"`
+	Type *ConfigurationType `yaml:"type"`
 
 	// M3DBCluster defines M3DB discovery via etcd.
 	M3DBCluster *M3DBClusterDiscoveryConfiguration `yaml:"m3dbCluster"`
