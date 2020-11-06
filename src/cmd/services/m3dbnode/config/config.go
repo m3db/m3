@@ -148,7 +148,7 @@ type DBConfiguration struct {
 	Client client.Configuration `yaml:"client"`
 
 	// The initial garbage collection target percentage.
-	GCPercentage *int `yaml:"gcPercentage" validate:"max=100"`
+	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
 
 	// The tick configuration, omit this to use default settings.
 	Tick *TickConfiguration `yaml:"tick"`
@@ -303,11 +303,11 @@ func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
 
 // GCPercentageOrDefault returns the GC percentage or default.
 func (c *DBConfiguration) GCPercentageOrDefault() int {
-	if c.GCPercentage == nil {
+	if c.GCPercentage == 0 {
 		return defaultGCPercentage
 	}
 
-	return *c.GCPercentage
+	return c.GCPercentage
 }
 
 // WriteNewSeriesAsyncOrDefault returns whether to write new series async or not.
