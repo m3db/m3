@@ -142,6 +142,7 @@ func getEnvConfig(t *testing.T, in string, hostID string) environment.Configurat
 
 	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
+
 	return envConfig
 }
 

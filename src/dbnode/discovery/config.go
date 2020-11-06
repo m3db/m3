@@ -18,14 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package discovery provides discovery configuration.
 package discovery
 
 import (
 	"errors"
 	"fmt"
 
-	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/dbnode/environment"
+
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 )
 
 const (
@@ -36,8 +38,6 @@ const (
 	defaultCacheDirectory                = "/var/lib/m3kv"
 	defaultSingleNodeClusterEndpoint     = "127.0.0.1:2379"
 	defaultSingleNodeClusterSeedEndpoint = "127.0.0.1:2380"
-
-	defaultDiscoveryConfigType = ConfigType
 )
 
 var validDiscoveryConfigTypes = []ConfigurationType{
@@ -70,16 +70,19 @@ func (t *ConfigurationType) UnmarshalYAML(unmarshal func(interface{}) error) err
 
 	// If unspecified, use default mode.
 	if str == "" {
-		*t = defaultDiscoveryConfigType
+		*t = ConfigType
+
 		return nil
 	}
 
 	for _, valid := range validDiscoveryConfigTypes {
 		if str == valid.String() {
 			*t = valid
+
 			return nil
 		}
 	}
+
 	return fmt.Errorf("invalid ConfigurationType '%s' valid types are: %s",
 		str, validDiscoveryConfigTypes)
 }
@@ -96,6 +99,7 @@ func (t ConfigurationType) String() string {
 	case M3AggregatorClusterType:
 		return "m3aggregator_cluster"
 	}
+
 	return "unknown"
 }
 
@@ -133,7 +137,7 @@ type M3AggregatorClusterDiscoveryConfiguration struct {
 func (c *Configuration) EnvironmentConfig(
 	hostID string,
 ) (environment.Configuration, error) {
-	discoveryConfigType := defaultDiscoveryConfigType
+	discoveryConfigType := ConfigType
 	if c.Type != nil {
 		discoveryConfigType = *c.Type
 	}
