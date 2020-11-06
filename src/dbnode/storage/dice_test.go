@@ -18,44 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dice
+package storage
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/MichaelTJones/pcg"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// Dice is an interface that allows for random sampling.
-type Dice interface {
-	// Rate returns the sampling rate of this Dice: a number in (0.0, 1.0].
-	Rate() float64
+func TestDiceConstructor(t *testing.T) {
+	dice, err := newDice(0)
+	require.Error(t, err)
+	require.Nil(t, dice)
 
-	// Roll returns whether the dice roll succeeded.
-	Roll() bool
+	dice, err = newDice(2)
+	require.Error(t, err)
+	require.Nil(t, dice)
 }
 
-// NewDice constructs a new Dice based on a given success rate.
-func NewDice(rate float64) (Dice, error) {
-	if rate <= 0.0 || rate > 1.0 {
-		return nil, fmt.Errorf("invalid sample rate %f", rate)
-	}
+func TestDice(t *testing.T) {
+	r, err := newDice(1)
+	require.NoError(t, err)
 
-	return &epoch{
-		r:   uint64(1.0 / rate),
-		rng: pcg.NewPCG64(),
-	}, nil
-}
-
-type epoch struct {
-	r   uint64
-	rng *pcg.PCG64
-}
-
-func (d *epoch) Rate() float64 {
-	return 1 / float64(d.r)
-}
-
-func (d *epoch) Roll() bool {
-	return d.rng.Random()%d.r == 0
+	assert.Equal(t, float64(1.0), r.Rate())
+	assert.True(t, r.Roll())
 }
