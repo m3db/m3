@@ -175,7 +175,7 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.

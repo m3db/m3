@@ -177,7 +177,7 @@ func Run(runOpts RunOptions) {
 		listenerOpts = xnet.NewListenerOptions()
 	)
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -209,7 +209,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
-	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
+	scope, closer, reporters, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			PrometheusExternalRegistries: []instrument.PrometheusExternalRegistry{
 				{
