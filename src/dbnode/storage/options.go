@@ -868,6 +868,7 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 func (o *options) SetAggregator(value Aggregator) Options {
 	opts := *o
 	opts.aggregator = value
+
 	return &opts
 }
 
