@@ -21,10 +21,8 @@
 package storage
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -35,8 +33,6 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -200,9 +196,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		opts   = DefaultTestOptions()
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
-		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -278,11 +272,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 
 	var (
 		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().
-			SetFilePathPrefix(dir)
-		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+		fsOpts = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -336,11 +327,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 
 	var (
 		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().
-			SetFilePathPrefix(dir)
-		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+		fsOpts = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1929,46 +1917,27 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		testOpts = DefaultTestOptions()
-		err      error
-
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
 		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
-
-		id1 = ident.BytesID("id1")
-		id2 = ident.BytesID("id2")
-		id3 = ident.BytesID("id3")
-
-		tags1 = ts.EncodedTags("tags1")
-		tags2 = ts.EncodedTags("tags2")
-		tags3 = ts.EncodedTags("tags3")
-
-		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
-		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
+		err             error
 	)
+
+	aggregator := NewMockAggregator(ctrl)
+	testOpts := DefaultTestOptions().SetAggregator(aggregator)
 
 	sourceShard := testDatabaseShard(t, testOpts)
 	defer sourceShard.Close()
 
-	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
-	defer targetShard.Close()
-
 	sourceNsID := sourceShard.namespace.ID()
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
-	reader0.EXPECT().Entries().Return(2).AnyTimes()
-	reader0.EXPECT().StreamingRead().Return(id1, tags1, dataBytes(t, start, nil, 1, 5), uint32(11), nil)
-	reader0.EXPECT().StreamingRead().Return(id2, tags2, dataBytes(t, start, counterPayload, 0.5, 1, 2), uint32(22), nil)
-	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader0.EXPECT().Entries().Return(3)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
-	reader1.EXPECT().Entries().Return(2).AnyTimes()
-	reader1.EXPECT().StreamingRead().Return(id2, tags2, dataBytes(t, secondSourceBlockStart, counterPayload, 5, 1, 3, 0, 9), uint32(33), nil)
-	reader1.EXPECT().StreamingRead().Return(id3, tags3, dataBytes(t, secondSourceBlockStart, gaugePayload, 4, 3), uint32(44), nil)
-	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader1.EXPECT().Entries().Return(2)
 
 	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
 	reader2, volume2 := getMockReader(ctrl, t, sourceShard, thirdSourceBlockStart, false)
@@ -1980,21 +1949,8 @@ func TestShardAggregateTiles(t *testing.T) {
 		{thirdSourceBlockStart, volume2},
 	}
 
-	write1 := newWrittenDataMatcher(t, []ts.Datapoint{
-		dp(start.Add(time.Minute), 5),
-	}, xtime.Nanosecond, nil)
-
-	write2 := newWrittenDataMatcher(t, []ts.Datapoint{
-		dp(start, 0.5),
-		dp(start.Add(2*time.Minute), 2),
-		dp(secondSourceBlockStart.Add(2*time.Minute), 5+3),
-		dp(secondSourceBlockStart.Add(3*time.Minute), 0),
-		dp(secondSourceBlockStart.Add(4*time.Minute), 9),
-	}, xtime.Nanosecond, counterPayload)
-
-	write3 := newWrittenDataMatcher(t, []ts.Datapoint{
-		dp(secondSourceBlockStart.Add(time.Minute), 3),
-	}, xtime.Nanosecond, gaugePayload)
+	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
+	defer targetShard.Close() // nolint:errcheck
 
 	writer := fs.NewMockStreamingWriter(ctrl)
 	gomock.InOrder(
@@ -2004,16 +1960,18 @@ func TestShardAggregateTiles(t *testing.T) {
 			BlockStart:          opts.Start,
 			BlockSize:           targetBlockSize,
 			VolumeIndex:         1,
-			PlannedRecordsCount: 2,
+			PlannedRecordsCount: 3,
 		}),
-		writer.EXPECT().WriteAll(id1, tags1, write1, gomock.Any()),
-		writer.EXPECT().WriteAll(id2, tags2, write2, gomock.Any()),
-		writer.EXPECT().WriteAll(id3, tags3, write3, gomock.Any()),
 		writer.EXPECT().Close(),
 	)
 
+	targetNs := NewMockNamespace(ctrl)
+	aggregator.EXPECT().
+		AggregateTiles(opts, targetNs, sourceShard.ID(), gomock.Len(2), writer).
+		Return(int64(4), nil)
+
 	processedTileCount, err := targetShard.AggregateTiles(
-		sourceNsID, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nil)
+		sourceNsID, targetNs, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), processedTileCount)
 }
@@ -2036,7 +1994,7 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	writer := fs.NewMockStreamingWriter(ctrl)
 
 	_, err := targetShard.AggregateTiles(
-		srcNsID, 1, blockReaders, writer, sourceBlockVolumes, AggregateTilesOptions{}, nil)
+		srcNsID, nil, 1, blockReaders, writer, sourceBlockVolumes, AggregateTilesOptions{})
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
@@ -2064,90 +2022,10 @@ func getMockReader(
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	if dataFilesetFlushed {
 		reader.EXPECT().Open(openOpts).Return(nil)
-		reader.EXPECT().StreamingEnabled().Return(true)
-		reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
 		reader.EXPECT().Close()
 	} else {
 		reader.EXPECT().Open(openOpts).Return(fs.ErrCheckpointFileNotFound)
 	}
 
 	return reader, latestSourceVolume
-}
-
-func dataBytes(t *testing.T, start time.Time, annotationPayload *annotation.Payload, values ...float64) []byte {
-	var (
-		encoder         = m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
-		timestamp       = start
-		annotationBytes ts.Annotation
-		err             error
-	)
-
-	if annotationPayload != nil {
-		annotationBytes, err = annotationPayload.Marshal()
-		require.NoError(t, err)
-	}
-
-	for _, value := range values {
-		err = encoder.Encode(dp(timestamp, value), xtime.Nanosecond, annotationBytes)
-		require.NoError(t, err)
-		timestamp = timestamp.Add(time.Minute)
-	}
-
-	m3tszSegment := encoder.Discard()
-	encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
-	m3tszSegment.Finalize()
-
-	return encodedBytes
-}
-
-func dp(timestamp time.Time, value float64) ts.Datapoint {
-	return ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
-		Value:          value,
-	}
-}
-
-type writtenDataMatcher struct {
-	*testing.T
-	expectedDPs               []ts.Datapoint
-	expectedUnit              xtime.Unit
-	expectedAnnotationPayload *annotation.Payload
-}
-
-func newWrittenDataMatcher(
-	t *testing.T,
-	expectedDPs []ts.Datapoint,
-	expectedUnit xtime.Unit,
-	expectedAnnotationPayload *annotation.Payload) *writtenDataMatcher {
-	return &writtenDataMatcher{t, expectedDPs, expectedUnit, expectedAnnotationPayload}
-}
-
-func (w writtenDataMatcher) Matches(x interface{}) bool {
-	actual, ok := x.([][]byte)
-	require.True(w, ok)
-	decoder := m3tsz.NewDecoder(true, encoding.NewOptions())
-	iter := decoder.Decode(bytes.NewBuffer(append(actual[0], actual[1]...)))
-	for i, expectedDP := range w.expectedDPs {
-		require.True(w, iter.Next())
-		dp, unit, annot := iter.Current()
-		assert.Equal(w, expectedDP, dp)
-		assert.Equal(w, w.expectedUnit, unit)
-		if i == 0 {
-			var annotPayload *annotation.Payload
-			if annot != nil {
-				annotPayload = &annotation.Payload{}
-				require.NoError(w, annotPayload.Unmarshal(annot))
-			}
-			assert.Equal(w, w.expectedAnnotationPayload, annotPayload)
-		}
-	}
-	assert.False(w, iter.Next())
-	require.NoError(w, iter.Err())
-
-	return true
-}
-
-func (w writtenDataMatcher) String() string {
-	return fmt.Sprint(w.expectedDPs)
 }

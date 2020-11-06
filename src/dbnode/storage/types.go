@@ -675,12 +675,12 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		sourceNsID ident.ID,
-		sourceShardID uint32,
+		targetNs Namespace,
+		shardID uint32,
 		blockReaders []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
-		targetSchemaDesc namespace.SchemaDescr,
 	) (int64, error)
 
 	// LatestVolume returns the latest volume for the combination of shard+blockStart.
