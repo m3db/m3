@@ -160,7 +160,7 @@ type BootstrapConfiguration struct {
 
 // VerifyOrDefault returns verify configuration or default.
 func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration {
-	if bsc.Verify != nil {
+	if bsc.Verify == nil {
 		return BootstrapVerifyConfiguration{}
 	}
 	return *bsc.Verify
