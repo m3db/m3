@@ -394,13 +394,16 @@ func Run(runOpts RunOptions) {
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsyncOrDefault()).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDurationOrDefault())
-	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
+
+	cfgCache := cfg.CacheOrDefault()
+
+	if lruCfg := cfgCache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
 	// Setup postings list cache.
 	var (
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
+		plCacheConfig  = cfgCache.PostingsListConfiguration()
 		plCacheSize    = plCacheConfig.SizeOrDefault()
 		plCacheOptions = index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions().
@@ -415,7 +418,7 @@ func Run(runOpts RunOptions) {
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
-		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Size:  cfgCache.RegexpConfiguration().SizeOrDefault(),
 		Scope: iopts.MetricsScope(),
 	})
 
@@ -469,7 +472,11 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	policy := cfg.PoolingPolicy
+	policy, err := cfg.PoolingPolicyOrDefault()
+	if err != nil {
+		logger.Fatal("could not get pooling policy", zap.Error(err))
+	}
+
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		poolOptions(
@@ -539,7 +546,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Set the series cache policy.
-	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
+	seriesCachePolicy := cfgCache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
@@ -1532,7 +1539,7 @@ func withEncodingAndPoolingOptions(
 				InstrumentOptions:     iopts,
 				ClockOptions:          opts.ClockOptions(),
 			}
-			lruCfg = cfg.Cache.SeriesConfiguration().LRU
+			lruCfg = cfg.CacheOrDefault().SeriesConfiguration().LRU
 		)
 
 		if lruCfg != nil && lruCfg.EventsChannelSize > 0 {
