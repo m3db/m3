@@ -418,6 +418,7 @@ func TestConfiguration(t *testing.T) {
     peers: null
     cacheSeriesMetadata: null
     indexSegmentConcurrency: null
+    verify: null
   blockRetrieve: null
   cache:
     series: null
