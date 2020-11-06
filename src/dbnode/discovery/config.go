@@ -144,9 +144,19 @@ func (c *Configuration) EnvironmentConfig(
 	case M3DBSingleNodeType:
 		return c.m3dbSingleNodeEnvConfig(hostID), nil
 	case M3DBClusterType:
-		return c.M3DBCluster.envConfig()
+		return c.envConfig(
+			defaultM3DBService,
+			c.M3DBCluster.Zone,
+			c.M3DBCluster.Env,
+			c.M3DBCluster.Endpoints,
+		)
 	case M3AggregatorClusterType:
-		return c.M3AggregatorCluster.envConfig()
+		return c.envConfig(
+			defaultM3AggregatorService,
+			c.M3AggregatorCluster.Zone,
+			c.M3AggregatorCluster.Env,
+			c.M3AggregatorCluster.Endpoints,
+		)
 	}
 
 	return environment.Configuration{}, fmt.Errorf("unrecognized discovery type: %d", c.Type)
@@ -183,61 +193,35 @@ func (c *Configuration) m3dbSingleNodeEnvConfig(
 	}
 }
 
-func (c *M3DBClusterDiscoveryConfiguration) envConfig() (environment.Configuration, error) {
-	if c == nil {
-		return environment.Configuration{},
-			errors.New("discovery type specified required m3dbCluster section")
-	}
-
-	zone := defaultZone
-	if c.Zone != nil {
-		zone = *c.Zone
-	}
-
-	return environment.Configuration{
-		Services: []*environment.DynamicCluster{
-			{
-				Service: &etcdclient.Configuration{
-					Service:  defaultM3DBService,
-					CacheDir: defaultCacheDirectory,
-					Zone:     zone,
-					Env:      c.Env,
-					ETCDClusters: []etcdclient.ClusterConfig{
-						etcdclient.ClusterConfig{
-							Zone:      zone,
-							Endpoints: c.Endpoints,
-						},
-					},
-				},
-			},
-		},
-	}, nil
-}
-
-func (c *M3AggregatorClusterDiscoveryConfiguration) envConfig() (
+func (c *Configuration) envConfig(
+	service string,
+	zone *string,
+	env string,
+	endpoints []string,
+) (
 	environment.Configuration, error) {
 	if c == nil {
 		return environment.Configuration{},
 			errors.New("discovery type specified required m3AggregatorCluster section")
 	}
 
-	zone := defaultZone
-	if c.Zone != nil {
-		zone = *c.Zone
+	validZone := defaultZone
+	if zone != nil {
+		validZone = *zone
 	}
 
 	return environment.Configuration{
 		Services: []*environment.DynamicCluster{
 			{
 				Service: &etcdclient.Configuration{
-					Service:  defaultM3AggregatorService,
+					Service:  service,
 					CacheDir: defaultCacheDirectory,
-					Zone:     zone,
-					Env:      c.Env,
+					Zone:     validZone,
+					Env:      env,
 					ETCDClusters: []etcdclient.ClusterConfig{
 						etcdclient.ClusterConfig{
-							Zone:      zone,
-							Endpoints: c.Endpoints,
+							Zone:      validZone,
+							Endpoints: endpoints,
 						},
 					},
 				},
