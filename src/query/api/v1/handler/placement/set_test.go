@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/golang/mock/gomock"
-	"github.com/gogo/protobuf/jsonpb"
 	xtest "github.com/m3db/m3/src/x/test"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
