@@ -36,7 +36,7 @@ const (
 	defaultM3AggregatorService           = "m3aggregator"
 	defaultCacheDirectory                = "/var/lib/m3kv"
 	defaultSingleNodeClusterEndpoint     = "127.0.0.1:2379"
-	defaultSingleNodeClusterSeedEndpoint = "127.0.0.1:2380"
+	defaultSingleNodeClusterSeedEndpoint = "http://127.0.0.1:2380"
 )
 
 var validDiscoveryConfigTypes = []ConfigurationType{
