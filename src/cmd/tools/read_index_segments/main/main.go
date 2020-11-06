@@ -75,7 +75,11 @@ func run(opts runOptions) {
 	log := opts.log
 
 	fsOpts := fs.NewOptions().
-		SetFilePathPrefix(opts.filePathPrefix)
+		SetFilePathPrefix(opts.filePathPrefix).
+		// Always validate checksums before reading and/or validating contents
+		// regardless of whether this is a validation run or just reading
+		// the raw files.
+		SetIndexReaderAutovalidateIndexSegments(true)
 
 	indexDirPath := fs.IndexDataDirPath(opts.filePathPrefix)
 
@@ -143,9 +147,68 @@ func readNamespaceSegments(
 			continue
 		}
 
-		for i, seg := range segments {
-			jw := json.NewWriter(out)
-			jw.BeginObject()
+		// Validating, so use validation concurrency.
+		wg.Add(1)
+		validateWorkerPool.Go(func() {
+			defer wg.Done()
+			readBlockSegments(out, nsID, infoFile, fsOpts, log)
+		})
+	}
+
+	// Wait for any concurrent validation.
+	wg.Wait()
+}
+
+func readBlockSegments(
+	out io.Writer,
+	nsID ident.ID,
+	infoFile fs.ReadIndexInfoFileResult,
+	fsOpts fs.Options,
+	log *zap.Logger,
+) {
+	// Make sure if we fatal or error out the exact block is known.
+	log = log.With(
+		zap.String("namespace", nsID.String()),
+		zap.String("blockStart", infoFile.ID.BlockStart.String()),
+		zap.Int64("blockStartUnixNano", infoFile.ID.BlockStart.UnixNano()),
+		zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
+		zap.Strings("files", infoFile.AbsoluteFilePaths))
+
+	log.Info("reading block segments")
+
+	readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+		ReaderOptions: fs.IndexReaderOpenOptions{
+			Identifier:  infoFile.ID,
+			FileSetType: persist.FileSetFlushType,
+		},
+		FilesystemOptions: fsOpts,
+	})
+	if err != nil {
+		log.Error("unable to read segments from index fileset", zap.Error(err))
+		return
+	}
+
+	if readResult.Validated {
+		log.Info("validated segments")
+	} else {
+		log.Error("expected to validate segments but did not validate")
+	}
+
+	for i, seg := range readResult.Segments {
+		jw := json.NewWriter(out)
+		jw.BeginObject()
+
+		jw.BeginObjectField("namespace")
+		jw.WriteString(nsID.String())
+
+		jw.BeginObjectField("blockStart")
+		jw.WriteString(time.Unix(0, infoFile.Info.BlockStart).Format(time.RFC3339))
+
+		jw.BeginObjectField("volumeIndex")
+		jw.WriteInt(infoFile.ID.VolumeIndex)
+
+		jw.BeginObjectField("segmentIndex")
+		jw.WriteInt(i)
 
 			jw.BeginObjectField("namespace")
 			jw.WriteString(nsID.String())
