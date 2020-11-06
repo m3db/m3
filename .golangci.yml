@@ -188,7 +188,6 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - unused
     - varcheck
     - wsl
   enable-all: false
@@ -209,6 +208,7 @@ linters:
     - nolintlint
     # Deprecated project due to being prone to bad suggestions.
     - interfacer
+    - unused
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck

@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -768,7 +767,7 @@ func (r shardRepairer) shadowCompare(
 	shard databaseShard,
 	nsCtx namespace.Context,
 ) error {
-	dice, err := dice.NewDice(r.rpopts.DebugShadowComparisonsPercentage())
+	dice, err := newDice(r.rpopts.DebugShadowComparisonsPercentage())
 	if err != nil {
 		return fmt.Errorf("err creating shadow comparison dice: %v", err)
 	}
