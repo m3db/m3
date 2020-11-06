@@ -111,10 +111,8 @@ func TestIndexEnabledServer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	envCfg, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
-	if err != nil {
-		return nil, err
-	}
+	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
 
 	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
@@ -198,8 +196,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig, err = &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
-	require.NoError(t, err)
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -454,7 +451,7 @@ db:
                 - capacity: 4096
                   size: 128
 
-	discovery:
+    discovery:
       config:
           service:
               env: {{.ServiceEnv}}
