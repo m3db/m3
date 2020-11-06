@@ -51,6 +51,7 @@ var (
 )
 
 func TestReadAggregateWrite(t *testing.T) {
+	t.Skip("flaky")
 	var (
 		start                   = time.Now()
 		testSetup, srcNs, trgNs = setupServer(t)
