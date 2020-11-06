@@ -21,181 +21,210 @@
 package environment
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
-	"time"
 
-	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/instrument"
-
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
 )
 
-var initTimeout = time.Minute
-
-func TestConfigureStatic(t *testing.T) {
-	config := Configuration{
-		Statics: StaticConfiguration{
-			&StaticCluster{
-				Namespaces: []namespace.MetadataConfiguration{
-					namespace.MetadataConfiguration{
-						ID: "metrics",
-						Retention: retention.Configuration{
-							RetentionPeriod: 24 * time.Hour,
-							BlockSize:       time.Hour,
-						},
-					},
-					namespace.MetadataConfiguration{
-						ID: "other-metrics",
-						Retention: retention.Configuration{
-							RetentionPeriod: 24 * time.Hour,
-							BlockSize:       time.Hour,
-						},
-					},
-				},
-				TopologyConfig: &topology.StaticConfiguration{
-					Shards: 2,
-					Hosts: []topology.HostShardConfig{
-						topology.HostShardConfig{
-							HostID:        "localhost",
-							ListenAddress: "0.0.0.0:1234",
-						},
-					},
-				},
-				ListenAddress: "0.0.0.0:9000",
-			},
-		},
-	}
-
-	configRes, err := config.Configure(ConfigurationParameters{})
-	assert.NotNil(t, configRes)
-	assert.NoError(t, err)
-}
-
-func TestConfigureDynamic(t *testing.T) {
-	config := Configuration{
-		Services: DynamicConfiguration{
-			&DynamicCluster{
-				Service: &etcdclient.Configuration{
-					Zone:     "local",
-					Env:      "test",
-					Service:  "m3dbnode_test",
-					CacheDir: "/",
-					ETCDClusters: []etcdclient.ClusterConfig{
-						etcdclient.ClusterConfig{
-							Zone:      "local",
-							Endpoints: []string{"localhost:1111"},
-						},
-					},
-					SDConfig: services.Configuration{
-						InitTimeout: &initTimeout,
-					},
-				},
-			},
-		},
-	}
-
-	cfgParams := ConfigurationParameters{
-		InstrumentOpts: instrument.NewOptions(),
-	}
-
-	configRes, err := config.Configure(cfgParams)
-	assert.NotNil(t, configRes)
-	assert.NoError(t, err)
-}
-
-func TestUnmarshalDynamicSingle(t *testing.T) {
+func TestM3DBSingleNodeType(t *testing.T) {
 	in := `
-service:
-  zone: dca8
-  env: test
+type: m3db_single_node
 `
 
-	var cfg Configuration
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	id := "test_id"
+	hostID := hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &id,
+	}
+
+	fd, err := ioutil.TempFile("", "config.yaml")
 	assert.NoError(t, err)
-	assert.NoError(t, cfg.Validate())
-	assert.Len(t, cfg.Services, 1)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(in))
+	assert.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	assert.NoError(t, err)
+
+	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(envConfig.Services))
+	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))
+
+	s := envConfig.Services[0].Service
+	assert.Equal(t, defaultM3DBService, s.Service)
+	assert.Equal(t, defaultEnvironment, s.Env)
+	assert.Equal(t, defaultZone, s.Zone)
+	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
+	assert.Equal(t, 1, len(s.ETCDClusters))
+	assert.Equal(t, defaultZone, s.ETCDClusters[0].Zone)
+	assert.Equal(t, 1, len(s.ETCDClusters[0].Endpoints))
+	assert.Equal(t, defaultSingleNodeClusterEndpoint, s.ETCDClusters[0].Endpoints[0])
+
+	c := envConfig.SeedNodes.InitialCluster[0]
+	assert.Equal(t, defaultSingleNodeClusterSeedEndpoint, c.Endpoint)
+	assert.Equal(t, id, c.HostID)
 }
 
-func TestUnmarshalDynamicList(t *testing.T) {
+func TestM3DBClusterType(t *testing.T) {
 	in := `
-services:
-  - service:
-      zone: dca8
-      env: test
-  - service:
-      zone: phx3
-      env: test
-    async: true
+type: m3db_cluster
+m3dbCluster:
+  env: a
+  zone: b
+  endpoints:
+    - end_1
+    - end_2
 `
 
-	var cfg Configuration
-	err := yaml.Unmarshal([]byte(in), &cfg)
-	assert.NoError(t, err)
-	assert.NoError(t, cfg.Validate())
-	assert.Len(t, cfg.Services, 2)
-}
-
-var configValidationTests = []struct {
-	name      string
-	in        string
-	expectErr error
-}{
-	{
-		name:      "empty config",
-		in:        ``,
-		expectErr: errInvalidConfig,
-	},
-	{
-		name: "static and dynamic",
-		in: `
-services:
-  - service:
-      zone: dca8
-      env: test
-statics:
-  - listenAddress: 0.0.0.0:9000`,
-		expectErr: errInvalidConfig,
-	},
-	{
-		name: "invalid dynamic config",
-		in: `
-services:
-  - async: true`,
-		expectErr: errInvalidSyncCount,
-	},
-	{
-		name: "invalid static config",
-		in: `
-statics:
-  - async: true`,
-		expectErr: errInvalidSyncCount,
-	},
-	{
-		name: "valid config",
-		in: `
-services:
-  - service:
-      zone: dca8
-      env: test
-  - service:
-      zone: phx3
-      env: test
-    async: true`,
-		expectErr: nil,
-	},
-}
-
-func TestConfigValidation(t *testing.T) {
-	for _, tt := range configValidationTests {
-		var cfg Configuration
-		err := yaml.Unmarshal([]byte(tt.in), &cfg)
-		assert.NoError(t, err)
-		assert.Equal(t, tt.expectErr, cfg.Validate())
+	id := "test_id"
+	hostID := hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &id,
 	}
+
+	fd, err := ioutil.TempFile("", "config.yaml")
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(in))
+	assert.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	assert.NoError(t, err)
+
+	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(envConfig.Services))
+	assert.Nil(t, envConfig.SeedNodes)
+
+	s := envConfig.Services[0].Service
+	assert.Equal(t, defaultM3DBService, s.Service)
+	assert.Equal(t, "a", s.Env)
+	assert.Equal(t, "b", s.Zone)
+	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
+	assert.Equal(t, 1, len(s.ETCDClusters))
+	assert.Equal(t, "b", s.ETCDClusters[0].Zone)
+	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
+	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
+	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
+}
+
+func TestM3AggregatorClusterType(t *testing.T) {
+	in := `
+type: m3aggregator_cluster
+m3AggregatorCluster:
+  env: a
+  zone: b
+  endpoints:
+    - end_1
+    - end_2
+`
+
+	id := "test_id"
+	hostID := hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &id,
+	}
+
+	fd, err := ioutil.TempFile("", "config.yaml")
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(in))
+	assert.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	assert.NoError(t, err)
+
+	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(envConfig.Services))
+	assert.Nil(t, envConfig.SeedNodes)
+
+	s := envConfig.Services[0].Service
+	assert.Equal(t, defaultM3AggregatorService, s.Service)
+	assert.Equal(t, "a", s.Env)
+	assert.Equal(t, "b", s.Zone)
+	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
+	assert.Equal(t, 1, len(s.ETCDClusters))
+	assert.Equal(t, "b", s.ETCDClusters[0].Zone)
+	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
+	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
+	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
+}
+
+func TestConfigType(t *testing.T) {
+	in := `
+config:
+    service:
+        env: test_env
+        zone: test_zone
+        service: test_service
+        cacheDir: test/cache
+        etcdClusters:
+            - zone: test_zone_2
+              endpoints:
+                  - 127.0.0.1:2379
+    seedNodes:
+        initialCluster:
+            - hostID: host_id
+              endpoint: http://127.0.0.1:2380
+`
+
+	id := "test_id"
+	hostID := hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &id,
+	}
+
+	fd, err := ioutil.TempFile("", "config.yaml")
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(in))
+	assert.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	assert.NoError(t, err)
+
+	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(envConfig.Services))
+	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))
+
+	s := envConfig.Services[0].Service
+	assert.Equal(t, "test_service", s.Service)
+	assert.Equal(t, "test_env", s.Env)
+	assert.Equal(t, "test_zone", s.Zone)
+	assert.Equal(t, "test/cache", s.CacheDir)
+	assert.Equal(t, 1, len(s.ETCDClusters))
+	assert.Equal(t, "test_zone_2", s.ETCDClusters[0].Zone)
+	assert.Equal(t, 1, len(s.ETCDClusters[0].Endpoints))
+	assert.Equal(t, "127.0.0.1:2379", s.ETCDClusters[0].Endpoints[0])
+
+	c := envConfig.SeedNodes.InitialCluster[0]
+	assert.Equal(t, "http://127.0.0.1:2380", c.Endpoint)
+	assert.Equal(t, "host_id", c.HostID)
 }

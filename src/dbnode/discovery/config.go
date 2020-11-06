@@ -103,7 +103,7 @@ func (t DiscoveryConfigurationType) String() string {
 // Configuration defines how services are to be discovered.
 type Configuration struct {
 	// Type defines the type of discovery configuration being used.
-	Type DiscoveryConfigurationType `yaml:"type"`
+	Type *DiscoveryConfigurationType `yaml:"type"`
 
 	// M3DBCluster defines M3DB discovery via etcd.
 	M3DBCluster *M3DBClusterDiscoveryConfiguration `yaml:"m3dbCluster"`
@@ -134,7 +134,12 @@ type M3AggregatorClusterDiscoveryConfiguration struct {
 func (c *Configuration) EnvironmentConfiguration(
 	hostID hostid.Configuration,
 ) (environment.Configuration, error) {
-	switch c.Type {
+	discoveryConfigType := defaultDiscoveryConfigType
+	if c.Type != nil {
+		discoveryConfigType = *c.Type
+	}
+
+	switch discoveryConfigType {
 	case ConfigType:
 		return *c.Config, nil
 	case M3DBSingleNodeType:
