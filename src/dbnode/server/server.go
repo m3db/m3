@@ -231,7 +231,7 @@ func Run(runOpts RunOptions) {
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
-	scope, _, err := cfg.Metrics.NewRootScope()
+	scope, _, err := cfg.MetricsOrDefault().NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -330,7 +330,7 @@ func Run(runOpts RunOptions) {
 	// are constructed allowing for type to be picked
 	// by the caller using instrument.NewTimer(...).
 	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
-	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+	timerOpts.StandardSampleRate = cfg.MetricsOrDefault().SampleRate()
 
 	var (
 		opts  = storage.NewOptions()

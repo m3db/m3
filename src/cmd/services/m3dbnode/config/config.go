@@ -221,12 +221,12 @@ func (c *DBConfiguration) LoggingOrDefault() xlog.Configuration {
 }
 
 // MetricsOrDefault returns metrics configuration or defaults.
-func (c *DBConfiguration) MetricsOrDefault() instrument.MetricsConfiguration {
+func (c *DBConfiguration) MetricsOrDefault() *instrument.MetricsConfiguration {
 	if c.Metrics == nil {
-		return defaultMetrics
+		return &defaultMetrics
 	}
 
-	return *c.Metrics
+	return c.Metrics
 }
 
 // ListenAddressOrDefault returns the listen address or default.

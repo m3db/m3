@@ -207,12 +207,12 @@ func (c *Configuration) LoggingOrDefault() xlog.Configuration {
 }
 
 // MetricsOrDefault returns the metrics config or default.
-func (c *Configuration) MetricsOrDefault() instrument.MetricsConfiguration {
+func (c *Configuration) MetricsOrDefault() *instrument.MetricsConfiguration {
 	if c.Metrics != nil {
-		return *c.Metrics
+		return c.Metrics
 	}
 
-	return defaultMetrics
+	return &defaultMetrics
 }
 
 // WriteWorkerPoolOrDefault returns the write worker pool config or default.
