@@ -54,20 +54,21 @@ db:
   filesystem:
     filePathPrefix: /var/lib/m3db
 
-  config:
-      service:
-          env: default_env
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - m3db_seed:2379
-      seedNodes:
-          initialCluster:
-              - hostID: m3db_seed
-                endpoint: http://m3db_seed:2380
+  discovery:
+    config:
+        service:
+            env: default_env
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - m3db_seed:2379
+        seedNodes:
+            initialCluster:
+                - hostID: m3db_seed
+                  endpoint: http://m3db_seed:2380
 
   # proto:
   #   schemaFilePath: /etc/m3dbnode/schema.proto

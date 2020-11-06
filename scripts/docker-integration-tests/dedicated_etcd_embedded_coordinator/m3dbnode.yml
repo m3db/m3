@@ -62,13 +62,14 @@ db:
   filesystem:
     filePathPrefix: /var/lib/m3db
 
-  config:
-    service:
-      env: foo-namespace/foo-cluster
-      zone: bar-zone
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: bar-zone
-        endpoints:
-        - etcd01:2379
+  discovery:
+    config:
+      service:
+        env: foo-namespace/foo-cluster
+        zone: bar-zone
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: bar-zone
+          endpoints:
+          - etcd01:2379

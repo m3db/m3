@@ -31,6 +31,7 @@ import (
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
@@ -140,8 +141,8 @@ type DBConfiguration struct {
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
 
-	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	// The discovery configuration.
+	DiscoveryConfig discovery.Configuration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`

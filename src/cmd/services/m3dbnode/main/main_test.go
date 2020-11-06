@@ -626,28 +626,29 @@ db:
 `
 
 	embeddedKVConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints:
-                      - {{.EtcdEndpoint}}
-        seedNodes:
-            rootDir: {{.EmbeddedKVDir}}
-            listenPeerUrls:
-                - {{.LPURL}}
-            listenClientUrls:
-                - {{.LCURL}}
-            initialAdvertisePeerUrls:
-                - {{.APURL}}
-            advertiseClientUrls:
-                - {{.ACURL}}
-            initialCluster:
-                - hostID: {{.InitialClusterHostID}}
-                  endpoint: {{.InitialClusterEndpoint}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints:
+                          - {{.EtcdEndpoint}}
+            seedNodes:
+                rootDir: {{.EmbeddedKVDir}}
+                listenPeerUrls:
+                    - {{.LPURL}}
+                listenClientUrls:
+                    - {{.LCURL}}
+                initialAdvertisePeerUrls:
+                    - {{.APURL}}
+                advertiseClientUrls:
+                    - {{.ACURL}}
+                initialCluster:
+                    - hostID: {{.InitialClusterHostID}}
+                      endpoint: {{.InitialClusterEndpoint}}
 `
 )

@@ -277,37 +277,38 @@ db:
                 lowWatermark: 0.01
                 highWatermark: 0.02
 
-  config:
-      service:
-          env: production
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 1.1.1.1:2379
-                    - 1.1.1.2:2379
-                    - 1.1.1.3:2379
-
-      seedNodes:
-          listenPeerUrls:
-              - http://0.0.0.0:2380
-          listenClientUrls:
-              - http://0.0.0.0:2379
-          rootDir: /var/lib/etcd
-          initialAdvertisePeerUrls:
-              - http://1.1.1.1:2380
-          advertiseClientUrls:
-              - http://1.1.1.1:2379
-          initialCluster:
-              - hostID: host1
-                endpoint: http://1.1.1.1:2380
-                clusterState: existing
-              - hostID: host2
-                endpoint: http://1.1.1.2:2380
-              - hostID: host3
-                endpoint: http://1.1.1.3:2380
+  discovery:
+    config:
+        service:
+            env: production
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 1.1.1.1:2379
+                      - 1.1.1.2:2379
+                      - 1.1.1.3:2379
+  
+        seedNodes:
+            listenPeerUrls:
+                - http://0.0.0.0:2380
+            listenClientUrls:
+                - http://0.0.0.0:2379
+            rootDir: /var/lib/etcd
+            initialAdvertisePeerUrls:
+                - http://1.1.1.1:2380
+            advertiseClientUrls:
+                - http://1.1.1.1:2379
+            initialCluster:
+                - hostID: host1
+                  endpoint: http://1.1.1.1:2380
+                  clusterState: existing
+                - hostID: host2
+                  endpoint: http://1.1.1.2:2380
+                - hostID: host3
+                  endpoint: http://1.1.1.3:2380
   hashing:
     seed: 42
   writeNewSeriesAsync: true
@@ -607,65 +608,66 @@ func TestConfiguration(t *testing.T) {
       size: 8
       lowWatermark: 0
       highWatermark: 0
-  config:
-    services:
-    - async: false
-      clientOverrides:
-        hostQueueFlushInterval: null
-        targetHostQueueFlushSize: null
-      service:
-        zone: embedded
-        env: production
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-        - zone: embedded
-          endpoints:
-          - 1.1.1.1:2379
-          - 1.1.1.2:2379
-          - 1.1.1.3:2379
-          keepAlive: null
-          tls: null
-          autoSyncInterval: 0s
-        m3sd:
-          initTimeout: null
-        watchWithRevision: 0
-        newDirectoryMode: null
-    statics: []
-    seedNodes:
-      rootDir: /var/lib/etcd
-      initialAdvertisePeerUrls:
-      - http://1.1.1.1:2380
-      advertiseClientUrls:
-      - http://1.1.1.1:2379
-      listenPeerUrls:
-      - http://0.0.0.0:2380
-      listenClientUrls:
-      - http://0.0.0.0:2379
-      initialCluster:
-      - hostID: host1
-        endpoint: http://1.1.1.1:2380
-        clusterState: existing
-      - hostID: host2
-        endpoint: http://1.1.1.2:2380
-        clusterState: ""
-      - hostID: host3
-        endpoint: http://1.1.1.3:2380
-        clusterState: ""
-      clientTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
-      peerTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
+  discovery:
+    config:
+      services:
+      - async: false
+        clientOverrides:
+          hostQueueFlushInterval: null
+          targetHostQueueFlushSize: null
+        service:
+          zone: embedded
+          env: production
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+          - zone: embedded
+            endpoints:
+            - 1.1.1.1:2379
+            - 1.1.1.2:2379
+            - 1.1.1.3:2379
+            keepAlive: null
+            tls: null
+            autoSyncInterval: 0s
+          m3sd:
+            initTimeout: null
+          watchWithRevision: 0
+          newDirectoryMode: null
+      statics: []
+      seedNodes:
+        rootDir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+        - http://1.1.1.1:2380
+        advertiseClientUrls:
+        - http://1.1.1.1:2379
+        listenPeerUrls:
+        - http://0.0.0.0:2380
+        listenClientUrls:
+        - http://0.0.0.0:2379
+        initialCluster:
+        - hostID: host1
+          endpoint: http://1.1.1.1:2380
+          clusterState: existing
+        - hostID: host2
+          endpoint: http://1.1.1.2:2380
+          clusterState: ""
+        - hostID: host3
+          endpoint: http://1.1.1.3:2380
+          clusterState: ""
+        clientTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
+        peerTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
   hashing:
     seed: 42
   writeNewSeriesAsync: true

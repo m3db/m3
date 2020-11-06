@@ -448,13 +448,14 @@ db:
                 - capacity: 4096
                   size: 128
 
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+	discovery:
+      config:
+          service:
+              env: {{.ServiceEnv}}
+              zone: {{.ServiceZone}}
+              service: {{.ServiceName}}
+              cacheDir: {{.ConfigServiceCacheDir}}
+              etcdClusters:
+                  - zone: {{.ServiceZone}}
+                    endpoints: {{.EtcdEndpoints}}
 `
