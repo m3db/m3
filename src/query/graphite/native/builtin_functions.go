@@ -1019,12 +1019,6 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			toNormalize = input.Values
 			tf = func(idx int) float64 { return totalBySum(normalized, idx) }
 		} else {
-			// check total is a single-series list and normalize all of them
-			if total.Len() != 1 {
-				err := errors.NewInvalidParamsError(errors.New("total must be a single series"))
-				return ts.NewSeriesList(), err
-			}
-
 			toNormalize = append(input.Values, total.Values[0])
 			tf = func(idx int) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
 			totalText = total.Values[0].Name()
@@ -2450,7 +2444,7 @@ func init() {
 		4: false, // alignToFrom
 	})
 	MustRegisterFunction(smartSummarize).WithDefaultParams(map[uint8]interface{}{
-		3: "",    // fname
+		3: "", // fname
 	})
 	MustRegisterFunction(sumSeries)
 	MustRegisterFunction(sumSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
@@ -2466,7 +2460,7 @@ func init() {
 		2: 60, // step
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
-		3: true, // resetEnd
+		3: true,  // resetEnd
 		4: false, // alignDst
 	})
 	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
