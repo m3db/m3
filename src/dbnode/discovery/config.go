@@ -25,9 +25,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/dbnode/environment"
-
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/dbnode/environment"
 )
 
 const (
@@ -178,7 +177,7 @@ func (c *Configuration) m3dbSingleNodeEnvConfig(
 					Zone:     defaultZone,
 					Env:      defaultEnvironment,
 					ETCDClusters: []etcdclient.ClusterConfig{
-						etcdclient.ClusterConfig{
+						{
 							Zone:      defaultZone,
 							Endpoints: []string{defaultSingleNodeClusterEndpoint},
 						},
@@ -223,7 +222,7 @@ func (c *Configuration) envConfig(
 					Zone:     validZone,
 					Env:      env,
 					ETCDClusters: []etcdclient.ClusterConfig{
-						etcdclient.ClusterConfig{
+						{
 							Zone:      validZone,
 							Endpoints: endpoints,
 						},

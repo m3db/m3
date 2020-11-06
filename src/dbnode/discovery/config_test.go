@@ -25,9 +25,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/environment"
-	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/x/config"
 )
 
 func TestM3DBSingleNodeType(t *testing.T) {
@@ -137,7 +138,7 @@ func getEnvConfig(t *testing.T, in string, hostID string) environment.Configurat
 	assert.NoError(t, err)
 
 	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	err = config.LoadFile(&cfg, fd.Name(), config.Options{})
 	assert.NoError(t, err)
 
 	envConfig, err := cfg.EnvironmentConfig(hostID)

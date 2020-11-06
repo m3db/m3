@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -103,7 +101,7 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	envCfg, err := &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
 	require.NoError(t, err)
 
 	syncCluster, err := envCfg.Services.SyncCluster()
@@ -188,8 +186,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig, err = &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
-	require.NoError(t, err)
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -338,7 +335,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	envCfg, err := &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
 	require.NoError(t, err)
 
 	syncCluster, err := envCfg.Services.SyncCluster()
@@ -402,8 +399,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig, err = &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
-	require.NoError(t, err)
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -622,15 +618,16 @@ db:
 `
 
 	kvConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints: {{.EtcdEndpoints}}
 `
 
 	embeddedKVConfigPortion = `
