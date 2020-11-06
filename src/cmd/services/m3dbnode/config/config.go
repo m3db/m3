@@ -448,12 +448,18 @@ func (c *ProtoConfiguration) Validate() error {
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
 		return nil, err
 	}
+
+	envCfg, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	if err != nil {
+		return nil, err
+	}
+
+	kvCfg := envCfg.SeedNodes
 	newKVCfg.Name = hostID
 
 	dir := kvCfg.RootDir

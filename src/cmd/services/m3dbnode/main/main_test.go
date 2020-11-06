@@ -103,7 +103,10 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	envCfg, err := &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -185,7 +188,8 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig, err = &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -334,7 +338,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	envCfg, err := &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -395,7 +402,8 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig, err = &cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)

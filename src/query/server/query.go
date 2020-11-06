@@ -436,7 +436,19 @@ func Run(runOpts RunOptions) {
 
 	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
-		cluster, err := dbCfg.EnvironmentConfig.Services.SyncCluster()
+		hostID, err := dbCfg.HostID.Resolve()
+		if err != nil {
+			logger.Fatal("could not resolve hostID",
+				zap.Error(err))
+		}
+
+		envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+		if err != nil {
+			logger.Fatal("could not get env config from discovery config",
+				zap.Error(err))
+		}
+
+		cluster, err := envCfg.Services.SyncCluster()
 		if err != nil {
 			logger.Fatal("could not resolve embedded db cluster info",
 				zap.Error(err))
@@ -817,7 +829,20 @@ func initClusters(
 			if dbCfg == nil {
 				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
-			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
+
+			hostID, err := dbCfg.HostID.Resolve()
+			if err != nil {
+				logger.Fatal("could not resolve hostID",
+					zap.Error(err))
+			}
+
+			envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+			if err != nil {
+				logger.Fatal("could not get env config from discovery config",
+					zap.Error(err))
+			}
+
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &envCfg}
 		}
 
 		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}

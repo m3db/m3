@@ -26,7 +26,6 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3/src/x/config/hostid"
 )
 
 const (
@@ -129,10 +128,10 @@ type M3AggregatorClusterDiscoveryConfiguration struct {
 	Endpoints []string `yaml:"endpoints"`
 }
 
-// EnvironmentConfiguration provides the environment configuration
+// EnvironmentConfig provides the environment configuration
 // based on the type of discovery configuration set.
-func (c *Configuration) EnvironmentConfiguration(
-	hostID hostid.Configuration,
+func (c *Configuration) EnvironmentConfig(
+	hostID string,
 ) (environment.Configuration, error) {
 	discoveryConfigType := defaultDiscoveryConfigType
 	if c.Type != nil {
@@ -143,7 +142,7 @@ func (c *Configuration) EnvironmentConfiguration(
 	case ConfigType:
 		return *c.Config, nil
 	case M3DBSingleNodeType:
-		return c.m3dbSingleNodeEnvConfig(hostID)
+		return c.m3dbSingleNodeEnvConfig(hostID), nil
 	case M3DBClusterType:
 		return c.M3DBCluster.envConfig()
 	case M3AggregatorClusterType:
@@ -154,12 +153,8 @@ func (c *Configuration) EnvironmentConfiguration(
 }
 
 func (c *Configuration) m3dbSingleNodeEnvConfig(
-	hostID hostid.Configuration,
-) (environment.Configuration, error) {
-	resolvedHostID, err := hostID.Resolve()
-	if err != nil {
-		return environment.Configuration{}, err
-	}
+	hostID string,
+) environment.Configuration {
 	return environment.Configuration{
 		Services: []*environment.DynamicCluster{
 			{
@@ -180,12 +175,12 @@ func (c *Configuration) m3dbSingleNodeEnvConfig(
 		SeedNodes: &environment.SeedNodesConfig{
 			InitialCluster: []environment.SeedNode{
 				{
-					HostID:   resolvedHostID,
+					HostID:   hostID,
 					Endpoint: defaultSingleNodeClusterSeedEndpoint,
 				},
 			},
 		},
-	}, nil
+	}
 }
 
 func (c *M3DBClusterDiscoveryConfiguration) envConfig() (environment.Configuration, error) {

@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,11 +34,7 @@ func TestM3DBSingleNodeType(t *testing.T) {
 type: m3db_single_node
 `
 
-	id := "test_id"
-	hostID := hostid.Configuration{
-		Resolver: hostid.ConfigResolver,
-		Value:    &id,
-	}
+	hostID := "test_id"
 
 	fd, err := ioutil.TempFile("", "config.yaml")
 	assert.NoError(t, err)
@@ -55,7 +50,7 @@ type: m3db_single_node
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	assert.NoError(t, err)
 
-	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))
@@ -72,7 +67,7 @@ type: m3db_single_node
 
 	c := envConfig.SeedNodes.InitialCluster[0]
 	assert.Equal(t, defaultSingleNodeClusterSeedEndpoint, c.Endpoint)
-	assert.Equal(t, id, c.HostID)
+	assert.Equal(t, hostID, c.HostID)
 }
 
 func TestM3DBClusterType(t *testing.T) {
@@ -86,11 +81,7 @@ m3dbCluster:
     - end_2
 `
 
-	id := "test_id"
-	hostID := hostid.Configuration{
-		Resolver: hostid.ConfigResolver,
-		Value:    &id,
-	}
+	hostID := "test_id"
 
 	fd, err := ioutil.TempFile("", "config.yaml")
 	assert.NoError(t, err)
@@ -106,7 +97,7 @@ m3dbCluster:
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	assert.NoError(t, err)
 
-	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Nil(t, envConfig.SeedNodes)
@@ -134,11 +125,7 @@ m3AggregatorCluster:
     - end_2
 `
 
-	id := "test_id"
-	hostID := hostid.Configuration{
-		Resolver: hostid.ConfigResolver,
-		Value:    &id,
-	}
+	hostID := "test_id"
 
 	fd, err := ioutil.TempFile("", "config.yaml")
 	assert.NoError(t, err)
@@ -154,7 +141,7 @@ m3AggregatorCluster:
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	assert.NoError(t, err)
 
-	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Nil(t, envConfig.SeedNodes)
@@ -189,11 +176,7 @@ config:
               endpoint: http://127.0.0.1:2380
 `
 
-	id := "test_id"
-	hostID := hostid.Configuration{
-		Resolver: hostid.ConfigResolver,
-		Value:    &id,
-	}
+	hostID := "test_id"
 
 	fd, err := ioutil.TempFile("", "config.yaml")
 	assert.NoError(t, err)
@@ -209,7 +192,7 @@ config:
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	assert.NoError(t, err)
 
-	envConfig, err := cfg.EnvironmentConfiguration(hostID)
+	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(envConfig.Services))
 	assert.Equal(t, 1, len(envConfig.SeedNodes.InitialCluster))

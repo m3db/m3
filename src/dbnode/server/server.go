@@ -267,17 +267,22 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.SeedNodes == nil {
+	envConfig, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	if err != nil {
+		logger.Fatal("could not get env config from discovery config", zap.Error(err))
+	}
+
+	if envConfig.SeedNodes == nil {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		service, err := cfg.EnvironmentConfig.Services.SyncCluster()
+		service, err := envConfig.Services.SyncCluster()
 		if err != nil {
 			logger.Fatal("invalid cluster configuration", zap.Error(err))
 		}
 
 		clusters := service.Service.ETCDClusters
-		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
+		seedNodes := envConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
 			if err != nil {
@@ -596,12 +601,12 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetPersistManager(pm)
 
 	var (
-		envCfg environment.ConfigureResults
+		envCfgResults environment.ConfigureResults
 	)
-	if len(cfg.EnvironmentConfig.Statics) == 0 {
+	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
 			InstrumentOpts:         iopts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
@@ -613,7 +618,7 @@ func Run(runOpts RunOptions) {
 	} else {
 		logger.Info("creating static config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
 			InstrumentOpts:         iopts,
 			HostID:                 hostID,
 			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
@@ -623,7 +628,7 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	syncCfg, err := envCfg.SyncCluster()
+	syncCfg, err := envCfgResults.SyncCluster()
 	if err != nil {
 		logger.Fatal("invalid cluster config", zap.Error(err))
 	}
@@ -688,11 +693,11 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
-			envCfg, err := cfg.EnvironmentConfig.Services.SyncCluster()
-			if err != nil || envCfg.Service == nil {
+			envCfgCluster, err := envConfig.Services.SyncCluster()
+			if err != nil || envCfgCluster.Service == nil {
 				logger.Warn("could not get cluster config for debug writer",
 					zap.Error(err),
-					zap.Bool("envCfgServiceIsNil", envCfg.Service == nil))
+					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
 				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
@@ -702,8 +707,8 @@ func Run(runOpts RunOptions) {
 						{
 							ServiceName: handleroptions.M3DBServiceName,
 							Defaults: []handleroptions.ServiceOptionsDefault{
-								handleroptions.WithDefaultServiceEnvironment(envCfg.Service.Env),
-								handleroptions.WithDefaultServiceZone(envCfg.Service.Zone),
+								handleroptions.WithDefaultServiceEnvironment(envCfgCluster.Service.Env),
+								handleroptions.WithDefaultServiceZone(envCfgCluster.Service.Zone),
 							},
 						},
 					},
