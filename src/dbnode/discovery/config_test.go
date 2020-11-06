@@ -67,50 +67,23 @@ m3dbCluster:
     - end_2
 `
 
-	hostID := "test_id"
-	envConfig := getEnvConfig(t, in, hostID)
-
-	assert.Equal(t, 1, len(envConfig.Services))
-	assert.Nil(t, envConfig.SeedNodes)
-
-	s := envConfig.Services[0].Service
-	assert.Equal(t, defaultM3DBService, s.Service)
-	assert.Equal(t, "a", s.Env)
-	assert.Equal(t, "b", s.Zone)
-	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
-	assert.Equal(t, 1, len(s.ETCDClusters))
-	assert.Equal(t, "b", s.ETCDClusters[0].Zone)
-	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
-	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
-	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
+	envConfig := getEnvConfig(t, in, "")
+	validateClusterConfig(t, envConfig, defaultM3DBService)
 }
 
 func TestM3AggregatorClusterType(t *testing.T) {
 	in := `
 type: m3aggregator_cluster
 m3AggregatorCluster:
-  env: c
-  zone: d
+  env: a
+  zone: b
   endpoints:
     - end_1
     - end_2
 `
 
-	hostID := "test_id"
-	envConfig := getEnvConfig(t, in, hostID)
-
-	assert.Equal(t, 1, len(envConfig.Services))
-	assert.Nil(t, envConfig.SeedNodes)
-	s := envConfig.Services[0].Service
-	assert.Equal(t, defaultM3AggregatorService, s.Service)
-	assert.Equal(t, "c", s.Env)
-	assert.Equal(t, "d", s.Zone)
-	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
-	assert.Equal(t, 1, len(s.ETCDClusters))
-	assert.Equal(t, "d", s.ETCDClusters[0].Zone)
-	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
-	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
-	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
+	envConfig := getEnvConfig(t, in, "")
+	validateClusterConfig(t, envConfig, defaultM3AggregatorService)
 }
 
 func TestConfigType(t *testing.T) {
@@ -170,4 +143,22 @@ func getEnvConfig(t *testing.T, in string, hostID string) environment.Configurat
 	envConfig, err := cfg.EnvironmentConfig(hostID)
 	assert.NoError(t, err)
 	return envConfig
+}
+
+func validateClusterConfig(t *testing.T,
+	envConfig environment.Configuration,
+	expectedService string,
+) {
+	assert.Equal(t, 1, len(envConfig.Services))
+	assert.Nil(t, envConfig.SeedNodes)
+	s := envConfig.Services[0].Service
+	assert.Equal(t, expectedService, s.Service)
+	assert.Equal(t, "a", s.Env)
+	assert.Equal(t, "b", s.Zone)
+	assert.Equal(t, defaultCacheDirectory, s.CacheDir)
+	assert.Equal(t, 1, len(s.ETCDClusters))
+	assert.Equal(t, "b", s.ETCDClusters[0].Zone)
+	assert.Equal(t, 2, len(s.ETCDClusters[0].Endpoints))
+	assert.Equal(t, "end_1", s.ETCDClusters[0].Endpoints[0])
+	assert.Equal(t, "end_2", s.ETCDClusters[0].Endpoints[1])
 }
