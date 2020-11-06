@@ -27,8 +27,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ratelimit"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -37,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -260,7 +263,7 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 	// to uniquely identify a single FileSetFile on disk.
 
 	// work out the volume index for the next Index FileSetFile for the given namespace/blockstart
-	volumeIndex, err := NextIndexFileSetVolumeIndex(pm.opts.FilePathPrefix(), nsMetadata.ID(), blockStart)
+	volumeIndex, err := claimNextIndexFileSetVolumeIndex(pm.opts, nsMetadata, blockStart)
 	if err != nil {
 		return prepared, err
 	}
@@ -653,4 +656,71 @@ func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
 	pm.Lock()
 	pm.currRateLimitOpts = value.PersistRateLimitOptions()
 	pm.Unlock()
+}
+
+var (
+	indexVolumeIndexClaimsLock sync.Mutex
+	indexVolumeIndexClaims     = make(map[string]indexVolumeIndexClaim)
+)
+
+type indexVolumeIndexClaim struct {
+	volumeIndex int
+	blockStart  xtime.UnixNano
+}
+
+// claimNextIndexFileSetVolumeIndex ensures we never use the same volume index
+// no matter what for an index volume from the same process, we always just
+// select the next integer regardless if previous attempt to write to prior
+// index failed or succeeded. This is ok since volume indexes do not need
+// to be contiguous, they just need to be ascending.
+func claimNextIndexFileSetVolumeIndex(
+	opts Options,
+	namespaceMetadata namespace.Metadata,
+	blockStartTime time.Time,
+) (int, error) {
+	indexVolumeIndexClaimsLock.Lock()
+	defer indexVolumeIndexClaimsLock.Unlock()
+
+	filePathPrefix := opts.FilePathPrefix()
+	nowFn := opts.ClockOptions().NowFn()
+
+	// Reap any old entries that are out of retention.
+	retOpts := namespaceMetadata.Options().RetentionOptions()
+	indexOpts := namespaceMetadata.Options().IndexOptions()
+	rp, bs, t := retOpts.RetentionPeriod(), indexOpts.BlockSize(), nowFn()
+	earliestBlockStart := retention.FlushTimeStartForRetentionPeriod(rp, bs, t)
+	earliestBlockStartUnixNanos := xtime.ToUnixNano(earliestBlockStart)
+	for key, claim := range indexVolumeIndexClaims {
+		if claim.blockStart.Before(earliestBlockStartUnixNanos) {
+			delete(indexVolumeIndexClaims, key)
+		}
+	}
+
+	// Now check if previous claim exists.
+	blockStart := xtime.ToUnixNano(blockStartTime)
+	namespace := namespaceMetadata.ID()
+	key := fmt.Sprintf("%s/%s/%d", filePathPrefix, namespace.String(),
+		blockStart)
+
+	if curr, ok := indexVolumeIndexClaims[key]; ok {
+		// Already had a previous claim, return the next claim.
+		next := curr
+		next.volumeIndex++
+		indexVolumeIndexClaims[key] = next
+		return next.volumeIndex, nil
+	}
+
+	volumeIndex, err := NextIndexFileSetVolumeIndex(filePathPrefix, namespace,
+		blockStart.ToTime())
+	if err != nil {
+		return 0, err
+	}
+
+	// Set this as claimed (always return +1 for next attempt) and
+	// return.
+	indexVolumeIndexClaims[key] = indexVolumeIndexClaim{
+		volumeIndex: volumeIndex,
+		blockStart:  blockStart,
+	}
+	return volumeIndex, nil
 }

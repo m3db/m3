@@ -56,6 +56,9 @@ var (
 	// us splitting an index block into smaller pieces is moot because we'll
 	// pull a lot more data into memory if we create more than one at a time.
 	defaultBootstrapIndexNumProcessors = 1
+
+	// defaultIndexSegmentsVerify defines default for index segments validation.
+	defaultIndexSegmentsVerify = false
 )
 
 type options struct {
@@ -65,6 +68,7 @@ type options struct {
 	indexOpts                   index.Options
 	persistManager              persist.Manager
 	compactor                   *compaction.Compactor
+	indexSegmentsVerify         bool
 	bootstrapDataNumProcessors  int
 	bootstrapIndexNumProcessors int
 	runtimeOptsMgr              runtime.OptionsManager
@@ -84,6 +88,7 @@ func NewOptions() Options {
 	return &options{
 		instrumentOpts:              instrument.NewOptions(),
 		resultOpts:                  result.NewOptions(),
+		indexSegmentsVerify:         defaultIndexSegmentsVerify,
 		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
@@ -193,6 +198,16 @@ func (o *options) SetBoostrapIndexNumProcessors(value int) Options {
 
 func (o *options) BoostrapIndexNumProcessors() int {
 	return o.bootstrapIndexNumProcessors
+}
+
+func (o *options) SetIndexSegmentsVerify(value bool) Options {
+	opts := *o
+	opts.indexSegmentsVerify = value
+	return &opts
+}
+
+func (o *options) IndexSegmentsVerify() bool {
+	return o.indexSegmentsVerify
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

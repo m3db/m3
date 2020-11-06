@@ -428,6 +428,7 @@ func TestConfiguration(t *testing.T) {
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
     cacheSeriesMetadata: null
+    verify: null
   blockRetrieve: null
   cache:
     series: null

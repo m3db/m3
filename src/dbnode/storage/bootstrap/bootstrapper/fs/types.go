@@ -86,6 +86,14 @@ type Options interface {
 	// work for bootstrapping data file sets.
 	BoostrapIndexNumProcessors() int
 
+	// SetIndexSegmentsVerify sets the value for whether to verify bootstrapped
+	// index segments.
+	SetIndexSegmentsVerify(value bool) Options
+
+	// IndexSegmentsVerify returns the value for whether to verify bootstrapped
+	// index segments.
+	IndexSegmentsVerify() bool
+
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 

@@ -65,6 +65,32 @@ type BootstrapConfiguration struct {
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
+
+	// Verify specifies verification checks.
+	Verify *BootstrapVerifyConfiguration `yaml:"verify"`
+}
+
+// VerifyOrDefault returns verify configuration or default.
+func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration {
+	if bsc.Verify == nil {
+		return BootstrapVerifyConfiguration{}
+	}
+	return *bsc.Verify
+}
+
+// BootstrapVerifyConfiguration outlines verification checks to enable
+// during a bootstrap.
+type BootstrapVerifyConfiguration struct {
+	VerifyIndexSegments *bool `yaml:"verifyIndexSegments"`
+}
+
+// VerifyIndexSegmentsOrDefault returns whether to verify index segments
+// or use default value.
+func (c BootstrapVerifyConfiguration) VerifyIndexSegmentsOrDefault() bool {
+	if c.VerifyIndexSegments == nil {
+		return false
+	}
+	return *c.VerifyIndexSegments
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
@@ -218,8 +244,12 @@ func (bsc BootstrapConfiguration) New(
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
-				SetStorageOptions(opts)
+				SetStorageOptions(opts).
+				SetIndexSegmentsVerify(bsc.VerifyOrDefault().VerifyIndexSegmentsOrDefault())
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
+				return nil, err
+			}
+			if err := fsbOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbOpts, bs)
