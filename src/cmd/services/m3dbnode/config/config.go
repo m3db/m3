@@ -630,7 +630,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
+		dir = path.Join(cfg.FilesystemOrDefault().FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 
