@@ -451,12 +451,12 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
-		return nil, fmt.Errorf("failed resolving hostID %v", err)
+		return nil, fmt.Errorf("failed resolving hostID %w", err)
 	}
 
 	envCfg, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
 	if err != nil {
-		return nil, fmt.Errorf("failed getting env config from discovery config %v", err)
+		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
 	}
 
 	kvCfg := envCfg.SeedNodes
