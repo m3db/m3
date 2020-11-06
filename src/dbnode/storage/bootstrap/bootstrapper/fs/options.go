@@ -60,6 +60,9 @@ var (
 
 	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
 	defaultIndexSegmentConcurrency = 1
+
+	// defaultIndexSegmentsVerify defines default for index segments validation.
+	defaultIndexSegmentsVerify = false
 )
 
 type options struct {
@@ -70,6 +73,7 @@ type options struct {
 	persistManager          persist.Manager
 	compactor               *compaction.Compactor
 	indexSegmentConcurrency int
+	indexSegmentsVerify     bool
 	runtimeOptsMgr          runtime.OptionsManager
 	identifierPool          ident.Pool
 	migrationOpts           migration.Options
@@ -88,6 +92,7 @@ func NewOptions() Options {
 		instrumentOpts:          instrument.NewOptions(),
 		resultOpts:              result.NewOptions(),
 		indexSegmentConcurrency: defaultIndexSegmentConcurrency,
+		indexSegmentsVerify:     defaultIndexSegmentsVerify,
 		runtimeOptsMgr:          runtime.NewOptionsManager(),
 		identifierPool:          idPool,
 		migrationOpts:           migration.NewOptions(),
@@ -188,6 +193,16 @@ func (o *options) SetIndexSegmentConcurrency(value int) Options {
 
 func (o *options) IndexSegmentConcurrency() int {
 	return o.indexSegmentConcurrency
+}
+
+func (o *options) SetIndexSegmentsVerify(value bool) Options {
+	opts := *o
+	opts.indexSegmentsVerify = value
+	return &opts
+}
+
+func (o *options) IndexSegmentsVerify() bool {
+	return o.indexSegmentsVerify
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

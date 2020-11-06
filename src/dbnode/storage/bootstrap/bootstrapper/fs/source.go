@@ -580,7 +580,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
+			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
+			// Use info log with more high level attributes.
+			s.log.Info("rebuilding file set index segment",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Int("totalEntries", totalEntries),
+				zap.Time("blockStart", blockStart),
+				zap.Time("blockEnd", blockEnd))
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -982,12 +989,22 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
+		fsOpts := s.fsopts
+		verify := s.opts.IndexSegmentsVerify()
+		if verify {
+			// Make sure for this call to read index segments
+			// to validate the index segment.
+			// If fails validation will rebuild since missing from
+			// fulfilled range.
+			fsOpts = fsOpts.SetIndexReaderAutovalidateIndexSegments(true)
+		}
+
 		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
 			},
-			FilesystemOptions: s.fsopts,
+			FilesystemOptions: fsOpts,
 		})
 		if err != nil {
 			s.log.Error("unable to read segments from index fileset",
