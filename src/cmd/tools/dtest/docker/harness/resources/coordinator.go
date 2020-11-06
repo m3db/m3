@@ -31,7 +31,8 @@ import (
 
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
-	dockertest "github.com/ory/dockertest"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/ory/dockertest"
 	"go.uber.org/zap"
 )
 
@@ -112,7 +113,7 @@ func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 		return admin.NamespaceGetResponse{}, errClosed
 	}
 
-	url := c.resource.getURL(7201, "api/v1/namespace")
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
 	logger := c.resource.logger.With(
 		zapMethod("getNamespace"), zap.String("url", url))
 
@@ -135,7 +136,7 @@ func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
 		return admin.PlacementGetResponse{}, errClosed
 	}
 
-	url := c.resource.getURL(7201, "api/v1/placement")
+	url := c.resource.getURL(7201, "api/v1/services/m3db/placement")
 	logger := c.resource.logger.With(
 		zapMethod("getPlacement"), zap.String("url", url))
 
@@ -273,13 +274,15 @@ func (c *coordinator) AddNamespace(
 		zapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	b, err := json.Marshal(addRequest)
+	marshaller := jsonpb.Marshaler{EmitDefaults: true}
+	data := bytes.NewBuffer(nil)
+	err := marshaller.Marshal(data, &addRequest)
 	if err != nil {
 		logger.Error("failed to marshal", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	resp, err := http.Post(url, "application/json", data)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
