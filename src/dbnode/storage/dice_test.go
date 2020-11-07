@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dice
+package storage
 
 import (
 	"testing"
@@ -28,17 +28,17 @@ import (
 )
 
 func TestDiceConstructor(t *testing.T) {
-	dice, err := NewDice(0)
+	dice, err := newDice(0)
 	require.Error(t, err)
 	require.Nil(t, dice)
 
-	dice, err = NewDice(2)
+	dice, err = newDice(2)
 	require.Error(t, err)
 	require.Nil(t, dice)
 }
 
 func TestDice(t *testing.T) {
-	r, err := NewDice(1)
+	r, err := newDice(1)
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(1.0), r.Rate())
