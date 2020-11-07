@@ -68,4 +68,3 @@
     "sanitization": "prometheus"
   "writeNewSeriesAsync": true
   "writeNewSeriesBackoffDuration": "2ms"
-  "writeNewSeriesLimitPerSecond": 1048576

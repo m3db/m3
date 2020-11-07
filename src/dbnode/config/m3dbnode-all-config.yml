@@ -99,8 +99,6 @@ db:
   # Whether new series should be created asynchronously (recommended value
   # of true for high throughput.)
   writeNewSeriesAsync: true
-  # Maximum number of new series that can be created per second.
-  writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
 
   bootstrap:

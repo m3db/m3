@@ -188,7 +188,6 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - unused
     - varcheck
   enable-all: false
   disable:
