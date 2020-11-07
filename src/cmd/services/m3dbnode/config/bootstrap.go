@@ -316,6 +316,7 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
@@ -358,6 +359,7 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool()).

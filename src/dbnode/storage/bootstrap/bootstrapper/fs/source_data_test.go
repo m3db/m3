@@ -95,11 +95,13 @@ func newTestOptions(t require.TestingT, filePathPrefix string) Options {
 	fsOpts := newTestFsOptions(filePathPrefix)
 	pm, err := fs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
+	icm := fs.NewIndexClaimsManager(fsOpts)
 	return testDefaultOpts.
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
 		SetFilesystemOptions(fsOpts).
-		SetPersistManager(pm)
+		SetPersistManager(pm).
+		SetIndexClaimsManager(icm)
 }
 
 func newTestOptionsWithPersistManager(t require.TestingT, filePathPrefix string) Options {
@@ -936,7 +938,8 @@ func TestReadRunMigrations(t *testing.T) {
 	writeGoodFilesWithFsOpts(t, testNs1ID, testShard, newTestFsOptions(dir).SetEncodingOptions(eOpts))
 
 	opts := newTestOptions(t, dir)
-	sOpts, closer := newTestStorageOptions(t, opts.PersistManager())
+	icm := fs.NewIndexClaimsManager(opts.FilesystemOptions())
+	sOpts, closer := newTestStorageOptions(t, opts.PersistManager(), icm)
 	defer closer()
 
 	src, err := newFileSystemSource(opts.
@@ -949,7 +952,7 @@ func TestReadRunMigrations(t *testing.T) {
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
-func newTestStorageOptions(t *testing.T, pm persist.Manager) (storage.Options, index.Closer) {
+func newTestStorageOptions(t *testing.T, pm persist.Manager, icm fs.IndexClaimsManager) (storage.Options, index.Closer) {
 	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})
@@ -960,6 +963,7 @@ func newTestStorageOptions(t *testing.T, pm persist.Manager) (storage.Options, i
 
 	return storage.NewOptions().
 		SetPersistManager(pm).
+		SetIndexClaimsManager(icm).
 		SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).
 		SetRepairEnabled(false).
 		SetIndexOptions(index.NewOptions().

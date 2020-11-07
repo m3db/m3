@@ -593,6 +593,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,

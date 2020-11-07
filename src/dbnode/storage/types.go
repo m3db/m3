@@ -1125,6 +1125,12 @@ type Options interface {
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
 
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager.
+	IndexClaimsManager() fs.IndexClaimsManager
+
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.

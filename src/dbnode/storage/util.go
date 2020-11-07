@@ -58,6 +58,7 @@ func DefaultTestOptions() Options {
 		if err != nil {
 			panic(err)
 		}
+		icm := fs.NewIndexClaimsManager(fsOpts)
 
 		plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions(),
@@ -74,6 +75,7 @@ func DefaultTestOptions() Options {
 			SetIndexOptions(indexOpts).
 			SetSeriesCachePolicy(series.CacheAll).
 			SetPersistManager(pm).
+			SetIndexClaimsManager(icm).
 			SetRepairEnabled(false).
 			SetCommitLogOptions(
 				opts.CommitLogOptions().SetFilesystemOptions(fsOpts)).

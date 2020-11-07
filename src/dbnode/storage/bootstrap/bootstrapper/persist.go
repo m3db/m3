@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -58,6 +59,7 @@ func PersistBootstrapIndexSegment(
 	requestedRanges result.ShardTimeRanges,
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
+	indexClaimsManager fs.IndexClaimsManager,
 	resultOpts result.Options,
 	fulfilled result.ShardTimeRanges,
 	blockStart time.Time,
@@ -111,6 +113,7 @@ func PersistBootstrapIndexSegment(
 		shards,
 		builder,
 		persistManager,
+		indexClaimsManager,
 		requestedRanges,
 		expectedRanges,
 		fulfilled,
@@ -124,6 +127,7 @@ func persistBootstrapIndexSegment(
 	shards map[uint32]struct{},
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
+	indexClaimsManager fs.IndexClaimsManager,
 	requestedRanges result.ShardTimeRanges,
 	expectedRanges result.ShardTimeRanges,
 	fulfilled result.ShardTimeRanges,
@@ -160,6 +164,14 @@ func persistBootstrapIndexSegment(
 		}
 	}()
 
+	volumeIndex, err := indexClaimsManager.ClaimNextIndexFileSetVolumeIndex(
+		ns,
+		blockStart,
+	)
+	if err != nil {
+		return result.IndexBlock{}, err
+	}
+
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
 		NamespaceMetadata: ns,
 		BlockStart:        blockStart,
@@ -167,6 +179,7 @@ func persistBootstrapIndexSegment(
 		Shards:            shards,
 		// NB(bodu): Assume default volume type when persisted bootstrapped index data.
 		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+		VolumeIndex:     volumeIndex,
 	})
 	if err != nil {
 		return result.IndexBlock{}, err
