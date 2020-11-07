@@ -205,13 +205,12 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Parse file and directory modes
-	cfgFilesystem := cfg.FilesystemOrDefault()
-	newFileMode, err := cfgFilesystem.ParseNewFileMode()
+	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		logger.Fatal("could not parse new file mode", zap.Error(err))
 	}
 
-	newDirectoryMode, err := cfgFilesystem.ParseNewDirectoryMode()
+	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
 	if err != nil {
 		logger.Fatal("could not parse new directory mode", zap.Error(err))
 	}
@@ -222,7 +221,7 @@ func Run(runOpts RunOptions) {
 	// If the process exits ungracefully, only the lock in memory will be removed, the lock
 	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
 	// it will be able to acquire the lock despite the fact the the lock file exists.
-	lockPath := path.Join(cfgFilesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
+	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
 	fslock, err := lockfile.CreateAndAcquire(lockPath, newDirectoryMode)
 	if err != nil {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
@@ -368,7 +367,7 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
-	mmapCfg := cfgFilesystem.MmapConfigurationOrDefault()
+	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
 	if shouldUseHugeTLB {
 		// Make sure the host supports HugeTLB before proceeding with it to prevent
@@ -391,19 +390,18 @@ func Run(runOpts RunOptions) {
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
-			SetLimitMbps(cfgFilesystem.ThroughputLimitMbpsOrDefault()).
-			SetLimitCheckEvery(cfgFilesystem.ThroughputCheckEveryOrDefault())).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsyncOrDefault()).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDurationOrDefault())
 
-	cfgCache := cfg.CacheOrDefault()
-	if lruCfg := cfgCache.SeriesConfiguration().LRU; lruCfg != nil {
+	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
 	// Setup postings list cache.
 	var (
-		plCacheConfig  = cfgCache.PostingsListConfiguration()
+		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
 		plCacheSize    = plCacheConfig.SizeOrDefault()
 		plCacheOptions = index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions().
@@ -418,7 +416,7 @@ func Run(runOpts RunOptions) {
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
-		Size:  cfgCache.RegexpConfiguration().SizeOrDefault(),
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
 		Scope: iopts.MetricsScope(),
 	})
 
@@ -500,21 +498,21 @@ func Run(runOpts RunOptions) {
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(scope.SubScope("database.fs"))).
-		SetFilePathPrefix(cfgFilesystem.FilePathPrefixOrDefault()).
+		SetFilePathPrefix(cfg.Filesystem.FilePathPrefixOrDefault()).
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
-		SetWriterBufferSize(cfgFilesystem.WriteBufferSizeOrDefault()).
-		SetDataReaderBufferSize(cfgFilesystem.DataReadBufferSizeOrDefault()).
-		SetInfoReaderBufferSize(cfgFilesystem.InfoReadBufferSizeOrDefault()).
-		SetSeekReaderBufferSize(cfgFilesystem.SeekReadBufferSizeOrDefault()).
+		SetWriterBufferSize(cfg.Filesystem.WriteBufferSizeOrDefault()).
+		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSizeOrDefault()).
+		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSizeOrDefault()).
+		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSizeOrDefault()).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
-		SetForceIndexSummariesMmapMemory(cfgFilesystem.ForceIndexSummariesMmapMemoryOrDefault()).
-		SetForceBloomFilterMmapMemory(cfgFilesystem.ForceBloomFilterMmapMemoryOrDefault()).
-		SetIndexBloomFilterFalsePositivePercent(cfgFilesystem.BloomFilterFalsePositivePercentOrDefault()).
+		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
+		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault()).
 		SetMmapReporter(mmapReporter)
 
 	var commitLogQueueSize int
@@ -547,7 +545,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Set the series cache policy.
-	seriesCachePolicy := cfgCache.SeriesConfiguration().Policy
+	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
@@ -1540,7 +1538,7 @@ func withEncodingAndPoolingOptions(
 				InstrumentOptions:     iopts,
 				ClockOptions:          opts.ClockOptions(),
 			}
-			lruCfg = cfg.CacheOrDefault().SeriesConfiguration().LRU
+			lruCfg = cfg.Cache.SeriesConfiguration().LRU
 		)
 
 		if lruCfg != nil && lruCfg.EventsChannelSize > 0 {

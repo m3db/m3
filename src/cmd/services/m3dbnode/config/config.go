@@ -73,26 +73,13 @@ var (
 	defaultGCPercentage                  = 100
 	defaultWriteNewSeriesAsync           = true
 	defaultWriteNewSeriesBackoffDuration = 2 * time.Millisecond
-	defaultCachePostingsListSize         = 262144
-	defaultCache                         = CacheConfigurations{
-		Series: &SeriesCacheConfiguration{
-			Policy: series.DefaultCachePolicy,
-		},
-		PostingsList: &PostingsListCacheConfiguration{
-			Size: &defaultCachePostingsListSize,
-		},
-	}
-	defaultCommitLogPolicy = CommitLogPolicy{
+	defaultCommitLogPolicy               = CommitLogPolicy{
 		FlushMaxBytes: 524288,
 		FlushEvery:    time.Second * 1,
 		Queue: CommitLogQueuePolicy{
 			Size:            2097152,
 			CalculationType: CalculationTypeFixed,
 		},
-	}
-	defaultFilesystemPrefix = "/var/lib/m3db"
-	defaultFilesystem       = FilesystemConfiguration{
-		FilePathPrefix: &defaultFilesystemPrefix,
 	}
 )
 
@@ -160,10 +147,10 @@ type DBConfiguration struct {
 	BlockRetrieve *BlockRetrievePolicy `yaml:"blockRetrieve"`
 
 	// Cache configurations.
-	Cache *CacheConfigurations `yaml:"cache"`
+	Cache CacheConfigurations `yaml:"cache"`
 
 	// The filesystem configuration for the node.
-	Filesystem *FilesystemConfiguration `yaml:"filesystem"`
+	Filesystem FilesystemConfiguration `yaml:"filesystem"`
 
 	// The commit log policy for the node.
 	CommitLog *CommitLogPolicy `yaml:"commitlog"`
@@ -274,24 +261,6 @@ func (c *DBConfiguration) DebugListenAddressOrDefault() string {
 	return *c.DebugListenAddress
 }
 
-// CacheOrDefault returns the cache configuration or default.
-func (c *DBConfiguration) CacheOrDefault() CacheConfigurations {
-	if c.Cache == nil {
-		return defaultCache
-	}
-
-	return *c.Cache
-}
-
-// FilesystemOrDefault returns the filesystem configuration or default.
-func (c *DBConfiguration) FilesystemOrDefault() FilesystemConfiguration {
-	if c.Filesystem == nil {
-		return defaultFilesystem
-	}
-
-	return *c.Filesystem
-}
-
 // CommitLogOrDefault returns the commit log policy or default.
 func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
 	if c.CommitLog == nil {
@@ -345,10 +314,8 @@ func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
 // Validate validates the Configuration. We use this method to validate fields
 // where the validator package falls short.
 func (c *DBConfiguration) Validate() error {
-	if c.Filesystem != nil {
-		if err := c.Filesystem.Validate(); err != nil {
-			return err
-		}
+	if err := c.Filesystem.Validate(); err != nil {
+		return err
 	}
 
 	if _, err := c.PoolingPolicyOrDefault(); err != nil {
@@ -630,7 +597,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 
 	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.FilesystemOrDefault().FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
+		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 
