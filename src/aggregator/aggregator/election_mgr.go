@@ -588,6 +588,7 @@ func (mgr *electionManager) checkCampaignStateLoop() {
 		enabled, err := mgr.campaignIsEnabledFn()
 		if err != nil {
 			mgr.metrics.campaignCheckErrors.Inc(1)
+
 			continue
 		}
 		newState := newCampaignState(enabled)
