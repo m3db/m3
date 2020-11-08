@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,20 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package clock
+package storage
 
 import (
-	"time"
+	"fmt"
+
+	"github.com/MichaelTJones/pcg"
 )
 
-// NowFn is the function supplied to determine "now"
-type NowFn func() time.Time
+// dice is an interface that allows for random sampling.
+type dice interface {
+	// Rate returns the sampling rate of this dice: a number in (0.0, 1.0].
+	Rate() float64
 
-// Options represents the options for the clock
-type Options interface {
-	// SetNowFn sets the nowFn
-	SetNowFn(value NowFn) Options
+	// Roll returns whether the dice roll succeeded.
+	Roll() bool
+}
 
-	// NowFn returns the nowFn
-	NowFn() NowFn
+// newDice constructs a new dice based on a given success rate.
+func newDice(rate float64) (dice, error) {
+	if rate <= 0.0 || rate > 1.0 {
+		return nil, fmt.Errorf("invalid sample rate %f", rate)
+	}
+
+	return &epoch{
+		r:   uint64(1.0 / rate),
+		rng: pcg.NewPCG64(),
+	}, nil
+}
+
+type epoch struct {
+	r   uint64
+	rng *pcg.PCG64
+}
+
+func (d *epoch) Rate() float64 {
+	return 1 / float64(d.r)
+}
+
+func (d *epoch) Roll() bool {
+	return d.rng.Random()%d.r == 0
 }
