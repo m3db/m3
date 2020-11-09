@@ -488,10 +488,10 @@ func (mr *MockOptionsManagerMockRecorder) Get() *gomock.Call {
 }
 
 // RegisterListener mocks base method
-func (m *MockOptionsManager) RegisterListener(l OptionsListener) resource.ErrCloser {
+func (m *MockOptionsManager) RegisterListener(l OptionsListener) resource.Closer {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", l)
-	ret0, _ := ret[0].(resource.ErrCloser)
+	ret0, _ := ret[0].(resource.Closer)
 	return ret0
 }
 
