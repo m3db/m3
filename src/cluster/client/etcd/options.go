@@ -380,11 +380,14 @@ func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
 	return c
 }
 
+//nolint:gocritic
 func (c cluster) DialTimeout() time.Duration {
 	return c.dialTimeout
 }
 
+//nolint:gocritic
 func (c cluster) SetDialTimeout(dialTimeout time.Duration) Cluster {
 	c.dialTimeout = dialTimeout
+
 	return c
 }
