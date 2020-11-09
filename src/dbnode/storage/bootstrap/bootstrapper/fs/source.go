@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -46,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -982,7 +982,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
-		segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
@@ -1008,8 +1008,8 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]result.Segment, 0, len(segments))
-		for _, segment := range segments {
+		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
+		for _, segment := range readResult.Segments {
 			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType

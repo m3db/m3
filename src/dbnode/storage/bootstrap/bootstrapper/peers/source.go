@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -45,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	"github.com/m3db/m3/src/x/clock"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -171,6 +171,9 @@ func (s *peersSource) Read(
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
+	// NB(bodu): We need to evict the info file cache before reading index data since we've
+	// maybe fetched blocks from peers so the cached info file state is now stale.
+	cache.Evict()
 	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
@@ -235,7 +238,7 @@ func (s *peersSource) readData(
 	)
 
 	if persistConfig.Enabled &&
-		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
+		seriesCachePolicy != series.CacheAll &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
 		shouldPersist = true
 	}
@@ -531,8 +534,7 @@ func (s *peersSource) flush(
 	}
 
 	seriesCachePolicy := s.opts.ResultOptions().SeriesCachePolicy()
-	if seriesCachePolicy != series.CacheRecentlyRead &&
-		seriesCachePolicy != series.CacheLRU {
+	if seriesCachePolicy == series.CacheAll {
 		// Should never happen.
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
 		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {

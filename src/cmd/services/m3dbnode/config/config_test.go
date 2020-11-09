@@ -95,15 +95,8 @@ db:
 
   gcPercentage: 100
 
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - peers
-          - noop-all
-      fs:
+      filesystem:
           numProcessorsPerCPU: 0.42
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: false
@@ -115,7 +108,7 @@ db:
           calculationType: fixed
           size: 2097152
 
-  fs:
+  filesystem:
       filePathPrefix: /var/lib/m3db
       writeBufferSize: 65536
       dataReadBufferSize: 65536
@@ -315,7 +308,7 @@ db:
   hashing:
     seed: 42
   writeNewSeriesAsync: true
-
+  writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
 `
@@ -413,15 +406,10 @@ func TestConfiguration(t *testing.T) {
     writeShardsInitializing: null
     shardsLeavingCountTowardsConsistency: null
   gcPercentage: 100
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
-    bootstrappers:
-    - filesystem
-    - peers
-    - noop-all
-    fs:
+    mode: null
+    filesystem:
       numProcessorsPerCPU: 0.42
       migration: null
     commitlog:
@@ -436,7 +424,8 @@ func TestConfiguration(t *testing.T) {
       size: 100
       cacheRegexp: false
       cacheTerms: false
-  fs:
+    regexp: null
+  filesystem:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
     dataReadBufferSize: 65536
@@ -457,7 +446,6 @@ func TestConfiguration(t *testing.T) {
       calculationType: fixed
       size: 2097152
     queueChannel: null
-    blockSize: null
   repair:
     enabled: false
     throttle: 2m0s
@@ -676,6 +664,7 @@ func TestConfiguration(t *testing.T) {
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  writeNewSeriesBackoffDuration: 2ms
   proto: null
   tracing:
     serviceName: ""
@@ -726,6 +715,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
+    writeNewSeriesPerSecond: 0
   wide: null
   tchannel: null
   debug:
@@ -941,10 +931,6 @@ db:
   httpNodeListenAddress: 0.0.0.0:9002
   httpClusterListenAddress: 0.0.0.0:9003
 
-  bootstrap:
-      bootstrappers:
-          - noop-all
-
   commitlog:
       flushMaxBytes: 524288
       flushEvery: 1s
@@ -1009,11 +995,6 @@ db:
   httpClusterListenAddress: 0.0.0.0:9003
 
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - commitlog
-          - peers
-          - uninitialized_topology
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: ` + notDefaultStr + `
 
@@ -1039,25 +1020,16 @@ db:
 	require.NoError(t, err)
 	require.NotNil(t, cfg.DB)
 
-	validator := NewMockBootstrapConfigurationValidator(ctrl)
-	validator.EXPECT().ValidateBootstrappersOrder(gomock.Any()).Return(nil).AnyTimes()
-	validator.EXPECT().ValidateFilesystemBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidatePeersBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidateUninitializedBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().
-		ValidateCommitLogBootstrapperOptions(gomock.Any()).
-		DoAndReturn(func(opts commitlog.Options) error {
-			actual := opts.ReturnUnfulfilledForCorruptCommitLogFiles()
-			expected := notDefault
-			require.Equal(t, expected, actual)
-			return nil
-		})
-
 	mapProvider := topology.NewMockMapProvider(ctrl)
 	origin := topology.NewMockHost(ctrl)
 	adminClient := client.NewMockAdminClient(ctrl)
 
-	_, err = cfg.DB.Bootstrap.New(validator,
-		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+	_, err = cfg.DB.Bootstrap.New(
+		result.NewOptions(),
+		storage.DefaultTestOptions(),
+		mapProvider,
+		origin,
+		adminClient,
+	)
 	require.NoError(t, err)
 }

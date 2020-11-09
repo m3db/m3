@@ -35,9 +35,8 @@ import (
 )
 
 var (
-	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
-	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
-	errNoNamespaceInitializerSet                  = goerrors.New("no namespace initializer set")
+	errNotAggregatedClusterNamespace = goerrors.New("not an aggregated cluster namespace")
+	errNoNamespaceInitializerSet     = goerrors.New("no namespace initializer set")
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -87,29 +86,14 @@ type ClusterStaticNamespaceConfiguration struct {
 	// Downsample is the configuration for downsampling options to use with
 	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
-
-	// StorageMetricsType is the namespace type.
-	//
-	// Deprecated: Use "Type" field when specifying config instead, it is
-	// invalid to use both.
-	StorageMetricsType storagemetadata.MetricsType `yaml:"storageMetricsType"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
 	unset := storagemetadata.MetricsType(0)
-	if c.Type != unset && c.StorageMetricsType != unset {
-		// Don't allow both to not be default
-		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
-	}
 
 	if c.Type != unset {
 		// New field value set
 		return c.Type, nil
-	}
-
-	if c.StorageMetricsType != unset {
-		// Deprecated field value set
-		return c.StorageMetricsType, nil
 	}
 
 	// Both are unset
@@ -174,6 +158,7 @@ type ClustersStaticConfigurationOptions struct {
 func (c ClustersStaticConfiguration) NewStaticClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
 	var (
 		numUnaggregatedClusterNamespaces int
@@ -313,8 +298,17 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 		}
 	}
 
-	return NewClusters(unaggregatedClusterNamespace,
+	clusters, err := NewClusters(unaggregatedClusterNamespace,
 		aggregatedClusterNamespaces...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := clusterNamespacesWatcher.Update(clusters.ClusterNamespaces()); err != nil {
+		return nil, err
+	}
+
+	return clusters, nil
 }
 
 // NB(nate): exists primarily for testing.
@@ -325,14 +319,16 @@ type newClustersFn func(DynamicClusterOptions) (Clusters, error)
 func (c ClustersStaticConfiguration) NewDynamicClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
-	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts)
+	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts, clusterNamespacesWatcher)
 }
 
 func (c ClustersStaticConfiguration) newDynamicClusters(
 	newFn newClustersFn,
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
 	clients := make([]client.Client, 0, len(c))
 	for _, clusterCfg := range c {
@@ -404,6 +400,7 @@ func (c ClustersStaticConfiguration) newDynamicClusters(
 
 	dcOpts := NewDynamicClusterOptions().
 		SetDynamicClusterNamespaceConfiguration(cfgs).
+		SetClusterNamespacesWatcher(clusterNamespacesWatcher).
 		SetInstrumentOptions(instrumentOpts)
 
 	return newFn(dcOpts)

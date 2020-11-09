@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 
@@ -37,7 +36,7 @@ import (
 type Configuration struct {
 	Metrics       instrument.MetricsConfiguration `yaml:"metrics"`
 	Logging       zap.Config                      `yaml:"logging"`
-	ListenAddress listenaddress.Configuration     `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress string                          `yaml:"listenAddress" validate:"nonzero"`
 	Etcd          etcdclient.Configuration        `yaml:"etcd"`
 	Reporter      ReporterConfiguration           `yaml:"reporter"`
 }

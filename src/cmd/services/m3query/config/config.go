@@ -22,7 +22,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -38,10 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/listenaddress"
-	"github.com/m3db/m3/src/x/cost"
 	"github.com/m3db/m3/src/x/debug/config"
-	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
@@ -61,10 +57,9 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
+	defaultListenAddress = "0.0.0.0:7201"
+
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
-	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
-		"generation scheme is required in coordinator configuration settings. " +
-		"More information is available here: %s"
 
 	defaultQueryTimeout = 30 * time.Second
 
@@ -72,6 +67,25 @@ const (
 )
 
 var (
+	defaultLogging = xlog.Configuration{
+		Level: "info",
+	}
+	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
+	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
+	defaultMetrics                    = instrument.MetricsConfiguration{
+		RootScope: &instrument.ScopeConfiguration{
+			Prefix: "coordinator",
+		},
+		PrometheusReporter: &instrument.PrometheusConfiguration{
+			HandlerPath: "/metrics",
+			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
+			ListenAddress: "0.0.0.0:7203",
+		},
+		Sanitization:    &defaultMetricsSanitization,
+		SamplingRate:    1.0,
+		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+	}
+
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
@@ -85,15 +99,21 @@ var (
 	// By default, raise errors instead of truncating results so
 	// users do not experience see unexpected results.
 	defaultRequireExhaustive = true
+
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
+	}
 )
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging *xlog.Configuration `yaml:"logging"`
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing opentracing.TracingConfiguration `yaml:"tracing"`
@@ -111,7 +131,7 @@ type Configuration struct {
 	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
@@ -129,7 +149,7 @@ type Configuration struct {
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
@@ -161,20 +181,47 @@ type Configuration struct {
 	// StoreMetricsType controls if metrics type is stored or not.
 	StoreMetricsType *bool `yaml:"storeMetricsType"`
 
-	// Cache configurations.
-	//
-	// Deprecated: cache configurations are no longer supported. Remove from file
-	// when we can make breaking changes.
-	// (If/when removed it will make existing configurations with the cache
-	// stanza not able to startup the binary since we parse YAML in strict mode
-	// by default).
-	DeprecatedCache CacheConfiguration `yaml:"cache"`
-
 	// MultiProcess is the multi-process configuration.
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// ListenAddressOrDefault returns the listen address or default.
+func (c *Configuration) ListenAddressOrDefault() string {
+	if c.ListenAddress != nil {
+		return *c.ListenAddress
+	}
+
+	return defaultListenAddress
+}
+
+// LoggingOrDefault returns the logging config or default.
+func (c *Configuration) LoggingOrDefault() xlog.Configuration {
+	if c.Logging != nil {
+		return *c.Logging
+	}
+
+	return defaultLogging
+}
+
+// MetricsOrDefault returns the metrics config or default.
+func (c *Configuration) MetricsOrDefault() *instrument.MetricsConfiguration {
+	if c.Metrics != nil {
+		return c.Metrics
+	}
+
+	return &defaultMetrics
+}
+
+// WriteWorkerPoolOrDefault returns the write worker pool config or default.
+func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.WriteWorkerPool != nil {
+		return *c.WriteWorkerPool
+	}
+
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -203,22 +250,11 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
-// CacheConfiguration contains the cache configurations.
-type CacheConfiguration struct {
-	// Deprecated: remove from config.
-	DeprecatedQueryConversion *DeprecatedQueryConversionCacheConfiguration `yaml:"queryConversion"`
-}
-
-// DeprecatedQueryConversionCacheConfiguration is deprecated: remove from config.
-type DeprecatedQueryConversionCacheConfiguration struct {
-	Size *int `yaml:"size"`
-}
-
 // ResultOptions are the result options for query.
 type ResultOptions struct {
-	// KeepNans keeps NaNs before returning query results.
+	// KeepNaNs keeps NaNs before returning query results.
 	// The default is false, which matches Prometheus
-	KeepNans bool `yaml:"keepNans"`
+	KeepNaNs bool `yaml:"keepNans"`
 }
 
 // QueryConfiguration is the query configuration.
@@ -310,41 +346,6 @@ func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
 type LimitsConfiguration struct {
 	// PerQuery configures limits which apply to each query individually.
 	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
-
-	// Global configures limits which apply across all queries running on this
-	// instance.
-	Global GlobalLimitsConfiguration `yaml:"global"`
-
-	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// MaxComputedDatapoints is a getter providing backwards compatibility between
-// LimitsConfiguration.DeprecatedMaxComputedDatapoints and
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
-// the semantics.
-func (lc LimitsConfiguration) MaxComputedDatapoints() int {
-	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
-		return lc.PerQuery.PrivateMaxComputedDatapoints
-	}
-
-	return lc.DeprecatedMaxComputedDatapoints
-}
-
-// GlobalLimitsConfiguration represents limits on resource usage across a query
-// instance. Zero or negative values imply no limit.
-type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by all queries at any point in time, this is applied at the query
-	// service after the result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
 // PerQueryLimitsConfiguration represents limits on resource usage within a
@@ -362,26 +363,6 @@ type PerQueryLimitsConfiguration struct {
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
-
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by a given query, this is applied at the query service after the
-	// result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-
-	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
-	// returned by a query. It's determined purely
-	// from the size of the time range and the step size (end - start / step).
-	//
-	// N.B.: the hacky "Private" prefix is to indicate that callers should use
-	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
-	// this field directly.
-	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
 // AsFetchOptionsBuilderLimitsOptions converts this configuration to
@@ -407,13 +388,6 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		DocsLimit:         int(docsLimit),
 		RequireExhaustive: requireExhaustive,
 	}
-}
-
-func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
-	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
-		Threshold: cost.Cost(limit),
-		Enabled:   limit > 0,
-	})
 }
 
 // IngestConfiguration is the configuration for ingestion server.
@@ -475,12 +449,9 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	// Deprecated: simply use the logger debug level, this has been deprecated
-	// in favor of setting the log level to debug.
-	DeprecatedDebug bool                              `yaml:"debug"`
-	ListenAddress   string                            `yaml:"listenAddress"`
-	MaxConcurrency  int                               `yaml:"maxConcurrency"`
-	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	ListenAddress  string                            `yaml:"listenAddress"`
+	MaxConcurrency int                               `yaml:"maxConcurrency"`
+	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -519,7 +490,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	}
 
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
-	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	policies := make([]CarbonIngesterStoragePolicyConfiguration, 0, len(namespaces))
 	for _, ns := range namespaces {
 		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
@@ -666,7 +637,7 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `le`.
 	BucketName string `yaml:"bucketName"`
 
-	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
+	// Scheme determines the default ID generation scheme. Defaults to TypeQuoted.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 
 	// Filters are optional tag filters, removing all series with tags
@@ -705,9 +676,8 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	if cfg.Scheme == models.TypeDefault {
-		// If no config has been set, error.
-		docLink := xdocs.Path("how_to/query#migration")
-		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
+		// Default to quoted if unspecified.
+		cfg.Scheme = models.TypeQuoted
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)

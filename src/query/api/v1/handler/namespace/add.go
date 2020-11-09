@@ -43,10 +43,6 @@ import (
 )
 
 var (
-	// DeprecatedM3DBAddURL is the old url for the namespace add handler, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
-
 	// M3DBAddURL is the url for the M3DB namespace add handler.
 	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
@@ -133,6 +129,10 @@ func (h *AddHandler) Add(
 		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("bad namespace metadata: %v", err))
 	}
 
+	if err := validateNewMetadata(md); err != nil {
+		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("invalid new namespace metadata: %v", err))
+	}
+
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyReg, err
@@ -175,4 +175,18 @@ func (h *AddHandler) Add(
 	}
 
 	return *protoRegistry, nil
+}
+
+// Validate new namespace inputs only. Validation that applies to namespaces regardless of create/update/etc
+// belongs in the option-specific Validate functions which are invoked on every change operation.
+func validateNewMetadata(m namespace.Metadata) error {
+	indexBlockSize := m.Options().RetentionOptions().BlockSize()
+	retentionBlockSize := m.Options().IndexOptions().BlockSize()
+	if indexBlockSize != retentionBlockSize {
+		return fmt.Errorf("index and retention block size must match (%v, %v)",
+			indexBlockSize,
+			retentionBlockSize,
+		)
+	}
+	return nil
 }

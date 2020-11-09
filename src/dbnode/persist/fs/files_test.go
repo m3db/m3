@@ -50,6 +50,7 @@ var (
 	testNs2ID       = ident.StringID("testNs2")
 	testNs1Metadata = func(t *testing.T) namespace.Metadata {
 		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+			SetCacheBlocksOnRetrieve(true).
 			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
@@ -57,6 +58,7 @@ var (
 	}
 	testNs2Metadata = func(t *testing.T) namespace.Metadata {
 		md, err := namespace.NewMetadata(testNs2ID, namespace.NewOptions().
+			SetCacheBlocksOnRetrieve(true).
 			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)

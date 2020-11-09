@@ -347,15 +347,7 @@ db:
     gcPercentage: 100
 
     writeNewSeriesAsync: false
-    writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
-
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
 
     commitlog:
         flushMaxBytes: 524288
@@ -364,7 +356,7 @@ db:
             calculationType: fixed
             size: 2097152
 
-    fs:
+    filesystem:
         filePathPrefix: {{.DataDir}}
         writeBufferSize: 65536
         dataReadBufferSize: 65536

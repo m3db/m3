@@ -441,6 +441,9 @@ type Cache interface {
 	// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
 	// is returned if the info files have already been read.
 	ReadInfoFiles() InfoFilesByNamespace
+
+	// Evict cache contents by re-reading fresh data in.
+	Evict()
 }
 
 // CacheOptions represents the options for Cache.

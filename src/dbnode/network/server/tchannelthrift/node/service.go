@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -42,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -585,13 +585,17 @@ func (s *service) aggregateTiles(
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}
-	opts, err := storage.NewAggregateTilesOptions(start, end, step)
-	if err != nil {
-		return 0, tterrors.NewBadRequestError(err)
-	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
+
+	opts, err := storage.NewAggregateTilesOptions(
+		start, end, step,
+		sourceNsID,
+		s.opts.InstrumentOptions())
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
 
 	processedTileCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
@@ -732,8 +736,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		Exhaustive: queryResult.Exhaustive,
 		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, results.Size()),
 	}
-	nsID := results.Namespace()
-	nsIDBytes := nsID.Bytes()
+	nsIDBytes := ns.Bytes()
 
 	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
@@ -742,14 +745,14 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
-	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+	if err := s.fetchReadEncoded(ctx, db, response, results, ns, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+		if err := s.fetchReadResults(ctx, response, ns, encodedDataResults); err != nil {
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return nil, err
 		}

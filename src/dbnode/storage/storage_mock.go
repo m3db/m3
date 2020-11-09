@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -49,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -1154,6 +1154,32 @@ func (mr *MockNamespaceMockRecorder) StorageOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockNamespace)(nil).StorageOptions))
 }
 
+// ReadOnly mocks base method
+func (m *MockNamespace) ReadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReadOnly indicates an expected call of ReadOnly
+func (mr *MockNamespaceMockRecorder) ReadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockNamespace)(nil).ReadOnly))
+}
+
+// SetReadOnly mocks base method
+func (m *MockNamespace) SetReadOnly(value bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetReadOnly", value)
+}
+
+// SetReadOnly indicates an expected call of SetReadOnly
+func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockNamespace)(nil).SetReadOnly), value)
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1302,6 +1328,32 @@ func (m *MockdatabaseNamespace) StorageOptions() Options {
 func (mr *MockdatabaseNamespaceMockRecorder) StorageOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockdatabaseNamespace)(nil).StorageOptions))
+}
+
+// ReadOnly mocks base method
+func (m *MockdatabaseNamespace) ReadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ReadOnly indicates an expected call of ReadOnly
+func (mr *MockdatabaseNamespaceMockRecorder) ReadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadOnly))
+}
+
+// SetReadOnly mocks base method
+func (m *MockdatabaseNamespace) SetReadOnly(value bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetReadOnly", value)
+}
+
+// SetReadOnly indicates an expected call of SetReadOnly
+func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetReadOnly), value)
 }
 
 // Close mocks base method

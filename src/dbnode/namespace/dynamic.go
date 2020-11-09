@@ -107,22 +107,49 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	logger.Info("waiting for dynamic namespace registry initialization, " +
-		"if this takes a long time, make sure that a namespace is configured")
-	<-watch.C()
+	var (
+		watchable = xwatch.NewWatchable()
+		initValue kv.Value
+		dt        *dynamicRegistry
+	)
+	if opts.AllowEmptyInitialNamespaceRegistry() {
+		initValue, err = kvStore.Get(opts.NamespaceRegistryKey())
+		if err == kv.ErrNotFound {
+			logger.Info("no initial namespaces found. namespaces will be added via watch updates")
+			dt = &dynamicRegistry{
+				opts:      opts,
+				logger:    logger,
+				metrics:   newDynamicRegistryMetrics(opts),
+				watchable: watchable,
+				kvWatch:   watch,
+			}
+
+			startRegistryWatch(dt)
+
+			return dt, nil
+		} else if err != nil {
+			return nil, err
+		}
+	} else {
+		logger.Info("waiting for dynamic namespace registry initialization, " +
+			"if this takes a long time, make sure that a namespace is configured")
+
+		<-watch.C()
+
+		initValue = watch.Get()
+	}
+
 	logger.Info("initial namespace value received")
 
-	initValue := watch.Get()
 	m, err := getMapFromUpdate(initValue, opts.ForceColdWritesEnabled())
 	if err != nil {
 		logger.Error("dynamic namespace registry received invalid initial value", zap.Error(err))
 		return nil, err
 	}
 
-	watchable := xwatch.NewWatchable()
 	watchable.Update(m)
 
-	dt := &dynamicRegistry{
+	dt = &dynamicRegistry{
 		opts:         opts,
 		logger:       logger,
 		metrics:      newDynamicRegistryMetrics(opts),
@@ -131,9 +158,15 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 		currentValue: initValue,
 		currentMap:   m,
 	}
-	go dt.run()
-	go dt.reportMetrics()
+
+	startRegistryWatch(dt)
+
 	return dt, nil
+}
+
+func startRegistryWatch(reg *dynamicRegistry) {
+	go reg.run()
+	go reg.reportMetrics()
 }
 
 func (r *dynamicRegistry) isClosed() bool {
@@ -143,16 +176,26 @@ func (r *dynamicRegistry) isClosed() bool {
 	return closed
 }
 
-func (r *dynamicRegistry) value() kv.Value {
+func (r *dynamicRegistry) value() (kv.Value, bool) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.currentValue
+
+	if r.currentValue == nil {
+		return nil, false
+	}
+
+	return r.currentValue, true
 }
 
-func (r *dynamicRegistry) maps() Map {
+func (r *dynamicRegistry) maps() (Map, bool) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.currentMap
+
+	if r.currentMap == nil {
+		return nil, false
+	}
+
+	return r.currentMap, true
 }
 
 func (r *dynamicRegistry) reportMetrics() {
@@ -164,7 +207,9 @@ func (r *dynamicRegistry) reportMetrics() {
 			return
 		}
 
-		r.metrics.currentVersion.Update(float64(r.value().Version()))
+		if val, ok := r.value(); ok {
+			r.metrics.currentVersion.Update(float64(val.Version()))
+		}
 	}
 }
 
@@ -182,11 +227,14 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if !val.IsNewer(r.currentValue) {
+		currentValue, ok := r.value()
+		if ok && !val.IsNewer(currentValue) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received older version, skipping",
 				zap.Int("version", val.Version()))
 			continue
+		} else if !ok {
+			r.logger.Debug("current value for dynamic registry is nil. this should only happen on initialization")
 		}
 
 		m, err := getMapFromUpdate(val, r.opts.ForceColdWritesEnabled())
@@ -197,11 +245,14 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if m.Equal(r.maps()) {
+		currentMap, ok := r.maps()
+		if ok && m.Equal(currentMap) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received identical update, skipping",
 				zap.Int("version", val.Version()))
 			continue
+		} else if !ok {
+			r.logger.Debug("current map for dynamic registry is nil. this should only happen on initialization")
 		}
 
 		r.logger.Info("dynamic namespace registry updated to version",

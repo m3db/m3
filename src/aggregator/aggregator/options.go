@@ -314,6 +314,14 @@ type Options interface {
 
 	// VerboseErrors returns whether to return verbose errors or not.
 	VerboseErrors() bool
+
+	// SetAddToReset sets the value for AddToReset.
+	SetAddToReset(value bool) Options
+
+	// AddToReset changes Add transforms to Reset Transforms.
+	// This is a temporary option to help with the seamless rollout of changing Add transforms to Reset transforms for
+	// resetting aggregate counters. Once rollup rules have changed to use Reset explicitly, this can be removed.
+	AddToReset() bool
 }
 
 type options struct {
@@ -354,6 +362,7 @@ type options struct {
 	timerElemPool                    TimerElemPool
 	gaugeElemPool                    GaugeElemPool
 	verboseErrors                    bool
+	addToReset                       bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -838,6 +847,16 @@ func (o *options) computeFullGaugePrefix() {
 	n := copy(fullGaugePrefix, o.metricPrefix)
 	copy(fullGaugePrefix[n:], o.gaugePrefix)
 	o.fullGaugePrefix = fullGaugePrefix
+}
+
+func (o *options) AddToReset() bool {
+	return o.addToReset
+}
+
+func (o *options) SetAddToReset(value bool) Options {
+	opts := *o
+	opts.addToReset = value
+	return &opts
 }
 
 func defaultMaxAllowedForwardingDelayFn(

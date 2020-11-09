@@ -23,8 +23,6 @@ package storage
 import (
 	"fmt"
 	"time"
-
-	"github.com/m3db/m3/src/x/dice"
 )
 
 // forwardIndexDice is a die roll that adds a chance for incoming index writes
@@ -36,7 +34,7 @@ type forwardIndexDice struct {
 	blockSize time.Duration
 
 	forwardIndexThreshold time.Duration
-	forwardIndexDice      dice.Dice
+	forwardIndexDice      dice
 }
 
 func newForwardIndexDice(
@@ -72,7 +70,7 @@ func newForwardIndexDice(
 	bufferFragment := float64(bufferFuture) * threshold
 	forwardIndexThreshold = blockSize - time.Duration(bufferFragment)
 
-	dice, err := dice.NewDice(probability)
+	dice, err := newDice(probability)
 	if err != nil {
 		return forwardIndexDice{},
 			fmt.Errorf("cannot create forward write dice: %s", err)

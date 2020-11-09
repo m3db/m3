@@ -573,7 +573,7 @@ func defaultedPlacementInitRequest(
 			return nil, errMissingEmbeddedDBConfig
 		}
 
-		addr := embeddedDbCfg.ListenAddress
+		addr := embeddedDbCfg.ListenAddressOrDefault()
 		port, err := portFromEmbeddedDBConfigListenAddress(addr)
 		if err != nil {
 			return nil, err

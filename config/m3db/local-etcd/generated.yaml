@@ -1,9 +1,5 @@
 "coordinator":
-  "limits":
-    "maxComputedDatapoints": 10000
-  "listenAddress":
-    "type": "config"
-    "value": "0.0.0.0:7201"
+  "listenAddress": "0.0.0.0:7201"
   "local":
     "namespaces":
     - "namespace": "default"
@@ -23,14 +19,6 @@
   "tagOptions":
     "idScheme": "quoted"
 "db":
-  "bootstrap":
-    "bootstrappers":
-    - "filesystem"
-    - "commitlog"
-    - "peers"
-    - "uninitialized_topology"
-    "commitlog":
-      "returnUnfulfilledForCorruptCommitLogFiles": false
   "cache":
     "postingsList":
       "size": 262144
@@ -80,4 +68,3 @@
     "sanitization": "prometheus"
   "writeNewSeriesAsync": true
   "writeNewSeriesBackoffDuration": "2ms"
-  "writeNewSeriesLimitPerSecond": 1048576
