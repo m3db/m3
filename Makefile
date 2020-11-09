@@ -257,7 +257,7 @@ SUBDIR_TARGETS := \
 	genny-gen       \
 	license-gen     \
 	all-gen         \
-	lint
+	all-gen
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -478,3 +478,8 @@ clean: clean-build
 	@rm -rf ./src/ctl/ui/build
 
 .DEFAULT_GOAL := all
+
+lint: install-tools linter
+	@echo "--- :golang: Running linter on 'src'"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/...
+	./bin/linter ./src/...
