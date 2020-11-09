@@ -228,7 +228,7 @@ func (c readOnlyContainer) bitmap() (bitmapReadOnlyContainer, bool) {
 		return bitmapReadOnlyContainer{}, false
 	}
 	return bitmapReadOnlyContainer{
-		values: (*[0xFFFFFFF]uint64)(unsafe.Pointer(&c.data[c.offset]))[:bitmapN],
+		values: (*[0xFFFFFFF]uint64)(unsafe.Pointer(&c.data[c.offset]))[:bitmapN:bitmapN],
 	}, true
 }
 
@@ -237,7 +237,7 @@ func (c readOnlyContainer) array() (arrayReadOnlyContainer, bool) {
 		return arrayReadOnlyContainer{}, false
 	}
 	return arrayReadOnlyContainer{
-		values: (*[0xFFFFFFF]uint16)(unsafe.Pointer(&c.data[c.offset]))[:c.cardinality],
+		values: (*[0xFFFFFFF]uint16)(unsafe.Pointer(&c.data[c.offset]))[:c.cardinality:c.cardinality],
 	}, true
 }
 
@@ -247,7 +247,7 @@ func (c readOnlyContainer) runs() (runReadOnlyContainer, bool) {
 	}
 	runCount := binary.LittleEndian.Uint16(c.data[c.offset : c.offset+runCountHeaderSize])
 	return runReadOnlyContainer{
-		values: (*[0xFFFFFFF]interval16)(unsafe.Pointer(&c.data[c.offset+runCountHeaderSize]))[:runCount],
+		values: (*[0xFFFFFFF]interval16)(unsafe.Pointer(&c.data[c.offset+runCountHeaderSize]))[:runCount:runCount],
 	}, true
 }
 
