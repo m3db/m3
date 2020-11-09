@@ -36,10 +36,13 @@ import (
 )
 
 const (
+	defaultAutoSyncInterval = 1 * time.Minute
+	defaultDialTimeout      = 15 * time.Second
+
 	defaultKeepAliveEnabled         = true
-	defaultKeepAlivePeriod          = 5 * time.Minute
-	defaultKeepAlivePeriodMaxJitter = 5 * time.Minute
-	defaultKeepAliveTimeout         = 20 * time.Second
+	defaultKeepAlivePeriod          = 20 * time.Second
+	defaultKeepAlivePeriodMaxJitter = 10 * time.Second
+	defaultKeepAliveTimeout         = 10 * time.Second
 
 	defaultRetryInitialBackoff = 2 * time.Second
 	defaultRetryBackoffFactor  = 2.0
@@ -316,8 +319,10 @@ func (o options) NewDirectoryMode() os.FileMode {
 // NewCluster creates a Cluster.
 func NewCluster() Cluster {
 	return cluster{
-		keepAliveOpts: NewKeepAliveOptions(),
-		tlsOpts:       NewTLSOptions(),
+		autoSyncInterval: defaultAutoSyncInterval,
+		dialTimeout:      defaultDialTimeout,
+		keepAliveOpts:    NewKeepAliveOptions(),
+		tlsOpts:          NewTLSOptions(),
 	}
 }
 
@@ -327,6 +332,7 @@ type cluster struct {
 	keepAliveOpts    KeepAliveOptions
 	tlsOpts          TLSOptions
 	autoSyncInterval time.Duration
+	dialTimeout      time.Duration
 }
 
 func (c cluster) Zone() string {
@@ -371,5 +377,17 @@ func (c cluster) AutoSyncInterval() time.Duration {
 
 func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
 	c.autoSyncInterval = autoSyncInterval
+	return c
+}
+
+//nolint:gocritic
+func (c cluster) DialTimeout() time.Duration {
+	return c.dialTimeout
+}
+
+//nolint:gocritic
+func (c cluster) SetDialTimeout(dialTimeout time.Duration) Cluster {
+	c.dialTimeout = dialTimeout
+
 	return c
 }

@@ -129,6 +129,9 @@ type Cluster interface {
 	TLSOptions() TLSOptions
 	SetTLSOptions(TLSOptions) Cluster
 
-	SetAutoSyncInterval(value time.Duration) Cluster
 	AutoSyncInterval() time.Duration
+	SetAutoSyncInterval(value time.Duration) Cluster
+
+	DialTimeout() time.Duration
+	SetDialTimeout(value time.Duration) Cluster
 }
