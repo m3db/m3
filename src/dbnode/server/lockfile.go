@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lockfile
+package server
 
 import (
 	"os"
@@ -57,7 +57,7 @@ func Acquire(path string) (*Lockfile, error) {
 }
 
 // CreateAndAcquire creates any non-existing directories needed to
-// create the lock file, then acquires a lock on it
+// create the lock file, then acquires a lock on it.
 func CreateAndAcquire(path string, newDirMode os.FileMode) (*Lockfile, error) {
 	if err := os.MkdirAll(paths.Dir(path), newDirMode); err != nil {
 		return nil, err

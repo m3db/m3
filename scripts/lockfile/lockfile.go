@@ -20,7 +20,9 @@
 
 package main
 
-// This .go file is used to test the lockfile package (m3/src/x/lockfile)
+// This .go file is used to test the lockfile implementation in dbnode/server.
+// The implementation is internal to dbnode/server, but is utilized by this script
+// so that its test can exec new processes that acquire file locks.
 
 import (
 	"fmt"
@@ -29,7 +31,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3/src/x/lockfile"
+	"github.com/m3db/m3/src/dbnode/server"
 )
 
 func exitWithUsage() {
@@ -50,7 +52,7 @@ func main() {
 		exitWithUsage()
 	}
 
-	lock, err := lockfile.Acquire(path)
+	lock, err := server.Acquire(path)
 	if err != nil {
 		os.Exit(1)
 	}
