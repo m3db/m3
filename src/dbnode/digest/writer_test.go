@@ -121,7 +121,7 @@ func TestFdWithDigestWriteDigestsSuccess(t *testing.T) {
 
 func TestCloseAll(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
-	defer os.Remove(fd.Name())
+	defer os.Remove(fd.Name()) // nolint:errcheck
 
 	require.NoError(t, CloseAll(writer))
 	require.Error(t, fd.Close(), "already closed")
@@ -129,7 +129,7 @@ func TestCloseAll(t *testing.T) {
 
 func TestCloseAllFails(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
-	defer os.Remove(fd.Name())
+	defer os.Remove(fd.Name()) // nolint:errcheck
 
 	require.NoError(t, fd.Close())
 	require.Error(t, CloseAll(writer), "already closed")
@@ -137,7 +137,7 @@ func TestCloseAllFails(t *testing.T) {
 
 func TestSyncAll(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
-	defer os.Remove(fd.Name())
+	defer os.Remove(fd.Name()) // nolint:errcheck
 
 	require.NoError(t, SyncAll(writer))
 	require.NoError(t, fd.Close())
@@ -145,7 +145,7 @@ func TestSyncAll(t *testing.T) {
 
 func TestSyncAllFails(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
-	defer os.Remove(fd.Name())
+	defer os.Remove(fd.Name()) // nolint:errcheck
 
 	require.NoError(t, fd.Close())
 	require.Error(t, SyncAll(writer), "already closed")

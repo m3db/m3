@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -408,14 +409,14 @@ func (w *writer) closeWOIndex() error {
 		w.digestFdWithDigestContents,
 	}
 
+	var multiErr xerrors.MultiError
 	if w.syncBeforeClose {
-		if err := digest.SyncAll(fds...); err != nil {
-			_ = digest.CloseAll(fds...)
-			return err
-		}
+		multiErr = multiErr.Add(digest.SyncAll(fds...))
 	}
 
-	return digest.CloseAll(fds...)
+	multiErr = multiErr.Add(digest.CloseAll(fds...))
+
+	return multiErr.FinalError()
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
@@ -665,17 +666,20 @@ func writeCheckpointFile(
 	if err != nil {
 		return err
 	}
+
+	var multiErr xerrors.MultiError
 	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
-		// NB(prateek): intentionally skipping fd.Close() error, as failure
-		// to write takes precedence over failure to close the file
-		_ = fd.Close()
-		return err
+		multiErr = multiErr.Add(err)
+		multiErr = multiErr.Add(fd.Close())
+
+		return multiErr.FinalError()
 	}
+
 	if syncBeforeClose {
-		if err := fd.Sync(); err != nil {
-			_ = fd.Close()
-			return err
-		}
+		multiErr = multiErr.Add(fd.Sync())
 	}
-	return fd.Close()
+
+	multiErr = multiErr.Add(fd.Close())
+
+	return multiErr.FinalError()
 }
