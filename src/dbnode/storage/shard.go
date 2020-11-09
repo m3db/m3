@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	value2 "github.com/prometheus/prometheus/pkg/value"
+
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/tile"
@@ -908,7 +910,7 @@ func (s *dbShard) WriteTagged(
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
 	if math.IsNaN(value) {
-		fmt.Printf("dbShard.WriteTagged NaN: %s %s", id, timestamp)
+		fmt.Printf("dbShard.WriteTagged NaN: %s %s\n stale=%t", id, timestamp, value2.IsStaleNaN(value))
 	}
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, wOpts, true)
