@@ -57,6 +57,8 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
+	defaultListenAddress = "0.0.0.0:7201"
+
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 
 	defaultQueryTimeout = 30 * time.Second
@@ -65,6 +67,25 @@ const (
 )
 
 var (
+	defaultLogging = xlog.Configuration{
+		Level: "info",
+	}
+	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
+	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
+	defaultMetrics                    = instrument.MetricsConfiguration{
+		RootScope: &instrument.ScopeConfiguration{
+			Prefix: "coordinator",
+		},
+		PrometheusReporter: &instrument.PrometheusConfiguration{
+			HandlerPath: "/metrics",
+			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
+			ListenAddress: "0.0.0.0:7203",
+		},
+		Sanitization:    &defaultMetricsSanitization,
+		SamplingRate:    1.0,
+		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+	}
+
 	// 5m is the default lookback in Prometheus
 	defaultLookbackDuration = 5 * time.Minute
 
@@ -89,10 +110,10 @@ var (
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging *xlog.Configuration `yaml:"logging"`
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing opentracing.TracingConfiguration `yaml:"tracing"`
@@ -110,7 +131,7 @@ type Configuration struct {
 	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
@@ -167,11 +188,39 @@ type Configuration struct {
 	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
+// ListenAddressOrDefault returns the listen address or default.
+func (c *Configuration) ListenAddressOrDefault() string {
+	if c.ListenAddress != nil {
+		return *c.ListenAddress
+	}
+
+	return defaultListenAddress
+}
+
+// LoggingOrDefault returns the logging config or default.
+func (c *Configuration) LoggingOrDefault() xlog.Configuration {
+	if c.Logging != nil {
+		return *c.Logging
+	}
+
+	return defaultLogging
+}
+
+// MetricsOrDefault returns the metrics config or default.
+func (c *Configuration) MetricsOrDefault() *instrument.MetricsConfiguration {
+	if c.Metrics != nil {
+		return c.Metrics
+	}
+
+	return &defaultMetrics
+}
+
 // WriteWorkerPoolOrDefault returns the write worker pool config or default.
-func (c Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
 	if c.WriteWorkerPool != nil {
 		return *c.WriteWorkerPool
 	}
+
 	return defaultWriteWorkerPool
 }
 
@@ -203,9 +252,9 @@ type FilterConfiguration struct {
 
 // ResultOptions are the result options for query.
 type ResultOptions struct {
-	// KeepNans keeps NaNs before returning query results.
+	// KeepNaNs keeps NaNs before returning query results.
 	// The default is false, which matches Prometheus
-	KeepNans bool `yaml:"keepNans"`
+	KeepNaNs bool `yaml:"keepNans"`
 }
 
 // QueryConfiguration is the query configuration.

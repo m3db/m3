@@ -101,13 +101,7 @@ function(cluster, coordinator={}, db={}) {
     },
     "gcPercentage": 100,
     "writeNewSeriesAsync": true,
-    "writeNewSeriesLimitPerSecond": 1048576,
     "writeNewSeriesBackoffDuration": "2ms",
-    "bootstrap": {
-      "commitlog": {
-        "returnUnfulfilledForCorruptCommitLogFiles": false
-      }
-    },
     "cache": {
       "series": {
         "policy": "lru"

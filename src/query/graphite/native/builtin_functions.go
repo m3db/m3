@@ -990,7 +990,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 }
 
 // totalFunc takes an index and returns a total value for that index
-type totalFunc func(int) float64
+type totalFunc func(int, *ts.Series) float64
 
 func totalBySum(seriesList []*ts.Series, index int) float64 {
 	s, hasValue := 0.0, false
@@ -1008,7 +1008,7 @@ func totalBySum(seriesList []*ts.Series, index int) float64 {
 }
 
 // asPercent calculates a percentage of the total of a wildcard series.
-func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface) (ts.SeriesList, error) {
+func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface, nodes ...int) (ts.SeriesList, error) {
 	if len(input.Values) == 0 {
 		return ts.SeriesList(input), nil
 	}
@@ -1029,24 +1029,51 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		if total.Len() == 0 {
 			// normalize input and sum up input as the total series
 			toNormalize = input.Values
-			tf = func(idx int) float64 { return totalBySum(normalized, idx) }
+			tf = func(idx int, _ *ts.Series) float64 { return totalBySum(normalized, idx) }
 		} else {
-			// check total is a single-series list and normalize all of them
-			if total.Len() != 1 {
-				err := errors.NewInvalidParamsError(errors.New("total must be a single series"))
-				return ts.NewSeriesList(), err
-			}
+			if len(nodes) > 0 {
+				// group the series by specified nodes and then sum those groups
+				groupedTotal, err := groupByNodes(ctx, input, "sum", nodes...)
+				if err != nil {
+					return ts.NewSeriesList(), err
+				}
+				toNormalize = append(input.Values, groupedTotal.Values[0])
+				metaSeriesSumByKey := make(map[string]*ts.Series)
 
-			toNormalize = append(input.Values, total.Values[0])
-			tf = func(idx int) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
-			totalText = total.Values[0].Name()
+				// map the aggregation key to the aggregated series
+				for _, series := range groupedTotal.Values {
+					metaSeriesSumByKey[series.Name()] = series
+				}
+
+				tf = func(idx int, series *ts.Series) float64 {
+					// find which aggregation key this series falls under
+					// and return the sum for that aggregated group
+					key := getAggregationKey(series, nodes)
+					return metaSeriesSumByKey[key].ValueAt(idx)
+				}
+				totalText = groupedTotal.Values[0].Name()
+			} else {
+				toNormalize = append(input.Values, total.Values[0])
+				tf = func(idx int, _ *ts.Series) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
+				totalText = total.Values[0].Name()
+			}
 		}
 	case float64:
 		toNormalize = input.Values
-		tf = func(idx int) float64 { return totalArg }
+		tf = func(idx int, _ *ts.Series) float64 { return totalArg }
 		totalText = fmt.Sprintf(common.FloatingPointFormat, totalArg)
+	case nil:
+		// if total is nil, the total is the sum of all the input series
+		toNormalize = input.Values
+		var err error
+		summedSeries, err := sumSeries(ctx, multiplePathSpecs(input))
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		tf = func(idx int, _ *ts.Series) float64 { return summedSeries.Values[0].ValueAt(idx) }
+		totalText = summedSeries.Values[0].Name()
 	default:
-		err := errors.NewInvalidParamsError(errors.New("total is neither an int nor a series"))
+		err := errors.NewInvalidParamsError(errors.New("total must be either an int, a series, or nil"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -1066,8 +1093,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		values = append(values, percents)
 	}
 	for i := 0; i < normalized[0].Len(); i++ {
-		t := tf(i)
 		for j := 0; j < numInputSeries; j++ {
+			t := tf(i, normalized[j])
 			v := normalized[j].ValueAt(i)
 			if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
 				values[j].SetValueAt(i, 100.0*v/t)
@@ -2348,6 +2375,7 @@ func init() {
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
+		3: nil, // nodes
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
@@ -2378,7 +2406,9 @@ func init() {
 	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
 		3: "average", // fname
 	})
-	MustRegisterFunction(groupByNodes)
+	MustRegisterFunction(groupByNodes).WithDefaultParams(map[uint8]interface{}{
+		3: nil, // nodes
+	})
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
 		3: "average", // f

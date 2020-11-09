@@ -34,7 +34,7 @@ const (
 	// DefaultReturnUnfulfilledForCorruptCommitLogFiles is the default
 	// value for whether to return unfulfilled when encountering corrupt
 	// commit log files.
-	DefaultReturnUnfulfilledForCorruptCommitLogFiles = true
+	DefaultReturnUnfulfilledForCorruptCommitLogFiles = false
 )
 
 var (

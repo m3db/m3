@@ -21,9 +21,11 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
@@ -34,6 +36,66 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTakeInstantFn(t *testing.T) {
+	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4}, {5, 6, 7, 8}}
+
+	var (
+		seriesMetasTakeOrdered = []block.SeriesMeta{
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "2"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+		}
+	)
+
+	expectedMin := []valueAndMeta{
+		{val: 1.1, seriesMeta: seriesMetasTakeOrdered[0]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
+
+		{val: 6.1, seriesMeta: seriesMetasTakeOrdered[5]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+	}
+
+	size := 3
+	minHeap := utils.NewFloatHeap(false, size)
+	actual := takeInstantFn(minHeap, valuesMin, buckets, seriesMetasTakeOrdered) //9
+
+	actualString := fmt.Sprint(actual)
+	expectedString := fmt.Sprint(expectedMin)
+
+	assert.EqualValues(t, expectedString, actualString)
+
+	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	expectedMax := []valueAndMeta{
+		{val: 4.1, seriesMeta: seriesMetasTakeOrdered[3]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
+
+		{val: 9.1, seriesMeta: seriesMetasTakeOrdered[8]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+	}
+
+	maxHeap := utils.NewFloatHeap(true, size)
+	actual = takeInstantFn(maxHeap, valuesMax, buckets, seriesMetasTakeOrdered)
+	actualString = fmt.Sprint(actual)
+	expectedString = fmt.Sprint(expectedMax)
+
+	assert.EqualValues(t, expectedString, actualString)
+}
 
 func TestTakeFn(t *testing.T) {
 	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
@@ -98,6 +160,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
+
 	expected := [][]float64{
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -139,3 +202,12 @@ func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
+
+func TestTakeOpParamIsNaN(t *testing.T) {
+	op, err := NewTakeOp(TopKType, NodeParams{
+		Parameter: math.NaN(),
+	})
+	require.NoError(t, err)
+	assert.True(t, op.(takeOp).k < 0)
+}
+

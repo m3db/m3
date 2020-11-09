@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -47,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -291,6 +291,12 @@ type Namespace interface {
 
 	// StorageOptions returns storage options.
 	StorageOptions() Options
+
+	// ReadOnly returns true if this Namespace is read only.
+	ReadOnly() bool
+
+	// SetReadOnly sets the value of ReadOnly option.
+	SetReadOnly(value bool)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -1384,7 +1390,8 @@ type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
 	Start, End time.Time
 	// Step is the downsampling step.
-	Step time.Duration
+	Step       time.Duration
+	InsOptions instrument.Options
 }
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.

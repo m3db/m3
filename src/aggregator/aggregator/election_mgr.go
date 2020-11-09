@@ -580,18 +580,27 @@ func (mgr *electionManager) checkCampaignStateLoop() {
 
 	for {
 		select {
+		case <-mgr.doneCh:
+			return
+		default:
+		}
+
+		enabled, err := mgr.campaignIsEnabledFn()
+		if err != nil {
+			mgr.metrics.campaignCheckErrors.Inc(1)
+
+			continue
+		}
+		newState := newCampaignState(enabled)
+		currState := mgr.campaignState()
+		if currState == newState {
+			continue
+		}
+		mgr.processCampaignStateChange(newState)
+
+		// block on ticker or exit signal
+		select {
 		case <-ticker.C:
-			enabled, err := mgr.campaignIsEnabledFn()
-			if err != nil {
-				mgr.metrics.campaignCheckErrors.Inc(1)
-				continue
-			}
-			newState := newCampaignState(enabled)
-			currState := mgr.campaignState()
-			if currState == newState {
-				continue
-			}
-			mgr.processCampaignStateChange(newState)
 		case <-mgr.doneCh:
 			return
 		}

@@ -57,10 +57,12 @@ This instructs M3DB to handle writes for new timeseries (for a given time block)
 
 However, since new time series are created asynchronously, it's possible that there may be a brief delay inbetween when a write is acknowledged by the client and when that series becomes available for subsequent reads.
 
-M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration:
+M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration under the `db.limits` section:
 
 ```yaml
-writeNewSeriesLimitPerSecond: 1048576
+db:
+  limits:
+    writeNewSeriesPerSecond: 1048576
 ```
 
 This value can be set much lower than the default value for workloads in which a significant increase in cardinality usually indicates a misbehaving caller.
@@ -68,7 +70,7 @@ This value can be set much lower than the default value for workloads in which a
 ### Ignoring Corrupt Commitlogs on Bootstrap
 
 If M3DB is shut down gracefully (i.e via SIGTERM), it will ensure that all pending writes are flushed to the commitlog on disk before the process exists.
-However, in situations where the process crashed/exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
+However, in situations where SIGKILL is used, the process exited unexpectedly or the node itself experienced a sudden failure, the tail end of the commitlog may be corrupt.
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either **(a)** come up successfully and tolerate an ostensibly minor amount of data or loss, or **(b)** attempt to stream the missing data from its peers.
 This behavior is controlled by the following default configuration:
 
@@ -105,10 +107,12 @@ writeNewSeriesAsync: false
 
 This instructs M3DB to handle writes for new timeseries (for a given time block) synchronously. Creating a new timeseries in memory is much more expensive than simply appending a new write to an existing series, so this configuration could have an adverse effect on performance when many new timeseries are being inserted into M3DB concurrently.
 
-Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the `db` section):
+Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the `db.limits` section):
 
 ```yaml
-writeNewSeriesLimitPerSecond: 1048576
+db:
+  limits:
+    writeNewSeriesPerSecond: 1048576
 ```
 
 ### Ignoring Corrupt Commitlogs on Bootstrap

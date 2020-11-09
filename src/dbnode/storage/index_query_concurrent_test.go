@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	"go.uber.org/zap"
@@ -232,7 +232,7 @@ func testNamespaceIndexHighConcurrentQueries(
 					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						_ context.Context,
-						_ *resource.CancellableLifetime,
+						_ *xresource.CancellableLifetime,
 						_ index.Query,
 						_ index.QueryOptions,
 						_ index.QueryResults,
@@ -246,7 +246,7 @@ func testNamespaceIndexHighConcurrentQueries(
 					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						ctx context.Context,
-						c *resource.CancellableLifetime,
+						c *xresource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
 						r index.QueryResults,

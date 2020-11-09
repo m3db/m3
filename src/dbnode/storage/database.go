@@ -28,7 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
@@ -41,9 +40,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -76,6 +77,7 @@ var (
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
+	aggregationsInProgress              int32
 )
 
 type databaseState int
@@ -1377,6 +1379,14 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
+	jobInProgress := opts.InsOptions.MetricsScope().Gauge("aggregations-in-progress")
+	atomic.AddInt32(&aggregationsInProgress, 1)
+	jobInProgress.Update(float64(aggregationsInProgress))
+	defer func() {
+		atomic.AddInt32(&aggregationsInProgress, -1)
+		jobInProgress.Update(float64(aggregationsInProgress))
+	}()
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1408,6 +1418,9 @@ func (d *db) AggregateTiles(
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
+		opts.InsOptions.MetricsScope().Counter("aggregation.errors").Inc(1)
+	} else {
+		opts.InsOptions.MetricsScope().Counter("aggregation.success").Inc(1)
 	}
 	return processedTileCount, err
 }
@@ -1460,6 +1473,8 @@ func (m metadatas) String() (string, error) {
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
+	targetNsID ident.ID,
+	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1469,9 +1484,13 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
+	scope := insOpts.MetricsScope().SubScope("computed-namespace")
+	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{"target-namespace": targetNsID.String()}))
+
 	return AggregateTilesOptions{
-		Start: start,
-		End:   end,
-		Step:  step,
+		Start:      start,
+		End:        end,
+		Step:       step,
+		InsOptions: insOpts,
 	}, nil
 }

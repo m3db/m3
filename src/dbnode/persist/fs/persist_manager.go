@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -35,8 +34,9 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -93,7 +93,7 @@ type persistManager struct {
 
 	metrics persistManagerMetrics
 
-	runtimeOptsListener xclose.SimpleCloser
+	runtimeOptsListener xresource.SimpleCloser
 }
 
 type dataPersistManager struct {
@@ -342,7 +342,7 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 
 	// and then we get persistent segments backed by mmap'd data so the index
 	// can safely evict the segment's we have just persisted.
-	return ReadIndexSegments(ReadIndexSegmentsOptions{
+	result, err := ReadIndexSegments(ReadIndexSegmentsOptions{
 		ReaderOptions: IndexReaderOpenOptions{
 			Identifier:  pm.indexPM.fileSetIdentifier,
 			FileSetType: pm.indexPM.fileSetType,
@@ -351,6 +351,11 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 		newReaderFn:            pm.indexPM.newReaderFn,
 		newPersistentSegmentFn: pm.indexPM.newPersistentSegmentFn,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Segments, nil
 }
 
 // DoneIndex is called by the databaseFlushManager to finish the index persist process.

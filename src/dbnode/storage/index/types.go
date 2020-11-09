@@ -25,7 +25,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -36,12 +35,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -352,7 +352,7 @@ type Block interface {
 	// Query resolves the given query into known IDs.
 	Query(
 		ctx context.Context,
-		cancellable *resource.CancellableLifetime,
+		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results BaseResults,
@@ -364,7 +364,7 @@ type Block interface {
 	// avoid going to documents, relying purely on the indexed FSTs.
 	Aggregate(
 		ctx context.Context,
-		cancellable *resource.CancellableLifetime,
+		cancellable *xresource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
 		logFields []opentracinglog.Field,

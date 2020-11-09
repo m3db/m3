@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -45,10 +44,11 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -171,6 +171,9 @@ func (s *peersSource) Read(
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
+	// NB(bodu): We need to evict the info file cache before reading index data since we've
+	// maybe fetched blocks from peers so the cached info file state is now stale.
+	cache.Evict()
 	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
@@ -185,9 +188,6 @@ func (s *peersSource) Read(
 			continue
 		}
 
-		// NB(bodu): We need to evict the info file cache before reading index data since we've
-		// maybe fetched blocks from peers so the cached info file state is now stale.
-		cache.Evict()
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			span,
@@ -340,7 +340,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 			persistFlush, bootstrapResult, lock)
 	}()
 
-	return xclose.CloserFn(persistFlush.DoneFlush), nil
+	return xresource.CloserFn(persistFlush.DoneFlush), nil
 }
 
 // runPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that

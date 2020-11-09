@@ -19,9 +19,6 @@
   "tagOptions":
     "idScheme": "quoted"
 "db":
-  "bootstrap":
-    "commitlog":
-      "returnUnfulfilledForCorruptCommitLogFiles": false
   "cache":
     "postingsList":
       "size": 262144
@@ -71,4 +68,3 @@
     "sanitization": "prometheus"
   "writeNewSeriesAsync": true
   "writeNewSeriesBackoffDuration": "2ms"
-  "writeNewSeriesLimitPerSecond": 1048576
