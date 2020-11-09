@@ -69,7 +69,7 @@ func (is *istream64) ReadBits(numBits uint) (uint64, error) {
 	if numBits <= is.remaining {
 		return is.consumeBuffer(numBits), nil
 	}
-	res := readBitsInWord(is.current, is.remaining)
+	res := readBitsInWord(is.current, numBits)
 	bitsNeeded := numBits - is.remaining
 	if err := is.readWordFromStream(); err != nil {
 		return 0, err
@@ -77,14 +77,14 @@ func (is *istream64) ReadBits(numBits uint) (uint64, error) {
 	if is.remaining < bitsNeeded {
 		return 0, io.EOF
 	}
-	return (res << bitsNeeded) | is.consumeBuffer(bitsNeeded), nil
+	return res | is.consumeBuffer(bitsNeeded), nil
 }
 
 func (is *istream64) PeekBits(numBits uint) (uint64, error) {
 	if numBits <= is.remaining {
 		return readBitsInWord(is.current, numBits), nil
 	}
-	res := readBitsInWord(is.current, is.remaining)
+	res := readBitsInWord(is.current, numBits)
 	bitsNeeded := numBits - is.remaining
 	next, rem, err := is.peekWordFromStream()
 	if err != nil {
@@ -93,7 +93,7 @@ func (is *istream64) PeekBits(numBits uint) (uint64, error) {
 	if rem < bitsNeeded {
 		return 0, io.EOF
 	}
-	return (res << bitsNeeded) | readBitsInWord(next, bitsNeeded), nil
+	return res | readBitsInWord(next, bitsNeeded), nil
 }
 
 func (is *istream64) RemainingBitsInCurrentByte() uint {
