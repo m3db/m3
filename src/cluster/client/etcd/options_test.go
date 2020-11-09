@@ -32,16 +32,22 @@ import (
 )
 
 func TestKeepAliveOptions(t *testing.T) {
-	opts := NewKeepAliveOptions().
+	opts := NewKeepAliveOptions()
+	require.Equal(t, defaultKeepAliveEnabled, opts.KeepAliveEnabled())
+	require.Equal(t, defaultKeepAlivePeriod, opts.KeepAlivePeriod())
+	require.Equal(t, defaultKeepAlivePeriodMaxJitter, opts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, defaultKeepAliveTimeout, opts.KeepAliveTimeout())
+
+	opts = NewKeepAliveOptions().
 		SetKeepAliveEnabled(true).
-		SetKeepAlivePeriod(10 * time.Second).
-		SetKeepAlivePeriodMaxJitter(5 * time.Second).
-		SetKeepAliveTimeout(time.Second)
+		SetKeepAlivePeriod(1234 * time.Second).
+		SetKeepAlivePeriodMaxJitter(5000 * time.Second).
+		SetKeepAliveTimeout(time.Hour)
 
 	require.Equal(t, true, opts.KeepAliveEnabled())
-	require.Equal(t, 10*time.Second, opts.KeepAlivePeriod())
-	require.Equal(t, 5*time.Second, opts.KeepAlivePeriodMaxJitter())
-	require.Equal(t, time.Second, opts.KeepAliveTimeout())
+	require.Equal(t, 1234*time.Second, opts.KeepAlivePeriod())
+	require.Equal(t, 5000*time.Second, opts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, time.Hour, opts.KeepAliveTimeout())
 }
 
 func TestCluster(t *testing.T) {
@@ -63,6 +69,22 @@ func TestCluster(t *testing.T) {
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, []string{"e1"}, c.Endpoints())
 	assert.Equal(t, aOpts, c.TLSOptions())
+	assert.Equal(t, defaultAutoSyncInterval, c.AutoSyncInterval())
+	assert.Equal(t, defaultDialTimeout, c.DialTimeout())
+
+	c = c.SetAutoSyncInterval(123 * time.Minute)
+	assert.Equal(t, "z", c.Zone())
+	assert.Equal(t, []string{"e1"}, c.Endpoints())
+	assert.Equal(t, aOpts, c.TLSOptions())
+	assert.Equal(t, 123*time.Minute, c.AutoSyncInterval())
+	assert.Equal(t, defaultDialTimeout, c.DialTimeout())
+
+	c = c.SetDialTimeout(42 * time.Hour)
+	assert.Equal(t, "z", c.Zone())
+	assert.Equal(t, []string{"e1"}, c.Endpoints())
+	assert.Equal(t, aOpts, c.TLSOptions())
+	assert.Equal(t, 123*time.Minute, c.AutoSyncInterval())
+	assert.Equal(t, 42*time.Hour, c.DialTimeout())
 }
 
 func TestTLSOptions(t *testing.T) {
