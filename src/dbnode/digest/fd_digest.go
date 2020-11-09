@@ -30,7 +30,7 @@ import (
 
 // FdWithDigest is a container for a file descriptor and the digest for the file contents.
 type FdWithDigest interface {
-	xresource.Closer
+	xresource.ErrCloser
 
 	// Fd returns the file descriptor.
 	Fd() *os.File

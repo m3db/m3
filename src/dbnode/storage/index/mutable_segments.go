@@ -35,10 +35,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	xresource "github.com/m3db/m3/src/resource"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
