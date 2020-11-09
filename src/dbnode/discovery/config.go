@@ -22,7 +22,6 @@
 package discovery
 
 import (
-	"errors"
 	"fmt"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -98,7 +97,6 @@ func (t ConfigurationType) String() string {
 	case M3AggregatorClusterType:
 		return "m3aggregator_cluster"
 	}
-
 	return "unknown"
 }
 
@@ -148,6 +146,7 @@ func (c *Configuration) EnvironmentConfig(
 		return c.m3dbSingleNodeEnvConfig(hostID), nil
 	case M3DBClusterType:
 		return c.envConfig(
+			discoveryConfigType,
 			defaultM3DBService,
 			c.M3DBCluster.Zone,
 			c.M3DBCluster.Env,
@@ -155,6 +154,7 @@ func (c *Configuration) EnvironmentConfig(
 		)
 	case M3AggregatorClusterType:
 		return c.envConfig(
+			discoveryConfigType,
 			defaultM3AggregatorService,
 			c.M3AggregatorCluster.Zone,
 			c.M3AggregatorCluster.Env,
@@ -197,15 +197,16 @@ func (c *Configuration) m3dbSingleNodeEnvConfig(
 }
 
 func (c *Configuration) envConfig(
+	configType ConfigurationType,
 	service string,
 	zone *string,
 	env string,
 	endpoints []string,
-) (
-	environment.Configuration, error) {
+) (environment.Configuration, error) {
 	if c == nil {
-		return environment.Configuration{},
-			errors.New("discovery type specified required m3AggregatorCluster section")
+		err := fmt.Errorf("discovery configuration required for type: %s",
+			configType.String())
+		return environment.Configuration{}, err
 	}
 
 	validZone := defaultZone
