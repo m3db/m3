@@ -31,6 +31,7 @@ import (
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
@@ -164,8 +165,8 @@ type DBConfiguration struct {
 	// The pooling policy.
 	PoolingPolicy *PoolingPolicy `yaml:"pooling"`
 
-	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	// The discovery configuration.
+	DiscoveryConfig discovery.Configuration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
@@ -587,12 +588,18 @@ func (c *ProtoConfiguration) Validate() error {
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed resolving hostID %w", err)
 	}
+
+	envCfg, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
+	}
+
+	kvCfg := envCfg.SeedNodes
 	newKVCfg.Name = hostID
 
 	dir := kvCfg.RootDir
