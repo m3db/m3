@@ -411,6 +411,7 @@ func (s *dbSeries) FetchWideEntry(
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	e, err := reader.FetchWideEntry(ctx, blockStart, nsCtx)
 	s.RUnlock()
+
 	return e, err
 }
 
@@ -435,12 +436,14 @@ func (s *dbSeries) FetchBlocks(
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	r, err := Reader{
+	reader := &Reader{
 		opts:       s.opts,
 		id:         s.id,
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
-	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
+	}
+
+	r, err := reader.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
 }

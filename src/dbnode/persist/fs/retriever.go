@@ -315,15 +315,15 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 		case streamWideEntryReq:
 			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
-			if err != nil && err != errSeekIDNotFound {
-				req.err = err
-				continue
-			}
+			if err != nil {
+				if errors.Is(err, errSeekIDNotFound) {
+					// Missing, return empty result, successful lookup.
+					req.wideEntry = xio.WideEntry{}
+					req.success = true
+				} else {
+					req.err = err
+				}
 
-			if err == errSeekIDNotFound {
-				// Missing, return empty result, successful lookup.
-				req.wideEntry = xio.WideEntry{}
-				req.success = true
 				continue
 			}
 
@@ -338,8 +338,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	}
 
 	// Fulfill the wide entry data fetches in batch offset ascending.
-	var sortByOffsetAsc retrieveRequestByWideEntryOffsetAsc
-	sortByOffsetAsc = retrieverResources.wideEntryReqs
+	sortByOffsetAsc := retrieveRequestByWideEntryOffsetAsc(retrieverResources.wideEntryReqs)
 	sort.Sort(sortByOffsetAsc)
 	for _, req := range retrieverResources.wideEntryReqs {
 		entry := IndexEntry{
@@ -1049,12 +1048,6 @@ func (r *reuseableRetrieverResources) resetDataReqs() {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
-}
-
-func (r *reuseableRetrieverResources) appendDataReq(
-	req *retrieveRequest,
-) {
-	r.dataReqs = append(r.dataReqs, req)
 }
 
 func (r *reuseableRetrieverResources) resetWideEntryReqs() {

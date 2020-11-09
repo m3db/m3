@@ -165,7 +165,7 @@ tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
 
 .PHONY: all
-all: lint test-ci-unit test-ci-integration services tools
+all: test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-tools
@@ -256,7 +256,7 @@ SUBDIR_TARGETS := \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
-	all-gen			\
+	all-gen         \
 	lint
 
 .PHONY: test-ci-unit

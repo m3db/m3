@@ -71,7 +71,7 @@ func NewReaderUsingRetriever(
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
-func (r Reader) ReadEncoded(
+func (r *Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 	nsCtx namespace.Context,
@@ -79,7 +79,7 @@ func (r Reader) ReadEncoded(
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil, nsCtx)
 }
 
-func (r Reader) readersWithBlocksMapAndBuffer(
+func (r *Reader) readersWithBlocksMapAndBuffer(
 	ctx context.Context,
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
@@ -204,7 +204,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 }
 
 // FetchWideEntry reads wide entries using just a block retriever.
-func (r Reader) FetchWideEntry(
+func (r *Reader) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
 	nsCtx namespace.Context,
@@ -243,7 +243,7 @@ func (r Reader) FetchWideEntry(
 
 // FetchBlocks returns data blocks given a list of block start times using
 // just a block retriever.
-func (r Reader) FetchBlocks(
+func (r *Reader) FetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
 	nsCtx namespace.Context,
@@ -251,7 +251,7 @@ func (r Reader) FetchBlocks(
 	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil, nsCtx)
 }
 
-func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
+func (r *Reader) fetchBlocksWithBlocksMapAndBuffer(
 	ctx context.Context,
 	starts []time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,

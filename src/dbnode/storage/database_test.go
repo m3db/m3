@@ -353,6 +353,7 @@ func TestDatabaseWideEntry(t *testing.T) {
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
 	res, err = d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
+	require.NoError(t, err)
 	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
 	require.NoError(t, err)

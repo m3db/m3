@@ -41,8 +41,8 @@ type WideEntry struct {
 }
 
 // Empty returns whether the wide entry is empty and not found.
-func (c WideEntry) Empty() bool {
-	return c == WideEntry{}
+func (c *WideEntry) Empty() bool {
+	return *c == WideEntry{}
 }
 
 // Finalize finalizes the wide entry.

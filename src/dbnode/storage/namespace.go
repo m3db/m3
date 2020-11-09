@@ -926,10 +926,13 @@ func (n *dbNamespace) FetchWideEntry(
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+
 		return block.EmptyStreamedWideEntry, err
 	}
+
 	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
 	return res, err
 }
 

@@ -993,7 +993,7 @@ func (d *db) WideQuery(
 	queryStart time.Time,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]xio.WideEntry, error) { // FIXME: change when exact type known.
+) ([]xio.WideEntry, error) { // nolint FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1074,6 +1074,7 @@ func (d *db) fetchWideEntries(
 	}
 
 	defer sp.Finish()
+
 	return ns.FetchWideEntry(ctx, id, start)
 }
 

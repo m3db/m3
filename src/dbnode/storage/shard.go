@@ -1151,6 +1151,7 @@ func (s *dbShard) FetchWideEntry(
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+
 	return reader.FetchWideEntry(ctx, blockStart, nsCtx)
 }
 

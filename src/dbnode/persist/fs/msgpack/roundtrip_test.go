@@ -458,7 +458,9 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 		testWideEntry.EncodedTags = currEncodedTags
 	}()
 
-	enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	err := enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	require.NoError(t, err)
+
 	bytes := enc.Bytes()
 	cloned := append(make([]byte, 0, len(bytes)), bytes...)
 	dec.Reset(NewByteDecoderStream(bytes))
@@ -497,7 +499,8 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	// because the old decoder won't read the new fields.
 	currEncodedTags := testWideEntry.EncodedTags
 
-	enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	err := enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	require.NoError(t, err)
 
 	// Make sure to zero them before we compare, but after we have
 	// encoded the data.
@@ -538,7 +541,8 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	err := enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	require.NoError(t, err)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
@@ -569,7 +573,8 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	err := enc.EncodeIndexEntry(testWideEntry.IndexEntry)
+	require.NoError(t, err)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
