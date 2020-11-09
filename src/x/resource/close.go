@@ -53,5 +53,6 @@ func CloseAll(closers ...ErrCloser) error {
 			multiErr = multiErr.Add(err)
 		}
 	}
+
 	return multiErr.FinalError()
 }

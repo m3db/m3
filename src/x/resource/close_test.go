@@ -23,7 +23,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/tj/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTryClose(t *testing.T) {
@@ -52,10 +52,10 @@ func TestTryClose(t *testing.T) {
 	for _, test := range tests {
 		err := TryClose(test.input)
 		if test.expectErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
