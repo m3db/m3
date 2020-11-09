@@ -2695,6 +2695,8 @@ func (s *dbShard) AggregateTiles(
 	opts AggregateTilesOptions,
 	targetSchemaDescr namespace.SchemaDescr,
 ) (int64, error) {
+	return 0, nil
+
 	if len(blockReaders) != len(sourceBlockVolumes) {
 		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
 	}
