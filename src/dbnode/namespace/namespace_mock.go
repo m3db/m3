@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -879,10 +879,10 @@ func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface
 }
 
 // RegisterListener mocks base method
-func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (resource.Closer, error) {
+func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (xresource.Closer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", id, listener)
-	ret0, _ := ret[0].(resource.Closer)
+	ret0, _ := ret[0].(xresource.Closer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

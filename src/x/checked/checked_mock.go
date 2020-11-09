@@ -27,7 +27,7 @@ package checked
 import (
 	"reflect"
 
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/golang/mock/gomock"
 )
@@ -144,10 +144,10 @@ func (mr *MockBytesMockRecorder) DecWrites() *gomock.Call {
 }
 
 // DelayFinalizer mocks base method
-func (m *MockBytes) DelayFinalizer() resource.Closer {
+func (m *MockBytes) DelayFinalizer() xresource.Closer {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DelayFinalizer")
-	ret0, _ := ret[0].(resource.Closer)
+	ret0, _ := ret[0].(xresource.Closer)
 	return ret0
 }
 

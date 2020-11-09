@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
@@ -48,7 +48,7 @@ func TestRegisterFinalizerWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	childCtx.RegisterFinalizer(resource.FinalizerFn(func() {
+	childCtx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		childClosed = true
 		wg.Done()
 	}))
@@ -71,7 +71,7 @@ func TestRegisterFinalizer(t *testing.T) {
 	)
 
 	wg.Add(1)
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		closed = true
 		wg.Done()
 	}))

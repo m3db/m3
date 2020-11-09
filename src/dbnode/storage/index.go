@@ -58,7 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/m3db/m3/src/x/resource"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -211,7 +210,7 @@ type newNamespaceIndexOpts struct {
 // execBlockQueryFn executes a query against the given block whilst tracking state.
 type execBlockQueryFn func(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1555,7 +1554,7 @@ func (i *nsIndex) queryWithSpan(
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
-	cancellable := resource.NewCancellableLifetime()
+	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
 	for _, block := range blocks {
@@ -1663,7 +1662,7 @@ func (i *nsIndex) queryWithSpan(
 
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1701,7 +1700,7 @@ func (i *nsIndex) execBlockQueryFn(
 
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1745,7 +1744,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,

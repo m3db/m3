@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -774,7 +774,7 @@ func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results BaseResults, logFields []log.Field) (bool, error) {
+func (m *MockBlock) Query(ctx context.Context, cancellable *xresource.CancellableLifetime, query Query, opts QueryOptions, results BaseResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", ctx, cancellable, query, opts, results, logFields)
 	ret0, _ := ret[0].(bool)
@@ -789,7 +789,7 @@ func (mr *MockBlockMockRecorder) Query(ctx, cancellable, query, opts, results, l
 }
 
 // Aggregate mocks base method
-func (m *MockBlock) Aggregate(ctx context.Context, cancellable *resource.CancellableLifetime, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
+func (m *MockBlock) Aggregate(ctx context.Context, cancellable *xresource.CancellableLifetime, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Aggregate", ctx, cancellable, opts, results, logFields)
 	ret0, _ := ret[0].(bool)

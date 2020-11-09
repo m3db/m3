@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // BlockReader represents a block reader backed by a
@@ -43,7 +43,7 @@ var EmptyBlockReader = BlockReader{}
 // SegmentReader implements the io reader interface backed by a segment.
 type SegmentReader interface {
 	io.Reader
-	resource.Finalizer
+	xresource.Finalizer
 
 	// Segment gets the segment read by this reader.
 	Segment() (ts.Segment, error)
