@@ -879,10 +879,10 @@ func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface
 }
 
 // RegisterListener mocks base method
-func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (xresource.Closer, error) {
+func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (xresource.SimpleCloser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", id, listener)
-	ret0, _ := ret[0].(xresource.Closer)
+	ret0, _ := ret[0].(xresource.SimpleCloser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

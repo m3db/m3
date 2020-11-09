@@ -50,7 +50,7 @@ func (n *clusterNamespacesWatcher) Get() ClusterNamespaces {
 
 func (n *clusterNamespacesWatcher) RegisterListener(
 	listener ClusterNamespacesListener,
-) xresource.Closer {
+) xresource.SimpleCloser {
 	_, watch, _ := n.watchable.Watch()
 
 	namespaces := watch.Get()

@@ -340,7 +340,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 			persistFlush, bootstrapResult, lock)
 	}()
 
-	return xresource.ErrCloserFn(persistFlush.DoneFlush), nil
+	return xresource.CloserFn(persistFlush.DoneFlush), nil
 }
 
 // runPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that

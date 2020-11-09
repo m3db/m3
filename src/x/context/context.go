@@ -53,7 +53,7 @@ type ctx struct {
 
 type finalizeable struct {
 	finalizer xresource.Finalizer
-	closer    xresource.Closer
+	closer    xresource.SimpleCloser
 }
 
 // NewContext creates a new context.
@@ -106,7 +106,7 @@ func (c *ctx) RegisterFinalizer(f xresource.Finalizer) {
 	c.registerFinalizeable(finalizeable{finalizer: f})
 }
 
-func (c *ctx) RegisterCloser(f xresource.Closer) {
+func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	parent := c.parentCtx()
 	if parent != nil {
 		parent.RegisterCloser(f)

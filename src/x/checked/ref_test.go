@@ -249,7 +249,7 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			elem.IncRef()
 			elem.DecRef()
 
-			delays := make([]xresource.Closer, 0, test.numDelay)
+			delays := make([]xresource.SimpleCloser, 0, test.numDelay)
 			for i := 0; i < test.numDelay; i++ {
 				delays = append(delays, elem.DelayFinalizer())
 			}

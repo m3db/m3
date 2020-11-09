@@ -97,7 +97,7 @@ func TestRegisterCloserWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	childCtx.RegisterCloser(xresource.CloserFn(func() {
+	childCtx.RegisterCloser(xresource.SimpleCloserFn(func() {
 		childClosed = true
 		wg.Done()
 	}))
@@ -120,7 +120,7 @@ func TestRegisterCloser(t *testing.T) {
 	)
 
 	wg.Add(1)
-	ctx.RegisterCloser(xresource.CloserFn(func() {
+	ctx.RegisterCloser(xresource.SimpleCloserFn(func() {
 		closed = true
 		wg.Done()
 	}))

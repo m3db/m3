@@ -52,7 +52,7 @@ func (w *optionsManager) Get() Options {
 
 func (w *optionsManager) RegisterListener(
 	listener OptionsListener,
-) xresource.Closer {
+) xresource.SimpleCloser {
 	_, watch, _ := w.watchable.Watch()
 
 	// We always initialize the watchable so always read
@@ -98,7 +98,7 @@ func (n noOpOptionsManager) Get() Options {
 
 func (n noOpOptionsManager) RegisterListener(
 	listener OptionsListener,
-) xresource.Closer {
+) xresource.SimpleCloser {
 	// noOpOptionsManager never changes its options, not worth
 	// registering listener
 	return noOpCloser{}

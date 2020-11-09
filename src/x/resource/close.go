@@ -35,10 +35,10 @@ var (
 // TryClose attempts to close a resource, the resource is expected to
 // implement either Closeable or CloseableResult.
 func TryClose(r interface{}) error {
-	if r, ok := r.(ErrCloser); ok {
+	if r, ok := r.(Closer); ok {
 		return r.Close()
 	}
-	if r, ok := r.(Closer); ok {
+	if r, ok := r.(SimpleCloser); ok {
 		r.Close()
 		return nil
 	}
@@ -46,7 +46,7 @@ func TryClose(r interface{}) error {
 }
 
 // CloseAll closes all closers and combines any errors.
-func CloseAll(closers ...ErrCloser) error {
+func CloseAll(closers ...Closer) error {
 	multiErr := xerrors.NewMultiError()
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {

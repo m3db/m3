@@ -50,7 +50,7 @@ type Context interface {
 	RegisterFinalizer(xresource.Finalizer)
 
 	// RegisterCloser will register a resource closer.
-	RegisterCloser(xresource.Closer)
+	RegisterCloser(xresource.SimpleCloser)
 
 	// DependsOn will register a blocking context that
 	// must complete first before finalizers can be called.

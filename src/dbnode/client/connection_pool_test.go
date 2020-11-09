@@ -85,7 +85,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xresource.Closer, rpc.TChanNode, error) {
+	) (xresource.SimpleCloser, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
@@ -237,7 +237,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xresource.Closer, rpc.TChanNode, error) {
+	) (xresource.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
 			return channelNone, client1, nil

@@ -195,7 +195,7 @@ type OptionsManager interface {
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
 	// to deliver the current set of runtime options.
-	RegisterListener(l OptionsListener) xresource.Closer
+	RegisterListener(l OptionsListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()

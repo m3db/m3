@@ -41,7 +41,7 @@ type SourceInput interface {
 
 // Source polls data by calling SourcePollFn and notifies its watches on updates.
 type Source interface {
-	xresource.Closer
+	xresource.SimpleCloser
 
 	// Get returns the latest value.
 	Get() interface{}

@@ -73,7 +73,7 @@ type mutableSegments struct {
 	blockOpts                BlockOptions
 	opts                     Options
 	iopts                    instrument.Options
-	optsListener             xresource.Closer
+	optsListener             xresource.SimpleCloser
 	writeIndexingConcurrency int
 
 	metrics mutableSegmentsMetrics

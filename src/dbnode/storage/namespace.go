@@ -122,7 +122,7 @@ type dbNamespace struct {
 
 	// schemaDescr caches the latest schema for the namespace.
 	// schemaDescr is updated whenever schema registry is updated.
-	schemaListener xresource.Closer
+	schemaListener xresource.SimpleCloser
 	schemaDescr    namespace.SchemaDescr
 
 	// Contains an entry to all shards for fast shard lookup, an

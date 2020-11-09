@@ -34,7 +34,7 @@ type closer func()
 
 // Updatable can be updated.
 type Updatable interface {
-	xresource.Closer
+	xresource.SimpleCloser
 
 	// C returns the notification channel for updates.
 	C() <-chan struct{}
@@ -50,7 +50,7 @@ type Watch interface {
 
 // Watchable can be watched
 type Watchable interface {
-	xresource.Closer
+	xresource.SimpleCloser
 
 	// IsClosed returns true if the Watchable is closed
 	IsClosed() bool

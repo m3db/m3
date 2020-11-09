@@ -108,7 +108,7 @@ type metricMap struct {
 	firstInsertAt     time.Time
 	rateLimiter       *rate.Limiter
 	runtimeOpts       runtime.Options
-	runtimeOptsCloser xresource.Closer
+	runtimeOptsCloser xresource.SimpleCloser
 	sleepFn           sleepFn
 	metrics           metricMapMetrics
 }

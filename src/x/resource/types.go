@@ -38,28 +38,28 @@ func (fn FinalizerFn) Finalize() {
 	fn()
 }
 
-// Closer is an object that can be closed.
-type Closer interface {
+// SimpleCloser is an object that can be closed.
+type SimpleCloser interface {
 	Close()
 }
 
-// CloserFn is a function literal that is a closer.
-type CloserFn func()
+// SimpleCloserFn is a function literal that is a closer.
+type SimpleCloserFn func()
 
 // Close will call the function literal as a closer.
-func (fn CloserFn) Close() {
+func (fn SimpleCloserFn) Close() {
 	fn()
 }
 
-// ErrCloser is an object that can be closed which returns an error.
-type ErrCloser interface {
+// Closer is an object that can be closed which returns an error.
+type Closer interface {
 	Close() error
 }
 
-// ErrCloserFn is a function literal that is a closer which returns an error.
-type ErrCloserFn func() error
+// CloserFn is a function literal that is a closer which returns an error.
+type CloserFn func() error
 
 // Close will call the function literal as a closer.
-func (fn ErrCloserFn) Close() error {
+func (fn CloserFn) Close() error {
 	return fn()
 }

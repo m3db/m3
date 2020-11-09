@@ -136,7 +136,7 @@ type sessionState struct {
 type session struct {
 	state                                sessionState
 	opts                                 Options
-	runtimeOptsListenerCloser            xresource.Closer
+	runtimeOptsListenerCloser            xresource.SimpleCloser
 	scope                                tally.Scope
 	nowFn                                clock.NowFn
 	log                                  *zap.Logger

@@ -116,7 +116,7 @@ type ClusterNamespacesWatcher interface {
 
 	// RegisterListener registers a listener for updates to cluster namespaces.
 	// If a value is currently present, it will synchronously call back the listener.
-	RegisterListener(listener ClusterNamespacesListener) xresource.Closer
+	RegisterListener(listener ClusterNamespacesListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()

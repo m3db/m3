@@ -205,7 +205,7 @@ type SchemaRegistry interface {
 
 	// RegisterListener registers a schema listener for the namespace.
 	// If proto is not enabled, nil, nil is returned
-	RegisterListener(id ident.ID, listener SchemaListener) (xresource.Closer, error)
+	RegisterListener(id ident.ID, listener SchemaListener) (xresource.SimpleCloser, error)
 
 	// Close closes all the listeners.
 	Close()

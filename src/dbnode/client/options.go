@@ -319,7 +319,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, opts Options,
-) (xresource.Closer, rpc.TChanNode, error) {
+) (xresource.SimpleCloser, rpc.TChanNode, error) {
 	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
 	if err != nil {
 		return nil, nil, err

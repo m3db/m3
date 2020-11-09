@@ -145,7 +145,7 @@ func (sr *schemaRegistry) getSchemaHistory(nsIDStr string) (SchemaHistory, error
 func (sr *schemaRegistry) RegisterListener(
 	nsID ident.ID,
 	listener SchemaListener,
-) (xresource.Closer, error) {
+) (xresource.SimpleCloser, error) {
 	if !sr.protoEnabled {
 		return nil, nil
 	}

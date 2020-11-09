@@ -68,14 +68,14 @@ type connPool struct {
 }
 
 type conn struct {
-	channel xresource.Closer
+	channel xresource.SimpleCloser
 	client  rpc.TChanNode
 }
 
 // NewConnectionFn is a function that creates a connection.
 type NewConnectionFn func(
 	channelName string, addr string, opts Options,
-) (xresource.Closer, rpc.TChanNode, error)
+) (xresource.SimpleCloser, rpc.TChanNode, error)
 
 type healthCheckFn func(client rpc.TChanNode, opts Options) error
 

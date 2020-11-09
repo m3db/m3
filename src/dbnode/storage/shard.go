@@ -185,7 +185,7 @@ type dbShard struct {
 	contextPool              context.Pool
 	flushState               shardFlushState
 	tickWg                   *sync.WaitGroup
-	runtimeOptsListenClosers []xresource.Closer
+	runtimeOptsListenClosers []xresource.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   *zap.Logger
 	metrics                  dbShardMetrics

@@ -116,8 +116,8 @@ type nsIndex struct {
 	logger                *zap.Logger
 	opts                  Options
 	nsMetadata            namespace.Metadata
-	runtimeOptsListener   xresource.Closer
-	runtimeNsOptsListener xresource.Closer
+	runtimeOptsListener   xresource.SimpleCloser
+	runtimeNsOptsListener xresource.SimpleCloser
 
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool

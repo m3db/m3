@@ -93,7 +93,7 @@ type persistManager struct {
 
 	metrics persistManagerMetrics
 
-	runtimeOptsListener xresource.Closer
+	runtimeOptsListener xresource.SimpleCloser
 }
 
 type dataPersistManager struct {
