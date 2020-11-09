@@ -13,20 +13,7 @@ db:
     envVarName: M3DB_HOST_ID
 
   discovery:
-    config:
-        service:
-            env: default_env
-            zone: embedded
-            service: m3db
-            cacheDir: /var/lib/m3kv
-            etcdClusters:
-                - zone: embedded
-                  endpoints:
-                      - m3db_seed:2379
-        seedNodes:
-            initialCluster:
-                - hostID: m3db_seed
-                  endpoint: http://m3db_seed:2380
+    type: m3db_single_node
 
   # proto:
   #   schemaFilePath: /etc/m3dbnode/schema.proto

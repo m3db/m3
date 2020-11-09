@@ -1031,11 +1031,6 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			toNormalize = input.Values
 			tf = func(idx int, _ *ts.Series) float64 { return totalBySum(normalized, idx) }
 		} else {
-			// check total is a single-series list and normalize all of them
-			if total.Len() != 1 {
-				err := errors.NewInvalidParamsError(errors.New("total must be a single series"))
-				return ts.NewSeriesList(), err
-			}
 			if len(nodes) > 0 {
 				// group the series by specified nodes and then sum those groups
 				groupedTotal, err := groupByNodes(ctx, input, "sum", nodes...)
