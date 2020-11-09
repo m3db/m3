@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	xresource "github.com/m3db/m3/src/x/resource"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 func TestRegisterFinalizerWithChild(t *testing.T) {

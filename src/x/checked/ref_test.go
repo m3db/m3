@@ -30,13 +30,13 @@ import (
 	"testing"
 	"time"
 
-	xresource "github.com/m3db/m3/src/x/resource"
-
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 func TestRefCountNegativeRefCount(t *testing.T) {
