@@ -226,6 +226,7 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
+	// nolint: errcheck
 	defer fslock.release()
 
 	go bgValidateProcessLimits(logger)
