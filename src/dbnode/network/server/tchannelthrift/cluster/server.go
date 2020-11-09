@@ -76,6 +76,6 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	return func() {
 		channel.Close()
-		xresource.TryClose(service)
+		xresource.TryClose(service) // nolint: errcheck
 	}, nil
 }

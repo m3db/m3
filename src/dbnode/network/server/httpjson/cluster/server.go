@@ -83,6 +83,6 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	return func() {
 		listener.Close()
-		xresource.TryClose(service)
+		xresource.TryClose(service) // nolint: errcheck
 	}, nil
 }
