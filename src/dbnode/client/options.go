@@ -38,11 +38,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
@@ -319,7 +319,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error) {
+) (xresource.Closer, rpc.TChanNode, error) {
 	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
 	if err != nil {
 		return nil, nil, err

@@ -45,10 +45,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -340,7 +340,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 			persistFlush, bootstrapResult, lock)
 	}()
 
-	return xclose.CloserFn(persistFlush.DoneFlush), nil
+	return xresource.ErrCloserFn(persistFlush.DoneFlush), nil
 }
 
 // runPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that

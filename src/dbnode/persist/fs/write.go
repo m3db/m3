@@ -390,7 +390,7 @@ func (w *writer) closeWOIndex() error {
 		return err
 	}
 
-	return closeAll(
+	return xresource.CloseAll(
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
 		w.summariesFdWithDigest,

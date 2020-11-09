@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/resource"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
@@ -73,7 +73,7 @@ type mutableSegments struct {
 	blockOpts                BlockOptions
 	opts                     Options
 	iopts                    instrument.Options
-	optsListener             xclose.SimpleCloser
+	optsListener             xresource.Closer
 	writeIndexingConcurrency int
 
 	metrics mutableSegmentsMetrics

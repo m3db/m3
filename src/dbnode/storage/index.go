@@ -53,13 +53,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -117,8 +117,8 @@ type nsIndex struct {
 	logger                *zap.Logger
 	opts                  Options
 	nsMetadata            namespace.Metadata
-	runtimeOptsListener   xclose.SimpleCloser
-	runtimeNsOptsListener xclose.SimpleCloser
+	runtimeOptsListener   xresource.Closer
+	runtimeNsOptsListener xresource.Closer
 
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool

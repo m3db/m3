@@ -50,3 +50,16 @@ type CloserFn func()
 func (fn CloserFn) Close() {
 	fn()
 }
+
+// ErrCloser is an object that can be closed which returns an error.
+type ErrCloser interface {
+	Close() error
+}
+
+// ErrCloserFn is a function literal that is a closer which returns an error.
+type ErrCloserFn func() error
+
+// Close will call the function literal as a closer.
+func (fn ErrCloserFn) Close() error {
+	return fn()
+}
