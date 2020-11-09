@@ -22,7 +22,9 @@ package m3tsz
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"runtime/debug"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -96,6 +98,11 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return err
 	}
 
+	if math.IsNaN(dp.Value) {
+		fmt.Printf("encoder.Encode NaN %g %s\n", dp.Value, dp.Timestamp)
+		debug.PrintStack()
+	}
+
 	if enc.numEncoded == 0 {
 		err = enc.writeFirstValue(dp.Value)
 	} else {
@@ -162,10 +169,18 @@ func (enc *encoder) writeNextValue(v float64) error {
 	}
 
 	if isFloat || valDiff >= maxInt || valDiff <= minInt {
+		if math.IsNaN(val) {
+			fmt.Printf("encoder.writeNextValue A NaN %g %g %g %g %d\n", v, val, enc.intVal, valDiff, enc.maxMult)
+			debug.PrintStack()
+		}
 		enc.writeFloatVal(math.Float64bits(val), mult)
 		return nil
 	}
 
+	if math.IsNaN(val) {
+		fmt.Printf("encoder.writeNextValue B NaN %g %g %g %g %d\n", v, val, enc.intVal, valDiff, enc.maxMult)
+		debug.PrintStack()
+	}
 	enc.writeIntVal(val, mult, isFloat, valDiff)
 	return nil
 }

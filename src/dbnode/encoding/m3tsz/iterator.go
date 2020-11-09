@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"fmt"
 	"io"
 	"math"
 
@@ -182,17 +183,26 @@ func (it *readerIterator) readBits(numBits uint) uint64 {
 // the iterator calls Next().
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
+		v := math.Float64frombits(it.floatIter.PrevFloatBits)
+		if math.IsNaN(v) {
+			fmt.Printf("readerIterator.Current A NaN %d %s\n", it.floatIter.PrevFloatBits, it.tsIterator.PrevTime.ToTime())
+		}
 		return ts.Datapoint{
 			Timestamp:      it.tsIterator.PrevTime.ToTime(),
 			TimestampNanos: it.tsIterator.PrevTime,
-			Value:          math.Float64frombits(it.floatIter.PrevFloatBits),
+			Value:          v,
 		}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
+	}
+
+	v := convertFromIntFloat(it.intVal, it.mult)
+	if math.IsNaN(v) {
+		fmt.Printf("readerIterator.Current B NaN %g %d %s\n", it.intVal, it.mult, it.tsIterator.PrevTime.ToTime())
 	}
 
 	return ts.Datapoint{
 		Timestamp:      it.tsIterator.PrevTime.ToTime(),
 		TimestampNanos: it.tsIterator.PrevTime,
-		Value:          convertFromIntFloat(it.intVal, it.mult),
+		Value:          v,
 	}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }
 
