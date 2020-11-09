@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -88,8 +89,17 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIte
 func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
-		require.NoError(t, s.WriteTagged(ns, wi.id, wi.tags.Duplicate(), wi.ts, wi.value, xtime.Second, nil), "%v", wi)
+		require.NoError(t, w.WriteWithError(ns, s), "%v", wi)
 	}
+}
+
+func (w TestIndexWrites) WriteWithError(ns ident.ID, s client.Session) error {
+	multiErr := xerrors.NewMultiError()
+	for i := 0; i < len(w); i++ {
+		wi := w[i]
+		multiErr = multiErr.Add(s.WriteTagged(ns, wi.id, wi.tags.Duplicate(), wi.ts, wi.value, xtime.Second, nil))
+	}
+	return multiErr.FinalError()
 }
 
 // NumIndexed gets number of indexed series.
