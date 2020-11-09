@@ -907,6 +907,9 @@ func (s *dbShard) WriteTagged(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
+	if math.IsNaN(value) {
+		fmt.Printf("dbShard.WriteTagged NaN: %s %s", id, timestamp)
+	}
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, wOpts, true)
 }
