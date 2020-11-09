@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -61,6 +61,8 @@ message ImportedMessage {
   bytes deliveryID = 4;
 }
 `
+
+	nsRegKey = "nsRegKey"
 )
 
 func TestAdminService_DeploySchema(t *testing.T) {
@@ -68,8 +70,7 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	var nsRegKey = "nsRegKey"
-	as := NewAdminService(storeMock, nsRegKey, func() string {return "first"})
+	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
 	require.NotNil(t, as)
 
 	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
@@ -115,8 +116,7 @@ func TestAdminService_ResetSchema(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	var nsRegKey = "nsRegKey"
-	as := NewAdminService(storeMock, nsRegKey, func() string {return "first"})
+	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
 	require.NotNil(t, as)
 
 	protoFile := "mainpkg/test.proto"
@@ -163,8 +163,7 @@ func TestAdminService_Crud(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
-	var nsRegKey = "nsRegKey"
-	as := NewAdminService(store, nsRegKey, func() string {return "first"})
+	as := NewAdminService(store, nsRegKey, func() string { return "first" })
 	require.NotNil(t, as)
 
 	expectedOpt := namespace.NewOptions()
@@ -176,6 +175,7 @@ func TestAdminService_Crud(t *testing.T) {
 	require.Error(t, as.Add("ns1", optProto))
 	require.NoError(t, as.Set("ns1", optProto))
 	require.Error(t, as.Set("ns2", optProto))
+	require.NoError(t, as.Add("ns3", optProto))
 
 	nsOpt, err := as.Get("ns1")
 	require.NoError(t, err)
@@ -189,5 +189,104 @@ func TestAdminService_Crud(t *testing.T) {
 
 	nsReg, err := as.GetAll()
 	require.NoError(t, err)
+	require.Len(t, nsReg.Namespaces, 2)
+
+	err = as.Delete("ns1")
+	require.NoError(t, err)
+
+	nsReg, err = as.GetAll()
+	require.NoError(t, err)
 	require.Len(t, nsReg.Namespaces, 1)
+}
+
+func TestAdminService_DeleteOneNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+
+	currentMeta1, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
+	require.NoError(t, err)
+	currentMeta2, err := namespace.NewMetadata(ident.StringID("ns2"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta1, currentMeta2})
+	require.NoError(t, err)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
+
+	expectedMeta, err := namespace.NewMetadata(ident.StringID("ns2"), namespace.NewOptions())
+	require.NoError(t, err)
+	expectedMap, err := namespace.NewMap([]namespace.Metadata{expectedMeta})
+	require.NoError(t, err)
+
+	mValue := kv.NewMockValue(ctrl)
+	mValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).Do(func(reg *nsproto.Registry) {
+		*reg = *currentReg
+	})
+	mValue.EXPECT().Version().Return(1)
+	storeMock.EXPECT().Get(nsRegKey).Return(mValue, nil)
+	storeMock.EXPECT().CheckAndSet(nsRegKey, 1, gomock.Any()).Return(2, nil).Do(
+		func(k string, version int, actualReg *nsproto.Registry) {
+			actualMap, err := namespace.FromProto(*actualReg)
+			require.NoError(t, err)
+			require.True(t, actualMap.Equal(expectedMap))
+		})
+
+	err = as.Delete("ns1")
+	require.NoError(t, err)
+}
+
+func TestAdminService_DeleteLastNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+
+	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta})
+	require.NoError(t, err)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
+
+	mValue := kv.NewMockValue(ctrl)
+	mValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).Do(func(reg *nsproto.Registry) {
+		*reg = *currentReg
+	})
+	mValue.EXPECT().Version().Return(1)
+	storeMock.EXPECT().Get(nsRegKey).Return(mValue, nil)
+	storeMock.EXPECT().Delete(nsRegKey).Return(nil, nil)
+
+	err = as.Delete("ns1")
+	require.NoError(t, err)
+}
+
+func TestAdminService_DeleteMissingNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+
+	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta})
+	require.NoError(t, err)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
+
+	mValue := kv.NewMockValue(ctrl)
+	mValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).Do(func(reg *nsproto.Registry) {
+		*reg = *currentReg
+	})
+	mValue.EXPECT().Version().Return(1)
+	storeMock.EXPECT().Get(nsRegKey).Return(mValue, nil)
+
+	err = as.Delete("missing-namespace")
+	require.EqualError(t, ErrNamespaceNotFound, err.Error())
 }
