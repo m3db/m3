@@ -167,7 +167,7 @@ func Run(runOpts RunOptions) {
 		cfg = runOpts.Config
 	}
 
-	err := cfg.InitDefaultsAndValidate()
+	err := cfg.Validate()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -175,7 +175,7 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -230,9 +230,9 @@ func Run(runOpts RunOptions) {
 	defer fslock.releaseLockfile()
 
 	go bgValidateProcessLimits(logger)
-	debug.SetGCPercent(cfg.GCPercentage)
+	debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
-	scope, _, err := cfg.Metrics.NewRootScope()
+	scope, _, err := cfg.MetricsOrDefault().NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -331,7 +331,7 @@ func Run(runOpts RunOptions) {
 	// are constructed allowing for type to be picked
 	// by the caller using instrument.NewTimer(...).
 	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
-	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+	timerOpts.StandardSampleRate = cfg.MetricsOrDefault().SampleRate()
 
 	var (
 		opts  = storage.NewOptions()
@@ -393,8 +393,9 @@ func Run(runOpts RunOptions) {
 			SetLimitEnabled(true).
 			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsyncOrDefault()).
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDurationOrDefault())
+
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
@@ -441,7 +442,8 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
-	if cfg.WriteNewSeriesAsync {
+
+	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
 	indexOpts = indexOpts.SetInsertMode(insertMode).
@@ -469,7 +471,11 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	policy := cfg.PoolingPolicy
+	policy, err := cfg.PoolingPolicyOrDefault()
+	if err != nil {
+		logger.Fatal("could not get pooling policy", zap.Error(err))
+	}
+
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		poolOptions(
@@ -511,28 +517,29 @@ func Run(runOpts RunOptions) {
 		SetMmapReporter(mmapReporter)
 
 	var commitLogQueueSize int
-	specified := cfg.CommitLog.Queue.Size
-	switch cfg.CommitLog.Queue.CalculationType {
+	cfgCommitLog := cfg.CommitLogOrDefault()
+	specified := cfgCommitLog.Queue.Size
+	switch cfgCommitLog.Queue.CalculationType {
 	case config.CalculationTypeFixed:
 		commitLogQueueSize = specified
 	case config.CalculationTypePerCPU:
 		commitLogQueueSize = specified * runtime.NumCPU()
 	default:
 		logger.Fatal("unknown commit log queue size type",
-			zap.Any("type", cfg.CommitLog.Queue.CalculationType))
+			zap.Any("type", cfgCommitLog.Queue.CalculationType))
 	}
 
 	var commitLogQueueChannelSize int
-	if cfg.CommitLog.QueueChannel != nil {
-		specified := cfg.CommitLog.QueueChannel.Size
-		switch cfg.CommitLog.Queue.CalculationType {
+	if cfgCommitLog.QueueChannel != nil {
+		specified := cfgCommitLog.QueueChannel.Size
+		switch cfgCommitLog.Queue.CalculationType {
 		case config.CalculationTypeFixed:
 			commitLogQueueChannelSize = specified
 		case config.CalculationTypePerCPU:
 			commitLogQueueChannelSize = specified * runtime.NumCPU()
 		default:
 			logger.Fatal("unknown commit log queue channel size type",
-				zap.Any("type", cfg.CommitLog.Queue.CalculationType))
+				zap.Any("type", cfgCommitLog.Queue.CalculationType))
 		}
 	} else {
 		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
@@ -543,14 +550,18 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
+	poolingPolicy, err := cfg.PoolingPolicyOrDefault()
+	if err != nil {
+		logger.Fatal("could not get pooling policy", zap.Error(err))
+	}
 
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, poolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
 		SetStrategy(commitlog.StrategyWriteBehind).
-		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
-		SetFlushInterval(cfg.CommitLog.FlushEvery).
+		SetFlushSize(cfgCommitLog.FlushMaxBytes).
+		SetFlushInterval(cfgCommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
 
@@ -664,25 +675,29 @@ func Run(runOpts RunOptions) {
 	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
 		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
 	}
+
+	listenAddress := cfg.ListenAddressOrDefault()
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchanOpts).ListenAndServe()
+		listenAddress, contextPool, tchanOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
-			zap.String("address", cfg.ListenAddress), zap.Error(err))
+			zap.String("address", listenAddress), zap.Error(err))
 	}
 	defer tchannelthriftNodeClose()
-	logger.Info("node tchannelthrift: listening", zap.String("address", cfg.ListenAddress))
+	logger.Info("node tchannelthrift: listening", zap.String("address", listenAddress))
 
+	httpListenAddress := cfg.HTTPNodeListenAddressOrDefault()
 	httpjsonNodeClose, err := hjnode.NewServer(service,
-		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
+		httpListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open httpjson interface",
-			zap.String("address", cfg.HTTPNodeListenAddress), zap.Error(err))
+			zap.String("address", httpListenAddress), zap.Error(err))
 	}
 	defer httpjsonNodeClose()
-	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
+	logger.Info("node httpjson: listening", zap.String("address", httpListenAddress))
 
-	if cfg.DebugListenAddress != "" {
+	debugListenAddress := cfg.DebugListenAddressOrDefault()
+	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
 		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
 			queryconfig.Configuration{}, nil, iopts)
@@ -723,12 +738,12 @@ func Run(runOpts RunOptions) {
 				}
 			}
 
-			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
+			if err := http.ListenAndServe(debugListenAddress, mux); err != nil {
 				logger.Error("debug server could not listen",
-					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+					zap.String("address", debugListenAddress), zap.Error(err))
 			} else {
 				logger.Info("debug server listening",
-					zap.String("address", cfg.DebugListenAddress),
+					zap.String("address", debugListenAddress),
 				)
 			}
 		}()
@@ -864,23 +879,25 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcessProvider(bs)
 
 	// Start the cluster services now that the M3DB client is available.
+	clusterListenAddress := cfg.ClusterListenAddressOrDefault()
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
-		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		clusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
-			zap.String("address", cfg.ClusterListenAddress), zap.Error(err))
+			zap.String("address", clusterListenAddress), zap.Error(err))
 	}
 	defer tchannelthriftClusterClose()
-	logger.Info("cluster tchannelthrift: listening", zap.String("address", cfg.ClusterListenAddress))
+	logger.Info("cluster tchannelthrift: listening", zap.String("address", clusterListenAddress))
 
+	httpClusterListenAddress := cfg.HTTPClusterListenAddressOrDefault()
 	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
-		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
+		httpClusterListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open httpjson interface",
-			zap.String("address", cfg.HTTPClusterListenAddress), zap.Error(err))
+			zap.String("address", httpClusterListenAddress), zap.Error(err))
 	}
 	defer httpjsonClusterClose()
-	logger.Info("cluster httpjson: listening", zap.String("address", cfg.HTTPClusterListenAddress))
+	logger.Info("cluster httpjson: listening", zap.String("address", httpClusterListenAddress))
 
 	// Initialize clustered database.
 	clusterTopoWatch, err := topo.Watch()
@@ -927,7 +944,7 @@ func Run(runOpts RunOptions) {
 
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
-			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 	}()

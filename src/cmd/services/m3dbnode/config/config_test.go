@@ -95,9 +95,6 @@ db:
 
   gcPercentage: 100
 
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
   bootstrap:
       filesystem:
           numProcessorsPerCPU: 0.42
@@ -311,7 +308,7 @@ db:
   hashing:
     seed: 42
   writeNewSeriesAsync: true
-
+  writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
 `
@@ -409,8 +406,6 @@ func TestConfiguration(t *testing.T) {
     writeShardsInitializing: null
     shardsLeavingCountTowardsConsistency: null
   gcPercentage: 100
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
     mode: null
@@ -669,6 +664,7 @@ func TestConfiguration(t *testing.T) {
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  writeNewSeriesBackoffDuration: 2ms
   proto: null
   tracing:
     serviceName: ""
@@ -719,6 +715,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
+    writeNewSeriesPerSecond: 0
   wide: null
   tchannel: null
   debug:

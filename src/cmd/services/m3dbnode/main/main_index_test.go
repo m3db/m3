@@ -347,7 +347,6 @@ db:
     gcPercentage: 100
 
     writeNewSeriesAsync: false
-    writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
 
     commitlog:
