@@ -212,6 +212,9 @@ linters:
     # We allow cuddling assignment following conditions because there are valid 
     # logical groupings for this use-case (e.g. when evaluating config values).
     - wsl
+    # New line required before return would require a large fraction of the
+    # code base to need updating, it's not worth the perceived benefit.
+    - nlreturn
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
