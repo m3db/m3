@@ -22,11 +22,11 @@ package service
 
 import (
 	"errors"
-	"github.com/m3db/m3/src/cluster/placement/algo"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/stretchr/testify/assert"
@@ -208,7 +208,8 @@ func TestNonShardedWorkflow(t *testing.T) {
 }
 
 func TestBadInitialPlacement(t *testing.T) {
-	p := NewPlacementService(newMockStorage(), WithPlacementOptions(placement.NewOptions().SetValidZone("z1").SetIsSharded(false)))
+	p := NewPlacementService(newMockStorage(),
+		WithPlacementOptions(placement.NewOptions().SetValidZone("z1").SetIsSharded(false)))
 
 	// invalid numShards
 	_, err := p.BuildInitialPlacement([]placement.Instance{
