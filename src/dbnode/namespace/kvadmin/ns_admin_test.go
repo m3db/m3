@@ -21,6 +21,7 @@
 package kvadmin
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -237,10 +238,40 @@ func TestAdminService_DeleteOneNamespace(t *testing.T) {
 			actualMap, err := namespace.FromProto(*actualReg)
 			require.NoError(t, err)
 			require.True(t, actualMap.Equal(expectedMap))
-		})
+		},
+	)
 
 	err = as.Delete("ns1")
 	require.NoError(t, err)
+}
+
+func TestAdminService_DeleteOneNamespaceFailedSetting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
+
+	currentMeta1, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
+	require.NoError(t, err)
+	currentMeta2, err := namespace.NewMetadata(ident.StringID("ns2"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta1, currentMeta2})
+	require.NoError(t, err)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
+
+	mValue := kv.NewMockValue(ctrl)
+	mValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).Do(func(reg *nsproto.Registry) {
+		*reg = *currentReg
+	})
+	mValue.EXPECT().Version().Return(1)
+	storeMock.EXPECT().Get(nsRegKey).Return(mValue, nil)
+	storeMock.EXPECT().CheckAndSet(nsRegKey, 1, gomock.Any()).Return(-1, errors.New("some error"))
+
+	err = as.Delete("ns1")
+	require.Error(t, err)
 }
 
 func TestAdminService_DeleteLastNamespace(t *testing.T) {
@@ -270,6 +301,33 @@ func TestAdminService_DeleteLastNamespace(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAdminService_DeleteLastNamespaceFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
+
+	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	currentMap, err := namespace.NewMap([]namespace.Metadata{currentMeta})
+	require.NoError(t, err)
+	currentReg, err := namespace.ToProto(currentMap)
+	require.NoError(t, err)
+
+	mValue := kv.NewMockValue(ctrl)
+	mValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).Do(func(reg *nsproto.Registry) {
+		*reg = *currentReg
+	})
+	mValue.EXPECT().Version().Return(1)
+	storeMock.EXPECT().Get(nsRegKey).Return(mValue, nil)
+	storeMock.EXPECT().Delete(nsRegKey).Return(nil, errors.New("some error"))
+
+	err = as.Delete("ns1")
+	require.Error(t, err)
+}
+
 func TestAdminService_DeleteMissingNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -294,4 +352,17 @@ func TestAdminService_DeleteMissingNamespace(t *testing.T) {
 
 	err = as.Delete("missing-namespace")
 	require.EqualError(t, ErrNamespaceNotFound, err.Error())
+}
+
+func TestAdminService_DeleteNilRegistry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	storeMock := kv.NewMockStore(ctrl)
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
+
+	storeMock.EXPECT().Get(nsRegKey).Return(nil, errors.New("some error"))
+
+	err := as.Delete("missing-namespace")
+	require.Error(t, err)
 }
