@@ -79,12 +79,12 @@ func TestCreateAndAcquire(t *testing.T) {
 
 	tempSubDir := path.Join(tempDir, "testDir")
 
-	lock, err := CreateAndAcquire(path.Join(tempSubDir, "testLockfile"), os.ModePerm)
+	lock, err := createAndAcquire(path.Join(tempSubDir, "testLockfile"), os.ModePerm)
 	assert.NoError(t, err)
-	err = lock.Release()
+	err = lock.release()
 	assert.NoError(t, err)
 
-	// check CreateAndAcquire() created the missing directory
+	// check createAndAcquire() created the missing directory
 	_, err = os.Stat(tempSubDir)
 	assert.False(t, os.IsNotExist(err))
 }
@@ -102,7 +102,7 @@ func TestAcquireAndReleaseFile(t *testing.T) {
 	removeLock := os.Getenv("WITH_REMOVE_LOCK")
 	sleepDuration := os.Getenv("WITH_SLEEP_DURATION")
 
-	lock, err := Acquire(lockPath)
+	lock, err := acquire(lockPath)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -116,7 +116,7 @@ func TestAcquireAndReleaseFile(t *testing.T) {
 	}
 
 	if removeLock == "true" {
-		err := lock.Release()
+		err := lock.release()
 		if err != nil {
 			os.Exit(1)
 		}

@@ -222,11 +222,11 @@ func Run(runOpts RunOptions) {
 	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
 	// it will be able to acquire the lock despite the fact the the lock file exists.
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
-	fslock, err := CreateAndAcquire(lockPath, newDirectoryMode)
+	fslock, err := createAndAcquire(lockPath, newDirectoryMode)
 	if err != nil {
 		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
 	}
-	defer fslock.Release()
+	defer fslock.release()
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
