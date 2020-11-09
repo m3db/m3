@@ -372,11 +372,32 @@ func (r *blockRetriever) fetchBatch(
 ) {
 	var seeker ConcurrentDataFileSetSeeker
 	defer func() {
+		filteredReqs := allReqs[:0]
 		// Make sure requests are always fulfilled so if there's a code bug
 		// then errSeekNotCompleted is returned because req.success is not set
 		// rather than we have dangling goroutines stacking up.
 		for _, req := range allReqs {
-			req.onDone()
+			if req.waitOnFetch == nil {
+				req.onDone()
+				continue
+			}
+
+			filteredReqs = append(filteredReqs, req)
+		}
+
+		allReqs = filteredReqs
+		for len(allReqs) > 0 {
+			filteredReqs = filteredReqs[:0]
+			for _, req := range allReqs {
+				select {
+				case <-req.waitOnFetch:
+					req.onDone()
+				default:
+					filteredReqs = append(filteredReqs, req)
+				}
+			}
+
+			allReqs = filteredReqs
 		}
 
 		// Reset resources to free any pointers in the slices still pointing
@@ -529,10 +550,11 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
+		req.waitOnFetch = make(chan struct{})
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
-			r.onCallerOrRetrieverDone()
+			r.waitOnFetch <- struct{}{}
 		}(req)
 	}
 }
@@ -745,7 +767,9 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
-	resultWg sync.WaitGroup
+	finalized   bool
+	waitOnFetch chan struct{}
+	resultWg    sync.WaitGroup
 
 	pool *reqPool
 
@@ -907,11 +931,18 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 func (req *retrieveRequest) Finalize() {
 	// May not actually finalize the request, depending on if
 	// retriever is done too
+	if req.finalized {
+		return
+	}
+
+	req.finalized = true
 	req.onCallerOrRetrieverDone()
 }
 
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
+	req.waitOnFetch = nil
+	req.finalized = false
 	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
