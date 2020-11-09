@@ -39,8 +39,8 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/clientv3"
 	"go.uber.org/zap"
 )
 
@@ -282,9 +282,10 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		return nil, err
 	}
 	cfg := clientv3.Config{
+		AutoSyncInterval: cluster.AutoSyncInterval(),
+		DialTimeout:      cluster.DialTimeout(),
 		Endpoints:        cluster.Endpoints(),
 		TLS:              tls,
-		AutoSyncInterval: cluster.AutoSyncInterval(),
 	}
 
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {
@@ -296,6 +297,7 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		}
 		cfg.DialKeepAliveTime = keepAlivePeriod
 		cfg.DialKeepAliveTimeout = opts.KeepAliveTimeout()
+		cfg.PermitWithoutStream = true
 	}
 
 	return clientv3.New(cfg)
