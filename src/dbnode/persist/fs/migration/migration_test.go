@@ -142,7 +142,12 @@ func openFile(
 	return indexFd
 }
 
-func writeUnmigratedData(t *testing.T, filePathPrefix string, nsID ident.ID, shard uint32) fs.Options {
+func writeUnmigratedData(
+	t *testing.T,
+	filePathPrefix string,
+	nsID ident.ID,
+	shard uint32,
+) fs.Options {
 	// Use encoding options that will not generate entry level checksums
 	eOpts := msgpack.LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: msgpack.LegacyEncodingIndexEntryVersionV2}
 

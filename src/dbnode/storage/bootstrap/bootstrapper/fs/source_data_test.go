@@ -952,7 +952,11 @@ func TestReadRunMigrations(t *testing.T) {
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
-func newTestStorageOptions(t *testing.T, pm persist.Manager, icm fs.IndexClaimsManager) (storage.Options, index.Closer) {
+func newTestStorageOptions(
+	t *testing.T,
+	pm persist.Manager,
+	icm fs.IndexClaimsManager,
+) (storage.Options, index.Closer) {
 	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
 		InstrumentOptions: instrument.NewOptions(),
 	})

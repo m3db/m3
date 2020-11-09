@@ -250,7 +250,6 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
-	fsOpts := test.opts.CommitLogOptions().FilesystemOptions()
 
 	idx := test.index.(*nsIndex)
 
@@ -262,7 +261,6 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 		t,
 		ctrl,
 		idx,
-		fsOpts.FilePathPrefix(),
 		test.blockSize,
 		[]uint32{0},
 	)
@@ -273,7 +271,6 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
-	fsOpts := test.opts.CommitLogOptions().FilesystemOptions()
 
 	idx := test.index.(*nsIndex)
 
@@ -285,7 +282,6 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 		t,
 		ctrl,
 		idx,
-		fsOpts.FilePathPrefix(),
 		test.blockSize,
 		[]uint32{0, 1, 2},
 	)
@@ -404,7 +400,6 @@ func verifyFlushForShards(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	idx *nsIndex,
-	filePathPrefix string,
 	blockSize time.Duration,
 	shards []uint32,
 ) {
