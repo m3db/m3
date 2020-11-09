@@ -63,7 +63,6 @@ func (t *terms) post(term []byte, id postings.ID) error {
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
-
 	}
 
 	// If empty posting list, track insertion of this key into the terms

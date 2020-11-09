@@ -177,7 +177,9 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
-	d.bitmap.Reset()
+	// NB(r): Use direct remove all to retain allocated containers
+	// on the bitmap.
+	d.bitmap.DirectRemoveAll()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {
