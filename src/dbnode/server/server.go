@@ -220,14 +220,14 @@ func Run(runOpts RunOptions) {
 	// When the process exits gracefully, both the lock file and the lock will be removed.
 	// If the process exits ungracefully, only the lock in memory will be removed, the lock
 	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
-	// it will be able to acquire the lock despite the fact the the lock file exists.
+	// it will be able to acquireLockfile the lock despite the fact the the lock file exists.
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
-	fslock, err := createAndAcquire(lockPath, newDirectoryMode)
+	fslock, err := createAndAcquireLockfile(lockPath, newDirectoryMode)
 	if err != nil {
-		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
+		logger.Fatal("could not acquireLockfile lock", zap.String("path", lockPath), zap.Error(err))
 	}
 	// nolint: errcheck
-	defer fslock.release()
+	defer fslock.releaseLockfile()
 
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)

@@ -33,10 +33,10 @@ type lockfile struct {
 	file os.File
 }
 
-// acquire creates the given file path if it doesn't exist and
+// acquireLockfile creates the given file path if it doesn't exist and
 // obtains an exclusive lock on it. An error is returned if the lock
 // has been obtained by another process.
-func acquire(path string) (*lockfile, error) {
+func acquireLockfile(path string) (*lockfile, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed opening lock path")
@@ -56,18 +56,18 @@ func acquire(path string) (*lockfile, error) {
 	return &lf, nil
 }
 
-// createAndAcquire creates any non-existing directories needed to
+// createAndAcquireLockfile creates any non-existing directories needed to
 // create the lock file, then acquires a lock on it.
-func createAndAcquire(path string, newDirMode os.FileMode) (*lockfile, error) {
+func createAndAcquireLockfile(path string, newDirMode os.FileMode) (*lockfile, error) {
 	if err := os.MkdirAll(paths.Dir(path), newDirMode); err != nil {
 		return nil, err
 	}
 
-	return acquire(path)
+	return acquireLockfile(path)
 }
 
-// release releases the lock on the file and removes the file.
-func (lf lockfile) release() error {
+// releaseLockfile releases the lock on the file and removes the file.
+func (lf lockfile) releaseLockfile() error {
 	ft := &unix.Flock_t{
 		Pid:  int32(os.Getpid()),
 		Type: unix.F_UNLCK,

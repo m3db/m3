@@ -35,9 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// for goconst linting purposes
-var envVarTrueFlag = "true"
-
 func TestAcquire(t *testing.T) {
 	t.Run("process B can obtain the lock after A exits", func(t *testing.T) {
 		path := tempPath()
@@ -64,7 +61,7 @@ func TestAcquire(t *testing.T) {
 		assert.NoError(t, procA.Start())
 		assert.NoError(t, procB.Start())
 
-		// one process will acquire and hold the lock, and the other will fail to acquire.
+		// one process will acquireLockfile and hold the lock, and the other will fail to acquireLockfile.
 		errA, errB := procA.Wait(), procB.Wait()
 
 		if errA != nil {
@@ -82,12 +79,12 @@ func TestCreateAndAcquire(t *testing.T) {
 
 	tempSubDir := path.Join(tempDir, "testDir")
 
-	lock, err := createAndAcquire(path.Join(tempSubDir, "testLockfile"), os.ModePerm)
+	lock, err := createAndAcquireLockfile(path.Join(tempSubDir, "testLockfile"), os.ModePerm)
 	assert.NoError(t, err)
-	err = lock.release()
+	err = lock.releaseLockfile()
 	assert.NoError(t, err)
 
-	// check createAndAcquire() created the missing directory
+	// check createAndAcquireLockfile() created the missing directory
 	_, err = os.Stat(tempSubDir)
 	assert.False(t, os.IsNotExist(err))
 }
@@ -98,7 +95,8 @@ func TestCreateAndAcquire(t *testing.T) {
 // exit codes as opposed to failing assertions on errors
 func TestAcquireAndReleaseFile(t *testing.T) {
 	// immediately return if this test wasn't invoked by another test in the
-	if os.Getenv("LOCKFILE_SUPERVISED_PROCESS") != envVarTrueFlag {
+	// nolint: goconst
+	if os.Getenv("LOCKFILE_SUPERVISED_PROCESS") != "true" {
 		t.Skip()
 	}
 
@@ -108,7 +106,7 @@ func TestAcquireAndReleaseFile(t *testing.T) {
 		sleepDuration = os.Getenv("WITH_SLEEP_DURATION")
 	)
 
-	lock, err := acquire(lockPath)
+	lock, err := acquireLockfile(lockPath)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -123,7 +121,7 @@ func TestAcquireAndReleaseFile(t *testing.T) {
 	}
 
 	if removeLock == "true" {
-		err := lock.release()
+		err := lock.releaseLockfile()
 		if err != nil {
 			os.Exit(1)
 		}
@@ -137,14 +135,14 @@ func tempPath() string {
 func newLockfileCommand(lockPath string, sleepDuration string, removeLock bool) *exec.Cmd {
 	removeLockStr := "false"
 	if removeLock {
-		removeLockStr = envVarTrueFlag
+		removeLockStr = "true"
 	}
 
 	cmd := exec.Command("go", "test", "-run", "TestAcquireAndReleaseFile")
 	cmd.Env = os.Environ()
 	cmd.Env = append(
 		cmd.Env,
-		"LOCKFILE_SUPERVISED_PROCESS=%s", envVarTrueFlag,
+		"LOCKFILE_SUPERVISED_PROCESS=true",
 		fmt.Sprintf("WITH_LOCK_PATH=%s", lockPath),
 		fmt.Sprintf("WITH_SLEEP_DURATION=%s", sleepDuration),
 		fmt.Sprintf("WITH_REMOVE_LOCK=%s", removeLockStr),
