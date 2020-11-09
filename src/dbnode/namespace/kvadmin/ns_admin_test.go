@@ -24,13 +24,15 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
-	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/kv/mem"
 )
 
 const (
@@ -62,7 +64,8 @@ message ImportedMessage {
 }
 `
 
-	nsRegKey = "nsRegKey"
+	nsRegKey        = "nsRegKey"
+	testNamespaceID = "test-namespace"
 )
 
 func TestAdminService_DeploySchema(t *testing.T) {
@@ -70,7 +73,7 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
 	require.NotNil(t, as)
 
 	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
@@ -84,7 +87,8 @@ func TestAdminService_DeploySchema(t *testing.T) {
 	protoMsg := "mainpkg.TestMessage"
 	protoMap := map[string]string{protoFile: mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
 
-	expectedSchemaOpt, err := namespace.AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, "first")
+	expectedSchemaOpt, err := namespace.
+		AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, testNamespaceID)
 	require.NoError(t, err)
 	expectedSh, err := namespace.LoadSchemaHistory(expectedSchemaOpt)
 	require.NoError(t, err)
@@ -116,13 +120,14 @@ func TestAdminService_ResetSchema(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
 	require.NotNil(t, as)
 
 	protoFile := "mainpkg/test.proto"
 	protoMsg := "mainpkg.TestMessage"
 	protoMap := map[string]string{protoFile: mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
-	currentSchemaOpt, err := namespace.AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, "first")
+	currentSchemaOpt, err := namespace.
+		AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, testNamespaceID)
 	require.NoError(t, err)
 	currentSchemaHist, err := namespace.LoadSchemaHistory(currentSchemaOpt)
 	require.NoError(t, err)
@@ -163,7 +168,7 @@ func TestAdminService_Crud(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mem.NewStore()
-	as := NewAdminService(store, nsRegKey, func() string { return "first" })
+	as := NewAdminService(store, nsRegKey, func() string { return testNamespaceID })
 	require.NotNil(t, as)
 
 	expectedOpt := namespace.NewOptions()
@@ -204,7 +209,7 @@ func TestAdminService_DeleteOneNamespace(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
 
 	currentMeta1, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
 	require.NoError(t, err)
@@ -243,7 +248,7 @@ func TestAdminService_DeleteLastNamespace(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
 
 	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
 	require.NoError(t, err)
@@ -270,7 +275,7 @@ func TestAdminService_DeleteMissingNamespace(t *testing.T) {
 	defer ctrl.Finish()
 
 	storeMock := kv.NewMockStore(ctrl)
-	as := NewAdminService(storeMock, nsRegKey, func() string { return "first" })
+	as := NewAdminService(storeMock, nsRegKey, func() string { return testNamespaceID })
 
 	currentMeta, err := namespace.NewMetadata(ident.StringID("ns1"), namespace.NewOptions())
 	require.NoError(t, err)

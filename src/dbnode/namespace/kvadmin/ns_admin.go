@@ -24,15 +24,18 @@ import (
 	"errors"
 	"fmt"
 
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	uuid "github.com/satori/go.uuid"
 )
 
 var (
-	ErrNamespaceNotFound     = errors.New("namespace is not found")
+	// ErrNamespaceNotFound is returned when namespace is not found in registry.
+	ErrNamespaceNotFound = errors.New("namespace is not found")
+	// ErrNamespaceAlreadyExist is returned for addition of a namespace which already exists.
 	ErrNamespaceAlreadyExist = errors.New("namespace already exists")
 )
 
@@ -167,6 +170,7 @@ func (as *adminService) Delete(name string) error {
 	for idx, md := range nsMap.Metadatas() {
 		if md.ID().String() == name {
 			mdIdx = idx
+
 			break
 		}
 	}
@@ -179,6 +183,7 @@ func (as *adminService) Delete(name string) error {
 		if _, err := as.store.Delete(as.key); err != nil {
 			return xerrors.Wrap(err, "failed to delete kv key")
 		}
+
 		return nil
 	}
 
@@ -188,7 +193,7 @@ func (as *adminService) Delete(name string) error {
 
 	newMap, err := namespace.NewMap(metadatas)
 	if err != nil {
-		return err
+		return xerrors.Wrap(err, "namespace map construction failed")
 	}
 
 	protoMap, err := namespace.ToProto(newMap)
