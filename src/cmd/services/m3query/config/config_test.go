@@ -185,10 +185,10 @@ func TestTagOptionsConfig(t *testing.T) {
 
 func TestKeepNaNsDefault(t *testing.T) {
 	r := ResultOptions{
-		KeepNans: true,
+		KeepNaNs: true,
 	}
-	assert.Equal(t, true, r.KeepNans)
+	assert.Equal(t, true, r.KeepNaNs)
 
 	r = ResultOptions{}
-	assert.Equal(t, false, r.KeepNans)
+	assert.Equal(t, false, r.KeepNaNs)
 }
