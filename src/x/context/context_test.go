@@ -97,7 +97,7 @@ func TestRegisterCloserWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	childCtx.RegisterCloser(resource.CloserFn(func() {
+	childCtx.RegisterCloser(xresource.CloserFn(func() {
 		childClosed = true
 		wg.Done()
 	}))
@@ -120,7 +120,7 @@ func TestRegisterCloser(t *testing.T) {
 	)
 
 	wg.Add(1)
-	ctx.RegisterCloser(resource.CloserFn(func() {
+	ctx.RegisterCloser(xresource.CloserFn(func() {
 		closed = true
 		wg.Done()
 	}))
@@ -136,7 +136,7 @@ func TestRegisterCloser(t *testing.T) {
 func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.Close()
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {}))
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {}))
 
 	assert.Equal(t, 0, ctx.numFinalizeables())
 }
@@ -145,7 +145,7 @@ func TestDoesNotCloseTwice(t *testing.T) {
 	ctx := NewContext().(*ctx)
 
 	var closed int32
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 	}))
 
@@ -187,7 +187,7 @@ func testDependsOn(t *testing.T, c *ctx) {
 	other := NewContext().(*ctx)
 
 	wg.Add(1)
-	c.RegisterFinalizer(resource.FinalizerFn(func() {
+	c.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
 	}))
@@ -221,7 +221,7 @@ func TestDependsOnWithChild(t *testing.T) {
 	)
 
 	wg.Add(1)
-	c.RegisterFinalizer(resource.FinalizerFn(func() {
+	c.RegisterFinalizer(xresource.FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
 	}))
