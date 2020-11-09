@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexClaimManagerConcurrentClaims(t *testing.T) {
-	mgr, ok := NewIndexClaimManager(NewOptions()).(*indexClaimManager)
+func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
+	mgr, ok := NewIndexClaimsManager(NewOptions()).(*indexClaimsManager)
 	require.True(t, ok)
 
 	// Always return 0 for starting volume index for testing purposes.
