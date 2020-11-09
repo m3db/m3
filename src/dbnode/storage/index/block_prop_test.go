@@ -40,7 +40,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -107,7 +107,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					idx.NewQueryFromSearchQuery(q),
 				}
 
-				cancellable := resource.NewCancellableLifetime()
+				cancellable := xresource.NewCancellableLifetime()
 				cancelled := false
 				doneQuery := func() {
 					if !cancelled {
