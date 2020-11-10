@@ -138,7 +138,7 @@ func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
 		Retention:   24 * time.Hour,
 		Session:     session,
 	})
-	waitForEnabledUpdate(t, testDownsampler, false)
+	waitForEnabledUpdate(t, &testDownsampler, false)
 
 	require.True(t, testDownsampler.downsampler.Enabled())
 
@@ -149,9 +149,10 @@ func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
 		Session:     session,
 	})
 	require.NoError(t, err)
-	require.NoError(t, testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
+	require.NoError(t,
+		testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
 
-	waitForEnabledUpdate(t, testDownsampler, true)
+	waitForEnabledUpdate(t, &testDownsampler, true)
 
 	require.False(t, testDownsampler.downsampler.Enabled())
 }
@@ -1293,7 +1294,7 @@ func waitForStagedMetadataUpdate(t *testing.T, testDownsampler testDownsampler, 
 	}, time.Second))
 }
 
-func waitForEnabledUpdate(t *testing.T, testDownsampler testDownsampler, current bool) {
+func waitForEnabledUpdate(t *testing.T, testDownsampler *testDownsampler, current bool) {
 	ds, ok := testDownsampler.downsampler.(*downsampler)
 	require.True(t, ok)
 

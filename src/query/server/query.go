@@ -644,7 +644,7 @@ func newM3DBStorage(
 		zap.Int("numAggregatedClusterNamespaces", len(namespaces)))
 
 	newDownsamplerFn := func() (downsample.Downsampler, error) {
-		downsampler, err := newDownsampler(
+		ds, err := newDownsampler(
 			cfg.Downsample, clusterClient,
 			fanoutStorage, clusterNamespacesWatcher,
 			tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
@@ -658,7 +658,7 @@ func newM3DBStorage(
 			downsamplerReadyCh <- struct{}{}
 		}
 
-		return downsampler, nil
+		return ds, nil
 	}
 
 	if clusterClientWaitCh != nil {
