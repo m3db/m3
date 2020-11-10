@@ -1136,7 +1136,7 @@ func (i *nsIndex) flushBlock(
 		indexBlock.StartTime(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to claim next index volume index: %w", err)
 	}
 
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{

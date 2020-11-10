@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -120,7 +121,7 @@ func ReadIndexSegments(
 	// Note: need to validate after all segment file sets read.
 	if validate {
 		if err = reader.Validate(); err != nil {
-			return ReadIndexSegmentsResult{}, err
+			return ReadIndexSegmentsResult{}, fmt.Errorf("failed to validate index segments: %w", err)
 		}
 	}
 

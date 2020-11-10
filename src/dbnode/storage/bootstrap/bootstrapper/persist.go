@@ -169,7 +169,7 @@ func persistBootstrapIndexSegment(
 		blockStart,
 	)
 	if err != nil {
-		return result.IndexBlock{}, err
+		return result.IndexBlock{}, fmt.Errorf("failed to claim next index volume index: %w", err)
 	}
 
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
