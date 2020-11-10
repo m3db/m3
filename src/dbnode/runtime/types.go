@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Options is a set of runtime options.
@@ -195,7 +195,7 @@ type OptionsManager interface {
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
 	// to deliver the current set of runtime options.
-	RegisterListener(l OptionsListener) xclose.SimpleCloser
+	RegisterListener(l OptionsListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()

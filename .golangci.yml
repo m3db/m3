@@ -188,9 +188,7 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - unused
     - varcheck
-    - wsl
   enable-all: false
   disable:
     - gomnd
@@ -209,6 +207,14 @@ linters:
     - nolintlint
     # Deprecated project due to being prone to bad suggestions.
     - interfacer
+    # Valid use for not explicitly setting every field when they are optional nil/empty.
+    - exhaustivestruct
+    # We allow cuddling assignment following conditions because there are valid 
+    # logical groupings for this use-case (e.g. when evaluating config values).
+    - wsl
+    # New line required before return would require a large fraction of the
+    # code base to need updating, it's not worth the perceived benefit.
+    - nlreturn
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
@@ -281,4 +287,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: 57da65a558cc40f7de2f7f5c7528ca6c6278488e
+  new-from-rev: 5a3a12bba59e058b7a4cee6ec472c3f5786f741b

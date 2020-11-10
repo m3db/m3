@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/opentracing/opentracing-go"
@@ -378,13 +379,142 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	return readers, nil
 }
 
-func (b *block) queryWithSpanRLock(
+// Query acquires a read lock on the block so that the segments
+// are guaranteed to not be freed/released while accumulating results.
+// This allows references to the mmap'd segment data to be accumulated
+// and then copied into the results before this method returns (it is not
+// safe to return docs directly from the segments from this method, the
+// results datastructure is used to copy it every time documents are added
+// to the results datastructure).
+func (b *block) Query(
+	ctx context.Context,
+	cancellable *xresource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.BlockQuery)
+	defer sp.Finish()
+	if sampled {
+		sp.LogFields(logFields...)
+	}
+
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+const (
+	queryGroupReadersParallelism = 8
+	queryGroupSize               = 8
+)
+
+type queryGroup struct {
+	readers    []m3ninxindex.Reader
+	exhaustive bool
+	err        error
+}
+
+func (b *block) queryWithSpan(
 	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
-	sp opentracing.Span,
+) (bool, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	if b.state == blockStateClosed {
+		return false, ErrUnableToQueryBlockClosed
+	}
+
+	readers, err := b.segmentReadersWithRLock()
+	if err != nil {
+		return false, err
+	}
+
+	segmentReaders := make([]m3ninxindex.Reader, 0, len(readers))
+	for _, reader := range readers {
+		segmentReaders = append(segmentReaders, reader)
+	}
+
+	if len(segmentReaders) < queryGroupReadersParallelism {
+		// Query no parallelism.
+		return b.queryWithSpanAndRLock(ctx, cancellable, query,
+			opts, results, segmentReaders)
+	}
+
+	var (
+		groupsN = int(math.Ceil(float64(len(readers)) / float64(queryGroupSize)))
+		groups  = make([]queryGroup, groupsN)
+		jobs    = make([]m3ninxindex.Reader, groupsN*queryGroupSize)
+		workers = b.opts.QueryWorkerPool()
+		wg      sync.WaitGroup
+	)
+	// Create query group jobs.
+	for i := 0; i < groupsN; i++ {
+		groupJobs := jobs[:queryGroupSize]
+		jobs = jobs[queryGroupSize:]
+		groups[i] = queryGroup{
+			// Jobs backed by single bulk alloc slice, but start zero length.
+			readers: groupJobs[:0],
+		}
+	}
+	// Allocate jobs to groups, first sort by size.
+	sort.Slice(segmentReaders, func(i, j int) bool {
+		nI, _ := segmentReaders[i].NumDocs()
+		nJ, _ := segmentReaders[j].NumDocs()
+		return nI < nJ
+	})
+	// Now allocate round robin.
+	for i, reader := range segmentReaders {
+		group := i % groupsN
+		groups[group].readers = append(groups[group].readers, reader)
+	}
+
+	// Launch async queries.
+	for i := 1; i < groupsN; i++ {
+		i := i
+		wg.Add(1)
+		workers.Go(func() {
+			exhaustive, err := b.queryWithSpanAndRLock(ctx, cancellable, query,
+				opts, results, groups[i].readers)
+			groups[i].exhaustive, groups[i].err = exhaustive, err
+			wg.Done()
+		})
+	}
+
+	// Save an extra goroutine to execute synchronously on local goroutine.
+	exhaustive, err := b.queryWithSpanAndRLock(ctx, cancellable, query,
+		opts, results, groups[0].readers)
+	if err != nil {
+		return false, err
+	}
+
+	// Wait for others.
+	wg.Wait()
+
+	// Collate exhaustive.
+	for i := 1; i < groupsN; i++ {
+		if err := groups[i].err; err != nil {
+			return false, err
+		}
+		exhaustive = exhaustive && groups[i].exhaustive
+	}
+	return exhaustive, nil
+}
+
+func (b *block) queryWithSpanAndRLock(
+	ctx context.Context,
+	cancellable *xresource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
 	segmentReaders []m3ninxindex.Reader,
 ) (bool, error) {
 	exec := executor.NewExecutor(segmentReaders)
@@ -415,7 +545,7 @@ func (b *block) queryWithSpanRLock(
 		return false, errCancelledQuery
 	}
 	execCloseRegistered = true // Make sure to not locally close it.
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		b.closeAsync(exec)
 	}))
 	cancellable.ReleaseCheckout()
@@ -472,135 +602,6 @@ func (b *block) queryWithSpanRLock(
 	return opts.exhaustive(size, docsCount), nil
 }
 
-// Query acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// This allows references to the mmap'd segment data to be accumulated
-// and then copied into the results before this method returns (it is not
-// safe to return docs directly from the segments from this method, the
-// results datastructure is used to copy it every time documents are added
-// to the results datastructure).
-func (b *block) Query(
-	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	results BaseResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-
-	return exhaustive, err
-}
-
-const (
-	queryGroupReadersParallelism = 8
-	queryGroupSize               = 8
-)
-
-type queryGroup struct {
-	readers    []m3ninxindex.Reader
-	exhaustive bool
-	err        error
-}
-
-func (b *block) queryWithSpan(
-	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	results BaseResults,
-	sp opentracing.Span,
-) (bool, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	if b.state == blockStateClosed {
-		return false, ErrUnableToQueryBlockClosed
-	}
-
-	readers, err := b.segmentReadersWithRLock()
-	if err != nil {
-		return false, err
-	}
-
-	segmentReaders := make([]m3ninxindex.Reader, 0, len(readers))
-	for _, reader := range readers {
-		segmentReaders = append(segmentReaders, reader)
-	}
-
-	if len(segmentReaders) < queryGroupReadersParallelism {
-		// Query no parallelism.
-		return b.queryWithSpanRLock(ctx, cancellable, query, opts,
-			results, sp, segmentReaders)
-	}
-
-	var (
-		groupsN = int(math.Ceil(float64(len(readers)) / float64(queryGroupSize)))
-		groups  = make([]queryGroup, groupsN)
-		jobs    = make([]m3ninxindex.Reader, groupsN*queryGroupSize)
-		workers = b.opts.QueryWorkerPool()
-		wg      sync.WaitGroup
-	)
-	// Create query group jobs.
-	for i := 0; i < groupsN; i++ {
-		groupJobs := jobs[:queryGroupSize]
-		jobs = jobs[queryGroupSize:]
-		groups[i] = queryGroup{
-			// Jobs backed by single bulk alloc slice, but start zero length.
-			readers: groupJobs[:0],
-		}
-	}
-	// Allocate jobs to groups, first sort by size.
-	sort.Slice(segmentReaders, func(i, j int) bool {
-		nI, _ := segmentReaders[i].NumDocs()
-		nJ, _ := segmentReaders[j].NumDocs()
-		return nI < nJ
-	})
-	// Now allocate round robin.
-	for i, reader := range segmentReaders {
-		group := i % groupsN
-		groups[group].readers = append(groups[group].readers, reader)
-	}
-
-	// Launch async queries.
-	for i := 1; i < groupsN; i++ {
-		i := i
-		wg.Add(1)
-		workers.Go(func() {
-			exhaustive, err := b.queryWithSpanRLock(ctx, cancellable, query, opts,
-				results, sp, groups[i].readers)
-			groups[i].exhaustive, groups[i].err = exhaustive, err
-			wg.Done()
-		})
-	}
-
-	// Save an extra goroutine to execute synchronously on local goroutine.
-	exhaustive, err := b.queryWithSpanRLock(ctx, cancellable, query, opts,
-		results, sp, groups[0].readers)
-	if err != nil {
-		return false, err
-	}
-
-	// Wait for others.
-	wg.Wait()
-
-	// Collate exhaustive.
-	for i := 1; i < groupsN; i++ {
-		if err := groups[i].err; err != nil {
-			return false, err
-		}
-		exhaustive = exhaustive && groups[i].exhaustive
-	}
-	return exhaustive, nil
-}
-
 func (b *block) closeAsync(closer io.Closer) {
 	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
@@ -609,7 +610,7 @@ func (b *block) closeAsync(closer io.Closer) {
 }
 
 func (b *block) addQueryResults(
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, int, error) {
@@ -627,7 +628,7 @@ func (b *block) addQueryResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the resource.
+	// try to add the docs to the xresource.
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.
@@ -651,7 +652,7 @@ func (b *block) addQueryResults(
 // pre-aggregated results via the FST underlying the index.
 func (b *block) Aggregate(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	logFields []opentracinglog.Field,
@@ -670,7 +671,7 @@ func (b *block) Aggregate(
 
 func (b *block) aggregateWithSpan(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	sp opentracing.Span,
@@ -746,7 +747,7 @@ func (b *block) aggregateWithSpan(
 	// read by the readers.
 	for _, reader := range readers {
 		reader := reader // Capture for inline function.
-		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 			b.closeAsync(reader)
 		}))
 	}
@@ -871,7 +872,7 @@ func (b *block) pooledID(id []byte) ident.ID {
 }
 
 func (b *block) addAggregateResults(
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, int, error) {
@@ -889,7 +890,7 @@ func (b *block) addAggregateResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the resource.
+	// try to add the docs to the xresource.
 	size, docsCount := results.AddFields(batch)
 
 	// immediately release the checkout on the lifetime of query.

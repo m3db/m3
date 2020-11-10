@@ -23,7 +23,7 @@ package namespace
 import (
 	"sync"
 
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/watch"
 )
 
@@ -88,7 +88,7 @@ type RuntimeOptionsManager interface {
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
 	// to deliver the current set of runtime options.
-	RegisterListener(l RuntimeOptionsListener) xclose.SimpleCloser
+	RegisterListener(l RuntimeOptionsListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()
@@ -228,7 +228,7 @@ func (w *runtimeOptionsManager) Get() RuntimeOptions {
 
 func (w *runtimeOptionsManager) RegisterListener(
 	listener RuntimeOptionsListener,
-) xclose.SimpleCloser {
+) xresource.SimpleCloser {
 	_, watch, _ := w.watchable.Watch()
 
 	// We always initialize the watchable so always read

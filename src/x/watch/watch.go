@@ -25,7 +25,7 @@ import (
 	"errors"
 	"sync"
 
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 var errClosed = errors.New("closed")
@@ -34,7 +34,7 @@ type closer func()
 
 // Updatable can be updated.
 type Updatable interface {
-	xclose.SimpleCloser
+	xresource.SimpleCloser
 
 	// C returns the notification channel for updates.
 	C() <-chan struct{}
@@ -50,7 +50,7 @@ type Watch interface {
 
 // Watchable can be watched
 type Watchable interface {
-	xclose.SimpleCloser
+	xresource.SimpleCloser
 
 	// IsClosed returns true if the Watchable is closed
 	IsClosed() bool
