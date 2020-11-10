@@ -1,3 +1,23 @@
+// Copyright (c) 2020 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package fs
 
 import (
@@ -9,6 +29,11 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+)
+
+var (
+	defaultIndexClaimsManagerOnce sync.Once
+	defaultIndexClaimsManager     *indexClaimsManager
 )
 
 type indexClaimsManager struct {
@@ -29,15 +54,18 @@ type volumeIndexClaim struct {
 
 // NewIndexClaimsManager returns an instance of the index claim manager. This manages
 // concurrent claims for volume indices per ns and block start.
-// NB(bodu): There should be only a single shared index claim manager among all threads
-// writing index data filesets.
 func NewIndexClaimsManager(opts Options) IndexClaimsManager {
-	return &indexClaimsManager{
-		filePathPrefix:                opts.FilePathPrefix(),
-		nowFn:                         opts.ClockOptions().NowFn(),
-		volumeIndexClaims:             make(map[string]map[xtime.UnixNano]volumeIndexClaim),
-		nextIndexFileSetVolumeIndexFn: NextIndexFileSetVolumeIndex,
-	}
+	// NB(bodu): There should be only a single shared index claim manager among all threads
+	// writing index data filesets so we only initialize and return a single instance.
+	defaultIndexClaimsManagerOnce.Do(func() {
+		defaultIndexClaimsManager = &indexClaimsManager{
+			filePathPrefix:                opts.FilePathPrefix(),
+			nowFn:                         opts.ClockOptions().NowFn(),
+			volumeIndexClaims:             make(map[string]map[xtime.UnixNano]volumeIndexClaim),
+			nextIndexFileSetVolumeIndexFn: NextIndexFileSetVolumeIndex,
+		}
+	})
+	return defaultIndexClaimsManager
 }
 
 func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
