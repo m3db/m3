@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -32,8 +33,7 @@ import (
 )
 
 var (
-	defaultIndexClaimsManagerOnce sync.Once
-	defaultIndexClaimsManager     *indexClaimsManager
+	errOutOfRetentionClaim = errors.New("out of retention index volume claim")
 )
 
 type indexClaimsManager struct {
@@ -49,23 +49,19 @@ type indexClaimsManager struct {
 
 type volumeIndexClaim struct {
 	volumeIndex int
-	blockStart  xtime.UnixNano
 }
 
 // NewIndexClaimsManager returns an instance of the index claim manager. This manages
 // concurrent claims for volume indices per ns and block start.
+// NB(bodu): There should be only a single shared index claim manager among all threads
+// writing index data filesets.
 func NewIndexClaimsManager(opts Options) IndexClaimsManager {
-	// NB(bodu): There should be only a single shared index claim manager among all threads
-	// writing index data filesets so we only initialize and return a single instance.
-	defaultIndexClaimsManagerOnce.Do(func() {
-		defaultIndexClaimsManager = &indexClaimsManager{
-			filePathPrefix:                opts.FilePathPrefix(),
-			nowFn:                         opts.ClockOptions().NowFn(),
-			volumeIndexClaims:             make(map[string]map[xtime.UnixNano]volumeIndexClaim),
-			nextIndexFileSetVolumeIndexFn: NextIndexFileSetVolumeIndex,
-		}
-	})
-	return defaultIndexClaimsManager
+	return &indexClaimsManager{
+		filePathPrefix:                opts.FilePathPrefix(),
+		nowFn:                         opts.ClockOptions().NowFn(),
+		volumeIndexClaims:             make(map[string]map[xtime.UnixNano]volumeIndexClaim),
+		nextIndexFileSetVolumeIndexFn: NextIndexFileSetVolumeIndex,
+	}
 }
 
 func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
@@ -73,10 +69,21 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 	blockStart time.Time,
 ) (int, error) {
 	i.Lock()
+	earliestBlockStart := retention.FlushTimeStartForRetentionPeriod(
+		md.Options().RetentionOptions().RetentionPeriod(),
+		md.Options().IndexOptions().BlockSize(),
+		i.nowFn(),
+	)
 	defer func() {
-		i.deleteOutOfRetentionEntriesWithLock(md.ID(), md.Options())
+		i.deleteOutOfRetentionEntriesWithLock(md.ID(), earliestBlockStart)
 		i.Unlock()
 	}()
+
+	// Reject out of retention claims.
+	if blockStart.Before(earliestBlockStart) {
+		return 0, errOutOfRetentionClaim
+	}
+
 	volumeIndexClaimsByBlockStart, ok := i.volumeIndexClaims[md.ID().String()]
 	if !ok {
 		volumeIndexClaimsByBlockStart = make(map[xtime.UnixNano]volumeIndexClaim)
@@ -99,20 +106,14 @@ func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(
 	}
 	volumeIndexClaimsByBlockStart[blockStartUnixNanos] = volumeIndexClaim{
 		volumeIndex: volumeIndex,
-		blockStart:  blockStartUnixNanos,
 	}
 	return volumeIndex, nil
 }
 
 func (i *indexClaimsManager) deleteOutOfRetentionEntriesWithLock(
 	nsID ident.ID,
-	opts namespace.Options,
+	earliestBlockStart time.Time,
 ) {
-	earliestBlockStart := retention.FlushTimeStartForRetentionPeriod(
-		opts.RetentionOptions().RetentionPeriod(),
-		opts.IndexOptions().BlockSize(),
-		i.nowFn(),
-	)
 	earliestBlockStartUnixNanos := xtime.ToUnixNano(earliestBlockStart)
 	// ns ID already exists at this point since the delete call is deferred.
 	for blockStart := range i.volumeIndexClaims[nsID.String()] {

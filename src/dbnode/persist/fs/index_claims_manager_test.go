@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
@@ -44,13 +45,14 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 		return 0, nil
 	}
 
-	blockSize := time.Hour
-	blockStart := time.Now().Truncate(blockSize)
 	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
 	require.NoError(t, err)
+
 	var (
-		m  sync.Map
-		wg sync.WaitGroup
+		m          sync.Map
+		wg         sync.WaitGroup
+		blockSize  = md.Options().IndexOptions().BlockSize()
+		blockStart = time.Now().Truncate(blockSize)
 	)
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -70,4 +72,44 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// TestIndexClaimsManagerOutOfRetention ensure that we both reject and delete out of
+// retention index claims.
+func TestIndexClaimsManagerOutOfRetention(t *testing.T) {
+	mgr, ok := NewIndexClaimsManager(NewOptions()).(*indexClaimsManager)
+	require.True(t, ok)
+
+	// Always return 0 for starting volume index for testing purposes.
+	mgr.nextIndexFileSetVolumeIndexFn = func(
+		filePathPrefix string,
+		namespace ident.ID,
+		blockStart time.Time,
+	) (int, error) {
+		return 0, nil
+	}
+
+	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
+	blockSize := md.Options().IndexOptions().BlockSize()
+	blockStart := time.Now().Truncate(blockSize)
+	require.NoError(t, err)
+
+	_, err = mgr.ClaimNextIndexFileSetVolumeIndex(
+		md,
+		blockStart,
+	)
+	require.NoError(t, err)
+
+	now := mgr.nowFn().Add(md.Options().RetentionOptions().RetentionPeriod()).
+		Add(blockSize)
+	mgr.nowFn = func() time.Time { return now }
+	_, err = mgr.ClaimNextIndexFileSetVolumeIndex(
+		md,
+		blockStart,
+	)
+	require.Equal(t, errOutOfRetentionClaim, err)
+
+	// Verify that the out of retention entry has been deleted as well.
+	_, ok = mgr.volumeIndexClaims[md.ID().String()][xtime.ToUnixNano(blockStart)]
+	require.False(t, ok)
 }
