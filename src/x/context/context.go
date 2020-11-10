@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
@@ -52,8 +52,8 @@ type ctx struct {
 }
 
 type finalizeable struct {
-	finalizer resource.Finalizer
-	closer    resource.Closer
+	finalizer xresource.Finalizer
+	closer    xresource.SimpleCloser
 }
 
 // NewContext creates a new context.
@@ -96,7 +96,7 @@ func (c *ctx) IsClosed() bool {
 	return done
 }
 
-func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
+func (c *ctx) RegisterFinalizer(f xresource.Finalizer) {
 	parent := c.parentCtx()
 	if parent != nil {
 		parent.RegisterFinalizer(f)
@@ -106,7 +106,7 @@ func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
 	c.registerFinalizeable(finalizeable{finalizer: f})
 }
 
-func (c *ctx) RegisterCloser(f resource.Closer) {
+func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	parent := c.parentCtx()
 	if parent != nil {
 		parent.RegisterCloser(f)

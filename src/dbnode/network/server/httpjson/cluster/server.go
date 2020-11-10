@@ -28,8 +28,8 @@ import (
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
 	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 type server struct {
@@ -83,6 +83,6 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	return func() {
 		listener.Close()
-		xclose.TryClose(service)
+		xresource.TryClose(service) // nolint: errcheck
 	}, nil
 }

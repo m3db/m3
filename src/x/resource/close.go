@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package close provides utilities for closing resources.
-package close
+package resource
 
 import (
 	"errors"
-	"io"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -31,32 +31,6 @@ var (
 	// that does not conform to a closeable interface.
 	ErrNotCloseable = errors.New("not a closeable resource")
 )
-
-// Closer is a resource that can be closed.
-type Closer interface {
-	io.Closer
-}
-
-// CloserFn implements the SimpleCloser interface.
-type CloserFn func() error
-
-// Close implements the SimplerCloser interface.
-func (fn CloserFn) Close() error {
-	return fn()
-}
-
-// SimpleCloser is a resource that can be closed without returning a result.
-type SimpleCloser interface {
-	Close()
-}
-
-// SimpleCloserFn implements the SimpleCloser interface.
-type SimpleCloserFn func()
-
-// Close implements the SimplerCloser interface.
-func (fn SimpleCloserFn) Close() {
-	fn()
-}
 
 // TryClose attempts to close a resource, the resource is expected to
 // implement either Closeable or CloseableResult.
@@ -69,4 +43,16 @@ func TryClose(r interface{}) error {
 		return nil
 	}
 	return ErrNotCloseable
+}
+
+// CloseAll closes all closers and combines any errors.
+func CloseAll(closers ...Closer) error {
+	multiErr := xerrors.NewMultiError()
+	for _, closer := range closers {
+		if err := closer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }

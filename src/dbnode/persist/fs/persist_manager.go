@@ -35,8 +35,8 @@ import (
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -93,7 +93,7 @@ type persistManager struct {
 
 	metrics persistManagerMetrics
 
-	runtimeOptsListener xclose.SimpleCloser
+	runtimeOptsListener xresource.SimpleCloser
 }
 
 type dataPersistManager struct {
