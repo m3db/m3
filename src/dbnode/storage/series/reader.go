@@ -134,6 +134,10 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 		readerCount = end.Sub(start) / size
 	)
 
+	if readerCount < 0 {
+		readerCount = 0
+	}
+
 	// Two-dimensional slice such that the first dimension is unique by blockstart
 	// and the second dimension is blocks of data for that blockstart (not necessarily
 	// in chronological order).
