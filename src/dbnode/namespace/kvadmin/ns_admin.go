@@ -162,7 +162,7 @@ func (as *adminService) Delete(name string) error {
 
 	nsMap, err := namespace.FromProto(*currentRegistry)
 	if err != nil {
-		return xerrors.Wrap(err, "failed to unmarhal namespace registry")
+		return xerrors.Wrap(err, "failed to unmarshal namespace registry")
 	}
 
 	metadatas := nsMap.Metadatas()
