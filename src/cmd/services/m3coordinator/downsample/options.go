@@ -1052,7 +1052,7 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 
 	placementSvc := placementservice.NewPlacementService(
 		placementstorage.NewPlacementStorage(localKVStore, placementKVKey, placementOpts),
-		placementOpts)
+		placementservice.WithPlacementOptions(placementOpts))
 
 	_, err := placementSvc.BuildInitialPlacement([]placement.Instance{instance}, numShards,
 		replicationFactor)

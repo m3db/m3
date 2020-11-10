@@ -212,16 +212,17 @@ linters:
     - exhaustivestruct
     # We allow cuddling assignment following conditions because there are valid 
     # logical groupings for this use-case (e.g. when evaluating config values).
-    - wsl
-    # Very opinionated linting that often makes files harder to read.
-    - nlreturn
+    - wsl 
     # Wrapcheck can cause errors until all callsites checking explicit error
     # types like io.EOF are converted to use errors.Is instead. Re-enable this
     # linter once all error checks are upgraded.
     - wrapcheck
     # godox prevents using TODOs or FIXMEs which can be useful for demarkation
     # of future work.
-    - godox
+    - godox 
+    # New line required before return would require a large fraction of the
+    # code base to need updating, it's not worth the perceived benefit.
+    - nlreturn 
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck

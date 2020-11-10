@@ -25,8 +25,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber/tchannel-go"
 )
@@ -76,6 +76,6 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	return func() {
 		channel.Close()
-		xclose.TryClose(service)
+		xresource.TryClose(service) // nolint: errcheck
 	}, nil
 }

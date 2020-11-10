@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +89,7 @@ func TestCloseAllFails(t *testing.T) {
 	defer os.Remove(file.Name())
 
 	assert.NoError(t, file.Close())
-	assert.Error(t, closeAll(file))
+	assert.Error(t, xresource.CloseAll(file))
 }
 
 func TestDeleteFiles(t *testing.T) {
