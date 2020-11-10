@@ -82,6 +82,15 @@ type WorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GetToken reserves the current goroutine to take one of the allocated
+	// goroutine concurrency reserved for the pool in a blocking manner.
+	// Useful for bounding goroutines when already using an allocated
+	// goroutine about to do some work.
+	GetToken()
+
+	// PutToken returns a token reserved by GetToken.
+	PutToken()
 }
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.

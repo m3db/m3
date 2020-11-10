@@ -128,7 +128,8 @@ type opts struct {
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
-	queryWorkerPool                 xsync.WorkerPool
+	queryBlockWorkerPool            xsync.WorkerPool
+	queryBlockSegmentWorkerPool     xsync.WorkerPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -164,9 +165,15 @@ func NewOptions() Options {
 
 	instrumentOpts := instrument.NewOptions()
 
-	// Default to using half of the available cores for querying.
-	queryWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
-	queryWorkerPool.Init()
+	// Default to using half of the available cores for querying segments,
+	// and 2x that for always have a block pending to be queried ready to go.
+	queryBlockSegmentsConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2.0))
+
+	queryBlockSegmentWorkerPool := xsync.NewWorkerPool(queryBlockSegmentsConcurrency)
+	queryBlockSegmentWorkerPool.Init()
+
+	queryBlockWorkerPool := xsync.NewWorkerPool(2 * queryBlockSegmentsConcurrency)
+	queryBlockWorkerPool.Init()
 
 	opts := &opts{
 		insertMode:                      defaultIndexInsertMode,
@@ -185,7 +192,8 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
-		queryWorkerPool:                 queryWorkerPool,
+		queryBlockWorkerPool:            queryBlockWorkerPool,
+		queryBlockSegmentWorkerPool:     queryBlockSegmentWorkerPool,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -439,12 +447,22 @@ func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
 }
 
-func (o *opts) SetQueryWorkerPool(value xsync.WorkerPool) Options {
+func (o *opts) SetQueryBlockWorkerPool(value xsync.WorkerPool) Options {
 	opts := *o
-	opts.queryWorkerPool = value
+	opts.queryBlockWorkerPool = value
 	return &opts
 }
 
-func (o *opts) QueryWorkerPool() xsync.WorkerPool {
-	return o.queryWorkerPool
+func (o *opts) QueryBlockWorkerPool() xsync.WorkerPool {
+	return o.queryBlockWorkerPool
+}
+
+func (o *opts) SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.queryBlockSegmentWorkerPool = value
+	return &opts
+}
+
+func (o *opts) QueryBlockSegmentWorkerPool() xsync.WorkerPool {
+	return o.queryBlockSegmentWorkerPool
 }

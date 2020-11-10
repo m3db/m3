@@ -61,6 +61,14 @@ func (p *workerPool) GoIfAvailable(work Work) bool {
 	}
 }
 
+func (p *workerPool) GetToken() {
+	<-p.workCh
+}
+
+func (p *workerPool) PutToken() {
+	p.workCh <- struct{}{}
+}
+
 func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
 	// Attempt to try writing without allocating a ticker.
 	select {

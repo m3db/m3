@@ -452,9 +452,13 @@ func Run(runOpts RunOptions) {
 		insertMode = index.InsertAsync
 	}
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryWorkerPool.Init()
-		indexOpts = indexOpts.SetQueryWorkerPool(queryWorkerPool)
+		queryBlockSegmentWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
+		queryBlockSegmentWorkerPool.Init()
+		queryBlockWorkerPool := xsync.NewWorkerPool(2 * cfg.Index.MaxQueryIDsConcurrency)
+		queryBlockWorkerPool.Init()
+		indexOpts = indexOpts.
+			SetQueryBlockSegmentWorkerPool(queryBlockSegmentWorkerPool).
+			SetQueryBlockWorkerPool(queryBlockWorkerPool)
 	}
 
 	indexOpts = indexOpts.SetInsertMode(insertMode).

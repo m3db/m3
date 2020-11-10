@@ -47,9 +47,9 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -146,6 +146,7 @@ type block struct {
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
+	querySegmentsWorkers            xsync.WorkerPool
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -256,6 +257,7 @@ func NewBlock(
 		logger:                          iopts.Logger(),
 		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		querySegmentsWorkers:            opts.QueryBlockSegmentsWorkerPool(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 
@@ -400,7 +402,7 @@ func (b *block) Query(
 		sp.LogFields(logFields...)
 	}
 
-	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results)
+	exhaustive, err := b.queryNoLock(ctx, cancellable, query, opts, results)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -419,21 +421,25 @@ type queryGroup struct {
 	err        error
 }
 
-func (b *block) queryWithSpan(
+func (b *block) segmentReadersNoLock() ([]segment.Reader, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	if b.state == blockStateClosed {
+		return nil, ErrUnableToQueryBlockClosed
+	}
+
+	return b.segmentReadersWithRLock()
+}
+
+func (b *block) queryNoLock(
 	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
 ) (bool, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	if b.state == blockStateClosed {
-		return false, ErrUnableToQueryBlockClosed
-	}
-
-	readers, err := b.segmentReadersWithRLock()
+	readers, err := b.segmentReadersNoLock()
 	if err != nil {
 		return false, err
 	}
@@ -444,16 +450,19 @@ func (b *block) queryWithSpan(
 	}
 
 	if len(segmentReaders) < queryGroupReadersParallelism {
-		// Query no parallelism.
-		return b.queryWithSpanAndRLock(ctx, cancellable, query,
+		// Query no parallelism, but ensure not to overwhlem by limiting
+		// concurrency to the query segments worker pool.
+		b.querySegmentsWorkers.GetToken()
+		exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
 			opts, results, segmentReaders)
+		b.querySegmentsWorkers.PutToken()
+		return exhaustive, err
 	}
 
 	var (
 		groupsN = int(math.Ceil(float64(len(readers)) / float64(queryGroupSize)))
 		groups  = make([]queryGroup, groupsN)
 		jobs    = make([]m3ninxindex.Reader, groupsN*queryGroupSize)
-		workers = b.opts.QueryWorkerPool()
 		wg      sync.WaitGroup
 	)
 	// Create query group jobs.
@@ -481,8 +490,8 @@ func (b *block) queryWithSpan(
 	for i := 1; i < groupsN; i++ {
 		i := i
 		wg.Add(1)
-		workers.Go(func() {
-			exhaustive, err := b.queryWithSpanAndRLock(ctx, cancellable, query,
+		b.querySegmentsWorkers.Go(func() {
+			exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
 				opts, results, groups[i].readers)
 			groups[i].exhaustive, groups[i].err = exhaustive, err
 			wg.Done()
@@ -490,8 +499,10 @@ func (b *block) queryWithSpan(
 	}
 
 	// Save an extra goroutine to execute synchronously on local goroutine.
-	exhaustive, err := b.queryWithSpanAndRLock(ctx, cancellable, query,
+	b.querySegmentsWorkers.GetToken()
+	exhaustive, err := b.queryReadersNoLock(ctx, cancellable, query,
 		opts, results, groups[0].readers)
+	b.querySegmentsWorkers.PutToken()
 	if err != nil {
 		return false, err
 	}
@@ -509,7 +520,7 @@ func (b *block) queryWithSpan(
 	return exhaustive, nil
 }
 
-func (b *block) queryWithSpanAndRLock(
+func (b *block) queryReadersNoLock(
 	ctx context.Context,
 	cancellable *xresource.CancellableLifetime,
 	query Query,
@@ -524,15 +535,9 @@ func (b *block) queryWithSpanAndRLock(
 	execCloseRegistered := false
 	defer func() {
 		if !execCloseRegistered {
-			b.closeAsync(exec)
+			b.closeAsyncNoLock(exec)
 		}
 	}()
-
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
-	if err != nil {
-		return false, err
-	}
 
 	// Register the executor to close when context closes
 	// so can avoid copying the results into the map and just take
@@ -546,9 +551,16 @@ func (b *block) queryWithSpanAndRLock(
 	}
 	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
-		b.closeAsync(exec)
+		b.closeAsyncNoLock(exec)
 	}))
 	cancellable.ReleaseCheckout()
+
+	// Perform actual search to start iteration.
+	// FOLLOWUP(prateek): push down QueryOptions to restrict results
+	iter, err := exec.Execute(query.Query.SearchQuery())
+	if err != nil {
+		return false, err
+	}
 
 	var (
 		iterCloser = safeCloser{closable: iter}
@@ -578,7 +590,8 @@ func (b *block) queryWithSpanAndRLock(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResultsNoLock(cancellable,
+			results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -586,7 +599,8 @@ func (b *block) queryWithSpanAndRLock(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResultsNoLock(cancellable,
+			results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -602,14 +616,14 @@ func (b *block) queryWithSpanAndRLock(
 	return opts.exhaustive(size, docsCount), nil
 }
 
-func (b *block) closeAsync(closer io.Closer) {
+func (b *block) closeAsyncNoLock(closer io.Closer) {
 	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
 		b.logger.Error("could not close query index block resource", zap.Error(err))
 	}
 }
 
-func (b *block) addQueryResults(
+func (b *block) addQueryResultsNoLock(
 	cancellable *xresource.CancellableLifetime,
 	results BaseResults,
 	batch []doc.Document,
@@ -661,7 +675,7 @@ func (b *block) Aggregate(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	exhaustive, err := b.aggregateNoLock(ctx, cancellable, opts, results)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -669,18 +683,15 @@ func (b *block) Aggregate(
 	return exhaustive, err
 }
 
-func (b *block) aggregateWithSpan(
+func (b *block) aggregateNoLock(
 	ctx context.Context,
 	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
-	sp opentracing.Span,
 ) (bool, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	if b.state == blockStateClosed {
-		return false, ErrUnableToQueryBlockClosed
+	readers, err := b.segmentReadersNoLock()
+	if err != nil {
+		return false, err
 	}
 
 	aggOpts := results.AggregateResultsOptions()
@@ -720,7 +731,7 @@ func (b *block) aggregateWithSpan(
 
 	var (
 		size       = results.Size()
-		docsCount  = results.TotalDocsCount()
+		docsN      = results.TotalDocsCount()
 		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
 		batchSize  = cap(batch)
 		iterClosed = false // tracking whether we need to free the iterator at the end.
@@ -737,23 +748,18 @@ func (b *block) aggregateWithSpan(
 		}
 	}()
 
-	readers, err := b.segmentReadersWithRLock()
-	if err != nil {
-		return false, err
-	}
-
 	// Make sure to close readers at end of query since results can
 	// include references to the underlying bytes from the index segment
 	// read by the readers.
 	for _, reader := range readers {
 		reader := reader // Capture for inline function.
 		ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
-			b.closeAsync(reader)
+			b.closeAsyncNoLock(reader)
 		}))
 	}
 
 	for _, reader := range readers {
-		if opts.LimitsExceeded(size, docsCount) {
+		if opts.LimitsExceeded(size, docsN) {
 			break
 		}
 
@@ -763,17 +769,19 @@ func (b *block) aggregateWithSpan(
 		}
 
 		for iter.Next() {
-			if opts.LimitsExceeded(size, docsCount) {
+			if opts.LimitsExceeded(size, docsN) {
 				break
 			}
 
 			field, term := iter.Current()
-			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
+			batch = b.appendFieldAndTermToBatchNoLock(batch, field, term,
+				iterateTerms)
 			if len(batch) < batchSize {
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+			batch, size, docsN, err = b.addAggregateResultsNoLock(cancellable,
+				results, batch)
 			if err != nil {
 				return false, err
 			}
@@ -792,16 +800,17 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+		batch, size, docsN, err = b.addAggregateResultsNoLock(cancellable,
+			results, batch)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return opts.exhaustive(size, docsCount), nil
+	return opts.exhaustive(size, docsN), nil
 }
 
-func (b *block) appendFieldAndTermToBatch(
+func (b *block) appendFieldAndTermToBatchNoLock(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
@@ -871,7 +880,7 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
-func (b *block) addAggregateResults(
+func (b *block) addAggregateResultsNoLock(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,

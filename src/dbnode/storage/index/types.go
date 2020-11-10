@@ -991,9 +991,15 @@ type Options interface {
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
 
-	// SetQueryWorkerPool sets the QueryIDs worker pool.
-	SetQueryWorkerPool(value xsync.WorkerPool) Options
+	// SetQueryBlockWorkerPool sets the query block worker pool.
+	SetQueryBlockWorkerPool(value xsync.WorkerPool) Options
 
-	// QueryWorkerPool returns the QueryIDs worker pool.
-	QueryWorkerPool() xsync.WorkerPool
+	// QueryBlockWorkerPool returns the query block worker pool.
+	QueryBlockWorkerPool() xsync.WorkerPool
+
+	// SetQueryBlockSegmentWorkerPool sets the query block segment worker pool.
+	SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options
+
+	// QueryBlockSegmentWorkerPool returns the query block segment worker pool.
+	QueryBlockSegmentWorkerPool() xsync.WorkerPool
 }
