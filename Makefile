@@ -385,7 +385,7 @@ endef
 # generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
 # which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
 # NB: we skip lint explicity as it runs as a separate CI step.
-$(foreach SUBDIR_TARGET, $(filter-out lint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
+$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
 
 # Builds the single kube bundle from individual manifest files.
 .PHONY: kube-gen-all
