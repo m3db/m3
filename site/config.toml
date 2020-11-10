@@ -1,8 +1,8 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   [[module.imports]]
-    path = "github.com/chronosphereio/docs-theme"
-    # path = "../../../docs-theme"
+    # path = "github.com/chronosphereio/docs-theme"
+    path = "../../../victor"
 
   [[module.mounts]]
     source = "content"
@@ -32,8 +32,24 @@
     source = "archetypes"
     target = "archetypes"
 
-# theme = "docs-theme"
+[permalinks]
+  "/" = "/docs/:section/:title/"
+  "case_studies" = "/docs/:section/:title/"
+  "community" = "/docs/:section/:title/"
+  "ecosystem" = "/docs/:section/:title/"
+  "faqs" = "/docs/:section/:title/"
+  "glossary" = "/docs/:section/:title/"
+  "how_to" = "/docs/:section/:title/"
+  "integrations" = "/docs/:section/:title/"
+  "m3coordinator" = "/docs/:section/:title/"
+  "m3db" = "/docs/:section/:title/"
+  "m3query" = "/docs/:section/:title/"
+  "operational_guide" = "/docs/:section/:title/"
+  "overview" = "/docs/:section/:title/"
+  "quickstart" = "/docs/:section/:title/"
+  "troubleshooting" = "/docs/:section/:title/"
 
+# theme = "docs-theme"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
@@ -116,6 +132,7 @@ offlineSearch = false
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
   themeVariant = "blue"
   twitter = "m3db_io"
+  disableHomeIcon = true
 
   [params.api]
     localCordinator = "http://localhost:7201/"
@@ -155,14 +172,33 @@ offlineSearch = false
       taskList = true
       typographer = true
 
-[[Languages.en.menu.shortcuts]]
-name = "<i class='fab fa-fw fa-github'></i> GitHub"
+[[menu.shortcuts]]
+pre = "<h3>More</h3>"
+name = "<i class='fa fa-github'></i> <label>Github repo</label>"
 identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
 
+[[menu.shortcuts]]
+name = "<i class='fa fa-cloud-download'></i> <label>Download</label>"
+url = "https://github.com/vjeantet/hugo-theme-docdock/archive/master.zip"
+weight = 11
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-bookmark'></i> <label>Hugo Documentation</label>"
+identifier = "hugodoc"
+url = "https://gohugo.io/"
+weight = 20
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-bullhorn'></i> <label>Credits</label>"
+url = "/credits"
+weight = 30
+
+
+
 [outputs]
-home = [ "HTML", "RSS", "JSON"]
+home = [ "HTML"]
 page = [ "HTML"]
 section = [ "HTML"]
 chapter = [ "HTML"]
