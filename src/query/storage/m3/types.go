@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -116,7 +116,7 @@ type ClusterNamespacesWatcher interface {
 
 	// RegisterListener registers a listener for updates to cluster namespaces.
 	// If a value is currently present, it will synchronously call back the listener.
-	RegisterListener(listener ClusterNamespacesListener) xclose.SimpleCloser
+	RegisterListener(listener ClusterNamespacesListener) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches.
 	Close()

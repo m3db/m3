@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,49 +17,61 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-package main
-
-// This .go file is used to test the lockfile package (m3/src/x/lockfile)
+package resource
 
 import (
-	"fmt"
-	"os"
-	"path"
-	"strconv"
-	"time"
+	"errors"
+	"testing"
 
-	"github.com/m3db/m3/src/x/lockfile"
+	"github.com/stretchr/testify/require"
 )
 
-func exitWithUsage() {
-	fmt.Printf(
-		"Usage: %[1]s <LOCK_FILE_PATH> <NUM_SECONDS_TO_SLEEP> <SHOULD_CLEANUP_LOCK>\nExample: %[1]s /var/run/lockfile 1 1\n",
-		path.Base(os.Args[0]))
-	os.Exit(1)
+func TestTryClose(t *testing.T) {
+	tests := []struct {
+		input     interface{}
+		expectErr bool
+	}{
+		{
+			input:     &closer{returnErr: false},
+			expectErr: false,
+		},
+		{
+			input:     &closer{returnErr: true},
+			expectErr: true,
+		},
+		{
+			input:     &simpleCloser{},
+			expectErr: false,
+		},
+		{
+			input:     &nonCloser{},
+			expectErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		err := TryClose(test.input)
+		if test.expectErr {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+	}
 }
 
-func main() {
-	if len(os.Args) != 4 {
-		exitWithUsage()
-	}
-
-	path, sleepStr, rmLock := os.Args[1], os.Args[2], os.Args[3]
-	sleep, err := strconv.Atoi(sleepStr)
-	if err != nil {
-		exitWithUsage()
-	}
-
-	lock, err := lockfile.Acquire(path)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	if sleep > 0 {
-		time.Sleep(time.Duration(sleep) * time.Second)
-	}
-
-	if rmLock != "0" {
-		lock.Release()
-	}
+type closer struct {
+	returnErr bool
 }
+
+func (c *closer) Close() error {
+	if c.returnErr {
+		return errors.New("")
+	}
+	return nil
+}
+
+type simpleCloser struct{}
+
+func (c *simpleCloser) Close() {}
+
+type nonCloser struct{}
