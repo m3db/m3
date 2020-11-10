@@ -124,12 +124,6 @@ func buildExpectedChecksumsByShard(
 		entries = append(entries, sharded.entries...)
 	}
 
-	// NB: IDs should only be included for documents that conclude a batch.
-	l := len(entries)
-	if l == 0 {
-		return entries
-	}
-
 	return entries
 }
 
@@ -331,14 +325,14 @@ func TestWideFetch(t *testing.T) {
 				now, tt.shards, iterOpts)
 			require.NoError(t, err)
 
-			if !tt.expected {
-				assert.Equal(t, 0, len(chk))
-			} else {
+			if tt.expected {
 				require.Equal(t, 1, len(chk))
 				checksum := chk[0]
 				assert.Equal(t, int64(1), checksum.MetadataChecksum)
 				assert.Equal(t, exactID, checksum.ID.String())
 				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
+			} else {
+				assert.Equal(t, 0, len(chk))
 			}
 
 			ctx.Close()

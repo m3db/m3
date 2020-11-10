@@ -770,8 +770,6 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	} else {
 		require.False(t, onRetrieveCalled)
 	}
-
-	require.NoError(t, err)
 }
 
 // TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method

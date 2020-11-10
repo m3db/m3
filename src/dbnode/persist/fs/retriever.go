@@ -384,19 +384,9 @@ func (r *blockRetriever) fetchBatch(
 			filteredReqs = append(filteredReqs, req)
 		}
 
-		allReqs = filteredReqs
-		for len(allReqs) > 0 {
-			filteredReqs = filteredReqs[:0]
-			for _, req := range allReqs {
-				select {
-				case <-req.waitOnFetch:
-					req.onDone()
-				default:
-					filteredReqs = append(filteredReqs, req)
-				}
-			}
-
-			allReqs = filteredReqs
+		for _, req := range filteredReqs {
+			<-req.waitOnFetch
+			req.onDone()
 		}
 
 		// Reset resources to free any pointers in the slices still pointing
@@ -449,7 +439,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
-		if err != nil && err != errSeekIDNotFound {
+		if err != nil && !errors.Is(err, errSeekIDNotFound) {
 			req.err = err
 			continue
 		}
@@ -460,7 +450,7 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		if err == errSeekIDNotFound {
+		if errors.Is(err, errSeekIDNotFound) {
 			req.notFound = true
 		}
 
@@ -553,6 +543,7 @@ func (r *blockRetriever) fetchBatch(
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
+			r.onCallerOrRetrieverDone()
 			r.waitOnFetch <- struct{}{}
 		}(req)
 	}
@@ -637,6 +628,7 @@ func (r *blockRetriever) Stream(
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
+		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
 	}
 
@@ -666,6 +658,7 @@ func (r *blockRetriever) StreamWideEntry(
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
+		req.resultWg.Done()
 		return block.EmptyStreamedWideEntry, err
 	}
 
@@ -819,7 +812,13 @@ func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Cont
 }
 
 func (req *retrieveRequest) onDone() {
-	if req.err == nil && !req.success {
+	var (
+		err           = req.err
+		success       = req.success
+		streamReqType = req.streamReqType
+	)
+
+	if err == nil && !success {
 		// Require explicit success, otherwise this request
 		// was never completed.
 		// This helps catch code bugs where this element wasn't explicitly
@@ -830,7 +829,7 @@ func (req *retrieveRequest) onDone() {
 
 	req.resultWg.Done()
 
-	switch req.streamReqType {
+	switch streamReqType {
 	case streamDataReq:
 		// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
 		// code path will call req.onCallerOrRetrieverDone() when it's done.
@@ -839,7 +838,7 @@ func (req *retrieveRequest) onDone() {
 		// the happy path that calls this pre-emptively has not executed either.
 		// That is if-and-only-if request is data request and is successful and
 		// will req.onCallerOrRetrieverDone() be called in a deferred manner.
-		if !req.success {
+		if !success {
 			req.onCallerOrRetrieverDone()
 		}
 	default:
@@ -934,6 +933,7 @@ func (req *retrieveRequest) Finalize() {
 		return
 	}
 
+	req.resultWg.Wait()
 	req.finalized = true
 	req.onCallerOrRetrieverDone()
 }
@@ -987,8 +987,11 @@ func (r retrieveRequestByWideEntryOffsetAsc) Less(i, j int) bool {
 
 // RetrieveRequestPool is the retrieve request pool.
 type RetrieveRequestPool interface {
+	// Init initializes the request pool.
 	Init()
+	// Get gets a retrieve request.
 	Get() *retrieveRequest
+	// Put returns a retrieve request to the pool.
 	Put(req *retrieveRequest)
 }
 

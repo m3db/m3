@@ -384,7 +384,8 @@ endef
 
 # generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
 # which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
-$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
+# NB: we skip lint explicity as it runs as a separate CI step.
+$(foreach SUBDIR_TARGET, $(filter-out lint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
 # Builds the single kube bundle from individual manifest files.
 .PHONY: kube-gen-all
@@ -401,7 +402,7 @@ go-mod-tidy:
 .PHONY: all-gen
 all-gen: \
 	install-tools \
-	$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(SUBDIR_TARGET)) \
+	$(foreach SUBDIR_TARGET, $(filter-out lint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
 	kube-gen-all \
 	go-mod-tidy
 
