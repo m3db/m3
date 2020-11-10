@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3/src/x/close"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -358,17 +357,6 @@ func openFiles(opener fileOpener, fds map[string]**os.File) error {
 	}
 
 	return firstErr
-}
-
-// TODO(xichen): move closeAll to m3x/close.
-func closeAll(closers ...xclose.Closer) error {
-	multiErr := xerrors.NewMultiError()
-	for _, closer := range closers {
-		if err := closer.Close(); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-	return multiErr.FinalError()
 }
 
 // DeleteFiles delete a set of files, returning all the errors encountered during

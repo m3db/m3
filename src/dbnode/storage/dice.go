@@ -18,48 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
-
-// This .go file is used to test the lockfile package (m3/src/x/lockfile)
+package storage
 
 import (
 	"fmt"
-	"os"
-	"path"
-	"strconv"
-	"time"
 
-	"github.com/m3db/m3/src/x/lockfile"
+	"github.com/MichaelTJones/pcg"
 )
 
-func exitWithUsage() {
-	fmt.Printf(
-		"Usage: %[1]s <LOCK_FILE_PATH> <NUM_SECONDS_TO_SLEEP> <SHOULD_CLEANUP_LOCK>\nExample: %[1]s /var/run/lockfile 1 1\n",
-		path.Base(os.Args[0]))
-	os.Exit(1)
+// dice is an interface that allows for random sampling.
+type dice interface {
+	// Rate returns the sampling rate of this dice: a number in (0.0, 1.0].
+	Rate() float64
+
+	// Roll returns whether the dice roll succeeded.
+	Roll() bool
 }
 
-func main() {
-	if len(os.Args) != 4 {
-		exitWithUsage()
+// newDice constructs a new dice based on a given success rate.
+func newDice(rate float64) (dice, error) {
+	if rate <= 0.0 || rate > 1.0 {
+		return nil, fmt.Errorf("invalid sample rate %f", rate)
 	}
 
-	path, sleepStr, rmLock := os.Args[1], os.Args[2], os.Args[3]
-	sleep, err := strconv.Atoi(sleepStr)
-	if err != nil {
-		exitWithUsage()
-	}
+	return &epoch{
+		r:   uint64(1.0 / rate),
+		rng: pcg.NewPCG64(),
+	}, nil
+}
 
-	lock, err := lockfile.Acquire(path)
-	if err != nil {
-		os.Exit(1)
-	}
+type epoch struct {
+	r   uint64
+	rng *pcg.PCG64
+}
 
-	if sleep > 0 {
-		time.Sleep(time.Duration(sleep) * time.Second)
-	}
+func (d *epoch) Rate() float64 {
+	return 1 / float64(d.r)
+}
 
-	if rmLock != "0" {
-		lock.Release()
-	}
+func (d *epoch) Roll() bool {
+	return d.rng.Random()%d.r == 0
 }

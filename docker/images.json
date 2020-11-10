@@ -17,10 +17,6 @@
       "name": "m3dbnode",
       "tag_suffix": "setcap"
     },
-    "m3nsch": {
-      "dockerfile": "docker/m3nsch/Dockerfile",
-      "name": "m3nsch"
-    },
     "m3query": {
       "dockerfile": "docker/m3query/Dockerfile",
       "name": "m3query"

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,30 +17,61 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-package dice
+package resource
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiceConstructor(t *testing.T) {
-	dice, err := NewDice(0)
-	require.Error(t, err)
-	require.Nil(t, dice)
+func TestTryClose(t *testing.T) {
+	tests := []struct {
+		input     interface{}
+		expectErr bool
+	}{
+		{
+			input:     &closer{returnErr: false},
+			expectErr: false,
+		},
+		{
+			input:     &closer{returnErr: true},
+			expectErr: true,
+		},
+		{
+			input:     &simpleCloser{},
+			expectErr: false,
+		},
+		{
+			input:     &nonCloser{},
+			expectErr: true,
+		},
+	}
 
-	dice, err = NewDice(2)
-	require.Error(t, err)
-	require.Nil(t, dice)
+	for _, test := range tests {
+		err := TryClose(test.input)
+		if test.expectErr {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+	}
 }
 
-func TestDice(t *testing.T) {
-	r, err := NewDice(1)
-	require.NoError(t, err)
-
-	assert.Equal(t, float64(1.0), r.Rate())
-	assert.True(t, r.Roll())
+type closer struct {
+	returnErr bool
 }
+
+func (c *closer) Close() error {
+	if c.returnErr {
+		return errors.New("")
+	}
+	return nil
+}
+
+type simpleCloser struct{}
+
+func (c *simpleCloser) Close() {}
+
+type nonCloser struct{}
