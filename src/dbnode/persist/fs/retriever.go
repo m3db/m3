@@ -376,7 +376,7 @@ func (r *blockRetriever) fetchBatch(
 		// then errSeekNotCompleted is returned because req.success is not set
 		// rather than we have dangling goroutines stacking up.
 		for _, req := range allReqs {
-			if req.waitOnFetch == nil {
+			if !req.waitingForCallback {
 				req.onDone()
 				continue
 			}
@@ -385,7 +385,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		for _, req := range filteredReqs {
-			<-req.waitOnFetch
+			<-req.waitForCallback
 			req.onDone()
 		}
 
@@ -539,12 +539,12 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		req.waitOnFetch = make(chan struct{})
+		req.waitingForCallback = true
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
 			r.onCallerOrRetrieverDone()
-			r.waitOnFetch <- struct{}{}
+			r.waitForCallback <- struct{}{}
 		}(req)
 	}
 }
@@ -759,9 +759,10 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
-	finalized   bool
-	waitOnFetch chan struct{}
-	resultWg    sync.WaitGroup
+	finalized          bool
+	waitingForCallback bool
+	waitForCallback    chan struct{}
+	resultWg           sync.WaitGroup
 
 	pool *reqPool
 
@@ -940,8 +941,8 @@ func (req *retrieveRequest) Finalize() {
 
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
-	req.waitOnFetch = nil
 	req.finalized = false
+	req.waitingForCallback = false
 	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
@@ -1013,7 +1014,10 @@ func NewRetrieveRequestPool(
 
 func (p *reqPool) Init() {
 	p.pool.Init(func() interface{} {
-		return &retrieveRequest{pool: p}
+		return &retrieveRequest{
+			waitForCallback: make(chan struct{}),
+			pool:            p,
+		}
 	})
 }
 
