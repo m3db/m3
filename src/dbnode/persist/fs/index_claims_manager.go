@@ -32,9 +32,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var (
-	errOutOfRetentionClaim = errors.New("out of retention index volume claim")
-)
+var errOutOfRetentionClaim = errors.New("out of retention index volume claim")
 
 type indexClaimsManager struct {
 	sync.Mutex
