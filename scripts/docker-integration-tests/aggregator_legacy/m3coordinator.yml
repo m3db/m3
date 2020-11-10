@@ -12,15 +12,7 @@ carbon:
             retention: 6h
 
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        resolution: 10s
-        retention: 6h
-      - namespace: unagg
-        type: unaggregated
-        retention: 1s
-    client:
+  - client:
       config:
         service:
           env: default_env
