@@ -102,6 +102,8 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 		},
 	})
 
+	require.False(t, testDownsampler.downsampler.Enabled())
+
 	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
 
 	session := dbclient.NewMockSession(ctrl)
@@ -114,8 +116,44 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 
 	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
+	require.True(t, testDownsampler.downsampler.Enabled())
+
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{})
+
+	require.False(t, testDownsampler.downsampler.Enabled())
+
+	// Add an aggregated namespace and expect downsampler to be enabled.
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	waitForEnabledUpdate(t, testDownsampler, false)
+
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Set just an unaggregated namespace and expect downsampler to be disabled.
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("default"),
+		Retention:   48 * time.Hour,
+		Session:     session,
+	})
+	require.NoError(t, err)
+	require.NoError(t, testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
+
+	waitForEnabledUpdate(t, testDownsampler, true)
+
+	require.False(t, testDownsampler.downsampler.Enabled())
 }
 
 func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
@@ -1253,7 +1291,18 @@ func waitForStagedMetadataUpdate(t *testing.T, testDownsampler testDownsampler, 
 
 		return !assert.ObjectsAreEqual(origStagedMetadata, ds.metricsAppenderOpts.defaultStagedMetadatasProtos)
 	}, time.Second))
+}
 
+func waitForEnabledUpdate(t *testing.T, testDownsampler testDownsampler, current bool) {
+	ds, ok := testDownsampler.downsampler.(*downsampler)
+	require.True(t, ok)
+
+	require.True(t, clock.WaitUntil(func() bool {
+		ds.RLock()
+		defer ds.RUnlock()
+
+		return current != ds.enabled
+	}, time.Second))
 }
 
 type testExpectedWrite struct {
