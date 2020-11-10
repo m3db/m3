@@ -1,9 +1,4 @@
-coordinator:
-  local:
-    namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
+coordinator: {}
 
 db:
   hostID:
