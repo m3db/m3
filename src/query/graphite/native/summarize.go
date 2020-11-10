@@ -23,6 +23,7 @@ package native
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -63,7 +64,7 @@ func summarize(
 	results := make([]*ts.Series, len(series.Values))
 	for i, series := range series.Values {
 		name := fmt.Sprintf("summarize(%s, \"%s\", \"%s\"%s)", series.Name(), intervalS, fname, alignString)
-		results[i] = summarizeTimeSeries(ctx, name, series, interval, f.consolidationFunc, alignToFrom)
+		results[i] = summarizeTimeSeries(ctx, name, series, interval, f, alignToFrom)
 	}
 
 	r := ts.SeriesList(series)
@@ -74,6 +75,7 @@ func summarize(
 type summarizeBucket struct {
 	count int
 	accum float64
+	vals  []float64
 }
 
 func summarizeTimeSeries(
@@ -81,7 +83,7 @@ func summarizeTimeSeries(
 	newName string,
 	series *ts.Series,
 	interval time.Duration,
-	f ts.ConsolidationFunc,
+	funcInfo funcInfo,
 	alignToFrom bool,
 ) *ts.Series {
 	var (
@@ -89,6 +91,8 @@ func summarizeTimeSeries(
 		intervalInSecs  = int(interval / time.Second)
 		intervalInMsecs = intervalInSecs * 1000
 		buckets         = make(map[int]*summarizeBucket)
+		f               = funcInfo.consolidationFunc
+		fname           = funcInfo.fname
 	)
 
 	for i := 0; i < series.Len(); i++ {
@@ -103,10 +107,15 @@ func summarizeTimeSeries(
 		}
 
 		if bucket, exists := buckets[bucketInterval]; exists {
-			bucket.accum = f(bucket.accum, n, bucket.count)
+			if fname == "median" {
+				bucket.vals = append(bucket.vals, n)
+			} else {
+				bucket.accum = f(bucket.accum, n, bucket.count)
+			}
 			bucket.count++
 		} else {
-			buckets[bucketInterval] = &summarizeBucket{1, n}
+			vals := []float64{n}
+			buckets[bucketInterval] = &summarizeBucket{1, n, vals}
 		}
 	}
 
@@ -137,10 +146,40 @@ func summarizeTimeSeries(
 
 		bucket, bucketExists := buckets[bucketInterval]
 		if bucketExists {
-			newValues.SetValueAt(i, bucket.accum)
+			if fname == "median" {
+				newValues.SetValueAt(i, ts.Median(bucket.vals, bucket.count))
+			} else {
+				newValues.SetValueAt(i, bucket.accum)
+			}
 		}
 	}
 	return ts.NewSeries(ctx, newName, newStart, newValues)
+}
+
+// smartSummarize is an alias of summarize with alignToFrom set to true
+func smartSummarize(
+	ctx *common.Context,
+	series singlePathSpec,
+	interval, fname string,
+) (ts.SeriesList, error) {
+	alignToFrom := true
+
+	seriesList, err := summarize(ctx, series, interval, fname, alignToFrom)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	results := seriesList.Values
+	for i, series := range seriesList.Values {
+		oldName := series.Name()
+		newName := strings.Replace(oldName, "summarize", "smartSummarize", 1)
+		newName = strings.Replace(newName, ", true", "", 1)
+		results[i] = series.RenamedTo(newName)
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = results
+	return r, nil
 }
 
 // specificationFunc determines the output series specification given a series list.
@@ -166,17 +205,47 @@ func lastSpecificationFunc(series ts.SeriesList) string {
 	return wrapPathExpr("lastSeries", series)
 }
 
+func medianSpecificationFunc(series ts.SeriesList) string {
+	return wrapPathExpr("medianSeries", series)
+}
+
 type funcInfo struct {
+	fname             string
 	consolidationFunc ts.ConsolidationFunc
 	specificationFunc specificationFunc
 }
 
 var (
-	sumFuncInfo  = funcInfo{ts.Sum, sumSpecificationFunc}
-	maxFuncInfo  = funcInfo{ts.Max, maxSpecificationFunc}
-	minFuncInfo  = funcInfo{ts.Min, minSpecificationFunc}
-	lastFuncInfo = funcInfo{ts.Last, lastSpecificationFunc}
-	avgFuncInfo  = funcInfo{ts.Avg, averageSpecificationFunc}
+	sumFuncInfo = funcInfo{
+		fname:             "sum",
+		consolidationFunc: ts.Sum,
+		specificationFunc: sumSpecificationFunc,
+	}
+	maxFuncInfo = funcInfo{
+		fname:             "max",
+		consolidationFunc: ts.Max,
+		specificationFunc: maxSpecificationFunc,
+	}
+	minFuncInfo = funcInfo{
+		fname:             "min",
+		consolidationFunc: ts.Min,
+		specificationFunc: minSpecificationFunc,
+	}
+	lastFuncInfo = funcInfo{
+		fname:             "last",
+		consolidationFunc: ts.Last,
+		specificationFunc: lastSpecificationFunc,
+	}
+	avgFuncInfo = funcInfo{
+		fname:             "avg",
+		consolidationFunc: ts.Avg,
+		specificationFunc: averageSpecificationFunc,
+	}
+	medianFuncInfo = funcInfo{
+		fname:             "median",
+		// median does not have a consolidationFunc
+		specificationFunc: medianSpecificationFunc,
+	}
 
 	summarizeFuncs = map[string]funcInfo{
 		"sum":           sumFuncInfo,
@@ -184,8 +253,10 @@ var (
 		"min":           minFuncInfo,
 		"last":          lastFuncInfo,
 		"avg":           avgFuncInfo,
+		"average":       avgFuncInfo,
 		"sumSeries":     sumFuncInfo,
 		"maxSeries":     maxFuncInfo,
+		"median":        medianFuncInfo,
 		"minSeries":     minFuncInfo,
 		"averageSeries": avgFuncInfo,
 		"":              sumFuncInfo,

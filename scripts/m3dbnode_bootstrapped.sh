@@ -12,8 +12,8 @@ set -o pipefail
 
 COORDINATOR_PORT=${COORDINATOR_PORT:-7201}
 DBNODE_PORT=${DBNODE_PORT:-9002}
-COORD_PLACEMENT_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/placement"
-COORD_NAMESPACE_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/namespace"
+COORD_PLACEMENT_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/services/m3db/placement"
+COORD_NAMESPACE_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/services/m3db/namespace"
 DBNODE_ENDPOINT="http://localhost:${DBNODE_PORT}/health"
 
 HOSTNAME=${HOSTNAME:-$(hostname)}

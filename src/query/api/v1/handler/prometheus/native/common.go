@@ -26,7 +26,6 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -40,12 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -68,7 +62,6 @@ func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 		}
 		return util.ParseTimeString(t)
 	}
-
 	return time.Time{}, errors.ErrNotFound
 }
 
@@ -78,13 +71,12 @@ func parseParams(
 	engineOpts executor.EngineOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
-	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, error) {
 	var params models.RequestParams
 
 	if err := r.ParseForm(); err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+		err = fmt.Errorf(formatErrStr, timeParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
 
 	params.Now = time.Now()
@@ -92,69 +84,88 @@ func parseParams(
 		var err error
 		params.Now, err = parseTime(r, timeParam, params.Now)
 		if err != nil {
-			return params, xhttp.NewParseError(
-				fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+			err = fmt.Errorf(formatErrStr, timeParam, err)
+			return params, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
 	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	params.Timeout = t
+
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
+		err = fmt.Errorf(formatErrStr, startParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
 
 	params.Start = start
 	end, err := parseTime(r, endParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
+		err = fmt.Errorf(formatErrStr, endParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	if start.After(end) {
-		return params, xhttp.NewParseError(
-			fmt.Errorf("start (%s) must be before end (%s)",
-				start, end), http.StatusBadRequest)
+		err = fmt.Errorf("start (%s) must be before end (%s)", start, end)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
-
 	params.End = end
+
 	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, handleroptions.StepParam, err), http.StatusBadRequest)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, handleroptions.StepParam, err))
 	}
-
 	params.Step = fetchOpts.Step
+
 	query, err := parseQuery(r)
 	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, queryParam, err))
+	}
+	params.Query = query
+
+	if debugVal := r.FormValue(debugParam); debugVal != "" {
+		params.Debug, err = strconv.ParseBool(debugVal)
+		if err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, debugParam, err))
+		}
 	}
 
-	params.Query = query
-	params.Debug = parseDebugFlag(r, instrumentOpts)
-	params.BlockType = parseBlockType(r, instrumentOpts)
+	params.BlockType = models.TypeSingleBlock
+	if blockType := r.FormValue(blockTypeParam); blockType != "" {
+		intVal, err := strconv.ParseInt(blockType, 10, 8)
+		if err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, blockTypeParam, err))
+		}
+
+		blockType := models.FetchedBlockType(intVal)
+
+		// Ignore error from receiving an invalid block type, and return default.
+		if err := blockType.Validate(); err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, blockTypeParam, err))
+		}
+
+		params.BlockType = blockType
+	}
+
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
 	if endExclusiveVal != "" {
 		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
 		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("unable to parse end inclusive flag", zap.Error(err))
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, endExclusiveParam, err))
 		}
 
 		params.IncludeEnd = !excludeEnd
-	}
-
-	if strings.ToLower(r.Header.Get(headers.RenderFormat)) == "m3ql" {
-		params.FormatType = models.FormatM3QL
 	}
 
 	params.LookbackDuration = engineOpts.LookbackDuration()
@@ -165,64 +176,15 @@ func parseParams(
 	return params, nil
 }
 
-func parseDebugFlag(r *http.Request, instrumentOpts instrument.Options) bool {
-	var (
-		debug bool
-		err   error
-	)
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err = strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("unable to parse debug flag", zap.Error(err))
-		}
-	}
-
-	return debug
-}
-
-func parseBlockType(
-	r *http.Request,
-	instrumentOpts instrument.Options,
-) models.FetchedBlockType {
-	// Use default block type if unable to parse blockTypeParam.
-	useLegacyVal := r.FormValue(blockTypeParam)
-	if useLegacyVal != "" {
-		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
-		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("cannot parse block type, defaulting to single", zap.Error(err))
-			return models.TypeSingleBlock
-		}
-
-		blockType := models.FetchedBlockType(intVal)
-		// Ignore error from receiving an invalid block type, and return default.
-		if err := blockType.Validate(); err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("cannot validate block type, defaulting to single", zap.Error(err))
-			return models.TypeSingleBlock
-		}
-
-		return blockType
-	}
-
-	return models.TypeSingleBlock
-}
-
 // parseInstantaneousParams parses all params from the GET request
 func parseInstantaneousParams(
 	r *http.Request,
 	engineOpts executor.EngineOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
-	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, error) {
 	if err := r.ParseForm(); err != nil {
-		return models.RequestParams{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+		return models.RequestParams{}, xerrors.NewInvalidParamsError(err)
 	}
 
 	if fetchOpts.Step == 0 {
@@ -231,10 +193,9 @@ func parseInstantaneousParams(
 
 	r.Form.Set(startParam, nowTimeValue)
 	r.Form.Set(endParam, nowTimeValue)
-	params, err := parseParams(r, engineOpts, timeoutOpts,
-		fetchOpts, instrumentOpts)
+	params, err := parseParams(r, engineOpts, timeoutOpts, fetchOpts)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, err
 	}
 
 	return params, nil
@@ -467,49 +428,5 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
-}
-
-func renderM3QLResultsJSON(
-	w io.Writer,
-	series []*ts.Series,
-	params models.RequestParams,
-) {
-	jw := json.NewWriter(w)
-	jw.BeginArray()
-
-	for _, s := range series {
-		jw.BeginObject()
-		jw.BeginObjectField("target")
-		jw.WriteString(string(s.Name()))
-
-		jw.BeginObjectField("tags")
-		jw.BeginObject()
-
-		for _, tag := range s.Tags.Tags {
-			jw.BeginObjectField(string(tag.Name))
-			jw.WriteString(string(tag.Value))
-		}
-
-		jw.EndObject()
-
-		jw.BeginObjectField("datapoints")
-		jw.BeginArray()
-		for i := 0; i < s.Len(); i++ {
-			dp := s.Values().DatapointAt(i)
-			jw.BeginArray()
-			jw.WriteFloat64(dp.Value)
-			jw.WriteInt(int(dp.Timestamp.Unix()))
-			jw.EndArray()
-		}
-		jw.EndArray()
-
-		jw.BeginObjectField("step_size_ms")
-		jw.WriteInt(int(params.Step.Seconds() * 1000))
-
-		jw.EndObject()
-	}
-
-	jw.EndArray()
 	jw.Close()
 }

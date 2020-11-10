@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -278,8 +279,8 @@ type NamespaceDataAccumulator interface {
 
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
-	// Series is the series for the checkout operation.
-	Series series.DatabaseSeries
+	// Series is the series ref for the checkout operation.
+	Series SeriesRef
 	// Shard is the shard for the series.
 	Shard uint32
 	// UniqueIndex is the unique index for the series.
@@ -430,13 +431,19 @@ type InfoFileResultsPerShard map[uint32][]fs.ReadInfoFileResult
 type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
 
 // Cache provides a snapshot of info files for use throughout all stages of the bootstrap.
-// This struct is not threadsafe and relies on the single-threaded nature of the bootstrap
-// process.
-type Cache struct {
-	fsOpts               fs.Options
-	namespaceDetails     []NamespaceDetails
-	infoFilesByNamespace InfoFilesByNamespace
-	iOpts                instrument.Options
+type Cache interface {
+	// InfoFilesForNamespace returns the info files grouped by namespace.
+	InfoFilesForNamespace(ns namespace.Metadata) (InfoFileResultsPerShard, error)
+
+	// InfoFilesForShard returns the info files grouped by shard for the provided namespace.
+	InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error)
+
+	// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
+	// is returned if the info files have already been read.
+	ReadInfoFiles() InfoFilesByNamespace
+
+	// Evict cache contents by re-reading fresh data in.
+	Evict()
 }
 
 // CacheOptions represents the options for Cache.
@@ -469,4 +476,23 @@ type NamespaceDetails struct {
 	Namespace namespace.Metadata
 	// Shards are the shards to retrieve info files for in the specified namespace.
 	Shards []uint32
+}
+
+// SeriesRef is used to both write to and load blocks into a database series.
+type SeriesRef interface {
+	// Write writes a new value.
+	Write(
+		ctx context.Context,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+		wOpts series.WriteOptions,
+	) (bool, series.WriteType, error)
+
+	// LoadBlock loads a single block into the series.
+	LoadBlock(
+		block block.DatabaseBlock,
+		writeType series.WriteType,
+	) error
 }

@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -2588,6 +2588,34 @@ func (mr *MockOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockOptions)(nil).NewConnectionFn))
 }
 
+// SetNamespaceInitializer mocks base method
+func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
+func (mr *MockOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).SetNamespaceInitializer), value)
+}
+
+// NamespaceInitializer mocks base method
+func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceInitializer")
+	ret0, _ := ret[0].(namespace.Initializer)
+	return ret0
+}
+
+// NamespaceInitializer indicates an expected call of NamespaceInitializer
+func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -4149,6 +4177,34 @@ func (m *MockAdminOptions) NewConnectionFn() NewConnectionFn {
 func (mr *MockAdminOptionsMockRecorder) NewConnectionFn() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).NewConnectionFn))
+}
+
+// SetNamespaceInitializer mocks base method
+func (m *MockAdminOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
+func (mr *MockAdminOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockAdminOptions)(nil).SetNamespaceInitializer), value)
+}
+
+// NamespaceInitializer mocks base method
+func (m *MockAdminOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceInitializer")
+	ret0, _ := ret[0].(namespace.Initializer)
+	return ret0
+}
+
+// NamespaceInitializer indicates an expected call of NamespaceInitializer
+func (mr *MockAdminOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockAdminOptions)(nil).NamespaceInitializer))
 }
 
 // SetOrigin mocks base method

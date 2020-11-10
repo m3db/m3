@@ -23,8 +23,12 @@ package m3
 import (
 	"context"
 
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -62,4 +66,65 @@ type Querier interface {
 		query *genericstorage.CompleteTagsQuery,
 		options *genericstorage.FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+}
+
+// DynamicClusterNamespaceConfiguration is the configuration for
+// dynamically fetching namespace configuration.
+type DynamicClusterNamespaceConfiguration struct {
+	// session is an active session connected to an M3DB cluster.
+	session client.Session
+
+	// nsInitializer is the initializer used to watch for namespace changes.
+	nsInitializer namespace.Initializer
+}
+
+// DynamicClusterOptions is the options for a new dynamic Cluster.
+type DynamicClusterOptions interface {
+	// Validate validates the DynamicClusterOptions.
+	Validate() error
+
+	// SetDynamicClusterNamespaceConfiguration sets the configuration for the dynamically fetching cluster namespaces.
+	SetDynamicClusterNamespaceConfiguration(value []DynamicClusterNamespaceConfiguration) DynamicClusterOptions
+
+	// SetDynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
+	DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) DynamicClusterOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetClusterNamespacesWatcher sets the namespaces watcher which alerts components that
+	// need to regenerate configuration when the ClusterNamespaces change.
+	SetClusterNamespacesWatcher(value ClusterNamespacesWatcher) DynamicClusterOptions
+
+	// ClusterNamespacesWatcher returns the namespaces watcher which alerts components that
+	// need to regenerate configuration when the ClusterNamespaces change.
+	ClusterNamespacesWatcher() ClusterNamespacesWatcher
+}
+
+// ClusterNamespacesWatcher allows interested parties to watch for changes
+// to the cluster namespaces and register callbacks to be invoked
+// when changes are detected.
+type ClusterNamespacesWatcher interface {
+	// Update updates the current namespaces.
+	Update(namespaces ClusterNamespaces) error
+
+	// Get returns the current namespaces.
+	Get() ClusterNamespaces
+
+	// RegisterListener registers a listener for updates to cluster namespaces.
+	// If a value is currently present, it will synchronously call back the listener.
+	RegisterListener(listener ClusterNamespacesListener) xresource.SimpleCloser
+
+	// Close closes the watcher and all descendent watches.
+	Close()
+}
+
+// ClusterNamespacesListener is a listener for receiving updates from a
+// ClusterNamespacesWatcher.
+type ClusterNamespacesListener interface {
+	// OnUpdate is called when updates have occurred passing in the new namespaces.
+	OnUpdate(namespaces ClusterNamespaces)
 }

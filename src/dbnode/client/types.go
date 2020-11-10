@@ -23,7 +23,6 @@ package client
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -594,6 +594,13 @@ type Options interface {
 
 	// NewConnectionFn returns the new connection generator function.
 	NewConnectionFn() NewConnectionFn
+
+	// SetNamespaceInitializer sets the NamespaceInitializer used to generate a namespace.Registry object
+	// that can be used to watch namespaces.
+	SetNamespaceInitializer(value namespace.Initializer) Options
+
+	// NamespaceInitializer returns the NamespaceInitializer.
+	NamespaceInitializer() namespace.Initializer
 }
 
 // AdminOptions is a set of administration client options.

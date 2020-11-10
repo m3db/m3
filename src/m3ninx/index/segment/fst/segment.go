@@ -411,15 +411,6 @@ func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b
 	return b.UnmarshalBinary(postingsBytes)
 }
 
-func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.matchFieldNotClosedMaybeFinalizedWithRLock(field)
-}
-
 func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
 	field []byte,
 ) (postings.List, error) {
@@ -455,15 +446,6 @@ func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
 
 	postingsOffset := fieldData.FieldPostingsListOffset
 	return r.retrievePostingsListWithRLock(postingsOffset)
-}
-
-func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.matchTermNotClosedMaybeFinalizedWithRLock(field, term)
 }
 
 func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
@@ -508,18 +490,6 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 	}
 
 	return pl, nil
-}
-
-func (r *fsSegment) MatchRegexp(
-	field []byte,
-	compiled index.CompiledRegex,
-) (postings.List, error) {
-	r.RLock()
-	defer r.Unlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.matchRegexpNotClosedMaybeFinalizedWithRLock(field, compiled)
 }
 
 func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
@@ -593,15 +563,6 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 	return pl, nil
 }
 
-func (r *fsSegment) MatchAll() (postings.MutableList, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.matchAllNotClosedMaybeFinalizedWithRLock()
-}
-
 func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.MutableList, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
@@ -616,15 +577,6 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.Mutable
 	}
 
 	return pl, nil
-}
-
-func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return doc.Document{}, errReaderClosed
-	}
-	return r.docNotClosedMaybeFinalizedWithRLock(id)
 }
 
 func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
@@ -647,15 +599,6 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Doc
 	return r.docsDataReader.Read(offset)
 }
 
-func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.docsNotClosedMaybeFinalizedWithRLock(r, pl)
-}
-
 func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
 	retriever index.DocRetriever,
 	pl postings.List,
@@ -667,15 +610,6 @@ func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
 	}
 
 	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
-}
-
-func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
-		return nil, errReaderClosed
-	}
-	return r.allDocsNotClosedMaybeFinalizedWithRLock(r)
 }
 
 func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(

@@ -32,9 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
-
+	xgomock "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/golang/mock/gomock"
 )
 
 var (
@@ -134,12 +136,86 @@ func TestSumSeries(t *testing.T) {
 	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
 }
 
+func TestStdDevSeries(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+		}
+	)
+
+	expectedResults := []common.TestSeries{
+		{
+			Name: "stddevSeries(servers.s2,servers.s1)",
+			Data: []float64{40, 30, 20},
+		},
+	}
+	result, err := stddevSeries(ctx, multiplePathSpecs{
+		Values: inputs,
+	})
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, 60000, start, expectedResults, result.Values)
+}
+
+func TestAggregate(t *testing.T) {
+	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+		return aggregate(ctx, singlePathSpec(series), "sum")
+	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
+
+	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+		return aggregate(ctx, singlePathSpec(series), "maxSeries")
+	}, 15.0, 15.0, 17.0, 17.0, "invalid max value for step %d")
+}
+
+func TestAggregateSeriesMedian(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s3", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{5, 100, 45})),
+		}
+	)
+
+	expectedResults := []common.TestSeries{
+		{
+			Name: "medianSeries(servers.s2,servers.s1,servers.s3)",
+			Data: []float64{10, 80, 45},
+		},
+	}
+	result, err := aggregate(ctx, singlePathSpec{
+		Values: inputs,
+	}, "median")
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, 60000, start, expectedResults, result.Values)
+}
+
 type mockEngine struct {
 	fn func(
 		ctx context.Context,
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
+
+	storage storage.Storage
 }
 
 func (e mockEngine) FetchByQuery(
@@ -148,6 +224,10 @@ func (e mockEngine) FetchByQuery(
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return e.fn(ctx, query, opts)
+}
+
+func (e mockEngine) Storage() storage.Storage {
+	return nil
 }
 
 func TestVariadicSumSeries(t *testing.T) {
@@ -246,13 +326,28 @@ func TestDivideSeries(t *testing.T) {
 	common.CompareOutputsAndExpected(t, 10000, consolidationStartTime,
 		[]common.TestSeries{expected[0]}, []*ts.Series{series.Values[0]})
 
-	// error - multiple divisor series
+	// empty series
 	series, err = divideSeries(ctx, singlePathSpec{
+		Values: []*ts.Series{},
+	}, singlePathSpec{
+		Values: consolidationTestSeries,
+	})
+	require.Nil(t, err)
+	require.Equal(t, series, ts.NewSeriesList())
+}
+
+func TestDivideSeriesError(t *testing.T) {
+	ctx, consolidationTestSeries := newConsolidationTestSeries()
+	defer ctx.Close()
+
+	// error - multiple divisor series
+	_, err := divideSeries(ctx, singlePathSpec{
 		Values: consolidationTestSeries,
 	}, singlePathSpec{
 		Values: consolidationTestSeries,
 	})
 	require.Error(t, err)
+	require.Equal(t, err.Error(), "divideSeries second argument must reference exactly one series but instead has 4")
 }
 
 func TestDivideSeriesLists(t *testing.T) {
@@ -313,7 +408,6 @@ func TestDivideSeriesLists(t *testing.T) {
 	})
 	require.Error(t, err)
 }
-
 
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
@@ -388,6 +482,107 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 		series := outSeries.Values[i]
 		assert.Equal(t, expected.name, series.Name())
 		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	}
+}
+
+func TestApplyByNode(t *testing.T) {
+	var (
+		ctrl          = xgomock.NewController(t)
+		store         = storage.NewMockStorage(ctrl)
+		engine        = NewEngine(store)
+		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
+		millisPerStep = 60000
+		inputs        = []*ts.Series{
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{10, 20, 30})),
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{1, 2, 3})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, millisPerStep, []float64{99, 98, 97})),
+		}
+	)
+
+	defer ctrl.Finish()
+	defer ctx.Close()
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s1.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s1.disk.bytes_free", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{90, 80, 70})),
+			ts.NewSeries(ctx, "servers.s1.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{10, 20, 30}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_used", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+			common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+
+	store.EXPECT().FetchByQuery(gomock.Any(), "servers.s2.disk.bytes_*", gomock.Any()).Return(
+		&storage.FetchResult{SeriesList: []*ts.Series{
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_free", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{99, 98, 97})),
+			ts.NewSeries(ctx, "servers.s2.disk.bytes_used", start,
+				common.NewTestSeriesValues(ctx, 60000, []float64{1, 2, 3}))}}, nil).Times(2)
+
+	tests := []struct {
+		nodeNum          int
+		templateFunction string
+		newName          string
+		expectedResults  []common.TestSeries
+	}{
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "divideSeries(servers.s1.disk.bytes_used,sumSeries(servers.s1.disk.bytes_*))",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "divideSeries(servers.s2.disk.bytes_used,sumSeries(servers.s2.disk.bytes_*))",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+		{
+			nodeNum:          1,
+			templateFunction: "divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))",
+			newName:          "%.disk.pct_used",
+			expectedResults: []common.TestSeries{
+				{
+					Name: "servers.s1.disk.pct_used",
+					Data: []float64{0.10, 0.20, 0.30},
+				},
+				{
+					Name: "servers.s2.disk.pct_used",
+					Data: []float64{0.01, 0.02, 0.03},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		outSeries, err := applyByNode(
+			ctx,
+			singlePathSpec{
+				Values: inputs,
+			},
+			test.nodeNum,
+			test.templateFunction,
+			test.newName,
+		)
+		require.NoError(t, err)
+		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		common.CompareOutputsAndExpected(t, 60000, start, test.expectedResults, outSeries.Values)
 	}
 }
 
@@ -517,7 +712,7 @@ func TestGroupByNodes(t *testing.T) {
 		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
 		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
 		inputs   = []*ts.Series{
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
+			ts.NewSeries(ctx, "transformNull(servers.foo-1.pod1.status.500)", start,
 				ts.NewConstantValues(ctx, 2, 12, 10000)),
 			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
 				ts.NewConstantValues(ctx, 4, 12, 10000)),
@@ -560,6 +755,12 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.400", 40 * 12},
 			{"pod2.500", 10 * 12},
 		}},
+		{"max", []int{2, 4, 100}, []result{ // test with a node number that exceeds num parts
+			{"pod1.400.", 30 * 12},
+			{"pod1.500.", 6 * 12},
+			{"pod2.400.", 40 * 12},
+			{"pod2.500.", 10 * 12},
+		}},
 		{"min", []int{2, -1}, []result{ // test negative index handling
 			{"pod1.400", 20 * 12},
 			{"pod1.500", 2 * 12},
@@ -567,7 +768,10 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
+			{"sumSeries(transformNull(servers.foo-1.pod1.status.500),servers.foo-2.pod1.status.500,servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500,servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400,servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
+		}},
+		{"sum", []int{100}, []result{ // test all nodes out of bounds
+			{"", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
 		}},
 	}
 

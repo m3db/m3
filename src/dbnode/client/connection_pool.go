@@ -31,7 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 
 	"github.com/uber-go/tally"
@@ -68,14 +68,14 @@ type connPool struct {
 }
 
 type conn struct {
-	channel xclose.SimpleCloser
+	channel xresource.SimpleCloser
 	client  rpc.TChanNode
 }
 
 // NewConnectionFn is a function that creates a connection.
 type NewConnectionFn func(
 	channelName string, addr string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error)
+) (xresource.SimpleCloser, rpc.TChanNode, error)
 
 type healthCheckFn func(client rpc.TChanNode, opts Options) error
 
@@ -83,6 +83,12 @@ type sleepFn func(t time.Duration)
 
 func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	seed := int64(murmur3.StringSum32(host.Address()))
+
+	scope := opts.InstrumentOptions().
+		MetricsScope().
+		Tagged(map[string]string{
+			"hostID": host.ID(),
+		})
 
 	p := &connPool{
 		opts:               opts,
@@ -96,7 +102,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
-		healthStatus:       opts.InstrumentOptions().MetricsScope().Gauge("health-status"),
+		healthStatus:       scope.Gauge("health-status"),
 	}
 
 	return p

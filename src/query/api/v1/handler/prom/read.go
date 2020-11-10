@@ -24,6 +24,7 @@ package prom
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -73,15 +74,15 @@ func newReadHandler(
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	fetchOptions, fetchErr := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
-	if fetchErr != nil {
-		respondError(w, fetchErr, http.StatusBadRequest)
+	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 
-	request, perr := native.ParseRequest(ctx, r, false, h.hOpts)
-	if perr != nil {
-		respondError(w, perr, http.StatusBadRequest)
+	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 
@@ -107,7 +108,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("error creating range query",
 			zap.Error(err), zap.String("query", request.Params.Query))
-		respondError(w, err, http.StatusInternalServerError)
+		respondError(w, err)
 		return
 	}
 	defer qry.Close()
@@ -116,8 +117,12 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if res.Err != nil {
 		h.logger.Error("error executing range query",
 			zap.Error(res.Err), zap.String("query", request.Params.Query))
-		respondError(w, res.Err, http.StatusInternalServerError)
+		respondError(w, res.Err)
 		return
+	}
+
+	for _, warn := range resultMetadata.Warnings {
+		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
 	query := request.Params.Query

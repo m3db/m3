@@ -54,8 +54,12 @@ func newTestStreamingWriter(
 	nextVersion int,
 	plannedEntries uint,
 ) StreamingWriter {
-	writer, err := NewStreamingWriter(
-		StreamingWriterOptions{
+	writer, err := NewStreamingWriter(testDefaultOpts.
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+
+	writerOpenOpts := StreamingWriterOpenOptions{
 			NamespaceID: testNs1ID,
 			ShardID:     shard,
 			BlockStart:  timestamp,
@@ -63,12 +67,10 @@ func newTestStreamingWriter(
 
 			VolumeIndex:         nextVersion,
 			PlannedRecordsCount: plannedEntries,
-			Options: testDefaultOpts.
-				SetFilePathPrefix(filePathPrefix).
-				SetWriterBufferSize(testWriterBufferSize),
-		},
-	)
+		}
+	err = writer.Open(writerOpenOpts)
 	require.NoError(t, err)
+
 	return writer
 }
 
@@ -220,9 +222,6 @@ func streamingWriteWithVolume(
 	blockStart time.Time,
 	entries []testStreamingEntry,
 ) error {
-	if err := w.Open(); err != nil {
-		return err
-	}
 	ctx := context.NewContext()
 
 	encoder := m3tsz.NewEncoder(blockStart, nil, true, encoding.NewOptions())

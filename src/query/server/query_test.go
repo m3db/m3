@@ -42,14 +42,11 @@ import (
 	m3msgproto "github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
-	"github.com/m3db/m3/src/query/cost"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/close"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -57,15 +54,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 )
 
 var configYAML = `
-listenAddress:
-  type: "config"
-  value: "127.0.0.1:0"
+listenAddress: 127.0.0.1:0
 
 logging:
   level: info
@@ -411,9 +405,7 @@ func TestGRPCBackend(t *testing.T) {
 	require.NoError(t, err)
 	grpcAddr := lis.Addr().String()
 	var grpcConfigYAML = fmt.Sprintf(`
-listenAddress:
-  type: "config"
-  value: "127.0.0.1:0"
+listenAddress: 127.0.0.1:0
 
 logging:
   level: info
@@ -505,131 +497,6 @@ writeWorkerPoolPolicy:
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh
-}
-
-func TestNewPerQueryEnforcer(t *testing.T) {
-	type testContext struct {
-		Global cost.ChainedEnforcer
-		Query  cost.ChainedEnforcer
-		Block  cost.ChainedEnforcer
-		Closer close.SimpleCloser
-	}
-
-	scope := tally.NewTestScope("", nil)
-	instrumentOpts := instrument.NewTestOptions(t).
-		SetMetricsScope(scope)
-
-	setup := func(t *testing.T, globalLimit, queryLimit int) testContext {
-		cfg := &config.Configuration{
-			Limits: config.LimitsConfiguration{
-				Global: config.GlobalLimitsConfiguration{
-					MaxFetchedDatapoints: 100,
-				},
-				PerQuery: config.PerQueryLimitsConfiguration{
-					MaxFetchedDatapoints: 10,
-				},
-			},
-		}
-
-		global, closer, err := newConfiguredChainedEnforcer(cfg, instrumentOpts)
-		require.NoError(t, err)
-
-		queryLvl := global.Child(cost.QueryLevel)
-		blockLvl := queryLvl.Child(cost.BlockLevel)
-
-		return testContext{
-			Global: global,
-			Query:  queryLvl,
-			Block:  blockLvl,
-			Closer: closer,
-		}
-	}
-
-	tctx := setup(t, 100, 10)
-	defer tctx.Closer.Close()
-
-	// Spot check that limits are setup properly for each level.
-	r := tctx.Query.Add(11)
-	require.Error(t, r.Error)
-
-	floatsEqual := func(f1, f2 float64) {
-		assert.InDelta(t, f1, f2, 0.0000001)
-	}
-
-	floatsEqual(float64(r.Cost), 11)
-
-	r, _ = tctx.Query.State()
-	floatsEqual(float64(r.Cost), 11)
-
-	r, _ = tctx.Global.State()
-	floatsEqual(float64(r.Cost), 11)
-	require.NoError(t, r.Error)
-
-	// Wait for stats reporting to start.
-	start := time.Now()
-	for time.Since(start) < 15*time.Second {
-		gauges := scope.Snapshot().Gauges()
-		globalEnabled, globalOk := gauges["cost.limits.enabled+limiter=global"]
-		queryEnabled, queryOk := gauges["cost.limits.enabled+limiter=query"]
-		if globalOk && queryOk && globalEnabled.Value() == 1 && queryEnabled.Value() == 1 {
-			break
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Check stats.
-	expectCounterValues := map[string]int64{
-		"cost.reporter.over_datapoints_limit+enabled=false,limiter=global": 0,
-		"cost.reporter.over_datapoints_limit+enabled=true,limiter=global":  0,
-		"cost.reporter.datapoints_counter+limiter=global":                  11,
-		"cost.reporter.over_datapoints_limit+enabled=false,limiter=query":  0,
-		"cost.reporter.over_datapoints_limit+enabled=true,limiter=query":   1,
-	}
-	expectGaugeValues := map[string]float64{
-		"cost.limits.threshold+limiter=global":    100,
-		"cost.limits.enabled+limiter=global":      1,
-		"cost.reporter.datapoints+limiter=global": 11,
-		"cost.limits.threshold+limiter=query":     10,
-		"cost.limits.enabled+limiter=query":       1,
-	}
-
-	snapshot := scope.Snapshot()
-	actualCounterValues := make(map[string]int64)
-	for k, v := range snapshot.Counters() {
-		actualCounterValues[k] = v.Value()
-
-		expected, ok := expectCounterValues[k]
-		if !ok {
-			continue
-		}
-
-		// Check match.
-		assert.Equal(t, expected, v.Value(),
-			fmt.Sprintf("stat mismatch: stat=%s", k))
-
-		delete(expectCounterValues, k)
-	}
-	assert.Equal(t, 0, len(expectCounterValues),
-		fmt.Sprintf("missing stats: %+v", expectCounterValues))
-
-	actualGaugeValues := make(map[string]float64)
-	for k, v := range snapshot.Gauges() {
-		actualGaugeValues[k] = v.Value()
-
-		expected, ok := expectGaugeValues[k]
-		if !ok {
-			continue
-		}
-
-		// Check match.
-		assert.Equal(t, expected, v.Value(),
-			fmt.Sprintf("stat mismatch: stat=%s", k))
-
-		delete(expectGaugeValues, k)
-	}
-	assert.Equal(t, 0, len(expectGaugeValues),
-		fmt.Sprintf("missing stats: %+v", expectGaugeValues))
 }
 
 var _ rpc.QueryServer = &queryServer{}

@@ -22,7 +22,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 
@@ -35,11 +34,11 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	xhttp "github.com/m3db/m3/src/x/net/http"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
 )
 
 type promReadMetrics struct {
@@ -47,7 +46,6 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
-	maxDatapoints     tally.Gauge
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -58,7 +56,6 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
-		maxDatapoints:     scope.Gauge("max_datapoints"),
 	}
 }
 
@@ -80,16 +77,31 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, *xhttp.ParseError) {
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
-	if rErr != nil {
-		return ParsedOptions{}, rErr
+) (ParsedOptions, error) {
+	parsed, err := parseRequest(ctx, r, instantaneous, opts)
+	if err != nil {
+		// All parsing of requests should result in an invalid params error.
+		return ParsedOptions{}, xerrors.NewInvalidParamsError(err)
+	}
+	return parsed, nil
+}
+
+func parseRequest(
+	ctx context.Context,
+	r *http.Request,
+	instantaneous bool,
+	opts options.HandlerOptions,
+) (ParsedOptions, error) {
+	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		return ParsedOptions{}, err
 	}
 
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOpts.DocsLimit,
+			Instantaneous:      instantaneous,
 		}}
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
@@ -102,23 +114,19 @@ func ParseRequest(
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	engine := opts.Engine()
-	var params models.RequestParams
+	var (
+		engine = opts.Engine()
+		params models.RequestParams
+	)
 	if instantaneous {
-		params, rErr = parseInstantaneousParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseInstantaneousParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts)
 	} else {
-		params, rErr = parseParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts)
 	}
-
-	if rErr != nil {
-		return ParsedOptions{}, rErr
-	}
-
-	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
-	if err := validateRequest(params, maxPoints); err != nil {
-		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
+	if err != nil {
+		return ParsedOptions{}, err
 	}
 
 	return ParsedOptions{
@@ -126,24 +134,6 @@ func ParseRequest(
 		FetchOpts: fetchOpts,
 		Params:    params,
 	}, nil
-}
-
-func validateRequest(params models.RequestParams, maxPoints int) error {
-	// Impose a rough limit on the number of returned time series.
-	// This is intended to prevent things like querying from the beginning of
-	// time with a 1s step size.
-	numSteps := int(params.End.Sub(params.Start) / params.Step)
-	if maxPoints > 0 && numSteps > maxPoints {
-		return fmt.Errorf(
-			"querying from %v to %v with step size %v would result in too many "+
-				"datapoints (end - start / step > %d). Either decrease the query "+
-				"resolution (?step=XX), decrease the time window, or increase "+
-				"the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, maxPoints,
-		)
-	}
-
-	return nil
 }
 
 // ParsedOptions are parsed options for the query.
@@ -191,9 +181,9 @@ func read(
 
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
-		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, parsed.Params.Timeout)
 		defer cancel()
-
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 

@@ -129,13 +129,13 @@ var (
 	testAnnotation2 = []byte("second")
 
 	testAttributesGauge = ts.SeriesAttributes{
-		Type: ts.MetricTypeGauge,
+		M3Type: ts.M3MetricTypeGauge,
 	}
 	testAttributesCounter = ts.SeriesAttributes{
-		Type: ts.MetricTypeCounter,
+		M3Type: ts.M3MetricTypeCounter,
 	}
 	testAttributesTimer = ts.SeriesAttributes{
-		Type: ts.MetricTypeTimer,
+		M3Type: ts.M3MetricTypeTimer,
 	}
 
 	testEntries = []testIterEntry{
@@ -242,7 +242,7 @@ func TestDownsampleAndWriteWithBadTags(t *testing.T) {
 
 	// Make sure we get a validation error for downsample code path
 	// and for the raw unaggregate write code path.
-	multiErr, ok := err.(xerrors.MultiError)
+	multiErr, ok := xerrors.GetInnerMultiError(err)
 	require.True(t, ok)
 	require.Equal(t, 2, multiErr.NumErrors())
 	// Make sure all are invalid params errors.
@@ -437,9 +437,8 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+	downAndWrite, _, session := newTestDownsamplerAndWriterWithEnabled(t, ctrl, false,
 		testDownsamplerAndWriterOptions{})
-	downAndWrite.downsampler = nil
 
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
@@ -565,11 +564,11 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeCounter}).
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeCounter}).
 		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeTimer}).
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeTimer}).
 		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
@@ -653,9 +652,8 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+	downAndWrite, _, session := newTestDownsamplerAndWriterWithEnabled(t, ctrl, false,
 		testDownsamplerAndWriterOptions{})
-	downAndWrite.downsampler = nil
 
 	for _, entry := range testEntries {
 		for _, dp := range entry.datapoints {
@@ -812,6 +810,15 @@ func newTestDownsamplerAndWriter(
 	ctrl *gomock.Controller,
 	opts testDownsamplerAndWriterOptions,
 ) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
+	return newTestDownsamplerAndWriterWithEnabled(t, ctrl, true, opts)
+}
+
+func newTestDownsamplerAndWriterWithEnabled(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	enabled bool,
+	opts testDownsamplerAndWriterOptions,
+) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
 	var (
 		storage storage.Storage
 		session *client.MockSession
@@ -822,6 +829,7 @@ func newTestDownsamplerAndWriter(
 		storage, session = testm3.NewStorageAndSession(t, ctrl)
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
+	downsampler.EXPECT().Enabled().Return(enabled)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
@@ -833,6 +841,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
+	downsampler.EXPECT().Enabled().Return(true)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 

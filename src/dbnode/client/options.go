@@ -27,7 +27,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
@@ -38,11 +37,12 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
@@ -123,7 +123,7 @@ const (
 	defaultHostQueueOpsArrayPoolSize = 8
 
 	// defaultHostQueueEmitsHealthStatus is false
-	defaultHostQueueEmitsHealthStatus = false
+	defaultHostQueueEmitsHealthStatus = true
 
 	// defaultBackgroundConnectInterval is the default background connect interval
 	defaultBackgroundConnectInterval = 4 * time.Second
@@ -287,6 +287,7 @@ type options struct {
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
 	writeTimestampOffset                    time.Duration
+	namespaceInitializer                    namespace.Initializer
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -318,7 +319,7 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 
 func defaultNewConnectionFn(
 	channelName string, address string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error) {
+) (xresource.SimpleCloser, rpc.TChanNode, error) {
 	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
 	if err != nil {
 		return nil, nil, err
@@ -1072,4 +1073,14 @@ func (o *options) SetWriteTimestampOffset(value time.Duration) AdminOptions {
 
 func (o *options) WriteTimestampOffset() time.Duration {
 	return o.writeTimestampOffset
+}
+
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
+	opts := *o
+	opts.namespaceInitializer = value
+	return &opts
+}
+
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.namespaceInitializer
 }

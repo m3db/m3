@@ -35,8 +35,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/gogo/protobuf/proto"
@@ -140,7 +140,13 @@ func newNamespaceWithIndexProtoValue(id string, indexEnabled bool) (proto.Messag
 	if err != nil {
 		return nil, err
 	}
-	return namespace.ToProto(nsMap), nil
+
+	registry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return registry, nil
 }
 
 // waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map

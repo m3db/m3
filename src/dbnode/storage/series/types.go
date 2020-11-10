@@ -23,15 +23,16 @@ package series
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -85,6 +86,22 @@ type DatabaseSeries interface {
 		start, end time.Time,
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
+
+	// FetchIndexChecksum reads checksums from encoded blocks.
+	FetchIndexChecksum(
+		ctx context.Context,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (block.StreamedChecksum, error)
+
+	// FetchIndexChecksum reads checksum mismatches from encoded blocks and the
+	// incoming batchReader.
+	FetchReadMismatch(
+		ctx context.Context,
+		mismatchChecker wide.EntryChecksumMismatchChecker,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (wide.StreamedMismatch, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(

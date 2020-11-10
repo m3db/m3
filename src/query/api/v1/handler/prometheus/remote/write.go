@@ -99,6 +99,7 @@ var (
 type PromWriteHandler struct {
 	downsamplerAndWriter   ingest.DownsamplerAndWriter
 	tagOptions             models.TagOptions
+	storeMetricsType       bool
 	forwarding             handleroptions.PromWriteHandlerForwardingOptions
 	forwardTimeout         time.Duration
 	forwardHTTPClient      *http.Client
@@ -168,6 +169,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
+		storeMetricsType:       options.StoreMetricsType(),
 		forwarding:             forwarding,
 		forwardTimeout:         forwardTimeout,
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
@@ -259,13 +261,18 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
 	defer batchRequestStopwatch.Stop()
 
-	req, opts, result, rErr := h.parseRequest(r)
-	if rErr != nil {
+	checkedReq, err := h.checkedParseRequest(r)
+	if err != nil {
 		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, err)
 		return
 	}
 
+	var (
+		req    = checkedReq.Request
+		opts   = checkedReq.Options
+		result = checkedReq.CompressResult
+	)
 	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
 	// if the request bodies ever get pooled until after
@@ -380,7 +387,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
 				resultErr, sep, numBadRequest, lastBadRequestErr)
 		}
-		xhttp.Error(w, errors.New(resultErr), status)
+		xhttp.WriteError(w, xhttp.NewError(errors.New(resultErr), status))
 		return
 	}
 
@@ -389,6 +396,23 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// shows up as error.
 	w.WriteHeader(200)
 	h.metrics.writeSuccess.Inc(1)
+}
+
+type parseRequestResult struct {
+	Request        *prompb.WriteRequest
+	Options        ingest.WriteOptions
+	CompressResult prometheus.ParsePromCompressedRequestResult
+}
+
+func (h *PromWriteHandler) checkedParseRequest(
+	r *http.Request,
+) (parseRequestResult, error) {
+	result, err := h.parseRequest(r)
+	if err != nil {
+		// Always invalid request if parsing fails params.
+		return parseRequestResult{}, xerrors.NewInvalidParamsError(err)
+	}
+	return result, nil
 }
 
 // parseRequest extracts the Prometheus write request from the request body and
@@ -400,16 +424,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // uphold the same guarantees.
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
+) (parseRequestResult, error) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(headers.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storagemetadata.ParseMetricsType(v)
 		if err != nil {
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		// Ensure ingest options specify we are overriding the
@@ -422,18 +444,13 @@ func (h *PromWriteHandler) parseRequest(
 		switch metricsType {
 		case storagemetadata.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
-				err := errUnaggregatedStoragePolicySet
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, errUnaggregatedStoragePolicySet
 			}
 		default:
 			parsed, err := policy.ParseStoragePolicy(strPolicy)
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, err
 			}
 
 			// Make sure this specific storage policy is used for the writes.
@@ -451,39 +468,36 @@ func (h *PromWriteHandler) parseRequest(
 			opts.WriteStoragePolicies = policy.StoragePolicies{}
 		default:
 			err := fmt.Errorf("unrecognized write type: %s", v)
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{}, err
+		return parseRequestResult{}, err
 	}
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+		return parseRequestResult{}, err
 	}
 
 	if mapStr := r.Header.Get(headers.MapTagsByJSONHeader); mapStr != "" {
 		var opts handleroptions.MapTagsOptions
 		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		if err := mapTags(&req, opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
-	return &req, opts, result, nil
+	return parseRequestResult{
+		Request:        &req,
+		Options:        opts,
+		CompressResult: result,
+	}, nil
 }
 
 func (h *PromWriteHandler) write(
@@ -491,7 +505,7 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter, err := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter, err := newPromTSIter(r.Timeseries, h.tagOptions, h.storeMetricsType)
 	if err != nil {
 		var errs xerrors.MultiError
 		return errs.Add(err)
@@ -553,7 +567,11 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*promTSIter, error) {
+func newPromTSIter(
+	timeseries []prompb.TimeSeries,
+	tagOpts models.TagOptions,
+	storeMetricsType bool,
+) (*promTSIter, error) {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
@@ -581,24 +599,57 @@ func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*
 	}
 
 	return &promTSIter{
-		attributes: seriesAttributes,
-		idx:        -1,
-		tags:       tags,
-		datapoints: datapoints,
+		attributes:       seriesAttributes,
+		idx:              -1,
+		tags:             tags,
+		datapoints:       datapoints,
+		storeMetricsType: storeMetricsType,
 	}, nil
 }
 
 type promTSIter struct {
 	idx        int
+	err        error
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 	metadatas  []ts.Metadata
+	annotation []byte
+
+	storeMetricsType bool
 }
 
 func (i *promTSIter) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
 	i.idx++
-	return i.idx < len(i.tags)
+	if i.idx >= len(i.tags) {
+		return false
+	}
+
+	if !i.storeMetricsType {
+		return true
+	}
+
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	i.annotation, err = annotationPayload.Marshal()
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	if len(i.annotation) == 0 {
+		i.annotation = nil
+	}
+
+	return true
 }
 
 func (i *promTSIter) Current() ingest.IterValue {
@@ -611,6 +662,7 @@ func (i *promTSIter) Current() ingest.IterValue {
 		Datapoints: i.datapoints[i.idx],
 		Attributes: i.attributes[i.idx],
 		Unit:       xtime.Millisecond,
+		Annotation: i.annotation,
 	}
 	if i.idx < len(i.metadatas) {
 		value.Metadata = i.metadatas[i.idx]
@@ -620,11 +672,14 @@ func (i *promTSIter) Current() ingest.IterValue {
 
 func (i *promTSIter) Reset() error {
 	i.idx = -1
+	i.err = nil
+	i.annotation = nil
+
 	return nil
 }
 
 func (i *promTSIter) Error() error {
-	return nil
+	return i.err
 }
 
 func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {

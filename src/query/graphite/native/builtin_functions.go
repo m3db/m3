@@ -26,8 +26,10 @@ import (
 	"math"
 	"math/rand"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
@@ -35,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -92,6 +95,66 @@ func sortByTotal(ctx *common.Context, series singlePathSpec) (ts.SeriesList, err
 // sortByMaxima sorts timeseries by the maximum value across the time period specified.
 func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
 	return highestMax(ctx, series, len(series.Values))
+}
+
+// useSeriesAbove compares the maximum of each series against the given `value`. If the series
+// maximum is greater than `value`, the regular expression search and replace is
+// applied against the series name to plot a related metric.
+//
+// e.g. given useSeriesAbove(ganglia.metric1.reqs,10,'reqs','time'),
+// the response time metric will be plotted only when the maximum value of the
+// corresponding request/s metric is > 10
+// Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		newNames []string
+
+		output         = make([]*ts.Series, 0, len(seriesList.Values))
+		maxConcurrency = runtime.NumCPU() / 2
+	)
+
+	for _, series := range seriesList.Values {
+		if series.SafeMax() > maxAllowedValue {
+			seriesName := strings.Replace(series.Name(), search, replace, -1)
+			newNames = append(newNames, seriesName)
+		}
+	}
+
+	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
+		if multiErr.LastError() != nil {
+			return ts.NewSeriesList(), multiErr.LastError()
+		}
+
+		for _, newTarget := range newNameChunk {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+				if err != nil {
+					mu.Lock()
+					multiErr = multiErr.Add(err)
+					mu.Unlock()
+					return
+				}
+
+				mu.Lock()
+				for _, resultSeries := range resultSeriesList.Values {
+					resultSeries.Specification = newTarget
+					output = append(output, resultSeries)
+				}
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+	}
+
+	r := ts.NewSeriesList()
+	r.Values = output
+	return r, nil
 }
 
 // sortByMinima sorts timeseries by the minimum value across the time period specified.
@@ -232,6 +295,7 @@ func timeShift(
 	_ *common.Context,
 	_ singlePathSpec,
 	timeShiftS string,
+	_ bool,
 	_ bool,
 ) (*unaryContextShifter, error) {
 
@@ -678,6 +742,11 @@ func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesL
 	return lowest(ctx, input, n, "current")
 }
 
+// effectiveXFF return true if windowPoints has a % of non-nulls above the xFilesFactor, false if not
+func effectiveXFF(windowPoints, nans int, xFilesFactor float64) bool {
+	return float64(windowPoints-nans)/float64(windowPoints) >= xFilesFactor
+}
+
 // windowSizeFunc calculates window size for moving average calculation
 type windowSizeFunc func(stepSize int) int
 
@@ -732,7 +801,7 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 }
 
 // movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
 		return nil, nil
 	}
@@ -776,6 +845,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			sum := 0.0
 			num := 0
+			nans := 0
 			firstPoint := false
 			for i := 0; i < numSteps; i++ {
 				// NB: skip if the number of points received is less than the number
@@ -791,6 +861,8 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						if !math.IsNaN(v) {
 							sum += v
 							num++
+						} else {
+							nans++
 						}
 					}
 				} else {
@@ -799,16 +871,20 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						if !math.IsNaN(prev) {
 							sum -= prev
 							num--
+						} else {
+							nans--
 						}
 					}
 					next := bootstrap.ValueAt(i + offset - 1)
 					if !math.IsNaN(next) {
 						sum += next
 						num++
+					} else {
+						nans++
 					}
 				}
 
-				if num > 0 {
+				if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
@@ -914,7 +990,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 }
 
 // totalFunc takes an index and returns a total value for that index
-type totalFunc func(int) float64
+type totalFunc func(int, *ts.Series) float64
 
 func totalBySum(seriesList []*ts.Series, index int) float64 {
 	s, hasValue := 0.0, false
@@ -932,7 +1008,7 @@ func totalBySum(seriesList []*ts.Series, index int) float64 {
 }
 
 // asPercent calculates a percentage of the total of a wildcard series.
-func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface) (ts.SeriesList, error) {
+func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface, nodes ...int) (ts.SeriesList, error) {
 	if len(input.Values) == 0 {
 		return ts.SeriesList(input), nil
 	}
@@ -953,24 +1029,51 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		if total.Len() == 0 {
 			// normalize input and sum up input as the total series
 			toNormalize = input.Values
-			tf = func(idx int) float64 { return totalBySum(normalized, idx) }
+			tf = func(idx int, _ *ts.Series) float64 { return totalBySum(normalized, idx) }
 		} else {
-			// check total is a single-series list and normalize all of them
-			if total.Len() != 1 {
-				err := errors.NewInvalidParamsError(errors.New("total must be a single series"))
-				return ts.NewSeriesList(), err
-			}
+			if len(nodes) > 0 {
+				// group the series by specified nodes and then sum those groups
+				groupedTotal, err := groupByNodes(ctx, input, "sum", nodes...)
+				if err != nil {
+					return ts.NewSeriesList(), err
+				}
+				toNormalize = append(input.Values, groupedTotal.Values[0])
+				metaSeriesSumByKey := make(map[string]*ts.Series)
 
-			toNormalize = append(input.Values, total.Values[0])
-			tf = func(idx int) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
-			totalText = total.Values[0].Name()
+				// map the aggregation key to the aggregated series
+				for _, series := range groupedTotal.Values {
+					metaSeriesSumByKey[series.Name()] = series
+				}
+
+				tf = func(idx int, series *ts.Series) float64 {
+					// find which aggregation key this series falls under
+					// and return the sum for that aggregated group
+					key := getAggregationKey(series, nodes)
+					return metaSeriesSumByKey[key].ValueAt(idx)
+				}
+				totalText = groupedTotal.Values[0].Name()
+			} else {
+				toNormalize = append(input.Values, total.Values[0])
+				tf = func(idx int, _ *ts.Series) float64 { return normalized[len(normalized)-1].ValueAt(idx) }
+				totalText = total.Values[0].Name()
+			}
 		}
 	case float64:
 		toNormalize = input.Values
-		tf = func(idx int) float64 { return totalArg }
+		tf = func(idx int, _ *ts.Series) float64 { return totalArg }
 		totalText = fmt.Sprintf(common.FloatingPointFormat, totalArg)
+	case nil:
+		// if total is nil, the total is the sum of all the input series
+		toNormalize = input.Values
+		var err error
+		summedSeries, err := sumSeries(ctx, multiplePathSpecs(input))
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		tf = func(idx int, _ *ts.Series) float64 { return summedSeries.Values[0].ValueAt(idx) }
+		totalText = summedSeries.Values[0].Name()
 	default:
-		err := errors.NewInvalidParamsError(errors.New("total is neither an int nor a series"))
+		err := errors.NewInvalidParamsError(errors.New("total must be either an int, a series, or nil"))
 		return ts.NewSeriesList(), err
 	}
 
@@ -990,8 +1093,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		values = append(values, percents)
 	}
 	for i := 0; i < normalized[0].Len(); i++ {
-		t := tf(i)
 		for j := 0; j < numInputSeries; j++ {
+			t := tf(i, normalized[j])
 			v := normalized[j].ValueAt(i)
 			if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
 				values[j].SetValueAt(i, 100.0*v/t)
@@ -1503,9 +1606,13 @@ func combineBootstrapWithOriginal(
 				return ts.NewSeriesList(), err
 			}
 		}
+		bootstrapEndStep := endTime.Truncate(original.Resolution())
+		if bootstrapEndStep.Before(endTime) {
+			bootstrapEndStep = bootstrapEndStep.Add(original.Resolution())
+		}
 		// NB(braskin): using bootstrap.Len() is incorrect as it will include all
 		// of the steps in the original timeseries, not just the steps up to the new end time
-		bootstrapLength := bootstrap.StepAtTime(endTime)
+		bootstrapLength := bootstrap.StepAtTime(bootstrapEndStep)
 		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()
 		numBootstrapValues := bootstrapLength * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
@@ -1905,13 +2012,13 @@ func windowPointsLength(series *ts.Series, interval time.Duration) int {
 	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
 }
 
-type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int)
+type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int, xFilesFactor float64)
 
 // movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
-func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	nans := common.SafeSort(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		index := (windowPoints - nans) / 2
 		median := window[nans+index]
 		vals.SetValueAt(i, median)
@@ -1919,28 +2026,28 @@ func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints in
 }
 
 // movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
-func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	sum, nans := common.SafeSum(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, sum)
 	}
 }
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
-func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	max, nans := common.SafeMax(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, max)
 	}
 }
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
-func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
+func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
 	min, nans := common.SafeMin(window)
 
-	if nans < windowPoints {
+	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
 		vals.SetValueAt(i, min)
 	}
 }
@@ -1950,6 +2057,7 @@ func newMovingBinaryTransform(
 	input singlePathSpec,
 	windowSizeValue genericInterface,
 	movingFunctionName string,
+	xFilesFactor float64,
 	impl movingImplementationFn,
 ) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
@@ -2022,7 +2130,7 @@ func newMovingBinaryTransform(
 
 						window[idx] = bootstrap.ValueAt(j)
 					}
-					impl(window, vals, currWindowPoints, i)
+					impl(window, vals, currWindowPoints, i, xFilesFactor)
 				}
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
 				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
@@ -2036,23 +2144,23 @@ func newMovingBinaryTransform(
 }
 
 // movingMedian calculates the moving median of a metric (or metrics) over a time interval.
-func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", movingMedianHelper)
+func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", xFilesFactor, movingMedianHelper)
 }
 
 // movingSum calculates the moving sum of a metric (or metrics) over a time interval.
-func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", movingSumHelper)
+func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", xFilesFactor, movingSumHelper)
 }
 
 // movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
-func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", movingMaxHelper)
+func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", xFilesFactor, movingMaxHelper)
 }
 
 // movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
-func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
+func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface, xFilesFactor float64) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", xFilesFactor, movingMinHelper)
 }
 
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
@@ -2251,19 +2359,29 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 func init() {
 	// functions - in alpha ordering
 	MustRegisterFunction(absolute)
+	MustRegisterFunction(aggregate)
 	MustRegisterFunction(aggregateLine).WithDefaultParams(map[uint8]interface{}{
 		2: "avg", // f
+	})
+	MustRegisterFunction(aggregateWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		3: -1, // positions
 	})
 	MustRegisterFunction(alias)
 	MustRegisterFunction(aliasByMetric)
 	MustRegisterFunction(aliasByNode)
 	MustRegisterFunction(aliasSub)
+	MustRegisterFunction(applyByNode).WithDefaultParams(map[uint8]interface{}{
+		4: "", // newName
+	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: []*ts.Series(nil), // total
+		3: nil, // nodes
 	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageSeries)
-	MustRegisterFunction(averageSeriesWithWildcards)
+	MustRegisterFunction(averageSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(cactiStyle)
 	MustRegisterFunction(changed)
 	MustRegisterFunction(consolidateBy)
@@ -2285,8 +2403,12 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
-	MustRegisterFunction(groupByNode)
-	MustRegisterFunction(groupByNodes)
+	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
+		3: "average", // fname
+	})
+	MustRegisterFunction(groupByNodes).WithDefaultParams(map[uint8]interface{}{
+		3: nil, // nodes
+	})
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
 		2: 1,         // n,
 		3: "average", // f
@@ -2324,11 +2446,21 @@ func init() {
 	MustRegisterFunction(minSeries)
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
-	MustRegisterFunction(movingAverage)
-	MustRegisterFunction(movingMedian)
-	MustRegisterFunction(movingSum)
-	MustRegisterFunction(movingMax)
-	MustRegisterFunction(movingMin)
+	MustRegisterFunction(movingAverage).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMedian).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingSum).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMax).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
+	MustRegisterFunction(movingMin).WithDefaultParams(map[uint8]interface{}{
+		3: 0.0, // XFilesFactor
+	})
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
@@ -2361,6 +2493,7 @@ func init() {
 	MustRegisterFunction(stdev).WithDefaultParams(map[uint8]interface{}{
 		3: 0.1, // windowTolerance
 	})
+	MustRegisterFunction(stddevSeries)
 	MustRegisterFunction(substr).WithDefaultParams(map[uint8]interface{}{
 		2: 0, // start
 		3: 0, // stop
@@ -2369,9 +2502,13 @@ func init() {
 		3: "",    // fname
 		4: false, // alignToFrom
 	})
+	MustRegisterFunction(smartSummarize).WithDefaultParams(map[uint8]interface{}{
+		3: "", // fname
+	})
 	MustRegisterFunction(sumSeries)
-	MustRegisterFunction(sumSeriesWithWildcards)
-	MustRegisterFunction(aggregateWithWildcards)
+	MustRegisterFunction(sumSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(sustainedAbove)
 	MustRegisterFunction(sustainedBelow)
 	MustRegisterFunction(threshold).WithDefaultParams(map[uint8]interface{}{
@@ -2382,7 +2519,8 @@ func init() {
 		2: 60, // step
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
-		3: true, // resetEnd
+		3: true,  // resetEnd
+		4: false, // alignDst
 	})
 	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
 		3: "now", // endTime
@@ -2390,6 +2528,7 @@ func init() {
 	MustRegisterFunction(transformNull).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // defaultValue
 	})
+	MustRegisterFunction(useSeriesAbove)
 	MustRegisterFunction(weightedAverage)
 
 	// alias functions - in alpha ordering
@@ -2400,10 +2539,6 @@ func init() {
 	MustRegisterAliasedFunction("max", maxSeries)
 	MustRegisterAliasedFunction("min", minSeries)
 	MustRegisterAliasedFunction("randomWalk", randomWalkFunction)
-	// NB(jayp): Graphite docs say that smartSummarize is the "smarter experimental version of
-	// summarize". Well, I am not sure about smarter, but aliasing satisfies the experimental
-	// aspect.
-	MustRegisterAliasedFunction("smartSummarize", summarize)
 	MustRegisterAliasedFunction("sum", sumSeries)
 	MustRegisterAliasedFunction("time", timeFunction)
 }

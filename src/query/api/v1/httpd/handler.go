@@ -306,7 +306,7 @@ func (h *Handler) RegisterRoutes() error {
 
 		placement.RegisterRoutes(h.router,
 			serviceOptionDefaults, placementOpts)
-		namespace.RegisterRoutes(h.router, clusterClient, serviceOptionDefaults, instrumentOpts)
+		namespace.RegisterRoutes(h.router, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
 		topic.RegisterRoutes(h.router, clusterClient, config, instrumentOpts)
 
 		// Experimental endpoints.
@@ -393,7 +393,7 @@ func (h *Handler) registerRoutesEndpoint() {
 				return nil
 			})
 		if err != nil {
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 		json.NewEncoder(w).Encode(struct {

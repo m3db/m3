@@ -47,6 +47,10 @@ type RunOptions struct {
 
 	// AdminOptions are additional options to apply to the aggregator server.
 	AdminOptions []AdminOption
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -66,6 +70,8 @@ func Run(opts RunOptions) {
 	}
 	defer logger.Sync()
 
+	cfg.Debug.SetRuntimeValues(logger)
+
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	scope, closer, err := cfg.Metrics.NewRootScope()
@@ -77,7 +83,8 @@ func Run(opts RunOptions) {
 		SetLogger(logger).
 		SetMetricsScope(scope).
 		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
-		SetReportInterval(cfg.Metrics.ReportInterval())
+		SetReportInterval(cfg.Metrics.ReportInterval()).
+		SetCustomBuildTags(opts.CustomBuildTags)
 
 	buildReporter := instrument.NewBuildReporter(instrumentOpts)
 	if err := buildReporter.Start(); err != nil {

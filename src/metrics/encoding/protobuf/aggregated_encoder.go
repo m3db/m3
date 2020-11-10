@@ -55,7 +55,7 @@ func (enc *aggregatedEncoder) Encode(
 	m aggregated.MetricWithStoragePolicy,
 	encodedAtNanos int64,
 ) error {
-	resetAggregatedMetricProto(&enc.pb)
+	ReuseAggregatedMetricProto(&enc.pb)
 	if err := m.ToProto(&enc.pb.Metric); err != nil {
 		return err
 	}

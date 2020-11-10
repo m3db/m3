@@ -22,6 +22,7 @@ package prom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	"github.com/m3db/m3/src/query/util"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -66,13 +68,13 @@ func newReadInstantHandler(
 func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ts, err := util.ParseTimeStringWithDefault(r.FormValue("time"), time.Now())
 	if err != nil {
-		respondError(w, err, http.StatusBadRequest)
+		respondError(w, err)
 		return
 	}
 
-	fetchOptions, fetchErr := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
-	if fetchErr != nil {
-		respondError(w, fetchErr, http.StatusBadRequest)
+	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 
@@ -87,8 +89,9 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if t := r.FormValue("timeout"); t != "" {
 		timeout, err := util.ParseDurationString(t)
 		if err != nil {
-			err = fmt.Errorf("invalid parameter 'timeout': %v", err)
-			respondError(w, err, http.StatusBadRequest)
+			err = xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid parameter 'timeout': %v", err))
+			respondError(w, err)
 			return
 		}
 		var cancel context.CancelFunc
@@ -104,7 +107,7 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("error creating instant query",
 			zap.Error(err), zap.String("query", query))
-		respondError(w, err, http.StatusInternalServerError)
+		respondError(w, err)
 		return
 	}
 	defer qry.Close()
@@ -113,8 +116,12 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if res.Err != nil {
 		h.logger.Error("error executing instant query",
 			zap.Error(res.Err), zap.String("query", query))
-		respondError(w, res.Err, http.StatusInternalServerError)
+		respondError(w, res.Err)
 		return
+	}
+
+	for _, warn := range resultMetadata.Warnings {
+		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
 	err = ApplyRangeWarnings(query, &resultMetadata)

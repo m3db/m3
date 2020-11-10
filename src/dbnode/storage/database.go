@@ -28,9 +28,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -40,9 +40,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -75,6 +77,7 @@ var (
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
+	aggregationsInProgress              int32
 )
 
 type databaseState int
@@ -412,13 +415,17 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 
 	hooks := d.Options().NamespaceHooks()
 	for _, ns := range createdNamespaces {
-		err := hooks.OnCreatedNamespace(ns, d.namespaces.Get)
+		err := hooks.OnCreatedNamespace(ns, d.getNamespaceWithLock)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (d *db) getNamespaceWithLock(id ident.ID) (Namespace, bool) {
+	return d.namespaces.Get(id)
 }
 
 func (d *db) newDatabaseNamespaceWithLock(
@@ -741,20 +748,6 @@ func (d *db) writeBatch(
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Bool("tagged", tagged),
-		)
-	}
-	defer sp.Finish()
-
-	writes, ok := writer.(writes.WriteBatch)
-	if !ok {
-		return errWriterDoesNotImplementWriteBatch
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		if tagged {
@@ -763,6 +756,20 @@ func (d *db) writeBatch(
 			d.metrics.unknownNamespaceWriteBatch.Inc(1)
 		}
 		return err
+	}
+
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Bool("tagged", tagged),
+		)
+	}
+
+	defer sp.Finish()
+	writes, ok := writer.(writes.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch
 	}
 
 	iter := writes.Iter()
@@ -887,6 +894,12 @@ func (d *db) AggregateQuery(
 	query index.Query,
 	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.AggregateQueryResult{}, err
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateQuery)
 	if sampled {
 		sp.LogFields(
@@ -898,14 +911,8 @@ func (d *db) AggregateQuery(
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.AggregateQueryResult{}, err
-	}
-
 	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 
@@ -915,6 +922,12 @@ func (d *db) ReadEncoded(
 	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.BlockReader, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
 	if sampled {
 		sp.LogFields(
@@ -924,15 +937,244 @@ func (d *db) ReadEncoded(
 			xopentracing.Time("end", end),
 		)
 	}
-	defer sp.Finish()
 
+	defer sp.Finish()
+	return n.ReadEncoded(ctx, id, start, end)
+}
+
+// batchProcessWideQuery runs the given query against the namespace index,
+// iterating in a batchwise fashion across all matching IDs, applying the given
+// IDBatchProcessor batch processing function to each ID discovered.
+func (d *db) batchProcessWideQuery(
+	ctx context.Context,
+	n databaseNamespace,
+	query index.Query,
+	batchProcessor IDBatchProcessor,
+	opts index.WideQueryOptions,
+) error {
+	// Build collector
+	var (
+		collectorErr error
+
+		collector = make(chan *ident.IDBatch)
+		doneCh    = make(chan struct{})
+	)
+
+	// Setup consumer
+	go func() {
+		defer func() {
+			if collectorErr != nil {
+				for batch := range collector {
+					batch.Processed()
+				}
+			}
+
+			doneCh <- struct{}{}
+		}()
+
+		for batch := range collector {
+			collectorErr = batchProcessor(batch)
+			batch.Processed()
+		}
+	}()
+
+	err := n.WideQueryIDs(ctx, query, collector, opts)
+	if err != nil {
+		return err
+	}
+
+	<-doneCh
+	return collectorErr
+}
+
+func (d *db) WideQuery(
+	ctx context.Context,
+	namespace ident.ID,
+	query index.Query,
+	queryStart time.Time,
+	shards []uint32,
+	iterOpts index.IterationOptions,
+) ([]xio.IndexChecksum, error) { // FIXME: change when exact type known.
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
 	}
 
-	return n.ReadEncoded(ctx, id, start, end)
+	var (
+		batchSize = d.opts.WideBatchSize()
+		blockSize = n.Options().IndexOptions().BlockSize()
+
+		collectedChecksums = make([]xio.IndexChecksum, 0, 10)
+	)
+
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	start, end := opts.StartInclusive, opts.EndExclusive
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("wideQuery", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Int("batchSize", batchSize),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+
+	defer sp.Finish()
+
+	streamedChecksums := make([]block.StreamedChecksum, 0, batchSize)
+	indexChecksumProcessor := func(batch *ident.IDBatch) error {
+		streamedChecksums = streamedChecksums[:0]
+		for _, id := range batch.IDs {
+			streamedChecksum, err := d.fetchIndexChecksum(ctx, n, id, start)
+			if err != nil {
+				return err
+			}
+
+			streamedChecksums = append(streamedChecksums, streamedChecksum)
+		}
+
+		for i, streamedChecksum := range streamedChecksums {
+			checksum, err := streamedChecksum.RetrieveIndexChecksum()
+			if err != nil {
+				return err
+			}
+
+			// TODO: use index checksum value to call downstreams.
+			useID := i == len(batch.IDs)-1
+			if !useID {
+				checksum.ID.Finalize()
+			}
+
+			collectedChecksums = append(collectedChecksums, checksum)
+		}
+
+		return nil
+	}
+
+	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectedChecksums, nil
+}
+
+func (d *db) fetchIndexChecksum(
+	ctx context.Context,
+	ns databaseNamespace,
+	id ident.ID,
+	start time.Time,
+) (block.StreamedChecksum, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", ns.ID().String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+		)
+	}
+
+	defer sp.Finish()
+	return ns.FetchIndexChecksum(ctx, id, start)
+}
+
+func (d *db) ReadMismatches(
+	ctx context.Context,
+	namespace ident.ID,
+	query index.Query,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	queryStart time.Time,
+	shards []uint32,
+	iterOpts index.IterationOptions,
+) ([]wide.ReadMismatch, error) { // TODO: update this type when reader hooked up
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	var (
+		batchSize = d.opts.WideBatchSize()
+		blockSize = n.Options().IndexOptions().BlockSize()
+
+		collectedMismatches = make([]wide.ReadMismatch, 0, 10)
+	)
+
+	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	start, end := opts.StartInclusive, opts.EndExclusive
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadMismatches)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("readMismatches", query.String()),
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Int("batchSize", batchSize),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+
+	defer sp.Finish()
+
+	streamedMismatches := make([]wide.StreamedMismatch, 0, batchSize)
+	streamMismatchProcessor := func(batch *ident.IDBatch) error {
+		streamedMismatches = streamedMismatches[:0]
+		for _, id := range batch.IDs {
+			streamedMismatch, err := d.fetchReadMismatch(ctx, n, mismatchChecker, id, start)
+			if err != nil {
+				return err
+			}
+
+			streamedMismatches = append(streamedMismatches, streamedMismatch)
+		}
+
+		for _, streamedMismatch := range streamedMismatches {
+			mismatch, err := streamedMismatch.RetrieveMismatch()
+			if err != nil {
+				return err
+			}
+
+			collectedMismatches = append(collectedMismatches, mismatch)
+		}
+
+		return nil
+	}
+
+	err = d.batchProcessWideQuery(ctx, n, query, streamMismatchProcessor, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectedMismatches, nil
+}
+
+func (d *db) fetchReadMismatch(
+	ctx context.Context,
+	ns databaseNamespace,
+	mismatchChecker wide.EntryChecksumMismatchChecker,
+	id ident.ID,
+	start time.Time,
+) (wide.StreamedMismatch, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchMismatch)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", ns.ID().String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+		)
+	}
+
+	defer sp.Finish()
+	return ns.FetchReadMismatch(ctx, mismatchChecker, id, start)
 }
 
 func (d *db) FetchBlocks(
@@ -942,6 +1184,12 @@ func (d *db) FetchBlocks(
 	id ident.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocks)
 	if sampled {
 		sp.LogFields(
@@ -950,14 +1198,8 @@ func (d *db) FetchBlocks(
 			opentracinglog.String("id", id.String()),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
-		return nil, xerrors.NewInvalidParamsError(err)
-	}
-
 	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
@@ -970,6 +1212,12 @@ func (d *db) FetchBlocksMetadataV2(
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocksMetadataV2)
 	if sampled {
 		sp.LogFields(
@@ -980,14 +1228,8 @@ func (d *db) FetchBlocksMetadataV2(
 			opentracinglog.Int64("limit", limit),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
-		return nil, nil, xerrors.NewInvalidParamsError(err)
-	}
-
 	return n.FetchBlocksMetadataV2(ctx, shardID, start, end, limit,
 		pageToken, opts)
 }
@@ -1137,6 +1379,14 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
+	jobInProgress := opts.InsOptions.MetricsScope().Gauge("aggregations-in-progress")
+	atomic.AddInt32(&aggregationsInProgress, 1)
+	jobInProgress.Update(float64(aggregationsInProgress))
+	defer func() {
+		atomic.AddInt32(&aggregationsInProgress, -1)
+		jobInProgress.Update(float64(aggregationsInProgress))
+	}()
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1161,13 +1411,16 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
+		opts.InsOptions.MetricsScope().Counter("aggregation.errors").Inc(1)
+	} else {
+		opts.InsOptions.MetricsScope().Counter("aggregation.success").Inc(1)
 	}
 	return processedTileCount, err
 }
@@ -1220,7 +1473,8 @@ func (m metadatas) String() (string, error) {
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,
-	handleCounterResets bool,
+	targetNsID ident.ID,
+	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1230,10 +1484,13 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
+	scope := insOpts.MetricsScope().SubScope("computed-namespace")
+	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{"target-namespace": targetNsID.String()}))
+
 	return AggregateTilesOptions{
-		Start:               start,
-		End:                 end,
-		Step:                step,
-		HandleCounterResets: handleCounterResets,
+		Start:      start,
+		End:        end,
+		Step:       step,
+		InsOptions: insOpts,
 	}, nil
 }

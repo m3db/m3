@@ -1,5 +1,53 @@
 # Changelog
 
+# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+
+## Backwards Incompatible Changes
+
+### Configuration
+- **M3DB**: `db.bootstrap.bootstrappers` removed
+- **M3Coordinator**: `cluster.namespaces.storageMetricsType` removed
+- **M3Coordinator**: `tagOptions.tagOptions` no longer supports `legacy` type
+- **M3Query**: `limits.perQuery.maxComputedDatapoints` removed
+- **M3Query**: `limits.perQuery.maxFetchedDatapoints` removed
+- **M3Query**: `limits.global.maxFetchedDatapoints` removed
+- **M3Query**: `cache` removed
+- **M3Query**: `listenAddress` changed to always be resolved as a string from config. Format changed from
+```
+listenAddress:
+  config: "..."
+  value: "..."
+```
+to 
+```
+listenAddress: "..."
+```
+
+### API
+- **M3DB**: `/services/m3db/database/config/bootstrappers` dynamic bootstappers endpoint removed
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace` in favor of stable preferred URL `/api/v1/services/m3db/namespace`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/init` in favor of stable preferred URL `/api/v1/services/m3db/namespace/init`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/unagg` in favor of stable preferred URL `/api/v1/services/m3db/namespace/unagg`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement` in favor of stable preferred URL `/api/v1/services/m3db/placement`
+- **M3Coordinator**: Removed deprecated URL `/api/v1/placement/init` in favor of stable preferred URL `/api/v1/services/m3db/placement/init`
+
+### Misc
+- **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
+
+# 0.15.17
+
+## Features 
+- **M3Query**: Add aggregate Graphite function ([#2584](https://github.com/m3db/m3/pull/2584))
+- **M3Query**: Add applyByNode Graphite function ([#2654](https://github.com/m3db/m3/pull/2654)) 
+- **M3Query**: Graphite ParseTime function support greatly expanded to be more in line with Graphite allowances ([#2621](https://github.com/m3db/m3/pull/2621)) 
+
+## Bug Fixes
+
+- **M3Aggregator**: Add default m3msg write timeouts to mitigate deadlocking writes with a stale TCP connection ([#2698](https://github.com/m3db/m3/pull/2698))
+- **M3DB**: Fix a bug in bootstrap index caching that would cause long bootstrap times ([#2703](https://github.com/m3db/m3/pull/2703))
+- **M3Query**: Fix Graphite constantLine() function to return 3 steps ([#2699](https://github.com/m3db/m3/pull/2699))
+- **M3Query**: Fix Graphite limit snapping bug in movingAverage and movingMedian functions ([#2694](https://github.com/m3db/m3/pull/2694))
+
 # 0.15.16
 
 ## Features

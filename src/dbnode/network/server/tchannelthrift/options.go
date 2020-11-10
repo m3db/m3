@@ -21,9 +21,9 @@
 package tchannelthrift
 
 import (
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -44,7 +44,7 @@ type options struct {
 	maxOutstandingReadRequests  int
 }
 
-// NewOptions creates new options
+// NewOptions creates new options.
 func NewOptions() Options {
 	// Use a zero size pool by default, override from config.
 	poolOptions := pool.NewObjectPoolOptions().

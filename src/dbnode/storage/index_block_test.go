@@ -739,11 +739,12 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	for _, test := range []struct {
-		name              string
-		seriesLimit       int
-		docsLimit         int
-		requireExhaustive bool
-		expectedErr       string
+		name                     string
+		seriesLimit              int
+		docsLimit                int
+		requireExhaustive        bool
+		expectedErr              string
+		expectedInvalidParamsErr bool
 	}{
 		{
 			name:              "no limits",
@@ -774,32 +775,36 @@ func TestLimits(t *testing.T) {
 			expectedErr:       "",
 		},
 		{
-			name:              "no limits",
-			seriesLimit:       0,
-			docsLimit:         0,
-			requireExhaustive: true,
-			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+			name:                     "no limits",
+			seriesLimit:              0,
+			docsLimit:                0,
+			requireExhaustive:        true,
+			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+			expectedInvalidParamsErr: true,
 		},
 		{
-			name:              "series limit only",
-			seriesLimit:       1,
-			docsLimit:         0,
-			requireExhaustive: true,
-			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+			name:                     "series limit only",
+			seriesLimit:              1,
+			docsLimit:                0,
+			requireExhaustive:        true,
+			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+			expectedInvalidParamsErr: true,
 		},
 		{
-			name:              "docs limit only",
-			seriesLimit:       0,
-			docsLimit:         1,
-			requireExhaustive: true,
-			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+			name:                     "docs limit only",
+			seriesLimit:              0,
+			docsLimit:                1,
+			requireExhaustive:        true,
+			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+			expectedInvalidParamsErr: true,
 		},
 		{
-			name:              "both series and docs limit",
-			seriesLimit:       1,
-			docsLimit:         1,
-			requireExhaustive: true,
-			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+			name:                     "both series and docs limit",
+			seriesLimit:              1,
+			docsLimit:                1,
+			requireExhaustive:        true,
+			expectedErr:              "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+			expectedInvalidParamsErr: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -839,6 +844,7 @@ func TestLimits(t *testing.T) {
 			if test.requireExhaustive {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
+				require.Equal(t, test.expectedInvalidParamsErr, xerrors.IsInvalidParams(err))
 			} else {
 				require.NoError(t, err)
 			}

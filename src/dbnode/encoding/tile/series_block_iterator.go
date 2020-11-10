@@ -41,7 +41,7 @@ type seriesBlockIter struct {
 	iter        SeriesFrameIterator
 	blockIter   fs.CrossBlockIterator
 	encodedTags ts.EncodedTags
-	id          ident.ID
+	id          ident.BytesID
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
@@ -78,7 +78,7 @@ func (b *seriesBlockIter) Next() bool {
 	return true
 }
 
-func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, ts.EncodedTags) {
+func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.BytesID, ts.EncodedTags) {
 	return b.iter, b.id, b.encodedTags
 }
 

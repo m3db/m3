@@ -32,8 +32,10 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -61,7 +63,7 @@ var (
 	// M3DBServiceSchemaPathName is the M3DB service schema API path.
 	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 
-	errNamespaceNotFound = errors.New("unable to find a namespace with specified name")
+	errNamespaceNotFound = xhttp.NewError(errors.New("unable to find a namespace with specified name"), http.StatusNotFound)
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -69,6 +71,7 @@ type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck
 	client         clusterclient.Client
+	clusters       m3.Clusters
 	instrumentOpts instrument.Options
 }
 
@@ -103,6 +106,7 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 func RegisterRoutes(
 	r *mux.Router,
 	client clusterclient.Client,
+	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) {
@@ -126,13 +130,11 @@ func RegisterRoutes(
 	// Get M3DB namespaces.
 	getHandler := wrapped(
 		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 
 	// Add M3DB namespaces.
 	addHandler := wrapped(
 		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 
 	// Update M3DB namespaces.
@@ -143,7 +145,6 @@ func RegisterRoutes(
 	// Delete M3DB namespaces.
 	deleteHandler := wrapped(
 		applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 
 	// Deploy M3DB schemas.
@@ -155,6 +156,12 @@ func RegisterRoutes(
 	schemaResetHandler := wrapped(
 		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
 	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+
+	// Mark M3DB namespace as ready.
+	readyHandler := wrapped(
+		applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(M3DBReadyURL, readyHandler.ServeHTTP).Methods(ReadyHTTPMethod)
+
 }
 
 func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {

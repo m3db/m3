@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -199,6 +200,27 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
+	require.False(t, seriesWrite.WasWritten)
+}
+
+func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.SetReadOnly(true)
+
+	id := ident.StringID("foo")
+	now := time.Now()
+
+	seriesWrite, err := ns.Write(ctx, id, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
+	require.False(t, seriesWrite.WasWritten)
+
+	seriesWrite, err = ns.WriteTagged(ctx, id, ident.EmptyTagIterator, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 }
 
@@ -445,6 +467,16 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
+	require.NoError(t, ns.WarmFlush(time.Now(), nil))
+	require.NoError(t, ns.ColdFlush(nil))
+}
+
+func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.bootstrapState = Bootstrapped
+	ns.SetReadOnly(true)
 	require.NoError(t, ns.WarmFlush(time.Now(), nil))
 	require.NoError(t, ns.ColdFlush(nil))
 }
@@ -1159,7 +1191,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
@@ -1188,12 +1220,51 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	assert.Equal(t, "root", spans[1].OperationName)
 }
 
+func TestNamespaceIndexWideQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().Bootstrapped().Return(true)
+
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	query := index.Query{
+		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+	opts := index.WideQueryOptions{}
+
+	ch := make(chan *ident.IDBatch)
+	idx.EXPECT().WideQuery(gomock.Any(), query, ch, opts)
+	err := ns.WideQueryIDs(ctx, query, ch, opts)
+	require.NoError(t, err)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, tracepoint.NSWideQueryIDs, spans[0].OperationName)
+	assert.Equal(t, "root", spans[1].OperationName)
+
+	// NB: assert no panic occurs without an index.
+	noIdxNs, noIdxCloser := newTestNamespaceWithIndex(t, nil)
+	err = noIdxNs.WideQueryIDs(ctx, query, ch, opts)
+	assert.EqualError(t, err, errNamespaceIndexingDisabled.Error())
+	noIdxCloser()
+	close(ch)
+}
+
 func TestNamespaceAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BootstrapsDone().Return(uint(1))
+	idx.EXPECT().Bootstrapped().Return(true)
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
@@ -1314,7 +1385,6 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
 		start      = time.Now().Truncate(time.Hour)
 		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
@@ -1325,12 +1395,12 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 
-	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	_, err := targetNs.AggregateTiles(sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 
 	sourceNs.bootstrapState = Bootstrapped
 
-	_, err = targetNs.AggregateTiles(ctx, sourceNs, opts)
+	_, err = targetNs.AggregateTiles(sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
@@ -1341,15 +1411,17 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID                    = ident.StringID("source")
 		targetNsID                    = ident.StringID("target")
-		ctx                           = context.NewContext()
 		sourceBlockSize               = time.Hour
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
-		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
 		sourceShard0ID         uint32 = 10
 		sourceShard1ID         uint32 = 20
+		insOpts                       = instrument.NewOptions()
 	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
 	defer sourceCloser()
@@ -1390,10 +1462,10 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
 
-	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)

@@ -28,7 +28,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -77,6 +78,9 @@ const (
 	defaultNumLoadedBytesLimit = 2 << 30
 
 	defaultMediatorTickInterval = 5 * time.Second
+
+	// defaultWideBatchSize is the default batch size for wide queries.
+	defaultWideBatchSize = 1024
 )
 
 var (
@@ -166,7 +170,9 @@ type options struct {
 	doNotIndexWithFieldsMap         map[string]string
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval            time.Duration
-	newBackgroundProcessFns			[]NewBackgroundProcessFn
+	adminClient                     client.AdminClient
+	wideBatchSize                   int
+	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 }
 
@@ -241,6 +247,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		memoryTracker:                   NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 		namespaceRuntimeOptsMgrRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
 		mediatorTickInterval:            defaultMediatorTickInterval,
+		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 	}
 	return o.SetEncodingM3TSZPooled()
@@ -816,6 +823,26 @@ func (o *options) MediatorTickInterval() time.Duration {
 	return o.mediatorTickInterval
 }
 
+func (o *options) SetAdminClient(value client.AdminClient) Options {
+	opts := *o
+	opts.adminClient = value
+	return &opts
+}
+
+func (o *options) AdminClient() client.AdminClient {
+	return o.adminClient
+}
+
+func (o *options) SetWideBatchSize(value int) Options {
+	opts := *o
+	opts.wideBatchSize = value
+	return &opts
+}
+
+func (o *options) WideBatchSize() int {
+	return o.wideBatchSize
+}
+
 func (o *options) SetBackgroundProcessFns(fns []NewBackgroundProcessFn) Options {
 	opts := *o
 	opts.newBackgroundProcessFns = fns
@@ -842,7 +869,7 @@ func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, err
 	return &persist.NoOpColdFlushNamespace{}, nil
 }
 
-type noopNamespaceHooks struct {}
+type noopNamespaceHooks struct{}
 
 func (h *noopNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
 	return nil

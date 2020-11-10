@@ -55,6 +55,21 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
+// IsValid is true if the label name matches the pattern of "^[a-zA-Z_][a-zA-Z0-9_]*$". This
+// method, however, does not use regex for the check but a much faster
+// hardcoded implementation.
+func IsValid(ln string) bool {
+	if len(ln) == 0 {
+		return false
+	}
+	for i, b := range ln {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
+}
+
 // LastComputedID returns the last computed ID; this should only be
 // used when it is guaranteed that no tag transforms take place between calls.
 func (t *Tags) LastComputedID() []byte {

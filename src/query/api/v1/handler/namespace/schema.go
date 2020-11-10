@@ -76,7 +76,7 @@ func (h *SchemaHandler) ServeHTTP(
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -85,29 +85,29 @@ func (h *SchemaHandler) ServeHTTP(
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
 			logger.Error("namespaces metadata key does not exist", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 		if err == kvadmin.ErrNamespaceNotFound || xerrors.InnerError(err) == kvadmin.ErrNamespaceNotFound {
 			logger.Error("namespace does not exist", zap.Error(err))
-			xhttp.Error(w, err, http.StatusNotFound)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 			return
 		}
 
 		logger.Error("unable to deploy schema to namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, &resp, logger)
 }
 
-func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAddRequest, *xhttp.ParseError) {
+func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAddRequest, error) {
 	defer r.Body.Close()
 
 	var schemaAddReq admin.NamespaceSchemaAddRequest
 	if err := jsonpb.Unmarshal(r.Body, &schemaAddReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 	return &schemaAddReq, nil
 }
@@ -157,7 +157,7 @@ func (h *SchemaResetHandler) ServeHTTP(
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -166,29 +166,29 @@ func (h *SchemaResetHandler) ServeHTTP(
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
 			logger.Error("namespaces metadata key does not exist", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 		if err == kvadmin.ErrNamespaceNotFound || xerrors.InnerError(err) == kvadmin.ErrNamespaceNotFound {
 			logger.Error("namespace does not exist", zap.Error(err))
-			xhttp.Error(w, err, http.StatusNotFound)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 			return
 		}
 
 		logger.Error("unable to reset schema for namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaResetRequest, *xhttp.ParseError) {
+func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaResetRequest, error) {
 	defer r.Body.Close()
 
 	var schemaResetReq admin.NamespaceSchemaResetRequest
 	if err := jsonpb.Unmarshal(r.Body, &schemaResetReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 	return &schemaResetReq, nil
 }
@@ -200,7 +200,8 @@ func (h *SchemaResetHandler) Reset(
 ) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
 	if !opts.Force {
-		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
+		err := fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
+		return &emptyRep, xerrors.NewInvalidParamsError(err)
 	}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())

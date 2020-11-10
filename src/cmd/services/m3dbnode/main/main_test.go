@@ -103,7 +103,10 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -185,7 +188,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -334,7 +337,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -395,7 +401,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -503,15 +509,7 @@ db:
     gcPercentage: 100
 
     writeNewSeriesAsync: true
-    writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
-
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
 
     commitlog:
         flushMaxBytes: 524288
@@ -520,7 +518,7 @@ db:
             calculationType: fixed
             size: 2097152
 
-    fs:
+    filesystem:
         filePathPrefix: {{.DataDir}}
         writeBufferSize: 65536
         dataReadBufferSize: 65536
@@ -621,40 +619,42 @@ db:
 `
 
 	kvConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints: {{.EtcdEndpoints}}
 `
 
 	embeddedKVConfigPortion = `
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints:
-                      - {{.EtcdEndpoint}}
-        seedNodes:
-            rootDir: {{.EmbeddedKVDir}}
-            listenPeerUrls:
-                - {{.LPURL}}
-            listenClientUrls:
-                - {{.LCURL}}
-            initialAdvertisePeerUrls:
-                - {{.APURL}}
-            advertiseClientUrls:
-                - {{.ACURL}}
-            initialCluster:
-                - hostID: {{.InitialClusterHostID}}
-                  endpoint: {{.InitialClusterEndpoint}}
+    discovery:
+        config:
+            service:
+                env: {{.ServiceEnv}}
+                zone: {{.ServiceZone}}
+                service: {{.ServiceName}}
+                cacheDir: {{.ConfigServiceCacheDir}}
+                etcdClusters:
+                    - zone: {{.ServiceZone}}
+                      endpoints:
+                          - {{.EtcdEndpoint}}
+            seedNodes:
+                rootDir: {{.EmbeddedKVDir}}
+                listenPeerUrls:
+                    - {{.LPURL}}
+                listenClientUrls:
+                    - {{.LCURL}}
+                initialAdvertisePeerUrls:
+                    - {{.APURL}}
+                advertiseClientUrls:
+                    - {{.ACURL}}
+                initialCluster:
+                    - hostID: {{.InitialClusterHostID}}
+                      endpoint: {{.InitialClusterEndpoint}}
 `
 )

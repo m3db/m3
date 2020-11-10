@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -53,13 +52,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -117,8 +116,8 @@ type nsIndex struct {
 	logger                *zap.Logger
 	opts                  Options
 	nsMetadata            namespace.Metadata
-	runtimeOptsListener   xclose.SimpleCloser
-	runtimeNsOptsListener xclose.SimpleCloser
+	runtimeOptsListener   xresource.SimpleCloser
+	runtimeNsOptsListener xresource.SimpleCloser
 
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool
@@ -139,6 +138,7 @@ type nsIndex struct {
 	forwardIndexDice forwardIndexDice
 
 	doNotIndexWithFields []doc.Field
+	shardSet             sharding.ShardSet
 }
 
 type nsIndexState struct {
@@ -147,7 +147,6 @@ type nsIndexState struct {
 	closed         bool
 	closeCh        chan struct{}
 	bootstrapState BootstrapState
-	bootstrapsDone uint
 
 	runtimeOpts nsIndexRuntimeOptions
 
@@ -168,6 +167,10 @@ type nsIndexState struct {
 	// shardsFilterID is set every time the shards change to correctly
 	// only return IDs that this node owns.
 	shardsFilterID func(ident.ID) bool
+
+	// shardFilteredForID is set every time the shards change to correctly
+	// only return IDs that this node owns, and the shard responsible for that ID.
+	shardFilteredForID func(id ident.ID) (uint32, bool)
 
 	shardsAssigned map[uint32]struct{}
 }
@@ -207,7 +210,7 @@ type newNamespaceIndexOpts struct {
 // execBlockQueryFn executes a query against the given block whilst tracking state.
 type execBlockQueryFn func(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -349,6 +352,7 @@ func newNamespaceIndexWithOptions(
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
+		shardSet:             shardSet,
 	}
 
 	// Assign shard set upfront.
@@ -836,7 +840,6 @@ func (i *nsIndex) Bootstrap(
 		i.state.RUnlock()
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
-		i.state.bootstrapsDone++
 		i.state.Unlock()
 	}()
 
@@ -855,9 +858,9 @@ func (i *nsIndex) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (i *nsIndex) BootstrapsDone() uint {
+func (i *nsIndex) Bootstrapped() bool {
 	i.state.RLock()
-	result := i.state.bootstrapsDone
+	result := i.state.bootstrapState == Bootstrapped
 	i.state.RUnlock()
 	return result
 }
@@ -1288,6 +1291,12 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		// NB(r): Use a bitset for fast lookups.
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
+
+	i.state.shardFilteredForID = func(id ident.ID) (uint32, bool) {
+		shard := shardSet.Lookup(id)
+		return shard, set.Test(uint(shard))
+	}
+
 	i.state.shardsAssigned = assigned
 	i.state.Unlock()
 }
@@ -1295,6 +1304,13 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
 	i.state.RLock()
 	v := i.state.shardsFilterID
+	i.state.RUnlock()
+	return v
+}
+
+func (i *nsIndex) shardForID() func(id ident.ID) (uint32, bool) {
+	i.state.RLock()
+	v := i.state.shardFilteredForID
 	i.state.RUnlock()
 	return v
 }
@@ -1333,6 +1349,46 @@ func (i *nsIndex) Query(
 		Results:    results,
 		Exhaustive: exhaustive,
 	}, nil
+}
+
+func (i *nsIndex) WideQuery(
+	ctx context.Context,
+	query index.Query,
+	collector chan *ident.IDBatch,
+	opts index.WideQueryOptions,
+) error {
+	logFields := []opentracinglog.Field{
+		opentracinglog.String("wideQuery", query.String()),
+		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+		opentracinglog.Int("batchSize", opts.BatchSize),
+		xopentracing.Time("queryStart", opts.StartInclusive),
+		xopentracing.Time("queryEnd", opts.EndExclusive),
+	}
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxWideQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	results := index.NewWideQueryResults(
+		i.nsMetadata.ID(),
+		i.opts.IdentifierPool(),
+		i.shardForID(),
+		collector,
+		opts,
+	)
+
+	// NB: result should be fina.ized here, regardless of outcome
+	// to prevent deadlocking while waiting on channel close.
+	defer results.Finalize()
+	queryOpts := opts.ToQueryOptions()
+
+	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn, logFields)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		return err
+	}
+
+	return nil
 }
 
 func (i *nsIndex) AggregateQuery(
@@ -1429,16 +1485,15 @@ func (i *nsIndex) query(
 			i.metrics.queryNonExhaustiveLimitError.Inc(1)
 		}
 
-		err := fmt.Errorf(
+		// NB(r): Make sure error is not retried and returns as bad request.
+		return exhaustive, xerrors.NewInvalidParamsError(fmt.Errorf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
 			seriesCount,
 			opts.DocsLimit,
 			docsCount,
-		)
-		// NB(r): Make sure error is not retried and returns as bad request.
-		return exhaustive, xerrors.NewInvalidParamsError(err)
+		))
 	}
 
 	// Otherwise non-exhaustive but not required to be.
@@ -1499,7 +1554,7 @@ func (i *nsIndex) queryWithSpan(
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
-	cancellable := resource.NewCancellableLifetime()
+	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
 	for _, block := range blocks {
@@ -1607,7 +1662,7 @@ func (i *nsIndex) queryWithSpan(
 
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1643,9 +1698,53 @@ func (i *nsIndex) execBlockQueryFn(
 	state.exhaustive = state.exhaustive && blockExhaustive
 }
 
+func (i *nsIndex) execBlockWideQueryFn(
+	ctx context.Context,
+	cancellable *xresource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+	logFields []opentracinglog.Field,
+) {
+	logFields = append(logFields,
+		xopentracing.Time("blockStart", block.StartTime()),
+		xopentracing.Time("blockEnd", block.EndTime()),
+	)
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	_, err := block.Query(ctx, cancellable, query, opts, results, logFields)
+	if err == index.ErrUnableToQueryBlockClosed {
+		// NB(r): Because we query this block outside of the results lock, it's
+		// possible this block may get closed if it slides out of retention, in
+		// that case those results are no longer considered valid and outside of
+		// retention regardless, so this is a non-issue.
+		err = nil
+	} else if err == index.ErrWideQueryResultsExhausted {
+		// NB: this error indicates a wide query short-circuit, so it is expected
+		// after the queried shard set is exhausted.
+		err = nil
+	}
+
+	state.Lock()
+	defer state.Unlock()
+
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		state.multiErr = state.multiErr.Add(err)
+	}
+
+	// NB: wide queries are always exhaustive.
+	state.exhaustive = true
+}
+
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -2078,7 +2177,9 @@ func (i *nsIndex) SetExtendedRetentionPeriod(period time.Duration) {
 	i.state.Lock()
 	defer i.state.Unlock()
 
-	i.extendedRetentionPeriod = period
+	if period > i.extendedRetentionPeriod {
+		i.extendedRetentionPeriod = period
+	}
 }
 
 func (i *nsIndex) effectiveRetentionPeriodWithLock() time.Duration {

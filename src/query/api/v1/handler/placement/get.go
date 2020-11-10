@@ -22,6 +22,7 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"path"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -44,10 +46,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBGetURL is the old url for the placement get handler, maintained for
-	// backwards compatibility.
-	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
-
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
 	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
@@ -60,7 +58,7 @@ var (
 	// for the M3Coordinator service.
 	M3CoordinatorGetURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
 
-	errPlacementDoesNotExist = errors.New("placement does not exist")
+	errPlacementDoesNotExist = xhttp.NewError(errors.New("placement does not exist"), http.StatusNotFound)
 )
 
 // GetHandler is the handler for placement gets.
@@ -81,24 +79,20 @@ func (h *GetHandler) ServeHTTP(
 		logger = logging.WithContext(ctx, h.instrumentOptions)
 	)
 
-	placement, badRequest, err := h.Get(service, r)
-	if err != nil && badRequest {
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
-	}
+	placement, err := h.Get(service, r)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusNotFound)
+		xhttp.WriteError(w, err)
 		return
 	}
 	if placement == nil {
-		xhttp.Error(w, errPlacementDoesNotExist, http.StatusNotFound)
+		xhttp.WriteError(w, errPlacementDoesNotExist)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -114,7 +108,7 @@ func (h *GetHandler) ServeHTTP(
 func (h *GetHandler) Get(
 	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
-) (placement placement.Placement, badRequest bool, err error) {
+) (placement placement.Placement, err error) {
 	var headers http.Header
 	if httpReq != nil {
 		headers = httpReq.Header
@@ -123,37 +117,37 @@ func (h *GetHandler) Get(
 	opts := handleroptions.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	var (
-		version int
-		vs      string
-	)
-	if httpReq != nil {
-		vs = httpReq.FormValue("version")
-	}
-
-	if vs != "" {
-		version, err = strconv.Atoi(vs)
-		if err == nil {
-			placement, err = service.PlacementForVersion(version)
-		} else {
-			badRequest = true
+	if httpReq != nil && httpReq.FormValue("version") != "" {
+		version, err := strconv.Atoi(httpReq.FormValue("version"))
+		if err != nil {
+			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("could not parse version: %v", err))
 		}
-	} else {
-		placement, err = service.Placement()
+
+		placement, err = service.PlacementForVersion(version)
+		if err == kv.ErrNotFound {
+			// TODO(rartoul): This should probably be handled at the service
+			// level but that would be a large refactor.
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		return placement, nil
 	}
 
+	placement, err = service.Placement()
 	if err == kv.ErrNotFound {
 		// TODO(rartoul): This should probably be handled at the service
 		// level but that would be a large refactor.
-		return nil, false, nil
+		return nil, nil
 	}
-
 	if err != nil {
-		return nil, badRequest, err
+		return nil, err
 	}
 
-	return placement, badRequest, nil
+	return placement, nil
 }

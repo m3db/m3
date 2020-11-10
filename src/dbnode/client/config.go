@@ -287,7 +287,8 @@ func (c Configuration) NewAdminClient(
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
 	cfgParams := environment.ConfigurationParameters{
-		InstrumentOpts: iopts,
+		InstrumentOpts:                     iopts,
+		AllowEmptyInitialNamespaceRegistry: true,
 	}
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
@@ -296,6 +297,7 @@ func (c Configuration) NewAdminClient(
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
+		syncNsInit           namespace.Initializer
 		asyncTopoInits       = []topology.Initializer{}
 		asyncClientOverrides = []environment.ClientOverrides{}
 	)
@@ -316,12 +318,14 @@ func (c Configuration) NewAdminClient(
 			} else {
 				syncTopoInit = envCfg.TopologyInitializer
 				syncClientOverrides = envCfg.ClientOverrides
+				syncNsInit = envCfg.NamespaceInitializer
 			}
 		}
 	}
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
+		SetNamespaceInitializer(syncNsInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetInstrumentOptions(iopts).
 		SetLogErrorSampleRate(c.LogErrorSampleRate)

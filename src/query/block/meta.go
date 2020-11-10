@@ -68,6 +68,8 @@ type ResultMetadata struct {
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
 	Resolutions []time.Duration
+	// KeepNaNs indicates if NaNs should be kept when returning results.
+	KeepNaNs bool
 }
 
 // NewResultMetadata creates a new result metadata.

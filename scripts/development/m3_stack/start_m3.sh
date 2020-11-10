@@ -172,7 +172,7 @@ else
 fi
 
 echo "Initializing namespaces"
-curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/services/m3db/namespace -d '{
   "name": "metrics_0_30m",
   "options": {
     "bootstrapEnabled": true,
@@ -199,10 +199,13 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
           "aggregated": false
         }
       ]
+    },
+    "stagingState": {
+      "status": "INITIALIZING"
     }
   }
 }'
-curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/services/m3db/namespace -d '{
   "name": "metrics_30s_24h",
   "options": {
     "bootstrapEnabled": true,
@@ -232,20 +235,27 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
           }
         }
       ]
+    },
+    "stagingState": {
+      "status": "INITIALIZING"
     }
-
   }
 }'
 echo "Done initializing namespaces"
 
 echo "Validating namespace"
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_30s_24h.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/services/m3db/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/services/m3db/namespace | jq .registry.namespaces.metrics_30s_24h.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
+
+echo "Waiting for namespaces to be ready"
+[ $(curl -sSf -X POST localhost:7201/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"metrics_0_30m\", \"force\": true }" | grep -c true) -eq 1 ]
+[ $(curl -sSf -X POST localhost:7201/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"metrics_30s_24h\", \"force\": true }" | grep -c true) -eq 1 ]
+echo "Done waiting for namespaces to be ready"
 
 echo "Initializing topology"
 if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
-    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 3,
         "instances": [
@@ -279,7 +289,7 @@ if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
         ]
     }'
 else
-    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 1,
         "instances": [
@@ -297,12 +307,12 @@ else
 fi
 
 echo "Validating topology"
-[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
+[ "$(curl -sSf localhost:7201/api/v1/services/m3db/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
 echo "Done validating topology"
 
 echo "Waiting until shards are marked as available"
 ATTEMPTS=100 TIMEOUT=2 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/services/m3db/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Initializing M3Coordinator topology"

@@ -572,6 +572,20 @@ func (mgr *electionManager) campaignState() campaignState {
 	return mgr.campaignStateWatchable.Get().(campaignState)
 }
 
+func (mgr *electionManager) checkCampaignState() {
+	enabled, err := mgr.campaignIsEnabledFn()
+	if err != nil {
+		mgr.metrics.campaignCheckErrors.Inc(1)
+		return
+	}
+	newState := newCampaignState(enabled)
+	currState := mgr.campaignState()
+	if currState == newState {
+		return
+	}
+	mgr.processCampaignStateChange(newState)
+}
+
 func (mgr *electionManager) checkCampaignStateLoop() {
 	defer mgr.Done()
 
@@ -579,19 +593,9 @@ func (mgr *electionManager) checkCampaignStateLoop() {
 	defer ticker.Stop()
 
 	for {
+		mgr.checkCampaignState()
 		select {
 		case <-ticker.C:
-			enabled, err := mgr.campaignIsEnabledFn()
-			if err != nil {
-				mgr.metrics.campaignCheckErrors.Inc(1)
-				continue
-			}
-			newState := newCampaignState(enabled)
-			currState := mgr.campaignState()
-			if currState == newState {
-				continue
-			}
-			mgr.processCampaignStateChange(newState)
 		case <-mgr.doneCh:
 			return
 		}

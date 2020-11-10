@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // BlockReader represents a block reader backed by a
@@ -43,7 +43,7 @@ var EmptyBlockReader = BlockReader{}
 // SegmentReader implements the io reader interface backed by a segment.
 type SegmentReader interface {
 	io.Reader
-	resource.Finalizer
+	xresource.Finalizer
 
 	// Segment gets the segment read by this reader.
 	Segment() (ts.Segment, error)
@@ -87,9 +87,12 @@ type ReaderSliceOfSlicesIterator interface {
 	// Size gives the size of bytes in this iterator.
 	Size() (int, error)
 
-	// Rewind returns the iterator to the beginning.
+	// RewindToIndex returns the iterator to a specific index.
 	// This operation is invalid if any of the block readers have been read.
-	Rewind()
+	RewindToIndex(idx int)
+
+	// Index returns the iterator's current index.
+	Index() int
 }
 
 // ReaderSliceOfSlicesFromBlockReadersIterator is an iterator

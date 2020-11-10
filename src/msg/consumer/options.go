@@ -33,8 +33,7 @@ var (
 	defaultAckBufferSize        = 1048576
 	defaultAckFlushInterval     = 200 * time.Millisecond
 	defaultConnectionBufferSize = 1048576
-	// TODO(ryanhall07): set this to 5s once we verify this works.
-	defaultWriteTimeout         = 0 * time.Second
+	defaultWriteTimeout         = 5 * time.Second
 )
 
 type options struct {

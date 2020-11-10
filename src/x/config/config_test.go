@@ -75,6 +75,7 @@ type configurationDeprecated struct {
 	Servers       []string `validate:"nonzero"`
 	DeprecatedFoo string   `yaml:"foo"`
 	DeprecatedBar int      `yaml:"bar"`
+	DeprecatedBaz *int     `yaml:"baz"`
 }
 
 type nestedConfigurationDeprecated struct {
@@ -441,9 +442,91 @@ bar: 42
 		require.NoError(t, err)
 
 		actual := deprecationCheck(cfg2, df)
-		require.Len(t, actual, 2)
 		expect := []string{"DeprecatedFoo", "DeprecatedBar"}
-		require.Equal(t, expect, actual)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+	})
+
+	t.Run("DeprecatedZeroValue", func(t *testing.T) {
+		// OK
+		var cfg configuration
+		fname := writeFile(t, goodConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname))
+		}()
+
+		err := LoadFile(&cfg, fname, Options{})
+		require.NoError(t, err)
+
+		df := []string{}
+		ss := deprecationCheck(cfg, df)
+		require.Equal(t, 0, len(ss))
+
+		// Deprecated zero value should be ok and not printed
+		badConfig := `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+  - server1:8090
+  - server2:8010
+foo: ok
+bar: 42
+baz: null
+`
+		var cfg2 configurationDeprecated
+		fname2 := writeFile(t, badConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname2))
+		}()
+
+		err = LoadFile(&cfg2, fname2, Options{})
+		require.NoError(t, err)
+
+		actual := deprecationCheck(cfg2, df)
+		expect := []string{"DeprecatedFoo", "DeprecatedBar"}
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+	})
+
+	t.Run("DeprecatedNilValue", func(t *testing.T) {
+		// OK
+		var cfg configuration
+		fname := writeFile(t, goodConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname))
+		}()
+
+		err := LoadFile(&cfg, fname, Options{})
+		require.NoError(t, err)
+
+		df := []string{}
+		ss := deprecationCheck(cfg, df)
+		require.Equal(t, 0, len(ss))
+
+		// Deprecated nil/unset value should be ok and not printed
+		validConfig := `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+  - server1:8090
+  - server2:8010
+`
+		var cfg2 configurationDeprecated
+		fname2 := writeFile(t, validConfig)
+		defer func() {
+			require.NoError(t, os.Remove(fname2))
+		}()
+
+		err = LoadFile(&cfg2, fname2, Options{})
+		require.NoError(t, err)
+
+		actual := deprecationCheck(cfg2, df)
+		require.Equal(t, 0, len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", 0, actual))
 	})
 
 	t.Run("NestedConfig", func(t *testing.T) {
@@ -470,9 +553,11 @@ commitlog:
 
 		df := []string{}
 		actual := deprecationCheck(cfg, df)
-		require.Len(t, actual, 1)
 		expect := []string{"DeprecatedBlockSize"}
-		require.Equal(t, expect, actual)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.Equal(t, expect, actual,
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 
 		// Multiple deprecation
 		var cfg2 nestedConfigurationMultipleDeprecated
@@ -485,7 +570,6 @@ servers:
 commitlog:
   flushMaxBytes: 42
   flushEvery: second
-  blockSize: 23
 multiple:
   listen_address: localhost:4385
   buffer_space: 1024
@@ -506,18 +590,15 @@ multiple:
 
 		df = []string{}
 		actual = deprecationCheck(cfg2, df)
-		require.Len(t, actual, 4)
 		expect = []string{
-			"DeprecatedBlockSize",
 			"DeprecatedMultiple",
 			"DeprecatedFoo",
 			"DeprecatedBar",
 		}
-		require.True(
-			t,
-			slicesContainSameStrings(expect, actual),
-			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual),
-		)
+		require.Equal(t, len(expect), len(actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
+		require.True(t, slicesContainSameStrings(expect, actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual))
 	})
 }
 

@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
@@ -85,7 +85,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	) (xresource.SimpleCloser, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
@@ -237,7 +237,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	) (xresource.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
 			return channelNone, client1, nil

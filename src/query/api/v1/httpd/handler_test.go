@@ -37,12 +37,12 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/options"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -56,6 +56,7 @@ import (
 var (
 	// Created by init().
 	testWorkerPool            xsync.PooledWorkerPool
+	testM3DBOpts              = m3db.NewOptions()
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
@@ -73,13 +74,11 @@ func makeTagOptions() models.TagOptions {
 func newEngine(
 	s storage.Storage,
 	lookbackDuration time.Duration,
-	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) executor.Engine {
 	engineOpts := executor.NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
-		SetGlobalEnforcer(enforcer).
 		SetInstrumentOptions(instrumentOpts)
 
 	return executor.NewEngine(engineOpts)
@@ -91,7 +90,7 @@ func setupHandler(
 ) (*Handler, error) {
 	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
-	engine := newEngine(store, time.Minute, nil, instrumentOpts)
+	engine := newEngine(store, time.Minute, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
@@ -100,7 +99,6 @@ func setupHandler(
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
-		nil,
 		nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
@@ -111,6 +109,7 @@ func setupHandler(
 		NewQueryRouter(),
 		NewQueryRouter(),
 		graphite.M3WrappedStorageOptions{},
+		testM3DBOpts,
 	)
 
 	if err != nil {
@@ -127,7 +126,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
+	engine := newEngine(storage, time.Minute, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
@@ -138,7 +137,6 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		nil,
 		cfg,
 		dbconfig,
-		nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
 		instrument.NewOptions(),
@@ -148,6 +146,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		nil,
 		nil,
 		graphite.M3WrappedStorageOptions{},
+		testM3DBOpts,
 	)
 	require.NoError(t, err)
 
@@ -402,14 +401,14 @@ func TestCustomRoutes(t *testing.T) {
 	store, _ := m3.NewStorageAndSession(t, ctrl)
 	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
-	engine := newEngine(store, time.Minute, nil, instrumentOpts)
+	engine := newEngine(store, time.Minute, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
-		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
-		graphite.M3WrappedStorageOptions{})
+		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
 
 	require.NoError(t, err)
 	custom := &customHandler{t: t}

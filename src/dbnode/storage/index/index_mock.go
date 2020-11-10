@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -112,6 +112,20 @@ func (m *MockBaseResults) TotalDocsCount() int {
 func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
+}
+
+// EnforceLimits mocks base method
+func (m *MockBaseResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockBaseResults)(nil).EnforceLimits))
 }
 
 // AddDocuments mocks base method
@@ -205,6 +219,20 @@ func (m *MockQueryResults) TotalDocsCount() int {
 func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
+}
+
+// EnforceLimits mocks base method
+func (m *MockQueryResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockQueryResults)(nil).EnforceLimits))
 }
 
 // AddDocuments mocks base method
@@ -385,6 +413,20 @@ func (m *MockAggregateResults) TotalDocsCount() int {
 func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
+}
+
+// EnforceLimits mocks base method
+func (m *MockAggregateResults) EnforceLimits() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnforceLimits")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// EnforceLimits indicates an expected call of EnforceLimits
+func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockAggregateResults)(nil).EnforceLimits))
 }
 
 // AddDocuments mocks base method

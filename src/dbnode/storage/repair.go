@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -39,8 +38,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -273,8 +272,7 @@ func (r shardRepairer) Repair(
 
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
-	numMismatchSeries := seriesWithChecksumMismatches.Len()
-	results := result.NewShardResult(numMismatchSeries, rsOpts)
+	results := result.NewShardResult(rsOpts)
 	for i, metadatasToFetchBlocksFor := range metadatasToFetchBlocksForPerSession {
 		if len(metadatasToFetchBlocksFor) == 0 {
 			continue
@@ -769,7 +767,7 @@ func (r shardRepairer) shadowCompare(
 	shard databaseShard,
 	nsCtx namespace.Context,
 ) error {
-	dice, err := dice.NewDice(r.rpopts.DebugShadowComparisonsPercentage())
+	dice, err := newDice(r.rpopts.DebugShadowComparisonsPercentage())
 	if err != nil {
 		return fmt.Errorf("err creating shadow comparison dice: %v", err)
 	}

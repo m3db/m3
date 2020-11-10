@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -104,11 +104,12 @@ func topicName(headers http.Header) string {
 	return DefaultTopicName
 }
 
-func parseRequest(r *http.Request, m proto.Message) *xhttp.ParseError {
+func parseRequest(r *http.Request, m proto.Message) error {
 	defer r.Body.Close()
 
 	if err := jsonpb.Unmarshal(r.Body, m); err != nil {
-		return xhttp.NewParseError(err, http.StatusBadRequest)
+		return xerrors.NewInvalidParamsError(err)
 	}
+
 	return nil
 }
