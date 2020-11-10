@@ -29,7 +29,7 @@ function defer {
 trap defer EXIT
 
 echo "Setup DB node"
-setup_single_m3db_node
+AGG_RESOLUTION=10s AGG_RETENTION=6h setup_single_m3db_node
 
 echo "Initializing aggregator topology"
 curl -vvvsSf -X POST -H "Cluster-Environment-Name: override_test_env" localhost:7201/api/v1/services/m3aggregator/placement/init -d '{

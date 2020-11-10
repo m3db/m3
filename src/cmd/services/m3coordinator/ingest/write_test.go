@@ -437,9 +437,8 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+	downAndWrite, _, session := newTestDownsamplerAndWriterWithEnabled(t, ctrl, false,
 		testDownsamplerAndWriterOptions{})
-	downAndWrite.downsampler = nil
 
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
@@ -653,9 +652,8 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+	downAndWrite, _, session := newTestDownsamplerAndWriterWithEnabled(t, ctrl, false,
 		testDownsamplerAndWriterOptions{})
-	downAndWrite.downsampler = nil
 
 	for _, entry := range testEntries {
 		for _, dp := range entry.datapoints {
@@ -812,6 +810,15 @@ func newTestDownsamplerAndWriter(
 	ctrl *gomock.Controller,
 	opts testDownsamplerAndWriterOptions,
 ) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
+	return newTestDownsamplerAndWriterWithEnabled(t, ctrl, true, opts)
+}
+
+func newTestDownsamplerAndWriterWithEnabled(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	enabled bool,
+	opts testDownsamplerAndWriterOptions,
+) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
 	var (
 		storage storage.Storage
 		session *client.MockSession
@@ -822,6 +829,7 @@ func newTestDownsamplerAndWriter(
 		storage, session = testm3.NewStorageAndSession(t, ctrl)
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
+	downsampler.EXPECT().Enabled().Return(enabled)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
@@ -833,6 +841,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
+	downsampler.EXPECT().Enabled().Return(true)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
