@@ -681,16 +681,6 @@ func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResu
 	return o.fetchBlocksMetadataResultsPool
 }
 
-func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
-	opts := *o
-	opts.queryIDsWorkerPool = value
-	return &opts
-}
-
-func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
-	return o.queryIDsWorkerPool
-}
-
 func (o *options) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
 	opts := *o
 	opts.writeBatchPool = value

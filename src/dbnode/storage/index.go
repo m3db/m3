@@ -356,7 +356,7 @@ func newNamespaceIndexWithOptions(
 		resultsPool:          indexOpts.QueryResultsPool(),
 		aggregateResultsPool: indexOpts.AggregateResultsPool(),
 
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		queryWorkersPool: newIndexOpts.opts.IndexOptions().QueryWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,

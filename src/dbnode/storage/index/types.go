@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -989,4 +990,10 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
+
+	// SetQueryWorkerPool sets the QueryIDs worker pool.
+	SetQueryWorkerPool(value xsync.WorkerPool) Options
+
+	// QueryWorkerPool returns the QueryIDs worker pool.
+	QueryWorkerPool() xsync.WorkerPool
 }

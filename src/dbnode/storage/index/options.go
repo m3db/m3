@@ -22,6 +22,8 @@ package index
 
 import (
 	"errors"
+	"math"
+	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -34,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -125,6 +128,7 @@ type opts struct {
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
+	queryWorkerPool                 xsync.WorkerPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -159,6 +163,11 @@ func NewOptions() Options {
 	aggResultsEntryArrayPool.Init()
 
 	instrumentOpts := instrument.NewOptions()
+
+	// Default to using half of the available cores for querying.
+	queryWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	queryWorkerPool.Init()
+
 	opts := &opts{
 		insertMode:                      defaultIndexInsertMode,
 		clockOpts:                       clock.NewOptions(),
@@ -176,6 +185,7 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
+		queryWorkerPool:                 queryWorkerPool,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -427,4 +437,14 @@ func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
 
 func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
+}
+
+func (o *opts) SetQueryWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.queryWorkerPool = value
+	return &opts
+}
+
+func (o *opts) QueryWorkerPool() xsync.WorkerPool {
+	return o.queryWorkerPool
 }

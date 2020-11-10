@@ -162,6 +162,10 @@ func (b *builderFromSegments) Doc(id postings.ID) (doc.Document, error) {
 	return b.docs[idx], nil
 }
 
+func (b *builderFromSegments) NumDocs() (int, error) {
+	return len(b.docs), nil
+}
+
 func (b *builderFromSegments) FieldsIterable() segment.FieldsIterable {
 	return b
 }

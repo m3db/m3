@@ -25,6 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -255,7 +257,6 @@ func NewBlock(
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
-	b.newExecutorWithRLockFn = b.executorWithRLock
 
 	return b, nil
 }
@@ -323,20 +324,6 @@ func (b *block) writesAcceptedWithRLock() bool {
 		b.nsMD.Options().ColdWritesEnabled()
 }
 
-func (b *block) executorWithRLock() (search.Executor, error) {
-	readers, err := b.segmentReadersWithRLock()
-	if err != nil {
-		return nil, err
-	}
-
-	indexReaders := make([]m3ninxindex.Reader, 0, len(readers))
-	for _, r := range readers {
-		indexReaders = append(indexReaders, r)
-	}
-
-	return executor.NewExecutor(indexReaders), nil
-}
-
 func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	expectedReaders := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
@@ -391,53 +378,16 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	return readers, nil
 }
 
-// Query acquires a read lock on the block so that the segments
-// are guaranteed to not be freed/released while accumulating results.
-// This allows references to the mmap'd segment data to be accumulated
-// and then copied into the results before this method returns (it is not
-// safe to return docs directly from the segments from this method, the
-// results datastructure is used to copy it every time documents are added
-// to the results datastructure).
-func (b *block) Query(
-	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
-	query Query,
-	opts QueryOptions,
-	results BaseResults,
-	logFields []opentracinglog.Field,
-) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-
-	return exhaustive, err
-}
-
-func (b *block) queryWithSpan(
+func (b *block) queryWithSpanRLock(
 	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
 	sp opentracing.Span,
-	logFields []opentracinglog.Field,
+	segmentReaders []m3ninxindex.Reader,
 ) (bool, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	if b.state == blockStateClosed {
-		return false, ErrUnableToQueryBlockClosed
-	}
-
-	exec, err := b.newExecutorWithRLockFn()
-	if err != nil {
-		return false, err
-	}
+	exec := executor.NewExecutor(segmentReaders)
 
 	// Make sure if we don't register to close the executor later
 	// that we close it before returning.
@@ -520,6 +470,135 @@ func (b *block) queryWithSpan(
 	}
 
 	return opts.exhaustive(size, docsCount), nil
+}
+
+// Query acquires a read lock on the block so that the segments
+// are guaranteed to not be freed/released while accumulating results.
+// This allows references to the mmap'd segment data to be accumulated
+// and then copied into the results before this method returns (it is not
+// safe to return docs directly from the segments from this method, the
+// results datastructure is used to copy it every time documents are added
+// to the results datastructure).
+func (b *block) Query(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+const (
+	queryGroupReadersParallelism = 8
+	queryGroupSize               = 8
+)
+
+type queryGroup struct {
+	readers    []m3ninxindex.Reader
+	exhaustive bool
+	err        error
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	sp opentracing.Span,
+) (bool, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	if b.state == blockStateClosed {
+		return false, ErrUnableToQueryBlockClosed
+	}
+
+	readers, err := b.segmentReadersWithRLock()
+	if err != nil {
+		return false, err
+	}
+
+	segmentReaders := make([]m3ninxindex.Reader, 0, len(readers))
+	for _, reader := range readers {
+		segmentReaders = append(segmentReaders, reader)
+	}
+
+	if len(segmentReaders) < queryGroupReadersParallelism {
+		// Query no parallelism.
+		return b.queryWithSpanRLock(ctx, cancellable, query, opts,
+			results, sp, segmentReaders)
+	}
+
+	var (
+		groupsN = int(math.Ceil(float64(len(readers)) / float64(queryGroupSize)))
+		groups  = make([]queryGroup, groupsN)
+		jobs    = make([]m3ninxindex.Reader, groupsN*queryGroupSize)
+		workers = b.opts.QueryWorkerPool()
+		wg      sync.WaitGroup
+	)
+	// Create query group jobs.
+	for i := 0; i < groupsN; i++ {
+		groupJobs := jobs[:queryGroupSize]
+		jobs = jobs[queryGroupSize:]
+		groups[i] = queryGroup{
+			// Jobs backed by single bulk alloc slice, but start zero length.
+			readers: groupJobs[:0],
+		}
+	}
+	// Allocate jobs to groups, first sort by size.
+	sort.Slice(segmentReaders, func(i, j int) bool {
+		nI, _ := segmentReaders[i].NumDocs()
+		nJ, _ := segmentReaders[j].NumDocs()
+		return nI < nJ
+	})
+	// Now allocate round robin.
+	for i, reader := range segmentReaders {
+		group := i % groupsN
+		groups[group].readers = append(groups[group].readers, reader)
+	}
+
+	// Launch async queries.
+	for i := 1; i < groupsN; i++ {
+		i := i
+		wg.Add(1)
+		workers.Go(func() {
+			exhaustive, err := b.queryWithSpanRLock(ctx, cancellable, query, opts,
+				results, sp, groups[i].readers)
+			groups[i].exhaustive, groups[i].err = exhaustive, err
+			wg.Done()
+		})
+	}
+
+	// Save an extra goroutine to execute synchronously on local goroutine.
+	exhaustive, err := b.queryWithSpanRLock(ctx, cancellable, query, opts,
+		results, sp, groups[0].readers)
+	if err != nil {
+		return false, err
+	}
+
+	// Wait for others.
+	wg.Wait()
+
+	// Collate exhaustive.
+	for i := 1; i < groupsN; i++ {
+		if err := groups[i].err; err != nil {
+			return false, err
+		}
+		exhaustive = exhaustive && groups[i].exhaustive
+	}
+	return exhaustive, nil
 }
 
 func (b *block) closeAsync(closer io.Closer) {

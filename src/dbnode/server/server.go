@@ -361,14 +361,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryIDsWorkerPool.Init()
-		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
-	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-	}
-
 	buildReporter := instrument.NewBuildReporter(iopts)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("unable to start build reporter", zap.Error(err))
@@ -451,6 +443,12 @@ func Run(runOpts RunOptions) {
 	if cfg.WriteNewSeriesAsync {
 		insertMode = index.InsertAsync
 	}
+	if cfg.Index.MaxQueryIDsConcurrency != 0 {
+		queryWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
+		queryWorkerPool.Init()
+		indexOpts = indexOpts.SetQueryWorkerPool(queryWorkerPool)
+	}
+
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetPostingsListCache(postingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{

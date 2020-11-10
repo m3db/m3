@@ -1143,6 +1143,18 @@ func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	return pl, err
 }
 
+func (sr *fsSegmentReader) NumDocs() (int, error) {
+	if sr.closed {
+		return 0, errReaderClosed
+	}
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	n := sr.fsSegment.numDocs
+	sr.fsSegment.RUnlock()
+	return int(n), nil
+}
+
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	if sr.closed {
 		return nil, errReaderClosed

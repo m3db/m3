@@ -66,6 +66,11 @@ func (r *SliceReader) Doc(id postings.ID) (doc.Document, error) {
 	return r.Read(id)
 }
 
+// NumDocs returns number of docs.
+func (r *SliceReader) NumDocs() (int, error) {
+	return len(r.docs), nil
+}
+
 // Iter returns a docs iterator.
 func (r *SliceReader) Iter() index.IDDocIterator {
 	postingsIter := postings.NewRangeIterator(0, postings.ID(r.Len()))

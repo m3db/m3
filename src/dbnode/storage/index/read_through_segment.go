@@ -267,6 +267,11 @@ func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	return s.reader.Doc(id)
 }
 
+// NumDocs is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) NumDocs() (int, error) {
+	return s.reader.NumDocs()
+}
+
 // Docs is a pass through call, since there's no postings list to cache.
 func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	return s.reader.Docs(pl)

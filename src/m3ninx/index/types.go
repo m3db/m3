@@ -97,6 +97,7 @@ type CompiledRegex struct {
 // DocRetriever returns the document associated with a postings ID. It returns
 // ErrDocNotFound if there is no document corresponding to the given postings ID.
 type DocRetriever interface {
+	NumDocs() (int, error)
 	Doc(id postings.ID) (doc.Document, error)
 }
 

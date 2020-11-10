@@ -163,6 +163,15 @@ func (r *reader) AllDocs() (index.IDDocIterator, error) {
 	return r.getDocIterWithLock(pi), nil
 }
 
+func (r *reader) NumDocs() (int, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return 0, errSegmentReaderClosed
+	}
+	return len(r.segment.docs.data), nil
+}
+
 func (r *reader) getDocIterWithLock(iter postings.Iterator) index.IDDocIterator {
 	return index.NewIDDocIterator(r, iter)
 }
