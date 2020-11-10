@@ -380,7 +380,8 @@ func NewTestSetup(
 
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
+			SetFilePathPrefix(filePathPrefix).
+			SetClockOptions(storageOpts.ClockOptions())
 	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
