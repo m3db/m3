@@ -359,7 +359,6 @@ func TestWideFetch(t *testing.T) {
 			require.Equal(t, len(expected), len(chk))
 
 			for i, entry := range chk {
-				fmt.Println("ENTRY", string(entry.ID))
 				assert.Equal(t, expected[i].MetadataChecksum, entry.MetadataChecksum,
 					fmt.Sprintf("fail entry match: i=%d", i))
 				assert.Equal(t, expected[i].ID, entry.ID,
