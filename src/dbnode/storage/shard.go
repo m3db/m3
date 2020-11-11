@@ -323,7 +323,7 @@ func newDatabaseShard(
 		coldWritesEnabled: namespaceMetadata.Options().ColdWritesEnabled(),
 		logger:            opts.InstrumentOptions().Logger(),
 		metrics:           newDatabaseShardMetrics(shard, scope),
-		tileAggregator:    opts.Aggregator(),
+		tileAggregator:    opts.TileAggregator(),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope, opts.InstrumentOptions().Logger())
