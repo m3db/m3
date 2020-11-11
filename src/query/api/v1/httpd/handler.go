@@ -345,11 +345,12 @@ func addRoute(router *mux.Router, path string, handler http.Handler, methods []s
 	addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
 }
 
-func addRouteHandlerFn(router *mux.Router,
+func addRouteHandlerFn(
+	router *mux.Router,
 	path string,
 	handlerFn func(http.ResponseWriter, *http.Request),
-	methods ...string) {
-
+	methods ...string,
+) {
 	routeName := routeName(path, methods)
 	if previousRoute := router.Get(routeName); previousRoute != nil {
 		// route already exists.
