@@ -43,6 +43,12 @@ import (
 
 const promQuery = `http_requests_total{job="prometheus",group="canary"}`
 
+const (
+	queryParam = "query"
+	startParam = "start"
+	endParam   = "end"
+)
+
 var testPromQLEngine = newMockPromQLEngine()
 
 type testHandlers struct {
