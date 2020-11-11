@@ -1,21 +1,5 @@
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        retention: 24h
-        resolution: 30s
-        downsample:
-          all: false
-      - namespace: agg2d
-        type: aggregated
-        retention: 48h
-        resolution: 1m
-        downsample:
-          all: false
-      - namespace: unagg
-        type: unaggregated
-        retention: 10m
-    client:
+  - client:
       config:
         service:
           env: default_env
