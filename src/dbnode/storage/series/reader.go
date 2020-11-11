@@ -130,8 +130,8 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 		nowFn       = r.opts.ClockOptions().NowFn()
 		now         = nowFn()
 		ropts       = r.opts.RetentionOptions()
-		size        = ropts.BlockSize()
-		readerCount = end.Sub(start) / size
+		blockSize   = ropts.BlockSize()
+		readerCount = end.Sub(start) / blockSize
 	)
 
 	if readerCount < 0 {
@@ -148,7 +148,7 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 	//   {block0, block1}, // <-4P.M
 	// }
 	results := make([][]xio.BlockReader, 0, readerCount)
-	for blockAt := start; !blockAt.After(end); blockAt = blockAt.Add(size) {
+	for blockAt := start; !blockAt.After(end); blockAt = blockAt.Add(blockSize) {
 		// resultsBlock holds the results from one block. The flow is:
 		// 1) Look in the cache for metrics for a block.
 		// 2) If there is nothing in the cache, try getting metrics from disk.
@@ -183,7 +183,7 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 		}
 
 		if seriesBuffer != nil {
-			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size), nsCtx)
+			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(blockSize), nsCtx)
 			if err != nil {
 				return nil, err
 			}

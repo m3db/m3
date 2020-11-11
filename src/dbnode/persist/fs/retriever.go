@@ -369,7 +369,11 @@ func (r *blockRetriever) fetchBatch(
 	seekerResources ReusableSeekerResources,
 	retrieverResources *reuseableRetrieverResources,
 ) {
-	var seeker ConcurrentDataFileSetSeeker
+	var (
+		seeker     ConcurrentDataFileSetSeeker
+		callbackWg sync.WaitGroup
+	)
+
 	defer func() {
 		filteredReqs := allReqs[:0]
 		// Make sure requests are always fulfilled so if there's a code bug
@@ -384,8 +388,8 @@ func (r *blockRetriever) fetchBatch(
 			filteredReqs = append(filteredReqs, req)
 		}
 
+		callbackWg.Wait()
 		for _, req := range filteredReqs {
-			<-req.waitForCallback
 			req.onDone()
 		}
 
@@ -539,12 +543,13 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
+		callbackWg.Add(1)
 		req.waitingForCallback = true
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
 			r.onCallerOrRetrieverDone()
-			r.waitForCallback <- struct{}{}
+			callbackWg.Done()
 		}(req)
 	}
 }
@@ -761,7 +766,6 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 type retrieveRequest struct {
 	finalized          bool
 	waitingForCallback bool
-	waitForCallback    chan struct{}
 	resultWg           sync.WaitGroup
 
 	pool *reqPool
@@ -942,7 +946,6 @@ func (req *retrieveRequest) Finalize() {
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
 	req.finalized = false
-	req.waitingForCallback = false
 	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
@@ -1014,10 +1017,7 @@ func NewRetrieveRequestPool(
 
 func (p *reqPool) Init() {
 	p.pool.Init(func() interface{} {
-		return &retrieveRequest{
-			waitForCallback: make(chan struct{}),
-			pool:            p,
-		}
+		return &retrieveRequest{pool: p}
 	})
 }
 
