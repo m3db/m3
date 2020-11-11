@@ -25,6 +25,9 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
+	"path"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
@@ -140,11 +143,11 @@ func (h *Handler) RegisterRoutes() error {
 		}
 
 		addWrappedRoute = func(path string, handler http.Handler, methods ...string) {
-			addRoute(h.router, path, wrapped(handler), methods...)
+			addRoute(h.router, path, wrapped(handler), methods)
 		}
 
 		addRoute = func(path string, handler http.Handler, methods ...string) {
-			addRoute(h.router, path, handler, methods...)
+			addRoute(h.router, path, handler, methods)
 		}
 	)
 
@@ -316,7 +319,8 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Register custom endpoints.
 	for _, custom := range h.customHandlers {
-		route := h.router.Get(custom.Route())
+		routeName := routeName(custom.Route(), custom.Methods())
+		route := h.router.Get(routeName)
 		var prevHandler http.Handler
 		if route != nil {
 			prevHandler = route.GetHandler()
@@ -324,7 +328,7 @@ func (h *Handler) RegisterRoutes() error {
 		customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
 		if err != nil {
 			return fmt.Errorf("failed to register custom handler with path %s: %w",
-				custom.Route(), err)
+				routeName, err)
 		}
 
 		if route == nil {
@@ -337,7 +341,7 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func addRoute(router *mux.Router, path string, handler http.Handler, methods ...string) {
+func addRoute(router *mux.Router, path string, handler http.Handler, methods []string) {
 	addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
 }
 
@@ -345,13 +349,47 @@ func addRouteHandlerFn(router *mux.Router,
 	path string,
 	handlerFn func(http.ResponseWriter, *http.Request),
 	methods ...string) {
+
+	routeName := routeName(path, methods)
+	if previousRoute := router.Get(routeName); previousRoute != nil {
+		// route already exists.
+		return
+	}
+
 	route := router.
 		HandleFunc(path, handlerFn).
-		Name(path)
+		Name(routeName)
 
 	if len(methods) > 0 {
 		route.Methods(methods...)
 	}
+}
+
+func routeName(p string, methods []string) string {
+	if len(methods) > 1 {
+		distinctMethods := distinct(methods)
+		sort.Strings(distinctMethods)
+		return path.Join(p, strings.Join(distinctMethods, ":"))
+	}
+
+	return path.Join(p, strings.Join(methods, ":"))
+}
+
+func distinct(arr []string) []string {
+	if len(arr) <= 1 {
+		return arr
+	}
+
+	foundEntries := make(map[string]bool, len(arr))
+	result := make([]string, 0, len(arr))
+	for _, entry := range arr {
+		if ok := foundEntries[entry]; !ok {
+			foundEntries[entry] = true
+			result = append(result, entry)
+		}
+	}
+
+	return result
 }
 
 func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
