@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package clock
+package storage
 
 import (
-	"time"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type options struct {
-	nowFn NowFn
+func TestDiceConstructor(t *testing.T) {
+	dice, err := newDice(0)
+	require.Error(t, err)
+	require.Nil(t, dice)
+
+	dice, err = newDice(2)
+	require.Error(t, err)
+	require.Nil(t, dice)
 }
 
-// NewOptions creates new clock options
-func NewOptions() Options {
-	return &options{
-		nowFn: time.Now,
-	}
-}
+func TestDice(t *testing.T) {
+	r, err := newDice(1)
+	require.NoError(t, err)
 
-func (o *options) SetNowFn(value NowFn) Options {
-	opts := *o
-	opts.nowFn = value
-	return &opts
-}
-
-func (o *options) NowFn() NowFn {
-	return o.nowFn
+	assert.Equal(t, float64(1.0), r.Rate())
+	assert.True(t, r.Roll())
 }

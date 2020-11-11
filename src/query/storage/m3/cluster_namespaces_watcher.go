@@ -21,7 +21,7 @@
 package m3
 
 import (
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
@@ -48,7 +48,9 @@ func (n *clusterNamespacesWatcher) Get() ClusterNamespaces {
 	return value.(ClusterNamespaces)
 }
 
-func (n *clusterNamespacesWatcher) RegisterListener(listener ClusterNamespacesListener) xclose.SimpleCloser {
+func (n *clusterNamespacesWatcher) RegisterListener(
+	listener ClusterNamespacesListener,
+) xresource.SimpleCloser {
 	_, watch, _ := n.watchable.Watch()
 
 	namespaces := watch.Get()

@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -102,7 +102,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	// to be able to mock the entire end to end pipeline
 	newConnFn := func(
 		_ string, addr string, _ Options,
-	) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	) (xresource.SimpleCloser, rpc.TChanNode, error) {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).

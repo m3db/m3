@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -49,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -4122,6 +4122,34 @@ func (m *MockOptions) PersistManager() persist.Manager {
 func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
+}
+
+// SetIndexClaimsManager mocks base method
+func (m *MockOptions) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexClaimsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexClaimsManager indicates an expected call of SetIndexClaimsManager
+func (mr *MockOptionsMockRecorder) SetIndexClaimsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).SetIndexClaimsManager), value)
+}
+
+// IndexClaimsManager mocks base method
+func (m *MockOptions) IndexClaimsManager() fs.IndexClaimsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexClaimsManager")
+	ret0, _ := ret[0].(fs.IndexClaimsManager)
+	return ret0
+}
+
+// IndexClaimsManager indicates an expected call of IndexClaimsManager
+func (mr *MockOptionsMockRecorder) IndexClaimsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).IndexClaimsManager))
 }
 
 // SetDatabaseBlockRetrieverManager mocks base method

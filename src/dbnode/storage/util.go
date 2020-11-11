@@ -80,7 +80,11 @@ func DefaultTestOptions() Options {
 			SetBlockLeaseManager(blockLeaseManager)
 	})
 
-	return defaultTestOptions
+	// Needs a unique index claims manager each time as it tracks volume indices via in mem claims that
+	// should be different per test.
+	fsOpts := defaultTestOptions.CommitLogOptions().FilesystemOptions()
+	icm := fs.NewIndexClaimsManager(fsOpts)
+	return defaultTestOptions.SetIndexClaimsManager(icm)
 }
 
 // numIntervals returns the number of intervals between [start, end] for a given

@@ -24,7 +24,7 @@ import (
 	stdctx "context"
 
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/opentracing/opentracing-go"
 )
@@ -47,10 +47,10 @@ type Context interface {
 	IsClosed() bool
 
 	// RegisterFinalizer will register a resource finalizer.
-	RegisterFinalizer(resource.Finalizer)
+	RegisterFinalizer(xresource.Finalizer)
 
 	// RegisterCloser will register a resource closer.
-	RegisterCloser(resource.Closer)
+	RegisterCloser(xresource.SimpleCloser)
 
 	// DependsOn will register a blocking context that
 	// must complete first before finalizers can be called.

@@ -21,7 +21,7 @@
 package runtime
 
 import (
-	"github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/watch"
 )
 
@@ -36,7 +36,7 @@ type OptionsManager interface {
 	// RegisterWatcher registers a watcher that watches updates to runtime options.
 	// When an update arrives, the manager will deliver the update to all registered
 	// watchers.
-	RegisterWatcher(l OptionsWatcher) close.SimpleCloser
+	RegisterWatcher(l OptionsWatcher) xresource.SimpleCloser
 
 	// Close closes the watcher and all descendent watches
 	Close()
@@ -72,7 +72,7 @@ func (w *optionsManager) RuntimeOptions() Options {
 
 func (w *optionsManager) RegisterWatcher(
 	watcher OptionsWatcher,
-) close.SimpleCloser {
+) xresource.SimpleCloser {
 	_, watch, _ := w.watchable.Watch()
 
 	// The watchable is always initialized so it's okay to do a blocking read.

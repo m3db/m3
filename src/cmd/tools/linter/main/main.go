@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,20 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package clock
+package main
 
 import (
-	"time"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
-// NowFn is the function supplied to determine "now"
-type NowFn func() time.Time
-
-// Options represents the options for the clock
-type Options interface {
-	// SetNowFn sets the nowFn
-	SetNowFn(value NowFn) Options
-
-	// NowFn returns the nowFn
-	NowFn() NowFn
+func main() {
+	multichecker.Main()
 }
