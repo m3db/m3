@@ -163,6 +163,14 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
 
+Once the node has completed bootstrapping, mark the namespace as ready so the coordinator knows it's ready to receive reads and writes:
+
+```shell
+curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
+  "name": "1week_namespace"
+}
+```
+
 If you need to setup multiple namespaces, you can run the above `/api/v1/database/create` command multiple times with different namespace configurations.
 
 ### Replication factor (RF)
