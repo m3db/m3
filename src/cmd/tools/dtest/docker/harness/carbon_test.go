@@ -49,7 +49,7 @@ func findVerifier(expected string) resources.ResponseVerifier {
 	}
 }
 
-func renderVerifier(metric string, v float64) resources.ResponseVerifier {
+func renderVerifier(v float64) resources.ResponseVerifier {
 	type graphiteRender struct {
 		Target     string      `json:"target"`
 		Datapoints [][]float64 `json:"datapoints"`
@@ -111,7 +111,7 @@ func TestCarbon(t *testing.T) {
 
 	read := func(metric string, expected float64) {
 		assert.NoError(t, coord.RunQuery(
-			renderVerifier(metric, expected),
+			renderVerifier(expected),
 			graphiteQuery(metric, timestamp)))
 	}
 
