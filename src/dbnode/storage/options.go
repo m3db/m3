@@ -167,6 +167,7 @@ type options struct {
 	schemaReg                       namespace.SchemaRegistry
 	blockLeaseManager               block.LeaseManager
 	onColdFlush                     OnColdFlush
+	iterationOptions                index.IterationOptions
 	memoryTracker                   MemoryTracker
 	mmapReporter                    mmap.Reporter
 	doNotIndexWithFieldsMap         map[string]string
@@ -786,6 +787,16 @@ func (o *options) SetOnColdFlush(value OnColdFlush) Options {
 
 func (o *options) OnColdFlush() OnColdFlush {
 	return o.onColdFlush
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
 }
 
 func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
