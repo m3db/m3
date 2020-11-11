@@ -165,7 +165,7 @@ tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
 
 .PHONY: all
-all: lint test-ci-unit test-ci-integration services tools
+all: test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-tools
@@ -256,7 +256,7 @@ SUBDIR_TARGETS := \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
-	all-gen			\
+	all-gen         \
 	lint
 
 .PHONY: test-ci-unit
@@ -384,6 +384,7 @@ endef
 
 # generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
 # which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
+# NB: we skip lint explicity as it runs as a separate CI step.
 $(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
 
 # Builds the single kube bundle from individual manifest files.
@@ -401,7 +402,7 @@ go-mod-tidy:
 .PHONY: all-gen
 all-gen: \
 	install-tools \
-	$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(SUBDIR_TARGET)) \
+	$(foreach SUBDIR_TARGET, $(filter-out lint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
 	kube-gen-all \
 	go-mod-tidy
 
