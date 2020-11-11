@@ -380,7 +380,8 @@ func NewTestSetup(
 
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
+			SetFilePathPrefix(filePathPrefix).
+			SetClockOptions(storageOpts.ClockOptions())
 	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
@@ -393,6 +394,10 @@ func NewTestSetup(
 		return nil, err
 	}
 	storageOpts = storageOpts.SetPersistManager(pm)
+
+	// Set up index claims manager
+	icm := fs.NewIndexClaimsManager(fsOpts)
+	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
 	storageOpts = storageOpts.
@@ -931,6 +936,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 		if err != nil {
 			return err
 		}
+		icm := fs.NewIndexClaimsManager(fsOpts)
 		storageIdxOpts := storageOpts.IndexOptions()
 		compactor, err := newCompactorWithErr(storageIdxOpts)
 		if err != nil {
@@ -941,6 +947,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(icm).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {

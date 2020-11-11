@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -184,19 +183,7 @@ type Database interface {
 		start time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
-	) ([]xio.IndexChecksum, error) // FIXME: change when exact type known.
-
-	// ReadMismatches performs a wide blockwise query that applies a received
-	// index checksum block batch.
-	ReadMismatches(
-		ctx context.Context,
-		namespace ident.ID,
-		query index.Query,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		queryStart time.Time,
-		shards []uint32,
-		iterOpts index.IterationOptions,
-	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
+	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -381,22 +368,13 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID for the
+	// FetchWideEntry retrieves the wide entry for an ID for the
 	// block at time start.
-	FetchIndexChecksum(
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
-	) (block.StreamedChecksum, error)
-
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-	) (wide.StreamedMismatch, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -554,23 +532,14 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID.
-	FetchIndexChecksum(
+	// FetchWideEntry retrieves wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (block.StreamedChecksum, error)
-
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -1124,6 +1093,12 @@ type Options interface {
 
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
+
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager.
+	IndexClaimsManager() fs.IndexClaimsManager
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks

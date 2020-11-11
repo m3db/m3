@@ -9,15 +9,7 @@ rpc:
       remoteListenAddresses: ["coordinator-cluster-c:7202"]
 
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        retention: 10h
-        resolution: 5s
-      - namespace: unagg
-        type: unaggregated
-        retention: 10m
-    client:
+  - client:
       config:
         service:
           env: default_env

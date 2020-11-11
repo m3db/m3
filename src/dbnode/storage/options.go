@@ -98,6 +98,7 @@ var (
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
+	errIndexClaimsManagerNotSet   = errors.New("index claims manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
 	errOnColdFlushNotSet          = errors.New("on cold flush is not set, requires at least a no-op implementation")
 )
@@ -142,6 +143,7 @@ type options struct {
 	newDecoderFn                    encoding.NewDecoderFn
 	bootstrapProcessProvider        bootstrap.ProcessProvider
 	persistManager                  persist.Manager
+	indexClaimsManager              fs.IndexClaimsManager
 	blockRetrieverManager           block.DatabaseBlockRetrieverManager
 	poolOpts                        pool.ObjectPoolOptions
 	contextPool                     context.Pool
@@ -165,6 +167,7 @@ type options struct {
 	schemaReg                       namespace.SchemaRegistry
 	blockLeaseManager               block.LeaseManager
 	onColdFlush                     OnColdFlush
+	iterationOptions                index.IterationOptions
 	memoryTracker                   MemoryTracker
 	mmapReporter                    mmap.Reporter
 	doNotIndexWithFieldsMap         map[string]string
@@ -293,6 +296,11 @@ func (o *options) Validate() error {
 	// it was set to nil by a caller
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+
+	// validate that index claims manager is present
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
 	}
 
 	// validate series cache policy
@@ -552,6 +560,16 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
+}
+
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	opts := *o
 	opts.blockRetrieverManager = value
@@ -771,6 +789,16 @@ func (o *options) SetOnColdFlush(value OnColdFlush) Options {
 
 func (o *options) OnColdFlush() OnColdFlush {
 	return o.onColdFlush
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
 }
 
 func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
