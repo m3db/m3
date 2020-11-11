@@ -55,7 +55,7 @@ require (
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
-	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd
+	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
 	github.com/m3db/prometheus_client_golang v0.8.1
 	github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
@@ -87,7 +87,6 @@ require (
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.9.1
 	github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2
-	github.com/quasilyte/go-ruleguard v0.2.1 // indirect
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
