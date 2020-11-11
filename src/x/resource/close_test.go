@@ -8,7 +8,7 @@
 // furnished to do so, subject to the following conditions:
 //
 // The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -16,64 +16,62 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE
-
-package wide
+// THE SOFTWARE.
+package resource
 
 import (
-	"sync"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-type indexChecksumBlockReader struct {
-	mu     sync.Mutex
-	closed bool
+func TestTryClose(t *testing.T) {
+	tests := []struct {
+		input     interface{}
+		expectErr bool
+	}{
+		{
+			input:     &closer{returnErr: false},
+			expectErr: false,
+		},
+		{
+			input:     &closer{returnErr: true},
+			expectErr: true,
+		},
+		{
+			input:     &simpleCloser{},
+			expectErr: false,
+		},
+		{
+			input:     &nonCloser{},
+			expectErr: true,
+		},
+	}
 
-	currentBlock IndexChecksumBlockBatch
-	blocks       chan IndexChecksumBlockBatch
-}
-
-// NewIndexChecksumBlockBatchReader creates a new IndexChecksumBlockBatchReader.
-func NewIndexChecksumBlockBatchReader(
-	blockInput chan IndexChecksumBlockBatch,
-) IndexChecksumBlockBatchReader {
-	return &indexChecksumBlockReader{
-		blocks: blockInput,
+	for _, test := range tests {
+		err := TryClose(test.input)
+		if test.expectErr {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
 	}
 }
 
-func (b *indexChecksumBlockReader) Current() IndexChecksumBlockBatch {
-	return b.currentBlock
+type closer struct {
+	returnErr bool
 }
 
-func (b *indexChecksumBlockReader) Next() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.closed {
-		return false
+func (c *closer) Close() error {
+	if c.returnErr {
+		return errors.New("")
 	}
-
-	if bl, ok := <-b.blocks; ok {
-		b.currentBlock = bl
-		return true
-	}
-
-	b.closed = true
-	return false
+	return nil
 }
 
-func (b *indexChecksumBlockReader) Close() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+type simpleCloser struct{}
 
-	if b.closed {
-		return
-	}
+func (c *simpleCloser) Close() {}
 
-	// NB: drain block channel.
-	for range b.blocks {
-	}
-
-	b.closed = true
-	return
-}
+type nonCloser struct{}

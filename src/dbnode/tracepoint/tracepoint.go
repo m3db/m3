@@ -73,8 +73,8 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
-	// DBIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
-	DBIndexChecksum = "storage.db.IndexChecksum"
+	// DBWideEntry is the operation name for the tchannelthrift WideEntry path.
+	DBWideEntry = "storage.db.WideEntry"
 
 	// DBFetchMismatch is the operation name for the tchannelthrift DBFetchMismatch path.
 	DBFetchMismatch = "storage.db.FetchMismatch"

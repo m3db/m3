@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,20 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package clock
+package resource
 
 import (
-	"time"
+	"errors"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// NowFn is the function supplied to determine "now"
-type NowFn func() time.Time
+var (
+	// ErrNotCloseable is returned when trying to close a resource
+	// that does not conform to a closeable interface.
+	ErrNotCloseable = errors.New("not a closeable resource")
+)
 
-// Options represents the options for the clock
-type Options interface {
-	// SetNowFn sets the nowFn
-	SetNowFn(value NowFn) Options
+// TryClose attempts to close a resource, the resource is expected to
+// implement either Closeable or CloseableResult.
+func TryClose(r interface{}) error {
+	if r, ok := r.(Closer); ok {
+		return r.Close()
+	}
+	if r, ok := r.(SimpleCloser); ok {
+		r.Close()
+		return nil
+	}
+	return ErrNotCloseable
+}
 
-	// NowFn returns the nowFn
-	NowFn() NowFn
+// CloseAll closes all closers and combines any errors.
+func CloseAll(closers ...Closer) error {
+	multiErr := xerrors.NewMultiError()
+	for _, closer := range closers {
+		if err := closer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }

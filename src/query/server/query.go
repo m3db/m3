@@ -177,7 +177,7 @@ func Run(runOpts RunOptions) {
 		listenerOpts = xnet.NewListenerOptions()
 	)
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -209,7 +209,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
-	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
+	scope, closer, reporters, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			PrometheusExternalRegistries: []instrument.PrometheusExternalRegistry{
 				{
@@ -436,7 +436,19 @@ func Run(runOpts RunOptions) {
 
 	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
-		cluster, err := dbCfg.EnvironmentConfig.Services.SyncCluster()
+		hostID, err := dbCfg.HostID.Resolve()
+		if err != nil {
+			logger.Fatal("could not resolve hostID",
+				zap.Error(err))
+		}
+
+		envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+		if err != nil {
+			logger.Fatal("could not get env config from discovery config",
+				zap.Error(err))
+		}
+
+		cluster, err := envCfg.Services.SyncCluster()
 		if err != nil {
 			logger.Fatal("could not resolve embedded db cluster info",
 				zap.Error(err))
@@ -488,7 +500,8 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
-	srv := &http.Server{Addr: cfg.ListenAddress, Handler: handler.Router()}
+	listenAddress := cfg.ListenAddressOrDefault()
+	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -496,10 +509,10 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := listenerOpts.Listen("tcp", cfg.ListenAddress)
+	listener, err := listenerOpts.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
-			zap.String("address", cfg.ListenAddress),
+			zap.String("address", listenAddress),
 			zap.Error(err))
 	}
 	if runOpts.ListenerCh != nil {
@@ -509,7 +522,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
-				zap.String("address", cfg.ListenAddress),
+				zap.String("address", listenAddress),
 				zap.Error(err))
 		}
 	}()
@@ -627,45 +640,40 @@ func newM3DBStorage(
 		namespaces  = clusters.ClusterNamespaces()
 		downsampler downsample.Downsampler
 	)
-	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
-		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
-			zap.Int("numAggregatedClusterNamespaces", n))
+	logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+		zap.Int("numAggregatedClusterNamespaces", len(namespaces)))
+
+	newDownsamplerFn := func() (downsample.Downsampler, error) {
+		ds, err := newDownsampler(
+			cfg.Downsample, clusterClient,
+			fanoutStorage, clusterNamespacesWatcher,
+			tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		// Notify the downsampler ready channel that
+		// the downsampler has now been created and is ready.
+		if downsamplerReadyCh != nil {
+			downsamplerReadyCh <- struct{}{}
+		}
+
+		return ds, nil
+	}
+
+	if clusterClientWaitCh != nil {
+		// Need to wait before constructing and instead return an async downsampler
+		// since the cluster client will return errors until it's initialized itself
+		// and will fail constructing the downsampler consequently
+		downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+			<-clusterClientWaitCh
+			return newDownsamplerFn()
+		}, nil)
+	} else {
+		// Otherwise we already have a client and can immediately construct the downsampler
+		downsampler, err = newDownsamplerFn()
 		if err != nil {
 			return nil, nil, nil, nil, err
-		}
-
-		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			downsampler, err := newDownsampler(
-				cfg.Downsample, clusterClient,
-				fanoutStorage, clusterNamespacesWatcher,
-				tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
-			if err != nil {
-				return nil, err
-			}
-
-			// Notify the downsampler ready channel that
-			// the downsampler has now been created and is ready.
-			if downsamplerReadyCh != nil {
-				downsamplerReadyCh <- struct{}{}
-			}
-
-			return downsampler, nil
-		}
-
-		if clusterClientWaitCh != nil {
-			// Need to wait before constructing and instead return an async downsampler
-			// since the cluster client will return errors until it's initialized itself
-			// and will fail constructing the downsampler consequently
-			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
-				<-clusterClientWaitCh
-				return newDownsamplerFn()
-			}, nil)
-		} else {
-			// Otherwise we already have a client and can immediately construct the downsampler
-			downsampler, err = newDownsamplerFn()
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
 		}
 	}
 
@@ -817,7 +825,20 @@ func initClusters(
 			if dbCfg == nil {
 				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
-			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
+
+			hostID, err := dbCfg.HostID.Resolve()
+			if err != nil {
+				logger.Fatal("could not resolve hostID",
+					zap.Error(err))
+			}
+
+			envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+			if err != nil {
+				logger.Fatal("could not get env config from discovery config",
+					zap.Error(err))
+			}
+
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &envCfg}
 		}
 
 		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}

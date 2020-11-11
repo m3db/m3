@@ -23,8 +23,8 @@ package index
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/clock"
 )
 
 type readableSeg struct {

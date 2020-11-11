@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dice
+package xio
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-func TestDiceConstructor(t *testing.T) {
-	dice, err := NewDice(0)
-	require.Error(t, err)
-	require.Nil(t, dice)
+// WideEntry is an entry from the index file which can be passed to
+// SeekUsingIndexEntry to seek to the data for that entry.
+type WideEntry struct {
+	finalized bool
 
-	dice, err = NewDice(2)
-	require.Error(t, err)
-	require.Nil(t, dice)
+	Shard            uint32
+	ID               ident.ID
+	Size             int64
+	Offset           int64
+	DataChecksum     int64
+	EncodedTags      checked.Bytes
+	MetadataChecksum int64
+	Data             checked.Bytes
 }
 
-func TestDice(t *testing.T) {
-	r, err := NewDice(1)
-	require.NoError(t, err)
+// Empty returns whether the wide entry is empty and not found.
+func (c *WideEntry) Empty() bool {
+	return *c == WideEntry{}
+}
 
-	assert.Equal(t, float64(1.0), r.Rate())
-	assert.True(t, r.Roll())
+// Finalize finalizes the wide entry.
+func (c *WideEntry) Finalize() {
+	if c.Empty() || c.finalized {
+		return
+	}
+
+	c.finalized = true
+	if c.EncodedTags != nil {
+		c.EncodedTags.DecRef()
+		c.EncodedTags.Finalize()
+		c.EncodedTags = nil
+	}
+
+	if c.ID != nil {
+		c.ID.Finalize()
+		c.ID = nil
+	}
+
+	if c.Data != nil {
+		c.Data.DecRef()
+		c.Data.Finalize()
+		c.Data = nil
+	}
 }

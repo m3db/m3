@@ -30,13 +30,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -49,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -346,10 +345,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.IndexChecksum, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.IndexChecksum)
+	ret0, _ := ret[0].([]xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -358,21 +357,6 @@ func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query 
 func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
-}
-
-// ReadMismatches mocks base method
-func (m *MockDatabase) ReadMismatches(ctx context.Context, namespace ident.ID, query index.Query, mismatchChecker wide.EntryChecksumMismatchChecker, queryStart time.Time, shards []uint32, iterOpts index.IterationOptions) ([]wide.ReadMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadMismatches", ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts)
-	ret0, _ := ret[0].([]wide.ReadMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadMismatches indicates an expected call of ReadMismatches
-func (mr *MockDatabaseMockRecorder) ReadMismatches(ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMismatches", reflect.TypeOf((*MockDatabase)(nil).ReadMismatches), ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts)
 }
 
 // FetchBlocks mocks base method
@@ -786,10 +770,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.IndexChecksum, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.IndexChecksum)
+	ret0, _ := ret[0].([]xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -798,21 +782,6 @@ func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query 
 func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
-}
-
-// ReadMismatches mocks base method
-func (m *Mockdatabase) ReadMismatches(ctx context.Context, namespace ident.ID, query index.Query, mismatchChecker wide.EntryChecksumMismatchChecker, queryStart time.Time, shards []uint32, iterOpts index.IterationOptions) ([]wide.ReadMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadMismatches", ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts)
-	ret0, _ := ret[0].([]wide.ReadMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadMismatches indicates an expected call of ReadMismatches
-func (mr *MockdatabaseMockRecorder) ReadMismatches(ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMismatches", reflect.TypeOf((*Mockdatabase)(nil).ReadMismatches), ctx, namespace, query, mismatchChecker, queryStart, shards, iterOpts)
 }
 
 // FetchBlocks mocks base method
@@ -1499,34 +1468,19 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
-// FetchIndexChecksum mocks base method
-func (m *MockdatabaseNamespace) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time) (block.StreamedChecksum, error) {
+// FetchWideEntry mocks base method
+func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart)
-	ret0, _ := ret[0].(block.StreamedChecksum)
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart)
+	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
-func (mr *MockdatabaseNamespaceMockRecorder) FetchIndexChecksum(ctx, id, blockStart interface{}) *gomock.Call {
+// FetchWideEntry indicates an expected call of FetchWideEntry
+func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchIndexChecksum), ctx, id, blockStart)
-}
-
-// FetchReadMismatch mocks base method
-func (m *MockdatabaseNamespace) FetchReadMismatch(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time) (wide.StreamedMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchReadMismatch", ctx, mismatchChecker, id, blockStart)
-	ret0, _ := ret[0].(wide.StreamedMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchReadMismatch indicates an expected call of FetchReadMismatch
-func (mr *MockdatabaseNamespaceMockRecorder) FetchReadMismatch(ctx, mismatchChecker, id, blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatch", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchReadMismatch), ctx, mismatchChecker, id, blockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchWideEntry), ctx, id, blockStart)
 }
 
 // FetchBlocks mocks base method
@@ -2037,34 +1991,19 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
 }
 
-// FetchIndexChecksum mocks base method
-func (m *MockdatabaseShard) FetchIndexChecksum(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (block.StreamedChecksum, error) {
+// FetchWideEntry mocks base method
+func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchIndexChecksum", ctx, id, blockStart, nsCtx)
-	ret0, _ := ret[0].(block.StreamedChecksum)
+	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, nsCtx)
+	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchIndexChecksum indicates an expected call of FetchIndexChecksum
-func (mr *MockdatabaseShardMockRecorder) FetchIndexChecksum(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
+// FetchWideEntry indicates an expected call of FetchWideEntry
+func (mr *MockdatabaseShardMockRecorder) FetchWideEntry(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchIndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).FetchIndexChecksum), ctx, id, blockStart, nsCtx)
-}
-
-// FetchReadMismatch mocks base method
-func (m *MockdatabaseShard) FetchReadMismatch(ctx context.Context, mismatchChecker wide.EntryChecksumMismatchChecker, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (wide.StreamedMismatch, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchReadMismatch", ctx, mismatchChecker, id, blockStart, nsCtx)
-	ret0, _ := ret[0].(wide.StreamedMismatch)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchReadMismatch indicates an expected call of FetchReadMismatch
-func (mr *MockdatabaseShardMockRecorder) FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchReadMismatch", reflect.TypeOf((*MockdatabaseShard)(nil).FetchReadMismatch), ctx, mismatchChecker, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseShard)(nil).FetchWideEntry), ctx, id, blockStart, nsCtx)
 }
 
 // FetchBlocks mocks base method
@@ -4124,6 +4063,34 @@ func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
 }
 
+// SetIndexClaimsManager mocks base method
+func (m *MockOptions) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexClaimsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexClaimsManager indicates an expected call of SetIndexClaimsManager
+func (mr *MockOptionsMockRecorder) SetIndexClaimsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).SetIndexClaimsManager), value)
+}
+
+// IndexClaimsManager mocks base method
+func (m *MockOptions) IndexClaimsManager() fs.IndexClaimsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexClaimsManager")
+	ret0, _ := ret[0].(fs.IndexClaimsManager)
+	return ret0
+}
+
+// IndexClaimsManager indicates an expected call of IndexClaimsManager
+func (mr *MockOptionsMockRecorder) IndexClaimsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).IndexClaimsManager))
+}
+
 // SetDatabaseBlockRetrieverManager mocks base method
 func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	m.ctrl.T.Helper()
@@ -4992,32 +4959,32 @@ func (mr *MockOptionsMockRecorder) NamespaceHooks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceHooks", reflect.TypeOf((*MockOptions)(nil).NamespaceHooks))
 }
 
-// SetAggregator mocks base method
-func (m *MockOptions) SetAggregator(aggregator Aggregator) Options {
+// SetTileAggregator mocks base method
+func (m *MockOptions) SetTileAggregator(aggregator TileAggregator) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAggregator", aggregator)
+	ret := m.ctrl.Call(m, "SetTileAggregator", aggregator)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetAggregator indicates an expected call of SetAggregator
-func (mr *MockOptionsMockRecorder) SetAggregator(aggregator interface{}) *gomock.Call {
+// SetTileAggregator indicates an expected call of SetTileAggregator
+func (mr *MockOptionsMockRecorder) SetTileAggregator(aggregator interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAggregator", reflect.TypeOf((*MockOptions)(nil).SetAggregator), aggregator)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTileAggregator", reflect.TypeOf((*MockOptions)(nil).SetTileAggregator), aggregator)
 }
 
-// Aggregator mocks base method
-func (m *MockOptions) Aggregator() Aggregator {
+// TileAggregator mocks base method
+func (m *MockOptions) TileAggregator() TileAggregator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Aggregator")
-	ret0, _ := ret[0].(Aggregator)
+	ret := m.ctrl.Call(m, "TileAggregator")
+	ret0, _ := ret[0].(TileAggregator)
 	return ret0
 }
 
-// Aggregator indicates an expected call of Aggregator
-func (mr *MockOptionsMockRecorder) Aggregator() *gomock.Call {
+// TileAggregator indicates an expected call of TileAggregator
+func (mr *MockOptionsMockRecorder) TileAggregator() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregator", reflect.TypeOf((*MockOptions)(nil).Aggregator))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TileAggregator", reflect.TypeOf((*MockOptions)(nil).TileAggregator))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface
@@ -5107,31 +5074,31 @@ func (mr *MockMemoryTrackerMockRecorder) WaitForDec() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForDec", reflect.TypeOf((*MockMemoryTracker)(nil).WaitForDec))
 }
 
-// MockAggregator is a mock of Aggregator interface
-type MockAggregator struct {
+// MockTileAggregator is a mock of TileAggregator interface
+type MockTileAggregator struct {
 	ctrl     *gomock.Controller
-	recorder *MockAggregatorMockRecorder
+	recorder *MockTileAggregatorMockRecorder
 }
 
-// MockAggregatorMockRecorder is the mock recorder for MockAggregator
-type MockAggregatorMockRecorder struct {
-	mock *MockAggregator
+// MockTileAggregatorMockRecorder is the mock recorder for MockTileAggregator
+type MockTileAggregatorMockRecorder struct {
+	mock *MockTileAggregator
 }
 
-// NewMockAggregator creates a new mock instance
-func NewMockAggregator(ctrl *gomock.Controller) *MockAggregator {
-	mock := &MockAggregator{ctrl: ctrl}
-	mock.recorder = &MockAggregatorMockRecorder{mock}
+// NewMockTileAggregator creates a new mock instance
+func NewMockTileAggregator(ctrl *gomock.Controller) *MockTileAggregator {
+	mock := &MockTileAggregator{ctrl: ctrl}
+	mock.recorder = &MockTileAggregatorMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockAggregator) EXPECT() *MockAggregatorMockRecorder {
+func (m *MockTileAggregator) EXPECT() *MockTileAggregatorMockRecorder {
 	return m.recorder
 }
 
 // AggregateTiles mocks base method
-func (m *MockAggregator) AggregateTiles(opts AggregateTilesOptions, ns Namespace, shardID uint32, readers []fs.DataFileSetReader, writer fs.StreamingWriter) (int64, error) {
+func (m *MockTileAggregator) AggregateTiles(opts AggregateTilesOptions, ns Namespace, shardID uint32, readers []fs.DataFileSetReader, writer fs.StreamingWriter) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", opts, ns, shardID, readers, writer)
 	ret0, _ := ret[0].(int64)
@@ -5140,9 +5107,9 @@ func (m *MockAggregator) AggregateTiles(opts AggregateTilesOptions, ns Namespace
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockAggregatorMockRecorder) AggregateTiles(opts, ns, shardID, readers, writer interface{}) *gomock.Call {
+func (mr *MockTileAggregatorMockRecorder) AggregateTiles(opts, ns, shardID, readers, writer interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockAggregator)(nil).AggregateTiles), opts, ns, shardID, readers, writer)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockTileAggregator)(nil).AggregateTiles), opts, ns, shardID, readers, writer)
 }
 
 // MockNamespaceHooks is a mock of NamespaceHooks interface

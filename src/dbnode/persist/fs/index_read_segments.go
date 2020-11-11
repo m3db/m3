@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -84,12 +85,6 @@ func ReadIndexSegments(
 		success  = false
 	)
 
-	if validate {
-		if err = reader.Validate(); err != nil {
-			return ReadIndexSegmentsResult{}, err
-		}
-	}
-
 	// Need to do this to guarantee we release all resources in case of failure.
 	defer func() {
 		if !success {
@@ -121,6 +116,13 @@ func ReadIndexSegments(
 		}
 
 		segments = append(segments, seg)
+	}
+
+	// Note: need to validate after all segment file sets read.
+	if validate {
+		if err = reader.Validate(); err != nil {
+			return ReadIndexSegmentsResult{}, fmt.Errorf("failed to validate index segments: %w", err)
+		}
 	}
 
 	// Indicate we don't need the defer() above to release any resources, as we are

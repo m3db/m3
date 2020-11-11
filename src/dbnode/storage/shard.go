@@ -29,12 +29,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -50,11 +48,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -179,11 +178,11 @@ type dbShard struct {
 	contextPool              context.Pool
 	flushState               shardFlushState
 	tickWg                   *sync.WaitGroup
-	runtimeOptsListenClosers []xclose.SimpleCloser
+	runtimeOptsListenClosers []xresource.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   *zap.Logger
 	metrics                  dbShardMetrics
-	aggregator               Aggregator
+	tileAggregator           TileAggregator
 	ticking                  bool
 	shard                    uint32
 	coldWritesEnabled        bool
@@ -314,17 +313,17 @@ func newDatabaseShard(
 		newFSMergeWithMemFn:  newFSMergeWithMem,
 		filesetsFn:           fs.DataFiles,
 		filesetPathsBeforeFn: fs.DataFileSetsBefore,
-		deleteFilesFn:        fs.DeleteFiles,
-		snapshotFilesFn:      fs.SnapshotFiles,
-		sleepFn:              time.Sleep,
-		identifierPool:       opts.IdentifierPool(),
-		contextPool:          opts.ContextPool(),
-		flushState:           newShardFlushState(),
-		tickWg:               &sync.WaitGroup{},
-		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
-		logger:               opts.InstrumentOptions().Logger(),
-		metrics:              newDatabaseShardMetrics(shard, scope),
-		aggregator:           opts.Aggregator(),
+		deleteFilesFn:     fs.DeleteFiles,
+		snapshotFilesFn:   fs.SnapshotFiles,
+		sleepFn:           time.Sleep,
+		identifierPool:    opts.IdentifierPool(),
+		contextPool:       opts.ContextPool(),
+		flushState:        newShardFlushState(),
+		tickWg:            &sync.WaitGroup{},
+		coldWritesEnabled: namespaceMetadata.Options().ColdWritesEnabled(),
+		logger:            opts.InstrumentOptions().Logger(),
+		metrics:           newDatabaseShardMetrics(shard, scope),
+		tileAggregator:    opts.Aggregator(),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope, opts.InstrumentOptions().Logger())
@@ -395,27 +394,15 @@ func (s *dbShard) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexChecksum implements series.QueryableBlockRetriever
-func (s *dbShard) StreamIndexChecksum(
+// StreamWideEntry implements series.QueryableBlockRetriever
+func (s *dbShard) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
-	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
+) (block.StreamedWideEntry, error) {
+	return s.DatabaseBlockRetriever.StreamWideEntry(ctx, s.shard, id,
 		blockStart, nsCtx)
-}
-
-// StreamIndexChecksum implements series.QueryableBlockRetriever
-func (s *dbShard) StreamReadMismatches(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
-		mismatchChecker, id, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1151,29 +1138,17 @@ func (s *dbShard) ReadEncoded(
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
-func (s *dbShard) FetchIndexChecksum(
+func (s *dbShard) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
-}
 
-func (s *dbShard) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	retriever := s.seriesBlockRetriever
-	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
+	return reader.FetchWideEntry(ctx, blockStart, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -2759,7 +2734,7 @@ func (s *dbShard) AggregateTiles(
 
 	var multiErr xerrors.MultiError
 
-	processedTileCount, err := s.aggregator.AggregateTiles(
+	processedTileCount, err := s.tileAggregator.AggregateTiles(
 		opts, targetNs, s.ID(), openBlockReaders, writer)
 	if err != nil {
 		multiErr = multiErr.Add(err)
@@ -2773,8 +2748,12 @@ func (s *dbShard) AggregateTiles(
 		multiErr = multiErr.Add(err)
 	} else {
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
-		// has been created. This will block until all leasers have relinquished their leases.
-		if err = s.finishWriting(opts.Start, nextVolume); err != nil {
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		// NB: markWarmFlushStateSuccess=true because there are no flushes happening in this
+		// flow and we need to set WarmStatus to fileOpSuccess explicitly in order to make
+		// the new blocks readable.
+		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -2822,14 +2801,22 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
-func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
+func (s *dbShard) finishWriting(
+	blockStart time.Time,
+	nextVersion int,
+	markWarmFlushStateSuccess bool,
+) error {
+	if markWarmFlushStateSuccess {
+		s.markWarmFlushStateSuccess(blockStart)
+	}
+
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
 	// allow the SeekerManager to open a lease on the latest version of the fileset files because
 	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
 	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
 	// evicted (which is the desired behavior because we haven't updated the open leases yet which
 	// means the newly written data is not available for querying via the SeekerManager yet.)
-	s.setFlushStateColdVersionFlushed(startTime, nextVersion)
+	s.setFlushStateColdVersionFlushed(blockStart, nextVersion)
 
 	// Notify all block leasers that a new volume for the namespace/shard/blockstart
 	// has been created. This will block until all leasers have relinquished their
@@ -2837,7 +2824,7 @@ func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
 	_, err := s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
 		Namespace:  s.namespace.ID(),
 		Shard:      s.ID(),
-		BlockStart: startTime,
+		BlockStart: blockStart,
 	}, block.LeaseState{Volume: nextVersion})
 	// After writing the full block successfully **and** propagating the new lease to the
 	// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
@@ -2849,13 +2836,13 @@ func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
 	// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
 	// which would increase the complexity of the code to address a situation that is probably not
 	// recoverable (failure to UpdateOpenLeases is an invariant violated error).
-	s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
+	s.setFlushStateColdVersionRetrievable(blockStart, nextVersion)
 	if err != nil {
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.With(
 				zap.String("namespace", s.namespace.ID().String()),
 				zap.Uint32("shard", s.ID()),
-				zap.Time("blockStart", startTime),
+				zap.Time("blockStart", blockStart),
 				zap.Int("nextVersion", nextVersion),
 			).Error("failed to update open leases after updating flush state cold version")
 		})
@@ -2886,7 +2873,7 @@ func (s shardColdFlush) Done() error {
 			continue
 		}
 
-		err := s.shard.finishWriting(startTime, nextVersion)
+		err := s.shard.finishWriting(startTime, nextVersion, false)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}

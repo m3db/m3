@@ -346,10 +346,17 @@ func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 		segWriter.EXPECT().Reset(nil)
 		assert.NoError(t, flush.DoneIndex())
 	}()
+	volumeIndex, err := NextIndexFileSetVolumeIndex(
+		pm.filePathPrefix,
+		testNs1ID,
+		blockStart,
+	)
+	require.NoError(t, err)
 
 	prepareOpts := persist.IndexPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		BlockStart:        blockStart,
+		VolumeIndex:       volumeIndex,
 	}
 	writer.EXPECT().Open(xtest.CmpMatcher(
 		IndexWriterOpenOptions{

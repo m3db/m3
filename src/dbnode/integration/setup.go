@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -56,6 +55,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -380,7 +380,8 @@ func NewTestSetup(
 
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
+			SetFilePathPrefix(filePathPrefix).
+			SetClockOptions(storageOpts.ClockOptions())
 	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
@@ -393,6 +394,10 @@ func NewTestSetup(
 		return nil, err
 	}
 	storageOpts = storageOpts.SetPersistManager(pm)
+
+	// Set up index claims manager
+	icm := fs.NewIndexClaimsManager(fsOpts)
+	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
 	storageOpts = storageOpts.
@@ -931,6 +936,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 		if err != nil {
 			return err
 		}
+		icm := fs.NewIndexClaimsManager(fsOpts)
 		storageIdxOpts := storageOpts.IndexOptions()
 		compactor, err := newCompactorWithErr(storageIdxOpts)
 		if err != nil {
@@ -941,6 +947,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(icm).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {

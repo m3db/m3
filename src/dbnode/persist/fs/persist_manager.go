@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -35,8 +34,9 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -93,7 +93,7 @@ type persistManager struct {
 
 	metrics persistManagerMetrics
 
-	runtimeOptsListener xclose.SimpleCloser
+	runtimeOptsListener xresource.SimpleCloser
 }
 
 type dataPersistManager struct {
@@ -255,22 +255,12 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 		return prepared, errPersistManagerCannotPrepareIndexNotPersisting
 	}
 
-	// NB(prateek): unlike data flush files, we allow multiple index flush files for a single block start.
-	// As a result of this, every time we persist index flush data, we have to compute the volume index
-	// to uniquely identify a single FileSetFile on disk.
-
-	// work out the volume index for the next Index FileSetFile for the given namespace/blockstart
-	volumeIndex, err := NextIndexFileSetVolumeIndex(pm.opts.FilePathPrefix(), nsMetadata.ID(), blockStart)
-	if err != nil {
-		return prepared, err
-	}
-
 	// we now have all the identifier needed to uniquely specificy a single Index FileSetFile on disk.
 	fileSetID := FileSetFileIdentifier{
 		FileSetContentType: persist.FileSetIndexContentType,
 		Namespace:          nsID,
 		BlockStart:         blockStart,
-		VolumeIndex:        volumeIndex,
+		VolumeIndex:        opts.VolumeIndex,
 	}
 	blockSize := nsMetadata.Options().IndexOptions().BlockSize()
 	idxWriterOpts := IndexWriterOpenOptions{
