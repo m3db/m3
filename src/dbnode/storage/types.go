@@ -1324,11 +1324,11 @@ type Options interface {
 	// NamespaceHooks returns the NamespaceHooks.
 	NamespaceHooks() NamespaceHooks
 
-	// SetAggregator sets the Aggregator.
-	SetAggregator(aggregator Aggregator) Options
+	// SetTileAggregator sets the TileAggregator.
+	SetTileAggregator(aggregator TileAggregator) Options
 
-	// Aggregator returns the Aggregator.
-	Aggregator() Aggregator
+	// TileAggregator returns the TileAggregator.
+	TileAggregator() TileAggregator
 }
 
 // MemoryTracker tracks memory.
@@ -1400,8 +1400,8 @@ type AggregateTilesOptions struct {
 	InsOptions instrument.Options
 }
 
-// Aggregator is the interface for AggregateTiles.
-type Aggregator interface {
+// TileAggregator is the interface for AggregateTiles.
+type TileAggregator interface {
 	// AggregateTiles does tile aggregation.
 	AggregateTiles(
 		opts AggregateTilesOptions,
@@ -1412,8 +1412,8 @@ type Aggregator interface {
 	) (int64, error)
 }
 
-// NewAggregatorFn creates a new Aggregator.
-type NewAggregatorFn func(iOpts instrument.Options) Aggregator
+// NewTileAggregatorFn creates a new TileAggregator.
+type NewTileAggregatorFn func(iOpts instrument.Options) TileAggregator
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {

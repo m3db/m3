@@ -866,9 +866,9 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
 	}
 
-	if runOpts.StorageOptions.NewAggregatorFn != nil {
-		aggregator := runOpts.StorageOptions.NewAggregatorFn(iopts)
-		opts = opts.SetAggregator(aggregator)
+	if runOpts.StorageOptions.NewTileAggregatorFn != nil {
+		aggregator := runOpts.StorageOptions.NewTileAggregatorFn(iopts)
+		opts = opts.SetTileAggregator(aggregator)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

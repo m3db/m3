@@ -174,7 +174,7 @@ type options struct {
 	wideBatchSize                   int
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
-	aggregator                      Aggregator
+	tileAggregator                  TileAggregator
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -250,7 +250,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		mediatorTickInterval:            defaultMediatorTickInterval,
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
-		aggregator:                      &noopAggregator{},
+		tileAggregator:                  &noopTileAggregator{},
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -865,15 +865,15 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 	return o.namespaceHooks
 }
 
-func (o *options) SetAggregator(value Aggregator) Options {
+func (o *options) SetTileAggregator(value TileAggregator) Options {
 	opts := *o
-	opts.aggregator = value
+	opts.tileAggregator = value
 
 	return &opts
 }
 
-func (o *options) Aggregator() Aggregator {
-	return o.aggregator
+func (o *options) TileAggregator() TileAggregator {
+	return o.tileAggregator
 }
 
 type noOpColdFlush struct{}
@@ -888,9 +888,9 @@ func (h *noopNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error
 	return nil
 }
 
-type noopAggregator struct{}
+type noopTileAggregator struct{}
 
-func (a *noopAggregator) AggregateTiles(
+func (a *noopTileAggregator) AggregateTiles(
 	opts AggregateTilesOptions,
 	ns Namespace,
 	shardID uint32,
