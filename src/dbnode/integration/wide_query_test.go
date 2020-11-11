@@ -286,10 +286,14 @@ func TestWideFetch(t *testing.T) {
 			expected := buildExpectedChecksumsByShard(ids, tt.shards,
 				testSetup.ShardSet(), batchSize)
 			require.Equal(t, len(expected), len(chk))
-			for i, checksum := range chk {
-				assert.Equal(t, expected[i].MetadataChecksum, checksum.MetadataChecksum)
-				require.Equal(t, string(expected[i].ID), checksum.ID.String())
-				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
+
+			for i, entry := range chk {
+				assert.Equal(t, expected[i].MetadataChecksum, entry.MetadataChecksum,
+					fmt.Sprintf("fail entry match: i=%d", i))
+				assert.Equal(t, expected[i].ID, entry.id,
+					fmt.Sprintf("fail id match: i=%d", i))
+				assertTags(t, entry.encodedTags, decoder, entry.metadataChecksum,
+					fmt.Sprintf("fail metadata entry match: i=%d", i))
 			}
 
 			ctx.Close()
