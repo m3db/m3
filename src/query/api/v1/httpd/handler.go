@@ -345,10 +345,6 @@ func addRouteHandlerFn(router *mux.Router,
 	path string,
 	handlerFn func(http.ResponseWriter, *http.Request),
 	methods ...string) {
-	if existingRoute := router.Get(path); existingRoute != nil {
-		return
-	}
-
 	route := router.
 		HandleFunc(path, handlerFn).
 		Name(path)
