@@ -4063,6 +4063,34 @@ func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
 }
 
+// SetIndexClaimsManager mocks base method
+func (m *MockOptions) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexClaimsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexClaimsManager indicates an expected call of SetIndexClaimsManager
+func (mr *MockOptionsMockRecorder) SetIndexClaimsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).SetIndexClaimsManager), value)
+}
+
+// IndexClaimsManager mocks base method
+func (m *MockOptions) IndexClaimsManager() fs.IndexClaimsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexClaimsManager")
+	ret0, _ := ret[0].(fs.IndexClaimsManager)
+	return ret0
+}
+
+// IndexClaimsManager indicates an expected call of IndexClaimsManager
+func (mr *MockOptionsMockRecorder) IndexClaimsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexClaimsManager", reflect.TypeOf((*MockOptions)(nil).IndexClaimsManager))
+}
+
 // SetDatabaseBlockRetrieverManager mocks base method
 func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	m.ctrl.T.Helper()

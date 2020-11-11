@@ -157,6 +157,9 @@ func TestBootstrapIndex(t *testing.T) {
 	require.NoError(t, err)
 	opts = opts.SetPersistManager(pm)
 
+	icm := fs.NewIndexClaimsManager(opts.FilesystemOptions())
+	opts = opts.SetIndexClaimsManager(icm)
+
 	blockSize := 2 * time.Hour
 	indexBlockSize := 2 * blockSize
 

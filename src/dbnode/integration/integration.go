@@ -272,9 +272,10 @@ func newDefaultBootstrappableTestSetups(
 				SetAdminClient(adminClient).
 				SetIndexOptions(storageIdxOpts).
 				SetFilesystemOptions(fsOpts).
-				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
+				// PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetPersistManager(setup.StorageOpts().PersistManager()).
+				SetIndexClaimsManager(setup.StorageOpts().IndexClaimsManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.StorageOpts().ContextPool())
@@ -285,13 +286,14 @@ func newDefaultBootstrappableTestSetups(
 
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
-
+		icm := persistfs.NewIndexClaimsManager(fsOpts)
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetCompactor(newCompactor(t, storageIdxOpts)).
-			SetPersistManager(persistMgr)
+			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(icm)
 
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
 		require.NoError(t, err)
