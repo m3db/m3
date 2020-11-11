@@ -329,9 +329,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 ) {
-	var (
-		resultOpts = s.opts.ResultOptions()
-	)
+	resultOpts := s.opts.ResultOptions()
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
@@ -580,14 +578,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
-			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
-			// Use info log with more high level attributes.
-			s.log.Info("rebuilding file set index segment",
-				zap.Stringer("namespace", ns.ID()),
-				zap.Int("totalEntries", totalEntries),
-				zap.Time("blockStart", blockStart),
-				zap.Time("blockEnd", blockEnd))
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
