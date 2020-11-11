@@ -385,9 +385,34 @@ func (h *customHandler) Route() string     { return "/custom" }
 func (h *customHandler) Methods() []string { return []string{http.MethodGet} }
 func (h *customHandler) Handler(
 	opts options.HandlerOptions,
+	prev http.Handler,
 ) (http.Handler, error) {
 	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
 	fn := func(w http.ResponseWriter, r *http.Request) {
+		if prev != nil {
+			assert.Fail(h.t, "Should not shadow already existing handler")
+		}
+		w.Write([]byte("success!"))
+	}
+
+	return http.HandlerFunc(fn), nil
+}
+
+type customHandlerOverride struct {
+	t *testing.T
+}
+
+func (h *customHandlerOverride) Route() string     { return "/custom" }
+func (h *customHandlerOverride) Methods() []string { return []string{http.MethodGet} }
+func (h *customHandlerOverride) Handler(
+	opts options.HandlerOptions,
+	prev http.Handler,
+) (http.Handler, error) {
+	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if prev == nil {
+			assert.Fail(h.t, "Should shadow already existing handler")
+		}
 		w.Write([]byte("success!"))
 	}
 
@@ -412,7 +437,8 @@ func TestCustomRoutes(t *testing.T) {
 
 	require.NoError(t, err)
 	custom := &customHandler{t: t}
-	handler := NewHandler(opts, custom)
+	custom2 := &customHandlerOverride{t: t}
+	handler := NewHandler(opts, custom, custom2)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")

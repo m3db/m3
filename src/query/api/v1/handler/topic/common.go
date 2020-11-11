@@ -29,13 +29,11 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -71,30 +69,16 @@ func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOpti
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(
-	r *mux.Router,
+	addRoute func(path string, handler http.Handler, methods ...string),
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
 ) {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
-	}
-
-	r.HandleFunc(InitURL,
-		wrapped(newInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL,
-		wrapped(newGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL,
-		wrapped(newAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(AddHTTPMethod)
-	r.HandleFunc(UpdateURL,
-		wrapped(newUpdateHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(UpdateHTTPMethod)
-	r.HandleFunc(DeleteURL,
-		wrapped(newDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(DeleteHTTPMethod)
+	addRoute(InitURL, newInitHandler(client, cfg, instrumentOpts), InitHTTPMethod)
+	addRoute(GetURL, newGetHandler(client, cfg, instrumentOpts), GetHTTPMethod)
+	addRoute(AddURL, newAddHandler(client, cfg, instrumentOpts), AddHTTPMethod)
+	addRoute(UpdateURL, newUpdateHandler(client, cfg, instrumentOpts), UpdateHTTPMethod)
+	addRoute(DeleteURL, newDeleteHandler(client, cfg, instrumentOpts), DeleteHTTPMethod)
 }
 
 func topicName(headers http.Header) string {

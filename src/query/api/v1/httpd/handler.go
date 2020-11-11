@@ -127,9 +127,10 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
-	instrumentOpts := h.options.InstrumentOpts()
-	// Wrap requests with response time logging as well as panic recovery.
 	var (
+		instrumentOpts = h.options.InstrumentOpts()
+
+		// Wrap requests with response time logging as well as panic recovery.
 		wrapped = func(n http.Handler) http.Handler {
 			return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
 		}
@@ -137,13 +138,22 @@ func (h *Handler) RegisterRoutes() error {
 		panicOnly = func(n http.Handler) http.Handler {
 			return logging.WithPanicErrorResponder(n, instrumentOpts)
 		}
+
+		addWrappedRoute = func(path string, handler http.Handler, methods ...string) {
+			addRoute(h.router, path, wrapped(handler), methods...)
+		}
+
+		addRoute = func(path string, handler http.Handler, methods ...string) {
+			addRoute(h.router, path, handler, methods...)
+		}
 	)
 
-	h.router.HandleFunc(openapi.URL,
-		wrapped(openapi.NewDocHandler(instrumentOpts)).ServeHTTP,
-	).Methods(openapi.HTTPMethod)
+	addWrappedRoute(openapi.URL, openapi.NewDocHandler(instrumentOpts), openapi.HTTPMethod)
+
 	h.router.PathPrefix(openapi.StaticURLPrefix).
-		Handler(wrapped(openapi.StaticHandler()))
+		Handler(wrapped(openapi.StaticHandler())).
+		Name(openapi.StaticURLPrefix)
+
 
 	// Prometheus remote read/write endpoints.
 	remoteSourceOpts := h.options.SetInstrumentOpts(instrumentOpts.
@@ -164,24 +174,13 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	// Register custom endpoints.
-	for _, custom := range h.customHandlers {
-		handler, err := custom.Handler(nativeSourceOpts)
-		if err != nil {
-			return err
-		}
-
-		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
-			Methods(custom.Methods()...)
-	}
-
 	opts := prom.Options{
 		PromQLEngine: h.options.PrometheusEngine(),
 	}
-	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
-	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
-	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
-	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
+	promqlQueryHandler := prom.NewReadHandler(opts, nativeSourceOpts)
+	promqlInstantQueryHandler := prom.NewReadInstantHandler(opts, nativeSourceOpts)
+	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
+	nativePromReadInstantHandler := native.NewPromReadInstantHandler(nativeSourceOpts)
 
 	h.options.QueryRouter().Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: h.options.DefaultQueryEngine(),
@@ -195,71 +194,42 @@ func (h *Handler) RegisterRoutes() error {
 		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
 	})
 
-	h.router.
-		HandleFunc(native.PromReadURL, h.options.QueryRouter().ServeHTTP).
-		Methods(native.PromReadHTTPMethods...)
-	h.router.
-		HandleFunc(native.PromReadInstantURL, h.options.InstantQueryRouter().ServeHTTP).
-		Methods(native.PromReadInstantHTTPMethods...)
+	addWrappedRoute(native.PromReadURL, h.options.QueryRouter(), native.PromReadHTTPMethods...)
+	addWrappedRoute(native.PromReadInstantURL, h.options.InstantQueryRouter(), native.PromReadInstantHTTPMethods...)
 
-	h.router.HandleFunc("/prometheus"+native.PromReadURL, promqlQueryHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
+	addWrappedRoute("/prometheus"+native.PromReadURL, promqlQueryHandler, native.PromReadHTTPMethods...)
+	addWrappedRoute("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler, native.PromReadInstantHTTPMethods...)
 
-	h.router.HandleFunc(remote.PromReadURL,
-		wrapped(promRemoteReadHandler).ServeHTTP,
-	).Methods(remote.PromReadHTTPMethods...)
-	h.router.HandleFunc(remote.PromWriteURL,
-		panicOnly(promRemoteWriteHandler).ServeHTTP,
-	).Methods(remote.PromWriteHTTPMethod)
-	h.router.HandleFunc("/m3query"+native.PromReadURL, nativePromReadHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
+	addWrappedRoute(remote.PromReadURL, promRemoteReadHandler, remote.PromReadHTTPMethods...)
+	addRoute(remote.PromWriteURL, panicOnly(promRemoteWriteHandler), remote.PromWriteHTTPMethod)
+
+	addWrappedRoute("/m3query"+native.PromReadURL, nativePromReadHandler, native.PromReadHTTPMethods...)
+	addWrappedRoute("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler, native.PromReadInstantHTTPMethods...)
 
 	// InfluxDB write endpoint.
-	h.router.HandleFunc(influxdb.InfluxWriteURL,
-		wrapped(influxdb.NewInfluxWriterHandler(h.options)).ServeHTTP).Methods(influxdb.InfluxWriteHTTPMethod)
+	addWrappedRoute(influxdb.InfluxWriteURL, influxdb.NewInfluxWriterHandler(h.options), influxdb.InfluxWriteHTTPMethod)
 
 	// Native M3 search and write endpoints.
-	h.router.HandleFunc(handler.SearchURL,
-		wrapped(handler.NewSearchHandler(h.options)).ServeHTTP,
-	).Methods(handler.SearchHTTPMethod)
-	h.router.HandleFunc(m3json.WriteJSONURL,
-		wrapped(m3json.NewWriteJSONHandler(h.options)).ServeHTTP,
-	).Methods(m3json.JSONWriteHTTPMethod)
+	addWrappedRoute(handler.SearchURL, handler.NewSearchHandler(h.options), handler.SearchHTTPMethod)
+	addWrappedRoute(m3json.WriteJSONURL, m3json.NewWriteJSONHandler(h.options), m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints.
-	h.router.HandleFunc(native.CompleteTagsURL,
-		wrapped(native.NewCompleteTagsHandler(h.options)).ServeHTTP,
-	).Methods(native.CompleteTagsHTTPMethod)
-	h.router.HandleFunc(remote.TagValuesURL,
-		wrapped(remote.NewTagValuesHandler(h.options)).ServeHTTP,
-	).Methods(remote.TagValuesHTTPMethod)
+	addWrappedRoute(native.CompleteTagsURL, native.NewCompleteTagsHandler(h.options), native.CompleteTagsHTTPMethod)
+	addWrappedRoute(remote.TagValuesURL, remote.NewTagValuesHandler(h.options), remote.TagValuesHTTPMethod)
 
 	// List tag endpoints.
-	h.router.HandleFunc(native.ListTagsURL,
-		wrapped(native.NewListTagsHandler(h.options)).ServeHTTP,
-	).Methods(native.ListTagsHTTPMethods...)
+	addWrappedRoute(native.ListTagsURL, native.NewListTagsHandler(h.options), native.ListTagsHTTPMethods...)
 
 	// Query parse endpoints.
-	h.router.HandleFunc(native.PromParseURL,
-		wrapped(native.NewPromParseHandler(h.options)).ServeHTTP,
-	).Methods(native.PromParseHTTPMethod)
-	h.router.HandleFunc(native.PromThresholdURL,
-		wrapped(native.NewPromThresholdHandler(h.options)).ServeHTTP,
-	).Methods(native.PromThresholdHTTPMethod)
+	addWrappedRoute(native.PromParseURL, native.NewPromParseHandler(h.options), native.PromParseHTTPMethod)
+	addWrappedRoute(native.PromThresholdURL, native.NewPromThresholdHandler(h.options), native.PromThresholdHTTPMethod)
 
 	// Series match endpoints.
-	h.router.HandleFunc(remote.PromSeriesMatchURL,
-		wrapped(remote.NewPromSeriesMatchHandler(h.options)).ServeHTTP,
-	).Methods(remote.PromSeriesMatchHTTPMethods...)
+	addWrappedRoute(remote.PromSeriesMatchURL, remote.NewPromSeriesMatchHandler(h.options), remote.PromSeriesMatchHTTPMethods...)
 
 	// Graphite endpoints.
-	h.router.HandleFunc(graphite.ReadURL,
-		wrapped(graphite.NewRenderHandler(h.options)).ServeHTTP,
-	).Methods(graphite.ReadHTTPMethods...)
-
-	h.router.HandleFunc(graphite.FindURL,
-		wrapped(graphite.NewFindHandler(h.options)).ServeHTTP,
-	).Methods(graphite.FindHTTPMethods...)
+	addWrappedRoute(graphite.ReadURL, graphite.NewRenderHandler(h.options), graphite.ReadHTTPMethods...)
+	addWrappedRoute(graphite.FindURL, graphite.NewFindHandler(h.options), graphite.FindHTTPMethods...)
 
 	placementOpts, err := h.placementOpts()
 	if err != nil {
@@ -293,21 +263,18 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	// Register debug dump handler.
-	h.router.HandleFunc(xdebug.DebugURL,
-		wrapped(debugWriter.HTTPHandler()).ServeHTTP)
+	addWrappedRoute(xdebug.DebugURL, debugWriter.HTTPHandler())
 
 	if clusterClient != nil {
-		err = database.RegisterRoutes(h.router, clusterClient,
+		err = database.RegisterRoutes(addWrappedRoute, clusterClient,
 			h.options.Config(), h.options.EmbeddedDbCfg(),
 			serviceOptionDefaults, instrumentOpts)
 		if err != nil {
 			return err
 		}
-
-		placement.RegisterRoutes(h.router,
-			serviceOptionDefaults, placementOpts)
-		namespace.RegisterRoutes(h.router, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
-		topic.RegisterRoutes(h.router, clusterClient, config, instrumentOpts)
+		placement.RegisterRoutes(addRoute, serviceOptionDefaults, placementOpts)
+		namespace.RegisterRoutes(addWrappedRoute, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
+		topic.RegisterRoutes(addWrappedRoute, clusterClient, config, instrumentOpts)
 
 		// Experimental endpoints.
 		if config.Experimental.Enabled {
@@ -318,9 +285,7 @@ func (h *Handler) RegisterRoutes() error {
 					Tagged(remoteSource).
 					Tagged(experimentalAPIGroup),
 			)
-			h.router.HandleFunc(annotated.WriteURL,
-				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
-			).Methods(annotated.WriteHTTPMethod)
+			addWrappedRoute(annotated.WriteURL, experimentalAnnotatedWriteHandler, annotated.WriteHTTPMethod)
 		}
 	}
 
@@ -328,7 +293,46 @@ func (h *Handler) RegisterRoutes() error {
 	h.registerProfileEndpoints()
 	h.registerRoutesEndpoint()
 
+	// Register custom endpoints.
+	for _, custom := range h.customHandlers {
+		route := h.router.Get(custom.Route())
+		var prevHandler http.Handler
+		if route != nil {
+			prevHandler = route.GetHandler()
+		}
+		customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
+		if err != nil {
+			return err
+		}
+
+		if route == nil {
+			addWrappedRoute(custom.Route(), customHandler, custom.Methods()...)
+		} else {
+			route.Handler(wrapped(customHandler))
+		}
+	}
+
 	return nil
+}
+
+func addRoute(router *mux.Router, path string, handler http.Handler, methods ...string) *mux.Route {
+	return addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
+}
+
+func addRouteHandlerFn(router *mux.Router, path string, handlerFn func(http.ResponseWriter, *http.Request), methods ...string) *mux.Route {
+	if existingRoute := router.Get(path); existingRoute != nil {
+		return existingRoute
+	}
+
+	route := router.
+		HandleFunc(path, handlerFn).
+		Name(path)
+
+	if len(methods) > 0 {
+		return route.Methods(methods...)
+	}
+
+	return route
 }
 
 func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
@@ -365,23 +369,23 @@ func (h *Handler) m3AggServiceOptions() *handleroptions.M3AggServiceOptions {
 
 // Endpoints useful for profiling the service.
 func (h *Handler) registerHealthEndpoints() {
-	h.router.HandleFunc(healthURL, func(w http.ResponseWriter, r *http.Request) {
+	addRouteHandlerFn(h.router, healthURL, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Uptime string `json:"uptime"`
 		}{
 			Uptime: time.Since(h.options.CreatedAt()).String(),
 		})
-	}).Methods(http.MethodGet)
+	}, http.MethodGet)
 }
 
 // Endpoints useful for profiling the service.
 func (h *Handler) registerProfileEndpoints() {
-	h.router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+	h.router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux).Name("/debug/pprof/")
 }
 
 // Endpoints useful for viewing routes directory.
 func (h *Handler) registerRoutesEndpoint() {
-	h.router.HandleFunc(routesURL, func(w http.ResponseWriter, r *http.Request) {
+	addRouteHandlerFn(h.router, routesURL, func(w http.ResponseWriter, r *http.Request) {
 		var routes []string
 		err := h.router.Walk(
 			func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
@@ -401,5 +405,5 @@ func (h *Handler) registerRoutesEndpoint() {
 		}{
 			Routes: routes,
 		})
-	}).Methods(http.MethodGet)
+	}, http.MethodGet)
 }

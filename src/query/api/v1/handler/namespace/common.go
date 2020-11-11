@@ -33,11 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -104,15 +101,12 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 
 // RegisterRoutes registers the namespace routes.
 func RegisterRoutes(
-	r *mux.Router,
+	addRoute func(path string, handler http.Handler, methods ...string),
 	client clusterclient.Client,
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
-	}
 	applyMiddleware := func(
 		f func(svc handleroptions.ServiceNameAndDefaults,
 			w http.ResponseWriter, r *http.Request),
@@ -128,40 +122,32 @@ func RegisterRoutes(
 	}
 
 	// Get M3DB namespaces.
-	getHandler := wrapped(
-		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
+	getHandler := applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBGetURL, getHandler, GetHTTPMethod)
 
 	// Add M3DB namespaces.
-	addHandler := wrapped(
-		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
+	addHandler := applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBAddURL, addHandler, AddHTTPMethod)
 
 	// Update M3DB namespaces.
-	updateHandler := wrapped(
-		applyMiddleware(NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBUpdateURL, updateHandler.ServeHTTP).Methods(UpdateHTTPMethod)
+	updateHandler := applyMiddleware(NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBUpdateURL, updateHandler, UpdateHTTPMethod)
 
 	// Delete M3DB namespaces.
-	deleteHandler := wrapped(
-		applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+	deleteHandler := applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBDeleteURL, deleteHandler, DeleteHTTPMethod)
 
 	// Deploy M3DB schemas.
-	schemaHandler := wrapped(
-		applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBSchemaURL, schemaHandler.ServeHTTP).Methods(SchemaDeployHTTPMethod)
+	schemaHandler := applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBSchemaURL, schemaHandler, SchemaDeployHTTPMethod)
 
 	// Reset M3DB schemas.
-	schemaResetHandler := wrapped(
-		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+	schemaResetHandler := applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBSchemaURL, schemaResetHandler, DeleteHTTPMethod)
 
 	// Mark M3DB namespace as ready.
-	readyHandler := wrapped(
-		applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBReadyURL, readyHandler.ServeHTTP).Methods(ReadyHTTPMethod)
-
+	readyHandler := applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults)
+	addRoute(M3DBReadyURL, readyHandler, ReadyHTTPMethod)
 }
 
 func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {

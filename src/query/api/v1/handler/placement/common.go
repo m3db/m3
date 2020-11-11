@@ -42,8 +42,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -222,7 +220,7 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 
 // RegisterRoutes registers the placement routes
 func RegisterRoutes(
-	r *mux.Router,
+	addRoute func(path string, handler http.Handler, methods ...string),
 	defaults []handleroptions.ServiceOptionsDefault,
 	opts HandlerOptions,
 ) {
@@ -231,63 +229,64 @@ func RegisterRoutes(
 		initHandler = NewInitHandler(opts)
 		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3CoordinatorInitURL, initFn).Methods(InitHTTPMethod)
+
+	addRoute(M3DBInitURL, initFn, InitHTTPMethod)
+	addRoute(M3AggInitURL, initFn, InitHTTPMethod)
+	addRoute(M3CoordinatorInitURL, initFn, InitHTTPMethod)
 
 	// Get
 	var (
 		getHandler = NewGetHandler(opts)
 		getFn      = applyMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3CoordinatorGetURL, getFn).Methods(GetHTTPMethod)
+	addRoute(M3DBGetURL, getFn, GetHTTPMethod)
+	addRoute(M3AggGetURL, getFn, GetHTTPMethod)
+	addRoute(M3CoordinatorGetURL, getFn, GetHTTPMethod)
 
 	// Delete all
 	var (
 		deleteAllHandler = NewDeleteAllHandler(opts)
 		deleteAllFn      = applyMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	addRoute(M3DBDeleteAllURL, deleteAllFn, DeleteAllHTTPMethod)
+	addRoute(M3AggDeleteAllURL, deleteAllFn, DeleteAllHTTPMethod)
+	addRoute(M3CoordinatorDeleteAllURL, deleteAllFn, DeleteAllHTTPMethod)
 
 	// Add
 	var (
 		addHandler = NewAddHandler(opts)
 		addFn      = applyMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3CoordinatorAddURL, addFn).Methods(AddHTTPMethod)
+	addRoute(M3DBAddURL, addFn, AddHTTPMethod)
+	addRoute(M3AggAddURL, addFn, AddHTTPMethod)
+	addRoute(M3CoordinatorAddURL, addFn, AddHTTPMethod)
 
 	// Delete
 	var (
 		deleteHandler = NewDeleteHandler(opts)
 		deleteFn      = applyMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	addRoute(M3DBDeleteURL, deleteFn, DeleteHTTPMethod)
+	addRoute(M3AggDeleteURL, deleteFn, DeleteHTTPMethod)
+	addRoute(M3CoordinatorDeleteURL, deleteFn, DeleteHTTPMethod)
 
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
 		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	addRoute(M3DBReplaceURL, replaceFn, ReplaceHTTPMethod)
+	addRoute(M3AggReplaceURL, replaceFn, ReplaceHTTPMethod)
+	addRoute(M3CoordinatorReplaceURL, replaceFn, ReplaceHTTPMethod)
 
 	// Set
 	var (
 		setHandler = NewSetHandler(opts)
 		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
-	r.HandleFunc(M3DBSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3AggSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3CoordinatorSetURL, setFn).Methods(SetHTTPMethod)
+	addRoute(M3DBSetURL, setFn, SetHTTPMethod)
+	addRoute(M3AggSetURL, setFn, SetHTTPMethod)
+	addRoute(M3CoordinatorSetURL, setFn, SetHTTPMethod)
 }
 
 func newPlacementCutoverNanosFn(
@@ -386,11 +385,11 @@ func applyMiddleware(
 	f func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-) func(w http.ResponseWriter, r *http.Request) {
+) http.Handler {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		parseServiceMiddleware(f, defaults),
 		instrumentOpts,
-	).ServeHTTP
+	)
 }
 
 func parseServiceMiddleware(
