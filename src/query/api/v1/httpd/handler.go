@@ -323,7 +323,7 @@ func (h *Handler) RegisterRoutes() error {
 		}
 		customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
 		if err != nil {
-			return fmt.Errorf("failed to register custom handler with path %s: %v",
+			return fmt.Errorf("failed to register custom handler with path %s: %w",
 				custom.Route(), err)
 		}
 

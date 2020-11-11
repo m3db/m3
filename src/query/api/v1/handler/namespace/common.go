@@ -122,31 +122,38 @@ func RegisterRoutes(
 	}
 
 	// Get M3DB namespaces.
-	getHandler := applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults)
+	getHandler := applyMiddleware(
+		NewGetHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBGetURL, getHandler, GetHTTPMethod)
 
 	// Add M3DB namespaces.
-	addHandler := applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults)
+	addHandler := applyMiddleware(
+		NewAddHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBAddURL, addHandler, AddHTTPMethod)
 
 	// Update M3DB namespaces.
-	updateHandler := applyMiddleware(NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults)
+	updateHandler := applyMiddleware(
+		NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBUpdateURL, updateHandler, UpdateHTTPMethod)
 
 	// Delete M3DB namespaces.
-	deleteHandler := applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults)
+	deleteHandler := applyMiddleware(
+		NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBDeleteURL, deleteHandler, DeleteHTTPMethod)
 
 	// Deploy M3DB schemas.
-	schemaHandler := applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults)
+	schemaHandler := applyMiddleware(
+		NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBSchemaURL, schemaHandler, SchemaDeployHTTPMethod)
 
 	// Reset M3DB schemas.
-	schemaResetHandler := applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults)
+	schemaResetHandler := applyMiddleware(
+		NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBSchemaURL, schemaResetHandler, DeleteHTTPMethod)
 
 	// Mark M3DB namespace as ready.
-	readyHandler := applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults)
+	readyHandler := applyMiddleware(
+		NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults)
 	addRoute(M3DBReadyURL, readyHandler, ReadyHTTPMethod)
 }
 
