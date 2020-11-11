@@ -194,42 +194,61 @@ func (h *Handler) RegisterRoutes() error {
 		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
 	})
 
-	addWrappedRoute(native.PromReadURL, h.options.QueryRouter(), native.PromReadHTTPMethods...)
-	addWrappedRoute(native.PromReadInstantURL, h.options.InstantQueryRouter(), native.PromReadInstantHTTPMethods...)
+	addWrappedRoute(native.PromReadURL, h.options.QueryRouter(),
+		native.PromReadHTTPMethods...)
+	addWrappedRoute(native.PromReadInstantURL, h.options.InstantQueryRouter(),
+		native.PromReadInstantHTTPMethods...)
 
-	addWrappedRoute("/prometheus"+native.PromReadURL, promqlQueryHandler, native.PromReadHTTPMethods...)
-	addWrappedRoute("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler, native.PromReadInstantHTTPMethods...)
+	addWrappedRoute("/prometheus"+native.PromReadURL, promqlQueryHandler,
+		native.PromReadHTTPMethods...)
+	addWrappedRoute("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler,
+		native.PromReadInstantHTTPMethods...)
 
-	addWrappedRoute(remote.PromReadURL, promRemoteReadHandler, remote.PromReadHTTPMethods...)
-	addRoute(remote.PromWriteURL, panicOnly(promRemoteWriteHandler), remote.PromWriteHTTPMethod)
+	addWrappedRoute(remote.PromReadURL, promRemoteReadHandler,
+		remote.PromReadHTTPMethods...)
+	addRoute(remote.PromWriteURL, panicOnly(promRemoteWriteHandler),
+		remote.PromWriteHTTPMethod)
 
-	addWrappedRoute("/m3query"+native.PromReadURL, nativePromReadHandler, native.PromReadHTTPMethods...)
-	addWrappedRoute("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler, native.PromReadInstantHTTPMethods...)
+	addWrappedRoute("/m3query"+native.PromReadURL, nativePromReadHandler,
+		native.PromReadHTTPMethods...)
+	addWrappedRoute("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler,
+		native.PromReadInstantHTTPMethods...)
 
 	// InfluxDB write endpoint.
-	addWrappedRoute(influxdb.InfluxWriteURL, influxdb.NewInfluxWriterHandler(h.options), influxdb.InfluxWriteHTTPMethod)
+	addWrappedRoute(influxdb.InfluxWriteURL, influxdb.NewInfluxWriterHandler(h.options),
+		influxdb.InfluxWriteHTTPMethod)
 
 	// Native M3 search and write endpoints.
-	addWrappedRoute(handler.SearchURL, handler.NewSearchHandler(h.options), handler.SearchHTTPMethod)
-	addWrappedRoute(m3json.WriteJSONURL, m3json.NewWriteJSONHandler(h.options), m3json.JSONWriteHTTPMethod)
+	addWrappedRoute(handler.SearchURL, handler.NewSearchHandler(h.options),
+		handler.SearchHTTPMethod)
+	addWrappedRoute(m3json.WriteJSONURL, m3json.NewWriteJSONHandler(h.options),
+		m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints.
-	addWrappedRoute(native.CompleteTagsURL, native.NewCompleteTagsHandler(h.options), native.CompleteTagsHTTPMethod)
-	addWrappedRoute(remote.TagValuesURL, remote.NewTagValuesHandler(h.options), remote.TagValuesHTTPMethod)
+	addWrappedRoute(native.CompleteTagsURL, native.NewCompleteTagsHandler(h.options),
+		native.CompleteTagsHTTPMethod)
+	addWrappedRoute(remote.TagValuesURL, remote.NewTagValuesHandler(h.options),
+		remote.TagValuesHTTPMethod)
 
 	// List tag endpoints.
-	addWrappedRoute(native.ListTagsURL, native.NewListTagsHandler(h.options), native.ListTagsHTTPMethods...)
+	addWrappedRoute(native.ListTagsURL, native.NewListTagsHandler(h.options),
+		native.ListTagsHTTPMethods...)
 
 	// Query parse endpoints.
-	addWrappedRoute(native.PromParseURL, native.NewPromParseHandler(h.options), native.PromParseHTTPMethod)
-	addWrappedRoute(native.PromThresholdURL, native.NewPromThresholdHandler(h.options), native.PromThresholdHTTPMethod)
+	addWrappedRoute(native.PromParseURL, native.NewPromParseHandler(h.options),
+		native.PromParseHTTPMethod)
+	addWrappedRoute(native.PromThresholdURL, native.NewPromThresholdHandler(h.options),
+		native.PromThresholdHTTPMethod)
 
 	// Series match endpoints.
-	addWrappedRoute(remote.PromSeriesMatchURL, remote.NewPromSeriesMatchHandler(h.options), remote.PromSeriesMatchHTTPMethods...)
+	addWrappedRoute(remote.PromSeriesMatchURL, remote.NewPromSeriesMatchHandler(h.options),
+		remote.PromSeriesMatchHTTPMethods...)
 
 	// Graphite endpoints.
-	addWrappedRoute(graphite.ReadURL, graphite.NewRenderHandler(h.options), graphite.ReadHTTPMethods...)
-	addWrappedRoute(graphite.FindURL, graphite.NewFindHandler(h.options), graphite.FindHTTPMethods...)
+	addWrappedRoute(graphite.ReadURL, graphite.NewRenderHandler(h.options),
+		graphite.ReadHTTPMethods...)
+	addWrappedRoute(graphite.FindURL, graphite.NewFindHandler(h.options),
+		graphite.FindHTTPMethods...)
 
 	placementOpts, err := h.placementOpts()
 	if err != nil {
@@ -273,7 +292,8 @@ func (h *Handler) RegisterRoutes() error {
 			return err
 		}
 		placement.RegisterRoutes(addRoute, serviceOptionDefaults, placementOpts)
-		namespace.RegisterRoutes(addWrappedRoute, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
+		namespace.RegisterRoutes(addWrappedRoute, clusterClient,
+			h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
 		topic.RegisterRoutes(addWrappedRoute, clusterClient, config, instrumentOpts)
 
 		// Experimental endpoints.
@@ -285,7 +305,8 @@ func (h *Handler) RegisterRoutes() error {
 					Tagged(remoteSource).
 					Tagged(experimentalAPIGroup),
 			)
-			addWrappedRoute(annotated.WriteURL, experimentalAnnotatedWriteHandler, annotated.WriteHTTPMethod)
+			addWrappedRoute(annotated.WriteURL, experimentalAnnotatedWriteHandler,
+				annotated.WriteHTTPMethod)
 		}
 	}
 
@@ -302,7 +323,8 @@ func (h *Handler) RegisterRoutes() error {
 		}
 		customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to register custom handler with path %s: %v",
+				custom.Route(), err)
 		}
 
 		if route == nil {
@@ -315,13 +337,16 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func addRoute(router *mux.Router, path string, handler http.Handler, methods ...string) *mux.Route {
-	return addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
+func addRoute(router *mux.Router, path string, handler http.Handler, methods ...string) {
+	addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
 }
 
-func addRouteHandlerFn(router *mux.Router, path string, handlerFn func(http.ResponseWriter, *http.Request), methods ...string) *mux.Route {
+func addRouteHandlerFn(router *mux.Router,
+	path string,
+	handlerFn func(http.ResponseWriter, *http.Request),
+	methods ...string) {
 	if existingRoute := router.Get(path); existingRoute != nil {
-		return existingRoute
+		return
 	}
 
 	route := router.
@@ -329,10 +354,8 @@ func addRouteHandlerFn(router *mux.Router, path string, handlerFn func(http.Resp
 		Name(path)
 
 	if len(methods) > 0 {
-		return route.Methods(methods...)
+		route.Methods(methods...)
 	}
-
-	return route
 }
 
 func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
@@ -380,7 +403,10 @@ func (h *Handler) registerHealthEndpoints() {
 
 // Endpoints useful for profiling the service.
 func (h *Handler) registerProfileEndpoints() {
-	h.router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux).Name("/debug/pprof/")
+	h.router.
+		PathPrefix("/debug/pprof/").
+		Handler(http.DefaultServeMux).
+		Name("/debug/pprof/")
 }
 
 // Endpoints useful for viewing routes directory.

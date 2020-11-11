@@ -392,7 +392,7 @@ func (h *customHandler) Handler(
 		if prev != nil {
 			assert.Fail(h.t, "Should not shadow already existing handler")
 		}
-		w.Write([]byte("success!"))
+		_, _ = w.Write([]byte("success!"))
 	}
 
 	return http.HandlerFunc(fn), nil
@@ -413,7 +413,7 @@ func (h *customHandlerOverride) Handler(
 		if prev == nil {
 			assert.Fail(h.t, "Should shadow already existing handler")
 		}
-		w.Write([]byte("success!"))
+		_, _ = w.Write([]byte("success!"))
 	}
 
 	return http.HandlerFunc(fn), nil

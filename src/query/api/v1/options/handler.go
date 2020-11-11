@@ -70,7 +70,8 @@ type CustomHandler interface {
 	Route() string
 	// Methods is the list of http methods this handler services.
 	Methods() []string
-	// Handler is the custom handler itself. prev is optional argument for getting already registered handler for the same route.
+	// Handler is the custom handler itself.
+	// prev is optional argument for getting already registered handler for the same route.
 	// If there is nothing to override, prev will be nil.
 	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
 }
