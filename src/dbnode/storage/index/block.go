@@ -257,7 +257,7 @@ func NewBlock(
 		logger:                          iopts.Logger(),
 		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
-		querySegmentsWorkers:            opts.QueryBlockSegmentsWorkerPool(),
+		querySegmentsWorkers:            opts.QueryBlockSegmentWorkerPool(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 
