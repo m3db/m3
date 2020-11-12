@@ -37,27 +37,25 @@ import (
 )
 
 const (
-	// PromReadURL is the url for native prom read handler, this matches the
+	// PromReadURL is the URL for native prom read handler, this matches the
 	// default URL for the query range endpoint found on a Prometheus server.
 	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
-	// PromReadInstantURL is the url for native instantaneous prom read
+	// PromReadInstantURL is the URL for native instantaneous prom read
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server.
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
 
-	// PrometheusReadURL is the url for native prom read handler.
+	// PrometheusReadURL is the URL for native prom read handler.
 	PrometheusReadURL = "/prometheus" + PromReadURL
 
-	// PrometheusReadInstantURL is the url for native instantaneous prom read
-	// handler
+	// PrometheusReadInstantURL is the URL for native instantaneous prom read handler.
 	PrometheusReadInstantURL = "/prometheus" + PromReadInstantURL
 
-	// M3QueryReadURL is the url for native m3 query read handler.
+	// M3QueryReadURL is the URL for native m3 query read handler.
 	M3QueryReadURL = "/m3query" + PromReadURL
 
-	// M3QueryReadInstantURL is the url for native instantaneous m3 query read
-	// handler
+	// M3QueryReadInstantURL is the URL for native instantaneous m3 query read handler.
 	M3QueryReadInstantURL = "/m3query" + PromReadInstantURL
 )
 

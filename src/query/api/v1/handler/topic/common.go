@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -56,8 +57,6 @@ type Handler struct {
 	instrumentOpts instrument.Options
 }
 
-type addRouteFn func(path string, handler http.Handler, methods ...string)
-
 // Service gets a topic service from m3cluster client
 func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error) {
 	kvOverride := kv.NewOverrideOptions().
@@ -71,16 +70,33 @@ func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOpti
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(
-	addRoute addRouteFn,
+	addRoute handler.AddRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) {
-	addRoute(InitURL, newInitHandler(client, cfg, instrumentOpts), InitHTTPMethod)
-	addRoute(GetURL, newGetHandler(client, cfg, instrumentOpts), GetHTTPMethod)
-	addRoute(AddURL, newAddHandler(client, cfg, instrumentOpts), AddHTTPMethod)
-	addRoute(UpdateURL, newUpdateHandler(client, cfg, instrumentOpts), UpdateHTTPMethod)
-	addRoute(DeleteURL, newDeleteHandler(client, cfg, instrumentOpts), DeleteHTTPMethod)
+) error {
+	if err := addRoute(InitURL, newInitHandler(client, cfg, instrumentOpts),
+		InitHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(GetURL, newGetHandler(client, cfg, instrumentOpts),
+		GetHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(AddURL, newAddHandler(client, cfg, instrumentOpts),
+		AddHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(UpdateURL, newUpdateHandler(client, cfg, instrumentOpts),
+		UpdateHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(DeleteURL, newDeleteHandler(client, cfg, instrumentOpts),
+		DeleteHTTPMethod); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func topicName(headers http.Header) string {

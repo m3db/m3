@@ -21,11 +21,10 @@
 package database
 
 import (
-	"net/http"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -38,11 +37,9 @@ type Handler struct {
 	instrumentOpts instrument.Options
 }
 
-type addRouteFn func(path string, handler http.Handler, methods ...string)
-
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(
-	addRoute addRouteFn,
+	addRoute handler.AddRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
@@ -57,8 +54,12 @@ func RegisterRoutes(
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
-	addRoute(CreateURL, createHandler, CreateHTTPMethod)
-	addRoute(CreateNamespaceURL, createHandler, CreateNamespaceHTTPMethod)
+	if err := addRoute(CreateURL, createHandler, CreateHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(CreateNamespaceURL, createHandler, CreateNamespaceHTTPMethod); err != nil {
+		return err
+	}
 
 	return nil
 }
