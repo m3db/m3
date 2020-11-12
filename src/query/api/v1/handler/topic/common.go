@@ -56,7 +56,7 @@ type Handler struct {
 	instrumentOpts instrument.Options
 }
 
-type AddRouteFn func(path string, handler http.Handler, methods ...string)
+type addRouteFn func(path string, handler http.Handler, methods ...string)
 
 // Service gets a topic service from m3cluster client
 func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error) {
@@ -71,7 +71,7 @@ func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOpti
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(
-	addRoute AddRouteFn,
+	addRoute addRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,

@@ -345,7 +345,12 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-func (h *Handler) addRoute(router *mux.Router, path string, handler http.Handler, methods []string) {
+func (h *Handler) addRoute(
+	router *mux.Router,
+	path string,
+	handler http.Handler,
+	methods []string,
+) {
 	h.addRouteHandlerFn(router, path, handler.ServeHTTP, methods...)
 }
 

@@ -72,7 +72,7 @@ type Handler struct {
 	instrumentOpts instrument.Options
 }
 
-type AddRouteFn func(path string, handler http.Handler, methods ...string)
+type addRouteFn func(path string, handler http.Handler, methods ...string)
 
 // Metadata returns the current metadata in the given store and its version
 func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
@@ -103,7 +103,7 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 
 // RegisterRoutes registers the namespace routes.
 func RegisterRoutes(
-	addRouteFn AddRouteFn,
+	addRouteFn addRouteFn,
 	client clusterclient.Client,
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
