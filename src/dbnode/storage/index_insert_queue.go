@@ -27,9 +27,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/clock"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
@@ -47,7 +49,6 @@ const (
 	nsIndexInsertQueueStateOpen
 	nsIndexInsertQueueStateClosed
 
-	// TODO(prateek): runtime options for this stuff
 	defaultIndexBatchBackoff = 2 * time.Millisecond
 
 	indexResetAllInsertsEvery = 3 * time.Minute
@@ -66,11 +67,12 @@ type nsIndexInsertQueue struct {
 	// active batch pending execution
 	currBatch *nsIndexInsertBatch
 
-	indexBatchFn nsIndexInsertBatchFn
-	nowFn        clock.NowFn
-	sleepFn      func(time.Duration)
-	notifyInsert chan struct{}
-	closeCh      chan struct{}
+	indexBatchFn            nsIndexInsertBatchFn
+	nowFn                   clock.NowFn
+	sleepFn                 func(time.Duration)
+	notifyInsert            chan struct{}
+	closeCh                 chan struct{}
+	runtimeOptsListenCloser xresource.SimpleCloser
 
 	scope tally.Scope
 
@@ -78,7 +80,10 @@ type nsIndexInsertQueue struct {
 }
 
 type newNamespaceIndexInsertQueueFn func(
-	nsIndexInsertBatchFn, namespace.Metadata, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
+	nsIndexInsertBatchFn,
+	namespace.Metadata,
+	Options,
+) namespaceIndexInsertQueue
 
 // newNamespaceIndexInsertQueue returns a new index insert queue.
 // Note: No limit appears on the index insert queue since any items making
@@ -92,15 +97,14 @@ type newNamespaceIndexInsertQueueFn func(
 func newNamespaceIndexInsertQueue(
 	indexBatchFn nsIndexInsertBatchFn,
 	namespaceMetadata namespace.Metadata,
-	nowFn clock.NowFn,
-	scope tally.Scope,
+	opts Options,
 ) namespaceIndexInsertQueue {
-	subscope := scope.SubScope("insert-queue")
+	subscope := opts.InstrumentOptions().MetricsScope().SubScope("insert-queue")
 	q := &nsIndexInsertQueue{
 		namespaceMetadata: namespaceMetadata,
 		indexBatchBackoff: defaultIndexBatchBackoff,
 		indexBatchFn:      indexBatchFn,
-		nowFn:             nowFn,
+		nowFn:             opts.ClockOptions().NowFn(),
 		sleepFn:           time.Sleep,
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
@@ -110,8 +114,19 @@ func newNamespaceIndexInsertQueue(
 		scope:        subscope,
 		metrics:      newNamespaceIndexInsertQueueMetrics(subscope),
 	}
+	// Create new batch.
 	q.currBatch = q.newBatch(newBatchOptions{instrumented: true})
+	// Register runtime options manager (which will call SetRuntimeOptions
+	// immediately).
+	runtimeOptsMgr := opts.RuntimeOptionsManager()
+	q.runtimeOptsListenCloser = runtimeOptsMgr.RegisterListener(q)
 	return q
+}
+
+func (q *nsIndexInsertQueue) SetRuntimeOptions(value runtime.Options) {
+	q.Lock()
+	q.indexBatchBackoff = value.WriteNewSeriesBackoffDuration()
+	q.Unlock()
 }
 
 type newBatchOptions struct {
@@ -254,6 +269,7 @@ func (q *nsIndexInsertQueue) Stop() error {
 	}
 
 	q.state = nsIndexInsertQueueStateClosed
+	q.runtimeOptsListenCloser.Close()
 	q.Unlock()
 
 	// Final flush

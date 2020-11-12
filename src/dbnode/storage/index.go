@@ -309,6 +309,7 @@ func newNamespaceIndexWithOptions(
 			"namespace": nsMD.ID().String(),
 		})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+	storageOpts := newIndexOpts.opts.SetInstrumentOptions(instrumentOpts)
 	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
 
 	nowFn := indexOpts.ClockOptions().NowFn()
@@ -392,7 +393,7 @@ func newNamespaceIndexWithOptions(
 	idx.forwardIndexDice = dice
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
+	queue := newIndexQueueFn(idx.writeBatches, nsMD, storageOpts)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
