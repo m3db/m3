@@ -237,7 +237,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
 		logger.Fatal("could not resolve local host ID", zap.Error(err))
 	}
@@ -268,7 +268,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	envConfig, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	discoveryConfig := cfg.DiscoveryOrDefault()
+	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
 	if err != nil {
 		logger.Fatal("could not get env config from discovery config", zap.Error(err))
 	}

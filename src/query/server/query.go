@@ -436,13 +436,14 @@ func Run(runOpts RunOptions) {
 
 	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
-		hostID, err := dbCfg.HostID.Resolve()
+		hostID, err := dbCfg.HostIDOrDefault().Resolve()
 		if err != nil {
 			logger.Fatal("could not resolve hostID",
 				zap.Error(err))
 		}
 
-		envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+		discoveryCfg := dbCfg.DiscoveryOrDefault()
+		envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 		if err != nil {
 			logger.Fatal("could not get env config from discovery config",
 				zap.Error(err))
@@ -826,13 +827,14 @@ func initClusters(
 				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
 
-			hostID, err := dbCfg.HostID.Resolve()
+			hostID, err := dbCfg.HostIDOrDefault().Resolve()
 			if err != nil {
 				logger.Fatal("could not resolve hostID",
 					zap.Error(err))
 			}
 
-			envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+			discoveryCfg := dbCfg.DiscoveryOrDefault()
+			envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 			if err != nil {
 				logger.Fatal("could not get env config from discovery config",
 					zap.Error(err))
