@@ -87,9 +87,7 @@ const (
 	defaultFlushDocsBatchSize = 8192
 )
 
-var (
-	allQuery = idx.NewAllQuery()
-)
+var allQuery = idx.NewAllQuery()
 
 // nolint: maligned
 type nsIndex struct {
@@ -109,7 +107,7 @@ type nsIndex struct {
 
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
 	indexFilesetsBeforeFn   indexFilesetsBeforeFn
-	deleteFilesFn           deleteFilesFn
+	deleteFilesFn           fs.DeleteFilesFn
 	readIndexInfoFilesFn    readIndexInfoFilesFn
 
 	newBlockFn            index.NewBlockFn

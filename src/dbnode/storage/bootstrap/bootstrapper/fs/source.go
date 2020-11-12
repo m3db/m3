@@ -79,6 +79,7 @@ type fileSystemSource struct {
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
+	deleteFilesFn     fs.DeleteFilesFn
 	metrics           fileSystemSourceMetrics
 }
 
@@ -98,12 +99,13 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	s := &fileSystemSource{
-		opts:        opts,
-		fsopts:      opts.FilesystemOptions(),
-		log:         iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
-		nowFn:       opts.ResultOptions().ClockOptions().NowFn(),
-		idPool:      opts.IdentifierPool(),
-		newReaderFn: fs.NewReader,
+		opts:          opts,
+		fsopts:        opts.FilesystemOptions(),
+		log:           iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn:         opts.ResultOptions().ClockOptions().NowFn(),
+		idPool:        opts.IdentifierPool(),
+		newReaderFn:   fs.NewReader,
+		deleteFilesFn: fs.DeleteFiles,
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
 			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
@@ -328,6 +330,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	builder *result.IndexBuilder,
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
+	cache bootstrap.Cache,
 ) {
 	resultOpts := s.opts.ResultOptions()
 
@@ -338,7 +341,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 			runOpts, runResult, resultOpts, timeWindowReaders, readerPool,
-			builder, persistManager, compactor)
+			builder, persistManager, compactor, cache)
 	}
 }
 
@@ -392,6 +395,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	builder *result.IndexBuilder,
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
+	cache bootstrap.Cache,
 ) {
 	var (
 		blockPool            = ropts.DatabaseBlockOptions().DatabaseBlockPool()
@@ -578,7 +582,35 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
+			// NB(bodu): If we are persisting an index segment to disk, we need to delete any existing
+			// index filesets not of the default index volume type (if there was a default index fileset here
+			// then we would've bootstrapped from the persisted index segment already).
+			var (
+				filesToDelete  = []string{}
+				persistSuccess bool
+			)
+			defer func() {
+				if persistSuccess {
+					if err := s.deleteFilesFn(filesToDelete); err != nil {
+						instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+							l.Error("failed to delete non default index filesets",
+								zap.Error(err),
+								zap.Stringer("namespace", ns.ID()),
+								zap.Stringer("requestedRanges", requestedRanges))
+						})
+					}
+				}
+			}()
+			filesToDelete = s.appendIndexFilesetFilesToDelete(ns, blockStart, cache, filesToDelete, iopts)
+
+			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
+			// Use info log with more high level attributes.
+			s.log.Info("rebuilding file set index segment",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Int("totalEntries", totalEntries),
+				zap.Time("blockStart", blockStart),
+				zap.Time("blockEnd", blockEnd))
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -590,7 +622,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if err == nil {
+				// Track success.
+				s.metrics.persistedIndexBlocksWrite.Inc(1)
+				persistSuccess = true
+			} else {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -598,8 +634,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						zap.Stringer("requestedRanges", requestedRanges))
 				})
 			}
-			// Track success.
-			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
 			s.log.Info("building in-memory index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
@@ -648,6 +682,41 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
 		remainingRanges, timesWithErrors)
+}
+
+// appendIndexFilesetFilesToDelete appends non default index volume type index filesets for deletion.
+func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
+	ns namespace.Metadata,
+	blockStart time.Time,
+	cache bootstrap.Cache,
+	filesToDelete []string,
+	iopts instrument.Options,
+) []string {
+	infoFiles, err := cache.IndexInfoFilesForNamespace(ns)
+	if err != nil {
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.Error("failed to get index info files from cache",
+				zap.Error(err),
+				zap.Stringer("namespace", ns.ID()))
+		})
+	}
+	for _, infoFile := range infoFiles {
+		if err := infoFile.Err.Error(); err != nil {
+			// We already log errors once when bootstrapping from persisted
+			// index blocks just continue here.
+			continue
+		}
+
+		info := infoFile.Info
+		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		if blockStart.Equal(indexBlockStart) &&
+			info.IndexVolumeType != nil &&
+			idxpersist.IndexVolumeType(info.IndexVolumeType.Value) !=
+				idxpersist.DefaultIndexVolumeType {
+			filesToDelete = append(filesToDelete, infoFile.AbsoluteFilePaths...)
+		}
+	}
+	return filesToDelete
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
@@ -785,7 +854,7 @@ func (s *fileSystemSource) read(
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
-			shardTimeRanges)
+			shardTimeRanges, cache)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
@@ -872,7 +941,8 @@ func (s *fileSystemSource) read(
 				accumulator, runOpts, bootstrapFromReadersRunResult,
 				readerPool, readersCh, builder,
 				&bootstrapper.SharedPersistManager{Mgr: persistManager},
-				&bootstrapper.SharedCompactor{Compactor: compactor})
+				&bootstrapper.SharedCompactor{Compactor: compactor},
+				cache)
 			buildWg.Done()
 		}()
 	}
@@ -928,14 +998,17 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
 ) (bootstrapFromIndexPersistedBlocksResult, error) {
 	res := bootstrapFromIndexPersistedBlocksResult{
 		fulfilled: result.NewShardTimeRanges(),
 	}
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	infoFiles := fs.ReadIndexInfoFiles(s.fsopts.FilePathPrefix(), ns.ID(),
-		s.fsopts.InfoReaderBufferSize())
+	infoFiles, err := cache.IndexInfoFilesForNamespace(ns)
+	if err != nil {
+		return bootstrapFromIndexPersistedBlocksResult{}, err
+	}
 
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
@@ -1031,7 +1104,13 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		// as we've already passed the ranges fulfilled to the block that
 		// we place in the IndexResuts with the call to Add(...).
 		res.result.index.Add(indexBlockByVolumeType, nil)
-		res.fulfilled.AddRanges(segmentsFulfilled)
+
+		// NB(bodu): We only mark ranges as fulfilled for the default index volume type.
+		// It's possible to have other index volume types but the default type is required to
+		// fulfill bootstrappable ranges.
+		if volumeType == idxpersist.DefaultIndexVolumeType {
+			res.fulfilled.AddRanges(segmentsFulfilled)
+		}
 	}
 
 	return res, nil
