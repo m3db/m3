@@ -99,7 +99,13 @@ func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
 		})
 	require.NoError(t, err)
 	fsOpts := fs.NewOptions()
-	icm := fs.NewIndexClaimsManager(fsOpts)
+
+	// Allow multiple index claim managers since need to create one
+	// for each file path prefix (fs options changes between tests).
+	fs.ResetIndexClaimsManagersUnsafe()
+
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 	return NewOptions().
 		SetResultOptions(testDefaultResultOpts).
 		SetPersistManager(persist.NewMockManager(ctrl)).

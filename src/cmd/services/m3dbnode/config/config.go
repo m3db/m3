@@ -66,11 +66,16 @@ var (
 		SamplingRate:    1.0,
 		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
 	}
-	defaultListenAddress                 = "0.0.0.0:9000"
-	defaultClusterListenAddress          = "0.0.0.0:9001"
-	defaultHTTPNodeListenAddress         = "0.0.0.0:9002"
-	defaultHTTPClusterListenAddress      = "0.0.0.0:9003"
-	defaultDebugListenAddress            = "0.0.0.0:9004"
+	defaultListenAddress            = "0.0.0.0:9000"
+	defaultClusterListenAddress     = "0.0.0.0:9001"
+	defaultHTTPNodeListenAddress    = "0.0.0.0:9002"
+	defaultHTTPClusterListenAddress = "0.0.0.0:9003"
+	defaultDebugListenAddress       = "0.0.0.0:9004"
+	defaultHostIDValue              = "m3db_local"
+	defaultHostID                   = hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &defaultHostIDValue,
+	}
 	defaultGCPercentage                  = 100
 	defaultWriteNewSeriesAsync           = true
 	defaultWriteNewSeriesBackoffDuration = 2 * time.Millisecond
@@ -81,6 +86,10 @@ var (
 			Size:            2097152,
 			CalculationType: CalculationTypeFixed,
 		},
+	}
+	defaultDiscoveryType = discovery.M3DBSingleNodeType
+	defaultDiscovery     = discovery.Configuration{
+		Type: &defaultDiscoveryType,
 	}
 )
 
@@ -130,7 +139,7 @@ type DBConfiguration struct {
 	DebugListenAddress *string `yaml:"debugListenAddress"`
 
 	// HostID is the local host ID configuration.
-	HostID hostid.Configuration `yaml:"hostID"`
+	HostID *hostid.Configuration `yaml:"hostID"`
 
 	// Client configuration, used for inter-node communication and when used as a coordinator.
 	Client client.Configuration `yaml:"client"`
@@ -166,7 +175,7 @@ type DBConfiguration struct {
 	PoolingPolicy *PoolingPolicy `yaml:"pooling"`
 
 	// The discovery configuration.
-	DiscoveryConfig discovery.Configuration `yaml:"discovery"`
+	Discovery *discovery.Configuration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
@@ -262,6 +271,15 @@ func (c *DBConfiguration) DebugListenAddressOrDefault() string {
 	return *c.DebugListenAddress
 }
 
+// HostIDOrDefault returns the host ID or default.
+func (c *DBConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return defaultHostID
+	}
+
+	return *c.HostID
+}
+
 // CommitLogOrDefault returns the commit log policy or default.
 func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
 	if c.CommitLog == nil {
@@ -310,6 +328,15 @@ func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
 	}
 
 	return policy, nil
+}
+
+// DiscoveryOrDefault returns the discovery configuration or defaults.
+func (c *DBConfiguration) DiscoveryOrDefault() discovery.Configuration {
+	if c.Discovery == nil {
+		return defaultDiscovery
+	}
+
+	return *c.Discovery
 }
 
 // Validate validates the Configuration. We use this method to validate fields
@@ -589,12 +616,13 @@ func (c *ProtoConfiguration) Validate() error {
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
 		return nil, fmt.Errorf("failed resolving hostID %w", err)
 	}
 
-	envCfg, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	discoveryCfg := cfg.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
 	}

@@ -86,7 +86,8 @@ const (
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards           = runtime.NumCPU()
+	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -267,6 +268,9 @@ type Configuration struct {
 type MatcherConfiguration struct {
 	// Cache if non-zero will set the capacity of the rules matching cache.
 	Cache MatcherCacheConfiguration `yaml:"cache"`
+	// NamespaceTag defines the namespace tag to use to select rules
+	// namespace to evaluate against. Default is "__m3_namespace__".
+	NamespaceTag string `yaml:"namespaceTag"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
@@ -647,12 +651,16 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		logger                  = instrumentOpts.Logger()
 		openTimeout             = defaultOpenTimeout
 		m3PrefixFilter          = false
+		namespaceTag            = defaultNamespaceTag
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
 	}
 	if o.OpenTimeout > 0 {
 		openTimeout = o.OpenTimeout
+	}
+	if cfg.Matcher.NamespaceTag != "" {
+		namespaceTag = cfg.Matcher.NamespaceTag
 	}
 
 	pools := o.newAggregatorPools()
@@ -662,7 +670,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(o.RulesKVStore)
+		SetKVStore(o.RulesKVStore).
+		SetNamespaceTag([]byte(namespaceTag))
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
