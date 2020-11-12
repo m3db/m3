@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -345,18 +346,18 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards)
+	ret0, _ := ret[0].(wide.QueryIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WideQuery indicates an expected call of WideQuery
-func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards)
 }
 
 // FetchBlocks mocks base method
@@ -770,18 +771,18 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
+	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards)
+	ret0, _ := ret[0].(wide.QueryIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WideQuery indicates an expected call of WideQuery
-func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards)
 }
 
 // FetchBlocks mocks base method
@@ -4705,6 +4706,34 @@ func (m *MockOptions) OnColdFlush() OnColdFlush {
 func (mr *MockOptionsMockRecorder) OnColdFlush() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnColdFlush", reflect.TypeOf((*MockOptions)(nil).OnColdFlush))
+}
+
+// SetIterationOptions mocks base method
+func (m *MockOptions) SetIterationOptions(arg0 index.IterationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIterationOptions", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIterationOptions indicates an expected call of SetIterationOptions
+func (mr *MockOptionsMockRecorder) SetIterationOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterationOptions", reflect.TypeOf((*MockOptions)(nil).SetIterationOptions), arg0)
+}
+
+// IterationOptions mocks base method
+func (m *MockOptions) IterationOptions() index.IterationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterationOptions")
+	ret0, _ := ret[0].(index.IterationOptions)
+	return ret0
+}
+
+// IterationOptions indicates an expected call of IterationOptions
+func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
 }
 
 // SetMemoryTracker mocks base method
