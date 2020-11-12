@@ -37,6 +37,10 @@ func AddResponseHeaders(
 	meta block.ResultMetadata,
 	fetchOpts *storage.FetchOptions,
 ) {
+	if fetchOpts != nil {
+		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
+	}
+
 	ex := meta.Exhaustive
 	warns := len(meta.Warnings)
 	if !ex {
@@ -57,8 +61,4 @@ func AddResponseHeaders(
 	}
 
 	w.Header().Set(headers.LimitHeader, strings.Join(warnings, ","))
-
-	if fetchOpts != nil {
-		w.Header().Set(headers.TimeoutHeader, fetchOpts.Timeout.String())
-	}
 }
