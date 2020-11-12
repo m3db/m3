@@ -214,12 +214,14 @@ func TestFetchOptionsBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
+			builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
 				Limits: FetchOptionsBuilderLimitsOptions{
 					SeriesLimit: test.defaultLimit,
 				},
 				RestrictByTag: test.defaultRestrictByTag,
+				Timeout:       10 * time.Second,
 			})
+			require.NoError(t, err)
 
 			url := "/foo"
 			if test.query != "" {
@@ -231,7 +233,6 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			}
 
 			opts, err := builder.NewFetchOptions(req)
-
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
@@ -247,6 +248,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.NotNil(t, opts.LookbackDuration)
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
 				}
+				require.Equal(t, "10s", opts.Timeout)
 			} else {
 				require.Error(t, err)
 			}
@@ -360,11 +362,14 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		}`,
 	}
 
-	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
+	builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
 		Limits: FetchOptionsBuilderLimitsOptions{
 			SeriesLimit: 5,
 		},
+		Timeout: 10 * time.Second,
 	})
+	require.NoError(t, err)
+
 	req := httptest.NewRequest("GET", "/", nil)
 	for k, v := range headers {
 		req.Header.Add(k, v)
@@ -399,7 +404,6 @@ func stripSpace(str string) string {
 }
 
 func TestParseRequestTimeout(t *testing.T) {
-	url := fmt.Sprintf("/read?timeout=2m")
 	req := httptest.NewRequest("GET", "/read?timeout=2m", nil)
 	dur, err := ParseRequestTimeout(req, time.Second)
 	require.NoError(t, err)

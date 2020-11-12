@@ -132,7 +132,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err), zap.String("query", query))
 	}
 
-	handleroptions.AddWarningHeaders(w, resultMetadata)
+	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	respond(w, &queryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),

@@ -97,7 +97,7 @@ func (h *renderHandler) serveHTTP(
 	r *http.Request,
 ) error {
 	reqCtx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	p, err := ParseRenderRequest(r, h.opts)
+	p, fetchOpts, err := ParseRenderRequest(r, h.opts)
 	if err != nil {
 		return xhttp.NewError(err, http.StatusBadRequest)
 	}
@@ -209,7 +209,7 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
+	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,
