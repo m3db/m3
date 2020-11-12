@@ -103,7 +103,8 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 	require.NoError(t, err)
 
 	syncCluster, err := envCfg.Services.SyncCluster()
@@ -337,7 +338,8 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	envCfg, err := cfg.DB.DiscoveryConfig.EnvironmentConfig(hostID)
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 	require.NoError(t, err)
 
 	syncCluster, err := envCfg.Services.SyncCluster()

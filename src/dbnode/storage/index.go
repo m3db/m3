@@ -1134,6 +1134,14 @@ func (i *nsIndex) flushBlock(
 		allShards[shard.ID()] = struct{}{}
 	}
 
+	volumeIndex, err := i.opts.IndexClaimsManager().ClaimNextIndexFileSetVolumeIndex(
+		i.nsMetadata,
+		indexBlock.StartTime(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim next index volume index: %w", err)
+	}
+
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
 		NamespaceMetadata: i.nsMetadata,
 		BlockStart:        indexBlock.StartTime(),
@@ -1141,6 +1149,7 @@ func (i *nsIndex) flushBlock(
 		Shards:            allShards,
 		// NB(bodu): By default, we always write to the "default" index volume type.
 		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+		VolumeIndex:     volumeIndex,
 	})
 	if err != nil {
 		return nil, err

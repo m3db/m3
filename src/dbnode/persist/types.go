@@ -271,6 +271,7 @@ type IndexPrepareOptions struct {
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
 	IndexVolumeType   idxpersist.IndexVolumeType
+	VolumeIndex       int
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains

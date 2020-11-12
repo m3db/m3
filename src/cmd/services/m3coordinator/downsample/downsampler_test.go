@@ -102,6 +102,8 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 		},
 	})
 
+	require.False(t, testDownsampler.downsampler.Enabled())
+
 	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
 
 	session := dbclient.NewMockSession(ctrl)
@@ -114,8 +116,45 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 
 	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
+	require.True(t, testDownsampler.downsampler.Enabled())
+
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{})
+
+	require.False(t, testDownsampler.downsampler.Enabled())
+
+	// Add an aggregated namespace and expect downsampler to be enabled.
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	waitForEnabledUpdate(t, &testDownsampler, false)
+
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Set just an unaggregated namespace and expect downsampler to be disabled.
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("default"),
+		Retention:   48 * time.Hour,
+		Session:     session,
+	})
+	require.NoError(t, err)
+	require.NoError(t,
+		testDownsampler.opts.ClusterNamespacesWatcher.Update(clusters.ClusterNamespaces()))
+
+	waitForEnabledUpdate(t, &testDownsampler, true)
+
+	require.False(t, testDownsampler.downsampler.Enabled())
 }
 
 func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
@@ -1235,6 +1274,87 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 	testDownsamplerRemoteAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerWithOverrideNamespace(t *testing.T) {
+	overrideNamespaceTag := "override_namespace_tag"
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+			// Set namespace tags on ingested metrics.
+			// The test demonstrates that overrideNamespaceTag is respected, meaning setting
+			// values on defaultNamespaceTag won't affect aggregation.
+			defaultNamespaceTag: "namespace_ignored",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 5 * time.Second},
+		},
+	}
+	res := 5 * time.Second
+	ret := 30 * 24 * time.Hour
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.PerSecond,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		matcherConfig: MatcherConfiguration{NamespaceTag: overrideNamespaceTag},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 4.4}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func originalStagedMetadata(t *testing.T, testDownsampler testDownsampler) []metricpb.StagedMetadatas {
 	ds, ok := testDownsampler.downsampler.(*downsampler)
 	require.True(t, ok)
@@ -1253,7 +1373,18 @@ func waitForStagedMetadataUpdate(t *testing.T, testDownsampler testDownsampler, 
 
 		return !assert.ObjectsAreEqual(origStagedMetadata, ds.metricsAppenderOpts.defaultStagedMetadatasProtos)
 	}, time.Second))
+}
 
+func waitForEnabledUpdate(t *testing.T, testDownsampler *testDownsampler, current bool) {
+	ds, ok := testDownsampler.downsampler.(*downsampler)
+	require.True(t, ok)
+
+	require.True(t, clock.WaitUntil(func() bool {
+		ds.RLock()
+		defer ds.RUnlock()
+
+		return current != ds.enabled
+	}, time.Second))
 }
 
 type testExpectedWrite struct {
@@ -1701,6 +1832,7 @@ type testDownsamplerOptions struct {
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
 	rulesConfig        *RulesConfiguration
+	matcherConfig      MatcherConfiguration
 
 	// Test ingest and expectations overrides
 	ingest *testDownsamplerOptionsIngest
@@ -1771,6 +1903,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	if opts.rulesConfig != nil {
 		cfg.Rules = opts.rulesConfig
 	}
+	cfg.Matcher = opts.matcherConfig
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:                    storage,

@@ -436,13 +436,14 @@ func Run(runOpts RunOptions) {
 
 	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
-		hostID, err := dbCfg.HostID.Resolve()
+		hostID, err := dbCfg.HostIDOrDefault().Resolve()
 		if err != nil {
 			logger.Fatal("could not resolve hostID",
 				zap.Error(err))
 		}
 
-		envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+		discoveryCfg := dbCfg.DiscoveryOrDefault()
+		envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 		if err != nil {
 			logger.Fatal("could not get env config from discovery config",
 				zap.Error(err))
@@ -640,45 +641,40 @@ func newM3DBStorage(
 		namespaces  = clusters.ClusterNamespaces()
 		downsampler downsample.Downsampler
 	)
-	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
-		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
-			zap.Int("numAggregatedClusterNamespaces", n))
+	logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+		zap.Int("numAggregatedClusterNamespaces", len(namespaces)))
+
+	newDownsamplerFn := func() (downsample.Downsampler, error) {
+		ds, err := newDownsampler(
+			cfg.Downsample, clusterClient,
+			fanoutStorage, clusterNamespacesWatcher,
+			tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		// Notify the downsampler ready channel that
+		// the downsampler has now been created and is ready.
+		if downsamplerReadyCh != nil {
+			downsamplerReadyCh <- struct{}{}
+		}
+
+		return ds, nil
+	}
+
+	if clusterClientWaitCh != nil {
+		// Need to wait before constructing and instead return an async downsampler
+		// since the cluster client will return errors until it's initialized itself
+		// and will fail constructing the downsampler consequently
+		downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+			<-clusterClientWaitCh
+			return newDownsamplerFn()
+		}, nil)
+	} else {
+		// Otherwise we already have a client and can immediately construct the downsampler
+		downsampler, err = newDownsamplerFn()
 		if err != nil {
 			return nil, nil, nil, nil, err
-		}
-
-		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			downsampler, err := newDownsampler(
-				cfg.Downsample, clusterClient,
-				fanoutStorage, clusterNamespacesWatcher,
-				tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
-			if err != nil {
-				return nil, err
-			}
-
-			// Notify the downsampler ready channel that
-			// the downsampler has now been created and is ready.
-			if downsamplerReadyCh != nil {
-				downsamplerReadyCh <- struct{}{}
-			}
-
-			return downsampler, nil
-		}
-
-		if clusterClientWaitCh != nil {
-			// Need to wait before constructing and instead return an async downsampler
-			// since the cluster client will return errors until it's initialized itself
-			// and will fail constructing the downsampler consequently
-			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
-				<-clusterClientWaitCh
-				return newDownsamplerFn()
-			}, nil)
-		} else {
-			// Otherwise we already have a client and can immediately construct the downsampler
-			downsampler, err = newDownsamplerFn()
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
 		}
 	}
 
@@ -831,13 +827,14 @@ func initClusters(
 				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
 
-			hostID, err := dbCfg.HostID.Resolve()
+			hostID, err := dbCfg.HostIDOrDefault().Resolve()
 			if err != nil {
 				logger.Fatal("could not resolve hostID",
 					zap.Error(err))
 			}
 
-			envCfg, err := dbCfg.DiscoveryConfig.EnvironmentConfig(hostID)
+			discoveryCfg := dbCfg.DiscoveryOrDefault()
+			envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
 			if err != nil {
 				logger.Fatal("could not get env config from discovery config",
 					zap.Error(err))

@@ -92,3 +92,12 @@ func (d *asyncDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 	}
 	return d.downsampler.NewMetricsAppender()
 }
+
+func (d *asyncDownsampler) Enabled() bool {
+	d.RLock()
+	defer d.RUnlock()
+	if d.err != nil {
+		return false
+	}
+	return d.downsampler.Enabled()
+}
