@@ -1069,12 +1069,16 @@ func (d *db) WideQuery(
 				return err
 			}
 
-			shardIter.PushRecord(wide.ShardIteratorRecord{
+			err = shardIter.PushRecord(wide.ShardIteratorRecord{
 				ID:               entry.ID.Bytes(),
 				EncodedTags:      entry.EncodedTags.Bytes(),
 				MetadataChecksum: entry.MetadataChecksum,
 				Data:             entry.Data.Bytes(),
 			})
+
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

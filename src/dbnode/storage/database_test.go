@@ -353,6 +353,8 @@ func TestDatabaseWideEntry(t *testing.T) {
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
 	res, err = d.fetchWideEntry(ctx, mockNamespace, seriesID, start)
+	require.NoError(t, err)
+
 	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -968,7 +970,6 @@ func exhaustWideQueryIter(
 }
 
 func exhaustWideQueryIterResult(
-	t *testing.T,
 	iter wide.QueryIterator,
 ) []error {
 	var errs []error
@@ -1010,7 +1011,7 @@ func TestWideQuery(t *testing.T) {
 
 		iter, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil)
 		require.NoError(t, err)
-		errs := exhaustWideQueryIterResult(t, iter)
+		errs := exhaustWideQueryIterResult(iter)
 		require.Error(t, errs[0])
 	}
 

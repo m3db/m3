@@ -34,7 +34,7 @@ const (
 	defaultBufferCapacity = 65536
 )
 
-type opts struct {
+type options struct {
 	bufferCount    int
 	bufferCapacity int
 	bufferTimeout  time.Duration
@@ -44,13 +44,13 @@ type opts struct {
 
 // NewOptions creates a new set of wide options.
 func NewOptions() Options {
-	return &opts{
+	return &options{
 		bufferCount:    defaultBufferCount,
 		bufferCapacity: defaultBufferCapacity,
 	}
 }
 
-func (o *opts) Validate() error {
+func (o *options) Validate() error {
 	if o.bufferCapacity <= 0 {
 		return fmt.Errorf("buffer capacity %d must be greater than 0", o.bufferCapacity)
 	}
@@ -70,53 +70,52 @@ func (o *opts) Validate() error {
 	return nil
 }
 
-func (o *opts) SetFixedBufferCount(value int) Options {
+func (o *options) SetFixedBufferCount(value int) Options {
 	opts := *o
 	opts.bufferCount = value
 	return &opts
 }
 
-func (o *opts) FixedBufferCount() int {
+func (o *options) FixedBufferCount() int {
 	return o.bufferCount
 }
 
-func (o *opts) SetFixedBufferCapacity(value int) Options {
+func (o *options) SetFixedBufferCapacity(value int) Options {
 	opts := *o
 	opts.bufferCapacity = value
 	return &opts
 }
 
-func (o *opts) FixedBufferCapacity() int {
+func (o *options) FixedBufferCapacity() int {
 	return o.bufferCapacity
 }
 
-func (o *opts) SetFixedBufferTimeout(value time.Duration) Options {
+func (o *options) SetFixedBufferTimeout(value time.Duration) Options {
 	opts := *o
 	opts.bufferTimeout = value
 	return &opts
 }
 
-func (o *opts) FixedBufferTimeout() time.Duration {
+func (o *options) FixedBufferTimeout() time.Duration {
 	return o.bufferTimeout
 }
 
-func (o *opts) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+func (o *options) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
 	opts := *o
 	opts.iterPool = value
 	return &opts
 }
 
-func (o *opts) ReaderIteratorPool() encoding.ReaderIteratorPool {
+func (o *options) ReaderIteratorPool() encoding.ReaderIteratorPool {
 	return o.iterPool
 }
 
-func (o *opts) SetSchemaDescr(value namespace.SchemaDescr) Options {
+func (o *options) SetSchemaDescr(value namespace.SchemaDescr) Options {
 	opts := *o
 	opts.schema = value
 	return &opts
-
 }
 
-func (o *opts) SchemaDescr() namespace.SchemaDescr {
+func (o *options) SchemaDescr() namespace.SchemaDescr {
 	return o.schema
 }

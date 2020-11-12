@@ -28,9 +28,7 @@ import (
 	"time"
 )
 
-var (
-	errTimeout = errors.New("buffer manager timeout")
-)
+var errTimeout = errors.New("buffer manager timeout")
 
 type fixedBufferManager struct {
 	mu sync.Mutex
@@ -90,7 +88,6 @@ func (m *fixedBufferManager) Copy(src []byte) ([]byte, BorrowedBuffer, error) {
 }
 
 type fixedBufferPool struct {
-	timeout time.Duration
 	buffers chan *fixedBuffer
 }
 

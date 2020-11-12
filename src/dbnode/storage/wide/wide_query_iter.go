@@ -261,6 +261,7 @@ func (i *wideQueryShardIterator) Next() bool {
 	if i.iter == nil {
 		i.iter = newQuerySeriesIterator(i.opts)
 	}
+
 	i.iter.reset(record)
 	return true
 }
