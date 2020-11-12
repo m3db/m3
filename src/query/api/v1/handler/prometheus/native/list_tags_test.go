@@ -111,8 +111,9 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		return now
 	}
 
-	fb := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{})
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
+	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).
@@ -155,8 +156,9 @@ func TestListErrorTags(t *testing.T) {
 		return now
 	}
 
-	fb := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{})
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
+	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).
