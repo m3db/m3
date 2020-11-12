@@ -36,14 +36,6 @@ import (
 // formats with prometheus.
 // https://github.com/prometheus/prometheus/blob/43acd0e2e93f9f70c49b2267efa0124f1e759e86/web/api/v1/api.go#L1097
 
-const (
-	queryParam   = "query"
-	startParam   = "start"
-	endParam     = "end"
-	stepParam    = "step"
-	timeoutParam = "timeout"
-)
-
 var (
 	minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
 	maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
@@ -60,17 +52,6 @@ const (
 )
 
 type errorType string
-
-const (
-	errorNone        errorType = ""
-	errorTimeout     errorType = "timeout"
-	errorCanceled    errorType = "canceled"
-	errorExec        errorType = "execution"
-	errorBadData     errorType = "bad_data"
-	errorInternal    errorType = "internal"
-	errorUnavailable errorType = "unavailable"
-	errorNotFound    errorType = "not_found"
-)
 
 type queryData struct {
 	ResultType promql.ValueType `json:"resultType"`
