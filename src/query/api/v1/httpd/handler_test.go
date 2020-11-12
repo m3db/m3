@@ -377,8 +377,11 @@ func init() {
 	testWorkerPool.Init()
 }
 
+type assertFn func(t *testing.T, prev http.Handler)
+
 type customHandler struct {
 	t *testing.T
+	assertFn assertFn
 }
 
 func (h *customHandler) Route() string     { return "/custom" }
@@ -389,31 +392,7 @@ func (h *customHandler) Handler(
 ) (http.Handler, error) {
 	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if prev != nil {
-			assert.Fail(h.t, "Should not shadow already existing handler")
-		}
-		_, err := w.Write([]byte("success!"))
-		require.NoError(h.t, err)
-	}
-
-	return http.HandlerFunc(fn), nil
-}
-
-type customHandlerOverride struct {
-	t *testing.T
-}
-
-func (h *customHandlerOverride) Route() string     { return "/custom" }
-func (h *customHandlerOverride) Methods() []string { return []string{http.MethodGet} }
-func (h *customHandlerOverride) Handler(
-	opts options.HandlerOptions,
-	prev http.Handler,
-) (http.Handler, error) {
-	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		if prev == nil {
-			assert.Fail(h.t, "Should shadow already existing handler")
-		}
+		h.assertFn(h.t, prev)
 		_, err := w.Write([]byte("success!"))
 		require.NoError(h.t, err)
 	}
@@ -438,8 +417,18 @@ func TestCustomRoutes(t *testing.T) {
 		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
 
 	require.NoError(t, err)
-	custom := &customHandler{t: t}
-	custom2 := &customHandlerOverride{t: t}
+	custom := &customHandler{
+		t: t,
+		assertFn: func(t *testing.T, prev http.Handler) {
+			assert.True(t, prev == nil, "Should not shadow already existing handler")
+		},
+	}
+	custom2 := &customHandler{
+		t: t,
+		assertFn: func(t *testing.T, prev http.Handler) {
+			assert.False(t, prev == nil, "Should shadow already existing handler")
+		},
+	}
 	handler := NewHandler(opts, custom, custom2)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
