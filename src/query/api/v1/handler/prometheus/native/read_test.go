@@ -54,8 +54,8 @@ func TestParseRequest(t *testing.T) {
 
 	parsed, err := ParseRequest(req.Context(), req, false, setup.options)
 	require.NoError(t, err)
-	require.Equal(t, time.Second*10, parsed.Params.Timeout)
-	require.Equal(t, time.Second*0, parsed.FetchOpts.Timeout)
+	require.Equal(t, 15*time.Second, parsed.Params.Timeout)
+	require.Equal(t, 15*time.Second, parsed.FetchOpts.Timeout)
 	require.Equal(t, 0, parsed.FetchOpts.DocsLimit)
 	require.Equal(t, 0, parsed.FetchOpts.SeriesLimit)
 	require.Equal(t, false, parsed.FetchOpts.RequireExhaustive)

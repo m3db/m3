@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -62,9 +61,15 @@ func defaultParams() url.Values {
 }
 
 func testParseParams(req *http.Request) (models.RequestParams, error) {
-	fetchOpts, err := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}).
-		NewFetchOptions(req)
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	if err != nil {
+		return models.RequestParams{}, err
+	}
+
+	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
 	if err != nil {
 		return models.RequestParams{}, err
 	}
@@ -98,10 +103,17 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	params.Add(queryParam, promQuery)
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 10 * time.Second,
+		})
+	require.NoError(t, err)
+	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
+	require.NoError(t, err)
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
-		storage.NewFetchOptions())
-	require.Nil(t, err, "unable to parse request")
+		fetchOpts)
+	require.NoError(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
 

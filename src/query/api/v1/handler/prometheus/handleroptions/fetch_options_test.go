@@ -21,8 +21,10 @@
 package handleroptions
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,7 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -408,4 +412,51 @@ func TestParseRequestTimeout(t *testing.T) {
 	dur, err := ParseRequestTimeout(req, time.Second)
 	require.NoError(t, err)
 	assert.Equal(t, 2*time.Minute, dur)
+}
+
+func TestTimeoutParseWithHeader(t *testing.T) {
+	req := httptest.NewRequest("POST", "/dummy", nil)
+	req.Header.Add("timeout", "1ms")
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
+
+	req.Header.Del("timeout")
+	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, 2*time.Minute)
+
+	req.Header.Add("timeout", "invalid")
+	_, err = ParseRequestTimeout(req, 15*time.Second)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestTimeoutParseWithPostRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	buff := bytes.NewBuffer(nil)
+	form := multipart.NewWriter(buff)
+	form.WriteField("timeout", "1ms")
+	require.NoError(t, form.Close())
+
+	req := httptest.NewRequest("POST", "/dummy", buff)
+	req.Header.Set(xhttp.HeaderContentType, form.FormDataContentType())
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
+}
+
+func TestTimeoutParseWithGetRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	req := httptest.NewRequest("GET", "/dummy?"+params.Encode(), nil)
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
 }

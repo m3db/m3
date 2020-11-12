@@ -23,12 +23,13 @@ package graphite
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
-	"math"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -44,6 +45,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	testHandlerOptions options.HandlerOptions
+)
+
+func init() {
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	if err != nil {
+		panic(err)
+	}
+
+	testHandlerOptions = options.EmptyHandlerOptions().
+		SetQueryContextOptions(models.QueryContextOptions{}).
+		SetFetchOptionsBuilder(fetchOptsBuilder)
+}
 
 func makeBlockResult(
 	ctrl *gomock.Controller,
@@ -78,9 +97,7 @@ func makeBlockResult(
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(mockStorage).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions.SetStorage(mockStorage)
 	handler := NewRenderHandler(opts)
 
 	recorder := httptest.NewRecorder()
@@ -99,9 +116,7 @@ func TestParseQueryNoResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions.SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -144,9 +159,7 @@ func TestParseQueryResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions.SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -198,9 +211,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions.SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -254,9 +265,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(makeBlockResult(ctrl, fr), nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions.SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -317,9 +326,7 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(makeBlockResult(ctrl, frTwo), nil)
 
-			opts := options.EmptyHandlerOptions().
-				SetStorage(store).
-				SetQueryContextOptions(models.QueryContextOptions{})
+			opts := testHandlerOptions.SetStorage(store)
 			handler := NewRenderHandler(opts)
 
 			req := newGraphiteReadHTTPRequest(t)
@@ -364,9 +371,9 @@ func TestParseQueryResultsAllNaN(t *testing.T) {
 	graphiteStorageOpts := graphiteStorage.M3WrappedStorageOptions{
 		RenderSeriesAllNaNs: true,
 	}
-	opts := options.EmptyHandlerOptions().
+	opts := testHandlerOptions.
 		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{}).SetGraphiteStorageOptions(graphiteStorageOpts)
+		SetGraphiteStorageOptions(graphiteStorageOpts)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
