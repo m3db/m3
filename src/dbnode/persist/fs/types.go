@@ -697,3 +697,5 @@ type DataEntryProcessor interface {
 	// ProcessEntry processes a single StreamedDataEntry.
 	ProcessEntry(StreamedDataEntry) error
 }
+
+type DeleteFilesFn func(files []string) error
