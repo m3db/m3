@@ -2677,7 +2677,7 @@ func (s *dbShard) AggregateTiles(
 	defer func() {
 		for _, reader := range openBlockReaders {
 			if err := reader.Close(); err != nil {
-				s.logger.Error("error closing DataFileSetReader", zap.Error(err))
+				s.logger.Error("could not close DataFileSetReader", zap.Error(err))
 			}
 		}
 	}()
