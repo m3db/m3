@@ -25,9 +25,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
-	"path"
-	"sort"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -324,22 +321,24 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Register custom endpoints.
 	for _, custom := range h.customHandlers {
-		routeName := routeName(custom.Route(), custom.Methods())
-		route := h.router.Get(routeName)
-		var prevHandler http.Handler
-		if route != nil {
-			prevHandler = route.GetHandler()
-		}
-		customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
-		if err != nil {
-			return fmt.Errorf("failed to register custom handler with path %s: %w",
-				routeName, err)
-		}
+		for _, method := range custom.Methods() {
+			routeName := routeName(custom.Route(), method)
+			route := h.router.Get(routeName)
+			var prevHandler http.Handler
+			if route != nil {
+				prevHandler = route.GetHandler()
+			}
+			customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
+			if err != nil {
+				return fmt.Errorf("failed to register custom handler with path %s: %w",
+					routeName, err)
+			}
 
-		if route == nil {
-			wrappedRouteFn(custom.Route(), customHandler, custom.Methods()...)
-		} else {
-			route.Handler(wrapped(customHandler))
+			if route == nil {
+				wrappedRouteFn(custom.Route(), customHandler, method)
+			} else {
+				route.Handler(wrapped(customHandler))
+			}
 		}
 	}
 
@@ -356,53 +355,26 @@ func (h *Handler) addRouteHandlerFn(
 	handlerFn http.HandlerFunc,
 	methods ...string,
 ) {
-	routeName := routeName(path, methods)
-	if previousRoute := router.Get(routeName); previousRoute != nil {
-		h.logger.Warn("route already exists",
-			zap.String("routeName", routeName))
-		return
-	}
-
-	route := router.
-		HandleFunc(path, handlerFn).
-		Name(routeName)
-
-	if len(methods) < 1 {
-		h.logger.Warn("adding route without methods",
-			zap.String("routeName", routeName))
-		return
-	}
-
-	route.Methods(methods...)
-}
-
-func routeName(p string, methods []string) string {
-	if len(methods) > 1 {
-		distinctMethods := distinct(methods)
-		return path.Join(p, strings.Join(distinctMethods, ":"))
-	}
-
-	return path.Join(p, strings.Join(methods, ":"))
-}
-
-func distinct(arr []string) []string {
-	if len(arr) <= 1 {
-		return arr
-	}
-
-	sort.Strings(arr)
-
-	var prev string
-	distinct := arr[:0]
-	for i, entry := range arr {
-		if i == 0 || prev != entry {
-			distinct = append(distinct, entry)
+	for _, method := range methods {
+		routeName := routeName(path, method)
+		if previousRoute := router.Get(routeName); previousRoute != nil {
+			h.logger.Warn("route already exists",
+				zap.String("routeName", routeName))
+			continue
 		}
 
-		prev = entry
+		router.
+			HandleFunc(path, handlerFn).
+			Name(routeName).
+			Methods(method)
 	}
+}
 
-	return distinct
+func routeName(p string, method string) string {
+	if method == "" {
+		return p
+	}
+	return p + " " + method
 }
 
 func (h *Handler) placementOpts() (placement.HandlerOptions, error) {

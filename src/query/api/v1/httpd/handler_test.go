@@ -448,42 +448,22 @@ func TestCustomRoutes(t *testing.T) {
 	require.Equal(t, res.Code, http.StatusOK)
 }
 
-func TestDistinct(t *testing.T) {
-	assert.Equal(
-		t,
-		[]string{"a"},
-		distinct([]string{"a"}),
-	)
-
-	assert.Equal(
-		t,
-		[]string{"a", "b", "c"},
-		distinct([]string{"c", "a", "b", "c"}),
-	)
-
-	assert.Equal(
-		t,
-		[]string{"a", "b", "c"},
-		distinct([]string{"c", "b", "a"}),
-	)
-}
-
 func TestRouteName(t *testing.T) {
 	assert.Equal(
 		t,
-		"/api/v1/test/GET:POST",
-		routeName("/api/v1/test", []string{"GET", "POST"}),
+		"/api/v1/test GET",
+		routeName("/api/v1/test", "GET"),
 	)
 
 	assert.Equal(
 		t,
 		"/api/v1/test",
-		routeName("/api/v1/test", []string{}),
+		routeName("/api/v1/test", ""),
 	)
 
 	assert.Equal(
 		t,
-		"/api/v1/test/GET:HEAD:POST",
-		routeName("/api/v1/test", []string{"POST", "GET", "GET", "HEAD"}),
+		"/api/v1/test POST",
+		routeName("/api/v1/test", "POST"),
 	)
 }
