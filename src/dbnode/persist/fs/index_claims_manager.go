@@ -23,16 +23,38 @@ package fs
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var errOutOfRetentionClaim = errors.New("out of retention index volume claim")
+var (
+	// errMustUseSingleClaimsManager returned when a second claims manager
+	// created, since this is a violation of expected behavior.
+	errMustUseSingleClaimsManager = errors.New("not using single global claims manager")
+	// errOutOfRetentionClaim returned when reserving a claim that is
+	// out of retention.
+	errOutOfRetentionClaim = errors.New("out of retention index volume claim")
+
+	globalIndexClaimsManagers uint64
+)
+
+// ResetIndexClaimsManagersUnsafe should only be used from tests or integration
+// tests, it resets the count of index claim managers to allow new claim
+// managers to be created.
+// By default this is restricted to just once instantiation since otherwise
+// concurrency issues can be skipped without realizing.
+func ResetIndexClaimsManagersUnsafe() {
+	atomic.StoreUint64(&globalIndexClaimsManagers, 0)
+}
 
 type indexClaimsManager struct {
 	sync.Mutex
@@ -53,13 +75,22 @@ type volumeIndexClaim struct {
 // concurrent claims for volume indices per ns and block start.
 // NB(bodu): There should be only a single shared index claim manager among all threads
 // writing index data filesets.
-func NewIndexClaimsManager(opts Options) IndexClaimsManager {
+func NewIndexClaimsManager(opts Options) (IndexClaimsManager, error) {
+	if atomic.AddUint64(&globalIndexClaimsManagers, 1) != 1 {
+		err := errMustUseSingleClaimsManager
+		instrument.EmitAndLogInvariantViolation(opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error(err.Error())
+			})
+		return nil, err
+	}
+
 	return &indexClaimsManager{
 		filePathPrefix:                opts.FilePathPrefix(),
 		nowFn:                         opts.ClockOptions().NowFn(),
 		volumeIndexClaims:             make(map[string]map[xtime.UnixNano]volumeIndexClaim),
 		nextIndexFileSetVolumeIndexFn: NextIndexFileSetVolumeIndex,
-	}
+	}, nil
 }
 
 func (i *indexClaimsManager) ClaimNextIndexFileSetVolumeIndex(

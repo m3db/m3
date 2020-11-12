@@ -52,7 +52,7 @@ func TestQueryOptions(t *testing.T) {
 
 func TestInvalidWideQueryOptions(t *testing.T) {
 	var (
-		now      = time.Now()
+		now      = time.Now().Truncate(time.Hour).Add(1)
 		iterOpts = IterationOptions{}
 
 		batchSize int
@@ -68,14 +68,18 @@ func TestInvalidWideQueryOptions(t *testing.T) {
 
 	blockSize = time.Minute
 	_, err = NewWideQueryOptions(now, batchSize, blockSize, nil, iterOpts)
+	require.Error(t, err)
+
+	now = now.Truncate(blockSize)
+	_, err = NewWideQueryOptions(now, batchSize, blockSize, nil, iterOpts)
 	require.NoError(t, err)
 }
 
 func TestWideQueryOptions(t *testing.T) {
 	var (
-		now       = time.Now()
 		batchSize = 100
 		blockSize = time.Hour * 2
+		now       = time.Now().Truncate(blockSize)
 		iterOpts  = IterationOptions{}
 		shards    = []uint32{100, 23, 1}
 	)

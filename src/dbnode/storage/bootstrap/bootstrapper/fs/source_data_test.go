@@ -95,7 +95,13 @@ func newTestOptions(t require.TestingT, filePathPrefix string) Options {
 	fsOpts := newTestFsOptions(filePathPrefix)
 	pm, err := fs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
-	icm := fs.NewIndexClaimsManager(fsOpts)
+
+	// Allow multiple index claim managers since need to create one
+	// for each file path prefix (fs options changes between tests).
+	fs.ResetIndexClaimsManagersUnsafe()
+
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 	return testDefaultOpts.
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
@@ -938,8 +944,7 @@ func TestReadRunMigrations(t *testing.T) {
 	writeGoodFilesWithFsOpts(t, testNs1ID, testShard, newTestFsOptions(dir).SetEncodingOptions(eOpts))
 
 	opts := newTestOptions(t, dir)
-	icm := fs.NewIndexClaimsManager(opts.FilesystemOptions())
-	sOpts, closer := newTestStorageOptions(t, opts.PersistManager(), icm)
+	sOpts, closer := newTestStorageOptions(t, opts.PersistManager(), opts.IndexClaimsManager())
 	defer closer()
 
 	src, err := newFileSystemSource(opts.
