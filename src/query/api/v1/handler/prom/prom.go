@@ -21,11 +21,14 @@
 package prom
 
 import (
+	"context"
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 
 	"github.com/prometheus/prometheus/promql"
@@ -45,12 +48,17 @@ type Options struct {
 
 // NewReadHandler creates a handler to handle PromQL requests.
 func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
+	return NewReadHandlerWithCustomParser(DefaultReadRequestParser(hOpts), opts, hOpts)
+}
+
+// NewReadHandlerWithCustomParser creates a handler that processes PromQL requests using a custom request parser.
+func NewReadHandlerWithCustomParser(parser RequestParser, opts Options, hOpts options.HandlerOptions) http.Handler {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
-	return newReadHandler(opts, hOpts, queryable)
+	return newReadHandler(parser, opts, hOpts, queryable)
 }
 
 // NewReadInstantHandler creates a handler to handle PromQL requests.
@@ -61,6 +69,17 @@ func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Hand
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
 	return newReadInstantHandler(opts, hOpts, queryable)
+}
+
+func DefaultReadRequestParser(opts options.HandlerOptions) RequestParser {
+	return func(ctx context.Context, r *http.Request) (models.RequestParams, error) {
+		params, err := native.ParseRequest(ctx, r, false, opts)
+		if err != nil {
+			return models.RequestParams{}, err
+		}
+
+		return params.Params, nil
+	}
 }
 
 // ApplyRangeWarnings applies warnings encountered during execution.

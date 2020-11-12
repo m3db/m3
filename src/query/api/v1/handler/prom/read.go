@@ -28,9 +28,9 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 
 	"github.com/prometheus/prometheus/promql"
@@ -39,8 +39,11 @@ import (
 	"go.uber.org/zap"
 )
 
+type RequestParser func(ctx context.Context, r *http.Request) (models.RequestParams, error)
+
 type readHandler struct {
 	engine    *promql.Engine
+	parser    RequestParser
 	queryable promstorage.Queryable
 	hOpts     options.HandlerOptions
 	scope     tally.Scope
@@ -48,6 +51,7 @@ type readHandler struct {
 }
 
 func newReadHandler(
+	parser RequestParser,
 	opts Options,
 	hOpts options.HandlerOptions,
 	queryable promstorage.Queryable,
@@ -57,6 +61,7 @@ func newReadHandler(
 	)
 	return &readHandler{
 		engine:    opts.PromQLEngine,
+		parser:    parser,
 		queryable: queryable,
 		hOpts:     hOpts,
 		scope:     scope,
@@ -73,7 +78,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	request, err := h.parser(ctx, r)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -86,21 +91,21 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
 	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
 
-	if request.Params.Timeout > 0 {
+	if request.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, request.Params.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, request.Timeout)
 		defer cancel()
 	}
 
 	qry, err := h.engine.NewRangeQuery(
 		h.queryable,
-		request.Params.Query,
-		request.Params.Start,
-		request.Params.End,
-		request.Params.Step)
+		request.Query,
+		request.Start,
+		request.End,
+		request.Step)
 	if err != nil {
 		h.logger.Error("error creating range query",
-			zap.Error(err), zap.String("query", request.Params.Query))
+			zap.Error(err), zap.String("query", request.Query))
 		respondError(w, err)
 		return
 	}
@@ -109,7 +114,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	res := qry.Exec(ctx)
 	if res.Err != nil {
 		h.logger.Error("error executing range query",
-			zap.Error(res.Err), zap.String("query", request.Params.Query))
+			zap.Error(res.Err), zap.String("query", request.Query))
 		respondError(w, res.Err)
 		return
 	}
@@ -118,7 +123,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
-	query := request.Params.Query
+	query := request.Query
 	err = ApplyRangeWarnings(query, &resultMetadata)
 	if err != nil {
 		h.logger.Warn("error applying range warnings",

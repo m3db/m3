@@ -77,7 +77,7 @@ func setupTest(t *testing.T) testHandlers {
 		SetEngine(engine).
 		SetTimeoutOpts(timeoutOpts)
 	queryable := &mockQueryable{}
-	readHandler := newReadHandler(opts, hOpts, queryable)
+	readHandler := newReadHandler(DefaultReadRequestParser(hOpts), opts, hOpts, queryable)
 	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
 	return testHandlers{
 		queryable:          queryable,
