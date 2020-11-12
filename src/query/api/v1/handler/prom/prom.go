@@ -51,8 +51,13 @@ func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
 	return NewReadHandlerWithCustomParser(DefaultReadRequestParser(hOpts), opts, hOpts)
 }
 
-// NewReadHandlerWithCustomParser creates a handler that processes PromQL requests using a custom request parser.
-func NewReadHandlerWithCustomParser(parser RequestParser, opts Options, hOpts options.HandlerOptions) http.Handler {
+// NewReadHandlerWithCustomParser creates a handler that processes PromQL requests using a custom request
+// parser.
+func NewReadHandlerWithCustomParser(
+	parser RequestParser,
+	opts Options,
+	hOpts options.HandlerOptions,
+) http.Handler {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
@@ -71,6 +76,7 @@ func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Hand
 	return newReadInstantHandler(opts, hOpts, queryable)
 }
 
+// DefaultReadRequestParser returns the default function that parse read request arguments
 func DefaultReadRequestParser(opts options.HandlerOptions) RequestParser {
 	return func(ctx context.Context, r *http.Request) (models.RequestParams, error) {
 		params, err := native.ParseRequest(ctx, r, false, opts)

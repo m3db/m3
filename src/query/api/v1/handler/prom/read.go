@@ -39,6 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// RequestParser is a function that parses request arguments
 type RequestParser func(ctx context.Context, r *http.Request) (models.RequestParams, error)
 
 type readHandler struct {
