@@ -23,9 +23,10 @@ package integration
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/test"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
