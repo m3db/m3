@@ -76,47 +76,47 @@ endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 
 	gofmt -w -r 'Map -> $(rename_type_prefix)Map' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// Map# // $(rename_type_prefix)Map#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// Map# // $(rename_type_prefix)Map#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'MapHash -> $(rename_type_prefix)MapHash' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// MapHash# // $(rename_type_prefix)MapHash#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// MapHash# // $(rename_type_prefix)MapHash#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'HashFn -> $(rename_type_prefix)MapHashFn' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// HashFn# // $(rename_type_prefix)MapHashFn#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// HashFn# // $(rename_type_prefix)MapHashFn#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'EqualsFn -> $(rename_type_prefix)MapEqualsFn' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// EqualsFn# // $(rename_type_prefix)MapEqualsFn#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// EqualsFn# // $(rename_type_prefix)MapEqualsFn#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'CopyFn -> $(rename_type_prefix)MapCopyFn' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// CopyFn# // $(rename_type_prefix)MapCopyFn#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// CopyFn# // $(rename_type_prefix)MapCopyFn#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'FinalizeFn -> $(rename_type_prefix)MapFinalizeFn' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// FinalizeFn# // $(rename_type_prefix)MapFinalizeFn#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// FinalizeFn# // $(rename_type_prefix)MapFinalizeFn#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'MapEntry -> $(rename_type_prefix)MapEntry' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// MapEntry# // $(rename_type_prefix)MapEntry#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// MapEntry# // $(rename_type_prefix)MapEntry#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'SetUnsafeOptions -> $(rename_type_prefix)MapSetUnsafeOptions' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// SetUnsafeOptions# // $(rename_type_prefix)MapSetUnsafeOptions#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// SetUnsafeOptions# // $(rename_type_prefix)MapSetUnsafeOptions#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'mapAlloc -> _$(rename_type_prefix)MapAlloc' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// mapAlloc#// _$(rename_type_prefix)MapAlloc#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapAlloc#// _$(rename_type_prefix)MapAlloc#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'mapOptions -> _$(rename_type_prefix)MapOptions' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// mapOptions#// _$(rename_type_prefix)MapOptions#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapOptions#// _$(rename_type_prefix)MapOptions#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'mapKey -> _$(rename_type_prefix)MapKey' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// mapKey#// _$(rename_type_prefix)MapKey#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapKey#// _$(rename_type_prefix)MapKey#g' $(temp_outdir)/*_gen.go
 
 	gofmt -w -r 'mapKeyOptions -> _$(rename_type_prefix)MapKeyOptions' $(temp_outdir)/*_gen.go
-	sed -i tmp 's#^// mapKeyOptions#// _$(rename_type_prefix)MapKeyOptions#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapKeyOptions#// _$(rename_type_prefix)MapKeyOptions#g' $(temp_outdir)/*_gen.go
 
 	[ "$(rename_constructor)" = "" ] || \
 	gofmt -w -r 'NewMap -> $(rename_constructor)' $(temp_outdir)/*_gen.go && \
-	sed -i tmp 's#^// NewMap#// $(rename_constructor)#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// NewMap#// $(rename_constructor)#g' $(temp_outdir)/*_gen.go
 	[ "$(rename_constructor_options)" = "" ] || \
 	gofmt -w -r 'MapOptions -> $(rename_constructor_options)' $(temp_outdir)/*_gen.go && \
-	sed -i tmp 's#^// MapOptions#// $(rename_constructor_options)#g' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// MapOptions#// $(rename_constructor_options)#g' $(temp_outdir)/*_gen.go
 
 	mv $(temp_outdir)/map_gen.go $(out_dir)/map_gen.go
 	! test -f $(temp_outdir)/new_map_gen.go || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
@@ -196,10 +196,10 @@ endif
 	gofmt -w -r 'defaultElemFinalizerFn -> default$(rename_type_middle)FinalizerFn' $(temp_outdir)/*.go
 
 	# best effort comment rename
-	sed -i tmp 's#^// elemArr#// $(rename_type_prefix)Arr#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// elemFinalizeFn#// $(rename_type_prefix)FinalizeFn#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// newElemArrayPool#// $(rename_constructor)#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// defaultElemFinalizerFn#// default$(rename_type_middle)FinalizerFn#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// elemArr#// $(rename_type_prefix)Arr#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// elemFinalizeFn#// $(rename_type_prefix)FinalizeFn#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newElemArrayPool#// $(rename_constructor)#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// defaultElemFinalizerFn#// default$(rename_type_middle)FinalizerFn#g' $(temp_outdir)/*.go
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif
@@ -242,11 +242,11 @@ endif
 	gofmt -w -r 'newElementPool -> new$(rename_type_middle)ElementPool' $(temp_outdir)/*.go
 	gofmt -w -r 'newList -> new$(rename_type_middle)List' $(temp_outdir)/*.go
 	# best-effort comment fixup
-	sed -i tmp 's#^// Element#// $(rename_type_prefix)Element#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// List#// $(rename_type_prefix)List#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// ElementPool#// $(rename_type_prefix)ElementPool#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// newElementPool#// new$(rename_type_middle)ElementPool#g' $(temp_outdir)/*.go
-	sed -i tmp 's#^// newList#// new$(rename_type_middle)List#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// Element#// $(rename_type_prefix)Element#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// List#// $(rename_type_prefix)List#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// ElementPool#// $(rename_type_prefix)ElementPool#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newElementPool#// new$(rename_type_middle)ElementPool#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newList#// new$(rename_type_middle)List#g' $(temp_outdir)/*.go
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif
