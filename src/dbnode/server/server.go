@@ -618,11 +618,13 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not create index claims manager", zap.Error(err))
 	}
+	defer func() {
+		// Reset counter of index claims managers after server teardown.
+		fs.ResetIndexClaimsManagersUnsafe()
+	}()
 	opts = opts.SetIndexClaimsManager(icm)
 
-	var (
-		envCfgResults environment.ConfigureResults
-	)
+	var envCfgResults environment.ConfigureResults
 	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
@@ -790,7 +792,6 @@ func Run(runOpts RunOptions) {
 		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
-
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}

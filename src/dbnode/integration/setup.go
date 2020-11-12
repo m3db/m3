@@ -539,6 +539,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// otherwise, we are guessing
 	return guess, true
 }
+
 func (ts *testSetup) ShouldBeEqual() bool {
 	return ts.assertEqual == nil
 }
@@ -822,6 +823,11 @@ func (ts *testSetup) Close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+	// NB(bodu): Need to reset the global counter of index claims managers after
+	// we've torn down this test setup. This will actually get called more than once
+	// in the multi node integration test case but this is fine since the reset always
+	// sets the counter to 0.
+	fs.ResetIndexClaimsManagersUnsafe()
 }
 
 func (ts *testSetup) MustSetTickMinimumInterval(tickMinInterval time.Duration) {
@@ -939,10 +945,6 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 		if err != nil {
 			return err
 		}
-		icm, err := fs.NewIndexClaimsManager(fsOpts)
-		if err != nil {
-			return err
-		}
 		storageIdxOpts := storageOpts.IndexOptions()
 		compactor, err := newCompactorWithErr(storageIdxOpts)
 		if err != nil {
@@ -953,7 +955,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
-			SetIndexClaimsManager(icm).
+			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
