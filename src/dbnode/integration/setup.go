@@ -765,6 +765,10 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 func (ts *testSetup) StopServer() error {
 	ts.doneCh <- struct{}{}
 
+	// NB(bodu): Need to reset the global counter of index claims managers after
+	// we've stopped the test server. This covers the restart server case.
+	fs.ResetIndexClaimsManagersUnsafe()
+
 	if ts.m3dbClient.DefaultSessionActive() {
 		session, err := ts.m3dbClient.DefaultSession()
 		if err != nil {
@@ -823,10 +827,9 @@ func (ts *testSetup) Close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
-	// NB(bodu): Need to reset the global counter of index claims managers after
-	// we've torn down this test setup. This will actually get called more than once
-	// in the multi node integration test case but this is fine since the reset always
-	// sets the counter to 0.
+
+	// This could get called more than once in the multi node integration test case
+	// but this is fine since the reset always sets the counter to 0.
 	fs.ResetIndexClaimsManagersUnsafe()
 }
 
