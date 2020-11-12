@@ -172,17 +172,17 @@ func applyMiddlewareToRoute(
 	defaults []handleroptions.ServiceOptionsDefault,
 ) addRouteFn {
 	applyMiddleware := func(
-			applyMiddlewareFn applyMiddlewareFn,
-			defaults []handleroptions.ServiceOptionsDefault,
-		) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				svc := handleroptions.ServiceNameAndDefaults{
-					ServiceName: handleroptions.M3DBServiceName,
-					Defaults:    defaults,
-				}
-				applyMiddlewareFn(svc, w, r)
-			})
-		}
+		applyMiddlewareFn applyMiddlewareFn,
+		defaults []handleroptions.ServiceOptionsDefault,
+	) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			svc := handleroptions.ServiceNameAndDefaults{
+				ServiceName: handleroptions.M3DBServiceName,
+				Defaults:    defaults,
+			}
+			applyMiddlewareFn(svc, w, r)
+		})
+	}
 
 	return func(path string, f applyMiddlewareFn, methods ...string) error {
 		return addRouteFn(path, applyMiddleware(f, defaults), methods...)
