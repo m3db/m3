@@ -270,8 +270,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		opts      = DefaultTestOptions()
+		fsOpts    = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
 		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
@@ -325,9 +325,9 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
-		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
+		opts          = DefaultTestOptions()
+		fsOpts        = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		newClOpts     = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1849,23 +1849,30 @@ func TestShardAggregateTiles(t *testing.T) {
 		targetBlockSize = 2 * time.Hour
 		start           = time.Now().Truncate(targetBlockSize)
 		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
-		err             error
+
+		firstSourceBlockEntries  = 3
+		secondSourceBlockEntries = 2
+		maxSourceBlockEntries    = 3
+
+		expectedProcessedTileCount = int64(4)
+
+		err error
 	)
 
 	aggregator := NewMockTileAggregator(ctrl)
 	testOpts := DefaultTestOptions().SetTileAggregator(aggregator)
 
 	sourceShard := testDatabaseShard(t, testOpts)
-	defer sourceShard.Close()
+	defer assert.NoError(t, sourceShard.Close())
 
 	sourceNsID := sourceShard.namespace.ID()
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
-	reader0.EXPECT().Entries().Return(3)
+	reader0.EXPECT().Entries().Return(firstSourceBlockEntries)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
-	reader1.EXPECT().Entries().Return(2)
+	reader1.EXPECT().Entries().Return(secondSourceBlockEntries)
 
 	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
 	reader2, volume2 := getMockReader(ctrl, t, sourceShard, thirdSourceBlockStart, false)
@@ -1878,7 +1885,7 @@ func TestShardAggregateTiles(t *testing.T) {
 	}
 
 	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
-	defer targetShard.Close() // nolint:errcheck
+	defer assert.NoError(t, targetShard.Close())
 
 	writer := fs.NewMockStreamingWriter(ctrl)
 	gomock.InOrder(
@@ -1888,7 +1895,7 @@ func TestShardAggregateTiles(t *testing.T) {
 			BlockStart:          opts.Start,
 			BlockSize:           targetBlockSize,
 			VolumeIndex:         1,
-			PlannedRecordsCount: 3,
+			PlannedRecordsCount: uint(maxSourceBlockEntries),
 		}),
 		writer.EXPECT().Close(),
 	)
@@ -1896,12 +1903,12 @@ func TestShardAggregateTiles(t *testing.T) {
 	targetNs := NewMockNamespace(ctrl)
 	aggregator.EXPECT().
 		AggregateTiles(opts, targetNs, sourceShard.ID(), gomock.Len(2), writer).
-		Return(int64(4), nil)
+		Return(expectedProcessedTileCount, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
 		sourceNsID, targetNs, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
 	require.NoError(t, err)
-	assert.Equal(t, int64(4), processedTileCount)
+	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
 }
 
 func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
@@ -1914,7 +1921,7 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	)
 
 	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
-	defer targetShard.Close()
+	defer assert.NoError(t, targetShard.Close())
 
 	var blockReaders []fs.DataFileSetReader
 	sourceBlockVolumes := []shardBlockVolume{{start, 0}}

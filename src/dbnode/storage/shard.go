@@ -2676,7 +2676,9 @@ func (s *dbShard) AggregateTiles(
 	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
 		for _, reader := range openBlockReaders {
-			_ = reader.Close()
+			if err := reader.Close(); err != nil {
+				s.logger.Error("error closing DataFileSetReader", zap.Error(err))
+			}
 		}
 	}()
 
@@ -2737,6 +2739,7 @@ func (s *dbShard) AggregateTiles(
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
 		opts, targetNs, s.ID(), openBlockReaders, writer)
 	if err != nil {
+		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
 	}
 
