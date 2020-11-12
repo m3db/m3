@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/dtest/docker/harness/resources"
 )
 
-type URLTest struct {
+type urlTest struct {
 	name string
 	url  string
 }
@@ -38,7 +38,7 @@ type URLTest struct {
 func TestInvalidInstantQueryReturns400(t *testing.T) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
-	instantQueryBadRequestTest := []URLTest{
+	instantQueryBadRequestTest := []urlTest{
 		// FAILING issue #2: invalid or missing query string should result in 400
 		// {"missing query", queryURL("query", "")},
 		// {"invalid query", queryURL("query", "@!")},
@@ -56,7 +56,7 @@ func TestInvalidInstantQueryReturns400(t *testing.T) {
 func TestInvalidRangeQueryReturns400(t *testing.T) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
-	queryBadRequestTest := []URLTest{
+	queryBadRequestTest := []urlTest{
 		{"missing query", queryRangeURL("query", "")},
 		// FAILING issue #2: invalid query string should result in 400
 		// {"invalid query", queryRangeURL("query", "@!")},
