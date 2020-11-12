@@ -81,9 +81,6 @@ var (
 )
 
 func newTestOptions(t require.TestingT, filePathPrefix string) Options {
-	testOptionsOnce.Do(func() {
-
-	})
 	idxOpts := index.NewOptions()
 	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,

@@ -286,8 +286,13 @@ func newDefaultBootstrappableTestSetups(
 
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
+
+		// Allow multiple index claim managers since need to create one
+		// for each file path prefix (fs options changes between tests).
+		persistfs.ResetIndexClaimsManagersUnsafe()
 		icm, err := persistfs.NewIndexClaimsManager(fsOpts)
 		require.NoError(t, err)
+
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
