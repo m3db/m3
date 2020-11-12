@@ -51,8 +51,8 @@ func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
 	return NewReadHandlerWithCustomParser(DefaultReadRequestParser(hOpts), opts, hOpts)
 }
 
-// NewReadHandlerWithCustomParser creates a handler that processes PromQL requests using a custom request
-// parser.
+// NewReadHandlerWithCustomParser creates a handler that processes PromQL requests using a custom
+// request parser.
 func NewReadHandlerWithCustomParser(
 	parser RequestParser,
 	opts Options,
