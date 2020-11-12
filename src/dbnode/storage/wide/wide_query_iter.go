@@ -216,6 +216,7 @@ func (i *wideQueryShardIterator) setDone() {
 	close(i.records)
 }
 
+// nolint: hugeParam
 func (i *wideQueryShardIterator) PushRecord(r ShardIteratorRecord) error {
 	var (
 		qr  wideQueryShardIteratorQueuedRecord
@@ -298,6 +299,7 @@ func newQuerySeriesIterator(opts Options) *wideQuerySeriesIterator {
 	}
 }
 
+// nolint: hugeParam
 func (i *wideQuerySeriesIterator) reset(
 	record wideQueryShardIteratorQueuedRecord,
 ) {
