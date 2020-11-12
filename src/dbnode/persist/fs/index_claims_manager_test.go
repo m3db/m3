@@ -34,7 +34,7 @@ import (
 
 func newTestIndexClaimsManager(t *testing.T, opts Options) IndexClaimsManager {
 	// Reset the count of index claim managers.
-	resetGlobalIndexClaimsManagers()
+	ResetIndexClaimsManagersUnsafe()
 	mgr, err := NewIndexClaimsManager(opts)
 	require.NoError(t, err)
 	return mgr
@@ -42,7 +42,7 @@ func newTestIndexClaimsManager(t *testing.T, opts Options) IndexClaimsManager {
 
 func TestIndexClaimsManagerSingleGlobalManager(t *testing.T) {
 	// Reset the count of index claim managers.
-	resetGlobalIndexClaimsManagers()
+	ResetIndexClaimsManagersUnsafe()
 
 	// First should be able to be created easily.
 	_, err := NewIndexClaimsManager(testDefaultOpts)

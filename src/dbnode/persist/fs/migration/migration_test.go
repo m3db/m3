@@ -68,7 +68,8 @@ func TestToVersion1_1Run(t *testing.T) {
 	pm, err := fs.NewPersistManager(
 		fsOpts.SetEncodingOptions(msgpack.DefaultLegacyEncodingOptions)) // Set encoder to most up-to-date version
 	require.NoError(t, err)
-	icm := fs.NewIndexClaimsManager(fsOpts)
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 
 	md, err := namespace.NewMetadata(nsID, namespace.NewOptions())
 	require.NoError(t, err)

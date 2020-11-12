@@ -47,7 +47,12 @@ var (
 	globalIndexClaimsManagers uint64
 )
 
-func resetGlobalIndexClaimsManagers() {
+// ResetIndexClaimsManagersUnsafe should only be used from tests or integration
+// tests, it resets the count of index claim managers to allow new claim
+// managers to be created.
+// By default this is restricted to just once instantiation since otherwise
+// concurrency issues can be skipped without realizing.
+func ResetIndexClaimsManagersUnsafe() {
 	atomic.StoreUint64(&globalIndexClaimsManagers, 0)
 }
 

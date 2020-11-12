@@ -286,7 +286,8 @@ func newDefaultBootstrappableTestSetups(
 
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
-		icm := persistfs.NewIndexClaimsManager(fsOpts)
+		icm, err := persistfs.NewIndexClaimsManager(fsOpts)
+		require.NoError(t, err)
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).

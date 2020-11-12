@@ -70,6 +70,13 @@ func DefaultTestOptions() Options {
 		indexOpts := opts.IndexOptions().
 			SetPostingsListCache(plCache)
 
+		// Needs a unique index claims manager each time as it tracks volume indices via in mem claims that
+		// should be different per test.
+		icm, err := fs.NewIndexClaimsManager(fsOpts)
+		if err != nil {
+			panic(err)
+		}
+
 		defaultTestOptions = opts.
 			SetIndexOptions(indexOpts).
 			SetSeriesCachePolicy(series.CacheAll).
@@ -77,14 +84,11 @@ func DefaultTestOptions() Options {
 			SetRepairEnabled(false).
 			SetCommitLogOptions(
 				opts.CommitLogOptions().SetFilesystemOptions(fsOpts)).
-			SetBlockLeaseManager(blockLeaseManager)
+			SetBlockLeaseManager(blockLeaseManager).
+			SetIndexClaimsManager(icm)
 	})
 
-	// Needs a unique index claims manager each time as it tracks volume indices via in mem claims that
-	// should be different per test.
-	fsOpts := defaultTestOptions.CommitLogOptions().FilesystemOptions()
-	icm := fs.NewIndexClaimsManager(fsOpts)
-	return defaultTestOptions.SetIndexClaimsManager(icm)
+	return defaultTestOptions
 }
 
 // numIntervals returns the number of intervals between [start, end] for a given

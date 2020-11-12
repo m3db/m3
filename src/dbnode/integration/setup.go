@@ -396,7 +396,10 @@ func NewTestSetup(
 	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up index claims manager
-	icm := fs.NewIndexClaimsManager(fsOpts)
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
 	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
@@ -936,7 +939,10 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 		if err != nil {
 			return err
 		}
-		icm := fs.NewIndexClaimsManager(fsOpts)
+		icm, err := fs.NewIndexClaimsManager(fsOpts)
+		if err != nil {
+			return err
+		}
 		storageIdxOpts := storageOpts.IndexOptions()
 		compactor, err := newCompactorWithErr(storageIdxOpts)
 		if err != nil {

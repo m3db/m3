@@ -614,7 +614,10 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetPersistManager(pm)
 
 	// Set the index claims manager
-	icm := fs.NewIndexClaimsManager(fsopts)
+	icm, err := fs.NewIndexClaimsManager(fsopts)
+	if err != nil {
+		logger.Fatal("could not create index claims manager", zap.Error(err))
+	}
 	opts = opts.SetIndexClaimsManager(icm)
 
 	var (
