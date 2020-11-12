@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -182,8 +183,7 @@ type Database interface {
 		query index.Query,
 		start time.Time,
 		shards []uint32,
-		iterOpts index.IterationOptions,
-	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
+	) (wide.QueryIterator, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -1242,6 +1242,12 @@ type Options interface {
 
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
+
+	// SetIterationOptions sets iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns iteration options.
+	IterationOptions() index.IterationOptions
 
 	// SetMemoryTracker sets the MemoryTracker.
 	SetMemoryTracker(memTracker MemoryTracker) Options
