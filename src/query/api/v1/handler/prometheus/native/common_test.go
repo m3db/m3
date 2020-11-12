@@ -30,7 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -52,12 +51,6 @@ const (
 	promQuery = `http_requests_total{job="prometheus",group="canary"}`
 )
 
-var (
-	timeoutOpts = &prometheus.TimeoutOpts{
-		FetchTimeout: 15 * time.Second,
-	}
-)
-
 func defaultParams() url.Values {
 	vals := url.Values{}
 	now := time.Now()
@@ -76,7 +69,7 @@ func testParseParams(req *http.Request) (models.RequestParams, error) {
 		return models.RequestParams{}, err
 	}
 
-	return parseParams(req, executor.NewEngineOptions(), timeoutOpts, fetchOpts)
+	return parseParams(req, executor.NewEngineOptions(), fetchOpts)
 }
 
 func TestParamParsing(t *testing.T) {
@@ -107,7 +100,7 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	req.URL.RawQuery = params.Encode()
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
-		timeoutOpts, storage.NewFetchOptions())
+		storage.NewFetchOptions())
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }

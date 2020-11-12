@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -69,7 +68,6 @@ func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 func parseParams(
 	r *http.Request,
 	engineOpts executor.EngineOptions,
-	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
 ) (models.RequestParams, error) {
 	var params models.RequestParams
@@ -89,12 +87,6 @@ func parseParams(
 		}
 	}
 
-	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
-	if err != nil {
-		return params, xerrors.NewInvalidParamsError(err)
-	}
-	params.Timeout = t
-
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
 		err = fmt.Errorf(formatErrStr, startParam, err)
@@ -112,6 +104,14 @@ func parseParams(
 		return params, xerrors.NewInvalidParamsError(err)
 	}
 	params.End = end
+
+	timeout := fetchOpts.Timeout
+	if timeout <= 0 {
+		err := fmt.Errorf("expected positive timeout, instead got: %d", timeout)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, handleroptions.TimeoutParam, err))
+	}
+	params.Timeout = timeout
 
 	step := fetchOpts.Step
 	if step <= 0 {
@@ -180,7 +180,6 @@ func parseParams(
 func parseInstantaneousParams(
 	r *http.Request,
 	engineOpts executor.EngineOptions,
-	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
 ) (models.RequestParams, error) {
 	if err := r.ParseForm(); err != nil {
@@ -193,7 +192,7 @@ func parseInstantaneousParams(
 
 	r.Form.Set(startParam, nowTimeValue)
 	r.Form.Set(endParam, nowTimeValue)
-	params, err := parseParams(r, engineOpts, timeoutOpts, fetchOpts)
+	params, err := parseParams(r, engineOpts, fetchOpts)
 	if err != nil {
 		return params, err
 	}

@@ -397,3 +397,11 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 func stripSpace(str string) string {
 	return regexp.MustCompile(`\s+`).ReplaceAllString(str, "")
 }
+
+func TestParseRequestTimeout(t *testing.T) {
+	url := fmt.Sprintf("/read?timeout=2m")
+	req := httptest.NewRequest("GET", "/read?timeout=2m", nil)
+	dur, err := ParseRequestTimeout(req, time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, dur)
+}

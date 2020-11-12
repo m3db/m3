@@ -53,11 +53,6 @@ var (
 	roleName = []byte("role")
 )
 
-// TimeoutOpts stores options related to various timeout configurations.
-type TimeoutOpts struct {
-	FetchTimeout time.Duration
-}
-
 // ParsePromCompressedRequestResult is the result of a
 // ParsePromCompressedRequest call.
 type ParsePromCompressedRequestResult struct {
@@ -93,38 +88,6 @@ func ParsePromCompressedRequest(
 		CompressedBody:   compressed,
 		UncompressedBody: reqBuf,
 	}, nil
-}
-
-// ParseRequestTimeout parses the input request timeout with a default.
-func ParseRequestTimeout(
-	r *http.Request,
-	configFetchTimeout time.Duration,
-) (time.Duration, error) {
-	var timeout string
-	if v := r.FormValue("timeout"); v != "" {
-		timeout = v
-	}
-	// Note: Header should take precedence.
-	if v := r.Header.Get("timeout"); v != "" {
-		timeout = v
-	}
-
-	if timeout == "" {
-		return configFetchTimeout, nil
-	}
-
-	duration, err := time.ParseDuration(timeout)
-	if err != nil {
-		return 0, xerrors.NewInvalidParamsError(
-			fmt.Errorf("invalid 'timeout': %v", err))
-	}
-
-	if duration > maxTimeout {
-		return 0, xerrors.NewInvalidParamsError(
-			fmt.Errorf("invalid 'timeout': greater than %v", maxTimeout))
-	}
-
-	return duration, nil
 }
 
 // TagCompletionQueries are tag completion queries.

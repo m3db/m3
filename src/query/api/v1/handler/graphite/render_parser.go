@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite/pickle"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -68,7 +69,6 @@ func WriteRenderResponse(
 const (
 	tzOffsetForAbsoluteTime = time.Duration(0)
 	maxTimeout              = time.Minute
-	defaultTimeout          = time.Second * 5
 )
 
 // RenderRequest are the arguments to a render call.
@@ -83,19 +83,26 @@ type RenderRequest struct {
 }
 
 // ParseRenderRequest parses the arguments to a render call from an incoming request.
-func ParseRenderRequest(r *http.Request) (RenderRequest, error) {
-	var (
-		p   RenderRequest
-		err error
-		now = time.Now()
-	)
-
-	if err = r.ParseForm(); err != nil {
-		return p, err
+func ParseRenderRequest(
+	r *http.Request,
+	opts options.HandlerOptions,
+) (RenderRequest, error) {
+	if err := r.ParseForm(); err != nil {
+		return RenderRequest{}, err
 	}
 
-	p.Targets = r.Form["target"]
+	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		return RenderRequest{}, err
+	}
 
+	var (
+		p = RenderRequest{
+			Timeout: fetchOpts.Timeout,
+		}
+		now = time.Now()
+	)
+	p.Targets = r.Form["target"]
 	if len(p.Targets) == 0 {
 		return p, errNoTarget
 	}
@@ -177,20 +184,6 @@ func ParseRenderRequest(r *http.Request) (RenderRequest, error) {
 		return p, errors.NewInvalidParamsError(fmt.Errorf("'compare' must be in the past"))
 	} else {
 		p.Compare = compareFrom.Sub(p.From)
-	}
-
-	timeout := r.FormValue("timeout")
-	if timeout != "" {
-		duration, err := time.ParseDuration(timeout)
-		if err != nil {
-			return p, errors.NewInvalidParamsError(fmt.Errorf("invalid 'timeout': %v", err))
-		}
-		if duration > maxTimeout {
-			return p, errors.NewInvalidParamsError(fmt.Errorf("invalid 'timeout': greater than %v", maxTimeout))
-		}
-		p.Timeout = duration
-	} else {
-		p.Timeout = defaultTimeout
 	}
 
 	return p, nil
