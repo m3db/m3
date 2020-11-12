@@ -32,8 +32,30 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+func newTestIndexClaimsManager(t *testing.T, opts Options) IndexClaimsManager {
+	// Reset the count of index claim managers.
+	resetGlobalIndexClaimsManagers()
+	mgr, err := NewIndexClaimsManager(opts)
+	require.NoError(t, err)
+	return mgr
+}
+
+func TestIndexClaimsManagerSingleGlobalManager(t *testing.T) {
+	// Reset the count of index claim managers.
+	resetGlobalIndexClaimsManagers()
+
+	// First should be able to be created easily.
+	_, err := NewIndexClaimsManager(testDefaultOpts)
+	require.NoError(t, err)
+
+	// Second should cause an error.
+	_, err = NewIndexClaimsManager(testDefaultOpts)
+	require.Error(t, err)
+	require.Equal(t, errMustUseSingleClaimsManager, err)
+}
+
 func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
-	mgr, ok := NewIndexClaimsManager(NewOptions()).(*indexClaimsManager)
+	mgr, ok := newTestIndexClaimsManager(t, testDefaultOpts).(*indexClaimsManager)
 	require.True(t, ok)
 
 	// Always return 0 for starting volume index for testing purposes.
@@ -77,7 +99,7 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 // TestIndexClaimsManagerOutOfRetention ensure that we both reject and delete out of
 // retention index claims.
 func TestIndexClaimsManagerOutOfRetention(t *testing.T) {
-	mgr, ok := NewIndexClaimsManager(NewOptions()).(*indexClaimsManager)
+	mgr, ok := newTestIndexClaimsManager(t, testDefaultOpts).(*indexClaimsManager)
 	require.True(t, ok)
 
 	// Always return 0 for starting volume index for testing purposes.
