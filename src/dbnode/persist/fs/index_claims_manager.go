@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
 	"go.uber.org/zap"
 )
 

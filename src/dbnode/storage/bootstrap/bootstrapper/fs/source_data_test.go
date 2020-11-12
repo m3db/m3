@@ -27,7 +27,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -76,8 +75,6 @@ var (
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 	testShardRanges       = testShardTimeRanges()
-	testOptions           Options
-	testOptionsOnce       sync.Once
 )
 
 func newTestOptions(t require.TestingT, filePathPrefix string) Options {
