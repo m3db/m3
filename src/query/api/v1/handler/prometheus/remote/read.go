@@ -404,18 +404,11 @@ func parseRequest(
 		return nil, nil, err
 	}
 
-	timeout := opts.TimeoutOpts().FetchTimeout
-	timeout, err = prometheus.ParseRequestTimeout(r, timeout)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		return nil, nil, rErr
 	}
 
-	fetchOpts.Timeout = timeout
 	return req, fetchOpts, nil
 }
 

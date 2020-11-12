@@ -29,9 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/dbnode/client"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -91,6 +89,13 @@ func setupHandler(
 	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, instrumentOpts)
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	if err != nil {
+		return nil, err
+	}
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
@@ -100,7 +105,7 @@ func setupHandler(
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
-		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
+		fetchOptsBuilder,
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
@@ -111,47 +116,11 @@ func setupHandler(
 		graphite.M3WrappedStorageOptions{},
 		testM3DBOpts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	return NewHandler(opts, customHandlers...), nil
-}
-
-func TestHandlerFetchTimeout(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool, instrument.NewOptions())
-
-	fourMin := 4 * time.Minute
-	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	engine := newEngine(storage, time.Minute, instrument.NewOptions())
-	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
-	opts, err := options.NewHandlerOptions(
-		downsamplerAndWriter,
-		makeTagOptions(),
-		engine,
-		nil,
-		nil,
-		nil,
-		cfg,
-		dbconfig,
-		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{},
-		instrument.NewOptions(),
-		defaultCPUProfileduration,
-		defaultPlacementServices,
-		svcDefaultOptions,
-		nil,
-		nil,
-		graphite.M3WrappedStorageOptions{},
-		testM3DBOpts,
-	)
-	require.NoError(t, err)
-
-	h := NewHandler(opts)
-	assert.Equal(t, 4*time.Minute, h.options.TimeoutOpts().FetchTimeout)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -162,7 +131,6 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
-	assert.Equal(t, 30*time.Second, h.options.TimeoutOpts().FetchTimeout)
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
@@ -402,14 +370,17 @@ func TestCustomRoutes(t *testing.T) {
 	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, instrumentOpts)
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	require.NoError(t, err)
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
-		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
+		fetchOptsBuilder, models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
-
 	require.NoError(t, err)
 	custom := &customHandler{t: t}
 	handler := NewHandler(opts, custom)

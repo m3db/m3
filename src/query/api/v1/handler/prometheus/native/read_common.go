@@ -102,7 +102,8 @@ func parseRequest(
 			LimitMaxTimeseries: fetchOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOpts.DocsLimit,
 			Instantaneous:      instantaneous,
-		}}
+		},
+	}
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
 	if restrictOpts != nil {
@@ -119,11 +120,9 @@ func parseRequest(
 		params models.RequestParams
 	)
 	if instantaneous {
-		params, err = parseInstantaneousParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts)
+		params, err = parseInstantaneousParams(r, engine.Options(), fetchOpts)
 	} else {
-		params, err = parseParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts)
+		params, err = parseParams(r, engine.Options(), fetchOpts)
 	}
 	if err != nil {
 		return ParsedOptions{}, err
