@@ -396,7 +396,10 @@ func NewTestSetup(
 	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up index claims manager
-	icm := fs.NewIndexClaimsManager(fsOpts)
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
 	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
@@ -536,6 +539,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// otherwise, we are guessing
 	return guess, true
 }
+
 func (ts *testSetup) ShouldBeEqual() bool {
 	return ts.assertEqual == nil
 }
@@ -761,6 +765,10 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 func (ts *testSetup) StopServer() error {
 	ts.doneCh <- struct{}{}
 
+	// NB(bodu): Need to reset the global counter of index claims managers after
+	// we've stopped the test server. This covers the restart server case.
+	fs.ResetIndexClaimsManagersUnsafe()
+
 	if ts.m3dbClient.DefaultSessionActive() {
 		session, err := ts.m3dbClient.DefaultSession()
 		if err != nil {
@@ -819,6 +827,10 @@ func (ts *testSetup) Close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+
+	// This could get called more than once in the multi node integration test case
+	// but this is fine since the reset always sets the counter to 0.
+	fs.ResetIndexClaimsManagersUnsafe()
 }
 
 func (ts *testSetup) MustSetTickMinimumInterval(tickMinInterval time.Duration) {
@@ -936,7 +948,6 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 		if err != nil {
 			return err
 		}
-		icm := fs.NewIndexClaimsManager(fsOpts)
 		storageIdxOpts := storageOpts.IndexOptions()
 		compactor, err := newCompactorWithErr(storageIdxOpts)
 		if err != nil {
@@ -947,7 +958,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
-			SetIndexClaimsManager(icm).
+			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {

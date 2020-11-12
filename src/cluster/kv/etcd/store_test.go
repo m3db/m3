@@ -35,12 +35,13 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/mocks"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
 	"github.com/coreos/pkg/capnslog"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
 )
 
@@ -89,6 +90,8 @@ func TestGetAndSet(t *testing.T) {
 }
 
 func TestNoCache(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 
 	store, err := NewStore(ec, ec, opts)
@@ -155,6 +158,8 @@ func TestCacheDirCreation(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 
 	f, err := ioutil.TempFile("", "")
@@ -207,6 +212,8 @@ func TestCache(t *testing.T) {
 }
 
 func TestSetIfNotExist(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -226,6 +233,8 @@ func TestSetIfNotExist(t *testing.T) {
 }
 
 func TestCheckAndSet(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -252,6 +261,8 @@ func TestCheckAndSet(t *testing.T) {
 }
 
 func TestWatchClose(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -280,6 +291,7 @@ func TestWatchClose(t *testing.T) {
 		if !ok {
 			break
 		}
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	// getting a new watch will create a new watchale and thread to watch for updates
@@ -300,6 +312,8 @@ func TestWatchClose(t *testing.T) {
 }
 
 func TestWatchLastVersion(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -311,7 +325,7 @@ func TestWatchLastVersion(t *testing.T) {
 	require.Nil(t, w.Get())
 
 	var errs int32
-	lastVersion := 100
+	lastVersion := 50
 	go func() {
 		for i := 1; i <= lastVersion; i++ {
 			_, err := store.Set("foo", genProto(fmt.Sprintf("bar%d", i)))
@@ -334,6 +348,8 @@ func TestWatchLastVersion(t *testing.T) {
 }
 
 func TestWatchFromExist(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -371,6 +387,8 @@ func TestWatchFromExist(t *testing.T) {
 }
 
 func TestWatchFromNotExist(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -414,6 +432,8 @@ func TestGetFromKvNotFound(t *testing.T) {
 }
 
 func TestMultipleWatchesFromExist(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -464,6 +484,8 @@ func TestMultipleWatchesFromExist(t *testing.T) {
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -506,6 +528,8 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 }
 
 func TestWatchNonBlocking(t *testing.T) {
+	t.Parallel()
+
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -1093,7 +1117,7 @@ func TestWatchWithStartRevision(t *testing.T) {
 			store, err := NewStore(ec, ec, opts)
 			require.NoError(t, err)
 
-			for i := 1; i <= 100; i++ {
+			for i := 1; i <= 50; i++ {
 				_, err = store.Set("foo", genProto(fmt.Sprintf("bar-%d", i)))
 				require.NoError(t, err)
 			}
@@ -1110,7 +1134,7 @@ func TestWatchWithStartRevision(t *testing.T) {
 			w1, err := store.Watch("foo")
 			require.NoError(t, err)
 			<-w1.C()
-			verifyValue(t, w1.Get(), "bar-100", 100)
+			verifyValue(t, w1.Get(), "bar-50", 50)
 		})
 	}
 
@@ -1137,7 +1161,11 @@ func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 	}
 
 	opts := NewOptions().
-		SetWatchChanCheckInterval(10 * time.Millisecond).
+		SetWatchChanCheckInterval(50 * time.Millisecond).
+		SetWatchChanResetInterval(150 * time.Millisecond).
+		SetWatchChanInitTimeout(150 * time.Millisecond).
+		SetRequestTimeout(100 * time.Millisecond).
+		SetRetryOptions(retry.NewOptions().SetMaxRetries(1).SetMaxBackoff(0)).
 		SetPrefix("test")
 
 	return ec, opts, closer

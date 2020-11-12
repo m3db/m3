@@ -61,7 +61,8 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	require.NoError(t, err)
 
 	fsOpts := fs.NewOptions()
-	icm := fs.NewIndexClaimsManager(fsOpts)
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 	opts := NewOptions().
 		SetFilesystemOptions(fs.NewOptions()).
 		SetIndexOptions(idxOpts).
