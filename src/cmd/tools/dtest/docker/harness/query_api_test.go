@@ -30,48 +30,48 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/dtest/docker/harness/resources"
 )
 
-var instantQueryBadRequestTest = []struct {
+type URLTest struct {
 	name string
-	q    string
-}{
-	// {"missing query", queryURL("query", "")},
-	// FAILING issue #2: invalid query string should result in 400
-	// {"invalid query", queryURL("query", "@!")},
-	{"invalid time", queryURL("time", "INVALID")},
-	{"invalid timeout", queryURL("timeout", "INVALID")},
+	url  string
 }
 
 func TestInvalidInstantQueryReturns400(t *testing.T) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
+	instantQueryBadRequestTest := []URLTest{
+		// FAILING issue #2: invalid or missing query string should result in 400
+		// {"missing query", queryURL("query", "")},
+		// {"invalid query", queryURL("query", "@!")},
+		{"invalid time", queryURL("time", "INVALID")},
+		{"invalid timeout", queryURL("timeout", "INVALID")},
+	}
+
 	for _, tt := range instantQueryBadRequestTest {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.q), "for query '%v'", tt.q)
+			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
 		})
 	}
-}
-
-var queryBadRequestTest = []struct {
-	name string
-	q    string
-}{
-	{"missing query", queryRangeURL("query", "")},
-	// FAILING issue #2: invalid query string should result in 400
-	// {"invalid query", queryRangeURL("query", "@!")},
-	{"missing start", queryRangeURL("start", "")},
-	{"invalid start", queryRangeURL("start", "INVALID")},
-	{"missing end", queryRangeURL("end", "")},
-	{"invalid end", queryRangeURL("end", "INVALID")},
-	{"missing step", queryRangeURL("step", "")},
-	{"invalid step", queryRangeURL("step", "INVALID")},
 }
 
 func TestInvalidRangeQueryReturns400(t *testing.T) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
+	queryBadRequestTest := []URLTest{
+		{"missing query", queryRangeURL("query", "")},
+		// FAILING issue #2: invalid query string should result in 400
+		// {"invalid query", queryRangeURL("query", "@!")},
+		{"missing start", queryRangeURL("start", "")},
+		{"invalid start", queryRangeURL("start", "INVALID")},
+		{"missing end", queryRangeURL("end", "")},
+		{"invalid end", queryRangeURL("end", "INVALID")},
+		{"missing step", queryRangeURL("step", "")},
+		{"invalid step", queryRangeURL("step", "INVALID")},
+		{"invalid timeout", queryRangeURL("timeout", "INVALID")},
+	}
+
 	for _, tt := range queryBadRequestTest {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.q), "for query '%v'", tt.q)
+			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
 		})
 	}
 }
@@ -108,7 +108,7 @@ func queryRangeURL(key, value string) string {
 }
 
 func queryString(params map[string]string) string {
-	p := make([]string, 0, len(params))
+	p := make([]string, 0)
 	for k, v := range params {
 		p = append(p, fmt.Sprintf("%v=%v", k, v))
 	}
