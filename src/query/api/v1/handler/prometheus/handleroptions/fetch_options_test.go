@@ -248,7 +248,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.NotNil(t, opts.LookbackDuration)
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
 				}
-				require.Equal(t, "10s", opts.Timeout)
+				require.Equal(t, 10*time.Second, opts.Timeout)
 			} else {
 				require.Error(t, err)
 			}

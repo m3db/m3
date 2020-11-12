@@ -64,5 +64,5 @@ func TestAddResponseHeaders(t *testing.T) {
 	meta = block.NewResultMetadata()
 	AddResponseHeaders(recorder, meta, &storage.FetchOptions{Timeout: 5 * time.Second})
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, "15s", recorder.Header().Get(headers.TimeoutHeader))
+	assert.Equal(t, "5s", recorder.Header().Get(headers.TimeoutHeader))
 }
