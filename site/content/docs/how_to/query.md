@@ -34,26 +34,61 @@ The configuration file linked above uses an embedded etcd cluster, which is fine
 
 ## Aggregation
 
-You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace in M3DB **and** in the m3query configuration. It is important to note that all writes go to all namespaces so as long as you include all namespaces in your query config, you will be querying all namespaces. Aggregation is done strictly by the query service. For example if you have an aggregated namespace setup in M3DB named `metrics_10s_48h`, you can add the following to the query config:
+You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace. It is important to note that all writes go to all namespaces marked as ready. Aggregation is done strictly by the query service. As an example, to configure an aggregated namespace named `metrics_10s_48h`, you can execute the following API call:
 
-```yaml
-- namespace: metrics_10s_48h
-  type: aggregated
-  retention: 48h
-  resolution: 10s
+```shell
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace -d '{
+  "name": "metrics_10s_48h",
+  "options": {
+    "bootstrapEnabled": true,
+    "flushEnabled": true,
+    "writesToCommitLog": true,
+    "cleanupEnabled": true,
+    "snapshotEnabled": true,
+    "repairEnabled": false,
+    "retentionOptions": {
+      "retentionPeriodDuration": "48h",
+      "blockSizeDuration": "2h",
+      "bufferFutureDuration": "10m",
+      "bufferPastDuration": "10m",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessedPeriodDuration": "5m"
+    },
+    "indexOptions": {
+      "enabled": true,
+      "blockSizeDuration": "2h"
+    },
+    "aggregationOptions": {
+      "aggregations": [
+         {
+          "aggregated": true,
+          "attributes": { "resolutionDuration": "10s" }
+        }
+      ]
+    }
+  }
+}'
 ```
+
 
 ### Disabling automatic aggregation
 
-If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
+If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated. Using the example above, `aggregationOptions` would be configured as follows
 
-```yaml
-- namespace: metrics_10s_48h
-  type: aggregated
-  retention: 48h
-  resolution: 10s
-  downsample:
-    all: false
+```shell
+    ...
+    "aggregationOptions": {
+      "aggregations": [
+        {
+          "aggregated": true,
+          "attributes": {
+            "resolutionDuration": "10s",
+            "downsampleOptions": { "all": false }
+          }
+        }
+      ]
+    }
+    ...
 ```
 
 ## ID generation

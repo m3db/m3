@@ -1415,8 +1415,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		sourceShard0ID         uint32 = 10
-		sourceShard1ID         uint32 = 20
+		shard0ID               uint32 = 10
+		shard1ID               uint32 = 20
 		insOpts                       = instrument.NewOptions()
 	)
 
@@ -1440,12 +1440,12 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceNs.shards[0] = sourceShard0
 	sourceNs.shards[1] = sourceShard1
 
-	sourceShard0.EXPECT().ID().Return(sourceShard0ID)
+	sourceShard0.EXPECT().ID().Return(shard0ID)
 	sourceShard0.EXPECT().IsBootstrapped().Return(true)
 	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
 	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
 
-	sourceShard1.EXPECT().ID().Return(sourceShard1ID)
+	sourceShard1.EXPECT().ID().Return(shard1ID)
 	sourceShard1.EXPECT().IsBootstrapped().Return(true)
 	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
 	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
@@ -1462,8 +1462,18 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+
+	targetShard0.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes0, opts).
+		Return(int64(3), nil)
+
+	targetShard1.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes1, opts).
+		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 

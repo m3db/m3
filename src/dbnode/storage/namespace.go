@@ -1732,10 +1732,6 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
-	n.RLock()
-	nsCtx := n.nsContextWithRLock()
-	n.RUnlock()
-
 	var (
 		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
 		targetShards      = n.OwnedShards()
@@ -1778,7 +1774,7 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)

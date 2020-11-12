@@ -17,12 +17,7 @@ Example config file with `clusterManagement` (see end of the config):
 
 ```bash
 clusters:
-  # Should match the namespace(s) set up in the DB nodes
-  - namespaces:
-       - namespace: 21d
-         retention: 504h
-         type: unaggregated
-     client:
+   - client:
        config:
          service:
            env: default_env
@@ -45,16 +40,7 @@ clusters:
          backoffFactor: 2
          maxRetries: 3
          jitter: true
-   - namespaces:
-       - namespace: 90d
-         retention: 2160h
-         type: aggregated
-         resolution: 10m
-       - namespace: 500d
-         retention: 12000h
-         type: aggregated
-         resolution: 1h
-     client:
+   - client:
        config:
          service:
            env: lts_env

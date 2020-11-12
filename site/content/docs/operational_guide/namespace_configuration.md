@@ -32,14 +32,20 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
 
 will create a namespace called `default_unaggregated` with a retention of `24 hours`. All of the other namespace options will either use reasonable default values or be calculated based on the provided `retentionTime`.
 
-Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.
+Adding a namespace requires you mark the namespace as ready once M3DB has finished bootstrapping it. This is done so that M3Coordinator knows the namespace is ready to receive reads and writes. Use the `api/v1/services/m3db/namespace/ready` endpoint to accomplish this:
+
+```shell
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default_unaggregated"
+}
+```
 
 If you feel the need to configure the namespace options yourself (for performance or other reasons), read the `Advanced` section below.
 
 #### Advanced (Hard Way)
 
 The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
-Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
+Adding a namespace is a simple as using the `POST` `api/v1/services/m3db/namespace` API on an M3Coordinator instance.
 
 ```shell
 curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace -d '{
@@ -52,22 +58,33 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriod": "2d",
-      "blockSize": "2h",
-      "bufferFuture": "10m",
-      "bufferPast": "10m",
+      "retentionPeriodDuration": "2d",
+      "blockSizeDuration": "2h",
+      "bufferFutureDuration": "10m",
+      "bufferPastDuration": "10m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessedPeriod": "5m"
+      "blockDataExpiryAfterNotAccessedPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSize": "2h"
+      "blockSizeDuration": "2h"
+    },
+    "aggregationOptions": {
+      "aggregations": [
+        { "aggregated": false }
+      ]
     }
   }
 }'
 ```
 
-Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.
+Adding a namespace requires you to mark the namespace as ready so M3Coordinator know it is ready to receive traffic:
+
+```shell
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default_unaggregated"
+}
+```
 
 ### Deleting a Namespace
 
@@ -75,8 +92,7 @@ Deleting a namespace is a simple as using the `DELETE` `/api/v1/services/m3db/na
 
 `curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/<NAMESPACE_NAME>`
 
-Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
-
+Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted.
 ### Modifying a Namespace
 
 There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example, it is never safe to modify the blockSize of a namespace.
@@ -169,7 +185,7 @@ While it may be tempting to configure `bufferPast` and `bufferFuture` to very la
 
 Can be modified without creating a new namespace: `yes`
 
-### Index Options
+### indexOptions
 
 #### enabled
 
@@ -183,3 +199,26 @@ The size of blocks (in duration) that the index uses.
 Should match the databases [blocksize](#blocksize) for optimal memory usage.
 
 Can be modified without creating a new namespace: `no`
+
+### aggregationOptions
+Options for the Coordinator to use to make decisions around how to aggregate data points.
+
+Can be modified without creating a new namespace: `yes`
+
+#### aggregations
+One or more set of instructions on how data points should be aggregated within the namespace.
+
+##### aggregated
+Whether data points are aggregated.
+
+##### attributes
+If aggregated is true, specifies how to aggregate data.
+
+###### resolutionNanos
+The time range to aggregate data across.
+
+###### downsampleOptions
+Options related to downsampling data
+
+###### _all_
+Whether to send data points to this namespace. If false, the coordinator will not auto-aggregate incoming data points and data points must be sent the namespace via rules. Defaults to true.
