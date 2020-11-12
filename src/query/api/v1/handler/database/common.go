@@ -38,9 +38,11 @@ type Handler struct {
 	instrumentOpts instrument.Options
 }
 
+type AddRouteFn func(path string, handler http.Handler, methods ...string)
+
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(
-	addRoute func(path string, handler http.Handler, methods ...string),
+	addRoute AddRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,

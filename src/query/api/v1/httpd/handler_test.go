@@ -392,7 +392,8 @@ func (h *customHandler) Handler(
 		if prev != nil {
 			assert.Fail(h.t, "Should not shadow already existing handler")
 		}
-		_, _ = w.Write([]byte("success!"))
+		_, err := w.Write([]byte("success!"))
+		require.NoError(h.t, err)
 	}
 
 	return http.HandlerFunc(fn), nil
@@ -413,7 +414,8 @@ func (h *customHandlerOverride) Handler(
 		if prev == nil {
 			assert.Fail(h.t, "Should shadow already existing handler")
 		}
-		_, _ = w.Write([]byte("success!"))
+		_, err := w.Write([]byte("success!"))
+		require.NoError(h.t, err)
 	}
 
 	return http.HandlerFunc(fn), nil
@@ -444,4 +446,44 @@ func TestCustomRoutes(t *testing.T) {
 	require.NoError(t, err, "unable to register routes")
 	handler.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusOK)
+}
+
+func TestDistinct(t *testing.T) {
+	assert.Equal(
+		t,
+		[]string{"a"},
+		distinct([]string{"a"}),
+	)
+
+	assert.Equal(
+		t,
+		[]string{"a", "b", "c"},
+		distinct([]string{"c", "a", "b", "c"}),
+	)
+
+	assert.Equal(
+		t,
+		[]string{"a", "b", "c"},
+		distinct([]string{"c", "b", "a"}),
+	)
+}
+
+func TestRouteName(t *testing.T) {
+	assert.Equal(
+		t,
+		"/api/v1/test/GET:POST",
+		routeName("/api/v1/test", []string{"GET", "POST"}),
+	)
+
+	assert.Equal(
+		t,
+		"/api/v1/test",
+		routeName("/api/v1/test", []string{}),
+	)
+
+	assert.Equal(
+		t,
+		"/api/v1/test/GET:HEAD:POST",
+		routeName("/api/v1/test", []string{"POST", "GET", "GET", "HEAD"}),
+	)
 }
