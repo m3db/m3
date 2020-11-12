@@ -170,11 +170,10 @@ func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*f
 	}
 
 	argTypes := fn.in
-	argTypesN := len(fn.in)
-	argTypesRequiredN := argTypesN
+	argTypesRequired := len(fn.in)
 	if fn.variadic {
 		// Variadic can avoid specifying the last arg.
-		argTypesRequiredN--
+		argTypesRequired--
 	}
 	var args []funcArg
 
@@ -212,7 +211,7 @@ func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*f
 	}
 
 	// all required argument types should be filled with values now
-	if len(args) < argTypesRequiredN {
+	if len(args) < argTypesRequired {
 		variadicComment := ""
 		if fn.variadic {
 			variadicComment = "at least "
