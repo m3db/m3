@@ -83,11 +83,11 @@ const (
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
 	defaultMatcherCacheCapacity    = 100000
-	defaultNamespaceTag            = "__m3_namespace__"
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards           = runtime.NumCPU()
+	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
