@@ -129,7 +129,7 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Warn("error applying range warnings",
 			zap.Error(err), zap.String("query", query))
 	}
-	handleroptions.AddWarningHeaders(w, resultMetadata)
+	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 
 	respond(w, &queryData{
 		Result:     res.Value,

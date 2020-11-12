@@ -138,7 +138,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	handleroptions.AddWarningHeaders(w, result.Meta)
+	handleroptions.AddResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
 	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
