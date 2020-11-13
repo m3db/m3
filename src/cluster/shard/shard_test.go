@@ -22,6 +22,7 @@ package shard
 
 import (
 	"math"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,14 +117,7 @@ func TestSort(t *testing.T) {
 	shards = append(shards, NewShard(0))
 	shards = append(shards, NewShard(3))
 
-	var prev int = -1
-	for _, shard := range NewShards(shards).All() {
-		id := int(shard.ID())
-		if id <= prev {
-			t.Fatalf("expected id to be greater than %d, got %d", prev, id)
-		}
-		prev = id
-	}
+	shardsAreSorted(t, NewShards(shards))
 }
 
 func TestShardCutoverTimes(t *testing.T) {
@@ -217,4 +211,72 @@ func TestClone(t *testing.T) {
 
 	ss1.Add(NewShard(2).SetState(Leaving))
 	require.False(t, ss1.Equals(ss2))
+}
+
+func TestShardAdd(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		rndShards := makeTestShards(i)
+		shards := NewShards(nil)
+		for j := 0; j < len(rndShards); j++ {
+			id := rndShards[j].ID()
+			require.False(t, shards.Contains(id))
+
+			shards.Add(rndShards[j])
+			require.True(t, shards.Contains(id))
+
+			shrd, ok := shards.Shard(id)
+			require.True(t, ok)
+			require.Equal(t, id, shrd.ID())
+		}
+		shardsAreSorted(t, shards)
+	}
+}
+
+func TestShardRemove(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		rndShards := makeTestShards(i)
+		shards := NewShards(rndShards)
+		for j := 0; j < len(rndShards); j++ {
+			id := rndShards[j].ID()
+			require.True(t, shards.Contains(id))
+			shards.Remove(id)
+			require.Equal(t, len(rndShards)-j-1, shards.NumShards())
+			require.False(t, shards.Contains(id))
+		}
+		shardsAreSorted(t, shards)
+	}
+}
+
+func randomIDs(seed int64, num int) []uint32 {
+	rnd := rand.New(rand.NewSource(seed)) // #nosec
+	ids := make([]uint32, num)
+
+	for i := uint32(0); i < uint32(num); i++ {
+		ids[i] = i
+	}
+
+	rnd.Shuffle(len(ids), func(i, j int) {
+		ids[i], ids[j] = ids[j], ids[i]
+	})
+	return ids
+}
+
+func makeTestShards(num int) []Shard {
+	shardIDs := randomIDs(0, num)
+	s := make([]Shard, num)
+	for i, shardID := range shardIDs {
+		s[i] = NewShard(shardID)
+	}
+	return s
+}
+
+func shardsAreSorted(t *testing.T, shards Shards) {
+	var prev int = -1
+	for _, shard := range shards.All() {
+		id := int(shard.ID())
+		if id <= prev {
+			t.Fatalf("expected id to be greater than %d, got %d", prev, id)
+		}
+		prev = id
+	}
 }

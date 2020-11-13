@@ -190,18 +190,21 @@ func (s SortableIDsAsc) Less(i, j int) bool {
 
 // NewShards creates a new instance of Shards
 func NewShards(ss []Shard) Shards {
-	shrd := make([]Shard, len(ss))
-	copy(shrd, ss)
-
-	sort.Sort(SortableShardsByIDAsc(shrd))
-
+	// deduplicate first, last one wins
 	shardMap := make(map[uint32]Shard, len(ss))
-	for _, s := range shrd {
+	for _, s := range ss {
 		shardMap[s.ID()] = s
 	}
 
+	shrds := make([]Shard, 0, len(shardMap))
+	for _, s := range shardMap {
+		shrds = append(shrds, s)
+	}
+
+	sort.Sort(SortableShardsByIDAsc(shrds))
+
 	return &shards{
-		shards:   shrd,
+		shards:   shrds,
 		shardMap: shardMap,
 	}
 }
@@ -255,6 +258,8 @@ func (ss *shards) Shard(id uint32) (Shard, bool) {
 
 func (ss *shards) Add(shard Shard) {
 	id := shard.ID()
+	// we keep a sorted slice of shards, do a binary search to either find the index
+	// of an existing shard for replacement, or the target index position
 	i := sort.Search(len(ss.shards), func(i int) bool { return ss.shards[i].ID() >= id })
 	if i < len(ss.shards) && ss.shards[i].ID() == id {
 		ss.shards[i] = shard
@@ -262,21 +267,26 @@ func (ss *shards) Add(shard Shard) {
 		return
 	}
 
+	// extend the sorted shard slice by 1
 	ss.shards = append(ss.shards, shard)
 	ss.shardMap[id] = shard
 
+	// target position was at the end, so extending with the new shard was enough
 	if i >= len(ss.shards)-1 {
 		return
 	}
 
+	// if not, copy over all slice elements shifted by 1 and overwrite data at index
 	copy(ss.shards[i+1:], ss.shards[i:])
 	ss.shards[i] = shard
 }
 
 func (ss *shards) Remove(id uint32) {
+	// we keep a sorted slice of shards, do a binary search to find the index
 	i := sort.Search(len(ss.shards), func(i int) bool { return ss.shards[i].ID() >= id })
 	if i < len(ss.shards) && ss.shards[i].ID() == id {
 		delete(ss.shardMap, id)
+		// shift all other elements back after removal
 		ss.shards = ss.shards[:i+copy(ss.shards[i:], ss.shards[i+1:])]
 	}
 }

@@ -22,7 +22,6 @@ package shard
 
 import (
 	"fmt"
-	"math/rand"
 	"runtime"
 	"testing"
 )
@@ -147,27 +146,4 @@ func BenchmarkShardsContains(b *testing.B) {
 			runtime.KeepAlive(res)
 		})
 	}
-}
-
-func randomIDs(seed int64, num int) []uint32 {
-	rnd := rand.New(rand.NewSource(seed)) // #nosec
-	ids := make([]uint32, num)
-
-	for i := uint32(0); i < uint32(num); i++ {
-		ids[i] = i
-	}
-
-	rnd.Shuffle(len(ids), func(i, j int) {
-		ids[i], ids[j] = ids[j], ids[i]
-	})
-	return ids
-}
-
-func makeTestShards(num int) []Shard {
-	shardIDs := randomIDs(0, num)
-	s := make([]Shard, num)
-	for i, shardID := range shardIDs {
-		s[i] = NewShard(shardID)
-	}
-	return s
 }
