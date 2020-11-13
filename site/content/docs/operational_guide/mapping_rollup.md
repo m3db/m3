@@ -140,16 +140,22 @@ downsample:
           retention: 720h
 ```
 
-**Note:** In order to store rolled up metrics in an `unaggregated` namespace,
-a matching `aggregated` namespace must be added to the coordinator config. For 
-example, if in the above rule, the `720h` namespace under `storagePolicies` 
-is `unaggregated`, the following will need to be added to the coordinator config.
+**Note:** In order to store rolled up metrics in an `unaggregated` namespace, the namespace's `aggregationOptions` must have a matching `aggregation`. For example, if in the above rule, the `720h` namespace under `storagePolicies` 
+is `unaggregated`, the `aggregationOptions` for that namespace should resemble the following:
 
-```yaml
-- namespace: default
-  resolution: 30s
-  retention: 720h
-  type: aggregated
-  downsample:
-    all: false
+```json
+"aggregationOptions": {
+  "aggregations": [
+    {
+      "aggregated": false
+    },
+    {
+      "aggregated": true,
+      "attributes": {
+        "resolutionDuration": "30s",
+        "downsampleOptions": { "all": false }
+      }
+    }
+  ]
+}
 ```

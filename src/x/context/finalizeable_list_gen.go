@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -118,7 +118,7 @@ func (e *finalizeableElement) Prev() *finalizeableElement {
 }
 
 // finalizeableList represents a doubly linked list.
-// The zero value for finalizeableList is an empty list ready to use.
+// The zero value is an empty, ready to use list.
 type finalizeableList struct {
 	root finalizeableElement // sentinel list element, only &root, root.prev, and root.next are used
 	len  int                 // current list length excluding (this) sentinel element

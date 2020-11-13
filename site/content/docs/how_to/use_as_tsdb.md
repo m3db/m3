@@ -143,7 +143,15 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 Note that the `retentionTime` is set artificially low to conserve resources.
 
-After a few moments, the M3DB container should finish bootstrapping. At this point it should be ready to serve write and read queries.
+After a few moments, the M3DB container should finish bootstrapping. Once bootstrapping is finished, mark the namespace as ready to receive traffic:
+
+```shell
+curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default"
+}
+```
+
+At this point it should be ready to serve write and read queries.
 
 #### Clients
 
