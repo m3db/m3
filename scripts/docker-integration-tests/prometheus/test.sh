@@ -172,7 +172,7 @@ function test_prometheus_remote_write_map_tags {
     unaggregated "" '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
 
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" return_status_code="" \
     metrics_type="unaggregated" jq_path=".data.result[0].metric.globaltag" expected_value="somevalue" \
     retry_with_backoff prometheus_query_native
 }
@@ -268,28 +268,29 @@ function test_query_restrict_metrics_type {
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
+  return_status_code=""
 
   # Test restricting to unaggregated metrics
   echo "Test query restrict to unaggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" return_status_code="$return_status_code" \
     metrics_type="unaggregated" jq_path="$jq_path_instant" expected_value="42.42" \
     retry_with_backoff prometheus_query_native
   echo "Test query restrict to unaggregated metrics type (range)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" return_status_code="$return_status_code" \
     metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="42.42" \
     retry_with_backoff prometheus_query_native
 
   # Test restricting to aggregated metrics
   echo "Test query restrict to aggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" return_status_code="$return_status_code" \
     metrics_type="aggregated" metrics_storage_policy="15s:10h" jq_path="$jq_path_instant" expected_value="84.84" \
     retry_with_backoff prometheus_query_native
   echo "Test query restrict to aggregated metrics type (range)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" return_status_code="$return_status_code"  \
     metrics_type="aggregated" metrics_storage_policy="15s:10h" jq_path="$jq_path_range" expected_value="84.84" \
     retry_with_backoff prometheus_query_native
 }
