@@ -22,7 +22,6 @@ package shard
 
 import (
 	"math"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,7 +37,7 @@ func TestShard(t *testing.T) {
 	assert.Equal(t, int64(100), s.CutoverNanos())
 }
 
-func TestShardEqualts(t *testing.T) {
+func TestShardEquals(t *testing.T) {
 	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoverNanos(100)))
@@ -87,6 +86,11 @@ func TestShards(t *testing.T) {
 
 	shards.Add(NewShard(3).SetState(Leaving))
 	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+
+	shards.Add(NewShard(4))
+	shards.Add(NewShard(4))
+	shards.Add(NewShard(4))
+	assert.Equal(t, 4, shards.NumShards())
 }
 
 func TestShardsEquals(t *testing.T) {
@@ -110,10 +114,15 @@ func TestSort(t *testing.T) {
 	shards = append(shards, NewShard(1))
 	shards = append(shards, NewShard(2))
 	shards = append(shards, NewShard(0))
-	sortable := SortableShardsByIDAsc(shards)
-	sort.Sort(sortable)
-	for i := range shards {
-		assert.Equal(t, uint32(i), shards[i].ID())
+	shards = append(shards, NewShard(3))
+
+	var prev int = -1
+	for _, shard := range NewShards(shards).All() {
+		id := int(shard.ID())
+		if id <= prev {
+			t.Fatalf("expected id to be greater than %d, got %d", prev, id)
+		}
+		prev = id
 	}
 }
 
