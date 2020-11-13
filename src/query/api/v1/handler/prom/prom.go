@@ -76,10 +76,10 @@ func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Hand
 	return newReadInstantHandler(opts, hOpts, queryable)
 }
 
-// DefaultReadRequestParser returns the default function that parse read request arguments
-func DefaultReadRequestParser(opts options.HandlerOptions) RequestParser {
+// DefaultReadRequestParser returns the default function that parses read request arguments.
+func DefaultReadRequestParser(hOpts options.HandlerOptions) RequestParser {
 	return func(ctx context.Context, r *http.Request) (models.RequestParams, error) {
-		params, err := native.ParseRequest(ctx, r, false, opts)
+		params, err := native.ParseRequest(ctx, r, false, hOpts)
 		if err != nil {
 			return models.RequestParams{}, err
 		}
