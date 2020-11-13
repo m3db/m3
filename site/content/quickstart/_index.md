@@ -1,5 +1,5 @@
 ---
-linktitle: "Quickstart using Docker"
+linktitle: "Quickstart"
 weight: 1
 ---
 

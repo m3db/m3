@@ -1,8 +1,8 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   [[module.imports]]
-    # path = "github.com/chronosphereio/docs-theme"
-    path = "../../../victor"
+    path = "github.com/chronosphereio/victor"
+    # path = "../../../victor"
 
   [[module.mounts]]
     source = "content"
@@ -198,7 +198,7 @@ weight = 30
 
 
 [outputs]
-home = [ "HTML"]
+home = [ "HTML", "RSS", "JSON"]
 page = [ "HTML"]
 section = [ "HTML"]
 chapter = [ "HTML"]
