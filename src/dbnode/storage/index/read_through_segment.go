@@ -372,7 +372,7 @@ func (s *readThroughSegmentReader) Search(
 	if willCache {
 		// Only cache the second time seen a recent query since
 		// copying the postings lists into a roaring postings list
-		//
+		// can be expensive (in PutSearch).
 		s.postingsListCache.PutSearch(s.uuid, queryStr, pl)
 	}
 
