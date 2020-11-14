@@ -689,7 +689,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		remainingRanges, timesWithErrors)
 }
 
-// appendIndexFilesetFilesToDelete appends non default index volume type index filesets for deletion.
+// appendIndexFilesetFilesToDelete appends non default index volume type index
+// filesets for deletion.
 func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
 	ns namespace.Metadata,
 	blockStart time.Time,
@@ -705,14 +706,14 @@ func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
 				zap.Stringer("namespace", ns.ID()))
 		})
 	}
-	for _, infoFile := range infoFiles {
-		if err := infoFile.Err.Error(); err != nil {
+	for i := range infoFiles {
+		if err := infoFiles[i].Err.Error(); err != nil {
 			// We already log errors once when bootstrapping from persisted
 			// index blocks just continue here.
 			continue
 		}
 
-		info := infoFile.Info
+		info := infoFiles[i].Info
 		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
 		if blockStart.Equal(indexBlockStart) &&
 			info.IndexVolumeType != nil &&
@@ -1020,7 +1021,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		if infoFiles[i].Info.BlockStart != infoFiles[j].Info.BlockStart {
 			return infoFiles[i].Info.BlockStart < infoFiles[j].Info.BlockStart
 		}
-		return volumeTypeFromInfo(infoFiles[i].Info) == idxpersist.DefaultIndexVolumeType
+		return volumeTypeFromInfo(&infoFiles[i].Info) == idxpersist.DefaultIndexVolumeType
 	})
 
 	for _, infoFile := range infoFiles {
@@ -1037,7 +1038,11 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		info := infoFile.Info
 		indexBlockStartUnixNano := xtime.UnixNano(info.BlockStart)
 		indexBlockStart := indexBlockStartUnixNano.ToTime()
-		volumeType := volumeTypeFromInfo(info)
+		volumeType := volumeTypeFromInfo(&info)
+
+		if res.result == nil {
+			res.result = newRunResult()
+		}
 
 		// NB(bodu): Skip non default index volumes for this block if we have not seen a default
 		// index volume already. We sort info files by block start and index volume so we should
@@ -1120,9 +1125,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		s.metrics.persistedIndexBlocksRead.Inc(1)
 
 		// Record result.
-		if res.result == nil {
-			res.result = newRunResult()
-		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
 		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
@@ -1185,7 +1187,7 @@ func (r *runResult) mergedResult(other *runResult) *runResult {
 	}
 }
 
-func volumeTypeFromInfo(info indexpb.IndexVolumeInfo) idxpersist.IndexVolumeType {
+func volumeTypeFromInfo(info *indexpb.IndexVolumeInfo) idxpersist.IndexVolumeType {
 	volumeType := idxpersist.DefaultIndexVolumeType
 	if info.IndexVolumeType != nil {
 		volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)

@@ -88,12 +88,15 @@ func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 	return infoFileResults, nil
 }
 
-func (c *cache) IndexInfoFilesForNamespace(ns namespace.Metadata) ([]fs.ReadIndexInfoFileResult, error) {
+func (c *cache) IndexInfoFilesForNamespace(ns namespace.Metadata) (
+	[]fs.ReadIndexInfoFileResult,
+	error,
+) {
 	infoFiles, ok := c.readIndexInfoFiles()[ns]
 	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
 	if !ok {
-		return nil, fmt.Errorf("attempting to read index info files for namespace %v not specified at bootstrap "+
-			"startup", ns.ID().String())
+		return nil, fmt.Errorf("attempting to read index info files for namespace %v not "+
+			"specified at bootstrap startup", ns.ID().String())
 	}
 	return infoFiles, nil
 }
@@ -144,7 +147,8 @@ func (c *cache) readIndexInfoFiles() IndexInfoFilesByNamespace {
 }
 
 func (c *cache) populateIndexInfoFilesByNamespaceWithLock() {
-	for _, finder := range c.namespaceDetails {
+	for i := range c.namespaceDetails {
+		finder := c.namespaceDetails[i]
 		c.indexInfoFilesByNamespace[finder.Namespace] = fs.ReadIndexInfoFiles(
 			c.fsOpts.FilePathPrefix(), finder.Namespace.ID(),
 			c.fsOpts.InfoReaderBufferSize())

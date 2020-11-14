@@ -40,8 +40,16 @@ import (
 )
 
 type (
-	commitLogFilesFn        func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
-	snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
+	commitLogFilesFn func(commitlog.Options) (
+		persist.CommitLogFiles,
+		[]commitlog.ErrorWithPath,
+		error,
+	)
+	snapshotMetadataFilesFn func(fs.Options) (
+		[]fs.SnapshotMetadata,
+		[]fs.SnapshotMetadataErrorWithPaths,
+		error,
+	)
 )
 
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
