@@ -929,6 +929,7 @@ func (s *peersSource) processReaders(
 			requestedRanges,
 			builder.Builder(),
 			persistManager,
+			s.opts.IndexClaimsManager(),
 			s.opts.ResultOptions(),
 			existingIndexBlock.Fulfilled(),
 			blockStart,

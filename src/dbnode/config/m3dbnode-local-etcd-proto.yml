@@ -1,18 +1,6 @@
-coordinator:
-  local:
-    namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
+coordinator: {}
 
 db:
-  hostID:
-    resolver: config
-    value: m3db_local
-
-  discovery:
-    type: m3db_single_node
-
   proto:
     enabled: true
     schema_registry:

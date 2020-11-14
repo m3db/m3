@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -918,36 +917,22 @@ func (n *dbNamespace) ReadEncoded(
 	return res, err
 }
 
-func (n *dbNamespace) FetchIndexChecksum(
+func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return block.EmptyStreamedChecksum, err
-	}
-	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
-	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, err
-}
 
-func (n *dbNamespace) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-) (wide.StreamedMismatch, error) {
-	callStart := n.nowFn()
-	shard, nsCtx, err := n.readableShardFor(id)
-	if err != nil {
-		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return wide.EmptyStreamedMismatch, err
+		return block.EmptyStreamedWideEntry, err
 	}
-	res, err := shard.FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx)
+
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
 	return res, err
 }
 

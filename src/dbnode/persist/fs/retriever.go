@@ -33,19 +33,18 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -68,8 +67,7 @@ const (
 
 	streamInvalidReq streamReqType = iota
 	streamDataReq
-	streamIdxChecksumReq
-	streamReadMismatchReq
+	streamWideEntryReq
 )
 
 type blockRetrieverStatus int
@@ -201,9 +199,10 @@ func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
-		seekerResources = NewReusableSeekerResources(r.fsOpts)
-		inFlight        []*retrieveRequest
-		currBatchReqs   []*retrieveRequest
+		seekerResources    = NewReusableSeekerResources(r.fsOpts)
+		retrieverResources = newReuseableRetrieverResources()
+		inFlight           []*retrieveRequest
+		currBatchReqs      []*retrieveRequest
 	)
 	for {
 		// Free references to the inflight requests
@@ -266,8 +265,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 				req.shard != currBatchShard {
 				// Fetch any outstanding in the current batch
 				if len(currBatchReqs) > 0 {
-					r.fetchBatch(
-						seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
+					r.fetchBatch(seekerMgr, currBatchShard, currBatchStart,
+						currBatchReqs, seekerResources, retrieverResources)
 					for i := range currBatchReqs {
 						currBatchReqs[i] = nil
 					}
@@ -285,8 +284,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 
 		// Fetch any finally outstanding in the current batch
 		if len(currBatchReqs) > 0 {
-			r.fetchBatch(
-				seekerMgr, currBatchShard, currBatchStart, currBatchReqs, seekerResources)
+			r.fetchBatch(seekerMgr, currBatchShard, currBatchStart,
+				currBatchReqs, seekerResources, retrieverResources)
 			for i := range currBatchReqs {
 				currBatchReqs[i] = nil
 			}
@@ -297,73 +296,69 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
-func (r *blockRetriever) processIndexChecksumRequest(
-	req *retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-) {
-	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
-	if err != nil {
-		req.onError(err)
-		return
-	}
-
-	req.onIndexChecksumCompleted(checksum)
-	req.onCallerOrRetrieverDone()
-}
-
-func (r *blockRetriever) processReadMismatchRequest(
-	req *retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-) {
-	checksum, err := seeker.SeekIndexEntryToIndexChecksum(req.id, seekerResources)
-	if err != nil {
-		req.onError(err)
-		return
-	}
-
-	mismatch, err := seeker.SeekReadMismatchesByIndexChecksum(
-		checksum, req.mismatchChecker, seekerResources)
-
-	if err != nil && err != errSeekIDNotFound {
-		req.onError(err)
-		return
-	}
-
-	if err == errSeekIDNotFound {
-		req.onIndexMismatchCompleted(wide.ReadMismatch{})
-		return
-	}
-
-	req.onIndexMismatchCompleted(mismatch)
-	req.onCallerOrRetrieverDone()
-}
-
 // filterAndCompleteWideReqs completes all wide operation retrieve requests,
 // returning a list of requests that need to be processed by other means.
 func (r *blockRetriever) filterAndCompleteWideReqs(
 	reqs []*retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
+	retrieverResources *reuseableRetrieverResources,
 ) []*retrieveRequest {
-	filteredStreamRequests := reqs[:0]
+	retrieverResources.resetDataReqs()
+	retrieverResources.resetWideEntryReqs()
 	for _, req := range reqs {
 		switch req.streamReqType {
 		case streamDataReq:
 			// NB: filter out stream requests; these are handled outside of
 			// wide logic functions.
-			filteredStreamRequests = append(filteredStreamRequests, req)
-		case streamIdxChecksumReq:
-			r.processIndexChecksumRequest(req, seeker, seekerResources)
-		case streamReadMismatchReq:
-			r.processReadMismatchRequest(req, seeker, seekerResources)
+			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
+
+		case streamWideEntryReq:
+			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
+			if err != nil {
+				if errors.Is(err, errSeekIDNotFound) {
+					// Missing, return empty result, successful lookup.
+					req.wideEntry = xio.WideEntry{}
+					req.success = true
+				} else {
+					req.err = err
+				}
+
+				continue
+			}
+
+			// Enqueue for fetch in batch in offset ascending order.
+			req.wideEntry = entry
+			entry.Shard = req.shard
+			retrieverResources.appendWideEntryReq(req)
+
 		default:
-			req.onError(errUnsetRequestType)
+			req.err = errUnsetRequestType
 		}
 	}
 
-	return filteredStreamRequests
+	// Fulfill the wide entry data fetches in batch offset ascending.
+	sortByOffsetAsc := retrieveRequestByWideEntryOffsetAsc(retrieverResources.wideEntryReqs)
+	sort.Sort(sortByOffsetAsc)
+	for _, req := range retrieverResources.wideEntryReqs {
+		entry := IndexEntry{
+			Size:         uint32(req.wideEntry.Size),
+			DataChecksum: uint32(req.wideEntry.DataChecksum),
+			Offset:       req.wideEntry.Offset,
+		}
+		data, err := seeker.SeekByIndexEntry(entry, seekerResources)
+		if err != nil {
+			req.err = err
+			continue
+		}
+
+		// Success, inc ref so on finalize can decref and finalize.
+		req.wideEntry.Data = data
+		req.wideEntry.Data.IncRef()
+		req.success = true
+	}
+
+	return retrieverResources.dataReqs
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -372,18 +367,43 @@ func (r *blockRetriever) fetchBatch(
 	blockStart time.Time,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
+	retrieverResources *reuseableRetrieverResources,
 ) {
-	// Resolve the seeker from the seeker mgr
-	seeker, err := seekerMgr.Borrow(shard, blockStart)
-	if err != nil {
-		for _, req := range allReqs {
-			req.onError(err)
-		}
-		return
-	}
+	var (
+		seeker     ConcurrentDataFileSetSeeker
+		callbackWg sync.WaitGroup
+	)
 
 	defer func() {
-		err = seekerMgr.Return(shard, blockStart, seeker)
+		filteredReqs := allReqs[:0]
+		// Make sure requests are always fulfilled so if there's a code bug
+		// then errSeekNotCompleted is returned because req.success is not set
+		// rather than we have dangling goroutines stacking up.
+		for _, req := range allReqs {
+			if !req.waitingForCallback {
+				req.onDone()
+				continue
+			}
+
+			filteredReqs = append(filteredReqs, req)
+		}
+
+		callbackWg.Wait()
+		for _, req := range filteredReqs {
+			req.onDone()
+		}
+
+		// Reset resources to free any pointers in the slices still pointing
+		// to requests that are now completed and returned to pools.
+		retrieverResources.resetAll()
+
+		if seeker == nil {
+			// No borrowed seeker to return.
+			return
+		}
+
+		// Return borrowed seeker.
+		err := seekerMgr.Return(shard, blockStart, seeker)
 		if err != nil {
 			r.logger.Error("err returning seeker for shard",
 				zap.Uint32("shard", shard),
@@ -393,86 +413,106 @@ func (r *blockRetriever) fetchBatch(
 		}
 	}()
 
+	var err error
+	seeker, err = seekerMgr.Borrow(shard, blockStart)
+	if err != nil {
+		for _, req := range allReqs {
+			req.err = err
+		}
+		return
+	}
+
 	// NB: filterAndCompleteWideReqs will complete any wide requests, returning
 	// a filtered list of requests that should be processed below. These wide
 	// requests must not take query limits into account.
-	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources)
+	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources,
+		retrieverResources)
 
 	var limitErr error
 	if err := r.queryLimits.AnyExceeded(); err != nil {
 		for _, req := range reqs {
-			req.onError(err)
+			req.err = err
 		}
 		return
 	}
 
 	for _, req := range reqs {
 		if limitErr != nil {
-			req.onError(limitErr)
+			req.err = limitErr
 			continue
 		}
 
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
+		if err != nil && !errors.Is(err, errSeekIDNotFound) {
+			req.err = err
 			continue
 		}
 
 		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
-			req.onError(err)
+			req.err = err
 			limitErr = err
 			continue
 		}
 
-		if err == errSeekIDNotFound {
+		if errors.Is(err, errSeekIDNotFound) {
 			req.notFound = true
 		}
 
 		req.indexEntry = entry
 	}
 
-	sort.Sort(retrieveRequestByOffsetAsc(reqs))
+	sort.Sort(retrieveRequestByIndexEntryOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
 	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		var (
-			data checked.Bytes
-			err  error
-		)
+		// Should always be a data request by this point.
+		if req.streamReqType != streamDataReq {
+			req.err = fmt.Errorf("wrong stream req type: expect=%d, actual=%d",
+				streamDataReq, req.streamReqType)
+			continue
+		}
 
-		// Only try to seek the ID if it exists and there haven't been any errors so
-		// far, otherwise we'll get a checksum mismatch error because the default
-		// offset value for indexEntry is zero.
-		if req.foundAndHasNoError() {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
-			if err != nil && err != errSeekIDNotFound {
-				req.onError(err)
-				continue
-			}
+		if req.err != nil {
+			// Skip requests with error, will already get appropriate callback.
+			continue
+		}
+
+		if req.notFound {
+			// Only try to seek the ID if it exists and there haven't been any errors so
+			// far, otherwise we'll get a checksum mismatch error because the default
+			// offset value for indexEntry is zero.
+			req.success = true
+			req.onCallerOrRetrieverDone()
+			continue
+		}
+
+		data, err := seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
+		if err != nil {
+			// If not found error is returned here, that's still an error since
+			// it's expected to be found if it was found in the index file.
+			req.err = err
+			continue
 		}
 
 		var (
 			seg, onRetrieveSeg ts.Segment
 			checksum           = req.indexEntry.DataChecksum
 		)
-		if data != nil {
-			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
-		}
+		seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil && req.foundAndHasNoError()
+		callOnRetrieve := blockCachingEnabled && req.onRetrieve != nil
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
 			// consequent fetches.
-			if data != nil {
-				dataCopy := r.bytesPool.Get(data.Len())
-				onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
-				dataCopy.AppendAll(data.Bytes())
-			}
+			dataCopy := r.bytesPool.Get(data.Len())
+			onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
+			dataCopy.AppendAll(data.Bytes())
+
 			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {
 				decoder := tagDecoderPool.Get()
 				// DecRef because we're transferring ownership from the index entry to
@@ -492,17 +532,24 @@ func (r *blockRetriever) fetchBatch(
 
 		// Complete request.
 		req.onRetrieved(seg, req.nsCtx)
+		req.success = true
 
 		if !callOnRetrieve {
-			// No need to call the onRetrieve callback.
+			// No need to call the onRetrieve callback, but do need to call
+			// onCallerOrRetrieverDone since data requests do not get finalized
+			// when req.onDone is called since sometimes they need deferred
+			// finalization (when callOnRetrieve is true).
 			req.onCallerOrRetrieverDone()
 			continue
 		}
 
+		callbackWg.Add(1)
+		req.waitingForCallback = true
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize.
 			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg, r.nsCtx)
 			r.onCallerOrRetrieverDone()
+			callbackWg.Done()
 		}(req)
 	}
 }
@@ -586,11 +633,14 @@ func (r *blockRetriever) Stream(
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
+		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
 	}
 
 	if !found {
 		req.onRetrieved(ts.Segment{}, namespace.Context{})
+		req.success = true
+		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -601,52 +651,26 @@ func (r *blockRetriever) Stream(
 	return req.toBlock(), nil
 }
 
-func (r *blockRetriever) StreamIndexChecksum(
+func (r *blockRetriever) StreamWideEntry(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	req := r.reqPool.Get()
-	req.streamReqType = streamIdxChecksumReq
+	req.streamReqType = streamWideEntryReq
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		req.resultWg.Done()
+		return block.EmptyStreamedWideEntry, err
 	}
 
 	if !found {
-		req.onIndexChecksumCompleted(xio.IndexChecksum{})
-	}
-
-	// The request may not have completed yet, but it has an internal
-	// waitgroup which the caller will have to wait for before retrieving
-	// the data. This means that even though we're returning nil for error
-	// here, the caller may still encounter an error when they attempt to
-	// read the data.
-	return req, nil
-}
-
-func (r *blockRetriever) StreamReadMismatches(
-	ctx context.Context,
-	shard uint32,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	startTime time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	req := r.reqPool.Get()
-	req.mismatchChecker = mismatchChecker
-	req.streamReqType = streamReadMismatchReq
-
-	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	}
-
-	if !found {
-		req.onIndexMismatchCompleted(wide.ReadMismatch{})
+		req.wideEntry = xio.WideEntry{}
+		req.success = true
+		req.onDone()
 	}
 
 	// The request may not have completed yet, but it has an internal
@@ -740,7 +764,9 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
-	resultWg sync.WaitGroup
+	finalized          bool
+	waitingForCallback bool
+	resultWg           sync.WaitGroup
 
 	pool *reqPool
 
@@ -753,11 +779,8 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	indexChecksum xio.IndexChecksum
-	mismatchBatch wide.ReadMismatch
+	wideEntry     xio.WideEntry
 	reader        xio.SegmentReader
-
-	mismatchChecker wide.EntryChecksumMismatchChecker
 
 	err error
 
@@ -768,38 +791,16 @@ type retrieveRequest struct {
 	shard     uint32
 
 	notFound bool
+	success  bool
 }
 
-func (req *retrieveRequest) onIndexChecksumCompleted(indexChecksum xio.IndexChecksum) {
-	if req.err == nil {
-		req.indexChecksum = indexChecksum
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
-}
-
-func (req *retrieveRequest) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
+func (req *retrieveRequest) RetrieveWideEntry() (xio.WideEntry, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return xio.IndexChecksum{}, req.err
+		return xio.WideEntry{}, req.err
 	}
-	return req.indexChecksum, nil
-}
 
-func (req *retrieveRequest) onIndexMismatchCompleted(batch wide.ReadMismatch) {
-	if req.err == nil {
-		req.mismatchBatch = batch
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
-}
-
-func (req *retrieveRequest) RetrieveMismatch() (wide.ReadMismatch, error) {
-	req.resultWg.Wait()
-	if req.err != nil {
-		return wide.ReadMismatch{}, req.err
-	}
-	return req.mismatchBatch, nil
+	return req.wideEntry, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -810,49 +811,84 @@ func (req *retrieveRequest) toBlock() xio.BlockReader {
 	}
 }
 
-func (req *retrieveRequest) onError(err error) {
-	if req.err == nil {
-		req.err = err
-		req.resultWg.Done()
+func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Context) {
+	req.nsCtx = nsCtx
+	req.Reset(segment)
+}
+
+func (req *retrieveRequest) onDone() {
+	var (
+		err           = req.err
+		success       = req.success
+		streamReqType = req.streamReqType
+	)
+
+	if err == nil && !success {
+		// Require explicit success, otherwise this request
+		// was never completed.
+		// This helps catch code bugs where this element wasn't explicitly
+		// handled as completed during a fetch batch call instead of
+		// returning but with no actual result set properly.
+		req.err = errSeekNotCompleted
+	}
+
+	req.resultWg.Done()
+
+	switch streamReqType {
+	case streamDataReq:
+		// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
+		// code path will call req.onCallerOrRetrieverDone() when it's done.
+		// If encountered an error though, should call it since not waiting for
+		// callback to finish or even if not waiting for callback to finish
+		// the happy path that calls this pre-emptively has not executed either.
+		// That is if-and-only-if request is data request and is successful and
+		// will req.onCallerOrRetrieverDone() be called in a deferred manner.
+		if !success {
+			req.onCallerOrRetrieverDone()
+		}
+	default:
+		// All other requests will use this to increment the finalize count by
+		// one and the actual req.Finalize() by the final one to make count of
+		// two and actually return the request to the pool.
+		req.onCallerOrRetrieverDone()
 	}
 }
 
-func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Context) {
+func (req *retrieveRequest) Reset(segment ts.Segment) {
+	req.reader.Reset(segment)
+}
+
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+	req.start = start
+	req.blockSize = blockSize
 	req.Reset(segment)
-	req.nsCtx = nsCtx
 }
 
 func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	if atomic.AddUint32(&req.finalizes, 1) != 2 {
 		return
 	}
-	// NB: streamIdxChecksumReq ids are used to sort the resultant list,
-	// so they should not be finalized here.
-	if req.streamReqType == streamDataReq {
-		req.id.Finalize()
+
+	switch req.streamReqType {
+	case streamWideEntryReq:
+		// All pooled elements are set on the wideEntry.
+		req.wideEntry.Finalize()
+	default:
+		if req.id != nil {
+			req.id.Finalize()
+			req.id = nil
+		}
+		if req.tags != nil {
+			req.tags.Close()
+			req.tags = ident.EmptyTagIterator
+		}
+		if req.reader != nil {
+			req.reader.Finalize()
+			req.reader = nil
+		}
 	}
-	req.id = nil
-	if req.tags != nil {
-		req.tags.Close()
-		req.tags = ident.EmptyTagIterator
-	}
-	req.reader.Finalize()
-	req.reader = nil
+
 	req.pool.Put(req)
-}
-
-func (req *retrieveRequest) Reset(segment ts.Segment) {
-	req.reader.Reset(segment)
-	if req.err == nil {
-		// If there was an error, we've already called done.
-		req.resultWg.Done()
-	}
-}
-
-func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
-	req.Reset(segment)
-	req.start = start
-	req.blockSize = blockSize
 }
 
 func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
@@ -898,11 +934,18 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 func (req *retrieveRequest) Finalize() {
 	// May not actually finalize the request, depending on if
 	// retriever is done too
+	if req.finalized {
+		return
+	}
+
+	req.resultWg.Wait()
+	req.finalized = true
 	req.onCallerOrRetrieverDone()
 }
 
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
+	req.finalized = false
 	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
@@ -912,16 +955,11 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = xio.IndexChecksum{}
-	req.mismatchBatch = wide.ReadMismatch{}
-	req.mismatchChecker = nil
+	req.wideEntry = xio.WideEntry{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
-}
-
-func (req *retrieveRequest) foundAndHasNoError() bool {
-	return !req.notFound && req.err == nil
+	req.success = false
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
@@ -935,18 +973,29 @@ func (r retrieveRequestByStartAscShardAsc) Less(i, j int) bool {
 	return r[i].shard < r[j].shard
 }
 
-type retrieveRequestByOffsetAsc []*retrieveRequest
+type retrieveRequestByIndexEntryOffsetAsc []*retrieveRequest
 
-func (r retrieveRequestByOffsetAsc) Len() int      { return len(r) }
-func (r retrieveRequestByOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
+func (r retrieveRequestByIndexEntryOffsetAsc) Len() int      { return len(r) }
+func (r retrieveRequestByIndexEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r retrieveRequestByIndexEntryOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
+}
+
+type retrieveRequestByWideEntryOffsetAsc []*retrieveRequest
+
+func (r retrieveRequestByWideEntryOffsetAsc) Len() int      { return len(r) }
+func (r retrieveRequestByWideEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r retrieveRequestByWideEntryOffsetAsc) Less(i, j int) bool {
+	return r[i].wideEntry.Offset < r[j].wideEntry.Offset
 }
 
 // RetrieveRequestPool is the retrieve request pool.
 type RetrieveRequestPool interface {
+	// Init initializes the request pool.
 	Init()
+	// Get gets a retrieve request.
 	Get() *retrieveRequest
+	// Put returns a retrieve request to the pool.
 	Put(req *retrieveRequest)
 }
 
@@ -985,4 +1034,38 @@ func (p *reqPool) Put(req *retrieveRequest) {
 	// shortly lived objects while still in the pool
 	req.resetForReuse()
 	p.pool.Put(req)
+}
+
+type reuseableRetrieverResources struct {
+	dataReqs      []*retrieveRequest
+	wideEntryReqs []*retrieveRequest
+}
+
+func newReuseableRetrieverResources() *reuseableRetrieverResources {
+	return &reuseableRetrieverResources{}
+}
+
+func (r *reuseableRetrieverResources) resetAll() {
+	r.resetDataReqs()
+	r.resetWideEntryReqs()
+}
+
+func (r *reuseableRetrieverResources) resetDataReqs() {
+	for i := range r.dataReqs {
+		r.dataReqs[i] = nil
+	}
+	r.dataReqs = r.dataReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) resetWideEntryReqs() {
+	for i := range r.wideEntryReqs {
+		r.wideEntryReqs[i] = nil
+	}
+	r.wideEntryReqs = r.wideEntryReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) appendWideEntryReq(
+	req *retrieveRequest,
+) {
+	r.wideEntryReqs = append(r.wideEntryReqs, req)
 }

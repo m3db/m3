@@ -102,7 +102,7 @@ type WideQueryOptions struct {
 	StartInclusive time.Time
 	// EndExclusive is the exclusive end for the query.
 	EndExclusive time.Time
-	// BatchSize controls IndexChecksumQuery batch size.
+	// BatchSize controls wide query batch size.
 	BatchSize int
 	// ShardsQueried are the shards to query. These must be in ascending order.
 	// If empty, all shards are queried.

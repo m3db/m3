@@ -19,7 +19,7 @@ function defer {
 }
 trap defer EXIT
 
-setup_single_m3db_node
+AGG_RESOLUTION=5s setup_single_m3db_node
 
 function read_carbon {
   target=$1

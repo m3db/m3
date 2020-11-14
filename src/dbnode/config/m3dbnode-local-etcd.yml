@@ -1,20 +1,2 @@
-coordinator:
-  local:
-    namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
-
-db:
-  hostID:
-    resolver: config
-    value: m3db_local
-
-  discovery:
-    type: m3db_single_node
-
-  # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
-  # for quick local setup (which this config will send data to).
-
-  # tracing:
-  #  backend: jaeger
+coordinator: {}
+db: {}

@@ -245,7 +245,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
 		logger.Fatal("could not resolve local host ID", zap.Error(err))
 	}
@@ -276,7 +276,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	envConfig, err := cfg.DiscoveryConfig.EnvironmentConfig(hostID)
+	discoveryConfig := cfg.DiscoveryOrDefault()
+	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
 	if err != nil {
 		logger.Fatal("could not get env config from discovery config", zap.Error(err))
 	}
@@ -628,9 +629,18 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
-	var (
-		envCfgResults environment.ConfigureResults
-	)
+	// Set the index claims manager
+	icm, err := fs.NewIndexClaimsManager(fsopts)
+	if err != nil {
+		logger.Fatal("could not create index claims manager", zap.Error(err))
+	}
+	defer func() {
+		// Reset counter of index claims managers after server teardown.
+		fs.ResetIndexClaimsManagersUnsafe()
+	}()
+	opts = opts.SetIndexClaimsManager(icm)
+
+	var envCfgResults environment.ConfigureResults
 	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
@@ -798,7 +808,6 @@ func Run(runOpts RunOptions) {
 		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
-
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -880,6 +889,11 @@ func Run(runOpts RunOptions) {
 
 	if runOpts.StorageOptions.NamespaceHooks != nil {
 		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
+	}
+
+	if runOpts.StorageOptions.NewTileAggregatorFn != nil {
+		aggregator := runOpts.StorageOptions.NewTileAggregatorFn(iopts)
+		opts = opts.SetTileAggregator(aggregator)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

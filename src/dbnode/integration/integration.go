@@ -206,6 +206,11 @@ func newDefaultBootstrappableTestSetups(
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
 			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
+		if i > 0 {
+			// NB(bodu): Need to reset the global counter of number of index
+			// claim manager instances after the initial node.
+			persistfs.ResetIndexClaimsManagersUnsafe()
+		}
 		setup, err := NewTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 		topologyInitializer = setup.TopologyInitializer()
@@ -272,9 +277,10 @@ func newDefaultBootstrappableTestSetups(
 				SetAdminClient(adminClient).
 				SetIndexOptions(storageIdxOpts).
 				SetFilesystemOptions(fsOpts).
-				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
+				// PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetPersistManager(setup.StorageOpts().PersistManager()).
+				SetIndexClaimsManager(setup.StorageOpts().IndexClaimsManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.StorageOpts().ContextPool())
@@ -291,7 +297,8 @@ func newDefaultBootstrappableTestSetups(
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetCompactor(newCompactor(t, storageIdxOpts)).
-			SetPersistManager(persistMgr)
+			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(setup.StorageOpts().IndexClaimsManager())
 
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
 		require.NoError(t, err)
