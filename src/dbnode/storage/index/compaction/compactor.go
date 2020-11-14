@@ -106,7 +106,7 @@ func NewCompactor(
 func (c *Compactor) Compact(
 	segs []segment.Segment,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (fst.Segment, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -127,7 +127,7 @@ func (c *Compactor) CompactUsingBuilder(
 	builder segment.DocumentsBuilder,
 	segs []segment.Segment,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (fst.Segment, error) {
 	// NB(r): Ensure only single compaction happens at a time since the buffers are
 	// reused between runs.
 	c.Lock()
@@ -231,7 +231,7 @@ func (c *Compactor) CompactUsingBuilder(
 func (c *Compactor) compactFromBuilderWithLock(
 	builder segment.Builder,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (fst.Segment, error) {
 	defer func() {
 		// Release resources regardless of result,
 		// otherwise old compacted segments are held onto

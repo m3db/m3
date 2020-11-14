@@ -78,6 +78,13 @@ func IntersectAndNegateReadOnly(
 	})
 }
 
+// IsReadOnlyPostingsList returns whether a postings list is read only
+// or not.
+func IsReadOnlyPostingsList(pl postings.List) bool {
+	_, ok := pl.(readOnlyIterable)
+	return ok
+}
+
 // ReadOnlyBitmapIntersectCheck is a check that can be repeated
 // against read only bitmaps without allocations.
 type ReadOnlyBitmapIntersectCheck struct {

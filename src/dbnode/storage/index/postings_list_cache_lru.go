@@ -62,6 +62,14 @@ type postingsListLRU struct {
 	size      int
 	evictList *list.List
 	items     map[uuid.Array]map[key]*list.Element
+	onRemove  onRemoveFn
+}
+
+type onRemoveFn func(pl postings.List, metadata postingsListMetadata)
+
+// postingsListMetadata is metadata about the postings list.
+type postingsListMetadata struct {
+	Pooled bool
 }
 
 // entry is used to hold a value in the evictList.
@@ -69,6 +77,7 @@ type entry struct {
 	uuid         uuid.UUID
 	key          key
 	postingsList postings.List
+	metadata     postingsListMetadata
 }
 
 type key struct {
@@ -78,7 +87,10 @@ type key struct {
 }
 
 // newPostingsListLRU constructs an LRU of the given size.
-func newPostingsListLRU(size int) (*postingsListLRU, error) {
+func newPostingsListLRU(
+	size int,
+	onRemove onRemoveFn,
+) (*postingsListLRU, error) {
 	if size <= 0 {
 		return nil, errors.New("Must provide a positive size")
 	}
@@ -87,6 +99,7 @@ func newPostingsListLRU(size int) (*postingsListLRU, error) {
 		size:      size,
 		evictList: list.New(),
 		items:     make(map[uuid.Array]map[key]*list.Element),
+		onRemove:  onRemove,
 	}, nil
 }
 
@@ -97,6 +110,7 @@ func (c *postingsListLRU) Add(
 	pattern string,
 	patternType PatternType,
 	pl postings.List,
+	metadata postingsListMetadata,
 ) (evicted bool) {
 	newKey := newKey(field, pattern, patternType)
 	// Check for existing item.
@@ -108,7 +122,9 @@ func (c *postingsListLRU) Add(
 			// can only point to one entry at a time and we use them for purges. Also,
 			// it saves space by avoiding storing duplicate values.
 			c.evictList.MoveToFront(ent)
-			ent.Value.(*entry).postingsList = pl
+			e := ent.Value.(*entry)
+			e.postingsList = pl
+			e.metadata = metadata
 			return false
 		}
 	}
@@ -119,6 +135,7 @@ func (c *postingsListLRU) Add(
 			uuid:         segmentUUID,
 			key:          newKey,
 			postingsList: pl,
+			metadata:     metadata,
 		}
 		entry = c.evictList.PushFront(ent)
 	)
@@ -208,6 +225,10 @@ func (c *postingsListLRU) removeElement(e *list.Element) {
 		if len(patterns) == 0 {
 			delete(c.items, entry.uuid.Array())
 		}
+	}
+
+	if c.onRemove != nil {
+		c.onRemove(entry.postingsList, entry.metadata)
 	}
 }
 

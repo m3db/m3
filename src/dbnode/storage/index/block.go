@@ -411,8 +411,8 @@ func (b *block) Query(
 }
 
 const (
-	queryGroupReadersParallelism = 8
-	queryGroupSize               = 8
+	queryGroupReadersParallelism = 32
+	queryGroupSize               = 32
 )
 
 type queryGroup struct {

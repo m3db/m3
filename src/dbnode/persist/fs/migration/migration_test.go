@@ -37,6 +37,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -73,6 +75,7 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NoError(t, err)
 
 	plCache, closer, err := index.NewPostingsListCache(1, index.PostingsListCacheOptions{
+		PostingsListPool:  postings.NewPool(nil, roaring.NewPostingsList),
 		InstrumentOptions: instrument.NewOptions(),
 	})
 	defer closer()

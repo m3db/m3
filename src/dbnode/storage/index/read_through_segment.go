@@ -28,9 +28,12 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/search"
 
 	"github.com/pborman/uuid"
 )
+
+const maxUniqueQueryCount = 2 << 14 // 32k
 
 var (
 	errCantGetReaderFromClosedSegment = errors.New("cant get reader from closed segment")
@@ -58,16 +61,28 @@ type ReadThroughSegment struct {
 
 	opts ReadThroughSegmentOptions
 
+	searches readThroughSegmentSearches
+
 	closed bool
+}
+
+type readThroughSegmentSearches struct {
+	sync.RWMutex
+	queries map[string]int
 }
 
 // ReadThroughSegmentOptions is the options struct for the
 // ReadThroughSegment.
 type ReadThroughSegmentOptions struct {
-	// Whether the postings list for regexp queries should be cached.
+	// CacheRegexp sets whether the postings list for regexp queries
+	// should be cached.
 	CacheRegexp bool
-	// Whether the postings list for term queries should be cached.
+	// CacheTerms sets whether the postings list for term queries
+	// should be cached.
 	CacheTerms bool
+	// CacheSearches sets whether the postings list for search queries
+	// should be cached.
+	CacheSearches bool
 }
 
 // NewReadThroughSegment creates a new read through segment.
@@ -81,6 +96,9 @@ func NewReadThroughSegment(
 		opts:              opts,
 		uuid:              uuid.NewUUID(),
 		postingsListCache: cache,
+		searches: readThroughSegmentSearches{
+			queries: make(map[string]int),
+		},
 	}
 }
 
@@ -96,8 +114,8 @@ func (r *ReadThroughSegment) Reader() (segment.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newReadThroughSegmentReader(
-		reader, r.uuid, r.postingsListCache, r.opts), nil
+	return newReadThroughSegmentReader(r, reader, r.uuid,
+		r.postingsListCache, r.opts), nil
 }
 
 // Close purges all entries in the cache associated with this segment,
@@ -155,7 +173,10 @@ func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
 }
 
+var _ search.ReadThroughSegmentSearcher = (*readThroughSegmentReader)(nil)
+
 type readThroughSegmentReader struct {
+	seg *ReadThroughSegment
 	// reader is explicitly not embedded at the top level
 	// of the struct to force new methods added to index.Reader
 	// to be explicitly supported by the read through cache.
@@ -166,16 +187,17 @@ type readThroughSegmentReader struct {
 }
 
 func newReadThroughSegmentReader(
+	seg *ReadThroughSegment,
 	reader segment.Reader,
 	uuid uuid.UUID,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
 ) segment.Reader {
 	return &readThroughSegmentReader{
-		reader:            reader,
-		opts:              opts,
-		uuid:              uuid,
-		postingsListCache: cache,
+		seg:    seg,
+		reader: reader,
+		opts:   opts,
+		uuid:   uuid,
 	}
 }
 
@@ -300,4 +322,59 @@ func (s *readThroughSegmentReader) Terms(field []byte) (segment.TermsIterator, e
 // Close is a pass through call.
 func (s *readThroughSegmentReader) Close() error {
 	return s.reader.Close()
+}
+
+func (s *readThroughSegmentReader) Search(
+	query search.Query,
+	searcher search.Searcher,
+) (postings.List, error) {
+	if s.postingsListCache == nil || !s.opts.CacheSearches {
+		return searcher.Search(s)
+	}
+
+	// TODO(r): Would be nice to not allocate strings here.
+	queryStr := query.String()
+	pl, ok := s.postingsListCache.GetSearch(s.uuid, queryStr)
+	if ok {
+		return pl, nil
+	}
+
+	pl, err := searcher.Search(s)
+	if err != nil {
+		return nil, err
+	}
+
+	s.seg.searches.Lock()
+	count := 1
+	curr, ok := s.seg.searches.queries[queryStr]
+	if !ok {
+		if len(s.seg.searches.queries) >= maxUniqueQueryCount {
+			// Delete a random key to make room.
+			for k := range s.seg.searches.queries {
+				delete(s.seg.searches.queries, k)
+				break // Immediately break.
+			}
+			s.seg.searches.queries[queryStr] = count
+		}
+	} else {
+		count = curr + 1
+	}
+	willCache := count > 1
+	if willCache {
+		// Delete out of the seen query count.
+		delete(s.seg.searches.queries, queryStr)
+	} else {
+		// Update seen count.
+		s.seg.searches.queries[queryStr] = count
+	}
+	s.seg.searches.Unlock()
+
+	if willCache {
+		// Only cache the second time seen a recent query since
+		// copying the postings lists into a roaring postings list
+		//
+		s.postingsListCache.PutSearch(s.uuid, queryStr, pl)
+	}
+
+	return pl, nil
 }

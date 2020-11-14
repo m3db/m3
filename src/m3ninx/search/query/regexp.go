@@ -22,7 +22,8 @@ package query
 
 import (
 	"bytes"
-	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -32,6 +33,8 @@ import (
 
 // RegexpQuery finds documents which match the given regular expression.
 type RegexpQuery struct {
+	sync.Mutex
+	strValue string
 	field    []byte
 	regexp   []byte
 	compiled index.CompiledRegex
@@ -93,5 +96,24 @@ func (q *RegexpQuery) ToProto() *querypb.Query {
 }
 
 func (q *RegexpQuery) String() string {
-	return fmt.Sprintf("regexp(%s, %s)", q.field, q.regexp)
+	q.Lock()
+	str := q.stringWithLock()
+	q.Unlock()
+	return str
+}
+
+func (q *RegexpQuery) stringWithLock() string {
+	if q.strValue != "" {
+		return q.strValue
+	}
+
+	var str strings.Builder
+	str.WriteString("regexp(")
+	str.Write(q.field)
+	str.WriteRune(',')
+	str.Write(q.regexp)
+	str.WriteRune(')')
+
+	q.strValue = str.String()
+	return q.strValue
 }

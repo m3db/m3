@@ -275,6 +275,7 @@ func NewTestSetup(
 	}
 
 	plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+		PostingsListPool:  storageOpts.IndexOptions().SegmentBuilderOptions().PostingsListPool(),
 		InstrumentOptions: iOpts,
 	})
 	if err != nil {
