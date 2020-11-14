@@ -4,7 +4,7 @@ weight: 3
 ---
 
 
-**Please note:** If possible _PLEASE USE THE OPERATO_ to deploy to Kubernetes if you
+**Please note:** If possible _PLEASE USE THE OPERATOR_ to deploy to Kubernetes if you
 can. It is a considerably more streamlined setup.
 
 The operator leverages [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
