@@ -21,10 +21,13 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
+	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -84,8 +87,9 @@ type fileSystemSource struct {
 }
 
 type fileSystemSourceMetrics struct {
-	persistedIndexBlocksRead  tally.Counter
-	persistedIndexBlocksWrite tally.Counter
+	persistedIndexBlocksRead    tally.Counter
+	persistedIndexBlocksWrite   tally.Counter
+	indexBlocksFailedValidation tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -107,8 +111,9 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		newReaderFn:   fs.NewReader,
 		deleteFilesFn: fs.DeleteFiles,
 		metrics: fileSystemSourceMetrics{
-			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksRead:    scope.Counter("persist-index-blocks-read"),
+			persistedIndexBlocksWrite:   scope.Counter("persist-index-blocks-write"),
+			indexBlocksFailedValidation: scope.Counter("index-blocks-failed-validation"),
 		},
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
@@ -1010,6 +1015,14 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		return bootstrapFromIndexPersistedBlocksResult{}, err
 	}
 
+	// Sort info files by block start and index volume type (default comes first)
+	sort.Slice(infoFiles, func(i, j int) bool {
+		if infoFiles[i].Info.BlockStart != infoFiles[j].Info.BlockStart {
+			return infoFiles[i].Info.BlockStart < infoFiles[j].Info.BlockStart
+		}
+		return volumeTypeFromInfo(infoFiles[i].Info) == idxpersist.DefaultIndexVolumeType
+	})
+
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
 			s.log.Error("unable to read index info file",
@@ -1022,7 +1035,25 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 
 		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		indexBlockStartUnixNano := xtime.UnixNano(info.BlockStart)
+		indexBlockStart := indexBlockStartUnixNano.ToTime()
+		volumeType := volumeTypeFromInfo(info)
+
+		// NB(bodu): Skip non default index volumes for this block if we have not seen a default
+		// index volume already. We sort info files by block start and index volume so we should
+		// have seen a default volume by now if it exists and is not corrupted.
+		if volumeType != idxpersist.DefaultIndexVolumeType &&
+			indexBlockExistsInResults(res.result.index.IndexResults(), indexBlockStartUnixNano, volumeType) {
+			s.log.Info("skipping index fileset missing default index volume type",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("blockStart", indexBlockStart),
+				zap.String("volumeType", string(volumeType)),
+				zap.Stringer("shardTimeRanges", shardTimeRanges),
+				zap.String("filepath", infoFile.Err.Filepath()),
+			)
+			continue
+		}
+
 		indexBlockRange := xtime.Range{
 			Start: indexBlockStart,
 			End:   indexBlockStart.Add(indexBlockSize),
@@ -1078,6 +1109,10 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 				zap.Time("blockStart", indexBlockStart),
 				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
 			)
+			// Emit a metric for failed validations.
+			if errors.Is(err, fs.ErrIndexReaderValidationFailed) {
+				s.metrics.indexBlocksFailedValidation.Inc(1)
+			}
 			continue
 		}
 
@@ -1093,10 +1128,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
 		for _, segment := range readResult.Segments {
 			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
-		}
-		volumeType := idxpersist.DefaultIndexVolumeType
-		if info.IndexVolumeType != nil {
-			volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
 		}
 		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
 		indexBlockByVolumeType.SetBlock(volumeType, result.NewIndexBlock(persistedSegments, segmentsFulfilled))
@@ -1152,4 +1183,25 @@ func (r *runResult) mergedResult(other *runResult) *runResult {
 		data:  result.MergedDataBootstrapResult(r.data, other.data),
 		index: result.MergedIndexBootstrapResult(r.index, other.index),
 	}
+}
+
+func volumeTypeFromInfo(info indexpb.IndexVolumeInfo) idxpersist.IndexVolumeType {
+	volumeType := idxpersist.DefaultIndexVolumeType
+	if info.IndexVolumeType != nil {
+		volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
+	}
+	return volumeType
+}
+
+func indexBlockExistsInResults(
+	results result.IndexResults,
+	blockStart xtime.UnixNano,
+	volumeType idxpersist.IndexVolumeType,
+) bool {
+	indexBlockByVolumeType, ok := results[blockStart]
+	if !ok {
+		return false
+	}
+	_, ok = indexBlockByVolumeType.GetBlock(volumeType)
+	return ok
 }

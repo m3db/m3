@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -40,6 +41,9 @@ import (
 const (
 	mmapPersistFsIndexName = "mmap.persist.fs.index"
 )
+
+// ErrIndexReaderValidationFailed is returned for corrupt index segemnts.
+var ErrIndexReaderValidationFailed = errors.New("validation failed")
 
 type indexReader struct {
 	opts           Options
@@ -305,16 +309,16 @@ func (r *indexReader) Validate() error {
 
 func (r *indexReader) validateDigestsFileDigest() error {
 	if r.readDigests.digestsFileDigest != r.expectedDigestOfDigest {
-		return fmt.Errorf("read digests file checksum bad: expected=%d, actual=%d",
-			r.expectedDigestOfDigest, r.readDigests.digestsFileDigest)
+		return fmt.Errorf("(%w) read digests file checksum bad: expected=%d, actual=%d",
+			ErrIndexReaderValidationFailed, r.expectedDigestOfDigest, r.readDigests.digestsFileDigest)
 	}
 	return nil
 }
 
 func (r *indexReader) validateInfoFileDigest() error {
 	if r.readDigests.infoFileDigest != r.expectedDigest.InfoDigest {
-		return fmt.Errorf("read info file checksum bad: expected=%d, actual=%d",
-			r.expectedDigest.InfoDigest, r.readDigests.infoFileDigest)
+		return fmt.Errorf("(%w) read info file checksum bad: expected=%d, actual=%d",
+			ErrIndexReaderValidationFailed, r.expectedDigest.InfoDigest, r.readDigests.infoFileDigest)
 	}
 	return nil
 }
@@ -322,35 +326,35 @@ func (r *indexReader) validateInfoFileDigest() error {
 func (r *indexReader) validateSegmentFileDigest(segmentIdx, fileIdx int) error {
 	if segmentIdx >= len(r.readDigests.segments) {
 		return fmt.Errorf(
-			"have not read correct number of segments to validate segment %d checksums: "+
+			"(%w) have not read correct number of segments to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			segmentIdx, segmentIdx+1, len(r.readDigests.segments))
+			ErrIndexReaderValidationFailed, segmentIdx, segmentIdx+1, len(r.readDigests.segments))
 	}
 	if segmentIdx >= len(r.expectedDigest.SegmentDigests) {
 		return fmt.Errorf(
-			"have not read digest files correctly to validate segment %d checksums: "+
+			"(%w) have not read digest files correctly to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			segmentIdx, segmentIdx+1, len(r.expectedDigest.SegmentDigests))
+			ErrIndexReaderValidationFailed, segmentIdx, segmentIdx+1, len(r.expectedDigest.SegmentDigests))
 	}
 
 	if fileIdx >= len(r.readDigests.segments[segmentIdx].files) {
 		return fmt.Errorf(
-			"have not read correct number of segment files to validate segment %d checksums: "+
+			"(%w) have not read correct number of segment files to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			segmentIdx, fileIdx+1, len(r.readDigests.segments[segmentIdx].files))
+			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1, len(r.readDigests.segments[segmentIdx].files))
 	}
 	if fileIdx >= len(r.expectedDigest.SegmentDigests[segmentIdx].Files) {
 		return fmt.Errorf(
-			"have not read correct number of segment files to validate segment %d checksums: "+
+			"(%w) have not read correct number of segment files to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			segmentIdx, fileIdx+1, len(r.expectedDigest.SegmentDigests[segmentIdx].Files))
+			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1, len(r.expectedDigest.SegmentDigests[segmentIdx].Files))
 	}
 
 	expected := r.expectedDigest.SegmentDigests[segmentIdx].Files[fileIdx].Digest
 	actual := r.readDigests.segments[segmentIdx].files[fileIdx].digest
 	if actual != expected {
-		return fmt.Errorf("read segment file %d for segment %d checksum bad: expected=%d, actual=%d",
-			segmentIdx, fileIdx, expected, actual)
+		return fmt.Errorf("(%w) read segment file %d for segment %d checksum bad: expected=%d, actual=%d",
+			ErrIndexReaderValidationFailed, segmentIdx, fileIdx, expected, actual)
 	}
 	return nil
 }
