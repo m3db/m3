@@ -698,4 +698,5 @@ type DataEntryProcessor interface {
 	ProcessEntry(StreamedDataEntry) error
 }
 
+// DeleteFilesFn deletes files passed in as arg.
 type DeleteFilesFn func(files []string) error

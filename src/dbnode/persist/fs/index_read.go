@@ -341,13 +341,15 @@ func (r *indexReader) validateSegmentFileDigest(segmentIdx, fileIdx int) error {
 		return fmt.Errorf(
 			"(%w) have not read correct number of segment files to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1, len(r.readDigests.segments[segmentIdx].files))
+			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1,
+			len(r.readDigests.segments[segmentIdx].files))
 	}
 	if fileIdx >= len(r.expectedDigest.SegmentDigests[segmentIdx].Files) {
 		return fmt.Errorf(
 			"(%w) have not read correct number of segment files to validate segment %d checksums: "+
 				"need=%d, actual=%d",
-			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1, len(r.expectedDigest.SegmentDigests[segmentIdx].Files))
+			ErrIndexReaderValidationFailed, segmentIdx, fileIdx+1,
+			len(r.expectedDigest.SegmentDigests[segmentIdx].Files))
 	}
 
 	expected := r.expectedDigest.SegmentDigests[segmentIdx].Files[fileIdx].Digest
