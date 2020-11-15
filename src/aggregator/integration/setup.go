@@ -21,13 +21,14 @@
 package integration
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sort"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -246,14 +247,41 @@ func (ts *testServerSetup) newClient() *client {
 	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
 }
 
-func (ts *testServerSetup) waitUntilServerIsUp() error {
-	c := ts.newClient()
-	defer c.close()
+func (ts *testServerSetup) getStatusResponse(path string, response interface{}) error {
+	resp, err := http.Get("http://" + ts.httpAddr + path) //nolint
+	if err != nil {
+		return err
+	}
 
-	serverIsUp := func() bool { return c.testConnection() }
-	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
+	defer resp.Body.Close() //nolint:errcheck
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("aggregator returned a non-400")
+	}
+	return json.Unmarshal(b, response)
+}
+
+func (ts *testServerSetup) waitUntilServerIsUp() error {
+	if waitUntil(func() bool {
+		var resp httpserver.Response
+		if err := ts.getStatusResponse(httpserver.HealthPath, &resp); err != nil {
+			return false
+		}
+
+		if resp.State == "OK" {
+			return true
+		}
+
+		return false
+	},
+		ts.opts.ElectionStateChangeTimeout(),
+	) {
 		return nil
 	}
+
 	return errServerStartTimedOut
 }
 
@@ -301,21 +329,23 @@ func (ts *testServerSetup) startServer() error {
 }
 
 func (ts *testServerSetup) waitUntilLeader() error {
-	isLeader := func() bool {
-		leader, err := ts.leaderService.Leader(ts.electionKey)
-		if err != nil {
+	if waitUntil(func() bool {
+		var resp httpserver.StatusResponse
+		if err := ts.getStatusResponse(httpserver.StatusPath, &resp); err != nil {
 			return false
 		}
-		return leader == ts.leaderValue
+
+		if resp.Status.FlushStatus.ElectionState == aggregator.LeaderState {
+			return true
+		}
+		return false
+	},
+		ts.opts.ElectionStateChangeTimeout(),
+	) {
+		return nil
 	}
-	if !waitUntil(isLeader, ts.opts.ElectionStateChangeTimeout()) {
-		return errLeaderElectionTimeout
-	}
-	// TODO(xichen): replace the sleep here by using HTTP client to explicit
-	// curl the server for election status.
-	// Give the server some time to transition into leader state if needed.
-	time.Sleep(time.Second)
-	return nil
+
+	return errLeaderElectionTimeout
 }
 
 func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
