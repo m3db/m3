@@ -558,6 +558,7 @@ func Run(runOpts RunOptions) {
 	var (
 		plCacheSize    = plCacheConfig.SizeOrDefault()
 		plCacheOptions = index.PostingsListCacheOptions{
+			PostingsListPool: opts.IndexOptions().SegmentBuilderOptions().PostingsListPool(),
 			InstrumentOptions: opts.InstrumentOptions().
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
