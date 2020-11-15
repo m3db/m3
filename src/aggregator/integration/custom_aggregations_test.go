@@ -36,59 +36,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomAggregationWithPoliciesList(t *testing.T) {
-	metadataFns := [4]metadataFn{
-		func(int) metadataUnion {
-			return metadataUnion{
-				mType:        policiesListType,
-				policiesList: testPoliciesList,
-			}
-		},
-		func(int) metadataUnion {
-			return metadataUnion{
-				mType:        policiesListType,
-				policiesList: testPoliciesListWithCustomAggregation1,
-			}
-		},
-		func(int) metadataUnion {
-			return metadataUnion{
-				mType:        policiesListType,
-				policiesList: testPoliciesListWithCustomAggregation2,
-			}
-		},
-		func(int) metadataUnion {
-			return metadataUnion{
-				mType:        policiesListType,
-				policiesList: testPoliciesList,
-			}
-		},
-	}
-	testCustomAggregations(t, metadataFns)
-}
-
 func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
 	metadataFns := [4]metadataFn{
 		func(int) metadataUnion {
 			return metadataUnion{
-				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatas,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
-				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatasWithCustomAggregation1,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
-				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatasWithCustomAggregation2,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
-				mType:           stagedMetadatasType,
 				stagedMetadatas: testUpdatedStagedMetadatas,
 			}
 		},
@@ -212,11 +178,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		for _, data := range dataset {
 			setNowFn(data.timestamp)
 			for _, mm := range data.metricWithMetadatas {
-				if mm.metadata.mType == policiesListType {
-					require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-				} else {
-					require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-				}
+				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
 			require.NoError(t, client.flush())
 
