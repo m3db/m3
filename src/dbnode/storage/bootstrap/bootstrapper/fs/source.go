@@ -719,7 +719,7 @@ func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
 			info.IndexVolumeType != nil &&
 			idxpersist.IndexVolumeType(info.IndexVolumeType.Value) !=
 				idxpersist.DefaultIndexVolumeType {
-			filesToDelete = append(filesToDelete, infoFile.AbsoluteFilePaths...)
+			filesToDelete = append(filesToDelete, infoFiles[i].AbsoluteFilePaths...)
 		}
 	}
 	return filesToDelete
