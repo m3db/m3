@@ -277,7 +277,7 @@ func (ts *testServerSetup) waitUntilServerIsUp() error {
 
 		return false
 	},
-		ts.opts.ElectionStateChangeTimeout(),
+		ts.opts.ServerStateChangeTimeout(),
 	) {
 		return nil
 	}
