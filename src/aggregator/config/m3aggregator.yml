@@ -28,7 +28,7 @@ rawtcp:
     maxBackoff: 1s
     forever: true
     jitter: true
-  readBufferSize: 1440
+  readBufferSize: 65536
   protobufIterator:
     initBufferSize: 1440
     maxMessageSize: 50000000  # max message size is 50MB
