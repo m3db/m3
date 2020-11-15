@@ -781,8 +781,7 @@ func (mu metricUnion) ID() metricid.RawID {
 type metadataType int
 
 const (
-	policiesListType metadataType = iota
-	stagedMetadatasType
+	stagedMetadatasType metadataType = iota
 	forwardMetadataType
 	timedMetadataType
 	passthroughMetadataType

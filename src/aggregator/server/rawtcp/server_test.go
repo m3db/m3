@@ -140,11 +140,7 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
-	testPassthroughStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
-	testCounterWithPoliciesList  = unaggregated.CounterWithPoliciesList{
-		Counter:      testCounter.Counter(),
-		PoliciesList: testDefaultPoliciesList,
-	}
+	testPassthroughStoragePolicy   = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 	testBatchTimerWithPoliciesList = unaggregated.BatchTimerWithPoliciesList{
 		BatchTimer:   testBatchTimer.BatchTimer(),
 		PoliciesList: testCustomPoliciesList,
@@ -220,7 +216,6 @@ func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 			conn, err := net.Dial("tcp", listener.Addr().String())
 			require.NoError(t, err)
 
-			var stream []byte
 			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
 			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 				Type:                 encoding.CounterWithMetadatasType,
@@ -246,10 +241,8 @@ func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 				Type:                        encoding.ForwardedMetricWithMetadataType,
 				ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
 			}))
-			buf := encoder.Relinquish()
-			stream = buf.Bytes()
 
-			_, err = conn.Write(stream)
+			_, err = conn.Write(encoder.Relinquish().Bytes())
 			require.NoError(t, err)
 		}()
 	}
