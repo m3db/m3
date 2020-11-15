@@ -113,6 +113,11 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 }
 
 func (s *handler) Handle(conn net.Conn) {
+	remoteAddress := unknownRemoteHostAddress
+	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
+		remoteAddress = remoteAddr.String()
+	}
+
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
 	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
 	reader := bufio.NewReaderSize(read, s.readBufferSize)
@@ -180,13 +185,13 @@ func (s *handler) Handle(conn net.Conn) {
 		case unknownMessageTypeError:
 			s.metrics.unknownMessageTypeErrors.Inc(1)
 			s.log.Error("unexpected message type",
-				zap.Stringer("remoteAddress", conn.RemoteAddr()),
+				zap.String("remoteAddress", remoteAddress),
 				zap.Error(err),
 			)
 		case addUntimedError:
 			s.metrics.addUntimedErrors.Inc(1)
 			s.log.Error("error adding untimed metric",
-				zap.Stringer("remoteAddress", conn.RemoteAddr()),
+				zap.String("remoteAddress", remoteAddress),
 				zap.Stringer("type", untimedMetric.Type),
 				zap.Stringer("id", untimedMetric.ID),
 				zap.Any("metadatas", stagedMetadatas),
@@ -195,7 +200,7 @@ func (s *handler) Handle(conn net.Conn) {
 		case addForwardedError:
 			s.metrics.addForwardedErrors.Inc(1)
 			s.log.Error("error adding forwarded metric",
-				zap.Stringer("remoteAddress", conn.RemoteAddr()),
+				zap.String("remoteAddress", remoteAddress),
 				zap.Stringer("id", forwardedMetric.ID),
 				zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
 				zap.Float64s("values", forwardedMetric.Values),
@@ -204,7 +209,7 @@ func (s *handler) Handle(conn net.Conn) {
 		case addTimedError:
 			s.metrics.addTimedErrors.Inc(1)
 			s.log.Error("error adding timed metric",
-				zap.Stringer("remoteAddress", conn.RemoteAddr()),
+				zap.String("remoteAddress", remoteAddress),
 				zap.Stringer("id", timedMetric.ID),
 				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
 				zap.Float64("value", timedMetric.Value),
@@ -213,7 +218,7 @@ func (s *handler) Handle(conn net.Conn) {
 		case addPassthroughError:
 			s.metrics.addPassthroughErrors.Inc(1)
 			s.log.Error("error adding passthrough metric",
-				zap.Stringer("remoteAddress", conn.RemoteAddr()),
+				zap.String("remoteAddress", remoteAddress),
 				zap.Stringer("id", timedMetric.ID),
 				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
 				zap.Float64("value", timedMetric.Value),
@@ -232,7 +237,7 @@ func (s *handler) Handle(conn net.Conn) {
 	// and therefore we ignore the EOF error.
 	if err := it.Err(); err != nil && err != io.EOF {
 		s.log.Error("decode error",
-			zap.Stringer("remoteAddress", conn.RemoteAddr()),
+			zap.String("remoteAddress", remoteAddress),
 			zap.Error(err),
 		)
 		s.metrics.decodeErrors.Inc(1)
