@@ -40,21 +40,25 @@ func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
 	metadataFns := [4]metadataFn{
 		func(int) metadataUnion {
 			return metadataUnion{
+				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatas,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
+				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatasWithCustomAggregation1,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
+				mType:           stagedMetadatasType,
 				stagedMetadatas: testStagedMetadatasWithCustomAggregation2,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
+				mType:           stagedMetadatasType,
 				stagedMetadatas: testUpdatedStagedMetadatas,
 			}
 		},
