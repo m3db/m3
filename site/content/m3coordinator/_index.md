@@ -1,7 +1,7 @@
 ---
 title: "M3 Coordinator, API for reading/writing metrics and management"
 menuTitle: "M3 Coordinator"
-weight: 4
+weight: 5
 chapter: true
 ---
 

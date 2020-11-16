@@ -3,14 +3,11 @@ title: "Roadmap"
 weight: 4
 ---
 
-This roadmap is open for suggestions and currently just a small snapshot of what is coming up.
+This roadmap is open for contributions and suggestions, it currently only defines near term goals.
 
-Short:
-- Add diagrams of what using M3 looks like (broken down by use case)
-- Improve operational guides for the aggregator
+Near term:
+- Add more diagrams of what M3 deployment architecture by use case
 - Add tutorials for a variety of use cases
-- Add design documentation of reverse index
-- Add design documentation of aggregator
-
-Medium:
-- Plan what a v1.0 release looks like
+- Improve operational guides for the aggregator
+- Overview of design for M3DB reverse index
+- Overview of design for M3 aggregator

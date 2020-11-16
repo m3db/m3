@@ -178,6 +178,16 @@ identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
 
+[[menu.shortcuts]]
+name = "<i class='fa fa-slack'></i> <label>Slack</label>"
+url = "https://bit.ly/m3slack"
+weight = 11
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-inbox'></i> <label>Mailing list</label>"
+url = "https://groups.google.com/forum/#!forum/m3db"
+weight = 12
+
 [outputs]
 home = [ "HTML", "RSS", "JSON"]
 page = [ "HTML"]
