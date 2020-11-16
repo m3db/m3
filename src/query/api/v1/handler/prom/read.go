@@ -28,6 +28,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
@@ -39,12 +40,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// RequestParser is a function that parses request arguments.
-type RequestParser func(ctx context.Context, r *http.Request) (models.RequestParams, error)
+// ReadHandlerHooks allows dynamic plugging into read request processing.
+type ReadHandlerHooks interface {
+	// OnParsedRequest gets invoked after parsing request arguments.
+	OnParsedRequest(
+		context.Context,
+		*http.Request,
+		models.RequestParams,
+	) (models.RequestParams, error)
+}
 
 type readHandler struct {
 	engine    *promql.Engine
-	parser    RequestParser
+	hooks     ReadHandlerHooks
 	queryable promstorage.Queryable
 	hOpts     options.HandlerOptions
 	scope     tally.Scope
@@ -52,9 +60,9 @@ type readHandler struct {
 }
 
 func newReadHandler(
-	parser RequestParser,
 	opts Options,
 	hOpts options.HandlerOptions,
+	hooks ReadHandlerHooks,
 	queryable promstorage.Queryable,
 ) http.Handler {
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
@@ -62,7 +70,7 @@ func newReadHandler(
 	)
 	return &readHandler{
 		engine:    opts.PromQLEngine,
-		parser:    parser,
+		hooks:     hooks,
 		queryable: queryable,
 		hOpts:     hOpts,
 		scope:     scope,
@@ -79,7 +87,13 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request, err := h.parser(ctx, r)
+	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+
+	params, err := h.hooks.OnParsedRequest(ctx, r, request.Params)
 	if err != nil {
 		respondError(w, err)
 		return
@@ -92,21 +106,21 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
 	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
 
-	if request.Timeout > 0 {
+	if params.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, request.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, params.Timeout)
 		defer cancel()
 	}
 
 	qry, err := h.engine.NewRangeQuery(
 		h.queryable,
-		request.Query,
-		request.Start,
-		request.End,
-		request.Step)
+		params.Query,
+		params.Start,
+		params.End,
+		params.Step)
 	if err != nil {
 		h.logger.Error("error creating range query",
-			zap.Error(err), zap.String("query", request.Query))
+			zap.Error(err), zap.String("query", params.Query))
 		respondError(w, err)
 		return
 	}
@@ -115,7 +129,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	res := qry.Exec(ctx)
 	if res.Err != nil {
 		h.logger.Error("error executing range query",
-			zap.Error(res.Err), zap.String("query", request.Query))
+			zap.Error(res.Err), zap.String("query", params.Query))
 		respondError(w, res.Err)
 		return
 	}
@@ -124,7 +138,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
-	query := request.Query
+	query := params.Query
 	err = ApplyRangeWarnings(query, &resultMetadata)
 	if err != nil {
 		h.logger.Warn("error applying range warnings",
@@ -136,4 +150,14 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)
+}
+
+type noopReadHandlerHooks struct{}
+
+func (h *noopReadHandlerHooks) OnParsedRequest(
+	_ context.Context,
+	_ *http.Request,
+	params models.RequestParams,
+) (models.RequestParams, error) {
+	return params, nil
 }

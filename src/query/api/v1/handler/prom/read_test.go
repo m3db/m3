@@ -57,7 +57,7 @@ type testHandlers struct {
 	readInstantHandler http.Handler
 }
 
-func setupTest(t *testing.T) testHandlers {
+func setupTest(_ *testing.T) testHandlers {
 	opts := Options{
 		PromQLEngine: testPromQLEngine,
 	}
@@ -77,7 +77,7 @@ func setupTest(t *testing.T) testHandlers {
 		SetEngine(engine).
 		SetTimeoutOpts(timeoutOpts)
 	queryable := &mockQueryable{}
-	readHandler := newReadHandler(DefaultReadRequestParser(hOpts), opts, hOpts, queryable)
+	readHandler := newReadHandler(opts, hOpts, &noopReadHandlerHooks{}, queryable)
 	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
 	return testHandlers{
 		queryable:          queryable,
