@@ -267,6 +267,31 @@ curl {{% apiendpoint %}}placement | jq .
 [Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
+### Readying a Namespace
+
+Once a namespace has finished bootstrapping, it must be marked as ready before receiving traffic. This can be done by calling the _{{% apiendpoint %}}namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default"
+}' | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
 ### View Details of a Namespace
 
 You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}namespace_ endpoint
