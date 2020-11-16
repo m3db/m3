@@ -39,9 +39,9 @@ TODO(rartoul): Discuss the ability to perform limited amounts of aggregation que
 
 TODO(rartoul): Discuss ID / tags mutability.
 
-### Data Points
+### Datapoints
 
-Each time series in M3DB stores data as a stream of data points in the form of `<timestamp, value>` tuples. Timestamp resolution can be as granular as individual nanoseconds.
+Each time series in M3DB stores data as a stream of datapoints in the form of `<timestamp, value>` tuples. Timestamp resolution can be as granular as individual nanoseconds.
 
 The `value` portion of the tuple is a Protobuf message that matches the configured namespace schema, which requires that all values in the current time series must also match this schema. This limitation may be lifted in the future.
 

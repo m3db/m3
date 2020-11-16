@@ -201,15 +201,15 @@ Should match the databases [blocksize](#blocksize) for optimal memory usage.
 Can be modified without creating a new namespace: `no`
 
 ### aggregationOptions
-Options for the Coordinator to use to make decisions around how to aggregate data points.
+Options for the Coordinator to use to make decisions around how to aggregate datapoints.
 
 Can be modified without creating a new namespace: `yes`
 
 #### aggregations
-One or more set of instructions on how data points should be aggregated within the namespace.
+One or more set of instructions on how datapoints should be aggregated within the namespace.
 
 ##### aggregated
-Whether data points are aggregated.
+Whether datapoints are aggregated.
 
 ##### attributes
 If aggregated is true, specifies how to aggregate data.
@@ -221,4 +221,4 @@ The time range to aggregate data across.
 Options related to downsampling data
 
 ###### _all_
-Whether to send data points to this namespace. If false, the coordinator will not auto-aggregate incoming data points and data points must be sent the namespace via rules. Defaults to true.
+Whether to send datapoints to this namespace. If false, the coordinator will not auto-aggregate incoming datapoints and datapoints must be sent the namespace via rules. Defaults to true.
