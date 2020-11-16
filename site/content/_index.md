@@ -1,5 +1,5 @@
 ---
-title: M3 Introduction
+title: M3 Documentation
 weight: 1
 ---
 

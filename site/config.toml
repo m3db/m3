@@ -6,7 +6,7 @@
 
   [[module.mounts]]
     source = "content"
-    target = "content"
+    target = "content/docs"
 
   [[module.mounts]]
     source = "static"
