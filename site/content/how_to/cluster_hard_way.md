@@ -10,7 +10,7 @@ This document lists the manual steps involved in deploying a M3DB cluster. In pr
 
 A quick primer on M3DB architecture. Here’s what a typical deployment looks like:
 
-![Typical Deployment](/docs/cluster_architecture.png)
+![Typical Deployment](/cluster_architecture.png)
 
 A few different things to highlight about the diagram:
 
