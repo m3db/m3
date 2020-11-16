@@ -3,3 +3,5 @@ github.com/chronosphereio/docs-theme v0.0.0-20201009164131-d9219ac30467 h1:YtTpg
 github.com/chronosphereio/docs-theme v0.0.0-20201009164131-d9219ac30467/go.mod h1:vmH57xlaJmtH7jjovyuwXKe+2316CnpaFShoEAG72gQ=
 github.com/chronosphereio/docs-theme v0.0.0-20201022162748-0ed11ce73f36 h1:Wz/dFFd3bVR+XZ7shqLyuZwyIh5yDbhIhdbdkFEFnH4=
 github.com/chronosphereio/docs-theme v0.0.0-20201022162748-0ed11ce73f36/go.mod h1:vmH57xlaJmtH7jjovyuwXKe+2316CnpaFShoEAG72gQ=
+github.com/chronosphereio/victor v0.0.0-20201116082450-69553afd0360 h1:4FZ6t71mrfe9Yr0yALPKDOEgX9w4vfSo7TxbS+PofEw=
+github.com/chronosphereio/victor v0.0.0-20201116082450-69553afd0360/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
