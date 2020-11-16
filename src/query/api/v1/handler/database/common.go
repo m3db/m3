@@ -21,16 +21,12 @@
 package database
 
 import (
-	"net/http"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gorilla/mux"
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -43,31 +39,27 @@ type Handler struct {
 
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(
-	r *mux.Router,
+	addRoute handler.AddRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) error {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
-	}
-
 	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
 		defaults, instrumentOpts)
 	if err != nil {
 		return err
 	}
 
-	r.HandleFunc(CreateURL,
-		wrapped(createHandler).ServeHTTP).
-		Methods(CreateHTTPMethod)
-
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
-	r.HandleFunc(CreateURL, wrapped(createHandler).ServeHTTP).Methods(CreateHTTPMethod)
-	r.HandleFunc(CreateNamespaceURL, wrapped(createHandler).ServeHTTP).Methods(CreateNamespaceHTTPMethod)
+	if err := addRoute(CreateURL, createHandler, CreateHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(CreateNamespaceURL, createHandler, CreateNamespaceHTTPMethod); err != nil {
+		return err
+	}
 
 	return nil
 }
