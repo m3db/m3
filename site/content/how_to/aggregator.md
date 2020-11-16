@@ -1,10 +1,8 @@
 ---
-title: Setting up M3Aggregator
+title: Setting up M3 Aggregator
 menuTitle: M3Aggregator
 weight: 5
 ---
-
-
 
 ## Introduction
 
