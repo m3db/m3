@@ -67,7 +67,7 @@ function prometheus_remote_write {
   local metrics_type=$8
   local metrics_storage_policy=$9
   local map_tags_header=${10}
-  
+
   local optional_tags=""
   for i in $(seq 0 10); do
     local optional_tag_name=$(eval "echo \$TAG_NAME_$i")
@@ -172,7 +172,7 @@ function test_prometheus_remote_write_map_tags {
     unaggregated "" '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
 
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" return_status_code="" \
     metrics_type="unaggregated" jq_path=".data.result[0].metric.globaltag" expected_value="somevalue" \
     retry_with_backoff prometheus_query_native
 }
@@ -190,15 +190,15 @@ function test_query_limits_applied {
   echo "Test query series limit with coordinator limit header (default errors without RequireExhaustive disabled)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq ."error" | grep "query exceeded limit") ]]'
-  
+
   echo "Test query series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
 
   echo "Test query series limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
-  
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+
   echo "Test query series limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -219,8 +219,8 @@ function test_query_limits_applied {
 
   echo "Test query docs limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
-  
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+
   echo "Test query docs limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -238,16 +238,24 @@ function prometheus_query_native {
   local metrics_storage_policy=${metrics_storage_policy:-}
   local jq_path=${jq_path:-}
   local expected_value=${expected_value:-}
+  local return_status_code=${return_status_code:-}
 
   params_prefixed=""
   if [[ "$params" != "" ]]; then
     params_prefixed='&'"${params}"
   fi
 
-  result=$(curl -s                                    \
-    -H "M3-Metrics-Type: ${metrics_type}"             \
-    -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | head -1)
+  if [[ "$return_status_code" == "true" ]]; then
+    result=$(curl --write-out '%{http_code}' --silent --output /dev/null  \
+      -H "M3-Metrics-Type: ${metrics_type}"                               \
+      -H "M3-Storage-Policy: ${metrics_storage_policy}"                   \
+      "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}")
+  else
+    result=$(curl -s                                    \
+      -H "M3-Metrics-Type: ${metrics_type}"             \
+      -H "M3-Storage-Policy: ${metrics_storage_policy}" \
+      "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | head -1)
+  fi
   test "$result" = "$expected_value"
   return $?
 }
@@ -260,30 +268,51 @@ function test_query_restrict_metrics_type {
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
+  return_status_code=""
 
   # Test restricting to unaggregated metrics
   echo "Test query restrict to unaggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" return_status_code="$return_status_code" \
     metrics_type="unaggregated" jq_path="$jq_path_instant" expected_value="42.42" \
     retry_with_backoff prometheus_query_native
   echo "Test query restrict to unaggregated metrics type (range)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" return_status_code="$return_status_code" \
     metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="42.42" \
     retry_with_backoff prometheus_query_native
 
   # Test restricting to aggregated metrics
   echo "Test query restrict to aggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" return_status_code="$return_status_code" \
     metrics_type="aggregated" metrics_storage_policy="15s:10h" jq_path="$jq_path_instant" expected_value="84.84" \
     retry_with_backoff prometheus_query_native
   echo "Test query restrict to aggregated metrics type (range)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
-    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" return_status_code="$return_status_code"  \
     metrics_type="aggregated" metrics_storage_policy="15s:10h" jq_path="$jq_path_range" expected_value="84.84" \
     retry_with_backoff prometheus_query_native
+}
+
+function test_prometheus_query_native_timeout {
+  now=$(date +"%s")
+  hour_ago=$(( $now - 3600 ))
+  step="30s"
+  timeout=".0001s"
+  params_instant="timeout=${timeout}"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"'&'"timeout=${timeout}"
+  return_status_code="true"
+  expected_value="504"
+
+  echo "Test query gateway timeout (instant)"
+  endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_instant" \
+    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$expected_value" \
+    prometheus_query_native
+  echo "Test query gateway timeout (range)"
+  endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    metrics_type="unaggregated" return_status_code="$return_status_code" expected_value="$expected_value" \
+    prometheus_query_native
 }
 
 function test_query_restrict_tags {
@@ -300,8 +329,8 @@ function test_query_restrict_tags {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  # Check that we can see them with zero restrictions applied as an 
-  # override (we do this check first so that when we test that they 
+  # Check that we can see them with zero restrictions applied as an
+  # override (we do this check first so that when we test that they
   # don't appear by default we know that the metrics are already visible).
   echo "Test restrict by tags with header override to remove restrict works"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -346,6 +375,7 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_prometheus_query_native_timeout
 test_query_restrict_tags
 test_prometheus_remote_write_map_tags
 test_series

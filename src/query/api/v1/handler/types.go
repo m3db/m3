@@ -20,8 +20,13 @@
 
 package handler
 
+import "net/http"
+
 // HeaderKeyType is the type for the header key.
 type HeaderKeyType int
+
+// AddRouteFn is the function type for adding new HTTP route.
+type AddRouteFn func(path string, handler http.Handler, methods ...string) error
 
 const (
 	// HeaderKey is the key which headers will be added to in the request context.
