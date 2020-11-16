@@ -30,7 +30,7 @@ Getting started with M3 is as easy as following one of the How-To guides.
 
 -   [Single M3DB node deployment](/docs/quickstart)
 -   [Clustered M3DB deployment](/docs/how_to/cluster_hard_way)
--   [M3DB on Kubernetes](/docs/operator
+-   [M3DB on Kubernetes](/docs/operator)
 -   [Isolated M3Query on deployment](/docs/how_to/query)
 
 ## Support

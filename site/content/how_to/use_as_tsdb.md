@@ -114,7 +114,7 @@ For more details on the compression scheme and its limitations, review [the docu
 
 #### M3DB setup
 
-For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/docs/how_to/cluster_hard_way) or [using Kubernetes](/docs/operator. However, this tutorial will walk you through configuring a single node setup locally for development.
+For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/docs/how_to/cluster_hard_way) or [using Kubernetes](/docs/operator). However, this tutorial will walk you through configuring a single node setup locally for development.
 
 First, run the following command to pull the latest M3DB image:
 
