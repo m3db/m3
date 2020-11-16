@@ -1,4 +1,4 @@
 ---
-linktitle: "Quickstart"
+title: "Quickstart"
 weight: 1
 ---
