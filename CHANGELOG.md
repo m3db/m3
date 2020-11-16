@@ -1,8 +1,16 @@
 # Changelog
 
-# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+# 1.0.0
 
 ## Features
+- **M3DB**: Bootstrapping speeds improved by 70%+. Benchmarks show the following runtime comparisons:
+```
+Environment: 3 node M3DB under ~74k writes/second
+
+VERSION           DURATION
+1.0.0       -     178.79 seconds to bootstrap
+0.15.0      -     614.63 seconds to bootstrap
+```
 - **M3DB**: Namespace resolution and retention now configured dynamically via API and stored in etcd instead of being defined statically in M3Coordinator configuration.
 ```
 message DatabaseCreateRequest {
