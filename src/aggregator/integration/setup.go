@@ -265,7 +265,7 @@ func (ts *testServerSetup) getStatusResponse(path string, response interface{}) 
 }
 
 func (ts *testServerSetup) waitUntilServerIsUp() error {
-	if waitUntil(func() bool {
+	isUp := func() bool {
 		var resp httpserver.Response
 		if err := ts.getStatusResponse(httpserver.HealthPath, &resp); err != nil {
 			return false
@@ -276,9 +276,9 @@ func (ts *testServerSetup) waitUntilServerIsUp() error {
 		}
 
 		return false
-	},
-		ts.opts.ServerStateChangeTimeout(),
-	) {
+	}
+
+	if waitUntil(isUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 
@@ -329,7 +329,7 @@ func (ts *testServerSetup) startServer() error {
 }
 
 func (ts *testServerSetup) waitUntilLeader() error {
-	if waitUntil(func() bool {
+	isLeader := func() bool {
 		var resp httpserver.StatusResponse
 		if err := ts.getStatusResponse(httpserver.StatusPath, &resp); err != nil {
 			return false
@@ -339,9 +339,9 @@ func (ts *testServerSetup) waitUntilLeader() error {
 			return true
 		}
 		return false
-	},
-		ts.opts.ElectionStateChangeTimeout(),
-	) {
+	}
+
+	if waitUntil(isLeader, ts.opts.ElectionStateChangeTimeout()) {
 		return nil
 	}
 
