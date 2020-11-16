@@ -1,5 +1,5 @@
 ---
-linktitle: "Using Docker"
+title: "Docker"
 weight: 1
 ---
 

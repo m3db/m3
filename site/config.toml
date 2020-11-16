@@ -33,21 +33,19 @@
     target = "archetypes"
 
 [permalinks]
-  "/" = "/docs/:section/:title/"
-  "case_studies" = "/docs/:section/:title/"
-  "community" = "/docs/:section/:title/"
-  "ecosystem" = "/docs/:section/:title/"
-  "faqs" = "/docs/:section/:title/"
-  "glossary" = "/docs/:section/:title/"
-  "how_to" = "/docs/:section/:title/"
-  "integrations" = "/docs/:section/:title/"
-  "m3coordinator" = "/docs/:section/:title/"
-  "m3db" = "/docs/:section/:title/"
-  "m3query" = "/docs/:section/:title/"
-  "operational_guide" = "/docs/:section/:title/"
-  "overview" = "/docs/:section/:title/"
-  "quickstart" = "/docs/:section/:title/"
-  "troubleshooting" = "/docs/:section/:title/"
+  "/" = "/docs/:sections/:title/"
+  "case_studies" = "/docs/:sections/:title/"
+  "faqs" = "/docs/:sections/:title/"
+  "glossary" = "/docs/:sections/:title/"
+  "how_to" = "/docs/:sections/:title/"
+  "integrations" = "/docs/:sections/:title/"
+  "m3coordinator" = "/docs/:sections/:title/"
+  "m3db" = "/docs/:sections/:title/"
+  "m3query" = "/docs/:sections/:title/"
+  "operational_guide" = "/docs/:sections/:title/"
+  "overview" = "/docs/:sections/:title/"
+  "quickstart" = "/docs/:sections/:title/"
+  "troubleshooting" = "/docs/:sections/:title/"
 
 # theme = "docs-theme"
 # baseURL = "/"
@@ -178,24 +176,6 @@ name = "<i class='fa fa-github'></i> <label>Github repo</label>"
 identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
-
-[[menu.shortcuts]]
-name = "<i class='fa fa-cloud-download'></i> <label>Download</label>"
-url = "https://github.com/vjeantet/hugo-theme-docdock/archive/master.zip"
-weight = 11
-
-[[menu.shortcuts]]
-name = "<i class='fa fa-bookmark'></i> <label>Hugo Documentation</label>"
-identifier = "hugodoc"
-url = "https://gohugo.io/"
-weight = 20
-
-[[menu.shortcuts]]
-name = "<i class='fa fa-bullhorn'></i> <label>Credits</label>"
-url = "/credits"
-weight = 30
-
-
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]
