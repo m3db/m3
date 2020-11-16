@@ -52,6 +52,7 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
+	"go.uber.org/zap"
 )
 
 const (
@@ -79,6 +80,7 @@ type Handler struct {
 	handler        http.Handler
 	options        options.HandlerOptions
 	customHandlers []options.CustomHandler
+	logger         *zap.Logger
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -93,12 +95,14 @@ func NewHandler(
 ) *Handler {
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
+	logger := handlerOptions.InstrumentOpts().Logger()
 
 	return &Handler{
 		router:         r,
 		handler:        handlerWithMiddleware,
 		options:        handlerOptions,
 		customHandlers: customHandlers,
+		logger:         logger,
 	}
 }
 
@@ -127,9 +131,10 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
-	instrumentOpts := h.options.InstrumentOpts()
-	// Wrap requests with response time logging as well as panic recovery.
 	var (
+		instrumentOpts = h.options.InstrumentOpts()
+
+		// Wrap requests with response time logging as well as panic recovery.
 		wrapped = func(n http.Handler) http.Handler {
 			return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
 		}
@@ -137,13 +142,25 @@ func (h *Handler) RegisterRoutes() error {
 		panicOnly = func(n http.Handler) http.Handler {
 			return logging.WithPanicErrorResponder(n, instrumentOpts)
 		}
+
+		wrappedRouteFn = func(path string, handler http.Handler, methods ...string) error {
+			return h.addRouteHandlerFn(h.router, path, wrapped(handler).ServeHTTP, methods...)
+		}
+
+		routeFn = func(path string, handler http.Handler, methods ...string) error {
+			return h.addRouteHandlerFn(h.router, path, handler.ServeHTTP, methods...)
+		}
 	)
 
-	h.router.HandleFunc(openapi.URL,
-		wrapped(openapi.NewDocHandler(instrumentOpts)).ServeHTTP,
-	).Methods(openapi.HTTPMethod)
+	if err := wrappedRouteFn(openapi.URL, openapi.NewDocHandler(instrumentOpts),
+		openapi.HTTPMethod); err != nil {
+		return err
+	}
+
 	h.router.PathPrefix(openapi.StaticURLPrefix).
-		Handler(wrapped(openapi.StaticHandler()))
+		Handler(wrapped(openapi.StaticHandler())).
+		Name(openapi.StaticURLPrefix)
+
 
 	// Prometheus remote read/write endpoints.
 	remoteSourceOpts := h.options.SetInstrumentOpts(instrumentOpts.
@@ -164,24 +181,13 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	// Register custom endpoints.
-	for _, custom := range h.customHandlers {
-		handler, err := custom.Handler(nativeSourceOpts)
-		if err != nil {
-			return err
-		}
-
-		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
-			Methods(custom.Methods()...)
-	}
-
 	opts := prom.Options{
 		PromQLEngine: h.options.PrometheusEngine(),
 	}
-	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
-	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
-	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
-	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
+	promqlQueryHandler := prom.NewReadHandler(opts, nativeSourceOpts)
+	promqlInstantQueryHandler := prom.NewReadInstantHandler(opts, nativeSourceOpts)
+	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
+	nativePromReadInstantHandler := native.NewPromReadInstantHandler(nativeSourceOpts)
 
 	h.options.QueryRouter().Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: h.options.DefaultQueryEngine(),
@@ -195,71 +201,101 @@ func (h *Handler) RegisterRoutes() error {
 		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
 	})
 
-	h.router.
-		HandleFunc(native.PromReadURL, h.options.QueryRouter().ServeHTTP).
-		Methods(native.PromReadHTTPMethods...)
-	h.router.
-		HandleFunc(native.PromReadInstantURL, h.options.InstantQueryRouter().ServeHTTP).
-		Methods(native.PromReadInstantHTTPMethods...)
+	if err := wrappedRouteFn(native.PromReadURL, h.options.QueryRouter(),
+		native.PromReadHTTPMethods...); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(native.PromReadInstantURL, h.options.InstantQueryRouter(),
+		native.PromReadInstantHTTPMethods...); err != nil {
+		return err
+	}
 
-	h.router.HandleFunc("/prometheus"+native.PromReadURL, promqlQueryHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
+	if err := wrappedRouteFn(native.PrometheusReadURL, promqlQueryHandler,
+		native.PromReadHTTPMethods...); err != nil {
+		return err
+	}
 
-	h.router.HandleFunc(remote.PromReadURL,
-		wrapped(promRemoteReadHandler).ServeHTTP,
-	).Methods(remote.PromReadHTTPMethods...)
-	h.router.HandleFunc(remote.PromWriteURL,
-		panicOnly(promRemoteWriteHandler).ServeHTTP,
-	).Methods(remote.PromWriteHTTPMethod)
-	h.router.HandleFunc("/m3query"+native.PromReadURL, nativePromReadHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
+	if err := wrappedRouteFn(native.PrometheusReadInstantURL, promqlInstantQueryHandler,
+		native.PromReadInstantHTTPMethods...); err != nil {
+		return err
+	}
+
+	if err := wrappedRouteFn(remote.PromReadURL, promRemoteReadHandler,
+		remote.PromReadHTTPMethods...); err != nil {
+		return err
+	}
+	if err := routeFn(remote.PromWriteURL, panicOnly(promRemoteWriteHandler),
+		remote.PromWriteHTTPMethod); err != nil {
+		return err
+	}
+
+	if err := wrappedRouteFn(native.M3QueryReadURL, nativePromReadHandler,
+		native.PromReadHTTPMethods...); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(native.M3QueryReadInstantURL, nativePromReadInstantHandler,
+		native.PromReadInstantHTTPMethods...); err != nil {
+		return err
+	}
 
 	// InfluxDB write endpoint.
-	h.router.HandleFunc(influxdb.InfluxWriteURL,
-		wrapped(influxdb.NewInfluxWriterHandler(h.options)).ServeHTTP).Methods(influxdb.InfluxWriteHTTPMethod)
+	if err := wrappedRouteFn(influxdb.InfluxWriteURL, influxdb.NewInfluxWriterHandler(h.options),
+		influxdb.InfluxWriteHTTPMethod); err != nil {
+		return err
+	}
 
 	// Native M3 search and write endpoints.
-	h.router.HandleFunc(handler.SearchURL,
-		wrapped(handler.NewSearchHandler(h.options)).ServeHTTP,
-	).Methods(handler.SearchHTTPMethod)
-	h.router.HandleFunc(m3json.WriteJSONURL,
-		wrapped(m3json.NewWriteJSONHandler(h.options)).ServeHTTP,
-	).Methods(m3json.JSONWriteHTTPMethod)
+	if err := wrappedRouteFn(handler.SearchURL, handler.NewSearchHandler(h.options),
+		handler.SearchHTTPMethod); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(m3json.WriteJSONURL, m3json.NewWriteJSONHandler(h.options),
+		m3json.JSONWriteHTTPMethod); err != nil {
+		return err
+	}
 
 	// Tag completion endpoints.
-	h.router.HandleFunc(native.CompleteTagsURL,
-		wrapped(native.NewCompleteTagsHandler(h.options)).ServeHTTP,
-	).Methods(native.CompleteTagsHTTPMethod)
-	h.router.HandleFunc(remote.TagValuesURL,
-		wrapped(remote.NewTagValuesHandler(h.options)).ServeHTTP,
-	).Methods(remote.TagValuesHTTPMethod)
+	if err := wrappedRouteFn(native.CompleteTagsURL, native.NewCompleteTagsHandler(h.options),
+		native.CompleteTagsHTTPMethod); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(remote.TagValuesURL, remote.NewTagValuesHandler(h.options),
+		remote.TagValuesHTTPMethod); err != nil {
+		return err
+	}
 
 	// List tag endpoints.
-	h.router.HandleFunc(native.ListTagsURL,
-		wrapped(native.NewListTagsHandler(h.options)).ServeHTTP,
-	).Methods(native.ListTagsHTTPMethods...)
+	if err := wrappedRouteFn(native.ListTagsURL, native.NewListTagsHandler(h.options),
+		native.ListTagsHTTPMethods...); err != nil {
+		return err
+	}
 
 	// Query parse endpoints.
-	h.router.HandleFunc(native.PromParseURL,
-		wrapped(native.NewPromParseHandler(h.options)).ServeHTTP,
-	).Methods(native.PromParseHTTPMethod)
-	h.router.HandleFunc(native.PromThresholdURL,
-		wrapped(native.NewPromThresholdHandler(h.options)).ServeHTTP,
-	).Methods(native.PromThresholdHTTPMethod)
+	if err := wrappedRouteFn(native.PromParseURL, native.NewPromParseHandler(h.options),
+		native.PromParseHTTPMethod); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(native.PromThresholdURL, native.NewPromThresholdHandler(h.options),
+		native.PromThresholdHTTPMethod); err != nil {
+		return err
+	}
 
 	// Series match endpoints.
-	h.router.HandleFunc(remote.PromSeriesMatchURL,
-		wrapped(remote.NewPromSeriesMatchHandler(h.options)).ServeHTTP,
-	).Methods(remote.PromSeriesMatchHTTPMethods...)
+	if err := wrappedRouteFn(remote.PromSeriesMatchURL,
+		remote.NewPromSeriesMatchHandler(h.options),
+		remote.PromSeriesMatchHTTPMethods...); err != nil {
+		return err
+	}
 
 	// Graphite endpoints.
-	h.router.HandleFunc(graphite.ReadURL,
-		wrapped(graphite.NewRenderHandler(h.options)).ServeHTTP,
-	).Methods(graphite.ReadHTTPMethods...)
-
-	h.router.HandleFunc(graphite.FindURL,
-		wrapped(graphite.NewFindHandler(h.options)).ServeHTTP,
-	).Methods(graphite.FindHTTPMethods...)
+	if err := wrappedRouteFn(graphite.ReadURL, graphite.NewRenderHandler(h.options),
+		graphite.ReadHTTPMethods...); err != nil {
+		return err
+	}
+	if err := wrappedRouteFn(graphite.FindURL, graphite.NewFindHandler(h.options),
+		graphite.FindHTTPMethods...); err != nil {
+		return err
+	}
 
 	placementOpts, err := h.placementOpts()
 	if err != nil {
@@ -293,21 +329,28 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	// Register debug dump handler.
-	h.router.HandleFunc(xdebug.DebugURL,
-		wrapped(debugWriter.HTTPHandler()).ServeHTTP)
+	if err := wrappedRouteFn(xdebug.DebugURL, debugWriter.HTTPHandler()); err != nil {
+		return err
+	}
 
 	if clusterClient != nil {
-		err = database.RegisterRoutes(h.router, clusterClient,
+		if err := database.RegisterRoutes(wrappedRouteFn, clusterClient,
 			h.options.Config(), h.options.EmbeddedDbCfg(),
-			serviceOptionDefaults, instrumentOpts)
-		if err != nil {
+			serviceOptionDefaults, instrumentOpts); err != nil {
 			return err
 		}
-
-		placement.RegisterRoutes(h.router,
-			serviceOptionDefaults, placementOpts)
-		namespace.RegisterRoutes(h.router, clusterClient, h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
-		topic.RegisterRoutes(h.router, clusterClient, config, instrumentOpts)
+		if err := placement.RegisterRoutes(routeFn, serviceOptionDefaults,
+			placementOpts); err != nil {
+			return err
+		}
+		if err := namespace.RegisterRoutes(wrappedRouteFn, clusterClient,
+			h.options.Clusters(), serviceOptionDefaults, instrumentOpts); err != nil {
+			return err
+		}
+		if err := topic.RegisterRoutes(wrappedRouteFn, clusterClient, config,
+			instrumentOpts); err != nil {
+			return err
+		}
 
 		// Experimental endpoints.
 		if config.Experimental.Enabled {
@@ -318,17 +361,75 @@ func (h *Handler) RegisterRoutes() error {
 					Tagged(remoteSource).
 					Tagged(experimentalAPIGroup),
 			)
-			h.router.HandleFunc(annotated.WriteURL,
-				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
-			).Methods(annotated.WriteHTTPMethod)
+			if err := wrappedRouteFn(annotated.WriteURL, experimentalAnnotatedWriteHandler,
+				annotated.WriteHTTPMethod); err != nil {
+				return err
+			}
 		}
 	}
 
-	h.registerHealthEndpoints()
+	if err := h.registerHealthEndpoints(); err != nil {
+		return err
+	}
 	h.registerProfileEndpoints()
-	h.registerRoutesEndpoint()
+	if err := h.registerRoutesEndpoint(); err != nil {
+		return err
+	}
+
+	// Register custom endpoints.
+	for _, custom := range h.customHandlers {
+		for _, method := range custom.Methods() {
+			routeName := routeName(custom.Route(), method)
+			route := h.router.Get(routeName)
+			var prevHandler http.Handler
+			if route != nil {
+				prevHandler = route.GetHandler()
+			}
+			customHandler, err := custom.Handler(nativeSourceOpts, prevHandler)
+			if err != nil {
+				return fmt.Errorf("failed to register custom handler with path %s: %w",
+					routeName, err)
+			}
+
+			if route == nil {
+				if err := wrappedRouteFn(custom.Route(), customHandler, method); err != nil {
+					return err
+				}
+			} else {
+				route.Handler(wrapped(customHandler))
+			}
+		}
+	}
 
 	return nil
+}
+
+func (h *Handler) addRouteHandlerFn(
+	router *mux.Router,
+	path string,
+	handlerFn http.HandlerFunc,
+	methods ...string,
+) error {
+	for _, method := range methods {
+		routeName := routeName(path, method)
+		if previousRoute := router.Get(routeName); previousRoute != nil {
+			return fmt.Errorf("route already exists: %s", routeName)
+		}
+
+		router.
+			HandleFunc(path, handlerFn).
+			Name(routeName).
+			Methods(method)
+	}
+
+	return nil
+}
+
+func routeName(p string, method string) string {
+	if method == "" {
+		return p
+	}
+	return fmt.Sprintf("%s %s", p, method)
 }
 
 func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
@@ -364,24 +465,27 @@ func (h *Handler) m3AggServiceOptions() *handleroptions.M3AggServiceOptions {
 }
 
 // Endpoints useful for profiling the service.
-func (h *Handler) registerHealthEndpoints() {
-	h.router.HandleFunc(healthURL, func(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) registerHealthEndpoints() error {
+	return h.addRouteHandlerFn(h.router, healthURL, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Uptime string `json:"uptime"`
 		}{
 			Uptime: time.Since(h.options.CreatedAt()).String(),
 		})
-	}).Methods(http.MethodGet)
+	}, http.MethodGet)
 }
 
 // Endpoints useful for profiling the service.
 func (h *Handler) registerProfileEndpoints() {
-	h.router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+	h.router.
+		PathPrefix("/debug/pprof/").
+		Handler(http.DefaultServeMux).
+		Name("/debug/pprof/")
 }
 
 // Endpoints useful for viewing routes directory.
-func (h *Handler) registerRoutesEndpoint() {
-	h.router.HandleFunc(routesURL, func(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) registerRoutesEndpoint() error {
+	return h.addRouteHandlerFn(h.router, routesURL, func(w http.ResponseWriter, r *http.Request) {
 		var routes []string
 		err := h.router.Walk(
 			func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
@@ -401,5 +505,5 @@ func (h *Handler) registerRoutesEndpoint() {
 		}{
 			Routes: routes,
 		})
-	}).Methods(http.MethodGet)
+	}, http.MethodGet)
 }

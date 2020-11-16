@@ -28,14 +28,13 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -71,30 +70,33 @@ func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOpti
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(
-	r *mux.Router,
+	addRoute handler.AddRouteFn,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
+) error {
+	if err := addRoute(InitURL, newInitHandler(client, cfg, instrumentOpts),
+		InitHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(GetURL, newGetHandler(client, cfg, instrumentOpts),
+		GetHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(AddURL, newAddHandler(client, cfg, instrumentOpts),
+		AddHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(UpdateURL, newUpdateHandler(client, cfg, instrumentOpts),
+		UpdateHTTPMethod); err != nil {
+		return err
+	}
+	if err := addRoute(DeleteURL, newDeleteHandler(client, cfg, instrumentOpts),
+		DeleteHTTPMethod); err != nil {
+		return err
 	}
 
-	r.HandleFunc(InitURL,
-		wrapped(newInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL,
-		wrapped(newGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL,
-		wrapped(newAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(AddHTTPMethod)
-	r.HandleFunc(UpdateURL,
-		wrapped(newUpdateHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(UpdateHTTPMethod)
-	r.HandleFunc(DeleteURL,
-		wrapped(newDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
-		Methods(DeleteHTTPMethod)
+	return nil
 }
 
 func topicName(headers http.Header) string {
