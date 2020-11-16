@@ -1,6 +1,11 @@
 # Changelog
 
-# 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
+# 1.0.0
+
+## Features
+
+**M3DB**: Bootstrap upgrades resulting in bootstrapping completing over three times faster.
+**M3DB**: Namespace resolution and retention now configured dynamically via API and stored in etcd instead of being defined statically in M3Coordinator configuration. Guides for setting up namespaces have been updated in both [Clustered M3DB deployment](/site/content/docs/how_to/cluster_hard_way) and [Kubernetes deployment](/site/content/docs/how_to/kubernetes.md).
 
 ## Backwards Incompatible Changes
 
