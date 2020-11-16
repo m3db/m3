@@ -420,7 +420,7 @@ func TestCustomRoutes(t *testing.T) {
 	custom := &customHandler{
 		t: t,
 		assertFn: func(t *testing.T, prev http.Handler) {
-			assert.True(t, prev == nil, "Should not shadow already existing handler")
+			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
 	custom2 := &customHandler{
