@@ -94,7 +94,6 @@ This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that crea
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
 
 In another terminal, use the following command.
 
@@ -266,6 +265,31 @@ curl {{% apiendpoint %}}placement | jq .
 {{% notice tip %}}
 [Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
+
+### Readying a Namespace
+
+Once a namespace has finished bootstrapping, it must be marked as ready before receiving traffic. This can be done by calling the _{{% apiendpoint %}}namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default"
+} | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
 
 ### View Details of a Namespace
 
