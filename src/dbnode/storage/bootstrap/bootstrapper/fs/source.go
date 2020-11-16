@@ -1064,7 +1064,10 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		// index volume already. We sort info files by block start and index volume so we should
 		// have seen a default volume by now if it exists and is not corrupted.
 		if volumeType != idxpersist.DefaultIndexVolumeType &&
-			indexBlockExistsInResults(res.result.index.IndexResults(), indexBlockStartUnixNano, volumeType) {
+			!indexBlockExistsInResults(
+				res.result.index.IndexResults(),
+				indexBlockStartUnixNano,
+				idxpersist.DefaultIndexVolumeType) {
 			s.log.Info("skipping index fileset missing default index volume type",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Stringer("blockStart", indexBlockStart),
