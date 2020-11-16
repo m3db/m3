@@ -43,6 +43,12 @@ import (
 
 const promQuery = `http_requests_total{job="prometheus",group="canary"}`
 
+const (
+	queryParam = "query"
+	startParam = "start"
+	endParam   = "end"
+)
+
 var testPromQLEngine = newMockPromQLEngine()
 
 type testHandlers struct {
@@ -85,7 +91,7 @@ func defaultParams() url.Values {
 	now := time.Now()
 	vals.Add(queryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
-	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(endParam, now.Add(time.Hour).Format(time.RFC3339))
 	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }
@@ -94,7 +100,7 @@ func defaultParamsWithoutQuery() url.Values {
 	vals := url.Values{}
 	now := time.Now()
 	vals.Add(startParam, now.Format(time.RFC3339))
-	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(endParam, now.Add(time.Hour).Format(time.RFC3339))
 	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }

@@ -245,6 +245,16 @@ $ curl -sSf -X POST http://localhost:9003/query -d '{
 }
 ```
 
+To read and write metrics via the Coordinator (and not directly through the DB node API), you must mark the namespace as ready:
+
+```shell
+curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
+  "name": "default"
+}
+```
+
+You should now be able to use both the Coordinator and DB node API to perform reads and writes.
+
 ### Adding nodes
 
 You can easily scale your M3DB cluster by scaling the StatefulSet and informing the cluster topology of the change:

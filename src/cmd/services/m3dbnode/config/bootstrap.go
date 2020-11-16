@@ -153,6 +153,34 @@ type BootstrapConfiguration struct {
 	// IndexSegmentConcurrency determines the concurrency for building index
 	// segments.
 	IndexSegmentConcurrency *int `yaml:"indexSegmentConcurrency"`
+
+	// Verify specifies verification checks.
+	Verify *BootstrapVerifyConfiguration `yaml:"verify"`
+}
+
+// VerifyOrDefault returns verify configuration or default.
+func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration {
+	if bsc.Verify == nil {
+		return BootstrapVerifyConfiguration{}
+	}
+
+	return *bsc.Verify
+}
+
+// BootstrapVerifyConfiguration outlines verification checks to enable
+// during a bootstrap.
+type BootstrapVerifyConfiguration struct {
+	VerifyIndexSegments *bool `yaml:"verifyIndexSegments"`
+}
+
+// VerifyIndexSegmentsOrDefault returns whether to verify index segments
+// or use default value.
+func (c BootstrapVerifyConfiguration) VerifyIndexSegmentsOrDefault() bool {
+	if c.VerifyIndexSegments == nil {
+		return false
+	}
+
+	return *c.VerifyIndexSegments
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
@@ -288,11 +316,13 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
-				SetStorageOptions(opts)
+				SetStorageOptions(opts).
+				SetIndexSegmentsVerify(bsc.VerifyOrDefault().VerifyIndexSegmentsOrDefault())
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
 			}
@@ -329,6 +359,7 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool()).

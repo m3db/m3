@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -46,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -329,9 +329,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 ) {
-	var (
-		resultOpts = s.opts.ResultOptions()
-	)
+	resultOpts := s.opts.ResultOptions()
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
@@ -586,6 +584,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,
@@ -982,12 +981,22 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
+		fsOpts := s.fsopts
+		verify := s.opts.IndexSegmentsVerify()
+		if verify {
+			// Make sure for this call to read index segments
+			// to validate the index segment.
+			// If fails validation will rebuild since missing from
+			// fulfilled range.
+			fsOpts = fsOpts.SetIndexReaderAutovalidateIndexSegments(true)
+		}
+
 		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
 			},
-			FilesystemOptions: s.fsopts,
+			FilesystemOptions: fsOpts,
 		})
 		if err != nil {
 			s.log.Error("unable to read segments from index fileset",

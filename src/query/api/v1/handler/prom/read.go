@@ -26,7 +26,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -46,12 +45,6 @@ type readHandler struct {
 	hOpts     options.HandlerOptions
 	scope     tally.Scope
 	logger    *zap.Logger
-}
-
-type readRequest struct {
-	query         string
-	start, end    time.Time
-	step, timeout time.Duration
 }
 
 func newReadHandler(

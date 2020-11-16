@@ -50,8 +50,9 @@ import (
 )
 
 var (
-	testDBCfg = &dbconfig.DBConfiguration{
-		ListenAddress: "0.0.0.0:9000",
+	listenAddress = "0.0.0.0:9000"
+	testDBCfg     = &dbconfig.DBConfiguration{
+		ListenAddress: &listenAddress,
 	}
 
 	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{

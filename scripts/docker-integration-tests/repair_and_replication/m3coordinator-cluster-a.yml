@@ -18,15 +18,7 @@ limits:
     maxFetchedSeries: 100
 
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        retention: 10h
-        resolution: 15s
-      - namespace: unagg
-        type: unaggregated
-        retention: 10h
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -37,8 +29,3 @@ clusters:
             - zone: embedded
               endpoints:
                 - cluster_a_dbnode01:2379
-      writeConsistencyLevel: majority
-      readConsistencyLevel: unstrict_majority
-
-tagOptions:
-  idScheme: quoted

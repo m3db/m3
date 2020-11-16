@@ -536,7 +536,10 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 
 func testPlacementService(store kv.Store, sid services.ServiceID, isSharded bool) placement.Service {
 	opts := placement.NewOptions().SetShardStateMode(placement.StableShardStateOnly).SetIsSharded(isSharded)
-	return service.NewPlacementService(storage.NewPlacementStorage(store, sid.String(), opts), opts)
+
+	return service.NewPlacementService(
+		storage.NewPlacementStorage(store, sid.String(), opts),
+		service.WithPlacementOptions(opts))
 }
 
 func testProducer(
