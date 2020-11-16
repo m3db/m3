@@ -194,4 +194,4 @@ spec:
 [m3db-deployment]: https://docs.m3db.io/operational_guide/replication_and_deployment_in_zones/
 [m3db-isogroups]: https://docs.m3db.io/operational_guide/placement_configuration/#isolation-group
 [m3db-placement]: https://docs.m3db.io/operational_guide/placement/
-[node-affinity-term]: ../api/#nodeaffinityterm
+[node-affinity-term]: /docs/operator/api/#nodeaffinityterm

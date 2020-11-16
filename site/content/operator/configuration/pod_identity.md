@@ -65,5 +65,5 @@ a new host.
 Note that if using local SSDs on GKE, node names may stay the same even though a VM has been recreated. We also support
 `ProviderID`, which will use the underlying VM's unique ID number in GCE to identity host uniqueness.
 
-[pod-id-api]: ../api/#podidentityconfig
+[pod-id-api]: /docs/operator/api/#podidentityconfig
 [topology-docs]: https://docs.m3db.io/operational_guide/placement/

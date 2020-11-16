@@ -1,6 +1,7 @@
 ---
-title: M3 Documentation
+title: M3 Introduction
 weight: 1
+permalink: /docs/
 ---
 
 
