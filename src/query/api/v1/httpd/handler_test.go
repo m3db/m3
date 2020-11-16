@@ -377,22 +377,24 @@ func init() {
 	testWorkerPool.Init()
 }
 
-type assertFn func(t *testing.T, prev http.Handler)
+type assertFn func(t *testing.T, prev http.Handler, r *http.Request)
 
 type customHandler struct {
 	t *testing.T
+	routeName string
+	methods []string
 	assertFn assertFn
 }
 
-func (h *customHandler) Route() string     { return "/custom" }
-func (h *customHandler) Methods() []string { return []string{http.MethodGet} }
+func (h *customHandler) Route() string     { return h.routeName }
+func (h *customHandler) Methods() []string { return h.methods }
 func (h *customHandler) Handler(
 	opts options.HandlerOptions,
 	prev http.Handler,
 ) (http.Handler, error) {
 	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		h.assertFn(h.t, prev)
+		h.assertFn(h.t, prev, r)
 		_, err := w.Write([]byte("success!"))
 		require.NoError(h.t, err)
 	}
@@ -401,8 +403,6 @@ func (h *customHandler) Handler(
 }
 
 func TestCustomRoutes(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/custom", nil)
-	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	store, _ := m3.NewStorageAndSession(t, ctrl)
 	instrumentOpts := instrument.NewOptions()
@@ -419,22 +419,58 @@ func TestCustomRoutes(t *testing.T) {
 	require.NoError(t, err)
 	custom := &customHandler{
 		t: t,
-		assertFn: func(t *testing.T, prev http.Handler) {
+		routeName: "/custom",
+		methods: []string{http.MethodGet, http.MethodHead},
+		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	custom2 := &customHandler{
+	customShadowGet := &customHandler{
 		t: t,
-		assertFn: func(t *testing.T, prev http.Handler) {
+		routeName: "/custom",
+		methods: []string{http.MethodGet},
+		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.NotNil(t, prev, "Should shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, custom, custom2)
+	customShadowHead := &customHandler{
+		t: t,
+		routeName: "/custom",
+		methods: []string{http.MethodHead},
+		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
+			assert.NotNil(t, prev, "Should shadow already existing handler")
+		},
+	}
+	customNew := &customHandler{
+		t: t,
+		routeName: "/custom/new",
+		methods: []string{http.MethodGet, http.MethodHead},
+		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
+			assert.Nil(t, prev, "Should not shadow already existing handler")
+		},
+	}
+	handler := NewHandler(opts, custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
+
+	for _, method := range custom.methods {
+		assertRoute(t, custom.routeName, method, handler, http.StatusOK)
+	}
+
+	for _, method := range customNew.methods {
+		assertRoute(t, customNew.routeName, method, handler, http.StatusOK)
+	}
+
+	assertRoute(t, customNew.routeName, http.MethodPost, handler, http.StatusMethodNotAllowed)
+	assertRoute(t, "/unknown", http.MethodGet, handler, http.StatusNotFound)
+}
+
+func assertRoute(t *testing.T, routeName string, method string, handler *Handler, expectedStatusCode int) {
+	req := httptest.NewRequest(method, routeName, nil)
+	res := httptest.NewRecorder()
 	handler.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusOK)
+	require.Equal(t, expectedStatusCode, res.Code)
 }
 
 func TestRouteName(t *testing.T) {
