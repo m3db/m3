@@ -4,10 +4,10 @@ weight: 3
 ---
 
 
-**Please note:** If possible _PLEASE USE THE OPERATOR_ to deploy to Kubernetes if you
+**Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
 can. It is a considerably more streamlined setup.
 
-The operator leverages [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
+The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
 (CRDs) to automatically handle operations such as managing cluster topology.
 
 The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
