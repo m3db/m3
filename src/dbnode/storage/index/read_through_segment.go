@@ -194,10 +194,11 @@ func newReadThroughSegmentReader(
 	opts ReadThroughSegmentOptions,
 ) segment.Reader {
 	return &readThroughSegmentReader{
-		seg:    seg,
-		reader: reader,
-		opts:   opts,
-		uuid:   uuid,
+		seg:               seg,
+		reader:            reader,
+		opts:              opts,
+		uuid:              uuid,
+		postingsListCache: cache,
 	}
 }
 
