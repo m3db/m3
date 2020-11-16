@@ -30,5 +30,5 @@ metadata:
 The value of `env` in your config **MUST** be `production/cluster-a`. This restriction allows multiple M3DB clusters to
 safely share the same etcd cluster.
 
-[spec]: ../api
+[spec]: /docs/operator/api
 [config]: https://github.com/m3db/m3db-operator/blob/795973f3329437ced3ac942da440810cd0865235/assets/default-config.yaml#L77

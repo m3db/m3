@@ -5,7 +5,7 @@ weight: 12
 chapter: true
 ---
 
-Once you've [installed](installation) the M3DB operator and read over the [requirements](requirements), you can start
+Once you've [installed](/docs/operator/getting_started/installation) the M3DB operator and read over the [requirements](/docs/operator/getting_started/requirements), you can start
 creating some M3DB clusters!
 
 ## Basic Cluster
@@ -148,7 +148,7 @@ spec:
 ```
 
 This will create a highly available cluster with RF=3 spread evenly across the three given zones within a region. A
-pod's UID will be used for its [identity][pod-identity]. The cluster will have 1 [namespace](namespace) that stores
+pod's UID will be used for its [identity][pod-identity]. The cluster will have 1 [namespace](/docs/operator/configuration/namespaces) that stores
 metrics for 2 days at 10s resolution.
 
 Next, apply your manifest:
@@ -173,6 +173,6 @@ $ kubectl exec simple-cluster-rep2-0 -- curl -sSf localhost:9002/health
 {"ok":true,"status":"up","bootstrapped":true}
 ```
 
-[pod-identity]: ../configuration/pod_identity
+[pod-identity]: /docs/operator/configuration/pod_identity
 [local-volumes]: https://kubernetes.io/blog/2018/04/13/local-persistent-volumes-beta/
-[node-affinity]: ../configuration/node_affinity
+[node-affinity]: /docs/operator/configuration/node_affinity
