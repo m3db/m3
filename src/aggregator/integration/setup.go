@@ -259,7 +259,7 @@ func (ts *testServerSetup) getStatusResponse(path string, response interface{}) 
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("aggregator returned a non-400")
+		return fmt.Errorf("got a non-200 status code: %v", resp.StatusCode)
 	}
 	return json.Unmarshal(b, response)
 }
