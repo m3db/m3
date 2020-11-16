@@ -376,7 +376,7 @@ func TestMultipleRead(t *testing.T) {
 	handlerOpts := options.EmptyHandlerOptions().SetEngine(engine).
 		SetConfig(config.Configuration{
 			ResultOptions: config.ResultOptions{
-				KeepNans: true,
+				KeepNaNs: true,
 			},
 		})
 
@@ -454,7 +454,7 @@ func TestReadWithOptions(t *testing.T) {
 	handlerOpts := options.EmptyHandlerOptions().SetEngine(engine).
 		SetConfig(config.Configuration{
 			ResultOptions: config.ResultOptions{
-				KeepNans: true,
+				KeepNaNs: true,
 			},
 		})
 

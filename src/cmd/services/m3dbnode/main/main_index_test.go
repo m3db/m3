@@ -111,7 +111,11 @@ func TestIndexEnabledServer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -193,7 +197,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -347,7 +351,6 @@ db:
     gcPercentage: 100
 
     writeNewSeriesAsync: false
-    writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
 
     commitlog:
@@ -448,13 +451,14 @@ db:
                 - capacity: 4096
                   size: 128
 
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+    discovery:
+      config:
+          service:
+              env: {{.ServiceEnv}}
+              zone: {{.ServiceZone}}
+              service: {{.ServiceName}}
+              cacheDir: {{.ConfigServiceCacheDir}}
+              etcdClusters:
+                  - zone: {{.ServiceZone}}
+                    endpoints: {{.EtcdEndpoints}}
 `

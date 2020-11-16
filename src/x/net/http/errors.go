@@ -21,7 +21,9 @@
 package xhttp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -96,6 +98,8 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 	case error:
 		if xerrors.IsInvalidParams(v) {
 			w.WriteHeader(http.StatusBadRequest)
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			w.WriteHeader(http.StatusGatewayTimeout)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}

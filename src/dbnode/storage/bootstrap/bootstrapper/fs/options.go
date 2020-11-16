@@ -40,11 +40,12 @@ import (
 )
 
 var (
-	errPersistManagerNotSet    = errors.New("persist manager not set")
-	errCompactorNotSet         = errors.New("compactor not set")
-	errIndexOptionsNotSet      = errors.New("index options not set")
-	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
-	errMigrationOptionsNotSet  = errors.New("migration options not set")
+	errPersistManagerNotSet     = errors.New("persist manager not set")
+	errIndexClaimsManagerNotSet = errors.New("index claims manager not set")
+	errCompactorNotSet          = errors.New("compactor not set")
+	errIndexOptionsNotSet       = errors.New("index options not set")
+	errFilesystemOptionsNotSet  = errors.New("filesystem options not set")
+	errMigrationOptionsNotSet   = errors.New("migration options not set")
 
 	// NB(r): Bootstrapping data doesn't use large amounts of memory
 	// that won't be released, so its fine to do this as fast as possible.
@@ -60,6 +61,9 @@ var (
 
 	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
 	defaultIndexSegmentConcurrency = 1
+
+	// defaultIndexSegmentsVerify defines default for index segments validation.
+	defaultIndexSegmentsVerify = false
 )
 
 type options struct {
@@ -68,8 +72,10 @@ type options struct {
 	fsOpts                  fs.Options
 	indexOpts               index.Options
 	persistManager          persist.Manager
+	indexClaimsManager      fs.IndexClaimsManager
 	compactor               *compaction.Compactor
 	indexSegmentConcurrency int
+	indexSegmentsVerify     bool
 	runtimeOptsMgr          runtime.OptionsManager
 	identifierPool          ident.Pool
 	migrationOpts           migration.Options
@@ -88,6 +94,7 @@ func NewOptions() Options {
 		instrumentOpts:          instrument.NewOptions(),
 		resultOpts:              result.NewOptions(),
 		indexSegmentConcurrency: defaultIndexSegmentConcurrency,
+		indexSegmentsVerify:     defaultIndexSegmentsVerify,
 		runtimeOptsMgr:          runtime.NewOptionsManager(),
 		identifierPool:          idPool,
 		migrationOpts:           migration.NewOptions(),
@@ -98,6 +105,9 @@ func NewOptions() Options {
 func (o *options) Validate() error {
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
 	}
 	if o.compactor == nil {
 		return errCompactorNotSet
@@ -170,6 +180,16 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
+}
+
 func (o *options) SetCompactor(value *compaction.Compactor) Options {
 	opts := *o
 	opts.compactor = value
@@ -188,6 +208,16 @@ func (o *options) SetIndexSegmentConcurrency(value int) Options {
 
 func (o *options) IndexSegmentConcurrency() int {
 	return o.indexSegmentConcurrency
+}
+
+func (o *options) SetIndexSegmentsVerify(value bool) Options {
+	opts := *o
+	opts.indexSegmentsVerify = value
+	return &opts
+}
+
+func (o *options) IndexSegmentsVerify() bool {
+	return o.indexSegmentsVerify
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

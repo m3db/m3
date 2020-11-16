@@ -58,6 +58,9 @@ type LimitsConfiguration struct {
 	// load on the CPU, which can prevent other DB operations.
 	// A setting of 0 means there is no maximum.
 	MaxEncodersPerBlock int `yaml:"maxEncodersPerBlock" validate:"min=0"`
+
+	// Write new series limit per second to limit overwhelming during new ID bursts.
+	WriteNewSeriesPerSecond int `yaml:"writeNewSeriesPerSecond" validate:"min=0"`
 }
 
 // MaxRecentQueryResourceLimitConfiguration sets an upper limit on resources consumed by all queries

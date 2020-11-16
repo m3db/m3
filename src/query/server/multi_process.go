@@ -78,18 +78,19 @@ func multiProcessRun(
 		}
 
 		// Set the root scope multi-process process ID.
-		if cfg.Metrics.RootScope == nil {
-			cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
+		metrics := cfg.MetricsOrDefault()
+		if metrics.RootScope == nil {
+			metrics.RootScope = &instrument.ScopeConfiguration{}
 		}
-		if cfg.Metrics.RootScope.CommonTags == nil {
-			cfg.Metrics.RootScope.CommonTags = make(map[string]string)
+		if metrics.RootScope.CommonTags == nil {
+			metrics.RootScope.CommonTags = make(map[string]string)
 		}
-		cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
+		metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
 
 		// Listen on a different Prometheus metrics handler listen port.
-		if cfg.Metrics.PrometheusReporter != nil && cfg.Metrics.PrometheusReporter.ListenAddress != "" {
+		if metrics.PrometheusReporter != nil && metrics.PrometheusReporter.ListenAddress != "" {
 			// Simply increment the listen address port by instance numbe
-			host, port, err := net.SplitHostPort(cfg.Metrics.PrometheusReporter.ListenAddress)
+			host, port, err := net.SplitHostPort(metrics.PrometheusReporter.ListenAddress)
 			if err != nil {
 				return multiProcessResult{},
 					fmt.Errorf("could not split host:port for metrics reporter: %v", err)
@@ -103,7 +104,7 @@ func multiProcessRun(
 			if portValue > 0 {
 				// Increment port value by process ID if valid port.
 				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance-1))
-				cfg.Metrics.PrometheusReporter.ListenAddress = address
+				metrics.PrometheusReporter.ListenAddress = address
 				logger.Info("multi-process prometheus metrics reporter listen address configured",
 					zap.String("address", address))
 			}

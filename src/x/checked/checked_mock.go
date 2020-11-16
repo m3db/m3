@@ -144,10 +144,10 @@ func (mr *MockBytesMockRecorder) DecWrites() *gomock.Call {
 }
 
 // DelayFinalizer mocks base method
-func (m *MockBytes) DelayFinalizer() resource.Closer {
+func (m *MockBytes) DelayFinalizer() resource.SimpleCloser {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DelayFinalizer")
-	ret0, _ := ret[0].(resource.Closer)
+	ret0, _ := ret[0].(resource.SimpleCloser)
 	return ret0
 }
 

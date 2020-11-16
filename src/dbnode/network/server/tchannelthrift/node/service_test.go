@@ -3138,8 +3138,15 @@ func TestServiceAggregateTiles(t *testing.T) {
 		ctx,
 		ident.NewIDMatcher(sourceNsID),
 		ident.NewIDMatcher(targetNsID),
-		storage.AggregateTilesOptions{Start: start, End: end, Step: stepDuration},
-	).Return(int64(4), nil)
+		gomock.Any(),
+	).DoAndReturn(func(gotCtx, gotSourceNsID, gotTargetNsID interface{}, opts storage.AggregateTilesOptions) (int64, error) {
+		require.NotNil(t, opts)
+		require.Equal(t, start, opts.Start)
+		require.Equal(t, end, opts.End)
+		require.Equal(t, stepDuration, opts.Step)
+		require.NotNil(t, opts.InsOptions)
+		return int64(4), nil
+	})
 
 	result, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{
 		SourceNamespace: sourceNsID,

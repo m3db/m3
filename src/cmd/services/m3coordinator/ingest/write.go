@@ -200,17 +200,16 @@ func (d *downsamplerAndWriter) shouldDownsample(
 	overrides WriteOptions,
 ) bool {
 	var (
-		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
 		_, downsampleOverride = d.downsampleOverrideRules(overrides)
 	)
-	// Only downsample if the downsampler exists, and they either want to use the default mapping
+	// Only downsample if the downsampler is enabled, and they either want to use the default mapping
 	// rules, or they're trying to override the mapping rules and they've provided at least one
 	// override to do so.
-	return downsamplerExists && (useDefaultMappingRules || downsampleOverride)
+	return d.downsampler.Enabled() && (useDefaultMappingRules || downsampleOverride)
 }
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(

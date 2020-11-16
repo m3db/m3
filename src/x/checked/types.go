@@ -22,7 +22,7 @@
 package checked
 
 import (
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Ref is an entity that checks ref counts.
@@ -43,7 +43,7 @@ type Ref interface {
 	// until the closer returned by the method is called at least once.
 	// This is useful for dependent resources requiring the lifetime of this
 	// entityt to be extended.
-	DelayFinalizer() resource.Closer
+	DelayFinalizer() xresource.SimpleCloser
 
 	// Finalize will call the finalizer if any, ref count must be zero.
 	Finalize()
