@@ -27,7 +27,7 @@ import:
     version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
   - package: go.etcd.io/etcd
-    version: 3.4.3
+    version: 3.4.13
 
   - package: github.com/pkg/errors
     version: ^0.8

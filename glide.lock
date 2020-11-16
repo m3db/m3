@@ -24,7 +24,7 @@ imports:
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: go.etcd.io/etcd
-  version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
+  version: ae9734ed278b7a1a7dfc82e800471ebbf9fce56f
   subpackages:
   - alarm
   - auth
