@@ -2,10 +2,28 @@
 
 # 1.0.0 (PROVISIONAL - STILL WORK IN PROGRESS)
 
+## Features
+- **M3DB**: Namespace resolution and retention now configured dynamically via API and stored in etcd instead of being defined statically in M3Coordinator configuration.
+```
+message DatabaseCreateRequest {
+  // ...
+
+  // Optional aggregated namespace to create in 
+  // addition to unaggregated namespace
+  AggregatedNamespace aggregated_namespace = 8;
+}
+```
+- **M3DB**: Minimal configuration file with default settings looks like:
+```
+coordinator: {}
+db: {}
+```
+
 ## Backwards Incompatible Changes
 
 ### Configuration
 - **M3DB**: `db.bootstrap.bootstrappers` removed
+- **M3DB**: `db.config` nested under `db.discovery.config` (`discovery` can optionally accept different `type`s of defaults instead of a custom `config`)
 - **M3Coordinator**: `cluster.namespaces.storageMetricsType` removed
 - **M3Coordinator**: `tagOptions.tagOptions` no longer supports `legacy` type
 - **M3Query**: `limits.perQuery.maxComputedDatapoints` removed
@@ -30,6 +48,12 @@ listenAddress: "..."
 - **M3Coordinator**: Removed deprecated URL `/api/v1/namespace/unagg` in favor of stable preferred URL `/api/v1/services/m3db/namespace/unagg`
 - **M3Coordinator**: Removed deprecated URL `/api/v1/placement` in favor of stable preferred URL `/api/v1/services/m3db/placement`
 - **M3Coordinator**: Removed deprecated URL `/api/v1/placement/init` in favor of stable preferred URL `/api/v1/services/m3db/placement/init`
+
+### Package
+- `github.com/m3db/m3/src/x/close` removed in favor of `github.com/m3db/m3/src/x/resource`
+- `github.com/m3db/m3/src/dbnode/clock` removed in favor of `github.com/m3db/m3/src/x/clock`
+- `github.com/m3db/m3/src/x/dice/dice.go` moved to `github.com/m3db/m3/src/dbnode/storage/dice.go`
+- `github.com/m3db/m3/src/x/lockfile/lockfile.go` moved to `github.com/m3db/m3/src/dbnode/server/lockfile.go`
 
 ### Misc
 - **M3Query**: Concept of data point limit enforcers removed in favor of the other remaining query limits (e.g. max series). This also removed metrics `cost_reporter_datapoints`, `cost_reporter_datapoints_counter`, and `cost_reporter_over_datapoints_limit`.
