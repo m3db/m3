@@ -1,6 +1,6 @@
 # M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] 
 
-<p align="center"><img src="site/static/images/logo.svg" alt="M3 Logo" width="256" height="270"></p>
+<p align="center"><img src="site/static/images/logo-square.png" alt="M3 Logo" width="256" height="270"></p>
 
 [Distributed TSDB](https://docs.m3db.io/m3db/) and [Query Engine](https://docs.m3db.io/how_to/query/), [Prometheus Sidecar](https://docs.m3db.io/integrations/prometheus/), [Metrics Aggregator](https://docs.m3db.io/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://docs.m3db.io/integrations/graphite/).
 
