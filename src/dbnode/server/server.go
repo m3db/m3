@@ -563,14 +563,21 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	segmentPostingsListCache, segmentStopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
+		logger.Fatal("could not construct segment postings list cache", zap.Error(err))
 	}
-	defer stopReporting()
+	defer segmentStopReporting()
+
+	searchPostingsListCache, searchStopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct searches postings list cache", zap.Error(err))
+	}
+	defer searchStopReporting()
 
 	opts = opts.SetIndexOptions(opts.IndexOptions().
-		SetPostingsListCache(postingsListCache))
+		SetPostingsListCache(segmentPostingsListCache).
+		SetSearchPostingsListCache(searchPostingsListCache))
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{

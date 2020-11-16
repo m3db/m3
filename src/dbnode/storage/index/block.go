@@ -958,7 +958,10 @@ func (b *block) addResults(
 	}
 
 	var (
-		plCache         = b.opts.PostingsListCache()
+		plCaches = ReadThroughSegmentCaches{
+			SegmentPostingsListCache: b.opts.PostingsListCache(),
+			SearchPostingsListCache:  b.opts.SearchPostingsListCache(),
+		}
 		readThroughOpts = b.opts.ReadThroughSegmentOptions()
 		segments        = results.Segments()
 	)
@@ -967,7 +970,7 @@ func (b *block) addResults(
 		elem := seg.Segment()
 		if immSeg, ok := elem.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			elem = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+			elem = NewReadThroughSegment(immSeg, plCaches, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, elem)
 	}

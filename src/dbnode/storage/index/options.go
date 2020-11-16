@@ -125,6 +125,7 @@ type opts struct {
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
+	searchPostingsListCache         *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
@@ -394,6 +395,16 @@ func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
 }
 
 func (o *opts) PostingsListCache() *PostingsListCache {
+	return o.searchPostingsListCache
+}
+
+func (o *opts) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	opts := *o
+	opts.searchPostingsListCache = value
+	return &opts
+}
+
+func (o *opts) SearchPostingsListCache() *PostingsListCache {
 	return o.postingsListCache
 }
 
