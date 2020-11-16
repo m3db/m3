@@ -87,7 +87,7 @@ func (d *termsDict) Fields() sgmt.FieldsIterator {
 	return newBytesSliceIter(fields, d.opts)
 }
 
-func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
+func (d *termsDict) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
 	// NB(bodu): This is probably fine since the terms dict/mem segment is only used in tests.
@@ -101,13 +101,15 @@ func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
 				d.currFieldsPostingsLists = append(d.currFieldsPostingsLists, entry.value)
 			}
 		}
-		pl.UnionMany(d.currFieldsPostingsLists)
+		if err := pl.UnionMany(d.currFieldsPostingsLists); err != nil {
+			return nil, err
+		}
 		fields = append(fields, uniqueField{
 			field:        field,
 			postingsList: pl,
 		})
 	}
-	return newUniqueFieldsIter(fields, d.opts)
+	return newUniqueFieldsIter(fields, d.opts), nil
 }
 
 func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {

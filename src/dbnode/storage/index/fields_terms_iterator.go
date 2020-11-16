@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -49,23 +50,23 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
-func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsIterator, error) {
+func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 	if o.fieldIterFn == nil {
-		return r.Fields()
+		return r.FieldsPostingsList()
 	}
 	return o.fieldIterFn(r)
 }
 
 type allowFn func(field []byte) bool
 
-type newFieldIterFn func(r segment.Reader) (segment.FieldsIterator, error)
+type newFieldIterFn func(r segment.Reader) (segment.FieldsPostingsListIterator, error)
 
 type fieldsAndTermsIter struct {
 	reader segment.Reader
 	opts   fieldsAndTermsIteratorOpts
 
 	err       error
-	fieldIter segment.FieldsIterator
+	fieldIter segment.FieldsPostingsListIterator
 	termIter  segment.TermsIterator
 
 	current struct {
@@ -74,7 +75,10 @@ type fieldsAndTermsIter struct {
 		postings postings.List
 	}
 
-	restrictByPostings *pilosaroaring.Bitmap
+	restrictByPostingsBitmap *pilosaroaring.Bitmap
+
+	restrictByPostings          postings.List
+	restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
 }
 
 var (
@@ -88,8 +92,17 @@ type newFieldsAndTermsIteratorFn func(
 	r segment.Reader, opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error)
 
-func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
-	iter := &fieldsAndTermsIter{}
+func newFieldsAndTermsIterator(
+	reader segment.Reader,
+	opts fieldsAndTermsIteratorOpts,
+) (fieldsAndTermsIterator, error) {
+	var restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
+	if index.MigrationReadOnlyPostings() {
+		restrictByPostingsIntersect = roaring.NewReadOnlyBitmapIntersectCheck()
+	}
+	iter := &fieldsAndTermsIter{
+		restrictByPostingsIntersect: restrictByPostingsIntersect,
+	}
 	err := iter.Reset(reader, opts)
 	if err != nil {
 		return nil, err
@@ -97,8 +110,25 @@ func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIterato
 	return iter, nil
 }
 
-func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
+func (fti *fieldsAndTermsIter) Reset(
+	reader segment.Reader,
+	opts fieldsAndTermsIteratorOpts,
+) error {
+	// Keep restrict by postings intersect check until completely closed.
+	restrictByPostingsIntersect := fti.restrictByPostingsIntersect
+
+	// Close per use items.
+	if multiErr := fti.closePerUse(); multiErr.FinalError() != nil {
+		return multiErr.FinalError()
+	}
+
+	// Zero state.
 	*fti = fieldsAndTermsIterZeroed
+
+	// Restore restrict by postings intersect check.
+	fti.restrictByPostingsIntersect = restrictByPostingsIntersect
+
+	// Set per use fields.
 	fti.reader = reader
 	fti.opts = opts
 	if reader == nil {
@@ -128,12 +158,15 @@ func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsI
 	}
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
-	bitmap, ok := roaring.BitmapFromPostingsList(pl)
-	if !ok {
-		return errUnpackBitmapFromPostingsList
+	if index.MigrationReadOnlyPostings() {
+		fti.restrictByPostings = pl
+	} else {
+		var ok bool
+		fti.restrictByPostingsBitmap, ok = roaring.BitmapFromPostingsList(pl)
+		if !ok {
+			return errUnpackBitmapFromPostingsList
+		}
 	}
-
-	fti.restrictByPostings = bitmap
 
 	return nil
 }
@@ -145,10 +178,43 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 	}
 
 	for fieldIter.Next() {
-		field := fieldIter.Current()
+		field, curr := fieldIter.Current()
 		if !fti.opts.allow(field) {
 			continue
 		}
+
+		if index.MigrationReadOnlyPostings() && fti.restrictByPostings != nil {
+			// Check term isn't part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			restrictBy := fti.restrictByPostings
+			match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
+			if err != nil {
+				fti.err = err
+				return false
+			}
+			if !match {
+				// No match.
+				continue
+			}
+		} else if !index.MigrationReadOnlyPostings() && fti.restrictByPostingsBitmap != nil {
+			bitmap, ok := roaring.BitmapFromPostingsList(curr)
+			if !ok {
+				fti.err = errUnpackBitmapFromPostingsList
+				return false
+			}
+
+			// Check term isn part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			// Note: IntersectionCount is significantly faster than intersecting and
+			// counting results and also does not allocate.
+			if n := fti.restrictByPostingsBitmap.IntersectionCount(bitmap); n < 1 {
+				// No match.
+				continue
+			}
+		}
+
 		fti.current.field = field
 		return true
 	}
@@ -203,24 +269,45 @@ func (fti *fieldsAndTermsIter) setNext() bool {
 func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 	for fti.termIter.Next() {
 		fti.current.term, fti.current.postings = fti.termIter.Current()
-		if fti.restrictByPostings == nil {
-			// No restrictions.
-			return true, nil
-		}
+		if index.MigrationReadOnlyPostings() {
+			if fti.restrictByPostings == nil {
+				// No restrictions.
+				return true, nil
+			}
 
-		bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
-		if !ok {
-			return false, errUnpackBitmapFromPostingsList
-		}
+			// Check term isn't part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			restrictBy := fti.restrictByPostings
+			curr := fti.current.postings
+			match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
+			if err != nil {
+				return false, err
+			}
+			if match {
+				// Matches, this is next result.
+				return true, nil
+			}
+		} else {
+			if fti.restrictByPostingsBitmap == nil {
+				// No restrictions.
+				return true, nil
+			}
 
-		// Check term isn part of at least some of the documents we're
-		// restricted to providing results for based on intersection
-		// count.
-		// Note: IntersectionCount is significantly faster than intersecting and
-		// counting results and also does not allocate.
-		if n := fti.restrictByPostings.IntersectionCount(bitmap); n > 0 {
-			// Matches, this is next result.
-			return true, nil
+			bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
+			if !ok {
+				return false, errUnpackBitmapFromPostingsList
+			}
+
+			// Check term isn part of at least some of the documents we're
+			// restricted to providing results for based on intersection
+			// count.
+			// Note: IntersectionCount is significantly faster than intersecting and
+			// counting results and also does not allocate.
+			if n := fti.restrictByPostingsBitmap.IntersectionCount(bitmap); n > 0 {
+				// Matches, this is next result.
+				return true, nil
+			}
 		}
 	}
 	if err := fti.termIter.Err(); err != nil {
@@ -254,13 +341,21 @@ func (fti *fieldsAndTermsIter) Err() error {
 	return fti.err
 }
 
-func (fti *fieldsAndTermsIter) Close() error {
+func (fti *fieldsAndTermsIter) closePerUse() xerrors.MultiError {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
 	}
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
+	}
+	return multiErr
+}
+
+func (fti *fieldsAndTermsIter) Close() error {
+	multiErr := fti.closePerUse()
+	if fti.restrictByPostingsIntersect != nil {
+		multiErr = multiErr.Add(fti.restrictByPostingsIntersect.Close())
 	}
 	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()

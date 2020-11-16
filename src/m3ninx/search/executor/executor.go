@@ -33,7 +33,10 @@ var (
 	errExecutorClosed = errors.New("executor is closed")
 )
 
-type newIteratorFn func(s search.Searcher, rs index.Readers) (doc.Iterator, error)
+type newIteratorFn func(
+	q search.Query,
+	rs index.Readers,
+) (doc.Iterator, error)
 
 type executor struct {
 	sync.RWMutex
@@ -59,12 +62,7 @@ func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
 		return nil, errExecutorClosed
 	}
 
-	s, err := q.Searcher()
-	if err != nil {
-		return nil, err
-	}
-
-	iter, err := e.newIteratorFn(s, e.readers)
+	iter, err := e.newIteratorFn(q, e.readers)
 	if err != nil {
 		return nil, err
 	}

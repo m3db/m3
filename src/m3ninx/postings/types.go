@@ -44,7 +44,7 @@ var (
 
 // List is a collection of docIDs. The interface only supports immutable methods.
 type List interface {
-	// Contains returns whether the specified ID is contained in this postings list.
+	// Contains returns whether an ID is contained or not.
 	Contains(id ID) bool
 
 	// IsEmpty returns whether the postings list is empty. Some posting lists have an
@@ -52,17 +52,17 @@ type List interface {
 	// calculating the size of the postings list.
 	IsEmpty() bool
 
-	// Max returns the maximum ID in the postings list or an error if it is empty.
-	Max() (ID, error)
+	// CountFast returns a count of cardinality quickly if available, returns
+	// false otherwise.
+	CountFast() (int, bool)
 
-	// Len returns the numbers of IDs in the postings list.
-	Len() int
+	// CountSlow should be called when CountFast returns false and a count
+	// is still required, it will fallback to iterating over the posting lists
+	// and counting how many entries there were during an iteration.
+	CountSlow() int
 
 	// Iterator returns an iterator over the IDs in the postings list.
 	Iterator() Iterator
-
-	// Clone returns a copy of the postings list.
-	Clone() MutableList
 
 	// Equal returns whether this postings list contains the same posting IDs as other.
 	Equal(other List) bool
@@ -99,6 +99,9 @@ type MutableList interface {
 
 	// RemoveRange removes all IDs between [min, max) from this postings list.
 	RemoveRange(min, max ID) error
+
+	// Clone returns a copy of the postings list.
+	Clone() MutableList
 
 	// Reset resets the internal state of the postings list.
 	Reset()

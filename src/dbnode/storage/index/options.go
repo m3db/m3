@@ -22,6 +22,8 @@ package index
 
 import (
 	"errors"
+	"math"
+	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -34,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -122,9 +125,12 @@ type opts struct {
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
+	searchPostingsListCache         *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
+	queryBlockWorkerPool            xsync.WorkerPool
+	queryBlockSegmentWorkerPool     xsync.WorkerPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -159,6 +165,17 @@ func NewOptions() Options {
 	aggResultsEntryArrayPool.Init()
 
 	instrumentOpts := instrument.NewOptions()
+
+	// Default to using half of the available cores for querying segments,
+	// and 2x that for always have a block pending to be queried ready to go.
+	queryBlockSegmentsConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2.0))
+
+	queryBlockSegmentWorkerPool := xsync.NewWorkerPool(queryBlockSegmentsConcurrency)
+	queryBlockSegmentWorkerPool.Init()
+
+	queryBlockWorkerPool := xsync.NewWorkerPool(2 * queryBlockSegmentsConcurrency)
+	queryBlockWorkerPool.Init()
+
 	opts := &opts{
 		insertMode:                      defaultIndexInsertMode,
 		clockOpts:                       clock.NewOptions(),
@@ -176,6 +193,8 @@ func NewOptions() Options {
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
+		queryBlockWorkerPool:            queryBlockWorkerPool,
+		queryBlockSegmentWorkerPool:     queryBlockSegmentWorkerPool,
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -376,6 +395,16 @@ func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
 }
 
 func (o *opts) PostingsListCache() *PostingsListCache {
+	return o.searchPostingsListCache
+}
+
+func (o *opts) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	opts := *o
+	opts.searchPostingsListCache = value
+	return &opts
+}
+
+func (o *opts) SearchPostingsListCache() *PostingsListCache {
 	return o.postingsListCache
 }
 
@@ -427,4 +456,24 @@ func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
 
 func (o *opts) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
+}
+
+func (o *opts) SetQueryBlockWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.queryBlockWorkerPool = value
+	return &opts
+}
+
+func (o *opts) QueryBlockWorkerPool() xsync.WorkerPool {
+	return o.queryBlockWorkerPool
+}
+
+func (o *opts) SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.queryBlockSegmentWorkerPool = value
+	return &opts
+}
+
+func (o *opts) QueryBlockSegmentWorkerPool() xsync.WorkerPool {
+	return o.queryBlockSegmentWorkerPool
 }

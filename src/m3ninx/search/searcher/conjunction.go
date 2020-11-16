@@ -21,8 +21,11 @@
 package searcher
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -45,44 +48,51 @@ func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searc
 }
 
 func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+	var (
+		intersects = make([]postings.List, 0, len(s.searchers))
+		negations  = make([]postings.List, 0, len(s.negations))
+	)
 	for _, sr := range s.searchers {
-		curr, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
-		if pl == nil {
-			pl = curr.Clone()
-		} else {
-			if err := pl.Intersect(curr); err != nil {
-				return nil, err
-			}
-		}
-
-		// We can break early if the interescted postings list is ever empty.
-		if pl.IsEmpty() {
-			break
-		}
+		intersects = append(intersects, pl)
 	}
 
 	for _, sr := range s.negations {
-		curr, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		if err := pl.Difference(curr); err != nil {
-			return nil, err
-		}
-
-		// We can break early if the interescted postings list is ever empty.
-		if pl.IsEmpty() {
-			break
-		}
+		negations = append(negations, pl)
 	}
 
-	return pl, nil
+	if index.MigrationReadOnlyPostings() {
+		// Perform a lazy fast intersect and negate.
+		return roaring.IntersectAndNegateReadOnly(intersects, negations)
+	}
+
+	// Not running migration path, fallback.
+	first, ok := intersects[0].(postings.MutableList)
+	if !ok {
+		// Note not creating a "errNotMutable" like error since this path
+		// will be deprecated and we might forget to cleanup the err var.
+		return nil, fmt.Errorf("postings list for non-migration path not mutable")
+	}
+
+	result := first.Clone()
+	for i := 1; i < len(intersects); i++ {
+		if err := result.Intersect(intersects[i]); err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(negations); i++ {
+		if err := result.Difference(negations[i]); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }

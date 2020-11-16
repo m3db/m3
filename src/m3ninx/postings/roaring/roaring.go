@@ -49,6 +49,16 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 	return NewPostingsListFromBitmap(unioned), nil
 }
 
+// UnionInPlace unions in place a postings list with other inputs.
+func UnionInPlace(first postings.List, inputs []postings.List) error {
+	b, ok := BitmapFromPostingsList(first)
+	if !ok {
+		return errUnionRoaringOnly
+	}
+
+	return union(b, inputs)
+}
+
 func union(unionedBitmap *roaring.Bitmap, inputs []postings.List) error {
 	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
 	for _, in := range inputs {
@@ -101,7 +111,6 @@ func (d *postingsList) Intersect(other postings.List) error {
 	if !ok {
 		return errIntersectRoaringOnly
 	}
-
 	d.bitmap = d.bitmap.Intersect(o.bitmap)
 	return nil
 }
@@ -168,7 +177,9 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
-	d.bitmap.Reset()
+	// NB(r): Use direct remove all to retain allocated containers
+	// on the bitmap.
+	d.bitmap.DirectRemoveAll()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {
@@ -179,15 +190,11 @@ func (d *postingsList) IsEmpty() bool {
 	return d.bitmap.Count() == 0
 }
 
-func (d *postingsList) Max() (postings.ID, error) {
-	if d.IsEmpty() {
-		return 0, postings.ErrEmptyList
-	}
-	max := d.bitmap.Max()
-	return postings.ID(max), nil
+func (d *postingsList) CountFast() (int, bool) {
+	return int(d.bitmap.Count()), true
 }
 
-func (d *postingsList) Len() int {
+func (d *postingsList) CountSlow() int {
 	return int(d.bitmap.Count())
 }
 
@@ -208,23 +215,7 @@ func (d *postingsList) Clone() postings.MutableList {
 }
 
 func (d *postingsList) Equal(other postings.List) bool {
-	if d.Len() != other.Len() {
-		return false
-	}
-
-	iter := d.Iterator()
-	otherIter := other.Iterator()
-
-	for iter.Next() {
-		if !otherIter.Next() {
-			return false
-		}
-		if iter.Current() != otherIter.Current() {
-			return false
-		}
-	}
-
-	return true
+	return postings.Equal(d, other)
 }
 
 type roaringIterator struct {

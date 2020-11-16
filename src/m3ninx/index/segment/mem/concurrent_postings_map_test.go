@@ -41,7 +41,7 @@ func TestConcurrentPostingsMap(t *testing.T) {
 
 	pl, ok := pm.Get([]byte("foo"))
 	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
+	require.Equal(t, 2, pl.CountSlow())
 	require.True(t, pl.Contains(1))
 	require.True(t, pl.Contains(3))
 
@@ -51,7 +51,7 @@ func TestConcurrentPostingsMap(t *testing.T) {
 	re := regexp.MustCompile("ba.*")
 	pl, ok = pm.GetRegex(re)
 	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
+	require.Equal(t, 2, pl.CountSlow())
 	require.True(t, pl.Contains(2))
 	require.True(t, pl.Contains(4))
 

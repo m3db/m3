@@ -26,10 +26,16 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
+// SafeCloser is a reuesable safe closer.
+type SafeCloser interface {
+	io.Closer
+	Reset(closer io.Closer)
+}
+
 // NewSafeCloser returns a io.Closer which ensures the
 // underlying Close() is only called once. It's
 // useful for cleanup of resources in functions.
-func NewSafeCloser(x io.Closer) io.Closer {
+func NewSafeCloser(x io.Closer) SafeCloser {
 	return &safeCloser{Closer: x}
 }
 
@@ -38,6 +44,11 @@ func NewSafeCloser(x io.Closer) io.Closer {
 type safeCloser struct {
 	io.Closer
 	closed bool
+}
+
+func (c *safeCloser) Reset(closer io.Closer) {
+	c.Closer = closer
+	c.closed = false
 }
 
 // Close guarantees the underlying Closable's Close() is

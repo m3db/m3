@@ -341,7 +341,7 @@ func TestIngesterNoStaticRules(t *testing.T) {
 	var expectationErr error
 	mockDownsamplerAndWriter, found := newMockDownsamplerAndWriter(ctrl, func(mappingRules []downsample.AutoMappingRule) {
 		if len(mappingRules) != 1 {
-			expectationErr = errors.New(fmt.Sprintf("expected: len(DownsampleMappingRules) == 1, got: %v", len(mappingRules)))
+			expectationErr = fmt.Errorf("expected: len(DownsampleMappingRules) == 1, got: %v", len(mappingRules))
 		}
 		policies := mappingRules[0].Policies
 
@@ -350,7 +350,7 @@ func TestIngesterNoStaticRules(t *testing.T) {
 		}
 		expectedPolicy := policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
 		if ok := expectedPolicy == policies[0]; !ok {
-			expectationErr = errors.New(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0]))
+			expectationErr = fmt.Errorf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0])
 		}
 	})
 
@@ -416,11 +416,11 @@ func TestIngesterNoStaticRules(t *testing.T) {
 		}
 		expectedPolicy := policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)
 		if ok := expectedPolicy == policies[0]; !ok {
-			expectationErr = errors.New(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0]))
+			expectationErr = fmt.Errorf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[0])
 		}
 		expectedPolicy = policy.NewStoragePolicy(1*time.Minute, xtime.Second, 168*time.Hour)
 		if ok := expectedPolicy == policies[1]; !ok {
-			expectationErr = errors.New(fmt.Sprintf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[1]))
+			expectationErr = fmt.Errorf("expected storage policy: %+v, got: %+v", expectedPolicy, policies[1])
 		}
 	})
 

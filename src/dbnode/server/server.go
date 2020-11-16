@@ -188,6 +188,14 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	// Log whether or not migration read only posting lists are enabled.
+	// Note: will be removed once read only postings lists deemed stable.
+	if m3ninxindex.MigrationReadOnlyPostings() {
+		logger.Info("read only postings lists enabled")
+	} else {
+		logger.Info("read only postings lists disabled")
+	}
+
 	// By default attempt to raise process limits, which is a benign operation.
 	skipRaiseLimits := strings.TrimSpace(os.Getenv(skipRaiseProcessLimitsEnvVar))
 	if skipRaiseLimits != skipRaiseProcessLimitsEnvVarTrue {
@@ -360,14 +368,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	if cfg.Index.MaxQueryIDsConcurrency != 0 {
-		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
-		queryIDsWorkerPool.Init()
-		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
-	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
-	}
-
 	buildReporter := instrument.NewBuildReporter(iopts)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("unable to start build reporter", zap.Error(err))
@@ -406,27 +406,6 @@ func Run(runOpts RunOptions) {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
-	// Setup postings list cache.
-	var (
-		plCacheConfig  = cfg.Cache.PostingsListConfiguration()
-		plCacheSize    = plCacheConfig.SizeOrDefault()
-		plCacheOptions = index.PostingsListCacheOptions{
-			InstrumentOptions: opts.InstrumentOptions().
-				SetMetricsScope(scope.SubScope("postings-list-cache")),
-		}
-	)
-	postingsListCache, stopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
-	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
-	}
-	defer stopReporting()
-
-	// Setup index regexp compilation cache.
-	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
-		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
-		Scope: iopts.MetricsScope(),
-	})
-
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
@@ -452,11 +431,22 @@ func Run(runOpts RunOptions) {
 	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
+	if cfg.Index.MaxQueryIDsConcurrency != 0 {
+		queryBlockSegmentWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
+		queryBlockSegmentWorkerPool.Init()
+		queryBlockWorkerPool := xsync.NewWorkerPool(2 * cfg.Index.MaxQueryIDsConcurrency)
+		queryBlockWorkerPool.Init()
+		indexOpts = indexOpts.
+			SetQueryBlockSegmentWorkerPool(queryBlockSegmentWorkerPool).
+			SetQueryBlockWorkerPool(queryBlockWorkerPool)
+	}
+
+	plCacheConfig := cfg.Cache.PostingsListConfiguration()
 	indexOpts = indexOpts.SetInsertMode(insertMode).
-		SetPostingsListCache(postingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+			CacheRegexp:   plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:    plCacheConfig.CacheTermsOrDefault(),
+			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
@@ -561,7 +551,41 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not get pooling policy", zap.Error(err))
 	}
 
+	// Create pools.
 	opts = withEncodingAndPoolingOptions(cfg, logger, opts, poolingPolicy)
+
+	// Setup postings list cache.
+	var (
+		plCacheSize    = plCacheConfig.SizeOrDefault()
+		plCacheOptions = index.PostingsListCacheOptions{
+			PostingsListPool: opts.IndexOptions().SegmentBuilderOptions().PostingsListPool(),
+			InstrumentOptions: opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("postings-list-cache")),
+		}
+	)
+	segmentPostingsListCache, segmentStopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct segment postings list cache", zap.Error(err))
+	}
+	defer segmentStopReporting()
+
+	searchPostingsListCache, searchStopReporting, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct searches postings list cache", zap.Error(err))
+	}
+	defer searchStopReporting()
+
+	opts = opts.SetIndexOptions(opts.IndexOptions().
+		SetPostingsListCache(segmentPostingsListCache).
+		SetSearchPostingsListCache(searchPostingsListCache))
+
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iopts.MetricsScope(),
+	})
+
+	// Apply commit log options.
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -1622,7 +1646,6 @@ func withEncodingAndPoolingOptions(
 				SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
-				SetPostingsListPool(postingsList).
 				SetInstrumentOptions(iopts).
 				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(

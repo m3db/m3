@@ -12,6 +12,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=m3db_local_1
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
   dbnode02:
@@ -26,6 +27,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=m3db_local_2
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
   coordinator01:

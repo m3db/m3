@@ -38,7 +38,7 @@ var (
 type reader struct {
 	sync.RWMutex
 
-	segment ReadableSegment
+	segment *memSegment
 	limits  readerDocRange
 	plPool  postings.Pool
 
@@ -50,7 +50,7 @@ type readerDocRange struct {
 	endExclusive   postings.ID
 }
 
-func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) sgmt.Reader {
+func newReader(s *memSegment, l readerDocRange, p postings.Pool) sgmt.Reader {
 	return &reader{
 		segment: s,
 		limits:  l,
@@ -60,6 +60,10 @@ func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) sgmt.Reader
 
 func (r *reader) Fields() (sgmt.FieldsIterator, error) {
 	return r.segment.Fields()
+}
+
+func (r *reader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	return r.segment.FieldsPostingsList()
 }
 
 func (r *reader) ContainsField(field []byte) (bool, error) {
@@ -109,7 +113,7 @@ func (r *reader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postin
 	return r.segment.matchRegexp(field, compileRE)
 }
 
-func (r *reader) MatchAll() (postings.MutableList, error) {
+func (r *reader) MatchAll() (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -157,6 +161,15 @@ func (r *reader) AllDocs() (index.IDDocIterator, error) {
 
 	pi := postings.NewRangeIterator(r.limits.startInclusive, r.limits.endExclusive)
 	return r.getDocIterWithLock(pi), nil
+}
+
+func (r *reader) NumDocs() (int, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return 0, errSegmentReaderClosed
+	}
+	return len(r.segment.docs.data), nil
 }
 
 func (r *reader) getDocIterWithLock(iter postings.Iterator) index.IDDocIterator {

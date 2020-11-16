@@ -322,8 +322,10 @@ function test_query_restrict_tags {
 
   # First write some hidden metrics.
   echo "Test write with unaggregated metrics type works as expected"
-  TAG_NAME_0="restricted_metrics_type" TAG_VALUE_0="hidden" \
-    TAG_NAME_1="foo_tag" TAG_VALUE_1="foo_tag_value" \
+  TAG_NAME_0="__name__" TAG_VALUE_0="hidden_metric_by_default" \
+    TAG_NAME_1="restricted_metrics_type" TAG_VALUE_1="hidden" \
+    TAG_NAME_2="hidden_label_by_default" TAG_VALUE_2="hidden" \
+    TAG_NAME_3="foo_tag" TAG_VALUE_3="foo_tag_value" \
     prometheus_remote_write \
     some_hidden_metric now 42.42 \
     true "Expected request to succeed" \
@@ -340,6 +342,22 @@ function test_query_restrict_tags {
   echo "Test restrict by tags with coordinator defaults"
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
+
+  # Check we can see metric in label values endpoint with zero restrictions applied.
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/label/__name__/values | jq ".data | map(select(. == \"hidden_metric_by_default\")) | length") -eq 1 ]]'
+
+  # Now check that without easing restrictions that we can see the label value in question.
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/label/__name__/values | jq ".data | map(select(. == \"hidden_metric_by_default\")) | length") -eq 0 ]]'
+
+  # Check we can see metric in labels endpoint with zero restrictions applied.
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/labels | jq ".data | map(select(. == \"hidden_label_by_default\")) | length") -eq 1 ]]'
+
+  # Now check that without easing restrictions that we can see the label in question.
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/labels | jq ".data | map(select(. == \"hidden_label_by_default\")) | length") -eq 0 ]]'
 }
 
 function test_series {

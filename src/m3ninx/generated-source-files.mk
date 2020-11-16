@@ -13,7 +13,8 @@ genny-all: genny-map-all genny-arraypool-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all:                          \
+genny-map-all:                            \
+	genny-map-segment-fst                 \
 	genny-map-segment-builder-postingsmap \
 	genny-map-segment-builder-fieldsmap   \
 	genny-map-segment-builder-idsmap      \
@@ -30,6 +31,21 @@ genny-map-all:                          \
 # specialized datastructures, we should add targets similar to the ones below.
 #
 # [1]: https://github.com/cheekybits/genny
+
+# Map generation rule for index/segment/fst.fstMap
+.PHONY: genny-map-segment-fst
+genny-map-segment-fst:
+	cd $(m3x_package_path) && make byteshashmap-gen            \
+		pkg=fst                                                \
+		value_type=vellumFST                                   \
+		target_package=$(m3ninx_package)/index/segment/fst     \
+		rename_nogen_key=true                                  \
+		rename_type_prefix=fst                                 \
+		rename_constructor=newFSTMap                           \
+		rename_constructor_options=fstMapOptions
+	# Rename generated map file
+	mv -f $(m3ninx_package_path)/index/segment/fst/map_gen.go $(m3ninx_package_path)/index/segment/fst/fst_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/fst/new_map_gen.go $(m3ninx_package_path)/index/segment/fst/fst_map_new.go
 
 # Map generation rule for index/segment/builder.PostingsMap
 .PHONY: genny-map-segment-builder-postingsmap

@@ -21,12 +21,12 @@
 package query
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
+
+const allQueryStr = "all()"
 
 // AllQuery returns a query which matches all known documents.
 type AllQuery struct{}
@@ -62,5 +62,5 @@ func (q *AllQuery) ToProto() *querypb.Query {
 }
 
 func (q *AllQuery) String() string {
-	return fmt.Sprintf("all()")
+	return allQueryStr
 }

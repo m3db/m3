@@ -21,6 +21,7 @@
 package searcher
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -32,7 +33,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConjunctionSearcher(t *testing.T) {
+// TestConjunctionSearcherMigrationReadOnlyRemove stays until
+// migration removed (make sure to use "MigrationReadOnly" as
+// part of the string).
+// MigrationReadOnly: remove this when done.
+func TestConjunctionSearcherMigrationReadOnlyRemove(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
@@ -102,6 +107,98 @@ func TestConjunctionSearcher(t *testing.T) {
 	require.True(t, pl.Equal(expected))
 }
 
+func TestConjunctionSearcher(t *testing.T) {
+	// MigrationReadOnly: remove the special casing to turn readonly on.
+	index.SetMigrationReadOnlyPostings(true)
+	defer index.SetMigrationReadOnlyPostings(false)
+
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	firstReader := index.NewMockReader(mockCtrl)
+	secondReader := index.NewMockReader(mockCtrl)
+
+	// First searcher.
+	firstPL1 := roaring.NewPostingsList()
+	require.NoError(t, firstPL1.Insert(postings.ID(42)))
+	require.NoError(t, firstPL1.Insert(postings.ID(50)))
+	firstPL2 := roaring.NewPostingsList()
+	require.NoError(t, firstPL2.Insert(postings.ID(64)))
+	firstSearcher := search.NewMockSearcher(mockCtrl)
+
+	// Second searcher.
+	secondPL1 := roaring.NewPostingsList()
+	require.NoError(t, secondPL1.Insert(postings.ID(53)))
+	require.NoError(t, secondPL1.Insert(postings.ID(50)))
+	secondPL2 := roaring.NewPostingsList()
+	require.NoError(t, secondPL2.Insert(postings.ID(64)))
+	require.NoError(t, secondPL2.Insert(postings.ID(72)))
+	secondSearcher := search.NewMockSearcher(mockCtrl)
+
+	// Third searcher.
+	thirdPL1 := roaring.NewPostingsList()
+	require.NoError(t, thirdPL1.Insert(postings.ID(42)))
+	require.NoError(t, thirdPL1.Insert(postings.ID(53)))
+	thirdPL2 := roaring.NewPostingsList()
+	require.NoError(t, thirdPL2.Insert(postings.ID(64)))
+	require.NoError(t, thirdPL2.Insert(postings.ID(89)))
+	thirdSearcher := search.NewMockSearcher(mockCtrl)
+
+	gomock.InOrder(
+		// Get the postings lists for the first Reader.
+		firstSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, firstPL1), nil
+			}),
+		secondSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, secondPL1), nil
+			}),
+		thirdSearcher.EXPECT().Search(firstReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, thirdPL1), nil
+			}),
+
+		// Get the postings lists for the second Reader.
+		firstSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, firstPL2), nil
+			}),
+		secondSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, secondPL2), nil
+			}),
+		thirdSearcher.EXPECT().Search(secondReader).
+			DoAndReturn(func(_ index.Reader) (postings.List, error) {
+				return mustReadOnlyBitmap(t, thirdPL2), nil
+			}),
+	)
+
+	var (
+		searchers = []search.Searcher{firstSearcher, secondSearcher}
+		negations = []search.Searcher{thirdSearcher}
+	)
+
+	s, err := NewConjunctionSearcher(searchers, negations)
+	require.NoError(t, err)
+
+	// Test the postings list from the first Reader.
+	expected := firstPL1.Clone()
+	expected.Intersect(secondPL1)
+	expected.Difference(thirdPL1)
+	pl, err := s.Search(firstReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
+
+	// Test the postings list from the second Reader.
+	expected = firstPL2.Clone()
+	expected.Intersect(secondPL2)
+	expected.Difference(thirdPL2)
+	pl, err = s.Search(secondReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
+}
+
 func TestConjunctionSearcherError(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -119,4 +216,18 @@ func TestConjunctionSearcherError(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func mustReadOnlyBitmap(t *testing.T, pl postings.List) *roaring.ReadOnlyBitmap {
+	b, ok := roaring.BitmapFromPostingsList(pl)
+	require.True(t, ok)
+
+	buff := bytes.NewBuffer(nil)
+	_, err := b.WriteTo(buff)
+	require.NoError(t, err)
+
+	readOnlyBitmap, err := roaring.NewReadOnlyBitmap(buff.Bytes())
+	require.NoError(t, err)
+
+	return readOnlyBitmap
 }

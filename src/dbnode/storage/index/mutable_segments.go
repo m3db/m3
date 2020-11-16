@@ -446,6 +446,17 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 	}
 }
 
+func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) segment.Segment {
+	var (
+		plCaches = ReadThroughSegmentCaches{
+			SegmentPostingsListCache: m.opts.PostingsListCache(),
+			SearchPostingsListCache:  m.opts.SearchPostingsListCache(),
+		}
+		readThroughOpts = m.opts.ReadThroughSegmentOptions()
+	)
+	return NewReadThroughSegment(seg, plCaches, readThroughOpts)
+}
+
 func (m *mutableSegments) backgroundCompactWithTask(
 	task compaction.Task,
 	log bool,
@@ -481,20 +492,14 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	// Add a read through cache for repeated expensive queries against
 	// background compacted segments since they can live for quite some
 	// time and accrue a large set of documents.
-	if immSeg, ok := compacted.(segment.ImmutableSegment); ok {
-		var (
-			plCache         = m.opts.PostingsListCache()
-			readThroughOpts = m.opts.ReadThroughSegmentOptions()
-		)
-		compacted = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
-	}
+	segment := m.newReadThroughSegment(compacted)
 
 	// Rotate out the replaced frozen segments and add the compacted one.
 	m.Lock()
 	defer m.Unlock()
 
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
-		segments, compacted)
+		segments, segment)
 	m.backgroundSegments = result
 
 	return nil
@@ -710,12 +715,17 @@ func (m *mutableSegments) foregroundCompactWithTask(
 		return err
 	}
 
+	// Add a read through cache for repeated expensive queries against
+	// compacted segments since they can live for quite some time during
+	// block rotations while a burst of segments are created.
+	segment := m.newReadThroughSegment(compacted)
+
 	// Rotate in the ones we just compacted.
 	m.Lock()
 	defer m.Unlock()
 
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.foregroundSegments,
-		segments, compacted)
+		segments, segment)
 	m.foregroundSegments = result
 
 	return nil

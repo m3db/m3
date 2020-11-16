@@ -497,6 +497,13 @@ func (b *builder) Doc(id postings.ID) (doc.Document, error) {
 	return b.docs[idx], nil
 }
 
+func (b *builder) NumDocs() (int, error) {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
+	return len(b.docs), nil
+}
+
 func (b *builder) Docs() []doc.Document {
 	b.status.RLock()
 	defer b.status.RUnlock()

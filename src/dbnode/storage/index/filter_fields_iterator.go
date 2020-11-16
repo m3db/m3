@@ -21,66 +21,82 @@
 package index
 
 import (
+	"bytes"
 	"errors"
+	"sort"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (
 	errNoFiltersSpecified = errors.New("no fields specified to filter upon")
 )
 
-func newFilterFieldsIterator(
-	reader segment.Reader,
-	fields AggregateFieldFilter,
-) (segment.FieldsIterator, error) {
-	if len(fields) == 0 {
-		return nil, errNoFiltersSpecified
-	}
-	return &filterFieldsIterator{
-		reader:     reader,
-		fields:     fields,
-		currentIdx: -1,
-	}, nil
-}
+var _ segment.FieldsPostingsListIterator = &filterFieldsIterator{}
 
 type filterFieldsIterator struct {
 	reader segment.Reader
-	fields AggregateFieldFilter
+	sorted [][]byte
+	iter   segment.FieldsPostingsListIterator
 
-	err        error
-	currentIdx int
+	currField         []byte
+	currFieldPostings postings.List
 }
 
-var _ segment.FieldsIterator = &filterFieldsIterator{}
+func newFilterFieldsIterator(
+	reader segment.Reader,
+	fields AggregateFieldFilter,
+) (segment.FieldsPostingsListIterator, error) {
+	if len(fields) == 0 {
+		return nil, errNoFiltersSpecified
+	}
+	sorted := make([][]byte, 0, len(fields))
+	for _, field := range fields {
+		sorted = append(sorted, field)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return bytes.Compare(sorted[i], sorted[j]) < 0
+	})
+	iter, err := reader.FieldsPostingsList()
+	if err != nil {
+		return nil, err
+	}
+	return &filterFieldsIterator{
+		reader: reader,
+		sorted: sorted,
+		iter:   iter,
+	}, nil
+}
 
 func (f *filterFieldsIterator) Next() bool {
-	if f.err != nil {
-		return false
-	}
-
-	f.currentIdx++ // required because we start at -1
-	for f.currentIdx < len(f.fields) {
-		field := f.fields[f.currentIdx]
-
-		ok, err := f.reader.ContainsField(field)
-		if err != nil {
-			f.err = err
+	for f.iter.Next() && len(f.sorted) > 0 {
+		f.currField, f.currFieldPostings = f.iter.Current()
+		cmpResult := bytes.Compare(f.currField, f.sorted[0])
+		if cmpResult < 0 {
+			// This result appears before the next sorted filter.
+			continue
+		}
+		if cmpResult > 0 {
+			// Result appears after last sorted entry filtering too, no more.
 			return false
 		}
 
-		// i.e. we found a field from the filter list contained in the segment.
-		if ok {
-			return true
-		}
-
-		// the current field is unsuitable, so we skip to the next possiblity.
-		f.currentIdx++
+		f.sorted = f.sorted[1:]
+		return true
 	}
 
 	return false
 }
 
-func (f *filterFieldsIterator) Current() []byte { return f.fields[f.currentIdx] }
-func (f *filterFieldsIterator) Err() error      { return f.err }
-func (f *filterFieldsIterator) Close() error    { return nil }
+func (f *filterFieldsIterator) Current() ([]byte, postings.List) {
+	return f.currField, f.currFieldPostings
+}
+
+func (f *filterFieldsIterator) Err() error {
+	return f.iter.Err()
+}
+
+func (f *filterFieldsIterator) Close() error {
+	return f.iter.Close()
+}

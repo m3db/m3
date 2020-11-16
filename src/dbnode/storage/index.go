@@ -159,10 +159,12 @@ type nsIndexState struct {
 	blocksByTime map[xtime.UnixNano]index.Block
 	latestBlock  index.Block
 
-	// NB: `blockStartsDescOrder` contains the keys from the map `blocksByTime` in reverse
-	// chronological order. This is used at query time to enforce determinism about results
-	// returned.
-	blockStartsDescOrder []xtime.UnixNano
+	// NB: `blocksDescOrderImmutable` contains the keys from the map
+	// `blocksByTime` in reverse chronological order. This is used at query time
+	// to enforce determinism about results returned.
+	// NB(r): Reference to this slice can be safely taken for iteration purposes
+	// for Query(..) since it is rebuilt each time and immutable once built.
+	blocksDescOrderImmutable []blockAndBlockStart
 
 	// shardsFilterID is set every time the shards change to correctly
 	// only return IDs that this node owns.
@@ -173,6 +175,11 @@ type nsIndexState struct {
 	shardFilteredForID func(id ident.ID) (uint32, bool)
 
 	shardsAssigned map[uint32]struct{}
+}
+
+type blockAndBlockStart struct {
+	block      index.Block
+	blockStart xtime.UnixNano
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -302,6 +309,7 @@ func newNamespaceIndexWithOptions(
 			"namespace": nsMD.ID().String(),
 		})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+	storageOpts := newIndexOpts.opts.SetInstrumentOptions(instrumentOpts)
 	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
 
 	nowFn := indexOpts.ClockOptions().NowFn()
@@ -348,7 +356,7 @@ func newNamespaceIndexWithOptions(
 		resultsPool:          indexOpts.QueryResultsPool(),
 		aggregateResultsPool: indexOpts.AggregateResultsPool(),
 
-		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
+		queryWorkersPool: newIndexOpts.opts.IndexOptions().QueryBlockWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
@@ -385,7 +393,7 @@ func newNamespaceIndexWithOptions(
 	idx.forwardIndexDice = dice
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
+	queue := newIndexQueueFn(idx.writeBatches, nsMD, storageOpts)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -513,13 +521,8 @@ func (i *nsIndex) reportStats() error {
 
 	// iterate known blocks in a defined order of time (newest first)
 	// for debug log ordering
-	for _, start := range i.state.blockStartsDescOrder {
-		block, ok := i.state.blocksByTime[start]
-		if !ok {
-			return i.missingBlockInvariantError(start)
-		}
-
-		err := block.Stats(reporter)
+	for _, b := range i.state.blocksDescOrderImmutable {
+		err := b.block.Stats(reporter)
 		if err == index.ErrUnableReportStatsBlockClosed {
 			// Closed blocks are temporarily in the list still
 			continue
@@ -1329,18 +1332,21 @@ func (i *nsIndex) Query(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	logFields := []opentracinglog.Field{
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
-		opentracinglog.Int("docsLimit", opts.DocsLimit),
-		xopentracing.Time("queryStart", opts.StartInclusive),
-		xopentracing.Time("queryEnd", opts.EndExclusive),
-	}
-
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
-	sp.LogFields(logFields...)
+	var logFields []opentracinglog.Field
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSIdxQuery)
 	defer sp.Finish()
+	if sampled {
+		// Only allocate metadata such as query string if sampling trace.
+		logFields = []opentracinglog.Field{
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+			opentracinglog.Int("docsLimit", opts.DocsLimit),
+			xopentracing.Time("queryStart", opts.StartInclusive),
+			xopentracing.Time("queryEnd", opts.EndExclusive),
+		}
+		sp.LogFields(logFields...)
+	}
 
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
@@ -1461,9 +1467,12 @@ func (i *nsIndex) query(
 	execBlockFn execBlockQueryFn,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
-	sp.LogFields(logFields...)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSIdxQueryHelper)
 	defer sp.Finish()
+	if sampled {
+		// Only log fields if sampled.
+		sp.LogFields(logFields...)
+	}
 
 	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields)
 	if err != nil {
@@ -1537,20 +1546,19 @@ func (i *nsIndex) queryWithSpan(
 	opts = i.overriddenOptsForQueryWithRLock(opts)
 	timeout := i.timeoutForQueryWithRLock(ctx)
 
-	// Retrieve blocks to query, then we can release lock
+	// Retrieve blocks to query, then we can release lock.
 	// NB(r): Important not to block ticking, and other tasks by
 	// holding the RLock during a query.
-	blocks, err := i.blocksForQueryWithRLock(xtime.NewRanges(xtime.Range{
+	qryRange := xtime.NewRanges(xtime.Range{
 		Start: opts.StartInclusive,
 		End:   opts.EndExclusive,
-	}))
+	})
+	// NB(r): Safe to take ref to i.state.blocksDescOrderImmutable since it's
+	// immutable and we only create an iterator over it.
+	iter := newBlocksIterStackAlloc(i.state.blocksDescOrderImmutable, qryRange)
 
 	// Can now release the lock and execute the query without holding the lock.
 	i.state.RUnlock()
-
-	if err != nil {
-		return false, err
-	}
 
 	var (
 		// State contains concurrent mutable state for async execution below.
@@ -1566,9 +1574,9 @@ func (i *nsIndex) queryWithSpan(
 	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
-	for _, block := range blocks {
+	for iter, ok := iter.Next(); ok; iter, ok = iter.Next() {
 		// Capture block for async query execution below.
-		block := block
+		block := iter.Current()
 
 		// We're looping through all the blocks that we need to query and kicking
 		// off parallel queries which are bounded by the queryWorkersPool's maximum
@@ -1660,7 +1668,7 @@ func (i *nsIndex) queryWithSpan(
 	state.Lock()
 	// Take reference to vars to return while locked.
 	exhaustive := state.exhaustive
-	err = state.multiErr.FinalError()
+	err := state.multiErr.FinalError()
 	state.Unlock()
 
 	if err != nil {
@@ -1826,40 +1834,6 @@ func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	return opts
 }
 
-func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Block, error) {
-	// Chunk the query request into bounds based on applicable blocks and
-	// execute the requests to each of them; and merge results.
-	blocks := make([]index.Block, 0, len(i.state.blockStartsDescOrder))
-
-	// Iterate known blocks in a defined order of time (newest first) to enforce
-	// some determinism about the results returned.
-	for _, start := range i.state.blockStartsDescOrder {
-		// Terminate if queryRange doesn't need any more data
-		if queryRange.IsEmpty() {
-			break
-		}
-
-		block, ok := i.state.blocksByTime[start]
-		if !ok {
-			// This is an invariant, should never occur if state tracking is correct.
-			return nil, i.missingBlockInvariantError(start)
-		}
-
-		// Ensure the block has data requested by the query.
-		blockRange := xtime.Range{Start: block.StartTime(), End: block.EndTime()}
-		if !queryRange.Overlaps(blockRange) {
-			continue
-		}
-
-		// Remove this range from the query range.
-		queryRange.RemoveRange(blockRange)
-
-		blocks = append(blocks, block)
-	}
-
-	return blocks, nil
-}
-
 func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (index.Block, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
@@ -1939,19 +1913,27 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 		latestBlock      index.Block
 	)
 
-	blockStarts := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	blocks := make([]blockAndBlockStart, 0, len(i.state.blocksByTime))
 	for ts, block := range i.state.blocksByTime {
 		if ts >= latestBlockStart {
 			latestBlock = block
 		}
-		blockStarts = append(blockStarts, ts)
+		blocks = append(blocks, blockAndBlockStart{
+			block:      block,
+			blockStart: ts,
+		})
 	}
 
 	// order in desc order (i.e. reverse chronological)
-	sort.Slice(blockStarts, func(i, j int) bool {
-		return blockStarts[i] > blockStarts[j]
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].blockStart > blocks[j].blockStart
 	})
-	i.state.blockStartsDescOrder = blockStarts
+	// NB(r): Important not to modify this once set since we take reference
+	// to this slice with an RLock, release with RUnlock and then loop over it
+	// during query time so it must not be altered and stay immutable.
+	// This is done to avoid allocating a copy of the slice at query time for
+	// each query.
+	i.state.blocksDescOrderImmutable = blocks
 
 	// rotate latestBlock
 	i.state.latestBlock = latestBlock
@@ -2138,7 +2120,7 @@ func (i *nsIndex) Close() error {
 
 	i.state.latestBlock = nil
 	i.state.blocksByTime = nil
-	i.state.blockStartsDescOrder = nil
+	i.state.blocksDescOrderImmutable = nil
 
 	if i.runtimeOptsListener != nil {
 		i.runtimeOptsListener.Close()
@@ -2164,14 +2146,6 @@ func (i *nsIndex) Close() error {
 	}
 
 	return multiErr.FinalError()
-}
-
-func (i *nsIndex) missingBlockInvariantError(t xtime.UnixNano) error {
-	err := fmt.Errorf("index query did not find block %d despite seeing it in slice", t)
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
-		l.Error(err.Error())
-	})
-	return err
 }
 
 func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
@@ -2413,4 +2387,57 @@ func (shards dbShards) IDs() []uint32 {
 		ids = append(ids, s.ID())
 	}
 	return ids
+}
+
+// blocksIterStackAlloc is a stack allocated block iterator, ensuring no
+// allocations per query.
+type blocksIterStackAlloc struct {
+	blocks      []blockAndBlockStart
+	queryRanges xtime.Ranges
+	idx         int
+}
+
+func newBlocksIterStackAlloc(
+	blocks []blockAndBlockStart,
+	queryRanges xtime.Ranges,
+) blocksIterStackAlloc {
+	return blocksIterStackAlloc{
+		blocks:      blocks,
+		queryRanges: queryRanges,
+		idx:         -1,
+	}
+}
+
+func (i blocksIterStackAlloc) Next() (blocksIterStackAlloc, bool) {
+	iter := i
+	if i.queryRanges.IsEmpty() {
+		return iter, false
+	}
+
+	for {
+		iter.idx++
+		if iter.idx >= len(i.blocks) {
+			return iter, false
+		}
+
+		block := i.blocks[iter.idx].block
+
+		// Ensure the block has data requested by the query.
+		blockRange := xtime.Range{
+			Start: block.StartTime(),
+			End:   block.EndTime(),
+		}
+		if !i.queryRanges.Overlaps(blockRange) {
+			continue
+		}
+
+		// Remove this range from the query range.
+		i.queryRanges.RemoveRange(blockRange)
+
+		return iter, true
+	}
+}
+
+func (i blocksIterStackAlloc) Current() index.Block {
+	return i.blocks[i.idx].block
 }

@@ -51,7 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -1188,12 +1187,6 @@ type Options interface {
 
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool.
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
-
-	// SetQueryIDsWorkerPool sets the QueryIDs worker pool.
-	SetQueryIDsWorkerPool(value xsync.WorkerPool) Options
-
-	// QueryIDsWorkerPool returns the QueryIDs worker pool.
-	QueryIDsWorkerPool() xsync.WorkerPool
 
 	// SetWriteBatchPool sets the WriteBatch pool.
 	SetWriteBatchPool(value *writes.WriteBatchPool) Options

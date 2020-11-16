@@ -21,6 +21,7 @@
 package query
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -64,8 +65,11 @@ func TestJoin(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expected, join(test.input))
-			require.Equal(t, test.expectedNegation, joinNegation(test.input))
+			var j, jn strings.Builder
+			join(&j, test.input)
+			joinNegation(&jn, test.input)
+			require.Equal(t, test.expected, j.String())
+			require.Equal(t, test.expectedNegation, jn.String())
 		})
 	}
 }

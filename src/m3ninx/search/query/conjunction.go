@@ -21,7 +21,8 @@
 package query
 
 import (
-	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,6 +31,8 @@ import (
 
 // ConjuctionQuery finds documents which match at least one of the given queries.
 type ConjuctionQuery struct {
+	sync.Mutex
+	strValue  string
 	queries   []search.Query
 	negations []search.Query
 }
@@ -151,10 +154,26 @@ func (q *ConjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *ConjuctionQuery) String() string {
-	if len(q.negations) > 0 {
-		return fmt.Sprintf("conjunction(%s,%s)",
-			join(q.queries), joinNegation(q.negations))
+	q.Lock()
+	str := q.stringWithLock()
+	q.Unlock()
+	return str
+}
+
+func (q *ConjuctionQuery) stringWithLock() string {
+	if q.strValue != "" {
+		return q.strValue
 	}
 
-	return fmt.Sprintf("conjunction(%s)", join(q.queries))
+	var str strings.Builder
+	str.WriteString("conjunction(")
+	join(&str, q.queries)
+	if len(q.negations) > 0 {
+		str.WriteRune(',')
+		joinNegation(&str, q.negations)
+	}
+	str.WriteRune(')')
+
+	q.strValue = str.String()
+	return q.strValue
 }

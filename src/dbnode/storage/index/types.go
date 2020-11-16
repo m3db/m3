@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -959,6 +960,12 @@ type Options interface {
 	// PostingsListCache returns the postings list cache.
 	PostingsListCache() *PostingsListCache
 
+	// SetSearchPostingsListCache sets the postings list cache.
+	SetSearchPostingsListCache(value *PostingsListCache) Options
+
+	// SearchPostingsListCache returns the postings list cache.
+	SearchPostingsListCache() *PostingsListCache
+
 	// SetReadThroughSegmentOptions sets the read through segment cache options.
 	SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options
 
@@ -989,4 +996,16 @@ type Options interface {
 
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
+
+	// SetQueryBlockWorkerPool sets the query block worker pool.
+	SetQueryBlockWorkerPool(value xsync.WorkerPool) Options
+
+	// QueryBlockWorkerPool returns the query block worker pool.
+	QueryBlockWorkerPool() xsync.WorkerPool
+
+	// SetQueryBlockSegmentWorkerPool sets the query block segment worker pool.
+	SetQueryBlockSegmentWorkerPool(value xsync.WorkerPool) Options
+
+	// QueryBlockSegmentWorkerPool returns the query block segment worker pool.
+	QueryBlockSegmentWorkerPool() xsync.WorkerPool
 }

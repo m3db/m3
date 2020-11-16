@@ -12,6 +12,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=cluster_a_m3db_local_1
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode-cluster-a.yml:/etc/m3dbnode/m3dbnode.yml"
   cluster_a_dbnode02:
@@ -26,6 +27,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=cluster_a_m3db_local_2
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode-cluster-a.yml:/etc/m3dbnode/m3dbnode.yml"
   cluster_a_coordinator01:
@@ -54,6 +56,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=cluster_b_m3db_local_1
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode-cluster-b.yml:/etc/m3dbnode/m3dbnode.yml"
   cluster_b_dbnode02:
@@ -68,6 +71,7 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     environment:
       - M3DB_HOST_ID=cluster_b_m3db_local_2
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
     volumes:
       - "./m3dbnode-cluster-b.yml:/etc/m3dbnode/m3dbnode.yml"
   cluster_b_coordinator01:

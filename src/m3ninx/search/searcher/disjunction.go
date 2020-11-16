@@ -21,8 +21,11 @@
 package searcher
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -43,19 +46,36 @@ func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error)
 }
 
 func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+	union := make([]postings.List, 0, len(s.searchers))
 	for _, sr := range s.searchers {
-		curr, err := sr.Search(r)
+		pl, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO: Sort the iterators so that we take the union in order of decreasing size.
-		if pl == nil {
-			pl = curr.Clone()
-		} else {
-			pl.Union(curr)
-		}
+		union = append(union, pl)
 	}
-	return pl, nil
+	if len(union) == 1 {
+		return union[0], nil
+	}
+
+	if index.MigrationReadOnlyPostings() {
+		// Perform a lazy fast union.
+		return roaring.UnionReadOnly(union)
+	}
+
+	// Not running migration path, fallback.
+	first, ok := union[0].(postings.MutableList)
+	if !ok {
+		// Note not creating a "errNotMutable" like error since this path
+		// will be deprecated and we might forget to cleanup the err var.
+		return nil, fmt.Errorf("postings list for non-migration path not mutable")
+	}
+
+	result := first.Clone()
+	if err := roaring.UnionInPlace(result, union[1:]); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

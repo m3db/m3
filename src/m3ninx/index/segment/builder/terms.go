@@ -30,6 +30,7 @@ import (
 type terms struct {
 	opts                Options
 	pool                postings.Pool
+	poolLocal           []postings.MutableList
 	postings            *PostingsMap
 	postingsListUnion   postings.MutableList
 	uniqueTerms         []termElem
@@ -55,20 +56,36 @@ func (t *terms) size() int {
 	return len(t.uniqueTerms)
 }
 
+func (t *terms) poolGet() postings.MutableList {
+	if len(t.poolLocal) == 0 {
+		return t.pool.Get()
+	}
+
+	last := len(t.poolLocal) - 1
+	elem := t.poolLocal[last]
+	t.poolLocal = t.poolLocal[:last]
+
+	return elem
+}
+
+func (t *terms) poolPut(v postings.MutableList) {
+	v.Reset()
+	t.poolLocal = append(t.poolLocal, v)
+}
+
 func (t *terms) post(term []byte, id postings.ID) error {
 	postingsList, ok := t.postings.Get(term)
 	if !ok {
-		postingsList = t.pool.Get()
+		postingsList = t.poolGet()
 		t.postings.SetUnsafe(term, postingsList, PostingsMapSetUnsafeOptions{
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
-
 	}
 
 	// If empty posting list, track insertion of this key into the terms
 	// collection for correct response when retrieving all terms
-	newTerm := postingsList.Len() == 0
+	newTerm := postingsList.IsEmpty()
 	if err := postingsList.Insert(id); err != nil {
 		return err
 	}
@@ -107,7 +124,7 @@ func (t *terms) sortIfRequired() {
 func (t *terms) reset() {
 	// Keep postings map lookup, return postings lists to pool
 	for _, entry := range t.postings.Iter() {
-		t.pool.Put(entry.Value())
+		t.poolPut(entry.Value())
 	}
 	t.postings.Reset()
 	t.postingsListUnion.Reset()

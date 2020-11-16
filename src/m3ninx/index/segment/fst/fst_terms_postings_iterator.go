@@ -21,16 +21,17 @@
 package fst
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3dbx/pilosa/roaring"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
 // postingsIterRoaringPoolingConfig uses a configuration that avoids allocating
 // any containers in the roaring bitmap, since these roaring bitmaps are backed
 // by mmaps and don't have any native containers themselves.
-var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
+var postingsIterRoaringPoolingConfig = pilosaroaring.ContainerPoolingConfiguration{
 	MaxArraySize:                    0,
 	MaxRunsSize:                     0,
 	AllocateBitmap:                  false,
@@ -38,44 +39,63 @@ var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
 	MaxKeysAndContainersSliceLength: 128 * 10,
 }
 
-type fstTermsPostingsIter struct {
-	bitmap   *roaring.Bitmap
-	postings postings.List
+var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
+var _ sgmt.FieldsPostingsListIterator = &fstTermsPostingsIter{}
 
-	seg       *fsSegment
-	termsIter *fstTermsIter
-	currTerm  []byte
-	err       error
+type fstTermsPostingsIter struct {
+	bitmap       *roaring.ReadOnlyBitmap
+	legacyBitmap *pilosaroaring.Bitmap
+	legacyList   postings.List
+
+	seg          *fsSegment
+	termsIter    *fstTermsIter
+	currTerm     []byte
+	fieldOffsets bool
+	err          error
 }
 
 func newFSTTermsPostingsIter() *fstTermsPostingsIter {
-	bitmap := roaring.NewBitmapWithPooling(postingsIterRoaringPoolingConfig)
+	var (
+		readOnlyBitmap *roaring.ReadOnlyBitmap
+		legacyBitmap   *pilosaroaring.Bitmap
+	)
+	if index.MigrationReadOnlyPostings() {
+		readOnlyBitmap = &roaring.ReadOnlyBitmap{}
+	} else {
+		legacyBitmap = pilosaroaring.NewBitmapWithPooling(postingsIterRoaringPoolingConfig)
+	}
 	i := &fstTermsPostingsIter{
-		bitmap:   bitmap,
-		postings: postingsroaring.NewPostingsListFromBitmap(bitmap),
+		bitmap:       readOnlyBitmap,
+		legacyBitmap: legacyBitmap,
+		legacyList:   roaring.NewPostingsListFromBitmap(legacyBitmap),
 	}
 	i.clear()
 	return i
 }
 
-var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
-
 func (f *fstTermsPostingsIter) clear() {
-	f.bitmap.Reset()
+	if index.MigrationReadOnlyPostings() {
+		f.bitmap.Reset(nil)
+	} else {
+		f.legacyBitmap.Reset()
+	}
 	f.seg = nil
 	f.termsIter = nil
 	f.currTerm = nil
+	f.fieldOffsets = false
 	f.err = nil
 }
 
 func (f *fstTermsPostingsIter) reset(
 	seg *fsSegment,
 	termsIter *fstTermsIter,
+	fieldOffsets bool,
 ) {
 	f.clear()
 
 	f.seg = seg
 	f.termsIter = termsIter
+	f.fieldOffsets = fieldOffsets
 }
 
 func (f *fstTermsPostingsIter) Next() bool {
@@ -92,15 +112,23 @@ func (f *fstTermsPostingsIter) Next() bool {
 	currOffset := f.termsIter.CurrentOffset()
 
 	f.seg.RLock()
-	f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
-		currOffset)
+	if index.MigrationReadOnlyPostings() {
+		f.err = f.seg.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
+			currOffset, f.fieldOffsets)
+	} else {
+		f.err = f.seg.unmarshalBitmapNotClosedMaybeFinalizedWithLock(f.legacyBitmap,
+			currOffset, f.fieldOffsets)
+	}
 	f.seg.RUnlock()
 
 	return f.err == nil
 }
 
 func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {
-	return f.currTerm, f.postings
+	if index.MigrationReadOnlyPostings() {
+		return f.currTerm, f.bitmap
+	}
+	return f.currTerm, f.legacyList
 }
 
 func (f *fstTermsPostingsIter) Err() error {

@@ -23,10 +23,12 @@ package executor
 import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 type iterator struct {
+	query    search.Query
 	searcher search.Searcher
 	readers  index.Readers
 
@@ -38,8 +40,14 @@ type iterator struct {
 	closed bool
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
+func newIterator(q search.Query, rs index.Readers) (doc.Iterator, error) {
+	s, err := q.Searcher()
+	if err != nil {
+		return nil, err
+	}
+
 	it := &iterator{
+		query:    q,
 		searcher: s,
 		readers:  rs,
 		idx:      -1,
@@ -116,16 +124,19 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 		return nil, false, nil
 	}
 
-	reader := it.readers[it.idx]
-	pl, err := it.searcher.Search(reader)
+	var (
+		reader = it.readers[it.idx]
+		pl     postings.List
+		err    error
+	)
+	if readThrough, ok := reader.(search.ReadThroughSegmentSearcher); ok {
+		pl, err = readThrough.Search(it.query, it.searcher)
+	} else {
+		pl, err = it.searcher.Search(reader)
+	}
 	if err != nil {
 		return nil, false, err
 	}
 
-	iter, err := reader.Docs(pl)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return iter, true, nil
+	return index.NewIDDocIterator(reader, pl.Iterator()), true, nil
 }

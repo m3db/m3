@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/search"
 
 	"github.com/pborman/uuid"
 )
@@ -53,34 +54,56 @@ type ReadThroughSegment struct {
 
 	segment segment.ImmutableSegment
 
-	uuid              uuid.UUID
-	postingsListCache *PostingsListCache
+	uuid   uuid.UUID
+	caches ReadThroughSegmentCaches
 
 	opts ReadThroughSegmentOptions
 
+	searches readThroughSegmentSearches
+
 	closed bool
+}
+
+type readThroughSegmentSearches struct {
+	sync.RWMutex
+	queries map[string]int
+}
+
+// ReadThroughSegmentCaches is the set of caches
+// to use for the read through segment.
+type ReadThroughSegmentCaches struct {
+	SegmentPostingsListCache *PostingsListCache
+	SearchPostingsListCache  *PostingsListCache
 }
 
 // ReadThroughSegmentOptions is the options struct for the
 // ReadThroughSegment.
 type ReadThroughSegmentOptions struct {
-	// Whether the postings list for regexp queries should be cached.
+	// CacheRegexp sets whether the postings list for regexp queries
+	// should be cached.
 	CacheRegexp bool
-	// Whether the postings list for term queries should be cached.
+	// CacheTerms sets whether the postings list for term queries
+	// should be cached.
 	CacheTerms bool
+	// CacheSearches sets whether the postings list for search queries
+	// should be cached.
+	CacheSearches bool
 }
 
 // NewReadThroughSegment creates a new read through segment.
 func NewReadThroughSegment(
 	seg segment.ImmutableSegment,
-	cache *PostingsListCache,
+	caches ReadThroughSegmentCaches,
 	opts ReadThroughSegmentOptions,
 ) segment.Segment {
 	return &ReadThroughSegment{
-		segment:           seg,
-		opts:              opts,
-		uuid:              uuid.NewUUID(),
-		postingsListCache: cache,
+		segment: seg,
+		opts:    opts,
+		uuid:    uuid.NewUUID(),
+		caches:  caches,
+		searches: readThroughSegmentSearches{
+			queries: make(map[string]int),
+		},
 	}
 }
 
@@ -96,8 +119,7 @@ func (r *ReadThroughSegment) Reader() (segment.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newReadThroughSegmentReader(
-		reader, r.uuid, r.postingsListCache, r.opts), nil
+	return newReadThroughSegmentReader(r, reader, r.uuid, r.caches, r.opts), nil
 }
 
 // Close purges all entries in the cache associated with this segment,
@@ -111,13 +133,38 @@ func (r *ReadThroughSegment) Close() error {
 
 	r.closed = true
 
-	if r.postingsListCache != nil {
-		// Purge segments from the cache before closing the segment to avoid
-		// temporarily having postings lists in the cache whose underlying
-		// bytes are no longer mmap'd.
-		r.postingsListCache.PurgeSegment(r.uuid)
-	}
+	// Purge segments from the cache before closing the segment to avoid
+	// temporarily having postings lists in the cache whose underlying
+	// bytes are no longer mmap'd.
+	closer := cacheCloser{segment: r}
+	closer.closeCaches()
 	return r.segment.Close()
+}
+
+type cacheCloser struct {
+	segment *ReadThroughSegment
+	closed  []*PostingsListCache
+}
+
+func (c *cacheCloser) closeCaches() {
+	c.closeCache(c.segment.caches.SegmentPostingsListCache)
+	c.closeCache(c.segment.caches.SearchPostingsListCache)
+}
+
+func (c *cacheCloser) closeCache(cache *PostingsListCache) {
+	if cache == nil {
+		return
+	}
+	for _, elem := range c.closed {
+		if elem == cache {
+			// Already closed.
+			break
+		}
+	}
+	// Close.
+	cache.PurgeSegment(c.segment.uuid)
+	// Add to list of unique closed caches.
+	c.closed = append(c.closed, cache)
 }
 
 // FieldsIterable is a pass through call to the segment, since there's no
@@ -155,27 +202,32 @@ func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
 }
 
+var _ search.ReadThroughSegmentSearcher = (*readThroughSegmentReader)(nil)
+
 type readThroughSegmentReader struct {
+	seg *ReadThroughSegment
 	// reader is explicitly not embedded at the top level
 	// of the struct to force new methods added to index.Reader
 	// to be explicitly supported by the read through cache.
-	reader            segment.Reader
-	opts              ReadThroughSegmentOptions
-	uuid              uuid.UUID
-	postingsListCache *PostingsListCache
+	reader segment.Reader
+	opts   ReadThroughSegmentOptions
+	uuid   uuid.UUID
+	caches ReadThroughSegmentCaches
 }
 
 func newReadThroughSegmentReader(
+	seg *ReadThroughSegment,
 	reader segment.Reader,
 	uuid uuid.UUID,
-	cache *PostingsListCache,
+	caches ReadThroughSegmentCaches,
 	opts ReadThroughSegmentOptions,
 ) segment.Reader {
 	return &readThroughSegmentReader{
-		reader:            reader,
-		opts:              opts,
-		uuid:              uuid,
-		postingsListCache: cache,
+		seg:    seg,
+		reader: reader,
+		opts:   opts,
+		uuid:   uuid,
+		caches: caches,
 	}
 }
 
@@ -185,21 +237,22 @@ func (s *readThroughSegmentReader) MatchRegexp(
 	field []byte,
 	c index.CompiledRegex,
 ) (postings.List, error) {
-	if s.postingsListCache == nil || !s.opts.CacheRegexp {
+	cache := s.caches.SegmentPostingsListCache
+	if cache == nil || !s.opts.CacheRegexp {
 		return s.reader.MatchRegexp(field, c)
 	}
 
 	// TODO(rartoul): Would be nice to not allocate strings here.
 	fieldStr := string(field)
 	patternStr := c.FSTSyntax.String()
-	pl, ok := s.postingsListCache.GetRegexp(s.uuid, fieldStr, patternStr)
+	pl, ok := cache.GetRegexp(s.uuid, fieldStr, patternStr)
 	if ok {
 		return pl, nil
 	}
 
 	pl, err := s.reader.MatchRegexp(field, c)
 	if err == nil {
-		s.postingsListCache.PutRegexp(s.uuid, fieldStr, patternStr, pl)
+		cache.PutRegexp(s.uuid, fieldStr, patternStr, pl)
 	}
 	return pl, err
 }
@@ -209,21 +262,22 @@ func (s *readThroughSegmentReader) MatchRegexp(
 func (s *readThroughSegmentReader) MatchTerm(
 	field []byte, term []byte,
 ) (postings.List, error) {
-	if s.postingsListCache == nil || !s.opts.CacheTerms {
+	cache := s.caches.SegmentPostingsListCache
+	if cache == nil || !s.opts.CacheTerms {
 		return s.reader.MatchTerm(field, term)
 	}
 
 	// TODO(rartoul): Would be nice to not allocate strings here.
 	fieldStr := string(field)
 	patternStr := string(term)
-	pl, ok := s.postingsListCache.GetTerm(s.uuid, fieldStr, patternStr)
+	pl, ok := cache.GetTerm(s.uuid, fieldStr, patternStr)
 	if ok {
 		return pl, nil
 	}
 
 	pl, err := s.reader.MatchTerm(field, term)
 	if err == nil {
-		s.postingsListCache.PutTerm(s.uuid, fieldStr, patternStr, pl)
+		cache.PutTerm(s.uuid, fieldStr, patternStr, pl)
 	}
 	return pl, err
 }
@@ -231,20 +285,21 @@ func (s *readThroughSegmentReader) MatchTerm(
 // MatchField returns a cached posting list or queries the underlying
 // segment if their is a cache miss.
 func (s *readThroughSegmentReader) MatchField(field []byte) (postings.List, error) {
-	if s.postingsListCache == nil || !s.opts.CacheTerms {
+	cache := s.caches.SegmentPostingsListCache
+	if cache == nil || !s.opts.CacheTerms {
 		return s.reader.MatchField(field)
 	}
 
 	// TODO(rartoul): Would be nice to not allocate strings here.
 	fieldStr := string(field)
-	pl, ok := s.postingsListCache.GetField(s.uuid, fieldStr)
+	pl, ok := cache.GetField(s.uuid, fieldStr)
 	if ok {
 		return pl, nil
 	}
 
 	pl, err := s.reader.MatchField(field)
 	if err == nil {
-		s.postingsListCache.PutField(s.uuid, fieldStr, pl)
+		cache.PutField(s.uuid, fieldStr, pl)
 	}
 	return pl, err
 }
@@ -253,7 +308,7 @@ func (s *readThroughSegmentReader) MatchField(field []byte) (postings.List, erro
 // NB(r): The postings list returned by match all is just an iterator
 // from zero to the maximum document number indexed by the segment and as such
 // causes no allocations to compute and construct.
-func (s *readThroughSegmentReader) MatchAll() (postings.MutableList, error) {
+func (s *readThroughSegmentReader) MatchAll() (postings.List, error) {
 	return s.reader.MatchAll()
 }
 
@@ -267,6 +322,11 @@ func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	return s.reader.Doc(id)
 }
 
+// NumDocs is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) NumDocs() (int, error) {
+	return s.reader.NumDocs()
+}
+
 // Docs is a pass through call, since there's no postings list to cache.
 func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	return s.reader.Docs(pl)
@@ -275,6 +335,11 @@ func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) 
 // Fields is a pass through call.
 func (s *readThroughSegmentReader) Fields() (segment.FieldsIterator, error) {
 	return s.reader.Fields()
+}
+
+// FieldsPostingsList is a pass through call.
+func (s *readThroughSegmentReader) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
+	return s.reader.FieldsPostingsList()
 }
 
 // ContainsField is a pass through call.
@@ -290,4 +355,60 @@ func (s *readThroughSegmentReader) Terms(field []byte) (segment.TermsIterator, e
 // Close is a pass through call.
 func (s *readThroughSegmentReader) Close() error {
 	return s.reader.Close()
+}
+
+func (s *readThroughSegmentReader) Search(
+	query search.Query,
+	searcher search.Searcher,
+) (postings.List, error) {
+	cache := s.caches.SearchPostingsListCache
+	if cache == nil || !s.opts.CacheSearches {
+		return searcher.Search(s)
+	}
+
+	// TODO(r): Would be nice to not allocate strings here.
+	queryStr := query.String()
+	pl, ok := cache.GetSearch(s.uuid, queryStr)
+	if ok {
+		return pl, nil
+	}
+
+	pl, err := searcher.Search(s)
+	if err != nil {
+		return nil, err
+	}
+
+	s.seg.searches.Lock()
+	count := 1
+	curr, ok := s.seg.searches.queries[queryStr]
+	if !ok {
+		if len(s.seg.searches.queries) >= cache.size {
+			// Delete a random key to make room.
+			for k := range s.seg.searches.queries {
+				delete(s.seg.searches.queries, k)
+				break // Immediately break.
+			}
+			s.seg.searches.queries[queryStr] = count
+		}
+	} else {
+		count = curr + 1
+	}
+	willCache := count > 1
+	if willCache {
+		// Delete out of the seen query count.
+		delete(s.seg.searches.queries, queryStr)
+	} else {
+		// Update seen count.
+		s.seg.searches.queries[queryStr] = count
+	}
+	s.seg.searches.Unlock()
+
+	if willCache {
+		// Only cache the second time seen a recent query since
+		// copying the postings lists into a roaring postings list
+		// can be expensive (in PutSearch).
+		cache.PutSearch(s.uuid, queryStr, pl)
+	}
+
+	return pl, nil
 }

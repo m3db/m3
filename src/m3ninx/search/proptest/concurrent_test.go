@@ -21,11 +21,11 @@
 package proptest
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -39,16 +39,17 @@ import (
 
 func TestConcurrentQueries(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
-	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 100
+	// seed := time.Now().UnixNano()
+	seed := int64(1603711252461848000)
+	parameters.MinSuccessfulTests = 1000
 	parameters.MaxSize = 20
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
 	simpleSeg := newTestMemSegment(t, lotsTestDocuments)
-	simpleReader, err := simpleSeg.Reader()
-	require.NoError(t, err)
-	simpleExec := executor.NewExecutor([]index.Reader{simpleReader})
+	// simpleReader, err := simpleSeg.Reader()
+	// require.NoError(t, err)
+	// simpleExec := executor.NewExecutor([]index.Reader{simpleReader})
 
 	fstSeg := fst.ToTestSegment(t, simpleSeg, fstOptions)
 	fstReader, err := fstSeg.Reader()
@@ -57,10 +58,10 @@ func TestConcurrentQueries(t *testing.T) {
 
 	properties.Property("Any concurrent queries segments does not affect fst segments", prop.ForAll(
 		func(q search.Query) (bool, error) {
-			dOrg, err := simpleExec.Execute(q)
+			dOrg, err := fstExec.Execute(q)
 			require.NoError(t, err)
 			matchedDocs, err := collectDocs(dOrg)
-			require.NoError(t, err)
+			require.NoError(t, err, fmt.Sprintf("query: %v\n", q.String()))
 			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
 			require.NoError(t, err)
 

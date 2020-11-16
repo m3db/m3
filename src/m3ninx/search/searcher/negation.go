@@ -21,8 +21,11 @@
 package searcher
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -44,11 +47,29 @@ func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
 		return nil, err
 	}
 
-	sPl, err := s.searcher.Search(r)
+	negatePl, err := s.searcher.Search(r)
 	if err != nil {
 		return nil, err
 	}
 
-	pl.Difference(sPl)
-	return pl, nil
+	if index.MigrationReadOnlyPostings() {
+		// Perform a lazy fast intersect and negate.
+		intersects := []postings.List{pl}
+		negations := []postings.List{negatePl}
+		return roaring.IntersectAndNegateReadOnly(intersects, negations)
+	}
+
+	// Not running migration path, fallback.
+	mutable, ok := pl.(postings.MutableList)
+	if !ok {
+		// Note not creating a "errNotMutable" like error since this path
+		// will be deprecated and we might forget to cleanup the err var.
+		return nil, fmt.Errorf("postings list for non-migration path not mutable")
+	}
+
+	result := mutable.Clone()
+	if err := result.Difference(negatePl); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

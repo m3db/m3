@@ -10,6 +10,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
   coordinator-cluster-a:
     expose:
       - "7201"
@@ -34,6 +36,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
   coordinator-cluster-b:
     expose:
       - "7201"
@@ -58,6 +62,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_READ_ONLY_POSTINGS # Remove after MigrationReadOnlyPostings done
   coordinator-cluster-c:
     expose:
       - "7201"
