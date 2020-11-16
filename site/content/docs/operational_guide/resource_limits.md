@@ -146,18 +146,6 @@ limits:
     # If true this results in causing a query error if the query exceeds 
     # the series or blocks limit for any given individual storage node per query.
     requireExhaustive: true
-
-    # If set this limits the max number of datapoints allowed to be used by a
-    # given query. This is applied at the query service after the result has 
-    # been returned by a storage node.
-    maxFetchedDatapoints: 0
-
-  # If set will override default limits set globally.
-  global:
-    # If set this limits the max number of datapoints allowed to be used by all
-    # queries at any point in time, this is applied at the query service after 
-    # the result has been returned by a storage node.
-    maxFetchedDatapoints: 0
 ```
 
 ### Headers
