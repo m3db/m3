@@ -39,9 +39,8 @@ func TestInvalidInstantQueryReturns400(t *testing.T) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
 	instantQueryBadRequestTest := []urlTest{
-		// FAILING issue #2: invalid or missing query string should result in 400
-		// {"missing query", queryURL("query", "")},
-		// {"invalid query", queryURL("query", "@!")},
+		{"missing query", queryURL("query", "")},
+		{"invalid query", queryURL("query", "@!")},
 		{"invalid time", queryURL("time", "INVALID")},
 		{"invalid timeout", queryURL("timeout", "INVALID")},
 	}
@@ -58,8 +57,7 @@ func TestInvalidRangeQueryReturns400(t *testing.T) {
 
 	queryBadRequestTest := []urlTest{
 		{"missing query", queryRangeURL("query", "")},
-		// FAILING issue #2: invalid query string should result in 400
-		// {"invalid query", queryRangeURL("query", "@!")},
+		{"invalid query", queryRangeURL("query", "@!")},
 		{"missing start", queryRangeURL("start", "")},
 		{"invalid start", queryRangeURL("start", "INVALID")},
 		{"missing end", queryRangeURL("end", "")},
