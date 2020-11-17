@@ -71,7 +71,7 @@ const (
 )
 
 var (
-	// 5m is the default lookback in Prometheus
+	// 5m is the default lookback in Prometheus.
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
