@@ -143,6 +143,10 @@ func (h *renderHandler) serveHTTP(
 				wg.Done()
 			}()
 
+			if source := r.Header.Get(headers.SourceHeader); len(source) > 0 {
+				childCtx.Source = []byte(source)
+			}
+
 			exp, err := h.engine.Compile(target)
 			if err != nil {
 				sendError(errorCh, errors.NewRenamedError(err,

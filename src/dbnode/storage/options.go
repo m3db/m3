@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -167,6 +168,8 @@ type options struct {
 	schemaReg                       namespace.SchemaRegistry
 	blockLeaseManager               block.LeaseManager
 	onColdFlush                     OnColdFlush
+	forceColdWritesEnabled          bool
+	sourceLoggerBuilder             limits.SourceLoggerBuilder
 	iterationOptions                index.IterationOptions
 	memoryTracker                   MemoryTracker
 	mmapReporter                    mmap.Reporter
@@ -789,6 +792,26 @@ func (o *options) SetOnColdFlush(value OnColdFlush) Options {
 
 func (o *options) OnColdFlush() OnColdFlush {
 	return o.onColdFlush
+}
+
+func (o *options) SetForceColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.forceColdWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ForceColdWritesEnabled() bool {
+	return o.forceColdWritesEnabled
+}
+
+func (o *options) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {
+	opts := *o
+	opts.sourceLoggerBuilder = value
+	return &opts
+}
+
+func (o *options) SourceLoggerBuilder() limits.SourceLoggerBuilder {
+	return o.sourceLoggerBuilder
 }
 
 func (o *options) SetIterationOptions(value index.IterationOptions) Options {
