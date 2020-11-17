@@ -63,6 +63,7 @@ message FetchOptions {
 	FanoutOption aggregatedOptimized = 6;
 	// Deprecated: all requests will include resolution.
 	bool includeResolution           = 7 [deprecated=true];
+	bytes source                     = 8;
 }
 
 message RestrictQueryOptions {

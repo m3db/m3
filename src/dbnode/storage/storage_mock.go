@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -4705,6 +4706,62 @@ func (m *MockOptions) OnColdFlush() OnColdFlush {
 func (mr *MockOptionsMockRecorder) OnColdFlush() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnColdFlush", reflect.TypeOf((*MockOptions)(nil).OnColdFlush))
+}
+
+// SetForceColdWritesEnabled mocks base method
+func (m *MockOptions) SetForceColdWritesEnabled(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetForceColdWritesEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetForceColdWritesEnabled indicates an expected call of SetForceColdWritesEnabled
+func (mr *MockOptionsMockRecorder) SetForceColdWritesEnabled(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetForceColdWritesEnabled), value)
+}
+
+// ForceColdWritesEnabled mocks base method
+func (m *MockOptions) ForceColdWritesEnabled() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForceColdWritesEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ForceColdWritesEnabled indicates an expected call of ForceColdWritesEnabled
+func (mr *MockOptionsMockRecorder) ForceColdWritesEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceColdWritesEnabled", reflect.TypeOf((*MockOptions)(nil).ForceColdWritesEnabled))
+}
+
+// SetSourceLoggerBuilder mocks base method
+func (m *MockOptions) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSourceLoggerBuilder", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSourceLoggerBuilder indicates an expected call of SetSourceLoggerBuilder
+func (mr *MockOptionsMockRecorder) SetSourceLoggerBuilder(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SetSourceLoggerBuilder), value)
+}
+
+// SourceLoggerBuilder mocks base method
+func (m *MockOptions) SourceLoggerBuilder() limits.SourceLoggerBuilder {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SourceLoggerBuilder")
+	ret0, _ := ret[0].(limits.SourceLoggerBuilder)
+	return ret0
+}
+
+// SourceLoggerBuilder indicates an expected call of SourceLoggerBuilder
+func (mr *MockOptionsMockRecorder) SourceLoggerBuilder() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SourceLoggerBuilder", reflect.TypeOf((*MockOptions)(nil).SourceLoggerBuilder))
 }
 
 // SetMemoryTracker mocks base method

@@ -94,6 +94,7 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 			Timeout: ctx.Timeout,
 			Limit:   ctx.Limit,
 		},
+		Source: ctx.Source,
 	}
 
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)

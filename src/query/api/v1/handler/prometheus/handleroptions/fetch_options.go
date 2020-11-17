@@ -147,6 +147,10 @@ func (b fetchOptionsBuilder) newFetchOptions(
 ) (*storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
 
+	if source := req.Header.Get(headers.SourceHeader); len(source) > 0 {
+		fetchOpts.Source = []byte(source)
+	}
+
 	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
