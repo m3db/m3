@@ -305,7 +305,7 @@ func validateGoodTaggedSeries(
 	}
 }
 
-func TestBootstrapIndex(t *testing.T) {
+func TestBootstrapIndexAndIndexSegmentsFailedValidation(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
