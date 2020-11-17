@@ -724,7 +724,7 @@ func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
 		}
 	}
 
-	// Remove index results for the block in question
+	// Remove index results for the block we're deleting.
 	if err := removeIndexResults(ns, blockStart, runResult); err != nil {
 		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 			l.Error("error removing partial/corrupted index results",
@@ -1040,6 +1040,9 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		return bootstrapFromIndexPersistedBlocksResult{}, err
 	}
 
+	// Track corrupted block starts as we will attempt to later recover
+	// from corruption by building an index segment from TSDB data.
+	corruptedBlockStarts := make(map[xtime.UnixNano]struct{})
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
 			s.log.Error("unable to read index info file",
@@ -1052,7 +1055,17 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 
 		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		indexBlockStartUnixNanos := xtime.UnixNano(info.BlockStart)
+		indexBlockStart := indexBlockStartUnixNanos.ToTime()
+
+		if _, ok := corruptedBlockStarts[indexBlockStartUnixNanos]; ok {
+			s.log.Info("index block corrupted skipping index info file",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("blockStart", indexBlockStart),
+				zap.String("filepath", infoFile.Err.Filepath()),
+			)
+			continue
+		}
 
 		indexBlockRange := xtime.Range{
 			Start: indexBlockStart,
@@ -1109,9 +1122,18 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 				zap.Time("blockStart", indexBlockStart),
 				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
 			)
-			// Emit a metric for failed validations.
 			if errors.Is(err, fs.ErrIndexReaderValidationFailed) {
+				// Emit a metric for failed validations.
 				s.metrics.indexBlocksFailedValidation.Inc(1)
+				// Track corrupted blocks and remove any loaded results.
+				corruptedBlockStarts[indexBlockStartUnixNanos] = struct{}{}
+				if err := removeIndexResults(ns, indexBlockStart, res.result); err != nil {
+					s.log.Error("error removing partial/corrupted index results",
+						zap.Error(err),
+						zap.Stringer("namespace", ns.ID()),
+						zap.Time("blockStart", indexBlockStart),
+					)
+				}
 			}
 			continue
 		}
