@@ -22,7 +22,7 @@ package resources
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -31,7 +31,9 @@ import (
 
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
-	dockertest "github.com/ory/dockertest"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ory/dockertest"
 	"go.uber.org/zap"
 )
 
@@ -112,7 +114,7 @@ func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 		return admin.NamespaceGetResponse{}, errClosed
 	}
 
-	url := c.resource.getURL(7201, "api/v1/namespace")
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
 	logger := c.resource.logger.With(
 		zapMethod("getNamespace"), zap.String("url", url))
 
@@ -135,7 +137,7 @@ func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
 		return admin.PlacementGetResponse{}, errClosed
 	}
 
-	url := c.resource.getURL(7201, "api/v1/placement")
+	url := c.resource.getURL(7201, "api/v1/services/m3db/placement")
 	logger := c.resource.logger.With(
 		zapMethod("getPlacement"), zap.String("url", url))
 
@@ -239,13 +241,7 @@ func (c *coordinator) CreateDatabase(
 		zapMethod("createDatabase"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	b, err := json.Marshal(addRequest)
-	if err != nil {
-		logger.Error("failed to marshal", zap.Error(err))
-		return admin.DatabaseCreateResponse{}, err
-	}
-
-	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	resp, err := makePostRequest(logger, url, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
@@ -273,13 +269,7 @@ func (c *coordinator) AddNamespace(
 		zapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	b, err := json.Marshal(addRequest)
-	if err != nil {
-		logger.Error("failed to marshal", zap.Error(err))
-		return admin.NamespaceGetResponse{}, err
-	}
-
-	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	resp, err := makePostRequest(logger, url, &addRequest)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
@@ -328,6 +318,26 @@ func (c *coordinator) WriteCarbon(
 	logger.Info("write success", zap.Int("bytes written", n))
 	return con.Close()
 	// return nil
+}
+
+func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.Response, error) {
+	data := bytes.NewBuffer(nil)
+	if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
+		logger.Error("failed to marshal", zap.Error(err))
+
+		return nil, fmt.Errorf("failed to marshal: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
+	if err != nil {
+		logger.Error("failed to construct request", zap.Error(err))
+
+		return nil, fmt.Errorf("failed to construct request: %w", err)
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	return http.DefaultClient.Do(req)
 }
 
 func (c *coordinator) query(
