@@ -578,16 +578,19 @@ func (d *db) terminateWithLock() error {
 	}
 	d.state = databaseClosed
 
+	d.log.Info("closing mediator")
 	// close the mediator
 	if err := d.mediator.Close(); err != nil {
 		return err
 	}
 
+	d.log.Info("closing namespace watch")
 	// stop listening for namespace changes
 	if err := d.nsWatch.Close(); err != nil {
 		return err
 	}
 
+	d.log.Info("closing wired list")
 	// Stop the wired list
 	if wiredList := d.opts.DatabaseBlockOptions().WiredList(); wiredList != nil {
 		err := wiredList.Stop()
@@ -599,8 +602,10 @@ func (d *db) terminateWithLock() error {
 	// NB(prateek): Terminate is meant to return quickly, so we rely upon
 	// the gc to clean up any resources held by namespaces, and just set
 	// our reference to the namespaces to nil.
+	d.log.Info("reallocating")
 	d.namespaces.Reallocate()
 
+	d.log.Info("closing commit log")
 	// Finally close the commit log
 	return d.commitLog.Close()
 }
@@ -610,6 +615,7 @@ func (d *db) Terminate() error {
 	// finish before disabling.
 	d.mediator.DisableFileOpsAndWait()
 
+	d.log.Info("acquiring lock")
 	d.Lock()
 	defer d.Unlock()
 

@@ -100,7 +100,7 @@ import (
 
 const (
 	bootstrapConfigInitTimeout       = 10 * time.Second
-	serverGracefulCloseTimeout       = 10 * time.Second
+	serverGracefulCloseTimeout       = 1000 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	cpuProfileDuration               = 5 * time.Second
