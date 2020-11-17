@@ -107,7 +107,7 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("error creating instant query",
 			zap.Error(err), zap.String("query", query))
-		respondError(w, err)
+		respondError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()
