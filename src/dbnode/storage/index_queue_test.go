@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -395,7 +395,7 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -408,8 +408,9 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	assert.NoError(t, err)
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
-	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5,
-		time.Hour*2, nil, index.IterationOptions{})
+	blockSize := 2 * time.Hour
+	queryOpts, err := index.NewWideQueryOptions(time.Now().Truncate(blockSize),
+		5, blockSize, nil, index.IterationOptions{})
 	require.NoError(t, err)
 
 	expectedBatchIDs := [][]string{{"foo"}}
@@ -441,7 +442,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -456,8 +457,9 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	collector := make(chan *ident.IDBatch)
 	shard := testShardSet.Lookup(ident.StringID("foo"))
 	offShard := shard + 1
-	queryOpts, err := index.NewWideQueryOptions(time.Now(), 5, time.Hour*2,
-		[]uint32{offShard}, index.IterationOptions{})
+	blockSize := 2 * time.Hour
+	queryOpts, err := index.NewWideQueryOptions(time.Now().Truncate(blockSize),
+		5, blockSize, []uint32{offShard}, index.IterationOptions{})
 	require.NoError(t, err)
 
 	go func() {

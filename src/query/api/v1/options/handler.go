@@ -71,7 +71,9 @@ type CustomHandler interface {
 	// Methods is the list of http methods this handler services.
 	Methods() []string
 	// Handler is the custom handler itself.
-	Handler(handlerOptions HandlerOptions) (http.Handler, error)
+	// prev is optional argument for getting already registered handler for the same route.
+	// If there is nothing to override, prev will be nil.
+	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.

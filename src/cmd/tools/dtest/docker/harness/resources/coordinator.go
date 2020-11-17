@@ -328,14 +328,14 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 	if err := (&jsonpb.Marshaler{}).Marshal(data, body); err != nil {
 		logger.Error("failed to marshal", zap.Error(err))
 
-		return &http.Response{}, fmt.Errorf("failed to marshal: %w", err)
+		return nil, fmt.Errorf("failed to marshal: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
 	if err != nil {
 		logger.Error("failed to construct request", zap.Error(err))
 
-		return &http.Response{}, fmt.Errorf("failed to construct request: %w", err)
+		return nil, fmt.Errorf("failed to construct request: %w", err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")

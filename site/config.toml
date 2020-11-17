@@ -1,12 +1,12 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   [[module.imports]]
-    path = "github.com/chronosphereio/docs-theme"
-    # path = "../../../docs-theme"
+    path = "github.com/chronosphereio/victor"
+    # path = "../../../victor"
 
   [[module.mounts]]
     source = "content"
-    target = "content"
+    target = "content/docs"
 
   [[module.mounts]]
     source = "static"
@@ -32,8 +32,23 @@
     source = "archetypes"
     target = "archetypes"
 
-# theme = "docs-theme"
+ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 
+[permalinks]
+  "/" = "/docs/:section/:title/"
+  "faqs" = "/docs/:section/:title/"
+  "glossaries" = "/docs/:section/:title/"
+  "how_tos" = "/docs/:section/:title/"
+  "integrations" = "/docs/:section/:title/"
+  "m3coordinators" = "/docs/:section/:title/"
+  "m3dbs" = "/docs/:section/:title/"
+  "m3querys" = "/docs/:section/:title/"
+  "operational_guides" = "/docs/:section/:title/"
+  "overviews" = "/docs/:section/:title/"
+  "quickstarts" = "/docs/:section/:title/"
+  "troubleshootings" = "/docs/:section/:title/"
+
+# theme = "docs-theme"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
@@ -89,7 +104,8 @@ offlineSearch = false
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
   # TODO: pattern to branch?
-  editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+  # TODO: bring back
+  # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
   # Author of the site, will be used in meta information
   author = "m3"
   # Description of the site, will be used in meta information
@@ -116,6 +132,7 @@ offlineSearch = false
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
   themeVariant = "blue"
   twitter = "m3db_io"
+  disableHomeIcon = true
 
   [params.api]
     localCordinator = "http://localhost:7201/"
@@ -155,11 +172,22 @@ offlineSearch = false
       taskList = true
       typographer = true
 
-[[Languages.en.menu.shortcuts]]
-name = "<i class='fab fa-fw fa-github'></i> GitHub"
+[[menu.shortcuts]]
+pre = "<h3>More</h3>"
+name = "<i class='fa fa-github'></i> <label>Github repo</label>"
 identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-slack'></i> <label>Slack</label>"
+url = "https://bit.ly/m3slack"
+weight = 11
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-inbox'></i> <label>Mailing list</label>"
+url = "https://groups.google.com/forum/#!forum/m3db"
+weight = 12
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]

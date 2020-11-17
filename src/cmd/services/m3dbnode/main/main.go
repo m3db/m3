@@ -56,7 +56,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.InitDefaultsAndValidate(); err != nil {
+	if err := cfg.Validate(); err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "erro validating config: %v\n", err)

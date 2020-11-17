@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber-go/tally"
 )
@@ -108,7 +108,7 @@ type metricMap struct {
 	firstInsertAt     time.Time
 	rateLimiter       *rate.Limiter
 	runtimeOpts       runtime.Options
-	runtimeOptsCloser close.SimpleCloser
+	runtimeOptsCloser xresource.SimpleCloser
 	sleepFn           sleepFn
 	metrics           metricMapMetrics
 }

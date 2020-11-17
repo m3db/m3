@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -46,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -98,6 +98,7 @@ var (
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
+	errIndexClaimsManagerNotSet   = errors.New("index claims manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
 	errOnColdFlushNotSet          = errors.New("on cold flush is not set, requires at least a no-op implementation")
 )
@@ -142,6 +143,7 @@ type options struct {
 	newDecoderFn                    encoding.NewDecoderFn
 	bootstrapProcessProvider        bootstrap.ProcessProvider
 	persistManager                  persist.Manager
+	indexClaimsManager              fs.IndexClaimsManager
 	blockRetrieverManager           block.DatabaseBlockRetrieverManager
 	poolOpts                        pool.ObjectPoolOptions
 	contextPool                     context.Pool
@@ -165,6 +167,7 @@ type options struct {
 	schemaReg                       namespace.SchemaRegistry
 	blockLeaseManager               block.LeaseManager
 	onColdFlush                     OnColdFlush
+	iterationOptions                index.IterationOptions
 	memoryTracker                   MemoryTracker
 	mmapReporter                    mmap.Reporter
 	doNotIndexWithFieldsMap         map[string]string
@@ -174,6 +177,7 @@ type options struct {
 	wideBatchSize                   int
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
+	tileAggregator                  TileAggregator
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -249,6 +253,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		mediatorTickInterval:            defaultMediatorTickInterval,
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
+		tileAggregator:                  &noopTileAggregator{},
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -291,6 +296,11 @@ func (o *options) Validate() error {
 	// it was set to nil by a caller
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+
+	// validate that index claims manager is present
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
 	}
 
 	// validate series cache policy
@@ -550,6 +560,16 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
+}
+
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	opts := *o
 	opts.blockRetrieverManager = value
@@ -771,6 +791,16 @@ func (o *options) OnColdFlush() OnColdFlush {
 	return o.onColdFlush
 }
 
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
+}
+
 func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
 	opts := *o
 	opts.memoryTracker = memTracker
@@ -863,6 +893,17 @@ func (o *options) NamespaceHooks() NamespaceHooks {
 	return o.namespaceHooks
 }
 
+func (o *options) SetTileAggregator(value TileAggregator) Options {
+	opts := *o
+	opts.tileAggregator = value
+
+	return &opts
+}
+
+func (o *options) TileAggregator() TileAggregator {
+	return o.tileAggregator
+}
+
 type noOpColdFlush struct{}
 
 func (n *noOpColdFlush) ColdFlushNamespace(Namespace) (OnColdFlushNamespace, error) {
@@ -873,4 +914,16 @@ type noopNamespaceHooks struct{}
 
 func (h *noopNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
 	return nil
+}
+
+type noopTileAggregator struct{}
+
+func (a *noopTileAggregator) AggregateTiles(
+	opts AggregateTilesOptions,
+	ns Namespace,
+	shardID uint32,
+	readers []fs.DataFileSetReader,
+	writer fs.StreamingWriter,
+) (int64, error) {
+	return 0, nil
 }

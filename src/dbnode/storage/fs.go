@@ -60,8 +60,8 @@ type fileOpState struct {
 	// BlockLeaseVerifier needs to know that a higher cold flush version exists on disk so that
 	// it can approve the SeekerManager's request to open a lease on the latest version.
 	//
-	// In other words ColdVersionRetrievabled is used to keep track of the latest cold version that has
-	// been succesfully flushed and can be queried via the block retriever / seeker manager and
+	// In other words ColdVersionRetrievable is used to keep track of the latest cold version that has
+	// been successfully flushed and can be queried via the block retriever / seeker manager and
 	// as a result is safe to evict, while ColdVersionFlushed is used to keep track of the latest
 	// cold version that has been flushed and to validate lease requests from the SeekerManager when it
 	// receives a signal to open a new lease.

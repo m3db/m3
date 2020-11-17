@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -32,8 +31,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/migration"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -88,11 +85,9 @@ type handler struct {
 	aggregator     aggregator.Aggregator
 	log            *zap.Logger
 	readBufferSize int
-	msgpackItOpts  msgpack.UnaggregatedIteratorOptions
 	protobufItOpts protobuf.UnaggregatedOptions
 
 	errLogRateLimiter *rate.Limiter
-	rand              *rand.Rand
 	metrics           handlerMetrics
 
 	opts Options
@@ -110,10 +105,8 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 		aggregator:        aggregator,
 		log:               iOpts.Logger(),
 		readBufferSize:    opts.ReadBufferSize(),
-		msgpackItOpts:     opts.MsgpackUnaggregatedIteratorOptions(),
 		protobufItOpts:    opts.ProtobufUnaggregatedIteratorOptions(),
 		errLogRateLimiter: limiter,
-		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
 		opts:              opts,
 	}
@@ -128,7 +121,7 @@ func (s *handler) Handle(conn net.Conn) {
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
 	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
 	reader := bufio.NewReaderSize(read, s.readBufferSize)
-	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
+	it := protobuf.NewUnaggregatedIterator(reader, s.protobufItOpts)
 	defer it.Close()
 
 	// Iterate over the incoming metrics stream and queue up metrics.
