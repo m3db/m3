@@ -305,7 +305,7 @@ func validateGoodTaggedSeries(
 	}
 }
 
-func TestBootstrapIndexAndMissingDefaultVolumeType(t *testing.T) {
+func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -337,7 +337,8 @@ func TestBootstrapIndexAndMissingDefaultVolumeType(t *testing.T) {
 
 	// Write out non default type index volume type index block and ensure
 	// that it gets deleted and is not loaded into the index results to test
-	// the missing default index volume type volume index case.
+	// the unfulfilled shard time ranges case (missing default index volume type
+	// and/or index segments failed validation).
 	var (
 		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
 		shards                    = map[uint32]struct{}{testShard: struct{}{}}
