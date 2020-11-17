@@ -120,8 +120,12 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		StartInclusive: start,
 		EndExclusive:   end,
 	}
+
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	session, err := s.session()

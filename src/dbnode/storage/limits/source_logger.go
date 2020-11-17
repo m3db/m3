@@ -20,40 +20,53 @@
 
 package limits
 
-type noOpQueryLimits struct {
-}
+import (
+	"fmt"
 
-type noOpLookbackLimit struct {
-}
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
-var (
-	_ QueryLimits   = (*noOpQueryLimits)(nil)
-	_ LookbackLimit = (*noOpLookbackLimit)(nil)
+	"github.com/m3db/m3/src/x/instrument"
 )
 
-// NoOpQueryLimits returns inactive query limits.
-func NoOpQueryLimits() QueryLimits {
-	return &noOpQueryLimits{}
+// NB: log queries that are over 1 GB.
+const defaultLimit = 1024 * 1024 * 1024
+
+type sourceLoggerBuilder struct{}
+
+var _ SourceLoggerBuilder = (*sourceLoggerBuilder)(nil)
+
+func (s *sourceLoggerBuilder) NewSourceLogger(
+	name string,
+	iOpts instrument.Options,
+) SourceLogger {
+	var (
+		logger   = iOpts.Logger()
+		debugLog = logger.Check(zapcore.DebugLevel, fmt.Sprint("source logger for", name))
+	)
+
+	if debugLog == nil {
+		// NB: use empty logger.
+		return &sourceLogger{}
+	}
+
+	return &sourceLogger{logger: logger.With(zap.String("limit_name", name))}
 }
 
-func (q *noOpQueryLimits) DocsLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
+type sourceLogger struct {
+	logger *zap.Logger
 }
 
-func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
-	return &noOpLookbackLimit{}
-}
+var _ SourceLogger = (*sourceLogger)(nil)
 
-func (q *noOpQueryLimits) AnyExceeded() error {
-	return nil
-}
+func (l *sourceLogger) LogSourceValue(val int64, source []byte) {
+	if l.logger == nil || val < defaultLimit || len(source) == 0 {
+		// NB: Don't log each source as it would be very noisy, even at debug level.
+		return
+	}
 
-func (q *noOpQueryLimits) Stop() {
-}
-
-func (q *noOpQueryLimits) Start() {
-}
-
-func (q *noOpLookbackLimit) Inc(int, []byte) error {
-	return nil
+	l.logger.Debug("query from source exceeded size",
+		zap.ByteString("source", source),
+		zap.Int64("size", val),
+		zap.Int64("limit", defaultLimit))
 }

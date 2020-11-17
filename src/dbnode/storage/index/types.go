@@ -92,6 +92,8 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
+	// Source is an optional query source.
+	Source []byte
 }
 
 // WideQueryOptions enables users to specify constraints and

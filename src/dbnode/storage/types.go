@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -994,6 +995,9 @@ type OnColdFlushNamespace interface {
 	Done() error
 }
 
+// OptionTransform transforms given Options.
+type OptionTransform func(Options) Options
+
 // Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -1242,6 +1246,18 @@ type Options interface {
 
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
+
+	// SetForceColdWritesEnabled sets options for forcing cold writes.
+	SetForceColdWritesEnabled(value bool) Options
+
+	// SetForceColdWritesEnabled returns options for forcing cold writes.
+	ForceColdWritesEnabled() bool
+
+	// SetSourceLoggerBuilder sets the limit source logger builder.
+	SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options
+
+	// SetSourceLoggerBuilder returns the limit source logger builder.
+	SourceLoggerBuilder() limits.SourceLoggerBuilder
 
 	// SetMemoryTracker sets the MemoryTracker.
 	SetMemoryTracker(memTracker MemoryTracker) Options
