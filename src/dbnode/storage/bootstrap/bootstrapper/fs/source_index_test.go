@@ -305,7 +305,7 @@ func validateGoodTaggedSeries(
 	}
 }
 
-func TestBootstrapIndexAndIndexSegmentsFailedValidation(t *testing.T) {
+func TestBootstrapIndexAndMissingDefaultVolumeType(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -336,7 +336,7 @@ func TestBootstrapIndexAndIndexSegmentsFailedValidation(t *testing.T) {
 	defer tester.Finish()
 
 	// Write out non default type index volume type index block and ensure
-	// that it gets delete and is not loaded into the index results to test
+	// that it gets deleted and is not loaded into the index results to test
 	// the missing default index volume type volume index case.
 	var (
 		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
@@ -420,7 +420,7 @@ func TestBootstrapIndexAndIndexSegmentsFailedValidation(t *testing.T) {
 	// Validate that wrote the block out (and no index blocks
 	// were read as existing index blocks on disk)
 	counters := scope.Snapshot().Counters()
-	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 

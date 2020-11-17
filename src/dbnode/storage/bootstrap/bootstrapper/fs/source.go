@@ -748,12 +748,12 @@ func removeIndexResults(
 	multiErr := xerrors.NewMultiError()
 	results, ok := runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)]
 	if ok {
-		for _, indexBlock := range results.Iter() {
+		for volumeType, indexBlock := range results.Iter() {
 			for _, seg := range indexBlock.Segments() {
 				multiErr = multiErr.Add(seg.Segment().Close())
 			}
+			results.DeleteBlock(volumeType)
 		}
-		delete(runResult.index.IndexResults(), xtime.ToUnixNano(blockStart))
 	}
 	return multiErr.FinalError()
 }
@@ -855,21 +855,17 @@ func (s *fileSystemSource) read(
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		res               *runResult
+		res               = newRunResult()
 	)
 	if shardTimeRanges.IsEmpty() {
 		return newRunResult(), nil
 	}
 
-	setOrMergeResult := func(newResult *runResult) {
+	mergeResult := func(newResult *runResult) {
 		if newResult == nil {
 			return
 		}
-		if res == nil {
-			res = newResult
-		} else {
-			res = res.mergedResult(newResult)
-		}
+		res = res.mergedResult(newResult)
 	}
 
 	if run == bootstrapDataRunType {
@@ -901,7 +897,7 @@ func (s *fileSystemSource) read(
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
-			setOrMergeResult(r.result)
+			mergeResult(r.result)
 		}
 		logSpan("bootstrap_from_index_persisted_blocks_done")
 	}
@@ -940,8 +936,6 @@ func (s *fileSystemSource) read(
 		Cache:                     cache,
 	})
 
-	bootstrapFromReadersRunResult := newRunResult()
-
 	var buildWg sync.WaitGroup
 	for i := 0; i < indexSegmentConcurrency; i++ {
 		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
@@ -977,7 +971,7 @@ func (s *fileSystemSource) read(
 		buildWg.Add(1)
 		go func() {
 			s.bootstrapFromReaders(run, md,
-				accumulator, runOpts, bootstrapFromReadersRunResult,
+				accumulator, runOpts, res,
 				readerPool, readersCh, builder,
 				&bootstrapper.SharedPersistManager{Mgr: persistManager},
 				&bootstrapper.SharedCompactor{Compactor: compactor},
@@ -987,9 +981,6 @@ func (s *fileSystemSource) read(
 	}
 
 	buildWg.Wait()
-
-	// Merge any existing results if necessary.
-	setOrMergeResult(bootstrapFromReadersRunResult)
 
 	return res, nil
 }
