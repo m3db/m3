@@ -54,6 +54,9 @@ var (
 	}
 )
 
+// ResponseVerifier is a function that checks if the query response is valid.
+type ResponseVerifier func(int, string, error) error
+
 // Coordinator is a wrapper for a coordinator. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
 // endpoints for series data.
@@ -64,7 +67,7 @@ type Coordinator interface {
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier GoalStateVerifier, query string) error
+	RunQuery(verifier ResponseVerifier, query string) error
 }
 
 // Admin is a wrapper for admin functions.
@@ -341,7 +344,7 @@ func makePostRequest(logger *zap.Logger, url string, body proto.Message) (*http.
 }
 
 func (c *coordinator) query(
-	verifier GoalStateVerifier, query string,
+	verifier ResponseVerifier, query string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -358,19 +361,13 @@ func (c *coordinator) query(
 	}
 
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		logger.Error("status code not 2xx",
-			zap.Int("status code", resp.StatusCode),
-			zap.String("status", resp.Status))
-		return fmt.Errorf("status code %d", resp.StatusCode)
-	}
-	defer resp.Body.Close()
 	b, err := ioutil.ReadAll(resp.Body)
-	return verifier(string(b), err)
+
+	return verifier(resp.StatusCode, string(b), err)
 }
 
 func (c *coordinator) RunQuery(
-	verifier GoalStateVerifier, query string,
+	verifier ResponseVerifier, query string,
 ) error {
 	if c.resource.closed {
 		return errClosed
