@@ -192,7 +192,7 @@ function test_query_lookback_applied {
 
   # Now query and ensure that the latest timestamp is within the last two steps
   # from now.
-  ATTEMPTS=2 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s "0.0.0.0:7201/api/v1/query_range?query=lookback_test&step=15&start=$(expr $(date "+%s") - 600)&end=$(date "+%s")" | jq -r ".data.result[0].values[-1][0]") -gt $(expr $(date "+%s") - 30) ]]'
 }
 
