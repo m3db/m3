@@ -57,9 +57,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
-)
+var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 
 type closerFn func()
 
@@ -800,9 +798,7 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
 	dopts := DefaultTestOptions()
 
-	var (
-		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
-	)
+	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	ropts := metadata.Options().RetentionOptions()
@@ -902,6 +898,7 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 	assertNeedsFlush(t, ns, t2, t1, false)
 	assertNeedsFlush(t, ns, t2, t0, false)
 }
+
 func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -945,9 +942,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		dopts  = DefaultTestOptions()
 	)
 
-	var (
-		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
-	)
+	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
@@ -1466,13 +1461,13 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().
 		AggregateTiles(
 			sourceNsIDMatcher, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes0, opts).
+			sourceBlockVolumes0, gomock.Any(), opts).
 		Return(int64(3), nil)
 
 	targetShard1.EXPECT().
 		AggregateTiles(
 			sourceNsIDMatcher, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes1, opts).
+			sourceBlockVolumes1, gomock.Any(), opts).
 		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
