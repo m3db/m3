@@ -490,8 +490,21 @@ const (
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
-	NumSuccess int64
-	NumError   int64
+	NumSuccess           int64
+	NumError             int64
+	MutableSegmentsStats MutableSegmentsStats
+}
+
+// MutableSegmentsStats contains metadata about
+// an insertion into mutable segments.
+type MutableSegmentsStats struct {
+	NumForeground int
+	NumBackground int
+}
+
+// Empty returns whether stats is empty or not.
+func (s MutableSegmentsStats) Empty() bool {
+	return s.NumForeground == 0 && s.NumBackground == 0
 }
 
 // BlockTickResult returns statistics about tick.

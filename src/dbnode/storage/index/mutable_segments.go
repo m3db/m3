@@ -141,15 +141,15 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
-func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
+func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
 	m.Lock()
 	if m.state == mutableSegmentsStateClosed {
-		return errMutableSegmentsAlreadyClosed
+		return MutableSegmentsStats{}, errMutableSegmentsAlreadyClosed
 	}
 
 	if m.compact.compactingForeground {
 		m.Unlock()
-		return errUnableToWriteBlockConcurrent
+		return MutableSegmentsStats{}, errUnableToWriteBlockConcurrent
 	}
 
 	// Lazily allocate the segment builder and compactors.
@@ -157,7 +157,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 		m.blockOpts, m.opts)
 	if err != nil {
 		m.Unlock()
-		return err
+		return MutableSegmentsStats{}, err
 	}
 
 	m.compact.compactingForeground = true
@@ -178,19 +178,22 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	})
 	if len(builder.Docs()) == 0 {
 		// No inserts, no need to compact.
-		return insertResultErr
+		return MutableSegmentsStats{}, insertResultErr
 	}
 
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment from the segment builder before we can serve reads
 	// from an FST segment.
-	err = m.foregroundCompactWithBuilder(builder)
+	result, err := m.foregroundCompactWithBuilder(builder)
 	if err != nil {
-		return err
+		return MutableSegmentsStats{}, err
 	}
 
 	// Return result from the original insertion since compaction was successful.
-	return insertResultErr
+	return MutableSegmentsStats{
+		NumForeground: result.numForeground,
+		NumBackground: result.numBackground,
+	}, insertResultErr
 }
 
 func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
@@ -534,7 +537,7 @@ func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 	return append(result, newReadableSeg(compacted, m.opts))
 }
 
-func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) error {
+func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) (compactResult, error) {
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment.
 	m.Lock()
@@ -559,18 +562,18 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 
 	plan, err := compaction.NewPlan(segs, m.opts.ForegroundCompactionPlannerOptions())
 	if err != nil {
-		return err
+		return compactResult{}, err
 	}
 
 	// Check plan
 	if len(plan.Tasks) == 0 {
 		// Should always generate a task when a mutable builder is passed to planner
-		return errForegroundCompactorNoPlan
+		return compactResult{}, errForegroundCompactorNoPlan
 	}
 	if taskNumBuilders(plan.Tasks[0]) != 1 {
 		// First task of plan must include the builder, so we can avoid resetting it
 		// for the first task, but then safely reset it in consequent tasks
-		return errForegroundCompactorBadPlanFirstTask
+		return compactResult{}, errForegroundCompactorBadPlanFirstTask
 	}
 
 	// Move any unused segments to the background.
@@ -604,11 +607,10 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 	defer sw.Stop()
 
 	// Run the first task, without resetting the builder.
-	if err := m.foregroundCompactWithTask(
-		builder, plan.Tasks[0],
-		log, logger.With(zap.Int("task", 0)),
-	); err != nil {
-		return err
+	result, err := m.foregroundCompactWithTask(builder, plan.Tasks[0],
+		log, logger.With(zap.Int("task", 0)))
+	if err != nil {
+		return result, err
 	}
 
 	// Now run each consequent task, resetting the builder each time since
@@ -618,19 +620,18 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 		task := plan.Tasks[i]
 		if taskNumBuilders(task) > 0 {
 			// Only the first task should compact the builder
-			return errForegroundCompactorBadPlanSecondaryTask
+			return result, errForegroundCompactorBadPlanSecondaryTask
 		}
 		// Now use the builder after resetting it.
 		builder.Reset()
-		if err := m.foregroundCompactWithTask(
-			builder, task,
-			log, logger.With(zap.Int("task", i)),
-		); err != nil {
-			return err
+		result, err = m.foregroundCompactWithTask(builder, task,
+			log, logger.With(zap.Int("task", i)))
+		if err != nil {
+			return result, err
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
@@ -674,12 +675,17 @@ func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	m.maybeBackgroundCompactWithLock()
 }
 
+type compactResult struct {
+	numForeground int
+	numBackground int
+}
+
 func (m *mutableSegments) foregroundCompactWithTask(
 	builder segment.DocumentsBuilder,
 	task compaction.Task,
 	log bool,
 	logger *zap.Logger,
-) error {
+) (compactResult, error) {
 	if log {
 		logger.Debug("start compaction task")
 	}
@@ -707,7 +713,7 @@ func (m *mutableSegments) foregroundCompactWithTask(
 	}
 
 	if err != nil {
-		return err
+		return compactResult{}, err
 	}
 
 	// Rotate in the ones we just compacted.
@@ -718,7 +724,10 @@ func (m *mutableSegments) foregroundCompactWithTask(
 		segments, compacted)
 	m.foregroundSegments = result
 
-	return nil
+	return compactResult{
+		numForeground: len(m.foregroundSegments),
+		numBackground: len(m.backgroundSegments),
+	}, nil
 }
 
 func (m *mutableSegments) cleanupForegroundCompactWithLock() {
