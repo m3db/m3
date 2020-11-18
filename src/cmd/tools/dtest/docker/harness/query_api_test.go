@@ -71,7 +71,7 @@ func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
+			assert.NoError(t, coord.RunQuery(verifyResponse(400), tt.url), "for query '%v'", tt.url)
 		})
 	}
 }
@@ -129,14 +129,19 @@ func queryString(params map[string]string) string {
 	return strings.Join(p, "&")
 }
 
-func verifyStatus(expectedStatus int) resources.ResponseVerifier {
-	return func(status int, resp string, err error) error {
+func verifyResponse(expectedStatus int) resources.ResponseVerifier {
+	return func(status int, headers map[string][]string, resp string, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if status != expectedStatus {
 			return fmt.Errorf("expeceted %v status code, got %v", expectedStatus, status)
+		}
+
+		contentType := headers["Content-Type"][0]
+		if contentType != "application/json" {
+			return fmt.Errorf("expected json content type, got %v", contentType)
 		}
 
 		return nil
