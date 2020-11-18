@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -101,7 +102,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("error creating range query",
 			zap.Error(err), zap.String("query", request.Params.Query))
-		respondError(w, err)
+		respondError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()
