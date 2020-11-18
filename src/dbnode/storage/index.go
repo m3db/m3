@@ -560,7 +560,11 @@ func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
 }
 
 func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
-	return i.ensureBlockPresent(blockStart)
+	result, err := i.ensureBlockPresent(blockStart)
+	if err != nil {
+		return nil, err
+	}
+	return result.block, nil
 }
 
 // NB(prateek): including the call chains leading to this point:
@@ -780,7 +784,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// block we release it so we don't block the tick, etc when we insert
 	// batches since writing batches can take significant time when foreground
 	// compaction occurs.
-	block, err := i.ensureBlockPresent(blockStart)
+	blockResult, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		batch.MarkUnmarkedEntriesError(err)
 		i.logger.Error("unable to write to index, dropping inserts",
@@ -797,9 +801,9 @@ func (i *nsIndex) writeBatchForBlockStart(
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
 	// i.e. we have the block and the inserts, perform the writes.
-	result, err := block.WriteBatch(batch)
+	result, err := blockResult.block.WriteBatch(batch)
 
-	// record the end to end indexing latency
+	// Record the end to end indexing latency.
 	now := i.nowFn()
 	for idx := range pending {
 		took := now.Sub(pending[idx].EnqueuedAt)
@@ -810,6 +814,12 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
 	if n := result.NumSuccess; n > 0 {
 		i.metrics.asyncInsertSuccess.Inc(n)
+	}
+
+	// Record mutable segments count foreground/background if latest block.
+	if stats := result.MutableSegmentsStats; !stats.Empty() && blockResult.latest {
+		i.metrics.latestBlockNumSegmentsForeground.Update(float64(stats.NumForeground))
+		i.metrics.latestBlockNumSegmentsBackground.Update(float64(stats.NumBackground))
 	}
 
 	// Allow for duplicate write errors since due to re-indexing races
@@ -848,12 +858,12 @@ func (i *nsIndex) Bootstrap(
 
 	var multiErr xerrors.MultiError
 	for blockStart, blockResults := range bootstrapResults {
-		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
+		blockResult, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
 		}
-		if err := block.AddResults(blockResults); err != nil {
+		if err := blockResult.block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -1040,13 +1050,13 @@ func (i *nsIndex) flushableBlocks(
 	currentBlockStart := now.Truncate(i.blockSize)
 	// Check for flushable blocks by iterating through all block starts w/in retention.
 	for blockStart := earliestBlockStartToRetain; blockStart.Before(currentBlockStart); blockStart = blockStart.Add(i.blockSize) {
-		block, err := i.ensureBlockPresentWithRLock(blockStart)
+		blockResult, err := i.ensureBlockPresentWithRLock(blockStart)
 		if err != nil {
 			return nil, err
 		}
 
 		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart,
-			block, shards, flushType)
+			blockResult.block, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
@@ -1054,7 +1064,7 @@ func (i *nsIndex) flushableBlocks(
 			continue
 		}
 
-		flushable = append(flushable, block)
+		flushable = append(flushable, blockResult.block)
 	}
 	return flushable, nil
 }
@@ -1834,11 +1844,16 @@ func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	return opts
 }
 
-func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (index.Block, error) {
+type blockPresentResult struct {
+	block  index.Block
+	latest bool
+}
+
+func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (blockPresentResult, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
-		return nil, errDbIndexUnableToWriteClosed
+		return blockPresentResult{}, errDbIndexUnableToWriteClosed
 	}
 	return i.ensureBlockPresentWithRLock(blockStart)
 }
@@ -1846,19 +1861,22 @@ func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (index.Block, error) 
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
 // blockStart, allocating one if it does not. It returns the desired block, or
 // error if it's unable to do so.
-func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block, error) {
+func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresentResult, error) {
 	// check if the current latest block matches the required block, this
 	// is the usual path and can short circuit the rest of the logic in this
 	// function in most cases.
 	if i.state.latestBlock != nil && i.state.latestBlock.StartTime().Equal(blockStart) {
-		return i.state.latestBlock, nil
+		return blockPresentResult{
+			block:  i.state.latestBlock,
+			latest: true,
+		}, nil
 	}
 
 	// check if exists in the map (this can happen if the latestBlock has not
 	// been rotated yet).
 	blockStartNanos := xtime.ToUnixNano(blockStart)
 	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
-		return block, nil
+		return blockPresentResult{block: block}, nil
 	}
 
 	// i.e. block start does not exist, so we have to alloc.
@@ -1876,21 +1894,21 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 
 	// re-check if exists in the map (another routine did the alloc)
 	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
-		return block, nil
+		return blockPresentResult{block: block}, nil
 	}
 
 	// ok now we know for sure we have to alloc
 	block, err := i.newBlockFn(blockStart, i.nsMetadata,
 		index.BlockOptions{}, i.namespaceRuntimeOptsMgr, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
-		return nil, i.unableToAllocBlockInvariantError(err)
+		return blockPresentResult{}, i.unableToAllocBlockInvariantError(err)
 	}
 
 	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
 	// We need to seal cold blocks write away for cold writes.
 	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
 		if err := block.Seal(); err != nil {
-			return nil, err
+			return blockPresentResult{}, err
 		}
 	}
 
@@ -1899,7 +1917,10 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 
 	// update ordered blockStarts slice, and latestBlock
 	i.updateBlockStartsWithLock()
-	return block, nil
+	return blockPresentResult{
+		block:  block,
+		latest: i.state.latestBlock.StartTime().Equal(blockStart),
+	}, nil
 }
 
 func (i *nsIndex) lastSealableBlockStart(t time.Time) time.Time {
@@ -2183,22 +2204,24 @@ type nsIndexMetrics struct {
 	asyncInsertAttemptSkip  tally.Counter
 	asyncInsertAttemptWrite tally.Counter
 
-	asyncInsertSuccess           tally.Counter
-	asyncInsertErrors            tally.Counter
-	insertAfterClose             tally.Counter
-	queryAfterClose              tally.Counter
-	forwardIndexHits             tally.Counter
-	forwardIndexMisses           tally.Counter
-	forwardIndexCounter          tally.Counter
-	insertEndToEndLatency        tally.Timer
-	blocksEvictedMutableSegments tally.Counter
-	blockMetrics                 nsIndexBlocksMetrics
-	indexingConcurrencyMin       tally.Gauge
-	indexingConcurrencyMax       tally.Gauge
-	indexingConcurrencyAvg       tally.Gauge
-	flushIndexingConcurrency     tally.Gauge
-	flushDocsNew                 tally.Counter
-	flushDocsCached              tally.Counter
+	asyncInsertSuccess               tally.Counter
+	asyncInsertErrors                tally.Counter
+	insertAfterClose                 tally.Counter
+	queryAfterClose                  tally.Counter
+	forwardIndexHits                 tally.Counter
+	forwardIndexMisses               tally.Counter
+	forwardIndexCounter              tally.Counter
+	insertEndToEndLatency            tally.Timer
+	blocksEvictedMutableSegments     tally.Counter
+	blockMetrics                     nsIndexBlocksMetrics
+	indexingConcurrencyMin           tally.Gauge
+	indexingConcurrencyMax           tally.Gauge
+	indexingConcurrencyAvg           tally.Gauge
+	flushIndexingConcurrency         tally.Gauge
+	flushDocsNew                     tally.Counter
+	flushDocsCached                  tally.Counter
+	latestBlockNumSegmentsForeground tally.Gauge
+	latestBlockNumSegmentsBackground tally.Gauge
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -2271,6 +2294,12 @@ func newNamespaceIndexMetrics(
 		flushDocsCached: scope.Tagged(map[string]string{
 			"status": "cached",
 		}).Counter("flush-docs"),
+		latestBlockNumSegmentsForeground: scope.Tagged(map[string]string{
+			"segment_type": "foreground",
+		}).Gauge("latest-block-num-segments"),
+		latestBlockNumSegmentsBackground: scope.Tagged(map[string]string{
+			"segment_type": "background",
+		}).Gauge("latest-block-num-segments"),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

@@ -276,25 +276,32 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {
 		b.RUnlock()
-		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
+		return b.writeBatchResult(inserts, MutableSegmentsStats{},
+			b.writeBatchErrorInvalidState(b.state))
 	}
 	if b.state == blockStateSealed {
 		coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
 		b.RUnlock()
-		return b.writeBatchResult(inserts, coldBlock.WriteBatch(inserts))
+		_, err := coldBlock.WriteBatch(inserts)
+		// Don't pass stats back from insertion into a cold block,
+		// we only care about warm mutable segments stats.
+		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
 	b.RUnlock()
-	return b.writeBatchResult(inserts, b.mutableSegments.WriteBatch(inserts))
+	stats, err := b.mutableSegments.WriteBatch(inserts)
+	return b.writeBatchResult(inserts, stats, err)
 }
 
 func (b *block) writeBatchResult(
 	inserts *WriteBatch,
+	stats MutableSegmentsStats,
 	err error,
 ) (WriteBatchResult, error) {
 	if err == nil {
 		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
-			NumSuccess: int64(inserts.Len()),
+			NumSuccess:           int64(inserts.Len()),
+			MutableSegmentsStats: stats,
 		}, nil
 	}
 
@@ -302,7 +309,10 @@ func (b *block) writeBatchResult(
 	if !ok {
 		// NB: marking all the inserts as failure, cause we don't know which ones failed.
 		inserts.MarkUnmarkedEntriesError(err)
-		return WriteBatchResult{NumError: int64(inserts.Len())}, err
+		return WriteBatchResult{
+			NumError:             int64(inserts.Len()),
+			MutableSegmentsStats: stats,
+		}, err
 	}
 
 	numErr := len(partialErr.Errs())
@@ -314,8 +324,9 @@ func (b *block) writeBatchResult(
 	// Mark all non-error inserts success, so we don't repeatedly index them.
 	inserts.MarkUnmarkedEntriesSuccess()
 	return WriteBatchResult{
-		NumSuccess: int64(inserts.Len() - numErr),
-		NumError:   int64(numErr),
+		NumSuccess:           int64(inserts.Len() - numErr),
+		NumError:             int64(numErr),
+		MutableSegmentsStats: stats,
 	}, partialErr
 }
 
