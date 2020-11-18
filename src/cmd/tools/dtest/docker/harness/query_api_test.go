@@ -36,26 +36,22 @@ type urlTest struct {
 }
 
 func TestInvalidInstantQueryReturns400(t *testing.T) {
-	coord := singleDBNodeDockerResources.Coordinator()
+	urlPrefixes := []string{"", "prometheus/", "m3query/"}
 
-	instantQueryBadRequestTest := []urlTest{
+	urlTests := addPrefixes(urlPrefixes, []urlTest{
 		{"missing query", queryURL("query", "")},
 		{"invalid query", queryURL("query", "@!")},
 		{"invalid time", queryURL("time", "INVALID")},
 		{"invalid timeout", queryURL("timeout", "INVALID")},
-	}
+	})
 
-	for _, tt := range instantQueryBadRequestTest {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
-		})
-	}
+	testInvalidQueryReturns400(t, urlTests)
 }
 
 func TestInvalidRangeQueryReturns400(t *testing.T) {
-	coord := singleDBNodeDockerResources.Coordinator()
+	urlPrefixes := []string{"", "prometheus/", "m3query/"}
 
-	queryBadRequestTest := []urlTest{
+	urlTests := addPrefixes(urlPrefixes, []urlTest{
 		{"missing query", queryRangeURL("query", "")},
 		{"invalid query", queryRangeURL("query", "@!")},
 		{"missing start", queryRangeURL("start", "")},
@@ -65,13 +61,32 @@ func TestInvalidRangeQueryReturns400(t *testing.T) {
 		{"missing step", queryRangeURL("step", "")},
 		{"invalid step", queryRangeURL("step", "INVALID")},
 		{"invalid timeout", queryRangeURL("timeout", "INVALID")},
-	}
+	})
 
-	for _, tt := range queryBadRequestTest {
+	testInvalidQueryReturns400(t, urlTests)
+}
+
+func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
+	coord := singleDBNodeDockerResources.Coordinator()
+
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
 		})
 	}
+}
+
+func addPrefixes(prefixes []string, tests []urlTest) []urlTest {
+	res := make([]urlTest, 0)
+	for _, prefix := range prefixes {
+		for _, t := range tests {
+			res = append(res, urlTest{
+				fmt.Sprintf("%v %v", prefix, t.name),
+				fmt.Sprintf("%v%v", prefix, t.url),
+			})
+		}
+	}
+	return res
 }
 
 func queryURL(key, value string) string {
