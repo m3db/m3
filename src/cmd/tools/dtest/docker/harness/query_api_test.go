@@ -36,30 +36,22 @@ type urlTest struct {
 }
 
 func TestInvalidInstantQueryReturns400(t *testing.T) {
-	coord := singleDBNodeDockerResources.Coordinator()
+	urlPrefixes := []string{"", "prometheus/", "m3query/"}
 
-	urlPrefix := []string{"", "prometheus/", "m3query/"}
-
-	instantQueryBadRequestTest := addPrefixes(urlPrefix, []urlTest{
+	urlTests := addPrefixes(urlPrefixes, []urlTest{
 		{"missing query", queryURL("query", "")},
 		{"invalid query", queryURL("query", "@!")},
 		{"invalid time", queryURL("time", "INVALID")},
 		{"invalid timeout", queryURL("timeout", "INVALID")},
 	})
 
-	for _, tt := range instantQueryBadRequestTest {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
-		})
-	}
+	testInvalidQueryReturns400(t, urlTests)
 }
 
 func TestInvalidRangeQueryReturns400(t *testing.T) {
-	coord := singleDBNodeDockerResources.Coordinator()
+	urlPrefixes := []string{"", "prometheus/", "m3query/"}
 
-	urlPrefix := []string{"", "prometheus/", "m3query/"}
-
-	queryBadRequestTest := addPrefixes(urlPrefix, []urlTest{
+	urlTests := addPrefixes(urlPrefixes, []urlTest{
 		{"missing query", queryRangeURL("query", "")},
 		{"invalid query", queryRangeURL("query", "@!")},
 		{"missing start", queryRangeURL("start", "")},
@@ -71,7 +63,13 @@ func TestInvalidRangeQueryReturns400(t *testing.T) {
 		{"invalid timeout", queryRangeURL("timeout", "INVALID")},
 	})
 
-	for _, tt := range queryBadRequestTest {
+	testInvalidQueryReturns400(t, urlTests)
+}
+
+func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
+	coord := singleDBNodeDockerResources.Coordinator()
+
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NoError(t, coord.RunQuery(verifyStatus(400), tt.url), "for query '%v'", tt.url)
 		})
