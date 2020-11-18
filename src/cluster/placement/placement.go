@@ -385,8 +385,8 @@ func validate(p Placement) error {
 						instancesLeavingShardsWithMatchingInitShards[sourceID] = matches
 					}
 
-					match := matches[s.ID()]
-					if match != "" {
+					match, ok := matches[s.ID()]
+					if ok {
 						return fmt.Errorf(
 							"instance %s has initializing shard %d with "+
 								"source ID %s but leaving instance has shard already matched by %s",

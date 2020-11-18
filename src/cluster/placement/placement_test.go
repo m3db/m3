@@ -140,7 +140,7 @@ func TestMismatchShards(t *testing.T) {
 
 	// mismatch shards
 	p := NewPlacement().SetInstances([]Instance{i1, i2}).SetShards([]uint32{1, 2, 3}).SetReplicaFactor(1)
-	assert.Error(t, Validate(p))
+	require.Error(t, Validate(p))
 }
 
 func TestNonSharded(t *testing.T) {
@@ -156,8 +156,8 @@ func TestNonSharded(t *testing.T) {
 func TestValidateMirrorButNotSharded(t *testing.T) {
 	p := NewPlacement().SetIsMirrored(true)
 	err := Validate(p)
-	assert.Error(t, err)
-	assert.Equal(t, errMirrorNotSharded, err)
+	require.Error(t, err)
+	assert.Equal(t, errMirrorNotSharded.Error(), err.Error())
 }
 
 func TestValidateMissingShard(t *testing.T) {
@@ -171,7 +171,7 @@ func TestValidateMissingShard(t *testing.T) {
 	ids := []uint32{1, 2}
 	p := NewPlacement().SetInstances([]Instance{i1, i2}).SetShards(ids).SetReplicaFactor(2).SetIsSharded(true)
 	err := Validate(p)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "invalid placement, the total available shards in the placement is 3, expecting 4", err.Error())
 }
 
@@ -190,8 +190,9 @@ func TestValidateUnexpectedShard(t *testing.T) {
 		SetReplicaFactor(2).
 		SetIsSharded(true)
 
-	assert.Error(t, Validate(p))
-	assert.Equal(t, errUnexpectedShards, Validate(p))
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, errUnexpectedShards.Error(), err.Error())
 }
 
 func TestValidateDuplicatedShards(t *testing.T) {
@@ -209,8 +210,9 @@ func TestValidateDuplicatedShards(t *testing.T) {
 		SetInstances([]Instance{i1, i2}).
 		SetShards([]uint32{2, 3, 4, 4, 5, 6}).
 		SetReplicaFactor(1)
-	assert.Error(t, Validate(p))
-	assert.Equal(t, errDuplicatedShards, Validate(p))
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, errDuplicatedShards.Error(), err.Error())
 }
 
 func TestValidateWrongReplicaForSomeShards(t *testing.T) {
