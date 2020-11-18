@@ -21,14 +21,16 @@
 package index
 
 import (
+	"bytes"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/cespare/xxhash/v2"
+	"github.com/dgraph-io/ristretto"
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -41,20 +43,20 @@ var (
 
 // PatternType is an enum for the various pattern types. It allows us
 // separate them logically within the cache.
-type PatternType int
+type PatternType string
 
 // Closer represents a function that will close managed resources.
 type Closer func()
 
 const (
 	// PatternTypeRegexp indicates that the pattern is of type regexp.
-	PatternTypeRegexp PatternType = iota
+	PatternTypeRegexp PatternType = "regexp"
 	// PatternTypeTerm indicates that the pattern is of type term.
-	PatternTypeTerm
+	PatternTypeTerm PatternType = "term"
 	// PatternTypeField indicates that the pattern is of type field.
-	PatternTypeField
+	PatternTypeField PatternType = "field"
 	// PatternTypeSearch indicates that the pattern is of type search.
-	PatternTypeSearch
+	PatternTypeSearch PatternType = "search"
 
 	reportLoopInterval = 10 * time.Second
 	emptyPattern       = ""
@@ -79,9 +81,7 @@ func (o PostingsListCacheOptions) Validate() error {
 
 // PostingsListCache implements an LRU for caching queries and their results.
 type PostingsListCache struct {
-	sync.Mutex
-
-	lru *postingsListLRU
+	lru *ristretto.Cache
 
 	size    int
 	opts    PostingsListCacheOptions
@@ -99,7 +99,14 @@ func NewPostingsListCache(
 		return nil, nil, err
 	}
 
-	lru, err := newPostingsListLRU(size, nil)
+	lru, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: int64(10 * size), // number of keys to track frequency of.
+		MaxCost:     int64(size),      // maximum cost of cache.
+		BufferItems: 64,               // number of keys per Get buffer.
+		KeyToHash: func(k interface{}) (uint64, uint64) {
+			return k.(uint64), 0
+		},
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -156,10 +163,15 @@ func (q *PostingsListCache) get(
 	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
-	// No RLock because a Get() operation mutates the LRU.
-	q.Lock()
-	p, ok := q.lru.Get(segmentUUID, field, pattern, patternType)
-	q.Unlock()
+	var pl *cachedPostings
+	entry, ok := q.lru.Get(keyHash(segmentUUID, field, pattern, patternType))
+	if ok {
+		pl = entry.(*cachedPostings)
+		ok = bytes.Equal(segmentUUID, pl.segmentUUID) &&
+			field == pl.field &&
+			pattern == pl.pattern &&
+			patternType == pl.patternType
+	}
 
 	q.emitCacheGetMetrics(patternType, ok)
 
@@ -167,7 +179,33 @@ func (q *PostingsListCache) get(
 		return nil, false
 	}
 
-	return p, ok
+	return pl.postings, ok
+}
+
+type cachedPostings struct {
+	// key
+	segmentUUID uuid.UUID
+	field       string
+	pattern     string
+	patternType PatternType
+
+	// value
+	postings postings.List
+}
+
+func keyHash(
+	segmentUUID uuid.UUID,
+	field string,
+	pattern string,
+	patternType PatternType,
+) uint64 {
+	var h xxhash.Digest
+	h.Reset()
+	_, _ = h.Write(segmentUUID)
+	_, _ = h.WriteString(field)
+	_, _ = h.WriteString(pattern)
+	_, _ = h.WriteString(string(patternType))
+	return h.Sum64()
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
@@ -177,8 +215,7 @@ func (q *PostingsListCache) PutRegexp(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl,
-		postingsListMetadata{})
+	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -188,8 +225,7 @@ func (q *PostingsListCache) PutTerm(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl,
-		postingsListMetadata{})
+	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl)
 }
 
 // PutField updates the LRU with the result of the field query.
@@ -198,8 +234,7 @@ func (q *PostingsListCache) PutField(
 	field string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, emptyPattern, PatternTypeField, pl,
-		postingsListMetadata{})
+	q.put(segmentUUID, field, emptyPattern, PatternTypeField, pl)
 }
 
 // PutSearch updates the LRU with the result of a search query.
@@ -208,12 +243,10 @@ func (q *PostingsListCache) PutSearch(
 	query string,
 	pl postings.List,
 ) {
-	pooled := false
 	if roaring.IsReadOnlyPostingsList(pl) {
 		// Copy into mutable postings list since it's expensive to read from
 		// a read only postings list over and over again (it's lazily
 		// evaluated from for allocation purposes).
-		pooled = true
 		mutable := q.opts.PostingsListPool.Get()
 		if err := mutable.AddIterator(pl.Iterator()); err != nil {
 			q.metrics.pooledGetErrAddIter.Inc(1)
@@ -223,8 +256,7 @@ func (q *PostingsListCache) PutSearch(
 		pl = mutable
 	}
 
-	q.put(segmentUUID, query, emptyPattern, PatternTypeSearch, pl,
-		postingsListMetadata{Pooled: pooled})
+	q.put(segmentUUID, query, emptyPattern, PatternTypeSearch, pl)
 }
 
 func (q *PostingsListCache) put(
@@ -233,20 +265,17 @@ func (q *PostingsListCache) put(
 	pattern string,
 	patternType PatternType,
 	pl postings.List,
-	meta postingsListMetadata,
 ) {
-	q.Lock()
-	q.lru.Add(segmentUUID, field, pattern, patternType, pl, meta)
-	q.Unlock()
+	key := keyHash(segmentUUID, field, pattern, patternType)
+	value := &cachedPostings{
+		segmentUUID: segmentUUID,
+		field:       field,
+		pattern:     pattern,
+		patternType: patternType,
+		postings:    pl,
+	}
+	q.lru.Set(key, value, 1)
 	q.emitCachePutMetrics(patternType)
-}
-
-// PurgeSegment removes all postings lists associated with the specified
-// segment from the cache.
-func (q *PostingsListCache) PurgeSegment(segmentUUID uuid.UUID) {
-	q.Lock()
-	q.lru.PurgeSegment(segmentUUID)
-	q.Unlock()
 }
 
 // startReportLoop starts a background process that will call Report()
@@ -273,18 +302,7 @@ func (q *PostingsListCache) startReportLoop() Closer {
 
 // Report will emit metrics about the status of the cache.
 func (q *PostingsListCache) Report() {
-	var (
-		size     float64
-		capacity float64
-	)
-
-	q.Lock()
-	size = float64(q.lru.Len())
-	capacity = float64(q.size)
-	q.Unlock()
-
-	q.metrics.size.Update(size)
-	q.metrics.capacity.Update(capacity)
+	q.metrics.capacity.Update(float64(q.size))
 }
 
 func (q *PostingsListCache) emitCacheGetMetrics(patternType PatternType, hit bool) {

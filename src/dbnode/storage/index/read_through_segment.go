@@ -133,38 +133,7 @@ func (r *ReadThroughSegment) Close() error {
 
 	r.closed = true
 
-	// Purge segments from the cache before closing the segment to avoid
-	// temporarily having postings lists in the cache whose underlying
-	// bytes are no longer mmap'd.
-	closer := cacheCloser{segment: r}
-	closer.closeCaches()
 	return r.segment.Close()
-}
-
-type cacheCloser struct {
-	segment *ReadThroughSegment
-	closed  []*PostingsListCache
-}
-
-func (c *cacheCloser) closeCaches() {
-	c.closeCache(c.segment.caches.SegmentPostingsListCache)
-	c.closeCache(c.segment.caches.SearchPostingsListCache)
-}
-
-func (c *cacheCloser) closeCache(cache *PostingsListCache) {
-	if cache == nil {
-		return
-	}
-	for _, elem := range c.closed {
-		if elem == cache {
-			// Already closed.
-			break
-		}
-	}
-	// Close.
-	cache.PurgeSegment(c.segment.uuid)
-	// Add to list of unique closed caches.
-	c.closed = append(c.closed, cache)
 }
 
 // FieldsIterable is a pass through call to the segment, since there's no
