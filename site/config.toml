@@ -130,9 +130,11 @@ offlineSearch = false
   # Order sections in menu by "weight" or "title". Default to "weight"
   ordersectionsby = "weight"
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
-  themeVariant = "blue"
+  # TODO: Bring back?
+  # themeVariant = "blue"
   twitter = "m3db_io"
   disableHomeIcon = true
+  gettingStartedLink = "/docs/quickstart/docker"
 
   [params.api]
     localCordinator = "http://localhost:7201/"
@@ -171,6 +173,17 @@ offlineSearch = false
       table = true
       taskList = true
       typographer = true
+
+[[menu.socials]]
+name = "/images/slack_logo-light.svg"
+identifier = "ms"
+url = "https://bit.ly/m3slack"
+weight = 10
+
+[[menu.socials]]
+name = "/images/github_logo-light.svg"
+url = "https://github.com/m3db/m3"
+weight = 11
 
 [[menu.shortcuts]]
 pre = "<h3>More</h3>"
