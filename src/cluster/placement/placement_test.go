@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlacement(t *testing.T) {
@@ -274,6 +275,87 @@ func TestValidateLeavingNotMatchInitializingWithSourceID(t *testing.T) {
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "invalid placement, 2 shards in Leaving state, not equal 1 in Initializing state with source id")
+}
+
+func TestValidateLeavingAndInitializingWithSourceIDMissing(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("unknown"))
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "instance i2 has initializing shard 1 with source ID unknown but no such instance in placement")
+}
+
+func TestValidateLeavingAndInitializingWithSourceIDNoSuchShard(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "instance i2 has initializing shard 3 with source ID i1 but leaving instance has no such shard")
+}
+
+func TestValidateLeavingAndInitializingWithSourceIDShardNotLeaving(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "instance i2 has initializing shard 1 with source ID i1 but leaving instance has shard with state Available")
+}
+
+func TestValidateLeavingAndInitializingWithSourceIDDoubleMatched(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+
+	i3 := NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2, i3}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "instance i3 has initializing shard 2 with source ID i1 but leaving instance has shard already matched by i2")
 }
 
 func TestValidateNoEndpoint(t *testing.T) {
