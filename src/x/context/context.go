@@ -51,7 +51,7 @@ type ctx struct {
 	wg    sync.WaitGroup
 
 	// Used fixed size allocation.
-	finalizeables [16]finalizeableListSlot
+	finalizeables [finalizeableListSlots]finalizeableListSlot
 
 	parent               Context
 	checkedAndNotSampled bool
