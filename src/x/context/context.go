@@ -127,39 +127,35 @@ func (c *ctx) RegisterCloser(f xresource.SimpleCloser) {
 	c.registerFinalizeable(finalizeable{closer: f})
 }
 
-func slot() int {
-	return xsync.CPUCore() % finalizeableListSlots
-}
-
 func (c *ctx) registerFinalizeable(f finalizeable) {
 	if c.RLock(); c.done {
 		c.RUnlock()
 		return
 	}
 
-	idx := slot()
-	c.finalizeables[idx].lock.Lock()
-	if c.finalizeables[idx].list == nil {
+	slot := xsync.CPUCore() % finalizeableListSlots
+	c.finalizeables[slot].lock.Lock()
+	if c.finalizeables[slot].list == nil {
 		if c.pool != nil {
-			c.finalizeables[idx].list = c.pool.getFinalizeablesList()
+			c.finalizeables[slot].list = c.pool.getFinalizeablesList()
 		} else {
-			c.finalizeables[idx].list = newFinalizeableList(nil)
+			c.finalizeables[slot].list = newFinalizeableList(nil)
 		}
 	}
-	c.finalizeables[idx].list.PushBack(f)
-	c.finalizeables[idx].lock.Unlock()
+	c.finalizeables[slot].list.PushBack(f)
+	c.finalizeables[slot].lock.Unlock()
 
 	c.RUnlock()
 }
 
 func (c *ctx) numFinalizeables() int {
 	var n int
-	for idx := range c.finalizeables {
-		c.finalizeables[idx].lock.Lock()
-		if c.finalizeables[idx].list != nil {
-			n += c.finalizeables[idx].list.Len()
+	for slot := range c.finalizeables {
+		c.finalizeables[slot].lock.Lock()
+		if c.finalizeables[slot].list != nil {
+			n += c.finalizeables[slot].list.Len()
 		}
-		c.finalizeables[idx].lock.Unlock()
+		c.finalizeables[slot].lock.Unlock()
 	}
 	return n
 }
@@ -267,11 +263,11 @@ func (c *ctx) finalize(returnMode returnToPoolMode) {
 	c.wg.Wait()
 
 	// Now call finalizers.
-	for idx := range c.finalizeables {
-		c.finalizeables[idx].lock.Lock()
-		f := c.finalizeables[idx].list
-		c.finalizeables[idx].list = nil
-		c.finalizeables[idx].lock.Unlock()
+	for slot := range c.finalizeables {
+		c.finalizeables[slot].lock.Lock()
+		f := c.finalizeables[slot].list
+		c.finalizeables[slot].list = nil
+		c.finalizeables[slot].lock.Unlock()
 
 		if f == nil {
 			// Nothing to callback.
