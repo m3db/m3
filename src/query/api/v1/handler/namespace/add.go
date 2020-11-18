@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -53,16 +54,24 @@ var (
 )
 
 // AddHandler is the handler for namespace adds.
-type AddHandler Handler
+type AddHandler struct {
+	Handler
+
+	hooks options.NamespaceHooks
+}
 
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(
 	client clusterclient.Client,
 	instrumentOpts instrument.Options,
+	hooks options.NamespaceHooks,
 ) *AddHandler {
 	return &AddHandler{
-		client:         client,
-		instrumentOpts: instrumentOpts,
+		Handler: Handler{
+			client:         client,
+			instrumentOpts: instrumentOpts,
+		},
+		hooks: hooks,
 	}
 }
 
@@ -90,7 +99,7 @@ func (h *AddHandler) ServeHTTP(
 			return
 		}
 
-		logger.Error("unable to get namespace", zap.Error(err))
+		logger.Error("unable to add namespace", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -141,6 +150,11 @@ func (h *AddHandler) Add(
 	currentMetadata, version, err := Metadata(store)
 	if err != nil {
 		return emptyReg, err
+	}
+
+	if err := h.hooks.ValidateNewNamespace(md, currentMetadata); err != nil {
+		return emptyReg, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid new namespace metadata: %v", err))
 	}
 
 	// Since this endpoint is `/add` and not in-place update, return an error if

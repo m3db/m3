@@ -50,7 +50,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 	"go.uber.org/zap"
 )
@@ -336,17 +336,22 @@ func (h *Handler) RegisterRoutes() error {
 	if clusterClient != nil {
 		if err := database.RegisterRoutes(wrappedRouteFn, clusterClient,
 			h.options.Config(), h.options.EmbeddedDbCfg(),
-			serviceOptionDefaults, instrumentOpts); err != nil {
+			serviceOptionDefaults, instrumentOpts,
+			h.options.NamespaceHooks()); err != nil {
 			return err
 		}
+
 		if err := placement.RegisterRoutes(routeFn, serviceOptionDefaults,
 			placementOpts); err != nil {
 			return err
 		}
+
 		if err := namespace.RegisterRoutes(wrappedRouteFn, clusterClient,
-			h.options.Clusters(), serviceOptionDefaults, instrumentOpts); err != nil {
+			h.options.Clusters(), serviceOptionDefaults, instrumentOpts,
+			h.options.NamespaceHooks()); err != nil {
 			return err
 		}
+
 		if err := topic.RegisterRoutes(wrappedRouteFn, clusterClient, config,
 			instrumentOpts); err != nil {
 			return err

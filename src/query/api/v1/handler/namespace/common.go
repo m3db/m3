@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -119,6 +120,7 @@ func RegisterRoutes(
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
+	hooks options.NamespaceHooks,
 ) error {
 	addRoute := applyMiddlewareToRoute(addRouteFn, defaults)
 
@@ -129,7 +131,7 @@ func RegisterRoutes(
 	}
 
 	// Add M3DB namespaces.
-	addHandler := NewAddHandler(client, instrumentOpts).ServeHTTP
+	addHandler := NewAddHandler(client, instrumentOpts, hooks).ServeHTTP
 	if err := addRoute(M3DBAddURL, addHandler, AddHTTPMethod); err != nil {
 		return err
 	}
