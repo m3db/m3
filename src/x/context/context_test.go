@@ -22,12 +22,10 @@ package context
 
 import (
 	stdctx "context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
@@ -299,8 +297,4 @@ func TestGoContext(t *testing.T) {
 	returnCtx, exists = xCtx.GoContext()
 	assert.False(t, exists)
 	assert.Nil(t, returnCtx)
-}
-
-func TestUnsafe(t *testing.T) {
-	fmt.Printf("%d\n", unsafe.Sizeof(ctx{}))
 }
