@@ -47,8 +47,9 @@ This would allow users to issue queries that answer questions like:
 "What time series IDs exist for any vehicle type operating in San Francisco?"
 "What time series IDs exist for scooters that are NOT operating in Chicago?"
 "What time series IDs exist where the "version" tag matches the regular expression: 0_1_[12]"
-TODO(rartoul): Discuss the ability to perform limited amounts of aggregation queries here as well.
-TODO(rartoul): Discuss ID / tags mutability.
+
+<!-- TODO(rartoul): Discuss the ability to perform limited amounts of aggregation queries here as well. -->
+<!-- TODO(rartoul): Discuss ID / tags mutability. -->
 
 #### Datapoints
 Each time series in M3DB stores data as a stream of datapoints in the form of <timestamp, value> tuples. Timestamp resolution can be as granular as individual nanoseconds.

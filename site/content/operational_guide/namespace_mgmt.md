@@ -3,7 +3,7 @@ title: "Namespace Management"
 weight: 8
 draft: true
 ---
-<!-- TODO: Where does this doc come from? -->
+
 M3DB uses the concept of namespaces to determine how metrics are stored and retained. The M3DB operator allows a user to define their own namespaces, or to use a set of presets we consider to be suitable for production use cases.
 
 Namespaces are configured as part of an m3dbcluster spec.

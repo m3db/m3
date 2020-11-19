@@ -29,8 +29,6 @@ All namespaces that you wish to query from must be configured when [setting up M
 
 The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an [external etcd](/docs/operational_guide/etcd) cluster.
 
-<!-- TODO: link to etcd operational guide -->
-
 ## Aggregation
 
 You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace. It is important to note that all writes go to all namespaces marked as ready. Aggregation is done strictly by the query service. As an example, to configure an aggregated namespace named `metrics_10s_48h`, you can execute the following API call:

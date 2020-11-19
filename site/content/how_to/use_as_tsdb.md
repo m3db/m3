@@ -35,9 +35,9 @@ This would allow users to issue queries that answer questions like:
 2.  "What time series IDs exist for scooters that are NOT operating in Chicago?"
 3.  "What time series IDs exist where the "version" tag matches the regular expression: `0_1_[12]`"
 
-TODO(rartoul): Discuss the ability to perform limited amounts of aggregation queries here as well.
+<!-- TODO(rartoul): Discuss the ability to perform limited amounts of aggregation queries here as well. -->
 
-TODO(rartoul): Discuss ID / tags mutability.
+<!-- TODO(rartoul): Discuss ID / tags mutability. -->
 
 ### Datapoints
 
