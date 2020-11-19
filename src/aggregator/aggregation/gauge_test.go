@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -42,6 +43,8 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.Equal(t, 100.0, g.ValueOf(aggregation.Count))
 	require.Equal(t, 50.5, g.ValueOf(aggregation.Mean))
 	require.Equal(t, 0.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 100.0, g.ValueOf(aggregation.Max))
+	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
 
 	g = NewGauge(NewOptions(instrument.NewOptions()))
 	require.Equal(t, 0.0, g.Last())
@@ -49,6 +52,8 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.Equal(t, 0.0, g.ValueOf(aggregation.Count))
 	require.Equal(t, 0.0, g.ValueOf(aggregation.Mean))
 	require.Equal(t, 0.0, g.ValueOf(aggregation.SumSq))
+	require.True(t, math.IsNaN(g.ValueOf(aggregation.Max)))
+	require.True(t, math.IsNaN(g.ValueOf(aggregation.Min)))
 }
 
 func TestGaugeCustomAggregationType(t *testing.T) {
@@ -96,9 +101,9 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 		case aggregation.Last:
 			require.Equal(t, 0.0, v)
 		case aggregation.Min:
-			require.Equal(t, 0.0, v)
+			require.True(t, math.IsNaN(v))
 		case aggregation.Max:
-			require.Equal(t, 0.0, v)
+			require.True(t, math.IsNaN(v))
 		case aggregation.Mean:
 			require.Equal(t, 0.0, v)
 		case aggregation.Count:
