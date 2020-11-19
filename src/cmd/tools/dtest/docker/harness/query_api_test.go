@@ -139,8 +139,9 @@ func verifyResponse(expectedStatus int) resources.ResponseVerifier {
 			return fmt.Errorf("expeceted %v status code, got %v", expectedStatus, status)
 		}
 
-		contentType := headers["Content-Type"][0]
-		if contentType != "application/json" {
+		if contentType, ok := headers["Content-Type"]; !ok {
+			return fmt.Errorf("missing Content-Type header")
+		} else if len(contentType) != 1 || contentType[0] != "application/json" {
 			return fmt.Errorf("expected json content type, got %v", contentType)
 		}
 

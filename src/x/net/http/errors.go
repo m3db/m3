@@ -112,10 +112,7 @@ func getStatusCode(err error) int {
 			return http.StatusBadRequest
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return http.StatusGatewayTimeout
-		} else {
-			return http.StatusInternalServerError
 		}
-	default:
-		return http.StatusInternalServerError
 	}
+	return http.StatusInternalServerError
 }
