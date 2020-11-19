@@ -92,6 +92,8 @@ func (c *cache) IndexInfoFilesForNamespace(ns namespace.Metadata) (
 	[]fs.ReadIndexInfoFileResult,
 	error,
 ) {
+	c.Lock()
+	defer c.Unlock()
 	infoFiles, ok := c.readIndexInfoFiles()[ns]
 	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
 	if !ok {
