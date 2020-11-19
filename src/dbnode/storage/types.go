@@ -52,6 +52,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -1404,7 +1405,25 @@ type TileAggregator interface {
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.
-type NewTileAggregatorFn func(iOpts instrument.Options) TileAggregator
+type NewTileAggregatorFn func(opts TileAggregatorOptions) TileAggregator
+
+// TileAggregatorOptions represents the options for tile aggregation.
+type TileAggregatorOptions interface {
+	// Validate will validate the options and return an error if not valid.
+	Validate() error
+
+	// SetInstrumentOptions sets the instrumentation options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrumentation options.
+	InstrumentOptions() instrument.Options
+
+	// SetTagDecoderPool sets the tag decoder pool.
+	SetTagDecoderPool(value serialize.TagDecoderPool) Options
+
+	// TagDecoderPool returns the tag decoder pool.
+	TagDecoderPool() serialize.TagDecoderPool
+}
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {
