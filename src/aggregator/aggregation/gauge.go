@@ -51,11 +51,6 @@ func NewGauge(opts Options) Gauge {
 
 // Update updates the gauge value.
 func (g *Gauge) Update(timestamp time.Time, value float64) {
-	// If this is not a valid value, drop it.
-	if math.IsNaN(value) {
-		return
-	}
-
 	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -66,8 +61,13 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		g.Options.Metrics.Gauge.IncValuesOutOfOrder()
 	}
 
-	g.sum += value
 	g.count++
+
+	if math.IsNaN(value) {
+		return
+	}
+
+	g.sum += value
 	if math.IsNaN(g.max) || g.max < value {
 		g.max = value
 	}
@@ -110,17 +110,11 @@ func (g *Gauge) Stdev() float64 {
 
 // Min returns the minimum gauge value.
 func (g *Gauge) Min() float64 {
-	if math.IsNaN(g.min) {
-		return 0.0
-	}
 	return g.min
 }
 
 // Max returns the maximum gauge value.
 func (g *Gauge) Max() float64 {
-	if math.IsNaN(g.max) {
-		return 0.0
-	}
 	return g.max
 }
 
