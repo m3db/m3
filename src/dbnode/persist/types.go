@@ -327,7 +327,33 @@ type OnFlushNewSeriesEvent struct {
 	Shard          uint32
 	BlockStart     time.Time
 	FirstWrite     time.Time
-	SeriesMetadata doc.Document
+	SeriesMetadata SeriesMetadata
+}
+
+type SeriesMetadataOwnership int
+
+const (
+	SeriesMetadataOwned SeriesMetadataOwnership = iota
+	SeriesMetadataUnowned
+)
+
+type SeriesMetadataType int
+
+const (
+	SeriesDocument SeriesMetadataType = iota
+	SeriesIDAndEncodedTags
+)
+
+type SeriesMetadata struct {
+	Type SeriesMetadataType
+	Ownership SeriesMetadataOwnership
+	Document doc.Document
+	IDAndEncodedTags IDAndEncodedTags
+}
+
+type IDAndEncodedTags struct {
+	ID []byte
+	EncodedTags []byte
 }
 
 // OnFlushSeries performs work on a per series level.
