@@ -149,19 +149,11 @@ func (r *results) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
 func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
-	if r.parent == nil {
-		// Locking only if parent, otherwise using non-concurrent safe builder.
-		r.Lock()
-	}
-
+	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	parent := r.parent
 	size, docsCount := r.resultsMap.Len(), r.totalDocsCount
-
-	if r.parent == nil {
-		// Locking only if parent, otherwise using non-concurrent safe builder.
-		r.Unlock()
-	}
+	r.Unlock()
 
 	// Update stats using just the stats lock to avoid contention.
 	r.statsLock.Lock()
