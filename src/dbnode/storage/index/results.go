@@ -103,11 +103,10 @@ func (r *results) reset(parent *results, nsID ident.ID, opts QueryResultsOptions
 	r.parent = parent
 
 	// Return all subresults to pools.
-	for i := range r.subResults {
-		r.subResults[i].Finalize()
-		r.subResults[i] = nil
+	for _, subResult := range r.subResults {
+		subResult.Finalize()
 	}
-	r.subResults = r.subResults[:0]
+	r.subResults = nil
 
 	// Finalize existing held nsID.
 	if r.nsID != nil {
@@ -184,13 +183,20 @@ func (r *results) statsNoLock() (size int, docsCount int) {
 	r.statsLock.RLock()
 	size = r.statsSize
 	docsCount = r.statsDocsCount
-	for _, subResult := range r.subResults {
+	r.statsLock.RUnlock()
+
+	// Take snapshot of subresults with RLock.
+	r.RLock()
+	subResults := r.subResults[:]
+	r.RUnlock()
+
+	for _, subResult := range subResults {
 		subResult.statsLock.RLock()
 		size += subResult.statsSize
 		docsCount += subResult.statsDocsCount
 		subResult.statsLock.RUnlock()
 	}
-	r.statsLock.RUnlock()
+
 	return
 }
 
@@ -281,11 +287,10 @@ func (r *results) Map() *ResultsMap {
 	}
 
 	// Finalize and reset sub results now merged.
-	for i := range r.subResults {
-		r.subResults[i].Finalize()
-		r.subResults[i] = nil
+	for _, subResult := range r.subResults {
+		subResult.Finalize()
 	}
-	r.subResults = r.subResults[:0]
+	r.subResults = nil
 
 	v := r.resultsMap
 
