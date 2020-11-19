@@ -22,7 +22,6 @@ package query
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -31,9 +30,8 @@ import (
 
 // DisjuctionQuery finds documents which match at least one of the given queries.
 type DisjuctionQuery struct {
-	sync.Mutex
-	strValue string
-	queries  []search.Query
+	str     string
+	queries []search.Query
 }
 
 // NewDisjunctionQuery constructs a new query which matches documents that match any
@@ -50,9 +48,14 @@ func NewDisjunctionQuery(queries []search.Query) search.Query {
 
 		qs = append(qs, query)
 	}
-	return &DisjuctionQuery{
+	q := &DisjuctionQuery{
 		queries: qs,
 	}
+	// NB(r): Calculate string value up front so
+	// not allocated every time String() is called to determine
+	// the cache key.
+	q.str = q.string()
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
@@ -115,22 +118,13 @@ func (q *DisjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *DisjuctionQuery) String() string {
-	q.Lock()
-	str := q.stringWithLock()
-	q.Unlock()
-	return str
+	return q.str
 }
 
-func (q *DisjuctionQuery) stringWithLock() string {
-	if q.strValue != "" {
-		return q.strValue
-	}
-
+func (q *DisjuctionQuery) string() string {
 	var str strings.Builder
 	str.WriteString("disjunction(")
 	join(&str, q.queries)
 	str.WriteRune(')')
-
-	q.strValue = str.String()
-	return q.strValue
+	return str.String()
 }

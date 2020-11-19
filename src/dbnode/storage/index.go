@@ -1858,6 +1858,10 @@ func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (blockPresentResult, 
 	return i.ensureBlockPresentWithRLock(blockStart)
 }
 
+func (i *nsIndex) isLatestBlockWithRLock(blockStart time.Time) bool {
+	return i.state.latestBlock != nil && i.state.latestBlock.StartTime().Equal(blockStart)
+}
+
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
 // blockStart, allocating one if it does not. It returns the desired block, or
 // error if it's unable to do so.
@@ -1865,7 +1869,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 	// check if the current latest block matches the required block, this
 	// is the usual path and can short circuit the rest of the logic in this
 	// function in most cases.
-	if i.state.latestBlock != nil && i.state.latestBlock.StartTime().Equal(blockStart) {
+	if i.isLatestBlockWithRLock(blockStart) {
 		return blockPresentResult{
 			block:  i.state.latestBlock,
 			latest: true,
@@ -1894,7 +1898,10 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 
 	// re-check if exists in the map (another routine did the alloc)
 	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
-		return blockPresentResult{block: block}, nil
+		return blockPresentResult{
+			block:  block,
+			latest: i.isLatestBlockWithRLock(blockStart),
+		}, nil
 	}
 
 	// ok now we know for sure we have to alloc
@@ -1917,9 +1924,10 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 
 	// update ordered blockStarts slice, and latestBlock
 	i.updateBlockStartsWithLock()
+
 	return blockPresentResult{
 		block:  block,
-		latest: i.state.latestBlock.StartTime().Equal(blockStart),
+		latest: i.isLatestBlockWithRLock(blockStart),
 	}, nil
 }
 

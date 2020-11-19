@@ -146,6 +146,8 @@ type AggregateQueryResult struct {
 // synchronized when access to the results set is used as documented by the
 // methods.
 type BaseResults interface {
+	BaseResultsBuilder
+
 	// Namespace returns the namespace associated with the result.
 	Namespace() ident.ID
 
@@ -155,6 +157,17 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
+	// NonConcurrentBuilder returns a builder that should not be used with
+	// concurrency, will return false as second parameter if not possible.
+	NonConcurrentBuilder() (BaseResultsBuilder, bool)
+
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
+	Finalize()
+}
+
+// BaseResultsBuilder is a results builder.
+type BaseResultsBuilder interface {
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
@@ -164,10 +177,6 @@ type BaseResults interface {
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
-
-	// Finalize releases any resources held by the Results object,
-	// including returning it to a backing pool.
-	Finalize()
 }
 
 // QueryResults is a collection of results for a query, it is synchronized

@@ -536,9 +536,16 @@ func (b *block) queryReadersNoLock(
 	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	queryResults BaseResults,
 	segmentReaders []m3ninxindex.Reader,
 ) (bool, error) {
+	// Use a non concurrent builder for query results if can.
+	results, ok := queryResults.NonConcurrentBuilder()
+	if !ok {
+		// Fall back to using the query results as builder.
+		results = queryResults
+	}
+
 	exec := executor.NewExecutor(segmentReaders)
 
 	// Make sure if we don't register to close the executor later
@@ -575,8 +582,8 @@ func (b *block) queryReadersNoLock(
 
 	var (
 		iterCloser = safeCloser{closable: iter}
-		size       = results.Size()
-		docsCount  = results.TotalDocsCount()
+		size       = queryResults.Size()
+		docsCount  = queryResults.TotalDocsCount()
 		docsPool   = b.opts.DocumentArrayPool()
 		batch      = docsPool.Get()
 		batchSize  = cap(batch)
@@ -636,7 +643,7 @@ func (b *block) closeAsyncNoLock(closer io.Closer) {
 
 func (b *block) addQueryResultsNoLock(
 	cancellable *xresource.CancellableLifetime,
-	results BaseResults,
+	results BaseResultsBuilder,
 	batch []doc.Document,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.

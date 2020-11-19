@@ -41,8 +41,13 @@ var (
 type results struct {
 	sync.RWMutex
 
-	nsID ident.ID
-	opts QueryResultsOptions
+	parent *results
+
+	nsID      ident.ID
+	opts      QueryResultsOptions
+	indexOpts Options
+
+	subResults []*results
 
 	resultsMap     *ResultsMap
 	totalDocsCount int
@@ -60,9 +65,18 @@ func NewQueryResults(
 	opts QueryResultsOptions,
 	indexOpts Options,
 ) QueryResults {
+	return newQueryResults(namespaceID, opts, indexOpts)
+}
+
+func newQueryResults(
+	namespaceID ident.ID,
+	opts QueryResultsOptions,
+	indexOpts Options,
+) *results {
 	return &results{
 		nsID:       namespaceID,
 		opts:       opts,
+		indexOpts:  indexOpts,
 		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
 		idPool:     indexOpts.IdentifierPool(),
 		bytesPool:  indexOpts.CheckedBytesPool(),
@@ -70,10 +84,26 @@ func NewQueryResults(
 	}
 }
 
-func (r *results) EnforceLimits() bool { return true }
+func (r *results) EnforceLimits() bool {
+	return true
+}
 
 func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
+	r.reset(nil, nsID, opts)
+}
+
+func (r *results) reset(parent *results, nsID ident.ID, opts QueryResultsOptions) {
 	r.Lock()
+
+	// Set parent.
+	r.parent = parent
+
+	// Return all subresults to pools.
+	for i := range r.subResults {
+		r.subResults[i].Finalize()
+		r.subResults[i] = nil
+	}
+	r.subResults = r.subResults[:0]
 
 	// Finalize existing held nsID.
 	if r.nsID != nil {
@@ -102,16 +132,52 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	r.Unlock()
 }
 
+func (r *results) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
+	subResult := r.pool.Get().(*results)
+	subResult.reset(r, r.nsID, r.opts)
+
+	r.Lock()
+	r.subResults = append(r.subResults, subResult)
+	r.Unlock()
+
+	return subResult, true
+}
+
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
 func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
+	var size, docsCount int
+
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
-	size := r.resultsMap.Len()
-	docsCount := r.totalDocsCount + len(batch)
-	r.totalDocsCount = docsCount
+	parent := r.parent
+	if parent == nil {
+		size, docsCount = r.statsWithRLock()
+	}
 	r.Unlock()
+
+	if parent == nil {
+		return size, docsCount, err
+	}
+
+	// If a child, need to aggregate the size and docs count.
+	parent.RLock()
+	size, docsCount = parent.statsWithRLock()
+	parent.RUnlock()
+
 	return size, docsCount, err
+}
+
+func (r *results) statsWithRLock() (size int, docsCount int) {
+	size = r.resultsMap.Len()
+	docsCount = r.totalDocsCount
+	for _, subResult := range r.subResults {
+		subResult.RLock()
+		size += subResult.resultsMap.Len()
+		docsCount += subResult.totalDocsCount
+		subResult.RUnlock()
+	}
+	return
 }
 
 func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
@@ -120,6 +186,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 		if err != nil {
 			return err
 		}
+		r.totalDocsCount++
 		if r.opts.SizeLimit > 0 && size >= r.opts.SizeLimit {
 			// Early return if limit enforced and we hit our limit.
 			break
@@ -162,25 +229,68 @@ func (r *results) Namespace() ident.ID {
 	return v
 }
 
+func (r *results) mergeSubResultWithLock(subResult *results) {
+	subResult.Lock()
+	defer subResult.Unlock()
+
+	if r.resultsMap.Len() == 0 {
+		// Just swap ownership of this results map since this subresult
+		// has results and the current results does not.
+		currResultsMap := r.resultsMap
+		r.resultsMap = subResult.resultsMap
+		subResult.resultsMap = currResultsMap
+		return
+	}
+
+	for _, elem := range subResult.resultsMap.Iter() {
+		key := elem.Key()
+		if r.resultsMap.Contains(key) {
+			// Already contained.
+			continue
+		}
+		// It is assumed that the document is valid for the lifetime of the
+		// index results.
+		r.resultsMap.SetUnsafe(key, elem.Value(), resultMapNoFinalizeOpts)
+	}
+
+	// Reset all keys in the subresult map next, this will finalize the keys
+	// and make sure the values are not closed on next reset.
+	subResult.resultsMap.Reset()
+}
+
 func (r *results) Map() *ResultsMap {
-	r.RLock()
+	r.Lock()
+
+	// Copy any subresults into final result.
+	for _, subResult := range r.subResults {
+		r.mergeSubResultWithLock(subResult)
+	}
+
+	// Finalize and reset sub results now merged.
+	for i := range r.subResults {
+		r.subResults[i].Finalize()
+		r.subResults[i] = nil
+	}
+	r.subResults = r.subResults[:0]
+
 	v := r.resultsMap
-	r.RUnlock()
+
+	r.Unlock()
 	return v
 }
 
 func (r *results) Size() int {
 	r.RLock()
-	v := r.resultsMap.Len()
+	size, _ := r.statsWithRLock()
 	r.RUnlock()
-	return v
+	return size
 }
 
 func (r *results) TotalDocsCount() int {
 	r.RLock()
-	count := r.totalDocsCount
+	_, docsCount := r.statsWithRLock()
 	r.RUnlock()
-	return count
+	return docsCount
 }
 
 func (r *results) Finalize() {

@@ -98,6 +98,11 @@ func (r *wideResults) EnforceLimits() bool {
 	return false
 }
 
+func (r *wideResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
+	// Not supported.
+	return nil, false
+}
+
 func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	var size, totalDocsCount int
 	r.RLock()

@@ -104,6 +104,11 @@ func (r *aggregatedResults) Reset(
 	r.Unlock()
 }
 
+func (r *aggregatedResults) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
+	// Not supported.
+	return nil, false
+}
+
 func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
