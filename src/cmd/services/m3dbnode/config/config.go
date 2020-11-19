@@ -416,7 +416,7 @@ func (c IndexConfiguration) RegexpDFALimitOrDefault() int {
 
 // RegexpFSALimitOrDefault returns the finite state automaton size
 // limit or default.
-func (c IndexConfiguration) RegexpFSALimitOrDefault() int {
+func (c IndexConfiguration) RegexpFSALimitOrDefault() uint {
 	if c.RegexpFSALimit == nil {
 		return regexp.DefaultLimit()
 	}
