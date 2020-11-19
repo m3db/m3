@@ -51,6 +51,7 @@ type ReadHandlerHooks interface {
 	) (models.RequestParams, error)
 }
 
+// NewQueryFn creates a new promql Query.
 type NewQueryFn func(
 	engine *promql.Engine,
 	queryable promstorage.Queryable,

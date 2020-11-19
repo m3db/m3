@@ -44,6 +44,7 @@ type Options struct {
 	instant bool
 }
 
+// WithInstant returns new Options copy with given instant value
 func (o Options) WithInstant(instant bool) Options {
 	return Options{
 		PromQLEngine: o.PromQLEngine,
