@@ -52,6 +52,10 @@ type results struct {
 	resultsMap     *ResultsMap
 	totalDocsCount int
 
+	statsLock      sync.RWMutex
+	statsSize      int
+	statsDocsCount int
+
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
@@ -146,37 +150,47 @@ func (r *results) NonConcurrentBuilder() (BaseResultsBuilder, bool) {
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
 func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
-	var size, docsCount int
+	if r.parent == nil {
+		// Locking only if parent, otherwise using non-concurrent safe builder.
+		r.Lock()
+	}
 
-	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	parent := r.parent
-	if parent == nil {
-		size, docsCount = r.statsWithRLock()
+	size, docsCount := r.resultsMap.Len(), r.totalDocsCount
+
+	if r.parent == nil {
+		// Locking only if parent, otherwise using non-concurrent safe builder.
+		r.Unlock()
 	}
-	r.Unlock()
+
+	// Update stats using just the stats lock to avoid contention.
+	r.statsLock.Lock()
+	r.statsSize = size
+	r.statsDocsCount = docsCount
+	r.statsLock.Unlock()
 
 	if parent == nil {
 		return size, docsCount, err
 	}
 
 	// If a child, need to aggregate the size and docs count.
-	parent.RLock()
-	size, docsCount = parent.statsWithRLock()
-	parent.RUnlock()
+	size, docsCount = parent.statsNoLock()
 
 	return size, docsCount, err
 }
 
-func (r *results) statsWithRLock() (size int, docsCount int) {
-	size = r.resultsMap.Len()
-	docsCount = r.totalDocsCount
+func (r *results) statsNoLock() (size int, docsCount int) {
+	r.statsLock.RLock()
+	size = r.statsSize
+	docsCount = r.statsDocsCount
 	for _, subResult := range r.subResults {
-		subResult.RLock()
-		size += subResult.resultsMap.Len()
-		docsCount += subResult.totalDocsCount
-		subResult.RUnlock()
+		subResult.statsLock.RLock()
+		size += subResult.statsSize
+		docsCount += subResult.statsDocsCount
+		subResult.statsLock.RUnlock()
 	}
+	r.statsLock.RUnlock()
 	return
 }
 
@@ -280,16 +294,12 @@ func (r *results) Map() *ResultsMap {
 }
 
 func (r *results) Size() int {
-	r.RLock()
-	size, _ := r.statsWithRLock()
-	r.RUnlock()
+	size, _ := r.statsNoLock()
 	return size
 }
 
 func (r *results) TotalDocsCount() int {
-	r.RLock()
-	_, docsCount := r.statsWithRLock()
-	r.RUnlock()
+	_, docsCount := r.statsNoLock()
 	return docsCount
 }
 
