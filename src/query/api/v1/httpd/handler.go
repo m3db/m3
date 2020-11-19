@@ -179,7 +179,7 @@ func (h *Handler) RegisterRoutes() error {
 		PromQLEngine: h.options.PrometheusEngine(),
 	}
 	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
-	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
+	promqlInstantQueryHandler := wrapped(prom.NewReadHandler(opts.WithInstant(true), nativeSourceOpts))
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
 	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
 

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/require"
@@ -78,7 +79,8 @@ func setupTest(_ *testing.T) testHandlers {
 		SetTimeoutOpts(timeoutOpts)
 	queryable := &mockQueryable{}
 	readHandler := newReadHandler(opts, hOpts, &noopReadHandlerHooks{}, queryable)
-	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
+	readInstantHandler := newReadHandler(opts.WithInstant(true), hOpts,
+		&noopReadHandlerHooks{}, queryable)
 	return testHandlers{
 		queryable:          queryable,
 		readHandler:        readHandler,

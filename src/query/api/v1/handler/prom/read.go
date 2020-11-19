@@ -50,13 +50,47 @@ type ReadHandlerHooks interface {
 	) (models.RequestParams, error)
 }
 
+type NewQueryFn func(
+	engine *promql.Engine,
+	queryable promstorage.Queryable,
+	params models.RequestParams,
+) (promql.Query, error)
+
+var (
+	newRangeQueryFn = func(
+		engine *promql.Engine,
+		queryable promstorage.Queryable,
+		params models.RequestParams,
+	) (promql.Query, error) {
+		return engine.NewRangeQuery(
+			queryable,
+			params.Query,
+			params.Start,
+			params.End,
+			params.Step)
+	}
+
+	newInstantQueryFn = func(
+		engine *promql.Engine,
+		queryable promstorage.Queryable,
+		params models.RequestParams,
+	) (promql.Query, error) {
+		return engine.NewInstantQuery(
+			queryable,
+			params.Query,
+			params.Now)
+	}
+)
+
 type readHandler struct {
-	engine    *promql.Engine
-	hooks     ReadHandlerHooks
-	queryable promstorage.Queryable
-	hOpts     options.HandlerOptions
-	scope     tally.Scope
-	logger    *zap.Logger
+	engine     *promql.Engine
+	hooks      ReadHandlerHooks
+	queryable  promstorage.Queryable
+	newQueryFn NewQueryFn
+	hOpts      options.HandlerOptions
+	scope      tally.Scope
+	logger     *zap.Logger
+	opts       Options
 }
 
 func newReadHandler(
@@ -68,13 +102,21 @@ func newReadHandler(
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
 		map[string]string{"handler": "prometheus-read"},
 	)
+
+	newQueryFn := newRangeQueryFn
+	if opts.instant {
+		newQueryFn = newInstantQueryFn
+	}
+
 	return &readHandler{
-		engine:    opts.PromQLEngine,
-		hooks:     hooks,
-		queryable: queryable,
-		hOpts:     hOpts,
-		scope:     scope,
-		logger:    hOpts.InstrumentOpts().Logger(),
+		engine:     opts.PromQLEngine,
+		hooks:      hooks,
+		queryable:  queryable,
+		newQueryFn: newQueryFn,
+		hOpts:      hOpts,
+		opts:       opts,
+		scope:      scope,
+		logger:     hOpts.InstrumentOpts().Logger(),
 	}
 }
 
@@ -83,19 +125,19 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
 	if err != nil {
-		respondError(w, err)
+		RespondError(w, err)
 		return
 	}
 
-	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	request, err := native.ParseRequest(ctx, r, h.opts.instant, h.hOpts)
 	if err != nil {
-		respondError(w, err)
+		RespondError(w, err)
 		return
 	}
 
 	params, err := h.hooks.OnParsedRequest(ctx, r, request.Params)
 	if err != nil {
-		respondError(w, err)
+		RespondError(w, err)
 		return
 	}
 
@@ -112,25 +154,22 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 	}
 
-	qry, err := h.engine.NewRangeQuery(
-		h.queryable,
-		params.Query,
-		params.Start,
-		params.End,
-		params.Step)
+	qry, err := h.newQueryFn(h.engine, h.queryable, params)
 	if err != nil {
-		h.logger.Error("error creating range query",
-			zap.Error(err), zap.String("query", params.Query))
-		respondError(w, err)
+		h.logger.Error("error creating query",
+			zap.Error(err), zap.String("query", params.Query),
+			zap.Bool("instant", h.opts.instant))
+		RespondError(w, err)
 		return
 	}
 	defer qry.Close()
 
 	res := qry.Exec(ctx)
 	if res.Err != nil {
-		h.logger.Error("error executing range query",
-			zap.Error(res.Err), zap.String("query", params.Query))
-		respondError(w, res.Err)
+		h.logger.Error("error executing query",
+			zap.Error(res.Err), zap.String("query", params.Query),
+			zap.Bool("instant", h.opts.instant))
+		RespondError(w, res.Err)
 		return
 	}
 
@@ -142,11 +181,12 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = ApplyRangeWarnings(query, &resultMetadata)
 	if err != nil {
 		h.logger.Warn("error applying range warnings",
-			zap.Error(err), zap.String("query", query))
+			zap.Error(err), zap.String("query", query),
+			zap.Bool("instant", h.opts.instant))
 	}
 
 	handleroptions.AddWarningHeaders(w, resultMetadata)
-	respond(w, &queryData{
+	Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)

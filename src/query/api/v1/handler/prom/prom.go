@@ -41,6 +41,14 @@ func init() {
 // Options defines options for PromQL handler.
 type Options struct {
 	PromQLEngine *promql.Engine
+	instant bool
+}
+
+func (o Options) WithInstant(instant bool) Options {
+	return Options{
+		PromQLEngine: o.PromQLEngine,
+		instant:      instant,
+	}
 }
 
 // NewReadHandler creates a handler to handle PromQL requests.
@@ -59,17 +67,8 @@ func NewReadHandlerWithHooks(
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
-	return newReadHandler(opts, hOpts, hooks, queryable)
-}
 
-// NewReadInstantHandler creates a handler to handle PromQL requests.
-func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
-	queryable := prometheus.NewPrometheusQueryable(
-		prometheus.PrometheusOptions{
-			Storage:           hOpts.Storage(),
-			InstrumentOptions: hOpts.InstrumentOpts(),
-		})
-	return newReadInstantHandler(opts, hOpts, queryable)
+	return newReadHandler(opts, hOpts, hooks, queryable)
 }
 
 // ApplyRangeWarnings applies warnings encountered during execution.
