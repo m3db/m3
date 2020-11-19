@@ -123,7 +123,7 @@ type DataFileSetReaderStatus struct {
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
 	// Identifier allows to identify a FileSetFile.
-	Identifier  FileSetFileIdentifier
+	Identifier FileSetFileIdentifier
 	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
 	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
@@ -680,3 +680,15 @@ type CrossBlockIterator interface {
 	// Reset resets the iterator to the given block records.
 	Reset(records []BlockRecord)
 }
+
+// IndexClaimsManager manages concurrent claims to volume indices per ns and block start.
+// This allows multiple threads to safely increment the volume index.
+type IndexClaimsManager interface {
+	ClaimNextIndexFileSetVolumeIndex(
+		md namespace.Metadata,
+		blockStart time.Time,
+	) (int, error)
+}
+
+// DeleteFilesFn deletes files passed in as arg.
+type DeleteFilesFn func(files []string) error
