@@ -7,7 +7,7 @@
 More information:
 
 - [Documentation](https://docs.m3db.io/)
-- [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
+- [Developer Guide: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPMENT.md)
 - [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3metrics)

@@ -41,7 +41,7 @@ func ParseRegexp(pattern string) (a *vregexp.Regexp, prefixBeg, prefixEnd []byte
 // ParsedRegexp uses the pre-parsed regexp pattern and creates an equivalent matching automaton, and
 // corresponding keys to bound prefix beginning and end during the FST search.
 func ParsedRegexp(pattern string, parsed *syntax.Regexp) (a *vregexp.Regexp, prefixBeg, prefixEnd []byte, err error) {
-	re, err := vregexp.NewParsedWithLimit(pattern, parsed, vregexp.DefaultLimit)
+	re, err := vregexp.NewParsedWithLimit(pattern, parsed, vregexp.DefaultLimit())
 	if err != nil {
 		return nil, nil, nil, err
 	}
