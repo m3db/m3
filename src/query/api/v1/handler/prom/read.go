@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -159,7 +160,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("error creating query",
 			zap.Error(err), zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
-		RespondError(w, err)
+		RespondError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()

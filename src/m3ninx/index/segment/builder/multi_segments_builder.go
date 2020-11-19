@@ -138,6 +138,12 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		b.segmentsOffset += postings.ID(added)
 	}
 
+	// Sort segments in descending order in terms of size so the multi segments
+	// terms iter more efficiently builds its postings list.
+	sort.Slice(b.segments, func(i, j int) bool {
+		return b.segments[i].segment.Size() > b.segments[j].segment.Size()
+	})
+
 	// Make sure the terms iter has all the segments to combine data from
 	b.termsIter.reset(b.segments)
 

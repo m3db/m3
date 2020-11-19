@@ -91,6 +91,9 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3dbx/vellum/levenshtein"
+	"github.com/m3dbx/vellum/levenshtein2"
+	"github.com/m3dbx/vellum/regexp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
@@ -141,7 +144,10 @@ type RunOptions struct {
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
-	// StorageOptions are options to apply to the database storage options.
+	// Transforms are transforms to apply to the database storage options.
+	Transforms []storage.OptionTransform
+
+	// StorageOptions are additional storage options.
 	StorageOptions StorageOptions
 
 	// CustomBuildTags are additional tags to be added to the instrument build
@@ -341,14 +347,14 @@ func Run(runOpts RunOptions) {
 
 	var (
 		opts  = storage.NewOptions()
-		iopts = opts.InstrumentOptions().
+		iOpts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
 			SetTimerOptions(timerOpts).
 			SetTracer(tracer).
 			SetCustomBuildTags(runOpts.CustomBuildTags)
 	)
-	opts = opts.SetInstrumentOptions(iopts)
+	opts = opts.SetInstrumentOptions(iOpts)
 
 	// Only override the default MemoryTracker (which has default limits) if a custom limit has
 	// been set.
@@ -368,7 +374,17 @@ func Run(runOpts RunOptions) {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
 
-	buildReporter := instrument.NewBuildReporter(iopts)
+	// Set global index options.
+	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
+		regexp.SetStateLimit(n)
+		levenshtein.SetStateLimit(n)
+		levenshtein2.SetStateLimit(n)
+	}
+	if n := cfg.Index.RegexpFSALimitOrDefault(); n > 0 {
+		regexp.SetDefaultLimit(n)
+	}
+
+	buildReporter := instrument.NewBuildReporter(iOpts)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("unable to start build reporter", zap.Error(err))
 	}
@@ -424,8 +440,12 @@ func Run(runOpts RunOptions) {
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
 		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
-		Scope: iopts.MetricsScope(),
+		Scope: iOpts.MetricsScope(),
 	})
+
+	for _, transform := range runOpts.Transforms {
+		opts = transform(opts)
+	}
 
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
@@ -438,7 +458,14 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
-	queryLimits, err := limits.NewQueryLimits(docsLimit, bytesReadLimit, iopts)
+	limitOpts := limits.NewOptions().
+		SetDocsLimitOpts(docsLimit).
+		SetBytesReadLimitOpts(bytesReadLimit).
+		SetInstrumentOptions(iOpts)
+	if builder := opts.SourceLoggerBuilder(); builder != nil {
+		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
+	}
+	queryLimits, err := limits.NewQueryLimits(limitOpts)
 	if err != nil {
 		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
 	}
@@ -624,15 +651,16 @@ func Run(runOpts RunOptions) {
 	}()
 	opts = opts.SetIndexClaimsManager(icm)
 
+	forceColdWrites := opts.ForceColdWritesEnabled()
 	var envCfgResults environment.ConfigureResults
 	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iopts,
+			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: forceColdWrites,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -641,9 +669,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iopts,
+			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: forceColdWrites,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
@@ -715,7 +743,7 @@ func Run(runOpts RunOptions) {
 	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
 		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
-			queryconfig.Configuration{}, nil, iopts)
+			queryconfig.Configuration{}, nil, iOpts)
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
@@ -738,7 +766,7 @@ func Run(runOpts RunOptions) {
 							},
 						},
 					},
-					iopts)
+					iOpts)
 				if err != nil {
 					logger.Error("unable to create debug writer", zap.Error(err))
 				}
@@ -789,7 +817,7 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
+		cfg.Client, iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
 	if err != nil {
@@ -825,7 +853,7 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, tchannelOpts, topologyInitializer,
+				clientCfg, iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
@@ -863,21 +891,6 @@ func Run(runOpts RunOptions) {
 			SetRepairOptions(repairOpts)
 	} else {
 		opts = opts.SetRepairEnabled(false)
-	}
-
-	if runOpts.StorageOptions.OnColdFlush != nil {
-		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
-	}
-
-	opts = opts.SetBackgroundProcessFns(append(opts.BackgroundProcessFns(), runOpts.StorageOptions.BackgroundProcessFns...))
-
-	if runOpts.StorageOptions.NamespaceHooks != nil {
-		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
-	}
-
-	if runOpts.StorageOptions.NewTileAggregatorFn != nil {
-		aggregator := runOpts.StorageOptions.NewTileAggregatorFn(iopts)
-		opts = opts.SetTileAggregator(aggregator)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -1318,7 +1331,7 @@ func withEncodingAndPoolingOptions(
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
-	iopts := opts.InstrumentOptions()
+	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	// Set the max bytes pool byte slice alloc size for the thrift pooling.
@@ -1328,9 +1341,9 @@ func withEncodingAndPoolingOptions(
 	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
+		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
-		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
+		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
 
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
@@ -1555,7 +1568,7 @@ func withEncodingAndPoolingOptions(
 			runtimeOpts   = opts.RuntimeOptionsManager()
 			wiredListOpts = block.WiredListOptions{
 				RuntimeOptionsManager: runtimeOpts,
-				InstrumentOptions:     iopts,
+				InstrumentOptions:     iOpts,
 				ClockOptions:          opts.ClockOptions(),
 			}
 			lruCfg = cfg.Cache.SeriesConfiguration().LRU
@@ -1615,15 +1628,15 @@ func withEncodingAndPoolingOptions(
 
 	// Set index options.
 	indexOpts := opts.IndexOptions().
-		SetInstrumentOptions(iopts).
+		SetInstrumentOptions(iOpts).
 		SetMemSegmentOptions(
 			opts.IndexOptions().MemSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+				SetInstrumentOptions(iOpts)).
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts).
+				SetInstrumentOptions(iOpts).
 				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
@@ -1657,7 +1670,7 @@ func withEncodingAndPoolingOptions(
 
 func newAdminClient(
 	config client.Configuration,
-	iopts instrument.Options,
+	iOpts instrument.Options,
 	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
@@ -1702,8 +1715,8 @@ func newAdminClient(
 	options = append(options, custom...)
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			InstrumentOptions: iOpts.
+				SetMetricsScope(iOpts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
 		},
 		options...,

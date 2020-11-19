@@ -33,6 +33,8 @@ message PlacementSetRequest {
   int32 version = 2;
   // Confirm must be set, otherwise just a dry run is executed.
   bool confirm = 3;
+  // Force will skip validating the placement.
+  bool force = 4;
 }
 
 message PlacementSetResponse {

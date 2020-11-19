@@ -388,6 +388,7 @@ func (s *m3WrappedStore) FetchByQuery(
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
 	fetchOptions.SeriesLimit = fetchOpts.Limit
+	fetchOptions.Source = fetchOpts.Source
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock

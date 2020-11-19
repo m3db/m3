@@ -57,6 +57,9 @@ type contextBase struct {
 	// Limit provides a cap on the number of results returned from the database.
 	Limit int
 
+	// Source is the query source.
+	Source []byte
+
 	parent         *Context
 	reqCtx         ctx.Context
 	storageContext context.Context
