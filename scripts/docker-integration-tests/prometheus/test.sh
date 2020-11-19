@@ -177,6 +177,25 @@ function test_prometheus_remote_write_map_tags {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_lookback_applied {
+  # Note: this test depends on the config in m3coordinator.yml for this test
+  # and the following config value "lookbackDuration: 10m".
+  echo "Test lookback config respected"
+  now=$(date +"%s")
+  # Write into past less than the lookback duration.
+  eight_mins_ago=$(( now - 480 ))
+  prometheus_remote_write \
+    "lookback_test" $eight_mins_ago 42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200" \
+    "unaggregated"
+
+  # Now query and ensure that the latest timestamp is within the last two steps
+  # from now.
+  ATTEMPTS=10 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/query_range?query=lookback_test&step=15&start=$(expr $(date "+%s") - 600)&end=$(date "+%s")" | jq -r ".data.result[0].values[-1][0]") -gt $(expr $(date "+%s") - 30) ]]'
+}
+
 function test_query_limits_applied {
   # Test the default series limit applied when directly querying
   # coordinator (limit set to 100 in m3coordinator.yml)
@@ -373,6 +392,7 @@ test_prometheus_remote_write_empty_label_value_returns_400_status_code
 test_prometheus_remote_write_duplicate_label_returns_400_status_code
 test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
+test_query_lookback_applied
 test_query_limits_applied
 test_query_restrict_metrics_type
 test_prometheus_query_native_timeout

@@ -37,17 +37,12 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
-	"github.com/coreos/pkg/capnslog"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
 )
-
-func init() {
-	capnslog.SetGlobalLogLevel(capnslog.WARNING)
-}
 
 func TestValue(t *testing.T) {
 	v1 := newValue(nil, 2, 100)
