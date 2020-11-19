@@ -382,11 +382,11 @@ type IndexConfiguration struct {
 
 	// RegexpDFALimit is the limit on the max number of states used by a
 	// regexp deterministic finite automaton. Default is 10,000 states.
-	RegexpDFALimit *int `yaml:"regexpDFALimit" validate:"min=0"`
+	RegexpDFALimit *int `yaml:"regexpDFALimit"`
 
 	// RegexpFSALimit is the limit on the max number of bytes used by the
 	// finite state automaton. Default is 10mb (10 million as int).
-	RegexpFSALimit *uint `yaml:"regexpFSALimit" validate:"min=0"`
+	RegexpFSALimit *uint `yaml:"regexpFSALimit"`
 
 	// ForwardIndexProbability determines the likelihood that an incoming write is
 	// written to the next block, when arriving close to the block boundary.
