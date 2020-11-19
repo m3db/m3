@@ -1414,3 +1414,16 @@ type NamespaceHooks interface {
 
 // GetNamespaceFn will return a namespace for a given ID if present.
 type GetNamespaceFn func(id ident.ID) (Namespace, bool)
+
+// Ensure that *idElement adheres to the SeriesMapEntry interface.
+var _ SeriesMapEntry = (*idElement)(nil)
+
+// SeriesMapEntry wraps a series map entry. Each entry has a doc.Document as a value.
+type SeriesMapEntry interface {
+	Value() doc.Document
+}
+
+// SeriesMap wraps a series map keyed by id and block start.
+type SeriesMap interface {
+	Get(key IDAndBlockStart) (SeriesMapEntry, bool)
+}

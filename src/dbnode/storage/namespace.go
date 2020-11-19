@@ -1179,9 +1179,9 @@ func (n *dbNamespace) WarmFlush(
 	return res
 }
 
-// idAndBlockStart is the composite key for the genny map used to keep track of
+// IDAndBlockStart is the composite key for the genny map used to keep track of
 // dirty series that need to be ColdFlushed.
-type idAndBlockStart struct {
+type IDAndBlockStart struct {
 	id         []byte
 	blockStart xtime.UnixNano
 }

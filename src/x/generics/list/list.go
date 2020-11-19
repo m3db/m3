@@ -79,7 +79,7 @@ type Element struct {
 	list *List
 
 	// The value stored with this element.
-	Value ValueType
+	value ValueType
 }
 
 // Next returns the next list element or nil.
@@ -96,6 +96,11 @@ func (e *Element) Prev() *Element {
 		return p
 	}
 	return nil
+}
+
+// Value returns the value of the current element.
+func (e *Element) Value() ValueType {
+	return e.value
 }
 
 // List represents a doubly linked list.
@@ -180,7 +185,7 @@ func (l *List) insert(e, at *Element) *Element {
 // insertValue is a convenience wrapper for inserting using the list's pool.
 func (l *List) insertValue(v ValueType, at *Element) *Element {
 	e := l.Pool.get()
-	e.Value = v
+	e.value = v
 	return l.insert(e, at)
 }
 
@@ -196,7 +201,7 @@ func (l *List) remove(e *Element) *Element {
 }
 
 // Remove removes e from l if e is an element of list l.
-// It returns the element value e.Value.
+// It returns the element value e.value.
 // The element must not be nil.
 func (l *List) Remove(e *Element) ValueType {
 	if e.list == l {
@@ -205,7 +210,7 @@ func (l *List) Remove(e *Element) ValueType {
 		l.remove(e)
 		l.Pool.put(e)
 	}
-	return e.Value
+	return e.value
 }
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.
@@ -289,7 +294,7 @@ func (l *List) MoveAfter(e, mark *Element) {
 func (l *List) PushBackList(other *List) {
 	l.lazyInit()
 	for i, e := other.Len(), other.Front(); i > 0; i, e = i-1, e.Next() {
-		l.insertValue(e.Value, l.root.prev)
+		l.insertValue(e.value, l.root.prev)
 	}
 }
 
@@ -298,7 +303,7 @@ func (l *List) PushBackList(other *List) {
 func (l *List) PushFrontList(other *List) {
 	l.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
-		l.insertValue(e.Value, &l.root)
+		l.insertValue(e.value, &l.root)
 	}
 }
 

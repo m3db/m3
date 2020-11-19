@@ -84,7 +84,7 @@ func TestRead(t *testing.T) {
 	mergeWith := newFSMergeWithMem(shard, retriever, dirtySeries, dirtySeriesToWrite)
 
 	for _, d := range data {
-		require.True(t, dirtySeries.Contains(idAndBlockStart{
+		require.True(t, dirtySeries.Contains(IDAndBlockStart{
 			blockStart: d.start,
 			id:         d.id.Bytes(),
 		}))
@@ -243,5 +243,5 @@ func addDirtySeries(
 	}
 	element := seriesList.PushBack(doc.Document{ID: id.Bytes()})
 
-	dirtySeries.Set(idAndBlockStart{blockStart: start, id: id.Bytes()}, element)
+	dirtySeries.Set(IDAndBlockStart{blockStart: start, id: id.Bytes()}, element)
 }

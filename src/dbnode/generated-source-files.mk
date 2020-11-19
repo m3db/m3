@@ -31,7 +31,7 @@ genny-map-all:                                         \
 genny-map-client-received-blocks:
 	cd $(m3x_package_path) && make hashmap-gen         \
 		pkg=client                                       \
-		key_type=idAndBlockStart                         \
+		key_type=IDAndBlockStart                         \
 		value_type=receivedBlocks                        \
 		target_package=$(m3db_package)/src/dbnode/client \
 		rename_type_prefix=receivedBlocks
@@ -192,7 +192,7 @@ genny-map-storage-index-aggregation-results: genny-map-storage-index-aggregate-v
 genny-map-storage-dirty-series:
 	cd $(m3x_package_path) && make hashmap-gen            \
 		pkg=storage                                       \
-		key_type=idAndBlockStart                          \
+		key_type=IDAndBlockStart                          \
 		value_type=*idElement                             \
 		value_type_alias=idElement                        \
 		target_package=$(m3db_package)/src/dbnode/storage \

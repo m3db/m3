@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,16 +49,16 @@ package client
 type receivedBlocksMapHash uint64
 
 // receivedBlocksMapHashFn is the hash function to execute when hashing a key.
-type receivedBlocksMapHashFn func(idAndBlockStart) receivedBlocksMapHash
+type receivedBlocksMapHashFn func(IDAndBlockStart) receivedBlocksMapHash
 
 // receivedBlocksMapEqualsFn is the equals key function to execute when detecting equality of a key.
-type receivedBlocksMapEqualsFn func(idAndBlockStart, idAndBlockStart) bool
+type receivedBlocksMapEqualsFn func(IDAndBlockStart, IDAndBlockStart) bool
 
 // receivedBlocksMapCopyFn is the copy key function to execute when copying the key.
-type receivedBlocksMapCopyFn func(idAndBlockStart) idAndBlockStart
+type receivedBlocksMapCopyFn func(IDAndBlockStart) IDAndBlockStart
 
 // receivedBlocksMapFinalizeFn is the finalize key function to execute when finished with a key.
-type receivedBlocksMapFinalizeFn func(idAndBlockStart)
+type receivedBlocksMapFinalizeFn func(IDAndBlockStart)
 
 // receivedBlocksMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
@@ -115,12 +115,12 @@ type receivedBlocksMapEntry struct {
 }
 
 type _receivedBlocksMapKey struct {
-	key      idAndBlockStart
+	key      IDAndBlockStart
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e receivedBlocksMapEntry) Key() idAndBlockStart {
+func (e receivedBlocksMapEntry) Key() IDAndBlockStart {
 	return e.key.key
 }
 
@@ -139,7 +139,7 @@ func _receivedBlocksMapAlloc(opts _receivedBlocksMapOptions) *receivedBlocksMap 
 	return m
 }
 
-func (m *receivedBlocksMap) newMapKey(k idAndBlockStart, opts _receivedBlocksMapKeyOptions) _receivedBlocksMapKey {
+func (m *receivedBlocksMap) newMapKey(k IDAndBlockStart, opts _receivedBlocksMapKeyOptions) _receivedBlocksMapKey {
 	key := _receivedBlocksMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -157,7 +157,7 @@ func (m *receivedBlocksMap) removeMapKey(hash receivedBlocksMapHash, key _receiv
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *receivedBlocksMap) Get(k idAndBlockStart) (receivedBlocks, bool) {
+func (m *receivedBlocksMap) Get(k IDAndBlockStart) (receivedBlocks, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -171,7 +171,7 @@ func (m *receivedBlocksMap) Get(k idAndBlockStart) (receivedBlocks, bool) {
 }
 
 // Set will set the value for an identifier.
-func (m *receivedBlocksMap) Set(k idAndBlockStart, v receivedBlocks) {
+func (m *receivedBlocksMap) Set(k IDAndBlockStart, v receivedBlocks) {
 	m.set(k, v, _receivedBlocksMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -187,7 +187,7 @@ type receivedBlocksMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *receivedBlocksMap) SetUnsafe(k idAndBlockStart, v receivedBlocks, opts receivedBlocksMapSetUnsafeOptions) {
+func (m *receivedBlocksMap) SetUnsafe(k IDAndBlockStart, v receivedBlocks, opts receivedBlocksMapSetUnsafeOptions) {
 	m.set(k, v, _receivedBlocksMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -199,7 +199,7 @@ type _receivedBlocksMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *receivedBlocksMap) set(k idAndBlockStart, v receivedBlocks, opts _receivedBlocksMapKeyOptions) {
+func (m *receivedBlocksMap) set(k IDAndBlockStart, v receivedBlocks, opts _receivedBlocksMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -233,13 +233,13 @@ func (m *receivedBlocksMap) Len() int {
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *receivedBlocksMap) Contains(k idAndBlockStart) bool {
+func (m *receivedBlocksMap) Contains(k IDAndBlockStart) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *receivedBlocksMap) Delete(k idAndBlockStart) {
+func (m *receivedBlocksMap) Delete(k IDAndBlockStart) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

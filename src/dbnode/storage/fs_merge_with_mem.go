@@ -67,7 +67,7 @@ func (m *fsMergeWithMem) Read(
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	// Check if this series is in memory (and thus requires merging).
-	element, exists := m.dirtySeries.Get(idAndBlockStart{
+	element, exists := m.dirtySeries.Get(IDAndBlockStart{
 		blockStart: blockStart,
 		id:         seriesID.Bytes(),
 	})
@@ -127,7 +127,7 @@ func (m *fsMergeWithMem) ForEachRemaining(
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
-		seriesMetadata := seriesElement.Value
+		seriesMetadata := seriesElement.Value()
 		reuseableID.Reset(seriesMetadata.ID)
 		mergeWithData, hasData, err := m.fetchBlocks(ctx, reuseableID, blockStart, nsCtx)
 		if err != nil {

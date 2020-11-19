@@ -2347,7 +2347,7 @@ func (s *dbShard) ColdFlush(
 			}
 			element := seriesList.PushBack(seriesMetadata)
 
-			dirtySeries.Set(idAndBlockStart{
+			dirtySeries.Set(IDAndBlockStart{
 				blockStart: t,
 				id:         seriesMetadata.ID,
 			}, element)

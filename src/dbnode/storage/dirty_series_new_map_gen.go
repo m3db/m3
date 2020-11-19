@@ -33,18 +33,18 @@ import (
 // newDirtySeriesMap returns a new byte keyed map.
 func newDirtySeriesMap() *dirtySeriesMap {
 	return _dirtySeriesMapAlloc(_dirtySeriesMapOptions{
-		hash: func(k idAndBlockStart) dirtySeriesMapHash {
+		hash: func(k IDAndBlockStart) dirtySeriesMapHash {
 			hash := uint64(7)
 			hash = 31*hash + xxhash.Sum64(k.id)
 			hash = 31*hash + uint64(k.blockStart)
 			return dirtySeriesMapHash(hash)
 		},
-		equals: func(x, y idAndBlockStart) bool {
+		equals: func(x, y IDAndBlockStart) bool {
 			// Note: Do cheap check (int comparison) first.
 			return x.blockStart == y.blockStart && bytes.Equal(x.id, y.id)
 		},
-		copy: func(k idAndBlockStart) idAndBlockStart {
-			return idAndBlockStart{
+		copy: func(k IDAndBlockStart) IDAndBlockStart {
+			return IDAndBlockStart{
 				id:         append(make([]byte, 0, len(k.id)), k.id...),
 				blockStart: k.blockStart,
 			}

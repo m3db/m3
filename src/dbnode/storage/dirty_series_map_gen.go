@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,16 +49,16 @@ package storage
 type dirtySeriesMapHash uint64
 
 // dirtySeriesMapHashFn is the hash function to execute when hashing a key.
-type dirtySeriesMapHashFn func(idAndBlockStart) dirtySeriesMapHash
+type dirtySeriesMapHashFn func(IDAndBlockStart) dirtySeriesMapHash
 
 // dirtySeriesMapEqualsFn is the equals key function to execute when detecting equality of a key.
-type dirtySeriesMapEqualsFn func(idAndBlockStart, idAndBlockStart) bool
+type dirtySeriesMapEqualsFn func(IDAndBlockStart, IDAndBlockStart) bool
 
 // dirtySeriesMapCopyFn is the copy key function to execute when copying the key.
-type dirtySeriesMapCopyFn func(idAndBlockStart) idAndBlockStart
+type dirtySeriesMapCopyFn func(IDAndBlockStart) IDAndBlockStart
 
 // dirtySeriesMapFinalizeFn is the finalize key function to execute when finished with a key.
-type dirtySeriesMapFinalizeFn func(idAndBlockStart)
+type dirtySeriesMapFinalizeFn func(IDAndBlockStart)
 
 // dirtySeriesMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
@@ -115,12 +115,12 @@ type dirtySeriesMapEntry struct {
 }
 
 type _dirtySeriesMapKey struct {
-	key      idAndBlockStart
+	key      IDAndBlockStart
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e dirtySeriesMapEntry) Key() idAndBlockStart {
+func (e dirtySeriesMapEntry) Key() IDAndBlockStart {
 	return e.key.key
 }
 
@@ -139,7 +139,7 @@ func _dirtySeriesMapAlloc(opts _dirtySeriesMapOptions) *dirtySeriesMap {
 	return m
 }
 
-func (m *dirtySeriesMap) newMapKey(k idAndBlockStart, opts _dirtySeriesMapKeyOptions) _dirtySeriesMapKey {
+func (m *dirtySeriesMap) newMapKey(k IDAndBlockStart, opts _dirtySeriesMapKeyOptions) _dirtySeriesMapKey {
 	key := _dirtySeriesMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -157,7 +157,7 @@ func (m *dirtySeriesMap) removeMapKey(hash dirtySeriesMapHash, key _dirtySeriesM
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *dirtySeriesMap) Get(k idAndBlockStart) (*idElement, bool) {
+func (m *dirtySeriesMap) Get(k IDAndBlockStart) (*idElement, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -171,7 +171,7 @@ func (m *dirtySeriesMap) Get(k idAndBlockStart) (*idElement, bool) {
 }
 
 // Set will set the value for an identifier.
-func (m *dirtySeriesMap) Set(k idAndBlockStart, v *idElement) {
+func (m *dirtySeriesMap) Set(k IDAndBlockStart, v *idElement) {
 	m.set(k, v, _dirtySeriesMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -187,7 +187,7 @@ type dirtySeriesMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *dirtySeriesMap) SetUnsafe(k idAndBlockStart, v *idElement, opts dirtySeriesMapSetUnsafeOptions) {
+func (m *dirtySeriesMap) SetUnsafe(k IDAndBlockStart, v *idElement, opts dirtySeriesMapSetUnsafeOptions) {
 	m.set(k, v, _dirtySeriesMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -199,7 +199,7 @@ type _dirtySeriesMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *dirtySeriesMap) set(k idAndBlockStart, v *idElement, opts _dirtySeriesMapKeyOptions) {
+func (m *dirtySeriesMap) set(k IDAndBlockStart, v *idElement, opts _dirtySeriesMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -233,13 +233,13 @@ func (m *dirtySeriesMap) Len() int {
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *dirtySeriesMap) Contains(k idAndBlockStart) bool {
+func (m *dirtySeriesMap) Contains(k IDAndBlockStart) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *dirtySeriesMap) Delete(k idAndBlockStart) {
+func (m *dirtySeriesMap) Delete(k IDAndBlockStart) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

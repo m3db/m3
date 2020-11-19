@@ -2622,7 +2622,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 			break
 		}
 
-		key := idAndBlockStart{
+		key := IDAndBlockStart{
 			id:         m.id,
 			blockStart: m.block.start.UnixNano(),
 		}
@@ -4082,7 +4082,7 @@ func (it *metadataIter) Err() error {
 	return it.err
 }
 
-type idAndBlockStart struct {
+type IDAndBlockStart struct {
 	id         ident.ID
 	blockStart int64
 }

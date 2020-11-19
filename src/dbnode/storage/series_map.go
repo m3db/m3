@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,41 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package storage
 
-import (
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
+type seriesMap struct {
+	m *dirtySeriesMap
+}
 
-	"github.com/cespare/xxhash/v2"
-)
+// NewSeriesMap converts a *dirtySeriesMap into SeriesMap.
+func NewSeriesMap(m *dirtySeriesMap) SeriesMap {
+	return &seriesMap{m: m}
+}
 
-func newReceivedBlocksMap(pool pool.BytesPool) *receivedBlocksMap {
-	return _receivedBlocksMapAlloc(_receivedBlocksMapOptions{
-		hash: func(k IDAndBlockStart) receivedBlocksMapHash {
-			// NB(r): Similar to the standard composite key hashes for Java objects
-			hash := uint64(7)
-			hash = 31*hash + xxhash.Sum64(k.id.Bytes())
-			hash = 31*hash + uint64(k.blockStart)
-			return receivedBlocksMapHash(hash)
-		},
-		equals: func(x, y IDAndBlockStart) bool {
-			return x.id.Equal(y.id) && x.blockStart == y.blockStart
-		},
-		copy: func(k IDAndBlockStart) IDAndBlockStart {
-			bytes := k.id.Bytes()
-			keyLen := len(bytes)
-			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, bytes)
-			return IDAndBlockStart{
-				id:         ident.BytesID(pooled),
-				blockStart: k.blockStart,
-			}
-		},
-		finalize: func(k IDAndBlockStart) {
-			if slice, ok := k.id.(ident.BytesID); ok {
-				pool.Put(slice)
-			}
-		},
-	})
+func (s *seriesMap) Get(key IDAndBlockStart) (SeriesMapEntry, bool) {
+	return s.m.Get(key)
 }

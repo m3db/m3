@@ -99,7 +99,7 @@ type idElement struct {
 	list *idList
 
 	// The value stored with this element.
-	Value doc.Document
+	value doc.Document
 }
 
 // Next returns the next list element or nil.
@@ -116,6 +116,11 @@ func (e *idElement) Prev() *idElement {
 		return p
 	}
 	return nil
+}
+
+// Value returns the value of the current element.
+func (e *idElement) Value() doc.Document {
+	return e.value
 }
 
 // idList represents a doubly linked list.
@@ -200,7 +205,7 @@ func (l *idList) insert(e, at *idElement) *idElement {
 // insertValue is a convenience wrapper for inserting using the list's pool.
 func (l *idList) insertValue(v doc.Document, at *idElement) *idElement {
 	e := l.Pool.get()
-	e.Value = v
+	e.value = v
 	return l.insert(e, at)
 }
 
@@ -216,7 +221,7 @@ func (l *idList) remove(e *idElement) *idElement {
 }
 
 // Remove removes e from l if e is an element of list l.
-// It returns the element value e.Value.
+// It returns the element value e.value.
 // The element must not be nil.
 func (l *idList) Remove(e *idElement) doc.Document {
 	if e.list == l {
@@ -225,7 +230,7 @@ func (l *idList) Remove(e *idElement) doc.Document {
 		l.remove(e)
 		l.Pool.put(e)
 	}
-	return e.Value
+	return e.value
 }
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.
@@ -309,7 +314,7 @@ func (l *idList) MoveAfter(e, mark *idElement) {
 func (l *idList) PushBackList(other *idList) {
 	l.lazyInit()
 	for i, e := other.Len(), other.Front(); i > 0; i, e = i-1, e.Next() {
-		l.insertValue(e.Value, l.root.prev)
+		l.insertValue(e.value, l.root.prev)
 	}
 }
 
@@ -318,7 +323,7 @@ func (l *idList) PushBackList(other *idList) {
 func (l *idList) PushFrontList(other *idList) {
 	l.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
-		l.insertValue(e.Value, &l.root)
+		l.insertValue(e.value, &l.root)
 	}
 }
 
