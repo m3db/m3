@@ -53,7 +53,7 @@ languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
 
-title = "M3DB Documentation"
+title = "M3"
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
 
