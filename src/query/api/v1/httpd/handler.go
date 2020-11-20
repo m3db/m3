@@ -460,7 +460,7 @@ func (h *Handler) RegisterRoutes() error {
 				if err := h.registry.Register(queryhttp.RegisterOptions{
 					Path:    custom.Route(),
 					Handler: handler,
-					Methods: custom.Methods(),
+					Methods: methods(method),
 				}); err != nil {
 					return err
 				}

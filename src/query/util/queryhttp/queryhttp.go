@@ -41,6 +41,7 @@ var (
 		})
 )
 
+// NewEndpointRegistry returns a new endpoint registry.
 func NewEndpointRegistry(
 	router *mux.Router,
 	instrumentOpts instrument.Options,
@@ -52,6 +53,8 @@ func NewEndpointRegistry(
 	}
 }
 
+// EndpointRegistry is an endpoint registry that can register routes
+// and instrument them.
 type EndpointRegistry struct {
 	router         *mux.Router
 	instrumentOpts instrument.Options
@@ -64,6 +67,7 @@ type routeKey struct {
 	method     string
 }
 
+// RegisterOptions are options for registering a handler.
 type RegisterOptions struct {
 	Path       string
 	PathPrefix string
@@ -71,6 +75,7 @@ type RegisterOptions struct {
 	Methods    []string
 }
 
+// Register registers an endpoint.
 func (r *EndpointRegistry) Register(
 	opts RegisterOptions,
 	middlewareOpts ...logging.MiddlewareOption,
@@ -140,11 +145,14 @@ func (r *EndpointRegistry) Register(
 	return nil
 }
 
+// RegisterPathsOptions is options for registering multiple paths
+// with the same handler.
 type RegisterPathsOptions struct {
 	Handler http.Handler
 	Methods []string
 }
 
+// RegisterPaths registers multiple paths for the same handler.
 func (r *EndpointRegistry) RegisterPaths(
 	paths []string,
 	opts RegisterPathsOptions,
@@ -162,10 +170,22 @@ func (r *EndpointRegistry) RegisterPaths(
 	return nil
 }
 
+// PathRoute resolves a registered route that was registered by path and method,
+// not by path prefix.
 func (r *EndpointRegistry) PathRoute(path, method string) (*mux.Route, bool) {
 	key := routeKey{
 		path:   path,
 		method: method,
+	}
+	h, ok := r.registered[key]
+	return h, ok
+}
+
+// PathPrefixRoute resolves a registered route that was registered by path
+// prefix, not by path and method.
+func (r *EndpointRegistry) PathPrefixRoute(pathPrefix string) (*mux.Route, bool) {
+	key := routeKey{
+		pathPrefix: pathPrefix,
 	}
 	h, ok := r.registered[key]
 	return h, ok
