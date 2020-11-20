@@ -1,8 +1,8 @@
 <!--  Thanks for sending a pull request!  Here are some tips for you:
-1. If this is your first time, please read our contributor guidelines: https://github.com/m3db/m3/blob/master/CONTRIBUTING.md and developer notes https://github.com/m3db/m3/blob/master/DEVELOPER.md
+1. If this is your first time, please read our contributor guidelines: https://github.com/m3db/m3/blob/master/CONTRIBUTING.md and developer notes https://github.com/m3db/m3/blob/master/DEVELOPMENT.md
 2. Please prefix the name of the pull request with the component you are updating in the format "[component] Change title" (for example "[dbnode] Support out of order writes") and also label this pull request according to what type of issue you are addressing. Furthermore, if this is a WIP or DRAFT PR, please create a draft PR instead: https://github.blog/2019-02-14-introducing-draft-pull-requests/
-3. Ensure you have added or ran the appropriate tests for your PR: read more at https://github.com/m3db/m3/blob/master/DEVELOPER.md#testing-changes
-4. Follow the instructions for writing a changelog note: read more at https://github.com/m3db/m3/blob/master/DEVELOPER.md#adding-a-changelog
+3. Ensure you have added or ran the appropriate tests for your PR: read more at https://github.com/m3db/m3/blob/master/DEVELOPMENT.md#testing-changes
+4. Follow the instructions for writing a changelog note: read more at https://github.com/m3db/m3/blob/master/DEVELOPMENT.md#updating-the-changelog
 -->
 
 **What this PR does / why we need it**:

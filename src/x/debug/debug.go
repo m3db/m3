@@ -40,6 +40,8 @@ import (
 const (
 	// DebugURL is the url for the debug dump endpoint.
 	DebugURL = "/debug/dump"
+	// DebugMethod is the HTTP method.
+	DebugMethod = http.MethodGet
 )
 
 // Source is the interface that must be implemented to provide a new debug

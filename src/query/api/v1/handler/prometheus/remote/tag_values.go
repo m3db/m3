@@ -102,7 +102,7 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, result.Metadata)
+	handleroptions.AddResponseHeaders(w, result.Metadata, opts)
 	// TODO: Support multiple result types
 	err = prometheus.RenderTagValuesResultsJSON(w, result)
 	if err != nil {

@@ -1,0 +1,8 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: fast
+provisioner: diskplugin.csi.alibabacloud.com
+parameters:
+  type: cloud_ssd
+volumeBindingMode: WaitForFirstConsumer

@@ -94,7 +94,7 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, result.Metadata)
+	handleroptions.AddResponseHeaders(w, result.Metadata, opts)
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 		xhttp.WriteError(w, err)

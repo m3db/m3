@@ -91,6 +91,9 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3dbx/vellum/levenshtein"
+	"github.com/m3dbx/vellum/levenshtein2"
+	"github.com/m3dbx/vellum/regexp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
@@ -369,6 +372,16 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
 	} else {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
+	}
+
+	// Set global index options.
+	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
+		regexp.SetStateLimit(n)
+		levenshtein.SetStateLimit(n)
+		levenshtein2.SetStateLimit(n)
+	}
+	if n := cfg.Index.RegexpFSALimitOrDefault(); n > 0 {
+		regexp.SetDefaultLimit(n)
 	}
 
 	buildReporter := instrument.NewBuildReporter(iOpts)
