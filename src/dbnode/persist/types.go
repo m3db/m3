@@ -321,19 +321,19 @@ const (
 )
 
 // SeriesMetadataLifeTime describes the memory life time type.
-type SeriesMetadataLifeTime int
+type SeriesMetadataLifeTime uint8
 
 const (
-	// SeriesMetadataLifeTimeLongLived means the underlying memory's life time is long lived and exceeds
+	// SeriesMetadataLifeTimeLong means the underlying memory's life time is long lived and exceeds
 	// the execution duration of the series metadata receiver.
-	SeriesMetadataLifeTimeLongLived SeriesMetadataLifeTime = iota
+	SeriesMetadataLifeTimeLong SeriesMetadataLifeTime = iota
 	// SeriesMetadataLifeTimeShortLived means that the underlying memory is only valid for the duration
 	// of the OnFlushNewSeries call. Must clone the underlying bytes in order to extend the life time.
 	SeriesMetadataLifeTimeShortLived
 )
 
 // SeriesMetadataType describes the type of series metadata.
-type SeriesMetadataType int
+type SeriesMetadataType uint8
 
 const (
 	// SeriesDocumentType means the metadata is in doc.Document form.
@@ -344,17 +344,17 @@ const (
 
 // IDAndEncodedTags contains a series ID and encoded tags.
 type IDAndEncodedTags struct {
-	ID          []byte
-	EncodedTags []byte
+	ID          ident.BytesID
+	EncodedTags ts.EncodedTags
 }
 
 // SeriesMetadata captures different representations of series metadata and
 // the ownership status of the underlying memory.
 type SeriesMetadata struct {
-	Type             SeriesMetadataType
-	LifeTime         SeriesMetadataLifeTime
 	Document         doc.Document
 	IDAndEncodedTags IDAndEncodedTags
+	Type             SeriesMetadataType
+	LifeTime         SeriesMetadataLifeTime
 }
 
 // OnFlushNewSeriesEvent is the fields related to a flush of a new series.
