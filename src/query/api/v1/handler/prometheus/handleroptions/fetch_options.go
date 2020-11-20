@@ -46,7 +46,7 @@ const (
 	TimeoutParam = "timeout"
 	maxInt64     = float64(math.MaxInt64)
 	minInt64     = float64(math.MinInt64)
-	maxTimeout   = 5 * time.Minute
+	maxTimeout   = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -66,10 +66,7 @@ type FetchOptionsBuilderOptions struct {
 
 // Validate validates the fetch options builder options.
 func (o FetchOptionsBuilderOptions) Validate() error {
-	if o.Timeout <= 0 {
-		return fmt.Errorf("invalid timeout: %v", o.Timeout)
-	}
-	return nil
+	return validateTimeout(o.Timeout)
 }
 
 // FetchOptionsBuilderLimitsOptions provides limits options to use when
@@ -386,10 +383,21 @@ func ParseRequestTimeout(
 			fmt.Errorf("invalid 'timeout': %v", err))
 	}
 
-	if duration > maxTimeout {
-		return 0, xerrors.NewInvalidParamsError(
-			fmt.Errorf("invalid 'timeout': greater than max %v", maxTimeout))
+	if err := validateTimeout(duration); err != nil {
+		return 0, err
 	}
 
 	return duration, nil
+}
+
+func validateTimeout(v time.Duration) error {
+	if v <= 0 {
+		return xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': less than or equal to zero %v", v))
+	}
+	if v > maxTimeout {
+		return xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': %v greater than max %v", v, maxTimeout))
+	}
+	return nil
 }

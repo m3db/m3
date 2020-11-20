@@ -38,12 +38,10 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -222,72 +220,123 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 
 // RegisterRoutes registers the placement routes
 func RegisterRoutes(
-	r *mux.Router,
+	r *queryhttp.EndpointRegistry,
 	defaults []handleroptions.ServiceOptionsDefault,
 	opts HandlerOptions,
-) {
+) error {
 	// Init
 	var (
 		initHandler = NewInitHandler(opts)
-		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3CoordinatorInitURL, initFn).Methods(InitHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBInitURL,
+		M3AggInitURL,
+		M3CoordinatorInitURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: initFn,
+		Methods: []string{InitHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Get
 	var (
 		getHandler = NewGetHandler(opts)
-		getFn      = applyMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		getFn      = applyMiddleware(getHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3CoordinatorGetURL, getFn).Methods(GetHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBGetURL,
+		M3AggGetURL,
+		M3CoordinatorGetURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: getFn,
+		Methods: []string{GetHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Delete all
 	var (
 		deleteAllHandler = NewDeleteAllHandler(opts)
-		deleteAllFn      = applyMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteAllFn      = applyMiddleware(deleteAllHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBDeleteAllURL,
+		M3AggDeleteAllURL,
+		M3CoordinatorDeleteAllURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: deleteAllFn,
+		Methods: []string{DeleteAllHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Add
 	var (
 		addHandler = NewAddHandler(opts)
-		addFn      = applyMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		addFn      = applyMiddleware(addHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3CoordinatorAddURL, addFn).Methods(AddHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBAddURL,
+		M3AggAddURL,
+		M3CoordinatorAddURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: addFn,
+		Methods: []string{AddHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Delete
 	var (
 		deleteHandler = NewDeleteHandler(opts)
-		deleteFn      = applyMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteFn      = applyMiddleware(deleteHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBDeleteURL,
+		M3AggDeleteURL,
+		M3CoordinatorDeleteURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: deleteFn,
+		Methods: []string{DeleteHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
-		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBReplaceURL,
+		M3AggReplaceURL,
+		M3CoordinatorReplaceURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: replaceFn,
+		Methods: []string{ReplaceHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Set
 	var (
 		setHandler = NewSetHandler(opts)
-		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3AggSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3CoordinatorSetURL, setFn).Methods(SetHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBSetURL,
+		M3AggSetURL,
+		M3CoordinatorSetURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: setFn,
+		Methods: []string{SetHTTPMethod},
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func newPlacementCutoverNanosFn(
@@ -383,21 +432,10 @@ func validateAllAvailable(p placement.Placement) error {
 }
 
 func applyMiddleware(
-	f func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
-	defaults []handleroptions.ServiceOptionsDefault,
-	instrumentOpts instrument.Options,
-) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
-		parseServiceMiddleware(f, defaults),
-		instrumentOpts,
-	).ServeHTTP
-}
-
-func parseServiceMiddleware(
 	next func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
 	defaults []handleroptions.ServiceOptionsDefault,
-) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
 			svc = handleroptions.ServiceNameAndDefaults{Defaults: defaults}
 			err error
@@ -409,7 +447,7 @@ func parseServiceMiddleware(
 		}
 
 		next(svc, w, r)
-	}
+	})
 }
 
 func parseServiceFromRequest(r *http.Request) (string, error) {

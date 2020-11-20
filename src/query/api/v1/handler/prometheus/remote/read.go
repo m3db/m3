@@ -130,6 +130,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Write headers before response.
+	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
+
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
 	// than increment success/failure metrics.
@@ -174,10 +177,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-		handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
 		err = json.NewEncoder(w).Encode(result)
 	default:
-		handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
 
