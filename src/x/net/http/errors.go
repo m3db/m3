@@ -68,7 +68,8 @@ func (e errorWithCode) Code() int {
 
 // ErrorResponse is a generic response for an HTTP error.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
 }
 
 type options struct {
@@ -96,7 +97,7 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 	if o.response == nil {
 		w.Header().Set(HeaderContentType, ContentTypeJSON)
 		w.WriteHeader(statusCode)
-		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		json.NewEncoder(w).Encode(ErrorResponse{Status: "error", Error: err.Error()})
 	} else {
 		w.WriteHeader(statusCode)
 		w.Write(o.response)
