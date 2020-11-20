@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -279,7 +280,7 @@ func TestCORSMiddleware(t *testing.T) {
 	h, err := setupHandler(s)
 	require.NoError(t, err, "unable to setup handler")
 
-	setupTestRoute(h.router)
+	setupTestRouteRegistry(h.registry)
 	res := doTestRequest(h.Router())
 
 	assert.Equal(t, "hello!", res.Body.String())
@@ -296,7 +297,7 @@ func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
 func TestTracingMiddleware(t *testing.T) {
 	mtr := mocktracer.New()
 	router := mux.NewRouter()
-	setupTestRoute(router)
+	setupTestRouteRouter(router)
 
 	handler := applyMiddleware(router, mtr)
 	doTestRequest(handler)
@@ -307,7 +308,7 @@ func TestTracingMiddleware(t *testing.T) {
 func TestCompressionMiddleware(t *testing.T) {
 	mtr := mocktracer.New()
 	router := mux.NewRouter()
-	setupTestRoute(router)
+	setupTestRouteRouter(router)
 
 	handler := applyMiddleware(router, mtr)
 	req := httptest.NewRequest("GET", testRoute, nil)
@@ -323,7 +324,18 @@ func TestCompressionMiddleware(t *testing.T) {
 
 const testRoute = "/foobar"
 
-func setupTestRoute(r *mux.Router) {
+func setupTestRouteRegistry(r *queryhttp.EndpointRegistry) {
+	r.Register(queryhttp.RegisterOptions{
+		Path: testRoute,
+		Handler: http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
+			writer.WriteHeader(http.StatusOK)
+			writer.Write([]byte("hello!"))
+		}),
+		Methods: methods(http.MethodGet),
+	})
+}
+
+func setupTestRouteRouter(r *mux.Router) {
 	r.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 		writer.Write([]byte("hello!"))
@@ -348,10 +360,10 @@ func init() {
 type assertFn func(t *testing.T, prev http.Handler, r *http.Request)
 
 type customHandler struct {
-	t *testing.T
+	t         *testing.T
 	routeName string
-	methods []string
-	assertFn assertFn
+	methods   []string
+	assertFn  assertFn
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -389,33 +401,33 @@ func TestCustomRoutes(t *testing.T) {
 		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
 	require.NoError(t, err)
 	custom := &customHandler{
-		t: t,
+		t:         t,
 		routeName: "/custom",
-		methods: []string{http.MethodGet, http.MethodHead},
+		methods:   []string{http.MethodGet, http.MethodHead},
 		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
 	customShadowGet := &customHandler{
-		t: t,
+		t:         t,
 		routeName: "/custom",
-		methods: []string{http.MethodGet},
+		methods:   []string{http.MethodGet},
 		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.NotNil(t, prev, "Should shadow already existing handler")
 		},
 	}
 	customShadowHead := &customHandler{
-		t: t,
+		t:         t,
 		routeName: "/custom",
-		methods: []string{http.MethodHead},
+		methods:   []string{http.MethodHead},
 		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.NotNil(t, prev, "Should shadow already existing handler")
 		},
 	}
 	customNew := &customHandler{
-		t: t,
+		t:         t,
 		routeName: "/custom/new",
-		methods: []string{http.MethodGet, http.MethodHead},
+		methods:   []string{http.MethodGet, http.MethodHead},
 		assertFn: func(t *testing.T, prev http.Handler, r *http.Request) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
@@ -442,24 +454,4 @@ func assertRoute(t *testing.T, routeName string, method string, handler *Handler
 	res := httptest.NewRecorder()
 	handler.Router().ServeHTTP(res, req)
 	require.Equal(t, expectedStatusCode, res.Code)
-}
-
-func TestRouteName(t *testing.T) {
-	assert.Equal(
-		t,
-		"/api/v1/test GET",
-		routeName("/api/v1/test", "GET"),
-	)
-
-	assert.Equal(
-		t,
-		"/api/v1/test",
-		routeName("/api/v1/test", ""),
-	)
-
-	assert.Equal(
-		t,
-		"/api/v1/test POST",
-		routeName("/api/v1/test", "POST"),
-	)
 }
