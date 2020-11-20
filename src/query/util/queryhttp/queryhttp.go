@@ -33,6 +33,14 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var (
+	histogramTimerOptions = instrument.NewHistogramTimerOptions(
+		instrument.HistogramTimerOptions{
+			// Use sparse histogram timer buckets to not overload with latency metrics.
+			HistogramBuckets: instrument.SparseHistogramTimerHistogramBuckets(),
+		})
+)
+
 func NewEndpointRegistry(
 	router *mux.Router,
 	instrumentOpts instrument.Options,
@@ -81,9 +89,9 @@ func (r *EndpointRegistry) Register(
 				p = "unknown"
 			}
 
-			metric := metrics.metric(p, meta.StatusCode)
-			metric.counter.Inc(1)
-			metric.timer.Record(meta.Duration)
+			counter, timer := metrics.metric(p, meta.StatusCode)
+			counter.Inc(1)
+			timer.Record(meta.Duration)
 		}))
 	middlewareOptions = append(middlewareOptions, postRequestOption)
 	middlewareOptions = append(middlewareOptions, middlewareOpts...)
@@ -138,6 +146,7 @@ type routeMetrics struct {
 	sync.RWMutex
 	instrumentOpts instrument.Options
 	metrics        map[routeMetricKey]routeMetric
+	timers         map[string]tally.Timer
 }
 
 type routeMetricKey struct {
@@ -146,49 +155,57 @@ type routeMetricKey struct {
 }
 
 type routeMetric struct {
-	counter tally.Counter
-	timer   tally.Timer
+	status tally.Counter
 }
 
 func newRouteMetrics(instrumentOpts instrument.Options) *routeMetrics {
 	return &routeMetrics{
 		instrumentOpts: instrumentOpts,
 		metrics:        make(map[routeMetricKey]routeMetric),
+		timers:         make(map[string]tally.Timer),
 	}
 }
 
-func (m *routeMetrics) metric(path string, status int) routeMetric {
+func (m *routeMetrics) metric(path string, status int) (tally.Counter, tally.Timer) {
 	key := routeMetricKey{
 		path:   path,
 		status: status,
 	}
 	m.RLock()
-	metric, ok := m.metrics[key]
+	metric, ok1 := m.metrics[key]
+	timer, ok2 := m.timers[path]
 	m.RUnlock()
-	if ok {
-		return metric
+	if ok1 && ok2 {
+		return metric.status, timer
 	}
 
 	m.Lock()
 	defer m.Unlock()
 
-	metric, ok = m.metrics[key]
-	if ok {
-		return metric
+	metric, ok1 = m.metrics[key]
+	timer, ok2 = m.timers[path]
+	if ok1 && ok2 {
+		return metric.status, timer
 	}
 
-	scope := m.instrumentOpts.MetricsScope().Tagged(map[string]string{
-		"path":   path,
+	scopePath := m.instrumentOpts.MetricsScope().Tagged(map[string]string{
+		"path": path,
+	})
+
+	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
 	})
 
-	timerOpts := m.instrumentOpts.TimerOptions()
-
-	metric = routeMetric{
-		counter: scope.Counter("request"),
-		timer:   instrument.NewTimer(scope, "latency", timerOpts),
+	if !ok1 {
+		metric = routeMetric{
+			status: scopePathAndStatus.Counter("request"),
+		}
+		m.metrics[key] = metric
 	}
-	m.metrics[key] = metric
+	if !ok2 {
+		timer = instrument.NewTimer(scopePath, "latency", histogramTimerOptions)
+		m.timers[path] = timer
+	}
 
-	return metric
+	return metric.status, timer
 }

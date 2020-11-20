@@ -54,6 +54,34 @@ func (o TimerOptions) NewTimer(scope tally.Scope, name string) tally.Timer {
 	return NewTimer(scope, name, o)
 }
 
+// SparseHistogramTimerHistogramBuckets returns a small spare set of
+// histogram timer histogram buckets, from 1ms up to 8m.
+func SparseHistogramTimerHistogramBuckets() tally.Buckets {
+	return tally.ValueBuckets{
+		0.001,
+		0.005,
+		0.01,
+		0.025,
+		0.05,
+		0.075,
+		0.1,
+		0.25,
+		0.5,
+		0.75,
+		1,
+		2.5,
+		5,
+		7.5,
+		10,
+		25,
+		50,
+		75,
+		100,
+		250,
+		500,
+	}
+}
+
 // DefaultHistogramTimerHistogramBuckets returns a set of default
 // histogram timer histogram buckets, from 2ms up to 1hr.
 func DefaultHistogramTimerHistogramBuckets() tally.Buckets {
