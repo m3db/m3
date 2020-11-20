@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -1792,4 +1793,12 @@ func (n *dbNamespace) aggregateTiles(
 		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
+}
+
+func (n *dbNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+	shard, _, err := n.readableShardFor(id)
+	if err != nil {
+		return doc.Document{}, false, err
+	}
+	return shard.DocRef(id)
 }
