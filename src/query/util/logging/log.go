@@ -23,6 +23,7 @@ package logging
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -121,9 +122,24 @@ func withResponseTimeLogging(
 func withResponseTimeLoggingFunc(
 	next func(w http.ResponseWriter, r *http.Request),
 	instrumentOpts instrument.Options,
+	opts ...MiddlewareOption,
 ) http.HandlerFunc {
+	middlewareOpts := defaultMiddlewareOptions
+	for _, opt := range opts {
+		opt(&middlewareOpts)
+	}
+
+	threshold := middlewareOpts.responseLogThreshold
 	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
+		for _, fn := range middlewareOpts.preHooks {
+			fn(r)
+		}
+
+		// Track status code.
+		statusCodeTracking := &statusCodeTracker{ResponseWriter: w}
+		w = statusCodeTracking.wrappedResponseWriter()
+
 		rqCtx := NewContextWithGeneratedID(r.Context(), instrumentOpts)
 		logger := WithContext(rqCtx, instrumentOpts)
 
@@ -137,9 +153,19 @@ func withResponseTimeLoggingFunc(
 		next(w, r.WithContext(rqCtx))
 		endTime := time.Now()
 		d := endTime.Sub(startTime)
-		if d > time.Second {
+		if threshold > 0 && d >= threshold {
 			logger.Info("finished handling request", zap.Time("time", endTime),
 				zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
+		}
+
+		for _, fn := range middlewareOpts.postHooks {
+			fn(r, RequestMiddlewareMetadata{
+				Start:       startTime,
+				End:         endTime,
+				Duration:    d,
+				WroteHeader: statusCodeTracking.wroteHeader,
+				StatusCode:  statusCodeTracking.status,
+			})
 		}
 	}
 }
@@ -225,8 +251,10 @@ func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
 func WithResponseTimeAndPanicErrorLogging(
 	next http.Handler,
 	instrumentOpts instrument.Options,
+	opts ...MiddlewareOption,
 ) http.Handler {
-	return WithResponseTimeAndPanicErrorLoggingFunc(next.ServeHTTP, instrumentOpts)
+	return WithResponseTimeAndPanicErrorLoggingFunc(next.ServeHTTP,
+		instrumentOpts, opts...)
 }
 
 // WithResponseTimeAndPanicErrorLoggingFunc wraps around the http request
@@ -234,10 +262,318 @@ func WithResponseTimeAndPanicErrorLogging(
 func WithResponseTimeAndPanicErrorLoggingFunc(
 	next func(w http.ResponseWriter, r *http.Request),
 	instrumentOpts instrument.Options,
+	opts ...MiddlewareOption,
 ) http.Handler {
 	// Wrap panic first, to be able to capture slow requests that panic in the
 	// logs.
 	return withResponseTimeLoggingFunc(
 		withPanicErrorResponderFunc(next, instrumentOpts),
-		instrumentOpts)
+		instrumentOpts, opts...)
+}
+
+type middlewareOptions struct {
+	responseLogThreshold time.Duration
+	preHooks             []PreRequestMiddleware
+	postHooks            []PostRequestMiddleware
+}
+
+var (
+	defaultMiddlewareOptions = middlewareOptions{
+		responseLogThreshold: time.Second,
+	}
+)
+
+// PreRequestMiddleware is middleware that runs before a request.
+type PreRequestMiddleware func(req *http.Request)
+
+// RequestMiddlewareMetadata is metadata available to middleware about a request.
+type RequestMiddlewareMetadata struct {
+	Start       time.Time
+	End         time.Time
+	Duration    time.Duration
+	WroteHeader bool
+	StatusCode  int
+}
+
+// PostRequestMiddleware is middleware that runs before a request.
+type PostRequestMiddleware func(req *http.Request, meta RequestMiddlewareMetadata)
+
+// MiddlewareOption is an option to pass to a middleware.
+type MiddlewareOption func(*middlewareOptions)
+
+// WithResponseLogThreshold is a middleware option to set response log threshold.
+func WithResponseLogThreshold(threshold time.Duration) MiddlewareOption {
+	return func(opts *middlewareOptions) {
+		opts.responseLogThreshold = threshold
+	}
+}
+
+// WithNoResponseLog is a middleware option to disable response logging.
+func WithNoResponseLog() MiddlewareOption {
+	return func(opts *middlewareOptions) {
+		opts.responseLogThreshold = 0
+	}
+}
+
+// WithPreRequestMiddleware is a middleware option to set pre-request middleware.
+func WithPreRequestMiddleware(m PreRequestMiddleware) MiddlewareOption {
+	return func(opts *middlewareOptions) {
+		opts.preHooks = append(opts.preHooks, m)
+	}
+}
+
+// WithPostRequestMiddleware is a middleware option to set post-request middleware.
+func WithPostRequestMiddleware(m PostRequestMiddleware) MiddlewareOption {
+	return func(opts *middlewareOptions) {
+		opts.postHooks = append(opts.postHooks, m)
+	}
+}
+
+type statusCodeTracker struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (w *statusCodeTracker) WriteHeader(status int) {
+	w.status = status
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusCodeTracker) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		w.status = 200
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// wrappedResponseWriter returns a wrapped version of the original
+// ResponseWriter and only implements the same combination of additional
+// interfaces as the original.  This implementation is based on
+// https://github.com/felixge/httpsnoop.
+func (w *statusCodeTracker) wrappedResponseWriter() http.ResponseWriter {
+	var (
+		hj, i0 = w.ResponseWriter.(http.Hijacker)
+		cn, i1 = w.ResponseWriter.(http.CloseNotifier)
+		pu, i2 = w.ResponseWriter.(http.Pusher)
+		fl, i3 = w.ResponseWriter.(http.Flusher)
+		rf, i4 = w.ResponseWriter.(io.ReaderFrom)
+	)
+
+	switch {
+	case !i0 && !i1 && !i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+		}{w}
+	case !i0 && !i1 && !i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			io.ReaderFrom
+		}{w, rf}
+	case !i0 && !i1 && !i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Flusher
+		}{w, fl}
+	case !i0 && !i1 && !i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Flusher
+			io.ReaderFrom
+		}{w, fl, rf}
+	case !i0 && !i1 && i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Pusher
+		}{w, pu}
+	case !i0 && !i1 && i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Pusher
+			io.ReaderFrom
+		}{w, pu, rf}
+	case !i0 && !i1 && i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Pusher
+			http.Flusher
+		}{w, pu, fl}
+	case !i0 && !i1 && i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Pusher
+			http.Flusher
+			io.ReaderFrom
+		}{w, pu, fl, rf}
+	case !i0 && i1 && !i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+		}{w, cn}
+	case !i0 && i1 && !i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			io.ReaderFrom
+		}{w, cn, rf}
+	case !i0 && i1 && !i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Flusher
+		}{w, cn, fl}
+	case !i0 && i1 && !i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Flusher
+			io.ReaderFrom
+		}{w, cn, fl, rf}
+	case !i0 && i1 && i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Pusher
+		}{w, cn, pu}
+	case !i0 && i1 && i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Pusher
+			io.ReaderFrom
+		}{w, cn, pu, rf}
+	case !i0 && i1 && i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Pusher
+			http.Flusher
+		}{w, cn, pu, fl}
+	case !i0 && i1 && i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.CloseNotifier
+			http.Pusher
+			http.Flusher
+			io.ReaderFrom
+		}{w, cn, pu, fl, rf}
+	case i0 && !i1 && !i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+		}{w, hj}
+	case i0 && !i1 && !i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			io.ReaderFrom
+		}{w, hj, rf}
+	case i0 && !i1 && !i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Flusher
+		}{w, hj, fl}
+	case i0 && !i1 && !i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Flusher
+			io.ReaderFrom
+		}{w, hj, fl, rf}
+	case i0 && !i1 && i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Pusher
+		}{w, hj, pu}
+	case i0 && !i1 && i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Pusher
+			io.ReaderFrom
+		}{w, hj, pu, rf}
+	case i0 && !i1 && i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Pusher
+			http.Flusher
+		}{w, hj, pu, fl}
+	case i0 && !i1 && i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Pusher
+			http.Flusher
+			io.ReaderFrom
+		}{w, hj, pu, fl, rf}
+	case i0 && i1 && !i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+		}{w, hj, cn}
+	case i0 && i1 && !i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			io.ReaderFrom
+		}{w, hj, cn, rf}
+	case i0 && i1 && !i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Flusher
+		}{w, hj, cn, fl}
+	case i0 && i1 && !i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Flusher
+			io.ReaderFrom
+		}{w, hj, cn, fl, rf}
+	case i0 && i1 && i2 && !i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Pusher
+		}{w, hj, cn, pu}
+	case i0 && i1 && i2 && !i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Pusher
+			io.ReaderFrom
+		}{w, hj, cn, pu, rf}
+	case i0 && i1 && i2 && i3 && !i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Pusher
+			http.Flusher
+		}{w, hj, cn, pu, fl}
+	case i0 && i1 && i2 && i3 && i4:
+		return struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.CloseNotifier
+			http.Pusher
+			http.Flusher
+			io.ReaderFrom
+		}{w, hj, cn, pu, fl, rf}
+	default:
+		return struct {
+			http.ResponseWriter
+		}{w}
+	}
 }
