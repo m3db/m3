@@ -40,6 +40,7 @@ import (
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
 
+	"github.com/m3dbx/vellum/regexp"
 	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.etcd.io/etcd/pkg/types"
@@ -379,6 +380,14 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
+	// RegexpDFALimit is the limit on the max number of states used by a
+	// regexp deterministic finite automaton. Default is 10,000 states.
+	RegexpDFALimit *int `yaml:"regexpDFALimit"`
+
+	// RegexpFSALimit is the limit on the max number of bytes used by the
+	// finite state automaton. Default is 10mb (10 million as int).
+	RegexpFSALimit *uint `yaml:"regexpFSALimit"`
+
 	// ForwardIndexProbability determines the likelihood that an incoming write is
 	// written to the next block, when arriving close to the block boundary.
 	//
@@ -394,6 +403,24 @@ type IndexConfiguration struct {
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+}
+
+// RegexpDFALimitOrDefault returns the deterministic finite automaton states
+// limit or default.
+func (c IndexConfiguration) RegexpDFALimitOrDefault() int {
+	if c.RegexpDFALimit == nil {
+		return regexp.StateLimit()
+	}
+	return *c.RegexpDFALimit
+}
+
+// RegexpFSALimitOrDefault returns the finite state automaton size
+// limit or default.
+func (c IndexConfiguration) RegexpFSALimitOrDefault() uint {
+	if c.RegexpFSALimit == nil {
+		return regexp.DefaultLimit()
+	}
+	return *c.RegexpFSALimit
 }
 
 // TransformConfiguration contains configuration options that can transform

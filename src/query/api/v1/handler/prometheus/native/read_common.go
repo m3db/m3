@@ -176,7 +176,7 @@ func read(
 	parseOpts := engine.Options().ParseOptions()
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
-		return emptyResult, err
+		return emptyResult, xerrors.NewInvalidParamsError(err)
 	}
 
 	// Detect clients closing connections.

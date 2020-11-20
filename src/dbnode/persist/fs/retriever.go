@@ -448,7 +448,7 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
+		if err := r.bytesReadLimit.Inc(int(entry.Size), req.source); err != nil {
 			req.err = err
 			limitErr = err
 			continue
@@ -631,6 +631,13 @@ func (r *blockRetriever) Stream(
 	req.onRetrieve = onRetrieve
 	req.streamReqType = streamDataReq
 
+	goCtx, found := ctx.GoContext()
+	if found {
+		if source, ok := goCtx.Value(limits.SourceContextKey).([]byte); ok {
+			req.source = source
+		}
+	}
+
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		req.resultWg.Done()
@@ -776,6 +783,7 @@ type retrieveRequest struct {
 	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
+	source     []byte
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
@@ -947,6 +955,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
 	req.finalized = false
 	req.finalizes = 0
+	req.source = nil
 	req.shard = 0
 	req.id = nil
 	req.tags = ident.EmptyTagIterator
