@@ -169,7 +169,7 @@ func (m *routeMetrics) metric(path string, status int) routeMetric {
 		return metric
 	}
 
-	m.Unlock()
+	m.Lock()
 	defer m.Unlock()
 
 	metric, ok = m.metrics[key]
