@@ -48,12 +48,20 @@ func NewEndpointRegistry(
 	return &EndpointRegistry{
 		router:         router,
 		instrumentOpts: instrumentOpts,
+		registered:     make(map[routeKey]*mux.Route),
 	}
 }
 
 type EndpointRegistry struct {
 	router         *mux.Router
 	instrumentOpts instrument.Options
+	registered     map[routeKey]*mux.Route
+}
+
+type routeKey struct {
+	path       string
+	pathPrefix string
+	method     string
 }
 
 type RegisterOptions struct {
@@ -103,9 +111,28 @@ func (r *EndpointRegistry) Register(
 
 	handler := wrapped(opts.Handler)
 	if p := opts.Path; p != "" && len(opts.Methods) > 0 {
-		route = r.router.HandleFunc(p, handler.ServeHTTP).Methods(opts.Methods...)
+		for _, method := range opts.Methods {
+			key := routeKey{
+				path:   p,
+				method: method,
+			}
+			if _, ok := r.registered[key]; ok {
+				return fmt.Errorf("route already exists: path=%s, method=%s",
+					p, method)
+			}
+
+			route = r.router.HandleFunc(p, handler.ServeHTTP).Methods(method)
+			r.registered[key] = route
+		}
 	} else if p := opts.PathPrefix; p != "" {
+		key := routeKey{
+			pathPrefix: p,
+		}
+		if _, ok := r.registered[key]; ok {
+			return fmt.Errorf("route already exists: pathPrefix=%s", p)
+		}
 		route = r.router.PathPrefix(p).Handler(handler)
+		r.registered[key] = route
 	} else {
 		return fmt.Errorf("no path and methods or path prefix set: +%v", opts)
 	}
@@ -135,11 +162,27 @@ func (r *EndpointRegistry) RegisterPaths(
 	return nil
 }
 
+func (r *EndpointRegistry) PathRoute(path, method string) (*mux.Route, bool) {
+	key := routeKey{
+		path:   path,
+		method: method,
+	}
+	h, ok := r.registered[key]
+	return h, ok
+}
+
 // Walk walks the router and all its sub-routers, calling walkFn for each route
 // in the tree. The routes are walked in the order they were added. Sub-routers
 // are explored depth-first.
 func (r *EndpointRegistry) Walk(walkFn mux.WalkFunc) error {
 	return r.router.Walk(walkFn)
+}
+
+func routeName(p string, method string) string {
+	if method == "" {
+		return p
+	}
+	return fmt.Sprintf("%s %s", p, method)
 }
 
 type routeMetrics struct {

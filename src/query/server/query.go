@@ -491,8 +491,12 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
 	}
 
-	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
+	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
 		instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to create PromQL engine", zap.Error(err))
+	}
+
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
@@ -1166,18 +1170,24 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
-	cfg config.QueryConfiguration,
+	cfg config.Configuration,
 	registry *extprom.Registry,
 	instrumentOpts instrument.Options,
-) *prometheuspromql.Engine {
+) (*prometheuspromql.Engine, error) {
+	lookbackDelta, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
-			Logger:     log.With(kitLogger, "component", "prometheus_engine"),
-			Reg:        registry,
-			MaxSamples: cfg.Prometheus.MaxSamplesPerQueryOrDefault(),
-			Timeout:    cfg.TimeoutOrDefault(),
+			Logger:        log.With(kitLogger, "component", "prometheus_engine"),
+			Reg:           registry,
+			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
+			Timeout:       cfg.Query.TimeoutOrDefault(),
+			LookbackDelta: lookbackDelta,
 		}
 	)
-	return prometheuspromql.NewEngine(opts)
+	return prometheuspromql.NewEngine(opts), nil
 }

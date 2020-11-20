@@ -100,6 +100,12 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 	return nsMap.Metadatas(), value.Version(), nil
 }
 
+type applyMiddlewareFn func(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+)
+
 // RegisterRoutes registers the namespace routes.
 func RegisterRoutes(
 	r *queryhttp.EndpointRegistry,

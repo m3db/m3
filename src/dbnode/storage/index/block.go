@@ -471,6 +471,7 @@ func (b *block) queryWithSpan(
 	cancellable.ReleaseCheckout()
 
 	var (
+		source     = opts.Source
 		iterCloser = safeCloser{closable: iter}
 		size       = results.Size()
 		docsCount  = results.TotalDocsCount()
@@ -498,7 +499,7 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -506,7 +507,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -533,10 +534,11 @@ func (b *block) addQueryResults(
 	cancellable *xresource.CancellableLifetime,
 	results BaseResults,
 	batch []doc.Document,
+	source []byte,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
@@ -639,6 +641,7 @@ func (b *block) aggregateWithSpan(
 	}
 
 	var (
+		source     = opts.Source
 		size       = results.Size()
 		docsCount  = results.TotalDocsCount()
 		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
@@ -694,7 +697,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -712,7 +715,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -795,10 +798,11 @@ func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
+	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

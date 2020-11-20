@@ -53,6 +53,7 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
+	"go.uber.org/zap"
 )
 
 const (
@@ -80,6 +81,7 @@ type Handler struct {
 	handler        http.Handler
 	options        options.HandlerOptions
 	customHandlers []options.CustomHandler
+	logger         *zap.Logger
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -94,6 +96,7 @@ func NewHandler(
 ) *Handler {
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
+	logger := handlerOptions.InstrumentOpts().Logger()
 
 	instrumentOpts := handlerOptions.InstrumentOpts().SetMetricsScope(
 		handlerOptions.InstrumentOpts().MetricsScope().SubScope("http_handler"))
@@ -102,6 +105,7 @@ func NewHandler(
 		handler:        handlerWithMiddleware,
 		options:        handlerOptions,
 		customHandlers: customHandlers,
+		logger:         logger,
 	}
 }
 
@@ -165,22 +169,6 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(nativeSource).
 			Tagged(v1APIGroup),
 		))
-
-	// Register custom endpoints.
-	for _, custom := range h.customHandlers {
-		handler, err := custom.Handler(nativeSourceOpts)
-		if err != nil {
-			return err
-		}
-
-		if err := h.registry.Register(queryhttp.RegisterOptions{
-			Path:    custom.Route(),
-			Handler: handler,
-			Methods: custom.Methods(),
-		}); err != nil {
-			return err
-		}
-	}
 
 	opts := prom.Options{
 		PromQLEngine: h.options.PrometheusEngine(),
@@ -451,6 +439,37 @@ func (h *Handler) RegisterRoutes() error {
 	}
 	if err := h.registerRoutesEndpoint(); err != nil {
 		return err
+	}
+
+	// Register custom endpoints last to have these conflict with
+	// any existing routes.
+	for _, custom := range h.customHandlers {
+		for _, method := range custom.Methods() {
+			var prevHandler http.Handler
+			route, prevRoute := h.registry.PathRoute(custom.Route(), method)
+			if prevRoute {
+				prevHandler = route.GetHandler()
+			}
+
+			handler, err := custom.Handler(nativeSourceOpts, prevHandler)
+			if err != nil {
+				return err
+			}
+
+			if !prevRoute {
+				if err := h.registry.Register(queryhttp.RegisterOptions{
+					Path:    custom.Route(),
+					Handler: handler,
+					Methods: custom.Methods(),
+				}); err != nil {
+					return err
+				}
+			} else {
+				// Do not re-instrument this route since the prev handler
+				// is already instrumented.
+				route.Handler(handler)
+			}
+		}
 	}
 
 	return nil

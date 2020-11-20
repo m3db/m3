@@ -50,6 +50,9 @@ const (
 	// Valid values are "default" or "aggregate".
 	WriteTypeHeader = M3HeaderPrefix + "Write-Type"
 
+	// SourceHeader tracks bytes and docs read for the given source, if provided.
+	SourceHeader = M3HeaderPrefix + "Source"
+
 	// DefaultWriteType is the default write type.
 	DefaultWriteType = "default"
 

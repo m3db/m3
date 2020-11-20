@@ -337,6 +337,8 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    regexpDFALimit: null
+    regexpFSALimit: null
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:

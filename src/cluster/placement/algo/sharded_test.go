@@ -1230,8 +1230,8 @@ func verifyAllShardsInAvailableState(t *testing.T, p placement.Placement) {
 	for _, instance := range p.Instances() {
 		s := instance.Shards()
 		require.Equal(t, len(s.All()), len(s.ShardsForState(shard.Available)))
-		require.Nil(t, s.ShardsForState(shard.Initializing))
-		require.Nil(t, s.ShardsForState(shard.Leaving))
+		require.Empty(t, s.ShardsForState(shard.Initializing))
+		require.Empty(t, s.ShardsForState(shard.Leaving))
 	}
 }
 
