@@ -92,25 +92,27 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 		fn(&o)
 	}
 
+	statusCode := getStatusCode(err)
+	if o.response == nil {
+		w.Header().Set(HeaderContentType, ContentTypeJSON)
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+	} else {
+		w.WriteHeader(statusCode)
+		w.Write(o.response)
+	}
+}
+
+func getStatusCode(err error) int {
 	switch v := err.(type) {
 	case Error:
-		w.WriteHeader(v.Code())
+		return v.Code()
 	case error:
 		if xerrors.IsInvalidParams(v) {
-			w.WriteHeader(http.StatusBadRequest)
+			return http.StatusBadRequest
 		} else if errors.Is(err, context.DeadlineExceeded) {
-			w.WriteHeader(http.StatusGatewayTimeout)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			return http.StatusGatewayTimeout
 		}
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
 	}
-
-	if o.response != nil {
-		w.Write(o.response)
-		return
-	}
-
-	json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+	return http.StatusInternalServerError
 }
