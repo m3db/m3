@@ -35,9 +35,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-var (
-	errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
-)
+var errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
 
 // Metadata is metadata for a time series, it can
 // have several underlying sources.
@@ -322,12 +320,49 @@ const (
 	FileSetIndexContentType
 )
 
+// SeriesMetadataLifeTime describes the memory life time type.
+type SeriesMetadataLifeTime int
+
+const (
+	// SeriesMetadataLifeTimeLongLived means the underlying memory's life time is long lived and exceeds
+	// the execution duration of the series metadata receiver.
+	SeriesMetadataLifeTimeLongLived SeriesMetadataLifeTime = iota
+	// SeriesMetadataLifeTimeShortLived means that the underlying memory is only valid for the duration
+	// of the OnFlushNewSeries call. Must clone the underlying bytes in order to extend the life time.
+	SeriesMetadataLifeTimeShortLived
+)
+
+// SeriesMetadataType describes the type of series metadata.
+type SeriesMetadataType int
+
+const (
+	// SeriesDocumentType means the metadata is in doc.Document form.
+	SeriesDocumentType SeriesMetadataType = iota
+	// SeriesIDAndEncodedTagsType means the metadata is in IDAndEncodedTags form.
+	SeriesIDAndEncodedTagsType
+)
+
+// IDAndEncodedTags contains a series ID and encoded tags.
+type IDAndEncodedTags struct {
+	ID          []byte
+	EncodedTags []byte
+}
+
+// SeriesMetadata captures different representations of series metadata and
+// the ownership status of the underlying memory.
+type SeriesMetadata struct {
+	Type             SeriesMetadataType
+	LifeTime         SeriesMetadataLifeTime
+	Document         doc.Document
+	IDAndEncodedTags IDAndEncodedTags
+}
+
 // OnFlushNewSeriesEvent is the fields related to a flush of a new series.
 type OnFlushNewSeriesEvent struct {
 	Shard          uint32
 	BlockStart     time.Time
 	FirstWrite     time.Time
-	SeriesMetadata doc.Document
+	SeriesMetadata SeriesMetadata
 }
 
 // OnFlushSeries performs work on a per series level.
