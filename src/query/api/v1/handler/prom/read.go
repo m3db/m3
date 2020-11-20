@@ -104,8 +104,8 @@ func newReadHandler(
 		map[string]string{"handler": "prometheus-read"},
 	)
 	opts := newDefaultOptions(hOpts)
-	for _, option := range options {
-		if err := option.apply(&opts); err != nil {
+	for _, optionFn := range options {
+		if err := optionFn(&opts); err != nil {
 			return nil, err
 		}
 	}

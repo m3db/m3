@@ -46,34 +46,32 @@ type opts struct {
 	newQueryFn   NewQueryFn
 }
 
-type Option interface {
-	apply(*opts) error
-}
+// Option is a Prometheus handler option.
+type Option func(*opts) error
 
+// WithEngine sets the PromQL engine.
 func WithEngine(promQLEngine *promql.Engine) Option {
-	return instantEngineOption{promQLEngine: promQLEngine, instant: false}
+	return withEngine(promQLEngine, false)
 }
 
+// WithInstantEngine sets the PromQL instant engine.
 func WithInstantEngine(promQLEngine *promql.Engine) Option {
-	return instantEngineOption{promQLEngine: promQLEngine, instant: true}
+	return withEngine(promQLEngine, true)
 }
 
-type instantEngineOption struct {
-	promQLEngine *promql.Engine
-	instant      bool
-}
-
-func (o instantEngineOption) apply(options *opts) error {
-	if o.promQLEngine == nil {
-		return errors.New("invalid engine")
+func withEngine(promQLEngine *promql.Engine, instant bool) Option {
+	return func(o *opts) error {
+		if promQLEngine == nil {
+			return errors.New("invalid engine")
+		}
+		o.instant = instant
+		o.promQLEngine = promQLEngine
+		o.newQueryFn = newRangeQueryFn
+		if instant {
+			o.newQueryFn = newInstantQueryFn
+		}
+		return nil
 	}
-	options.instant = o.instant
-	options.promQLEngine = o.promQLEngine
-	options.newQueryFn = newRangeQueryFn
-	if o.instant {
-		options.newQueryFn = newInstantQueryFn
-	}
-	return nil
 }
 
 func newDefaultOptions(hOpts options.HandlerOptions) opts {
