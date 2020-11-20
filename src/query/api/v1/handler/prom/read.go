@@ -88,38 +88,37 @@ type readHandler struct {
 	engine     *promql.Engine
 	hooks      ReadHandlerHooks
 	queryable  promstorage.Queryable
-	newQueryFn NewQueryFn
 	hOpts      options.HandlerOptions
 	scope      tally.Scope
 	logger     *zap.Logger
-	opts       Options
+	opts       opts
 }
 
 func newReadHandler(
-	opts Options,
 	hOpts options.HandlerOptions,
 	hooks ReadHandlerHooks,
 	queryable promstorage.Queryable,
-) http.Handler {
+	options ...Option,
+) (http.Handler, error) {
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
 		map[string]string{"handler": "prometheus-read"},
 	)
-
-	newQueryFn := newRangeQueryFn
-	if opts.instant {
-		newQueryFn = newInstantQueryFn
+	opts := newDefaultOptions(hOpts)
+	for _, option := range options {
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
 	}
 
 	return &readHandler{
-		engine:     opts.PromQLEngine,
+		engine:     opts.promQLEngine,
 		hooks:      hooks,
 		queryable:  queryable,
-		newQueryFn: newQueryFn,
 		hOpts:      hOpts,
 		opts:       opts,
 		scope:      scope,
 		logger:     hOpts.InstrumentOpts().Logger(),
-	}
+	}, nil
 }
 
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +155,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 	}
 
-	qry, err := h.newQueryFn(h.engine, h.queryable, params)
+	qry, err := h.opts.newQueryFn(h.engine, h.queryable, params)
 	if err != nil {
 		h.logger.Error("error creating query",
 			zap.Error(err), zap.String("query", params.Query),

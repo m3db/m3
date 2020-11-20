@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/promql"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -95,7 +97,7 @@ func setupHandler(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
-		nil,
+		newPromEngine(),
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
@@ -117,6 +119,13 @@ func setupHandler(
 	}
 
 	return NewHandler(opts, customHandlers...), nil
+}
+
+func newPromEngine() *promql.Engine {
+	return promql.NewEngine(promql.EngineOpts{
+		MaxSamples:         10000,
+		Timeout:            100 * time.Second,
+	})
 }
 
 func TestHandlerFetchTimeout(t *testing.T) {
@@ -409,7 +418,8 @@ func TestCustomRoutes(t *testing.T) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
-		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
+		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")),
+		engine, newPromEngine(), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,

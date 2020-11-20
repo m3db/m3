@@ -58,10 +58,7 @@ type testHandlers struct {
 	readInstantHandler http.Handler
 }
 
-func setupTest(_ *testing.T) testHandlers {
-	opts := Options{
-		PromQLEngine: testPromQLEngine,
-	}
+func setupTest(t *testing.T) testHandlers {
 	timeoutOpts := &prometheus.TimeoutOpts{
 		FetchTimeout: 15 * time.Second,
 	}
@@ -78,9 +75,11 @@ func setupTest(_ *testing.T) testHandlers {
 		SetEngine(engine).
 		SetTimeoutOpts(timeoutOpts)
 	queryable := &mockQueryable{}
-	readHandler := newReadHandler(opts, hOpts, &noopReadHandlerHooks{}, queryable)
-	readInstantHandler := newReadHandler(opts.WithInstant(true), hOpts,
-		&noopReadHandlerHooks{}, queryable)
+	readHandler, err := newReadHandler(hOpts, &noopReadHandlerHooks{}, queryable, WithEngine(testPromQLEngine))
+	require.NoError(t, err)
+	readInstantHandler, err := newReadHandler(hOpts,
+		&noopReadHandlerHooks{}, queryable, WithInstantEngine(testPromQLEngine))
+	require.NoError(t, err)
 	return testHandlers{
 		queryable:          queryable,
 		readHandler:        readHandler,
