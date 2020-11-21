@@ -134,22 +134,16 @@ offlineSearch = false
   twitter = "m3db_io"
   disableHomeIcon = true
   gettingStartedLink = "/docs/quickstart/docker"
+  version_menu = "Versions"
 
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
 
-  # TODO: Might need to refactor some of the K8s shortcodes later
-# Add your release versions here
-# TODO: Enable when ready
-# [[params.versions]]
-#   version = "1.0"
-#   url = "https://master.kubeflow.org"
-#   [[params.versions]]
-#   version = "0.9"
-#   url = "https://master.kubeflow.org"
+  [[params.versions]]
+    version = "1.0"
+    url = ""
 
-# version_menu = "Versions"
 
 # TODO: Do not like doing this really
 [markup]
