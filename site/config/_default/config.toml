@@ -33,6 +33,24 @@
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 enableRobotsTXT = true
+title = "M3"
+metaDataFormat = "yaml"
+# theme = "docs-theme"
+# baseURL = "/"
+languageCode = "en-US"
+defaultContentLanguage = "en"
+# staticDir = ["static"]
+defaultContentLanguageInSubdir= true
+
+# Highlighting config.
+pygmentsCodeFences = true
+pygmentsUseClasses = false
+# Use the new Chroma Go highlighter in Hugo.
+pygmentsUseClassic = false
+#pygmentsOptions = "linenos=table"
+# See https://help.farbox.com/pygments.html
+# pygmentsStyle = "vs"
+enableGitInfo = true
 
 [permalinks]
   "/" = "/docs/:section/:title/"
@@ -47,27 +65,6 @@ enableRobotsTXT = true
   "overviews" = "/docs/:section/:title/"
   "quickstarts" = "/docs/:section/:title/"
   "troubleshootings" = "/docs/:section/:title/"
-
-# theme = "docs-theme"
-# baseURL = "/"
-languageCode = "en-US"
-defaultContentLanguage = "en"
-# staticDir = ["static"]
-
-title = "M3"
-metaDataFormat = "yaml"
-defaultContentLanguageInSubdir= true
-
-# Highlighting config.
-pygmentsCodeFences = true
-pygmentsUseClasses = false
-# Use the new Chroma Go highlighter in Hugo.
-pygmentsUseClassic = false
-#pygmentsOptions = "linenos=table"
-# See https://help.farbox.com/pygments.html
-# pygmentsStyle = "vs"
-
-enableGitInfo = true
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
