@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/clock"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
@@ -430,64 +429,6 @@ func (c *client) Close() error {
 }
 
 func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
-	switch c.aggregatorClientType {
-	case LegacyAggregatorClient:
-		return c.writeLegacy(metricID, timeNanos, payload)
-	case M3MsgAggregatorClient:
-		return c.writeM3Msg(metricID, timeNanos, payload)
-	default:
-		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
-	}
-}
-
-func (c *client) writeLegacy(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
-	c.RLock()
-	if c.state != clientInitialized {
-		c.RUnlock()
-		return errClientIsUninitializedOrClosed
-	}
-	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
-	if err != nil {
-		c.RUnlock()
-		return err
-	}
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		onStagedPlacementDoneFn()
-		c.RUnlock()
-		return err
-	}
-	var (
-		shardID   = c.shardFn(metricID, uint32(placement.NumShards()))
-		instances = placement.InstancesForShard(shardID)
-		multiErr  = xerrors.NewMultiError()
-	)
-	for _, instance := range instances {
-		// NB(xichen): the shard should technically always be found because the instances
-		// are computed from the placement, but protect against errors here regardless.
-		shard, ok := instance.Shards().Shard(shardID)
-		if !ok {
-			err = fmt.Errorf("instance %s does not own shard %d", instance.ID(), shardID)
-			multiErr = multiErr.Add(err)
-			c.metrics.shardNotOwned.Inc(1)
-			continue
-		}
-		if !c.shouldWriteForShard(timeNanos, shard) {
-			c.metrics.shardNotWriteable.Inc(1)
-			continue
-		}
-		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-
-	onPlacementDoneFn()
-	onStagedPlacementDoneFn()
-	c.RUnlock()
-	return multiErr.FinalError()
-}
-
-func (c *client) writeM3Msg(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
 	shard := c.shardFn(metricID, c.m3msg.numShards)
 
 	msg := c.m3msg.messagePool.Get()
