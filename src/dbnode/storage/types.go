@@ -285,6 +285,9 @@ type Namespace interface {
 
 	// SetReadOnly sets the value of ReadOnly option.
 	SetReadOnly(value bool)
+
+	// DocRef returns the doc if already present in a namespace shard.
+	DocRef(id ident.ID) (doc.Document, bool, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.

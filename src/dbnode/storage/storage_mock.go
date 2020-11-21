@@ -1150,6 +1150,22 @@ func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockNamespace)(nil).SetReadOnly), value)
 }
 
+// DocRef mocks base method
+func (m *MockNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DocRef", id)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DocRef indicates an expected call of DocRef
+func (mr *MockNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockNamespace)(nil).DocRef), id)
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1324,6 +1340,22 @@ func (m *MockdatabaseNamespace) SetReadOnly(value bool) {
 func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockdatabaseNamespace)(nil).SetReadOnly), value)
+}
+
+// DocRef mocks base method
+func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DocRef", id)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DocRef indicates an expected call of DocRef
+func (mr *MockdatabaseNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).DocRef), id)
 }
 
 // Close mocks base method
