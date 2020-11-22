@@ -52,18 +52,18 @@ pygmentsUseClassic = false
 enableGitInfo = true
 
 [permalinks]
-  "/" = "/docs/:section/:title/"
-  "faqs" = "/docs/:section/:title/"
-  "glossaries" = "/docs/:section/:title/"
-  "how_tos" = "/docs/:section/:title/"
-  "integrations" = "/docs/:section/:title/"
-  "m3coordinators" = "/docs/:section/:title/"
-  "m3dbs" = "/docs/:section/:title/"
-  "m3querys" = "/docs/:section/:title/"
-  "operational_guides" = "/docs/:section/:title/"
-  "overviews" = "/docs/:section/:title/"
-  "quickstarts" = "/docs/:section/:title/"
-  "troubleshootings" = "/docs/:section/:title/"
+  "/" = "/docs/:section/:filename/"
+  "faqs" = "/docs/:section/:filename/"
+  "glossaries" = "/docs/:section/:filename/"
+  "how_tos" = "/docs/:section/:filename/"
+  "integrations" = "/docs/:section/:filename/"
+  "m3coordinators" = "/docs/:section/:filename/"
+  "m3dbs" = "/docs/:section/:filename/"
+  "m3querys" = "/docs/:section/:filename/"
+  "operational_guides" = "/docs/:section/:filename/"
+  "overviews" = "/docs/:section/:filename/"
+  "quickstarts" = "/docs/:section/:filename/"
+  "troubleshootings" = "/docs/:section/:filename/"
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
