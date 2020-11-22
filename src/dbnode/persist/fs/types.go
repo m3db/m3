@@ -669,38 +669,6 @@ type Segments interface {
 	BlockStart() time.Time
 }
 
-// BlockRecord wraps together M3TSZ data bytes with their checksum.
-type BlockRecord struct {
-	Data         []byte
-	DataChecksum uint32
-}
-
-// CrossBlockReader allows reading data (encoded bytes) from multiple
-// DataFileSetReaders of the same shard, ordered lexographically by series ID,
-// then by block time.
-type CrossBlockReader interface {
-	io.Closer
-
-	// Next advances to the next data record, returning true if it exists.
-	Next() bool
-
-	// Err returns the last error encountered (if any).
-	Err() error
-
-	// Current returns distinct series id and encodedTags, plus a slice with data
-	// and checksums from all blocks corresponding to that series (in temporal order).
-	// ID, encodedTags, records, and underlying data are invalidated on each call to Next().
-	Current() (id ident.BytesID, encodedTags ts.EncodedTags, records []BlockRecord)
-}
-
-// CrossBlockIterator iterates across BlockRecords.
-type CrossBlockIterator interface {
-	encoding.Iterator
-
-	// Reset resets the iterator to the given block records.
-	Reset(records []BlockRecord)
-}
-
 // IndexClaimsManager manages concurrent claims to volume indices per ns and block start.
 // This allows multiple threads to safely increment the volume index.
 type IndexClaimsManager interface {
