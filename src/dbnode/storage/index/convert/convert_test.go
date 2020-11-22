@@ -29,13 +29,16 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testOpts convert.Opts
+	testOpts           convert.Opts
+	testTagEncoderPool serialize.TagEncoderPool
+	testTagDecoderPool serialize.TagDecoderPool
 )
 
 func init() {
@@ -47,6 +50,16 @@ func init() {
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	testOpts.CheckedBytesPool = bytesPool
 	testOpts.IdentPool = idPool
+
+	testTagEncoderPool = serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions())
+	testTagEncoderPool.Init()
+
+	testTagDecoderPool = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
+	testTagDecoderPool.Init()
 }
 
 func TestFromSeriesIDAndTagsInvalid(t *testing.T) {
@@ -67,6 +80,29 @@ func TestFromSeriesIDAndTagIteratorInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestFromRawSeriesIDAndTagsInvalid(t *testing.T) {
+	tagDecoder := testTagDecoderPool.Get()
+	defer tagDecoder.Close()
+
+	id := ident.BytesID("foo")
+	tags := []byte{42}
+	_, err := convert.FromRawSeriesIDAndTags(id, tags, tagDecoder)
+	assert.Error(t, err)
+}
+
+func TestFromRawSeriesIDAndTagsEmpty(t *testing.T) {
+	tagDecoder := testTagDecoderPool.Get()
+	defer tagDecoder.Close()
+
+	id := ident.BytesID("foo")
+
+	d, err := convert.FromRawSeriesIDAndTags(id, nil, tagDecoder)
+	require.NoError(t, err)
+
+	assert.Equal(t, "foo", string(d.ID))
+	assert.Len(t, d.Fields, 0)
+}
+
 func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
@@ -75,7 +111,7 @@ func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
+	require.Len(t, d.Fields, 1)
 	assert.Equal(t, "bar", string(d.Fields[0].Name))
 	assert.Equal(t, "baz", string(d.Fields[0].Value))
 }
@@ -88,7 +124,31 @@ func TestFromSeriesIDAndTagIterValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
+	require.Len(t, d.Fields, 1)
+	assert.Equal(t, "bar", string(d.Fields[0].Name))
+	assert.Equal(t, "baz", string(d.Fields[0].Value))
+}
+
+func TestFromRawSeriesIDAndTagsValid(t *testing.T) {
+	tagsEncoder := testTagEncoderPool.Get()
+	defer tagsEncoder.Finalize()
+
+	tagDecoder := testTagDecoderPool.Get()
+	defer tagDecoder.Close()
+
+	id := ident.BytesID("foo")
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+	)
+	require.NoError(t, tagsEncoder.Encode(ident.NewTagsIterator(tags)))
+	encodedTags, _ := tagsEncoder.Data()
+
+	d, err := convert.FromRawSeriesIDAndTags(id, encodedTags.Bytes(), tagDecoder)
+	require.NoError(t, err)
+
+	assert.Equal(t, "foo", string(d.ID))
+
+	require.Len(t, d.Fields, 1)
 	assert.Equal(t, "bar", string(d.Fields[0].Name))
 	assert.Equal(t, "baz", string(d.Fields[0].Value))
 }
@@ -97,8 +157,8 @@ func TestToSeriesValid(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
-			doc.Field{Name: []byte("some"), Value: []byte("others")},
+			{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("some"), Value: []byte("others")},
 		},
 	}
 	id, tags, err := convert.ToSeries(d, testOpts)
@@ -142,7 +202,7 @@ func TestTagsFromTagsIterNoPool(t *testing.T) {
 func TestToSeriesInvalidID(t *testing.T) {
 	d := doc.Document{
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("bar"), Value: []byte("baz")},
 		},
 	}
 	_, _, err := convert.ToSeries(d, testOpts)
@@ -153,7 +213,7 @@ func TestToSeriesInvalidTag(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
+			{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
 		},
 	}
 	_, tags, err := convert.ToSeries(d, testOpts)

@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -822,10 +823,12 @@ func (s *peersSource) processReaders(
 	var (
 		docsPool        = s.opts.IndexOptions().DocumentArrayPool()
 		batch           = docsPool.Get()
+		tagDecoder      = s.opts.FilesystemOptions().TagDecoderPool().Get()
 		timesWithErrors []time.Time
 		totalEntries    int
 	)
 	defer docsPool.Put(batch)
+	defer tagDecoder.Close()
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -845,7 +848,7 @@ func (s *peersSource) processReaders(
 			resultLock.Unlock()
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
-				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, builder)
+				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, builder, tagDecoder)
 				totalEntries++
 			}
 
@@ -995,17 +998,15 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
 	builder *result.IndexBuilder,
+	tagDecoder serialize.TagDecoder,
 ) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	id, encodedTags, _, _, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromRawSeriesIDAndTags(id, encodedTags, tagDecoder)
 	if err != nil {
 		return batch, err
 	}

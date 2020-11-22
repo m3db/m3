@@ -26,10 +26,13 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 var (
@@ -108,7 +111,7 @@ func ValidateSeriesTag(tag ident.Tag) error {
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
 func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	clonedID := clone(id)
+	clonedID := clone(id.Bytes())
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
@@ -141,12 +144,35 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	return d, nil
 }
 
-// FromSeriesIDAndTagIter converts the provided series id+tags into a document.
-func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+// FromRawSeriesIDAndTags converts the provided raw series id+encoded tags into a document.
+func FromRawSeriesIDAndTags(
+	id ident.BytesID,
+	encodedTags ts.EncodedTags,
+	tagDecoder serialize.TagDecoder,
+) (doc.Document, error) {
+	var tagIter = ident.EmptyTagIterator
+	if len(encodedTags) > 0 {
+		encodedTagBytes := checked.NewBytes(encodedTags, nil)
+		tagDecoder.Reset(encodedTagBytes)
+		if err := tagDecoder.Err(); err != nil {
+			return doc.Document{}, err
+		}
+		tagIter = tagDecoder
+	}
+
+	return fromSeriesIDAndTagIter(id, tagIter)
+}
+
+// FromSeriesIDAndTagIter converts the provided series id+tags iterator into a document.
+func FromSeriesIDAndTagIter(id ident.ID, tagsIter ident.TagIterator) (doc.Document, error) {
+	return fromSeriesIDAndTagIter(id.Bytes(), tagsIter)
+}
+
+func fromSeriesIDAndTagIter(id ident.BytesID, tagsIter ident.TagIterator) (doc.Document, error) {
 	clonedID := clone(id)
-	fields := make([]doc.Field, 0, tags.Remaining())
-	for tags.Next() {
-		tag := tags.Current()
+	fields := make([]doc.Field, 0, tagsIter.Remaining())
+	for tagsIter.Next() {
+		tag := tagsIter.Current()
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
@@ -166,7 +192,7 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, 
 			Value: clonedValue,
 		})
 	}
-	if err := tags.Err(); err != nil {
+	if err := tagsIter.Err(); err != nil {
 		return doc.Document{}, err
 	}
 
@@ -252,8 +278,7 @@ func TagsFromTagsIter(
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
-func clone(id ident.ID) []byte {
-	original := id.Bytes()
+func clone(original []byte) []byte {
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone

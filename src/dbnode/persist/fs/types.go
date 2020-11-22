@@ -126,12 +126,9 @@ type DataReaderOpenOptions struct {
 	Identifier FileSetFileIdentifier
 	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
-	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
+	// StreamingEnabled enables using streaming methods, such as
+	// DataFileSetReader.StreamingRead and DataFileSetReader.StreamingReadMetadata.
 	StreamingEnabled bool
-	// NB(bodu): This option can inform the reader to optimize for reading
-	// only metadata by not sorting index entries. Setting this option will
-	// throw an error if a regular `Read()` is attempted.
-	OptimizedReadMetadataOnly bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set.
@@ -144,17 +141,29 @@ type DataFileSetReader interface {
 	// Status returns the status of the reader
 	Status() DataFileSetReaderStatus
 
+	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
+	// values ordered by id, or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
+	// Note: the returned id, encodedTags and data get invalidated on the next
+	// call to StreamingRead.
+	StreamingRead() (
+		id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
+
+	// StreamingReadMetadata returns the next unpooled id, encodedTags, length checksum
+	// values ordered by id, or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
+	// Note: the returned id and encodedTags get invalidated on the next
+	// call to StreamingReadMetadata.
+	StreamingReadMetadata() (
+		id ident.BytesID, encodedTags ts.EncodedTags, length int, checksum uint32, err error)
+
 	// Read returns the next id, tags, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
 	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
-
-	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
-	// values ordered by id, or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
-	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
-	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.

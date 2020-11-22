@@ -71,7 +71,7 @@ var (
 	testRetentionOptions      = retention.NewOptions()
 	testDefaultFsOpts         = fs.NewOptions()
 	testDefaultRunOpts        = bootstrap.NewRunOptions().
-					SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 	testShardRanges       = testShardTimeRanges()
@@ -861,29 +861,31 @@ func TestReadDeleteOnError(t *testing.T) {
 		},
 	}
 
-	reader.EXPECT().Open(rOpts).Return(nil).AnyTimes()
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("foo"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), nil)
-	reader.EXPECT().ReadMetadata().Return(ident.StringID("bar"),
-		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), errors.New("foo"))
-
 	reader.EXPECT().
 		Range().
 		Return(xtime.Range{
 			Start: testStart,
 			End:   testStart.Add(2 * time.Hour),
-		}).AnyTimes()
-	reader.EXPECT().Entries().Return(2).AnyTimes()
+		}).Times(2)
+	reader.EXPECT().Entries().Return(2).Times(2)
+	reader.EXPECT().Close().Return(nil).Times(2)
+
+	reader.EXPECT().Open(rOpts).Return(nil)
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("foo"), ident.EmptyTagIterator,
 			nil, digest.Checksum(nil), nil)
-
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("bar"), ident.EmptyTagIterator,
 			nil, uint32(0), errors.New("foo"))
-	reader.EXPECT().Close().Return(nil).AnyTimes()
+
+	rOpts.StreamingEnabled = true
+	reader.EXPECT().Open(rOpts).Return(nil)
+	reader.EXPECT().StreamingReadMetadata().Return(ident.BytesID("foo"),
+		[]byte{}, 0, uint32(0), nil)
+	reader.EXPECT().StreamingReadMetadata().Return(nil,
+		nil, 0, uint32(0), errors.New("error"))
 
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()

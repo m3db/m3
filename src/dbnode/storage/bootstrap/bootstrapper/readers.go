@@ -87,7 +87,6 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 	// Normal run, open readers
 	enqueueReadersGroupedByBlockSize(
 		opts.NsMD,
-		opts.FsOpts,
 		opts.ShardTimeRanges,
 		opts.ReaderPool,
 		opts.ReadersCh,
@@ -102,7 +101,6 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 
 func enqueueReadersGroupedByBlockSize(
 	ns namespace.Metadata,
-	fsOpts fs.Options,
 	shardTimeRanges result.ShardTimeRanges,
 	readerPool *ReaderPool,
 	readersCh chan<- TimeWindowReaders,
@@ -131,7 +129,7 @@ func enqueueReadersGroupedByBlockSize(
 				)
 				continue
 			}
-			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
+			shardReaders := newShardReaders(ns, readerPool, shard, tr,
 				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders
 		}
@@ -141,7 +139,6 @@ func enqueueReadersGroupedByBlockSize(
 
 func newShardReaders(
 	ns namespace.Metadata,
-	fsOpts fs.Options,
 	readerPool *ReaderPool,
 	shard uint32,
 	tr xtime.Ranges,
@@ -206,8 +203,8 @@ func newShardReaders(
 		}
 
 		openOpts := fs.DataReaderOpenOptions{
-			Identifier:                fs.NewFileSetFileIdentifier(ns.ID(), blockStart, shard, info.VolumeIndex),
-			OptimizedReadMetadataOnly: optimizedReadMetadataOnly,
+			Identifier:       fs.NewFileSetFileIdentifier(ns.ID(), blockStart, shard, info.VolumeIndex),
+			StreamingEnabled: optimizedReadMetadataOnly,
 		}
 		if err := r.Open(openOpts); err != nil {
 			logger.Error("unable to open fileset files",
