@@ -142,8 +142,8 @@ type DataFileSetReader interface {
 	Status() DataFileSetReaderStatus
 
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
-	// values ordered by id, or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// values ordered by id, or error; will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
 	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
 	// Note: the returned id, encodedTags and data get invalidated on the next
 	// call to StreamingRead.
@@ -151,8 +151,8 @@ type DataFileSetReader interface {
 		id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
 
 	// StreamingReadMetadata returns the next unpooled id, encodedTags, length checksum
-	// values ordered by id, or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// values ordered by id, or error; will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
 	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
 	// Note: the returned id and encodedTags get invalidated on the next
 	// call to StreamingReadMetadata.

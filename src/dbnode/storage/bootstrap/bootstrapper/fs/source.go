@@ -403,7 +403,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		nsCtx                = namespace.NewContextFrom(ns)
 		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
 		batch                = docsPool.Get()
-		tagDecoder			 = s.opts.FilesystemOptions().TagDecoderPool().Get()
+		tagDecoder           = s.opts.FilesystemOptions().TagDecoderPool().Get()
 		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
