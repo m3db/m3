@@ -1,11 +1,10 @@
 ---
 linkTitle: "Docker"
+title: Creating a Single Node M3DB Cluster with Docker
 weight: 1
 ---
 
 <!-- TODO: Fix dates. Cross-platform date generation is a pain, so maybe use Docker locally? See what Netlify supports, or maybe there is a Hugo variable, or create a shortcode -->
-
-# Creating a Single Node M3DB Cluster with Docker
 
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 
