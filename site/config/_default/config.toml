@@ -33,7 +33,6 @@
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 enableRobotsTXT = true
-title = "M3"
 metaDataFormat = "yaml"
 # theme = "docs-theme"
 # baseURL = "/"
@@ -97,6 +96,7 @@ githubWebsiteRaw = "raw.githubusercontent.com/m3db/m3"
 offlineSearch = false
 
 [params]
+  title = "M3 Documentation"
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
@@ -104,7 +104,7 @@ offlineSearch = false
   # TODO: bring back
   # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
   # Author of the site, will be used in meta information
-  author = "The M3 team"
+  author = "The M3 team and community"
   # Description of the site, will be used in meta information
   description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
   # Shows a checkmark for visited pages on the menu

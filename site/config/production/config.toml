@@ -53,7 +53,6 @@ languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
 
-title = "M3"
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
 
@@ -105,10 +104,6 @@ offlineSearch = false
   # TODO: pattern to branch?
   # TODO: bring back
   # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
-  # Author of the site, will be used in meta information
-  author = "m3"
-  # Description of the site, will be used in meta information
-  description = "m3documentation"
   # Shows a checkmark for visited pages on the menu
   showVisitedLinks = false
   # Disable search function. It will hide search bar
