@@ -27,7 +27,7 @@ import (
 	"strconv"
 	"strings"
 
-	dockertest "github.com/ory/dockertest"
+	"github.com/ory/dockertest"
 	"github.com/ory/dockertest/docker"
 	dc "github.com/ory/dockertest/docker"
 	"github.com/ory/dockertest/docker/types/mount"
@@ -49,6 +49,8 @@ func newDockerResource(
 ) (*dockerResource, error) {
 	var (
 		source        = resourceOpts.source
+		imageName     = resourceOpts.imageName
+		imageTag      = resourceOpts.imageTag
 		containerName = resourceOpts.containerName
 		dockerFile    = resourceOpts.dockerFile
 		iOpts         = resourceOpts.iOpts
@@ -66,24 +68,36 @@ func newDockerResource(
 	}
 
 	opts := exposePorts(newOptions(containerName), portList)
-	logger.Info("building container with options",
-		zap.String("dockerFile", dockerFile), zap.Any("options", opts))
-	resource, err := pool.BuildAndRunWithOptions(dockerFile, opts,
-		func(c *dc.HostConfig) {
-			c.NetworkMode = networkName
-			mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
-			for _, m := range resourceOpts.mounts {
-				mounts = append(mounts, dc.HostMount{
-					Target: m,
-					Type:   string(mount.TypeTmpfs),
-				})
-			}
 
-			c.Mounts = mounts
-		})
+	hostConfigOpts := func(c *dc.HostConfig) {
+		c.NetworkMode = networkName
+		mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
+		for _, m := range resourceOpts.mounts {
+			mounts = append(mounts, dc.HostMount{
+				Target: m,
+				Type:   string(mount.TypeTmpfs),
+			})
+		}
+
+		c.Mounts = mounts
+	}
+
+	var resource *dockertest.Resource
+	var err error
+	if imageName == "" {
+		logger.Info("building and running container with options",
+			zap.String("dockerFile", dockerFile), zap.Any("options", opts))
+		resource, err = pool.BuildAndRunWithOptions(dockerFile, opts, hostConfigOpts)
+	} else {
+		opts = useImage(opts, imageName, imageTag)
+		image := fmt.Sprintf("%v:%v", imageName, imageTag)
+		logger.Info("running container with options",
+			zap.String("image", image), zap.Any("options", opts))
+		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
+	}
 
 	if err != nil {
-		logger.Error("could not build and run container", zap.Error(err))
+		logger.Error("could not run container", zap.Error(err))
 		return nil, err
 	}
 

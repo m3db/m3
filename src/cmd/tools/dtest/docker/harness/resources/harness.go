@@ -64,7 +64,12 @@ type dockerResources struct {
 
 // SetupSingleM3DBNode creates docker resources representing a setup with a
 // single DB node.
-func SetupSingleM3DBNode() (DockerResources, error) {
+func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) {
+	options := setupOptions{}
+	for _, o := range opts {
+		o.apply(&options)
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, err
@@ -83,7 +88,9 @@ func SetupSingleM3DBNode() (DockerResources, error) {
 
 	iOpts := instrument.NewOptions()
 	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-		iOpts: iOpts,
+		imageName: options.dbNodeImage.name,
+		imageTag:  options.dbNodeImage.tag,
+		iOpts:     iOpts,
 	})
 
 	success := false
@@ -105,7 +112,9 @@ func SetupSingleM3DBNode() (DockerResources, error) {
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		iOpts: iOpts,
+		imageName: options.coordinatorImage.name,
+		imageTag:  options.coordinatorImage.tag,
+		iOpts:     iOpts,
 	})
 
 	defer func() {

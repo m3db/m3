@@ -51,6 +51,8 @@ type dockerResourceOptions struct {
 	overrideDefaults bool
 	source           string
 	containerName    string
+	imageName        string
+	imageTag         string
 	dockerFile       string
 	portList         []int
 	mounts           []string
@@ -70,6 +72,14 @@ func (o dockerResourceOptions) withDefaults(
 
 	if len(o.containerName) == 0 {
 		o.containerName = defaultOpts.containerName
+	}
+
+	if len(o.imageName) == 0 {
+		o.imageName = defaultOpts.imageName
+	}
+
+	if len(o.imageTag) == 0 {
+		o.imageTag = defaultOpts.imageTag
 	}
 
 	if len(o.dockerFile) == 0 {
@@ -96,6 +106,12 @@ func newOptions(name string) *dockertest.RunOptions {
 		Name:      name,
 		NetworkID: networkName,
 	}
+}
+
+func useImage(opts *dockertest.RunOptions, name, tag string) *dockertest.RunOptions {
+	opts.Repository = name
+	opts.Tag = tag
+	return opts
 }
 
 func setupNetwork(pool *dockertest.Pool) error {
