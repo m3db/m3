@@ -1131,7 +1131,8 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "missing required field",
+				"status": "error",
+				"error":  "missing required field",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
@@ -1166,7 +1167,8 @@ func TestBadType(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "invalid database type",
+				"status": "error",
+				"error":  "invalid database type",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
