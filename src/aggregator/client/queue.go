@@ -128,10 +128,8 @@ type queue struct {
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	var (
-		instrumentOpts = opts.InstrumentOptions()
-		scope          = instrumentOpts.MetricsScope().Tagged(map[string]string{
-			"endpoint": instance.Endpoint(),
-		})
+		instrumentOpts     = opts.InstrumentOptions()
+		scope              = instrumentOpts.MetricsScope()
 		connInstrumentOpts = instrumentOpts.SetMetricsScope(scope.SubScope("connection"))
 		connOpts           = opts.ConnectionOptions().
 					SetInstrumentOptions(connInstrumentOpts).
@@ -141,11 +139,12 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		queueSize     = opts.InstanceQueueSize()
 		maxBatchSize  = opts.MaxBatchSize()
 		writeInterval = opts.BatchFlushDeadline()
+		instanceScope = scope.Tagged(map[string]string{"instance_id": instance.ID()})
 	)
 	q := &queue{
 		dropType:           opts.QueueDropType(),
 		log:                iOpts.Logger(),
-		metrics:            newQueueMetrics(scope, queueSize),
+		metrics:            newQueueMetrics(instanceScope, queueSize),
 		instance:           instance,
 		conn:               conn,
 		bufCh:              make(chan protobuf.Buffer, queueSize),
