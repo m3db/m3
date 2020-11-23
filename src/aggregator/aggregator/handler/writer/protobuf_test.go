@@ -121,10 +121,9 @@ func TestProtobufWriterWrite(t *testing.T) {
 	actualData := make(map[uint32][]decodeData)
 	writer.p.(*producer.MockProducer).EXPECT().Produce(gomock.Any()).Do(func(m producer.Message) error {
 		d := protobuf.NewAggregatedDecoder(nil)
-		d.Decode(m.Bytes())
+		require.NoError(t, d.Decode(m.Bytes()))
 		s := m.Shard()
-		sp, err := d.StoragePolicy()
-		require.NoError(t, err)
+		sp := d.StoragePolicy()
 		actualData[s] = append(actualData[s], decodeData{
 			MetricWithStoragePolicy: aggregated.MetricWithStoragePolicy{
 				Metric: aggregated.Metric{

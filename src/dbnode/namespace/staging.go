@@ -33,12 +33,12 @@ type StagingState struct {
 }
 
 // Status returns the StagingStatus for a namespace.
-func (s *StagingState) Status() StagingStatus {
+func (s StagingState) Status() StagingStatus {
 	return s.status
 }
 
 // Validate validates the StagingState object.
-func (s *StagingState) Validate() error {
+func (s StagingState) Validate() error {
 	var validStatus bool
 	for _, status := range validStagingStatuses {
 		if status == s.Status() {
@@ -64,4 +64,15 @@ func NewStagingState(status nsproto.StagingStatus) (StagingState, error) {
 		return StagingState{status: ReadyStagingStatus}, nil
 	}
 	return StagingState{}, fmt.Errorf("invalid namespace status: %v", status)
+}
+
+func (s StagingStatus) String() string {
+	switch s {
+	case ReadyStagingStatus:
+		return "ready"
+	case InitializingStagingStatus:
+		return "initializing"
+	default:
+		return "unknown"
+	}
 }

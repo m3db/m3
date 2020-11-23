@@ -36,14 +36,6 @@ import (
 // formats with prometheus.
 // https://github.com/prometheus/prometheus/blob/43acd0e2e93f9f70c49b2267efa0124f1e759e86/web/api/v1/api.go#L1097
 
-const (
-	queryParam   = "query"
-	startParam   = "start"
-	endParam     = "end"
-	stepParam    = "step"
-	timeoutParam = "timeout"
-)
-
 var (
 	minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
 	maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
@@ -60,17 +52,6 @@ const (
 )
 
 type errorType string
-
-const (
-	errorNone        errorType = ""
-	errorTimeout     errorType = "timeout"
-	errorCanceled    errorType = "canceled"
-	errorExec        errorType = "execution"
-	errorBadData     errorType = "bad_data"
-	errorInternal    errorType = "internal"
-	errorUnavailable errorType = "unavailable"
-	errorNotFound    errorType = "not_found"
-)
 
 type queryData struct {
 	ResultType promql.ValueType `json:"resultType"`
@@ -107,19 +88,17 @@ func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 	w.Write(b)
 }
 
-func respondError(w http.ResponseWriter, err error, code int) {
+func respondError(w http.ResponseWriter, err error) {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, err := json.Marshal(&response{
+	b, marshalErr := json.Marshal(&response{
 		Status: statusError,
 		Error:  err.Error(),
 	})
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if marshalErr != nil {
+		xhttp.WriteError(w, marshalErr)
 		return
 	}
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	w.WriteHeader(code)
-	w.Write(b)
+	xhttp.WriteError(w, err, xhttp.WithErrorResponse(b))
 }

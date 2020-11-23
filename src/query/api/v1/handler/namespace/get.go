@@ -43,10 +43,6 @@ import (
 )
 
 var (
-	// DeprecatedM3DBGetURL is the deprecated url for the namespace get handler (with the GET method).
-	// Maintained for backwards compatibility.
-	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
-
 	// M3DBGetURL is the url for the namespace get handler (with the GET method).
 	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
@@ -84,7 +80,7 @@ func (h *GetHandler) ServeHTTP(
 
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -96,7 +92,7 @@ func (h *GetHandler) ServeHTTP(
 		nanosToDurationMap, err := nanosToDuration(resp)
 		if err != nil {
 			logger.Error("error converting nano fields to duration", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 

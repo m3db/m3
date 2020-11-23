@@ -72,13 +72,13 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -121,11 +121,11 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	wg.Wait()
 	if err := multiErr.FinalError(); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
+	handleroptions.AddResponseHeaders(w, meta, opts)
 	result := resultBuilder.Build()
 	if err := prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))

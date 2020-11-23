@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -51,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -310,7 +310,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseIndexChecksum(t *testing.T) {
+func TestDatabaseWideEntry(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -327,33 +327,34 @@ func TestDatabaseIndexChecksum(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 
-	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
+	indexChecksumWithID := block.NewMockStreamedWideEntry(ctrl)
+	indexChecksumWithID.EXPECT().RetrieveWideEntry().
 		Return(
-			xio.IndexChecksum{
+			xio.WideEntry{
 				ID:               ident.StringID("foo"),
 				MetadataChecksum: 5,
 			}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
 		Return(indexChecksumWithID, nil)
 
-	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
+	indexChecksumWithoutID := block.NewMockStreamedWideEntry(ctrl)
+	indexChecksumWithoutID.EXPECT().RetrieveWideEntry().
+		Return(xio.WideEntry{MetadataChecksum: 7}, nil)
+	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
 		Return(indexChecksumWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
+	res, err := d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
-	checksum, err := res.RetrieveIndexChecksum()
+	checksum, err := res.RetrieveWideEntry()
 	require.NoError(t, err)
 	assert.Equal(t, "foo", checksum.ID.String())
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
-	checksum, err = res.RetrieveIndexChecksum()
+	res, err = d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
+	require.NoError(t, err)
+	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
 	require.NoError(t, err)
 	assert.Nil(t, checksum.ID)
@@ -952,9 +953,9 @@ func TestWideQuery(t *testing.T) {
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
+		ns.EXPECT().FetchWideEntry(gomock.Any(),
 			ident.StringID("foo"), gomock.Any()).
-			Return(block.EmptyStreamedChecksum, nil)
+			Return(block.EmptyStreamedWideEntry, nil)
 
 		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 		require.NoError(t, err)
@@ -964,36 +965,9 @@ func TestWideQuery(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBIndexChecksum,
+		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
-		"root",
-	}
-
-	testWideFunction(t, readMismatchTest, exSpans)
-}
-
-func TestReadMismatches(t *testing.T) {
-	readMismatchTest := func(
-		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
-		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
-		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
-			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatch, nil)
-
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
-		require.NoError(t, err)
-
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
-		require.Error(t, err)
-	}
-
-	exSpans := []string{
-		tracepoint.DBFetchMismatch,
-		tracepoint.DBReadMismatches,
-		tracepoint.DBReadMismatches,
 		"root",
 	}
 
@@ -1001,7 +975,7 @@ func TestReadMismatches(t *testing.T) {
 }
 
 func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
-	ctrl := xtest.NewController(t)
+	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -1028,9 +1002,10 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 		}
 
 		now      = time.Now()
+		start    = now.Truncate(2 * time.Hour)
 		iterOpts = index.IterationOptions{}
 		wideOpts = index.WideQueryOptions{
-			StartInclusive:   now.Truncate(2 * time.Hour),
+			StartInclusive:   start,
 			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
 			IterationOptions: iterOpts,
 			BatchSize:        1024,
@@ -1063,7 +1038,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
 
-	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
+	testFn(ctx, t, ctrl, ns, d, q, start, shards, iterOpts)
 	ns.EXPECT().Close().Return(nil)
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitLog
@@ -1519,8 +1494,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		start      = time.Now().Truncate(time.Hour)
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions())
 	require.Error(t, err)
+	opts.InsOptions = d.opts.InstrumentOptions()
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
@@ -1533,19 +1509,21 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 func TestNewAggregateTilesOptions(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
+	targetNs := ident.StringID("target")
+	insOpts := instrument.NewOptions()
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, insOpts)
 	assert.NoError(t, err)
 }

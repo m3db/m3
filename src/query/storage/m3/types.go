@@ -28,6 +28,7 @@ import (
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -93,4 +94,37 @@ type DynamicClusterOptions interface {
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetClusterNamespacesWatcher sets the namespaces watcher which alerts components that
+	// need to regenerate configuration when the ClusterNamespaces change.
+	SetClusterNamespacesWatcher(value ClusterNamespacesWatcher) DynamicClusterOptions
+
+	// ClusterNamespacesWatcher returns the namespaces watcher which alerts components that
+	// need to regenerate configuration when the ClusterNamespaces change.
+	ClusterNamespacesWatcher() ClusterNamespacesWatcher
+}
+
+// ClusterNamespacesWatcher allows interested parties to watch for changes
+// to the cluster namespaces and register callbacks to be invoked
+// when changes are detected.
+type ClusterNamespacesWatcher interface {
+	// Update updates the current namespaces.
+	Update(namespaces ClusterNamespaces) error
+
+	// Get returns the current namespaces.
+	Get() ClusterNamespaces
+
+	// RegisterListener registers a listener for updates to cluster namespaces.
+	// If a value is currently present, it will synchronously call back the listener.
+	RegisterListener(listener ClusterNamespacesListener) xresource.SimpleCloser
+
+	// Close closes the watcher and all descendent watches.
+	Close()
+}
+
+// ClusterNamespacesListener is a listener for receiving updates from a
+// ClusterNamespacesWatcher.
+type ClusterNamespacesListener interface {
+	// OnUpdate is called when updates have occurred passing in the new namespaces.
+	OnUpdate(namespaces ClusterNamespaces)
 }

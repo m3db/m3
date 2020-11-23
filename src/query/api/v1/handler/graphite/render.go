@@ -55,6 +55,7 @@ var (
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
+	opts             options.HandlerOptions
 	engine           *native.Engine
 	queryContextOpts models.QueryContextOptions
 	graphiteOpts     graphite.M3WrappedStorageOptions
@@ -68,8 +69,9 @@ type respError struct {
 // NewRenderHandler returns a new render handler around the given storage.
 func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
-		opts.Enforcer(), opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
+		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &renderHandler{
+		opts:             opts,
 		engine:           native.NewEngine(wrappedStore),
 		queryContextOpts: opts.QueryContextOptions(),
 		graphiteOpts:     opts.GraphiteStorageOptions(),
@@ -85,26 +87,25 @@ func sendError(errorCh chan error, err error) {
 
 // ServeHTTP processes the render requests.
 func (h *renderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	respErr := h.serveHTTP(w, r)
-	if respErr.err != nil {
-		xhttp.Error(w, respErr.err, respErr.code)
+	if err := h.serveHTTP(w, r); err != nil {
+		xhttp.WriteError(w, err)
 	}
 }
 
 func (h *renderHandler) serveHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
-) respError {
+) error {
 	reqCtx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	p, err := ParseRenderRequest(r)
+	p, fetchOpts, err := ParseRenderRequest(r, h.opts)
 	if err != nil {
-		return respError{err: err, code: http.StatusBadRequest}
+		return xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	limit, err := handleroptions.ParseLimit(r, headers.LimitMaxSeriesHeader,
 		"limit", h.queryContextOpts.LimitMaxTimeseries)
 	if err != nil {
-		return respError{err: err, code: http.StatusBadRequest}
+		return xhttp.NewError(err, http.StatusBadRequest)
 	}
 
 	var (
@@ -144,6 +145,10 @@ func (h *renderHandler) serveHTTP(
 				wg.Done()
 			}()
 
+			if source := r.Header.Get(headers.SourceHeader); len(source) > 0 {
+				childCtx.Source = []byte(source)
+			}
+
 			exp, err := h.engine.Compile(target)
 			if err != nil {
 				sendError(errorCh, errors.NewRenamedError(err,
@@ -181,7 +186,7 @@ func (h *renderHandler) serveHTTP(
 	close(errorCh)
 	err = <-errorCh
 	if err != nil {
-		return respError{err: err, code: http.StatusInternalServerError}
+		return err
 	}
 
 	// Count and sort the groups if not sorted already.
@@ -208,9 +213,9 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
-	err = WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
+	handleroptions.AddResponseHeaders(w, meta, fetchOpts)
+
+	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,
 	})
-	return respError{err: err, code: http.StatusOK}
 }

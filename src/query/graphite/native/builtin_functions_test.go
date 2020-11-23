@@ -482,7 +482,7 @@ func TestPercentileOfSeries(t *testing.T) {
 				{math.NaN(), 48, 94, math.NaN(), 32, 39, math.NaN(), 84},
 				{math.NaN(), 16, math.NaN(), 85, 34, 27, 74, math.NaN(), 72},
 			},
-			[]float64{math.NaN(), 16, 24, 29, 34},
+			[]float64{math.NaN(), 16, 24, 43, 34},
 			120,
 			"false",
 		},
@@ -496,7 +496,7 @@ func TestPercentileOfSeries(t *testing.T) {
 				{math.NaN(), 48, 94, math.NaN(), 32, 39, math.NaN(), 84},
 				{math.NaN(), 16, math.NaN(), 85, 34, 27, 74, math.NaN(), 72},
 			},
-			[]float64{math.NaN(), 16.0, 23.32, 29, 32.64},
+			[]float64{math.NaN(), 16.0, 23.65, 33.480000000000004, 33.3},
 			120,
 			"true",
 		},
@@ -519,7 +519,7 @@ func TestPercentileOfSeries(t *testing.T) {
 				{60, 5, 40, 30, 20, 10},
 				{3, 40, 4, 1, 2, 6},
 			},
-			[]float64{3, 5, 4, 1, 2, 6},
+			[]float64{60, 40, 40, 30, 20, 10},
 			120,
 			"false",
 		},
@@ -553,7 +553,7 @@ func TestPercentileOfSeries(t *testing.T) {
 				{60, 50, 40, 30, 20, 10},
 				{6, 5, 4, 3, 2, 1},
 			},
-			[]float64{33, 27.5, 22, 16.5, 11, 5.5},
+			[]float64{60, 50, 40, 30, 20, 10},
 			120,
 			"true",
 		},
@@ -849,9 +849,12 @@ func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
-	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
-	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
+	expectedWithXFiles := []float64{4.0, 7.0, 12.0, 7.0, math.NaN()}
+
+	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.5)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s', 0.8)", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expectedWithXFiles)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.6)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, 3, 0.1)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
 	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
@@ -928,8 +931,13 @@ func TestMovingSumSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{12.0, 21.0, 36.0, 21.0, 9.0} // (3+4+5), (4+5+12), (5+12+19), (12+19-10), (19-10+Nan)
+	expectedXFF := []float64{12.0, 21.0, 36.0, 21.0, math.NaN()}
 
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s', 0.1)", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s', 1.0)", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expectedXFF)
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+
 	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
@@ -1958,6 +1966,46 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 	}
 }
 
+func TestAsPercentWithNilTotal(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	nan := math.NaN()
+	tests := []struct {
+		valuesStep int
+		values     []float64
+		outputStep int
+		output     []float64
+	}{
+		{
+			60,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0},
+			60,
+			[]float64{100, 100, 100, nan, 100},
+		},
+	}
+
+	for _, test := range tests {
+		timeSeries := ts.NewSeries(ctx, "<values>", ctx.StartTime,
+			common.NewTestSeriesValues(ctx, test.valuesStep, test.values))
+		r, err := asPercent(ctx, singlePathSpec{
+			Values: []*ts.Series{timeSeries},
+		}, nil)
+		require.NoError(t, err)
+
+		output := r.Values
+		require.Equal(t, 1, len(output))
+		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
+		expectedName := fmt.Sprintf("asPercent(<values>, sumSeries(<values>))")
+		assert.Equal(t, expectedName, output[0].Name())
+
+		for step := 0; step < output[0].Len(); step++ {
+			v := output[0].ValueAt(step)
+			xtest.Equalish(t, math.Trunc(v), test.output[step])
+		}
+	}
+}
+
 func TestAsPercentWithSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2952,6 +3000,16 @@ func TestChanged(t *testing.T) {
 		expected, results.Values)
 }
 
+func TestEffectiveXFilesFactor(t *testing.T) {
+	require.True(t, effectiveXFF(10, 9, 0))
+	require.True(t, effectiveXFF(10, 4, 0.5))
+	require.True(t, effectiveXFF(10, 0, 1.0))
+
+	require.False(t, effectiveXFF(10, 10, 0.1))
+	require.False(t, effectiveXFF(10, 6, 0.5))
+	require.False(t, effectiveXFF(10, 1, 1.0))
+}
+
 func TestMovingMedian(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
@@ -2993,7 +3051,7 @@ func TestMovingAverage(t *testing.T) {
 	defer ctx.Close()
 
 	stepSize := 60000
-	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min')`
+	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min', 0.7)`
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).Times(2)
 	expr, err := engine.Compile(target)

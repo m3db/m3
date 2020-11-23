@@ -91,9 +91,9 @@ type seekerManager struct {
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
 
-	status          seekerManagerStatus
-	shardSet        sharding.ShardSet
-	isUpdatingLease bool
+	status                     seekerManagerStatus
+	shardSet                   sharding.ShardSet
+	updateOpenLeasesInProgress map[block.HashableLeaseDescriptor]struct{}
 
 	cacheShardIndicesWorkers xsync.WorkerPool
 
@@ -205,6 +205,7 @@ func NewSeekerManager(
 		logger:                      opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh:         make(chan struct{}),
 		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
+		updateOpenLeasesInProgress:  make(map[block.HashableLeaseDescriptor]struct{}),
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
 	m.newOpenSeekerFn = m.newOpenSeeker
@@ -466,23 +467,25 @@ func (m *seekerManager) markBorrowedSeekerAsReturned(seekers *seekersAndBloom, s
 //      the currently borrowed "inactive" seekers (if any) to be returned.
 //   4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
 //      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
-//      running the UpdateOpenlease() function that all inactive seekers have been returned and closed at
+//      running the UpdateOpenLease() function that all inactive seekers have been returned and closed at
 //      which point the function will return successfully.
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (block.UpdateOpenLeaseResult, error) {
-	noop, err := m.startUpdateOpenLease(descriptor)
+	hashableDescriptor := block.NewHashableLeaseDescriptor(descriptor)
+	noop, err := m.startUpdateOpenLease(descriptor.Namespace, hashableDescriptor)
 	if err != nil {
 		return 0, err
 	}
 	if noop {
 		return block.NoOpenLease, nil
 	}
+
 	defer func() {
 		m.Lock()
-		// Was already set to true by startUpdateOpenLease().
-		m.isUpdatingLease = false
+		// Was added by startUpdateOpenLease().
+		delete(m.updateOpenLeasesInProgress, hashableDescriptor)
 		m.Unlock()
 	}()
 
@@ -500,25 +503,26 @@ func (m *seekerManager) UpdateOpenLease(
 	return updateLeaseResult, nil
 }
 
-func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (bool, error) {
+func (m *seekerManager) startUpdateOpenLease(
+	namespace ident.ID,
+	hashableDescriptor block.HashableLeaseDescriptor,
+) (bool, error) {
 	m.Lock()
 	defer m.Unlock()
 
 	if m.status != seekerManagerOpen {
 		return false, errUpdateOpenLeaseSeekerManagerNotOpen
 	}
-	if m.isUpdatingLease {
-		// This guard is a little overly aggressive. In practice, the algorithm remains correct even in the presence
-		// of concurrent UpdateOpenLease() calls as long as they are for different shard/blockStart combinations.
-		// However, the calling code currently has no need to call this method concurrently at all so use the
-		// simpler check for now.
+	if _, ok := m.updateOpenLeasesInProgress[hashableDescriptor]; ok {
+		// Prevent UpdateOpenLease() calls from happening concurrently
+		// (at the granularity of block.LeaseDescriptor).
 		return false, errConcurrentUpdateOpenLeaseNotAllowed
 	}
-	if !m.namespace.Equal(descriptor.Namespace) {
+	if !m.namespace.Equal(namespace) {
 		return true, nil
 	}
 
-	m.isUpdatingLease = true
+	m.updateOpenLeasesInProgress[hashableDescriptor] = struct{}{}
 
 	return false, nil
 }

@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -117,14 +118,14 @@ var recommendedBlockSizesByRetentionAsc = []recommendedBlockSize{
 }
 
 var (
-	errMissingRequiredField    = errors.New("missing required field")
-	errInvalidDBType           = errors.New("invalid database type")
-	errMissingEmbeddedDBPort   = errors.New("unable to get port from embedded database listen address")
-	errMissingEmbeddedDBConfig = errors.New("unable to find local embedded database config")
-	errMissingHostID           = errors.New("missing host ID")
+	errMissingRequiredField    = xerrors.NewInvalidParamsError(errors.New("missing required field"))
+	errInvalidDBType           = xerrors.NewInvalidParamsError(errors.New("invalid database type"))
+	errMissingEmbeddedDBPort   = xerrors.NewInvalidParamsError(errors.New("unable to get port from embedded database listen address"))
+	errMissingEmbeddedDBConfig = xerrors.NewInvalidParamsError(errors.New("unable to find local embedded database config"))
+	errMissingHostID           = xerrors.NewInvalidParamsError(errors.New("missing host ID"))
 
-	errClusteredPlacementAlreadyExists        = errors.New("cannot use database create API to modify clustered placements after they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement")
-	errCantReplaceLocalPlacementWithClustered = errors.New("cannot replace existing local placement with a clustered placement. Use the placement APIs directly to make placement changes, or remove the `type` field from the  request to add a namespace without modifying the existing local placement")
+	errClusteredPlacementAlreadyExists        = xerrors.NewInvalidParamsError(errors.New("cannot use database create API to modify clustered placements after they are instantiated. Use the placement APIs directly to make placement changes, or remove the list of hosts from the request to add a namespace without modifying the placement"))
+	errCantReplaceLocalPlacementWithClustered = xerrors.NewInvalidParamsError(errors.New("cannot replace existing local placement with a clustered placement. Use the placement APIs directly to make placement changes, or remove the `type` field from the  request to add a namespace without modifying the existing local placement"))
 )
 
 type dbType string
@@ -177,29 +178,25 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
-	currPlacement, _, err := h.placementGetHandler.Get(
+	currPlacement, err := h.placementGetHandler.Get(
 		h.serviceNameAndDefaults(), nil)
 	if err != nil {
 		logger.Error("unable to get placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	parsedReq, namespaceRequests, placementRequest, rErr := h.parseAndValidateRequest(r, currPlacement)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
-	currPlacement, badRequest, err := h.maybeInitPlacement(currPlacement, parsedReq, placementRequest, r)
+	currPlacement, err = h.maybeInitPlacement(currPlacement, parsedReq, placementRequest, r)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Error(err))
-		status := http.StatusBadRequest
-		if !badRequest {
-			status = http.StatusInternalServerError
-		}
-		xhttp.Error(w, err, status)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -208,18 +205,18 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	nsRegistry, err := h.namespaceGetHandler.Get(opts)
 	if err != nil {
 		logger.Error("unable to retrieve existing namespaces", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	// TODO(rartoul): Add test for NS exists.
 	for _, namespaceRequest := range namespaceRequests {
 		if _, nsExists := nsRegistry.Namespaces[namespaceRequest.Name]; nsExists {
-			err := fmt.Errorf(
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
 				"unable to create namespace: %s because it already exists",
-				namespaceRequest.Name)
+				namespaceRequest.Name))
 			logger.Error("unable to create namespace", zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, err)
 			return
 		}
 	}
@@ -228,7 +225,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 		if err != nil {
 			logger.Error("unable to add namespace", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 	}
@@ -236,7 +233,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	placementProto, err := currPlacement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -257,7 +254,7 @@ func (h *createHandler) maybeInitPlacement(
 	parsedReq *admin.DatabaseCreateRequest,
 	placementRequest *admin.PlacementInitRequest,
 	r *http.Request,
-) (clusterplacement.Placement, bool, error) {
+) (clusterplacement.Placement, error) {
 	if currPlacement == nil {
 		// If we're here then there is no existing placement, so just create it. This is safe because in
 		// the case where a placement did not already exist, the parse function above validated that we
@@ -265,10 +262,10 @@ func (h *createHandler) maybeInitPlacement(
 		newPlacement, err := h.placementInitHandler.Init(h.serviceNameAndDefaults(),
 			r, placementRequest)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 
-		return newPlacement, false, nil
+		return newPlacement, nil
 	}
 
 	// NB(rartoul): Pardon the branchiness, making sure every permutation is "reasoned" through for
@@ -279,73 +276,73 @@ func (h *createHandler) maybeInitPlacement(
 			// If the caller has specified a desired clustered placement and a placement already exists,
 			// throw an error because the create database API should not be used for modifying clustered
 			// placements. Instead, they should use the placement APIs.
-			return nil, true, errClusteredPlacementAlreadyExists
+			return nil, errClusteredPlacementAlreadyExists
 		}
 
 		if placementIsLocal(currPlacement) {
 			// If the caller has specified that they desire a clustered placement (without specifying hosts)
 			// and a local placement already exists then throw an error because we can't ignore their request
 			// and we also can't convert a local placement to a clustered one.
-			return nil, true, errCantReplaceLocalPlacementWithClustered
+			return nil, errCantReplaceLocalPlacementWithClustered
 		}
 
 		// This is fine because we'll just assume they want to keep the same clustered placement
 		// that they already have because they didn't specify any hosts.
-		return currPlacement, false, nil
+		return currPlacement, nil
 	case dbTypeLocal:
 		if !placementIsLocal(currPlacement) {
 			// If the caller has specified that they desire a local placement and a clustered placement
 			// already exists then throw an error because we can't ignore their request and we also can't
 			// convert a clustered placement to a local one.
-			return nil, true, errCantReplaceLocalPlacementWithClustered
+			return nil, errCantReplaceLocalPlacementWithClustered
 		}
 
 		// This is fine because we'll just assume they want to keep the same local placement
 		// that they already have.
-		return currPlacement, false, nil
+		return currPlacement, nil
 	case "":
 		// This is fine because we'll just assume they want to keep the same placement that they already
 		// have.
-		return currPlacement, false, nil
+		return currPlacement, nil
 	default:
 		// Invalid dbType.
-		return nil, true, fmt.Errorf("unknown database type: %s", parsedReq.Type)
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("unknown database type: %s", parsedReq.Type))
 	}
 }
 
 func (h *createHandler) parseAndValidateRequest(
 	r *http.Request,
 	existingPlacement clusterplacement.Placement,
-) (*admin.DatabaseCreateRequest, []*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
+) (*admin.DatabaseCreateRequest, []*admin.NamespaceAddRequest, *admin.PlacementInitRequest, error) {
 	requirePlacement := existingPlacement == nil
 
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
 		wrapped := fmt.Errorf("error converting duration to nano bytes: %s", err.Error())
-		return nil, nil, nil, xhttp.NewParseError(wrapped, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(wrapped)
 	}
 
 	dbCreateReq := new(admin.DatabaseCreateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
-		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	if dbCreateReq.NamespaceName == "" {
 		err := fmt.Errorf("%s: namespaceName", errMissingRequiredField)
-		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	requestedDBType := dbType(dbCreateReq.Type)
 	if requirePlacement &&
 		requestedDBType == dbTypeCluster &&
 		len(dbCreateReq.Hosts) == 0 {
-		return nil, nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(errMissingRequiredField)
 	}
 
 	namespaceAddRequests, err := defaultedNamespaceAddRequests(dbCreateReq, existingPlacement)
 	if err != nil {
-		return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	var placementInitRequest *admin.PlacementInitRequest
@@ -353,7 +350,7 @@ func (h *createHandler) parseAndValidateRequest(
 		requestedDBType == dbTypeLocal {
 		placementInitRequest, err = defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
 		if err != nil {
-			return nil, nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return nil, nil, nil, xerrors.NewInvalidParamsError(err)
 		}
 	}
 
@@ -576,7 +573,7 @@ func defaultedPlacementInitRequest(
 			return nil, errMissingEmbeddedDBConfig
 		}
 
-		addr := embeddedDbCfg.ListenAddress
+		addr := embeddedDbCfg.ListenAddressOrDefault()
 		port, err := portFromEmbeddedDBConfigListenAddress(addr)
 		if err != nil {
 			return nil, err

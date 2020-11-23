@@ -91,11 +91,11 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	}
 
 	op := getAggOpType(opType)
-	if op == common.UnknownOpType {
+	switch op {
+	case common.UnknownOpType:
 		return nil, fmt.Errorf("operator not supported: %s", opType)
-	}
 
-	if op == aggregation.BottomKType || op == aggregation.TopKType {
+	case aggregation.BottomKType, aggregation.TopKType:
 		val, err := resolveScalarArgument(expr.Param)
 		if err != nil {
 			return nil, err
@@ -103,14 +103,47 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 
 		nodeInformation.Parameter = val
 		return aggregation.NewTakeOp(op, nodeInformation)
-	}
 
-	if op == aggregation.CountValuesType {
-		nodeInformation.StringParameter = expr.Param.String()
+	case aggregation.CountValuesType:
+		paren := unwrapParenExpr(expr.Param)
+		val, err := resolveStringArgument(paren)
+		if err != nil {
+			return nil, err
+		}
+		nodeInformation.StringParameter = val
 		return aggregation.NewCountValuesOp(op, nodeInformation)
+
+	case aggregation.QuantileType:
+		val, err := resolveScalarArgument(expr.Param)
+		if err != nil {
+			return nil, err
+		}
+
+		nodeInformation.Parameter = val
+	}
+	return aggregation.NewAggregationOp(op, nodeInformation)
+}
+
+func unwrapParenExpr(expr promql.Expr) promql.Expr {
+	for {
+		if paren, ok := expr.(*promql.ParenExpr); ok {
+			expr = paren.Expr
+		} else {
+			return expr
+		}
+	}
+}
+
+func resolveStringArgument(expr promql.Expr) (string, error) {
+	if expr == nil {
+		return "", fmt.Errorf("expression is nil")
 	}
 
-	return aggregation.NewAggregationOp(op, nodeInformation)
+	if str, ok := expr.(*promql.StringLiteral); ok {
+		return str.Val, nil
+	}
+
+	return expr.String(), nil
 }
 
 func getAggOpType(opType promql.ItemType) string {
@@ -262,10 +295,11 @@ func NewFunctionExpr(
 		p, err = scalar.NewTimeOp(tagOptions)
 		return p, true, err
 
-	// NB: no-ops.
 	case linear.SortType, linear.SortDescType:
-		return nil, false, err
+		p, err = linear.NewSortOp(name)
+		return p, true, err
 
+	// NB: no-ops.
 	case scalar.ScalarType:
 		return nil, false, err
 

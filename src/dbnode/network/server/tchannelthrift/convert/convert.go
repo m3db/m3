@@ -229,6 +229,9 @@ func FromRPCFetchTaggedRequest(
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
 	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
+	}
 
 	q, err := idx.Unmarshal(req.Query)
 	if err != nil {
@@ -286,6 +289,10 @@ func ToRPCFetchTaggedRequest(
 		request.DocsLimit = &l
 	}
 
+	if len(opts.Source) > 0 {
+		request.Source = opts.Source
+	}
+
 	return request, nil
 }
 
@@ -311,6 +318,9 @@ func FromRPCAggregateQueryRequest(
 	}
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	query, err := FromRPCQuery(req.Query)
@@ -357,7 +367,9 @@ func FromRPCAggregateQueryRawRequest(
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
 	}
-
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
+	}
 	query, err := idx.Unmarshal(req.Query)
 	if err != nil {
 		return nil, index.Query{}, index.AggregationOptions{}, err
@@ -405,6 +417,10 @@ func ToRPCAggregateQueryRawRequest(
 	if opts.SeriesLimit > 0 {
 		l := int64(opts.SeriesLimit)
 		request.Limit = &l
+	}
+
+	if len(opts.Source) > 0 {
+		request.Source = opts.Source
 	}
 
 	query, queryErr := idx.Marshal(q.Query)

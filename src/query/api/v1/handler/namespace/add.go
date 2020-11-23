@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -42,17 +43,13 @@ import (
 )
 
 var (
-	// DeprecatedM3DBAddURL is the old url for the namespace add handler, maintained
-	// for backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, NamespacePathName)
-
 	// M3DBAddURL is the url for the M3DB namespace add handler.
 	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
 
-	errNamespaceExists = errors.New("namespace with same ID already exists")
+	errNamespaceExists = xerrors.NewInvalidParamsError(errors.New("namespace with same ID already exists"))
 )
 
 // AddHandler is the handler for namespace adds.
@@ -80,7 +77,7 @@ func (h *AddHandler) ServeHTTP(
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -89,12 +86,12 @@ func (h *AddHandler) ServeHTTP(
 	if err != nil {
 		if err == errNamespaceExists {
 			logger.Error("namespace already exists", zap.Error(err))
-			xhttp.Error(w, err, http.StatusConflict)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusConflict))
 			return
 		}
 
 		logger.Error("unable to get namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -105,16 +102,16 @@ func (h *AddHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *xhttp.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, error) {
 	defer r.Body.Close()
 	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	addReq := new(admin.NamespaceAddRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), addReq); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return addReq, nil
@@ -125,11 +122,15 @@ func (h *AddHandler) Add(
 	addReq *admin.NamespaceAddRequest,
 	opts handleroptions.ServiceOptions,
 ) (nsproto.Registry, error) {
-	var emptyReg = nsproto.Registry{}
+	var emptyReg nsproto.Registry
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
 	if err != nil {
-		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
+		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("bad namespace metadata: %v", err))
+	}
+
+	if err := validateNewMetadata(md); err != nil {
+		return emptyReg, xerrors.NewInvalidParamsError(fmt.Errorf("invalid new namespace metadata: %v", err))
 	}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())
@@ -148,18 +149,19 @@ func (h *AddHandler) Add(
 	// we can't easily check that it's a conflict in the handler.
 	for _, ns := range currentMetadata {
 		if ns.ID().Equal(md.ID()) {
+			// NB: errNamespaceExists already an invalid params error.
 			return emptyReg, errNamespaceExists
 		}
 	}
 
 	newMDs := append(currentMetadata, md)
 	if err = validateNamespaceAggregationOptions(newMDs); err != nil {
-		return emptyReg, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
-		return emptyReg, err
+		return emptyReg, xerrors.NewInvalidParamsError(err)
 	}
 
 	protoRegistry, err := namespace.ToProto(nsMap)
@@ -173,4 +175,18 @@ func (h *AddHandler) Add(
 	}
 
 	return *protoRegistry, nil
+}
+
+// Validate new namespace inputs only. Validation that applies to namespaces regardless of create/update/etc
+// belongs in the option-specific Validate functions which are invoked on every change operation.
+func validateNewMetadata(m namespace.Metadata) error {
+	indexBlockSize := m.Options().RetentionOptions().BlockSize()
+	retentionBlockSize := m.Options().IndexOptions().BlockSize()
+	if indexBlockSize != retentionBlockSize {
+		return fmt.Errorf("index and retention block size must match (%v, %v)",
+			indexBlockSize,
+			retentionBlockSize,
+		)
+	}
+	return nil
 }

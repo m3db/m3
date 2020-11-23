@@ -115,15 +115,15 @@ eval instant at 50m rate(http_requests[25m]) * 25 * 60
   {group="production", instance="1", job="api-server"} 100
   {group="production", instance="1", job="app-server"} 300
 
-# FAILING issue #19. eval instant at 50m (rate((http_requests[25m])) * 25) * 60
-#  {group="canary", instance="0", job="api-server"} 150
-#  {group="canary", instance="0", job="app-server"} 350
-#  {group="canary", instance="1", job="api-server"} 200
-#  {group="canary", instance="1", job="app-server"} 400
-#  {group="production", instance="0", job="api-server"} 50
-#  {group="production", instance="0", job="app-server"} 249.99999999999997
-#  {group="production", instance="1", job="api-server"} 100
-#  {group="production", instance="1", job="app-server"} 300
+eval instant at 50m (rate((http_requests[25m])) * 25) * 60
+  {group="canary", instance="0", job="api-server"} 150
+  {group="canary", instance="0", job="app-server"} 350
+  {group="canary", instance="1", job="api-server"} 200
+  {group="canary", instance="1", job="app-server"} 400
+  {group="production", instance="0", job="api-server"} 50
+  {group="production", instance="0", job="app-server"} 249.99999999999997
+  {group="production", instance="1", job="api-server"} 100
+  {group="production", instance="1", job="app-server"} 300
 
 
 # FAILING order of rows differs. eval instant at 50m http_requests{group="canary"} and http_requests{instance="0"}

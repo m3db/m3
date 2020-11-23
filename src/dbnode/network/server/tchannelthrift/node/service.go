@@ -21,6 +21,7 @@
 package node
 
 import (
+	goctx "context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -29,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -37,11 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -49,7 +51,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -453,7 +455,8 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.Query)
+	ctx := addSourceToContext(tctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", req.Query.String()),
@@ -491,6 +494,9 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	}
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
 	if err != nil {
@@ -585,13 +591,17 @@ func (s *service) aggregateTiles(
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
 	}
-	opts, err := storage.NewAggregateTilesOptions(start, end, step)
-	if err != nil {
-		return 0, tterrors.NewBadRequestError(err)
-	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
+
+	opts, err := storage.NewAggregateTilesOptions(
+		start, end, step,
+		sourceNsID,
+		s.opts.InstrumentOptions())
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
 
 	processedTileCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
@@ -610,11 +620,12 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	var (
 		callStart = s.nowFn()
-		ctx       = tchannelthrift.Context(tctx)
+		ctx       = addSourceToContext(tctx, req.Source)
 
 		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
 		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
 	)
+
 	if rangeStartErr != nil || rangeEndErr != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
@@ -693,7 +704,8 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.FetchTagged)
+	ctx := addSourceToContext(tctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", string(req.Query)),
@@ -732,8 +744,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		Exhaustive: queryResult.Exhaustive,
 		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, results.Size()),
 	}
-	nsID := results.Namespace()
-	nsIDBytes := nsID.Bytes()
+	nsIDBytes := ns.Bytes()
 
 	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
@@ -742,14 +753,14 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
-	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+	if err := s.fetchReadEncoded(ctx, db, response, results, ns, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+		if err := s.fetchReadResults(ctx, response, ns, encodedDataResults); err != nil {
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return nil, err
 		}
@@ -892,7 +903,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+	ctx := addSourceToContext(tctx, req.Source)
 
 	ns, query, opts, err := convert.FromRPCAggregateQueryRawRequest(req, s.pools)
 	if err != nil {
@@ -963,7 +974,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+	ctx := addSourceToContext(tctx, req.Source)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeTimeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeTimeType)
@@ -1043,13 +1054,14 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 
 	var (
 		callStart          = s.nowFn()
-		ctx                = tchannelthrift.Context(tctx)
+		ctx                = addSourceToContext(tctx, req.Source)
 		nsIDs              = make([]ident.ID, 0, len(req.Elements))
 		result             = rpc.NewFetchBatchRawResult_()
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
 	for _, nsBytes := range req.NameSpaces {
 		nsIDs = append(nsIDs, s.newID(ctx, nsBytes))
 	}
@@ -2299,7 +2311,7 @@ func (s *service) readEncodedResult(
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		s.pools.segmentsArray.Put(segments)
 	}))
 
@@ -2615,4 +2627,17 @@ func finalizeEncodedTagsFn(b []byte) {
 // does not.
 func finalizeAnnotationFn(b []byte) {
 	apachethrift.BytesPoolPut(b)
+}
+
+func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
+	ctx := tchannelthrift.Context(tctx)
+	if len(source) > 0 {
+		if base, ok := ctx.GoContext(); ok {
+			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))
+		} else {
+			ctx.SetGoContext(goctx.WithValue(goctx.Background(), limits.SourceContextKey, source))
+		}
+	}
+
+	return ctx
 }

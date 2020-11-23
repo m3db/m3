@@ -30,15 +30,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/instrument"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xjson "github.com/m3db/m3/src/x/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -52,12 +50,6 @@ const (
 	promQuery = `http_requests_total{job="prometheus",group="canary"}`
 )
 
-var (
-	timeoutOpts = &prometheus.TimeoutOpts{
-		FetchTimeout: 15 * time.Second,
-	}
-)
-
 func defaultParams() url.Values {
 	vals := url.Values{}
 	now := time.Now()
@@ -68,16 +60,21 @@ func defaultParams() url.Values {
 	return vals
 }
 
-func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError) {
-	fetchOpts, err := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}).
-		NewFetchOptions(req)
+func testParseParams(req *http.Request) (models.RequestParams, error) {
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
 	if err != nil {
 		return models.RequestParams{}, err
 	}
 
-	return parseParams(req, executor.NewEngineOptions(), timeoutOpts,
-		fetchOpts, instrument.NewOptions())
+	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
+	if err != nil {
+		return models.RequestParams{}, err
+	}
+
+	return parseParams(req, executor.NewEngineOptions(), fetchOpts)
 }
 
 func TestParamParsing(t *testing.T) {
@@ -106,10 +103,17 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	params.Add(queryParam, promQuery)
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 10 * time.Second,
+		})
+	require.NoError(t, err)
+	fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req)
+	require.NoError(t, err)
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
-		timeoutOpts, storage.NewFetchOptions(), instrument.NewOptions())
-	require.Nil(t, err, "unable to parse request")
+		fetchOpts)
+	require.NoError(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
 
@@ -120,7 +124,7 @@ func TestInvalidStart(t *testing.T) {
 	req.URL.RawQuery = vals.Encode()
 	_, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
-	require.Equal(t, err.Code(), http.StatusBadRequest)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestInvalidTarget(t *testing.T) {
@@ -132,33 +136,47 @@ func TestInvalidTarget(t *testing.T) {
 	p, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
-	require.Equal(t, err.Code(), http.StatusBadRequest)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestParseBlockType(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
+	for _, test := range []struct {
+		input    string
+		expected models.FetchedBlockType
+		err      bool
+	}{
+		{
+			input:    "0",
+			expected: models.TypeSingleBlock,
+		},
+		{
+			input: "1",
+			err:   true,
+		},
+		{
+			input: "2",
+			err:   true,
+		},
+		{
+			input: "foo",
+			err:   true,
+		},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			req := httptest.NewRequest("GET", PromReadURL, nil)
+			p := defaultParams()
+			p.Set("block-type", test.input)
+			req.URL.RawQuery = p.Encode()
 
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
-		instrument.NewOptions()))
+			r, err := testParseParams(req)
+			if !test.err {
+				require.NoError(t, err, "should be no block error")
+				require.Equal(t, test.expected, r.BlockType)
+			} else {
+				require.Error(t, err, "should be block error")
+			}
+		})
+	}
 }
 
 func TestRenderResultsJSON(t *testing.T) {

@@ -25,55 +25,55 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/gogo/protobuf/proto"
 )
 
-// Options controls namespace behavior
+// Options controls namespace behavior.
 type Options interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// Equal returns true if the provide value is equal to this one
+	// Equal returns true if the provide value is equal to this one.
 	Equal(value Options) bool
 
-	// SetBootstrapEnabled sets whether this namespace requires bootstrapping
+	// SetBootstrapEnabled sets whether this namespace requires bootstrapping.
 	SetBootstrapEnabled(value bool) Options
 
-	// BootstrapEnabled returns whether this namespace requires bootstrapping
+	// BootstrapEnabled returns whether this namespace requires bootstrapping.
 	BootstrapEnabled() bool
 
-	// SetFlushEnabled sets whether the in-memory data for this namespace needs to be flushed
+	// SetFlushEnabled sets whether the in-memory data for this namespace needs to be flushed.
 	SetFlushEnabled(value bool) Options
 
-	// FlushEnabled returns whether the in-memory data for this namespace needs to be flushed
+	// FlushEnabled returns whether the in-memory data for this namespace needs to be flushed.
 	FlushEnabled() bool
 
-	// SetSnapshotEnabled sets whether the in-memory data for this namespace should be snapshotted regularly
+	// SetSnapshotEnabled sets whether the in-memory data for this namespace should be snapshotted regularly.
 	SetSnapshotEnabled(value bool) Options
 
-	// SnapshotEnabled returns whether the in-memory data for this namespace should be snapshotted regularly
+	// SnapshotEnabled returns whether the in-memory data for this namespace should be snapshotted regularly.
 	SnapshotEnabled() bool
 
-	// SetWritesToCommitLog sets whether writes for series in this namespace need to go to commit log
+	// SetWritesToCommitLog sets whether writes for series in this namespace need to go to commit log.
 	SetWritesToCommitLog(value bool) Options
 
-	// WritesToCommitLog returns whether writes for series in this namespace need to go to commit log
+	// WritesToCommitLog returns whether writes for series in this namespace need to go to commit log.
 	WritesToCommitLog() bool
 
-	// SetCleanupEnabled sets whether this namespace requires cleaning up fileset/snapshot files
+	// SetCleanupEnabled sets whether this namespace requires cleaning up fileset/snapshot files.
 	SetCleanupEnabled(value bool) Options
 
-	// CleanupEnabled returns whether this namespace requires cleaning up fileset/snapshot files
+	// CleanupEnabled returns whether this namespace requires cleaning up fileset/snapshot files.
 	CleanupEnabled() bool
 
-	// SetRepairEnabled sets whether the data for this namespace needs to be repaired
+	// SetRepairEnabled sets whether the data for this namespace needs to be repaired.
 	SetRepairEnabled(value bool) Options
 
-	// RepairEnabled returns whether the data for this namespace needs to be repaired
+	// RepairEnabled returns whether the data for this namespace needs to be repaired.
 	RepairEnabled() bool
 
 	// SetColdWritesEnabled sets whether cold writes are enabled for this namespace.
@@ -90,10 +90,10 @@ type Options interface {
 	// CacheBlocksOnRetrieve returns whether to cache blocks from this namespace when retrieved.
 	CacheBlocksOnRetrieve() bool
 
-	// SetRetentionOptions sets the retention options for this namespace
+	// SetRetentionOptions sets the retention options for this namespace.
 	SetRetentionOptions(value retention.Options) Options
 
-	// RetentionOptions returns the retention options for this namespace
+	// RetentionOptions returns the retention options for this namespace.
 	RetentionOptions() retention.Options
 
 	// SetIndexOptions sets the IndexOptions.
@@ -192,102 +192,100 @@ type SchemaListener interface {
 // and where schema is retrieved from at series read and write path.
 type SchemaRegistry interface {
 	// GetLatestSchema gets the latest schema for the namespace.
-	// If proto is not enabled, nil, nil is returned
+	// If proto is not enabled, nil, nil is returned.
 	GetLatestSchema(id ident.ID) (SchemaDescr, error)
 
 	// GetSchema gets the latest schema for the namespace.
-	// If proto is not enabled, nil, nil is returned
+	// If proto is not enabled, nil, nil is returned.
 	GetSchema(id ident.ID, schemaID string) (SchemaDescr, error)
 
 	// SetSchemaHistory sets the schema history for the namespace.
-	// If proto is not enabled, nil is returned
+	// If proto is not enabled, nil is returned.
 	SetSchemaHistory(id ident.ID, history SchemaHistory) error
 
 	// RegisterListener registers a schema listener for the namespace.
 	// If proto is not enabled, nil, nil is returned
-	RegisterListener(id ident.ID, listener SchemaListener) (xclose.SimpleCloser, error)
+	RegisterListener(id ident.ID, listener SchemaListener) (xresource.SimpleCloser, error)
 
 	// Close closes all the listeners.
 	Close()
 }
 
-// Metadata represents namespace metadata information
+// Metadata represents namespace metadata information.
 type Metadata interface {
-	// Equal returns true if the provide value is equal to this one
+	// Equal returns true if the provided value is equal to this one.
 	Equal(value Metadata) bool
 
-	// ID is the ID of the namespace
+	// ID is the ID of the namespace.
 	ID() ident.ID
 
-	// Options is the namespace options
+	// Options is the namespace options.
 	Options() Options
 }
 
-// Map is mapping from known namespaces' ID to their Metadata
+// Map is mapping from known namespaces' ID to their Metadata.
 type Map interface {
-	// Equal returns true if the provide value is equal to this one
+	// Equal returns true if the provide value is equal to this one.
 	Equal(value Map) bool
 
-	// Get gets the metadata for the provided namespace
+	// Get gets the metadata for the provided namespace.
 	Get(ident.ID) (Metadata, error)
 
-	// IDs returns the ID of known namespaces
+	// IDs returns the ID of known namespaces.
 	IDs() []ident.ID
 
-	// Metadatas returns the metadata of known namespaces
+	// Metadatas returns the metadata of known namespaces.
 	Metadatas() []Metadata
 }
 
-// Watch is a watch on a namespace Map
+// Watch is a watch on a namespace Map.
 type Watch interface {
-	// C is the notification channel for when a value becomes available
+	// C is the notification channel for when a value becomes available.
 	C() <-chan struct{}
 
-	// Get the current namespace map
+	// Get the current namespace map.
 	Get() Map
 
-	// Close closes the watch
+	// Close closes the watch.
 	Close() error
 }
 
-// Registry is an un-changing container for a Map
+// Registry is an un-changing container for a Map.
 type Registry interface {
-	// Watch for the Registry changes
+	// Watch for the Registry changes.
 	Watch() (Watch, error)
 
-	// Close closes the registry
+	// Close closes the registry.
 	Close() error
 }
 
-// Initializer can init new instances of namespace registries
+// Initializer can init new instances of namespace registries.
 type Initializer interface {
-	// Init will return a new Registry
+	// Init will return a new Registry.
 	Init() (Registry, error)
 }
 
-// DynamicOptions is a set of options for dynamic namespace registry
+// DynamicOptions is a set of options for dynamic namespace registry.
 type DynamicOptions interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) DynamicOptions
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetConfigServiceClient sets the client of ConfigService
+	// SetConfigServiceClient sets the client of ConfigService.
 	SetConfigServiceClient(c client.Client) DynamicOptions
 
-	// ConfigServiceClient returns the client of ConfigService
+	// ConfigServiceClient returns the client of ConfigService.
 	ConfigServiceClient() client.Client
 
-	// SetNamespaceRegistryKey sets the kv-store key used for the
-	// NamespaceRegistry
+	// SetNamespaceRegistryKey sets the kv-store key used for the NamespaceRegistry.
 	SetNamespaceRegistryKey(k string) DynamicOptions
 
-	// NamespaceRegistryKey returns the kv-store key used for the
-	// NamespaceRegistry
+	// NamespaceRegistryKey returns the kv-store key used for the NamespaceRegistry.
 	NamespaceRegistryKey() string
 
 	// SetForceColdWritesEnabled sets whether or not to force enable cold writes
@@ -297,6 +295,14 @@ type DynamicOptions interface {
 	// ForceColdWritesEnabled returns whether or not to force enable cold writes
 	// for all ns.
 	ForceColdWritesEnabled() bool
+
+	// SetAllowEmptyInitialNamespaceRegistry sets whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicOptions
+
+	// AllowEmptyInitialNamespaceRegistry returns whether to allow the initial
+	// namespace update to be empty or to wait indefinitely until namespaces are received.
+	AllowEmptyInitialNamespaceRegistry() bool
 }
 
 // NamespaceWatch watches for namespace updates.

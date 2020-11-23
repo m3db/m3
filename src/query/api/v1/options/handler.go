@@ -30,9 +30,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
@@ -72,7 +70,9 @@ type CustomHandler interface {
 	// Methods is the list of http methods this handler services.
 	Methods() []string
 	// Handler is the custom handler itself.
-	Handler(handlerOptions HandlerOptions) (http.Handler, error)
+	// prev is optional argument for getting already registered handler for the same route.
+	// If there is nothing to override, prev will be nil.
+	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.
@@ -141,16 +141,6 @@ type HandlerOptions interface {
 	TagOptions() models.TagOptions
 	// SetTagOptions sets the tag options.
 	SetTagOptions(opts models.TagOptions) HandlerOptions
-
-	// TimeoutOpts returns the timeout options.
-	TimeoutOpts() *prometheus.TimeoutOpts
-	// SetTimeoutOpts sets the timeout options.
-	SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions
-
-	// Enforcer returns the enforcer.
-	Enforcer() cost.ChainedEnforcer
-	// SetEnforcer sets the enforcer.
-	SetEnforcer(e cost.ChainedEnforcer) HandlerOptions
 
 	// FetchOptionsBuilder returns the fetch options builder.
 	FetchOptionsBuilder() handleroptions.FetchOptionsBuilder
@@ -234,8 +224,6 @@ type handlerOptions struct {
 	embeddedDbCfg         *dbconfig.DBConfiguration
 	createdAt             time.Time
 	tagOptions            models.TagOptions
-	timeoutOpts           *prometheus.TimeoutOpts
-	enforcer              cost.ChainedEnforcer
 	fetchOptionsBuilder   handleroptions.FetchOptionsBuilder
 	queryContextOptions   models.QueryContextOptions
 	instrumentOpts        instrument.Options
@@ -269,7 +257,6 @@ func NewHandlerOptions(
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-	enforcer cost.ChainedEnforcer,
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder,
 	queryContextOptions models.QueryContextOptions,
 	instrumentOpts instrument.Options,
@@ -281,13 +268,6 @@ func NewHandlerOptions(
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
 	m3dbOpts m3db.Options,
 ) (HandlerOptions, error) {
-	timeout := cfg.Query.TimeoutOrDefault()
-	if embeddedDbCfg != nil &&
-		embeddedDbCfg.Client.FetchTimeout != nil &&
-		*embeddedDbCfg.Client.FetchTimeout > timeout {
-		timeout = *embeddedDbCfg.Client.FetchTimeout
-	}
-
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
 		storeMetricsType = *cfg.StoreMetricsType
@@ -305,7 +285,6 @@ func NewHandlerOptions(
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
 		instrumentOpts:        instrumentOpts,
@@ -313,14 +292,11 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
-		timeoutOpts: &prometheus.TimeoutOpts{
-			FetchTimeout: timeout,
-		},
-		queryRouter:         queryRouter,
-		instantQueryRouter:  instantQueryRouter,
-		graphiteStorageOpts: graphiteStorageOpts,
-		m3dbOpts:            m3dbOpts,
-		storeMetricsType:    storeMetricsType,
+		queryRouter:           queryRouter,
+		instantQueryRouter:    instantQueryRouter,
+		graphiteStorageOpts:   graphiteStorageOpts,
+		m3dbOpts:              m3dbOpts,
+		storeMetricsType:      storeMetricsType,
 	}, nil
 }
 
@@ -418,26 +394,6 @@ func (o *handlerOptions) TagOptions() models.TagOptions {
 func (o *handlerOptions) SetTagOptions(tags models.TagOptions) HandlerOptions {
 	opts := *o
 	opts.tagOptions = tags
-	return &opts
-}
-
-func (o *handlerOptions) TimeoutOpts() *prometheus.TimeoutOpts {
-	return o.timeoutOpts
-}
-
-func (o *handlerOptions) SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions {
-	opts := *o
-	opts.timeoutOpts = t
-	return &opts
-}
-
-func (o *handlerOptions) Enforcer() cost.ChainedEnforcer {
-	return o.enforcer
-}
-
-func (o *handlerOptions) SetEnforcer(e cost.ChainedEnforcer) HandlerOptions {
-	opts := *o
-	opts.enforcer = e
 	return &opts
 }
 

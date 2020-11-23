@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -48,10 +49,6 @@ const (
 )
 
 var (
-	// DeprecatedM3DBDeleteURL is the deprecated url for the M3DB namespace delete handler.
-	// Maintained for backwards compatibility.
-	DeprecatedM3DBDeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
-
 	// M3DBDeleteURL is the url for the M3DB namespace delete handler.
 	M3DBDeleteURL = path.Join(
 		handler.RoutePrefixV1,
@@ -61,7 +58,7 @@ var (
 )
 
 var (
-	errEmptyID = errors.New("must specify namespace ID to delete")
+	errEmptyID = xerrors.NewInvalidParamsError(errors.New("must specify namespace ID to delete"))
 )
 
 // DeleteHandler is the handler for namespace deletes.
@@ -88,7 +85,7 @@ func (h *DeleteHandler) ServeHTTP(
 	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
 	if id == "" {
 		logger.Error("no namespace ID to delete", zap.Error(errEmptyID))
-		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
+		xhttp.WriteError(w, errEmptyID)
 		return
 	}
 
@@ -96,11 +93,7 @@ func (h *DeleteHandler) ServeHTTP(
 	err := h.Delete(id, opts)
 	if err != nil {
 		logger.Error("unable to delete namespace", zap.Error(err))
-		if err == errNamespaceNotFound {
-			xhttp.Error(w, err, http.StatusNotFound)
-		} else {
-			xhttp.Error(w, err, http.StatusInternalServerError)
-		}
+		xhttp.WriteError(w, err)
 		return
 	}
 

@@ -31,10 +31,10 @@ import (
 // given placement.
 // If initialPlacement is nil, BuildInitialPlacement must be called before any operations on the
 // placement.
-func NewPlacementOperator(initialPlacement placement.Placement, opts placement.Options) placement.Operator {
+func NewPlacementOperator(initialPlacement placement.Placement, opts ...Option) placement.Operator {
 	store := newDummyStore(initialPlacement)
 	return &placementOperator{
-		placementServiceImpl: newPlacementServiceImpl(opts, store),
+		placementServiceImpl: newPlacementServiceImpl(store, opts...),
 		store:                store,
 	}
 }
@@ -97,4 +97,3 @@ func (d *dummyStore) Placement() (placement.Placement, error) {
 	}
 	return d.curPlacement, nil
 }
-

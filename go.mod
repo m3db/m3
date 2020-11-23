@@ -21,9 +21,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/fatih/color v1.10.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
@@ -34,9 +34,9 @@ require (
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
-	github.com/google/go-cmp v0.5.1
+	github.com/google/go-cmp v0.5.2
 	github.com/google/go-jsonnet v0.16.0
 	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
@@ -47,6 +47,7 @@ require (
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
+	github.com/kr/text v0.2.0 // indirect
 	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -62,9 +63,12 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.1
-	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
+	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/onsi/ginkgo v1.14.1 // indirect
+	github.com/onsi/gomega v1.10.2 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
@@ -85,21 +89,18 @@ require (
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
-	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
+	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
-	github.com/spf13/cobra v0.0.5
+	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.7.1
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
-	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000
 	github.com/uber-go/tally v3.3.13+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
@@ -116,11 +117,14 @@ require (
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.uber.org/atomic v1.6.0
 	go.uber.org/config v1.4.0
+	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.13.0
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a
+	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
+	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
 	google.golang.org/grpc v1.29.1
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
@@ -128,8 +132,9 @@ require (
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible
+	honnef.co/go/tools v0.0.1-2020.1.6 // indirect
 )
 
 // branch 0.9.3-pool-read-binary-3

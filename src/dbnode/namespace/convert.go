@@ -76,8 +76,11 @@ func ToRetention(
 // ToIndexOptions converts nsproto.IndexOptions to IndexOptions
 func ToIndexOptions(
 	io *nsproto.IndexOptions,
+	defaultBlockSize time.Duration,
 ) (IndexOptions, error) {
-	iopts := NewIndexOptions().SetEnabled(false)
+	iopts := NewIndexOptions().
+		SetBlockSize(defaultBlockSize).
+		SetEnabled(false)
 	if io == nil {
 		return iopts, nil
 	}
@@ -161,7 +164,10 @@ func ToMetadata(
 		return nil, err
 	}
 
-	iOpts, err := ToIndexOptions(opts.IndexOptions)
+	iOpts, err := ToIndexOptions(opts.IndexOptions,
+		// Default to the retention block size if no index options are specified.
+		rOpts.BlockSize(),
+	)
 	if err != nil {
 		return nil, err
 	}

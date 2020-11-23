@@ -98,11 +98,20 @@ func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
 			},
 		})
 	require.NoError(t, err)
+	fsOpts := fs.NewOptions()
+
+	// Allow multiple index claim managers since need to create one
+	// for each file path prefix (fs options changes between tests).
+	fs.ResetIndexClaimsManagersUnsafe()
+
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 	return NewOptions().
 		SetResultOptions(testDefaultResultOpts).
 		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetIndexClaimsManager(icm).
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetFilesystemOptions(fs.NewOptions()).
+		SetFilesystemOptions(fsOpts).
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
 		SetAdminClient(newValidMockClient(t, ctrl)).
@@ -270,6 +279,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
+		series.CacheNone,
 		series.CacheRecentlyRead,
 		series.CacheLRU,
 	} {
@@ -622,7 +632,6 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
-				panic("wat")
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},

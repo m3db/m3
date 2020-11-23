@@ -287,7 +287,8 @@ func (c Configuration) NewAdminClient(
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
 	cfgParams := environment.ConfigurationParameters{
-		InstrumentOpts: iopts,
+		InstrumentOpts:                     iopts,
+		AllowEmptyInitialNamespaceRegistry: true,
 	}
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
@@ -364,7 +365,7 @@ func (c Configuration) NewAdminClient(
 		v = v.SetReadConsistencyLevel(*c.ReadConsistencyLevel)
 	}
 	if c.ConnectConsistencyLevel != nil {
-		v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
+		v = v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
 	}
 	if c.BackgroundHealthCheckFailLimit != nil {
 		v = v.SetBackgroundHealthCheckFailLimit(*c.BackgroundHealthCheckFailLimit)

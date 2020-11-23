@@ -261,13 +261,18 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
 	defer batchRequestStopwatch.Stop()
 
-	req, opts, result, rErr := h.parseRequest(r)
-	if rErr != nil {
+	checkedReq, err := h.checkedParseRequest(r)
+	if err != nil {
 		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, err)
 		return
 	}
 
+	var (
+		req    = checkedReq.Request
+		opts   = checkedReq.Options
+		result = checkedReq.CompressResult
+	)
 	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
 	// if the request bodies ever get pooled until after
@@ -382,7 +387,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
 				resultErr, sep, numBadRequest, lastBadRequestErr)
 		}
-		xhttp.Error(w, errors.New(resultErr), status)
+		xhttp.WriteError(w, xhttp.NewError(errors.New(resultErr), status))
 		return
 	}
 
@@ -391,6 +396,23 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// shows up as error.
 	w.WriteHeader(200)
 	h.metrics.writeSuccess.Inc(1)
+}
+
+type parseRequestResult struct {
+	Request        *prompb.WriteRequest
+	Options        ingest.WriteOptions
+	CompressResult prometheus.ParsePromCompressedRequestResult
+}
+
+func (h *PromWriteHandler) checkedParseRequest(
+	r *http.Request,
+) (parseRequestResult, error) {
+	result, err := h.parseRequest(r)
+	if err != nil {
+		// Always invalid request if parsing fails params.
+		return parseRequestResult{}, xerrors.NewInvalidParamsError(err)
+	}
+	return result, nil
 }
 
 // parseRequest extracts the Prometheus write request from the request body and
@@ -402,16 +424,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // uphold the same guarantees.
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
+) (parseRequestResult, error) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(headers.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storagemetadata.ParseMetricsType(v)
 		if err != nil {
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		// Ensure ingest options specify we are overriding the
@@ -424,18 +444,13 @@ func (h *PromWriteHandler) parseRequest(
 		switch metricsType {
 		case storagemetadata.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
-				err := errUnaggregatedStoragePolicySet
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, errUnaggregatedStoragePolicySet
 			}
 		default:
 			parsed, err := policy.ParseStoragePolicy(strPolicy)
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, err
 			}
 
 			// Make sure this specific storage policy is used for the writes.
@@ -453,39 +468,36 @@ func (h *PromWriteHandler) parseRequest(
 			opts.WriteStoragePolicies = policy.StoragePolicies{}
 		default:
 			err := fmt.Errorf("unrecognized write type: %s", v)
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{}, err
+		return parseRequestResult{}, err
 	}
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+		return parseRequestResult{}, err
 	}
 
 	if mapStr := r.Header.Get(headers.MapTagsByJSONHeader); mapStr != "" {
 		var opts handleroptions.MapTagsOptions
 		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		if err := mapTags(&req, opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
-	return &req, opts, result, nil
+	return parseRequestResult{
+		Request:        &req,
+		Options:        opts,
+		CompressResult: result,
+	}, nil
 }
 
 func (h *PromWriteHandler) write(

@@ -64,6 +64,13 @@ type Options interface {
 	// when performing a bootstrap run with persistence enabled.
 	PersistManager() persist.Manager
 
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager. It's used to manage
+	// concurrent claims for volume indices per ns and block start.
+	IndexClaimsManager() fs.IndexClaimsManager
+
 	// SetCompactor sets the compactor used to compact segment builders into segments.
 	SetCompactor(value *compaction.Compactor) Options
 
@@ -77,6 +84,14 @@ type Options interface {
 	// IndexSegmentConcurrency returns the concurrency for
 	// building index segments.
 	IndexSegmentConcurrency() int
+
+	// SetIndexSegmentsVerify sets the value for whether to verify bootstrapped
+	// index segments.
+	SetIndexSegmentsVerify(value bool) Options
+
+	// IndexSegmentsVerify returns the value for whether to verify bootstrapped
+	// index segments.
+	IndexSegmentsVerify() bool
 
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options

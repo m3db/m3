@@ -26,13 +26,17 @@ import (
 	"testing"
 	"time"
 
+	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +57,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	idxOpts := namespace.NewIndexOptions().
 		SetEnabled(true).
-		SetBlockSize(2 * blockSize)
+		SetBlockSize(blockSize)
 	nOpts := namespace.NewOptions().
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(idxOpts)
@@ -92,7 +96,18 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
 	}
 
+	quxSeries := generate.Series{
+		ID:   ident.StringID("qux"),
+		Tags: ident.NewTags(ident.StringTag("city", "new_orleans")),
+	}
+
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{
+			IDs:       []string{quxSeries.ID.String()},
+			Tags:      quxSeries.Tags,
+			NumPoints: 100,
+			Start:     now.Add(-2 * blockSize),
+		},
 		{
 			IDs:       []string{fooSeries.ID.String()},
 			Tags:      fooSeries.Tags,
@@ -159,7 +174,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:   []generate.Series{fooSeries, barSeries},
+		expected:   []generate.Series{fooSeries, barSeries, quxSeries},
 	})
 
 	// Match all *e*e*
@@ -173,6 +188,62 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:   []generate.Series{barSeries, bazSeries},
+		expected:   []generate.Series{barSeries, bazSeries, quxSeries},
 	})
+
+	// Ensure that the index data for qux has been written to disk.
+	numDocsPerBlockStart, err := getNumDocsPerBlockStart(
+		ns1.ID(),
+		setups[1].FilesystemOpts(),
+	)
+	require.NoError(t, err)
+	numDocs, ok := numDocsPerBlockStart[xtime.ToUnixNano(now.Add(-2*blockSize).Truncate(blockSize))]
+	require.True(t, ok)
+	require.Equal(t, numDocs, 1)
+}
+
+type indexInfo struct {
+	Info        indexpb.IndexVolumeInfo
+	VolumeIndex int
+}
+
+func getNumDocsPerBlockStart(
+	nsID ident.ID,
+	fsOpts fs.Options,
+) (map[xtime.UnixNano]int, error) {
+	numDocsPerBlockStart := make(map[xtime.UnixNano]int)
+	infoFiles := fs.ReadIndexInfoFiles(
+		fsOpts.FilePathPrefix(),
+		nsID,
+		fsOpts.InfoReaderBufferSize(),
+	)
+	// Grab the latest index info file for each blockstart.
+	latestIndexInfoPerBlockStart := make(map[xtime.UnixNano]indexInfo)
+	for _, f := range infoFiles {
+		info, ok := latestIndexInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)]
+		if !ok {
+			latestIndexInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexInfo{
+				Info:        f.Info,
+				VolumeIndex: f.ID.VolumeIndex,
+			}
+			continue
+		}
+
+		if f.ID.VolumeIndex > info.VolumeIndex {
+			latestIndexInfoPerBlockStart[xtime.UnixNano(f.Info.BlockStart)] = indexInfo{
+				Info:        f.Info,
+				VolumeIndex: f.ID.VolumeIndex,
+			}
+		}
+	}
+	for blockStart, info := range latestIndexInfoPerBlockStart {
+		for _, segment := range info.Info.Segments {
+			metadata := fswriter.Metadata{}
+			if err := metadata.Unmarshal(segment.Metadata); err != nil {
+				return nil, err
+			}
+			numDocsPerBlockStart[blockStart] += int(metadata.NumDocs)
+		}
+	}
+	return numDocsPerBlockStart, nil
 }

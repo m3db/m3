@@ -43,7 +43,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/opentracing/opentracing-go"
@@ -400,7 +400,7 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 // to the results datastructure).
 func (b *block) Query(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
@@ -420,7 +420,7 @@ func (b *block) Query(
 
 func (b *block) queryWithSpan(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
@@ -465,12 +465,13 @@ func (b *block) queryWithSpan(
 		return false, errCancelledQuery
 	}
 	execCloseRegistered = true // Make sure to not locally close it.
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		b.closeAsync(exec)
 	}))
 	cancellable.ReleaseCheckout()
 
 	var (
+		source     = opts.Source
 		iterCloser = safeCloser{closable: iter}
 		size       = results.Size()
 		docsCount  = results.TotalDocsCount()
@@ -498,7 +499,7 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -506,7 +507,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -530,13 +531,14 @@ func (b *block) closeAsync(closer io.Closer) {
 }
 
 func (b *block) addQueryResults(
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	results BaseResults,
 	batch []doc.Document,
+	source []byte,
 ) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
@@ -548,7 +550,7 @@ func (b *block) addQueryResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the resource.
+	// try to add the docs to the xresource.
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.
@@ -572,7 +574,7 @@ func (b *block) addQueryResults(
 // pre-aggregated results via the FST underlying the index.
 func (b *block) Aggregate(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	logFields []opentracinglog.Field,
@@ -591,7 +593,7 @@ func (b *block) Aggregate(
 
 func (b *block) aggregateWithSpan(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
 	sp opentracing.Span,
@@ -639,6 +641,7 @@ func (b *block) aggregateWithSpan(
 	}
 
 	var (
+		source     = opts.Source
 		size       = results.Size()
 		docsCount  = results.TotalDocsCount()
 		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
@@ -667,7 +670,7 @@ func (b *block) aggregateWithSpan(
 	// read by the readers.
 	for _, reader := range readers {
 		reader := reader // Capture for inline function.
-		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 			b.closeAsync(reader)
 		}))
 	}
@@ -694,7 +697,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -712,7 +715,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
@@ -792,13 +795,14 @@ func (b *block) pooledID(id []byte) ident.ID {
 }
 
 func (b *block) addAggregateResults(
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
+	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(len(batch)); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}
@@ -810,7 +814,7 @@ func (b *block) addAggregateResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the resource.
+	// try to add the docs to the xresource.
 	size, docsCount := results.AddFields(batch)
 
 	// immediately release the checkout on the lifetime of query.

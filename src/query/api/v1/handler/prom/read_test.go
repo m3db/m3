@@ -29,11 +29,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/prometheus/prometheus/pkg/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -41,6 +41,12 @@ import (
 )
 
 const promQuery = `http_requests_total{job="prometheus",group="canary"}`
+
+const (
+	queryParam = "query"
+	startParam = "start"
+	endParam   = "end"
+)
 
 var testPromQLEngine = newMockPromQLEngine()
 
@@ -54,22 +60,20 @@ func setupTest(t *testing.T) testHandlers {
 	opts := Options{
 		PromQLEngine: testPromQLEngine,
 	}
-	timeoutOpts := &prometheus.TimeoutOpts{
-		FetchTimeout: 15 * time.Second,
-	}
 
-	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
-	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{
+		Timeout: 15 * time.Second,
+	}
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	require.NoError(t, err)
 	instrumentOpts := instrument.NewOptions()
 	engineOpts := executor.NewEngineOptions().
 		SetLookbackDuration(time.Minute).
-		SetGlobalEnforcer(nil).
 		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
 	hOpts := options.EmptyHandlerOptions().
 		SetFetchOptionsBuilder(fetchOptsBuilder).
-		SetEngine(engine).
-		SetTimeoutOpts(timeoutOpts)
+		SetEngine(engine)
 	queryable := &mockQueryable{}
 	readHandler := newReadHandler(opts, hOpts, queryable)
 	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
@@ -85,7 +89,7 @@ func defaultParams() url.Values {
 	now := time.Now()
 	vals.Add(queryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
-	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(endParam, now.Add(time.Hour).Format(time.RFC3339))
 	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }
@@ -94,7 +98,7 @@ func defaultParamsWithoutQuery() url.Values {
 	vals := url.Values{}
 	now := time.Now()
 	vals.Add(startParam, now.Format(time.RFC3339))
-	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(endParam, now.Add(time.Hour).Format(time.RFC3339))
 	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }
@@ -125,6 +129,29 @@ func TestPromReadHandlerInvalidQuery(t *testing.T) {
 	var resp response
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 	require.Equal(t, statusError, resp.Status)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestPromReadHandlerExecuteInvalidParamsError(t *testing.T) {
+	setup := setupTest(t)
+	setup.queryable.selectFn = func(
+		sortSeries bool,
+		hints *promstorage.SelectHints,
+		labelMatchers ...*labels.Matcher,
+	) (promstorage.SeriesSet, promstorage.Warnings, error) {
+		return nil, nil, xerrors.NewInvalidParamsError(fmt.Errorf("user input error"))
+	}
+
+	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+
+	recorder := httptest.NewRecorder()
+	setup.readHandler.ServeHTTP(recorder, req)
+
+	var resp response
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, statusError, resp.Status)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
 func TestPromReadInstantHandler(t *testing.T) {

@@ -101,11 +101,11 @@ func defaultMappingRulesConfig() []*rulepb.MappingRule {
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
 						&policypb.StoragePolicy{
-							Resolution: &policypb.Resolution{
+							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
 							},
-							Retention: &policypb.Retention{
+							Retention: policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
@@ -142,11 +142,11 @@ func defaultRollupRulesConfig() []*rulepb.RollupRule {
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
 								&policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: int64(48 * time.Hour),
 									},
 								},

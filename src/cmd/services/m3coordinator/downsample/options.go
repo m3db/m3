@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
@@ -60,6 +59,8 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -67,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 )
@@ -84,7 +86,8 @@ const (
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards           = runtime.NumCPU()
+	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -105,7 +108,7 @@ type DownsamplerOptions struct {
 	StorageFlushConcurrency    int
 	ClusterClient              clusterclient.Client
 	RulesKVStore               kv.Store
-	AutoMappingRules           []AutoMappingRule
+	ClusterNamespacesWatcher   m3.ClusterNamespacesWatcher
 	NameTag                    string
 	ClockOptions               clock.Options
 	InstrumentOptions          instrument.Options
@@ -123,6 +126,38 @@ type DownsamplerOptions struct {
 type AutoMappingRule struct {
 	Aggregations []aggregation.Type
 	Policies     policy.StoragePolicies
+}
+
+// NewAutoMappingRules generates mapping rules from cluster namespaces.
+func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, error) {
+	autoMappingRules := make([]AutoMappingRule, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		opts := namespace.Options()
+		attrs := opts.Attributes()
+		if attrs.MetricsType != storagemetadata.AggregatedMetricsType {
+			continue
+		}
+
+		downsampleOpts, err := opts.DownsampleOptions()
+		if err != nil {
+			errFmt := "unable to resolve downsample options for namespace: %v"
+			return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
+		}
+		if downsampleOpts.All {
+			storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
+				xtime.Second, attrs.Retention)
+			autoMappingRules = append(autoMappingRules, AutoMappingRule{
+				// NB(r): By default we will apply just keep all last values
+				// since coordinator only uses downsampling with Prometheus
+				// remote write endpoint.
+				// More rich static configuration mapping rules can be added
+				// in the future but they are currently not required.
+				Aggregations: []aggregation.Type{aggregation.Last},
+				Policies:     policy.StoragePolicies{storagePolicy},
+			})
+		}
+	}
+	return autoMappingRules, nil
 }
 
 // StagedMetadatas returns the corresponding staged metadatas for this mapping rule.
@@ -187,11 +222,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	clockOpts                    clock.Options
-	matcher                      matcher.Matcher
-	pools                        aggPools
-	m3PrefixFilter               bool
+	clockOpts      clock.Options
+	matcher        matcher.Matcher
+	pools          aggPools
+	m3PrefixFilter bool
 }
 
 // Configuration configurates a downsampler.
@@ -234,6 +268,9 @@ type Configuration struct {
 type MatcherConfiguration struct {
 	// Cache if non-zero will set the capacity of the rules matching cache.
 	Cache MatcherCacheConfiguration `yaml:"cache"`
+	// NamespaceTag defines the namespace tag to use to select rules
+	// namespace to evaluate against. Default is "__m3_namespace__".
+	NamespaceTag string `yaml:"namespaceTag"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
@@ -607,14 +644,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	var (
-		storageFlushConcurrency      = defaultStorageFlushConcurrency
-		clockOpts                    = o.ClockOptions
-		instrumentOpts               = o.InstrumentOptions
-		scope                        = instrumentOpts.MetricsScope()
-		logger                       = instrumentOpts.Logger()
-		openTimeout                  = defaultOpenTimeout
-		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-		m3PrefixFilter               = false
+		storageFlushConcurrency = defaultStorageFlushConcurrency
+		clockOpts               = o.ClockOptions
+		instrumentOpts          = o.InstrumentOptions
+		scope                   = instrumentOpts.MetricsScope()
+		logger                  = instrumentOpts.Logger()
+		openTimeout             = defaultOpenTimeout
+		m3PrefixFilter          = false
+		namespaceTag            = defaultNamespaceTag
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -622,19 +659,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	if o.OpenTimeout > 0 {
 		openTimeout = o.OpenTimeout
 	}
-	for _, rule := range o.AutoMappingRules {
-		metadatas, err := rule.StagedMetadatas()
-		if err != nil {
-			return agg{}, err
-		}
-
-		var metadatasProto metricpb.StagedMetadatas
-		if err := metadatas.ToProto(&metadatasProto); err != nil {
-			return agg{}, err
-		}
-
-		defaultStagedMetadatasProtos =
-			append(defaultStagedMetadatasProtos, metadatasProto)
+	if cfg.Matcher.NamespaceTag != "" {
+		namespaceTag = cfg.Matcher.NamespaceTag
 	}
 
 	pools := o.newAggregatorPools()
@@ -644,7 +670,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(o.RulesKVStore)
+		SetKVStore(o.RulesKVStore).
+		SetNamespaceTag([]byte(namespaceTag))
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -753,11 +780,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:                 client,
-			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
-			matcher:                      matcher,
-			pools:                        pools,
-			m3PrefixFilter:               m3PrefixFilter,
+			clientRemote:   client,
+			matcher:        matcher,
+			pools:          pools,
+			m3PrefixFilter: m3PrefixFilter,
 		}, nil
 	}
 
@@ -919,11 +945,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:                   aggregatorInstance,
-		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
-		matcher:                      matcher,
-		pools:                        pools,
-		m3PrefixFilter:               m3PrefixFilter,
+		aggregator:     aggregatorInstance,
+		matcher:        matcher,
+		pools:          pools,
+		m3PrefixFilter: m3PrefixFilter,
 	}, nil
 }
 
@@ -1036,7 +1061,7 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 
 	placementSvc := placementservice.NewPlacementService(
 		placementstorage.NewPlacementStorage(localKVStore, placementKVKey, placementOpts),
-		placementOpts)
+		placementservice.WithPlacementOptions(placementOpts))
 
 	_, err := placementSvc.BuildInitialPlacement([]placement.Instance{instance}, numShards,
 		replicationFactor)

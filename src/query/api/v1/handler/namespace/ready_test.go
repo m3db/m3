@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +57,7 @@ func TestNamespaceReadyHandler(t *testing.T) {
 		options: m3.ClusterNamespaceOptions{},
 	}
 	testClusters := testClusters{
-		namespaces: []m3.ClusterNamespace{&testClusterNs},
+		nonReadyNamespaces: []m3.ClusterNamespace{&testClusterNs},
 	}
 	mockSession.EXPECT().FetchTaggedIDs(testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).Return(nil, client.FetchResponseMetadata{}, nil)
@@ -69,7 +70,7 @@ func TestNamespaceReadyHandler(t *testing.T) {
 		"name": "testNamespace",
 	}
 
-	req := httptest.NewRequest("POST", "/namespace/mark_ready",
+	req := httptest.NewRequest("POST", "/namespace/ready",
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
@@ -104,7 +105,7 @@ func TestNamespaceReadyHandlerWithForce(t *testing.T) {
 		"force": true,
 	}
 
-	req := httptest.NewRequest("POST", "/namespace/mark_ready",
+	req := httptest.NewRequest("POST", "/namespace/ready",
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
@@ -137,14 +138,15 @@ func TestNamespaceReadyFailIfNoClusters(t *testing.T) {
 		"name": "testNamespace",
 	}
 
-	req := httptest.NewRequest("POST", "/namespace/mark_ready",
+	req := httptest.NewRequest("POST", "/namespace/ready",
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	readyHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		fmt.Sprintf("response: %s", w.Body.String()))
 }
 
 func TestNamespaceReadyFailIfNamespaceMissing(t *testing.T) {
@@ -161,7 +163,7 @@ func TestNamespaceReadyFailIfNamespaceMissing(t *testing.T) {
 		"name": "missingNamespace",
 	}
 
-	req := httptest.NewRequest("POST", "/namespace/mark_ready",
+	req := httptest.NewRequest("POST", "/namespace/ready",
 		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
@@ -218,11 +220,15 @@ func (t *testClusterNamespace) Session() client.Session {
 }
 
 type testClusters struct {
-	namespaces m3.ClusterNamespaces
+	nonReadyNamespaces m3.ClusterNamespaces
 }
 
 func (t *testClusters) ClusterNamespaces() m3.ClusterNamespaces {
-	return t.namespaces
+	panic("implement me")
+}
+
+func (t *testClusters) NonReadyClusterNamespaces() m3.ClusterNamespaces {
+	return t.nonReadyNamespaces
 }
 
 func (t *testClusters) Close() error {

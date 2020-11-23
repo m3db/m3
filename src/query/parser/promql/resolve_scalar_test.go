@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,3 +86,32 @@ func TestScalarResolver(t *testing.T) {
 		})
 	}
 }
+
+var stringResolverTests = []struct {
+	funcString string
+	expected   string
+}{
+	{`((("value")))`, "value"},
+	{`"value"`, "value"},
+}
+
+func TestStringResolver(t *testing.T) {
+	for _, tt := range stringResolverTests {
+		t.Run(tt.funcString, func(t *testing.T) {
+			parsed, err := Parse(tt.funcString, time.Second,
+				models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			expr := parsed.(*promParser).expr
+			e := unwrapParenExpr(expr)
+			label, err := resolveStringArgument(e)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, label)
+		})
+	}
+}
+
+func TestResolveStringWhenExprIsNil(t *testing.T) {
+	_, err := resolveStringArgument(nil)
+	require.Error(t, err)
+}
+

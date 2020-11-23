@@ -27,8 +27,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -97,7 +100,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to get metadata: retention options must be set\"}\n", string(body))
+	assert.Equal(t, "{\"error\":\"bad namespace metadata: retention options must be set\"}\n", string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -121,7 +124,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 					"testNamespace": xjson.Map{
 						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled":          true,
 						"writesToCommitLog":     true,
 						"cleanupEnabled":        true,
@@ -198,4 +201,42 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	addHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+}
+
+func TestValidateNewMetadata(t *testing.T) {
+	// Valid.
+	addReq := new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
+	require.NoError(t, validateNewMetadata(md))
+
+	// Valid without index options.
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
+	addReq.Options.IndexOptions = nil
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
+	require.NoError(t, validateNewMetadata(md))
+
+	// Invalid without retention options.
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions = nil
+	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 / 2
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.Error(t, err)
+	require.Equal(t, "retention options must be set", err.Error())
+
+	// Prevent mismatching block sizes.
+	addReq = new(admin.NamespaceAddRequest)
+	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
+	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000
+	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 * 2
+	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
+	require.NoError(t, err)
+	err = validateNewMetadata(md)
+	require.Error(t, err)
+	require.Equal(t, "index and retention block size must match (2h0m0s, 4h0m0s)", err.Error())
 }

@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -199,6 +200,27 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
+	require.False(t, seriesWrite.WasWritten)
+}
+
+func TestNamespaceReadOnlyRejectWrites(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.SetReadOnly(true)
+
+	id := ident.StringID("foo")
+	now := time.Now()
+
+	seriesWrite, err := ns.Write(ctx, id, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
+	require.False(t, seriesWrite.WasWritten)
+
+	seriesWrite, err = ns.WriteTagged(ctx, id, ident.EmptyTagIterator, now, 0, xtime.Second, nil)
+	require.EqualError(t, err, errNamespaceReadOnly.Error())
 	require.False(t, seriesWrite.WasWritten)
 }
 
@@ -445,6 +467,16 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
+	require.NoError(t, ns.WarmFlush(time.Now(), nil))
+	require.NoError(t, ns.ColdFlush(nil))
+}
+
+func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.bootstrapState = Bootstrapped
+	ns.SetReadOnly(true)
 	require.NoError(t, ns.WarmFlush(time.Now(), nil))
 	require.NoError(t, ns.ColdFlush(nil))
 }
@@ -1382,11 +1414,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		sourceBlockSize               = time.Hour
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
-		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		sourceShard0ID         uint32 = 10
-		sourceShard1ID         uint32 = 20
+		shard0ID               uint32 = 10
+		shard1ID               uint32 = 20
+		insOpts                       = instrument.NewOptions()
 	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
 	defer sourceCloser()
@@ -1405,12 +1440,12 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceNs.shards[0] = sourceShard0
 	sourceNs.shards[1] = sourceShard1
 
-	sourceShard0.EXPECT().ID().Return(sourceShard0ID)
+	sourceShard0.EXPECT().ID().Return(shard0ID)
 	sourceShard0.EXPECT().IsBootstrapped().Return(true)
 	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
 	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
 
-	sourceShard1.EXPECT().ID().Return(sourceShard1ID)
+	sourceShard1.EXPECT().ID().Return(shard1ID)
 	sourceShard1.EXPECT().IsBootstrapped().Return(true)
 	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
 	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
@@ -1427,8 +1462,18 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+
+	targetShard0.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes0, opts).
+		Return(int64(3), nil)
+
+	targetShard1.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes1, opts).
+		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 

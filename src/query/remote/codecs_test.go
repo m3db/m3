@@ -261,11 +261,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},
@@ -312,11 +312,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},
@@ -329,7 +329,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: -1,
 						},
 					},
@@ -342,7 +342,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(-1),
 						},
@@ -356,11 +356,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(-1),
 						},
 					},
@@ -450,11 +450,11 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},

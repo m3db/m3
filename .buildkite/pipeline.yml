@@ -35,8 +35,17 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Services, Tools, Metalint"
-    command: make clean install-vendor-m3 services tools metalint
+  - name: "Services, Tools"
+    command: make clean install-vendor-m3 services tools
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Lint"
+    command: make clean lint
+    env:
+      CGO_ENABLED: 0
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -86,16 +95,15 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  # TODO(rhall): add back when https://github.com/m3db/m3/pull/2770 is merged
-  #- name: "Documentation tests"
-  #  command: make clean install-vendor-m3 docs-test
-  #  env:
-  #    CGO_ENABLED: 0
-  #    GIMME_GO_VERSION: 1.13.x
-  #  plugins:
-  #      gopath-checkout#v1.0.1:
-  #        import: github.com/m3db/m3
-  #  <<: *common
+  - name: "Documentation tests"
+    command: make clean install-vendor-m3 docs-test
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.13.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
   - label: "FOSSA license scan"
     command: make clean install-vendor-m3 fossa
     plugins:

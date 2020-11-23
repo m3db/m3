@@ -376,7 +376,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
 
-	expectedCacheBlocksOnRetrieve := true
+	expectedCacheBlocksOnRetrieve := false
 	if expected.CacheBlocksOnRetrieve != nil {
 		expectedCacheBlocksOnRetrieve = expected.CacheBlocksOnRetrieve.Value
 	}

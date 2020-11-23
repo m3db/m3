@@ -94,6 +94,35 @@ func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 	return combineSeries(ctx, series, wrapPathExpr(maxSeriesFnName, ts.SeriesList(series)), ts.Max)
 }
 
+// medianSeries takes a list of series and returns a new series containing the
+// median value across the series at each datapoint
+func medianSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+	if len(series.Values) == 0 {
+		return ts.NewSeriesList(), nil
+	}
+	normalized, start, end, millisPerStep, err := common.Normalize(ctx, ts.SeriesList(series))
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	numSteps := ts.NumSteps(start, end, millisPerStep)
+	values := ts.NewValues(ctx, millisPerStep, numSteps)
+
+	valuesAtTime := make([]float64, len(normalized.Values))
+	for i := 0; i < numSteps; i++ {
+		for j, series := range normalized.Values {
+			valuesAtTime[j] = series.ValueAt(i)
+		}
+		values.SetValueAt(i, ts.Median(valuesAtTime, len(valuesAtTime)))
+	}
+
+	name := wrapPathExpr(medianSeriesFnName, ts.SeriesList(series))
+	output := ts.NewSeries(ctx, name, start, values)
+	return ts.SeriesList{
+		Values:   []*ts.Series{output},
+		Metadata: series.Metadata,
+	}, nil
+}
+
 // lastSeries takes a list of series and returns a new series containing the
 // last value at each datapoint
 func lastSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
@@ -255,6 +284,8 @@ func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.Ser
 		return minSeries(ctx, multiplePathSpecs(series))
 	case maxFnName, maxSeriesFnName:
 		return maxSeries(ctx, multiplePathSpecs(series))
+	case medianFnName, medianSeriesFnName:
+		return medianSeries(ctx, multiplePathSpecs(series))
 	case avgFnName, averageFnName, averageSeriesFnName:
 		return averageSeries(ctx, multiplePathSpecs(series))
 	case multiplyFnName, multiplySeriesFnName:
@@ -529,24 +560,59 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 //
 //    sumSeries(foo.by-function.server1.*.cpu.load5),sumSeries(foo.by-function.server2.*.cpu.load5),...
 func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname string) (ts.SeriesList, error) {
-	metaSeries := make(map[string][]*ts.Series)
-	for _, s := range series.Values {
-		parts := strings.Split(s.Name(), ".")
+	return groupByNodes(ctx, series, fname, []int{node}...)
+}
 
-		n := node
+func findFirstMetricExpression(seriesName string) (string, bool) {
+	idxOfRightParen := strings.Index(seriesName, ")")
+	if idxOfRightParen == -1 {
+		return "", false
+	}
+	substring := seriesName[:idxOfRightParen]
+	idxOfLeftParen := strings.LastIndex(substring, "(")
+	if idxOfLeftParen == -1 {
+		return "", false
+	}
+	return seriesName[idxOfLeftParen+1 : idxOfRightParen], true
+}
+
+func getParts(series *ts.Series) []string {
+	seriesName := series.Name()
+	if metricExpr, ok := findFirstMetricExpression(seriesName); ok {
+		seriesName = metricExpr
+	}
+	return strings.Split(seriesName, ".")
+}
+
+func getAggregationKey(series *ts.Series, nodes []int) string {
+	parts := getParts(series)
+
+	keys := make([]string, 0, len(nodes))
+	for _, n := range nodes {
 		if n < 0 {
 			n = len(parts) + n
 		}
 
-		if n >= len(parts) || n < 0 {
-			return aggregate(ctx, series, fname)
+		if n < len(parts) {
+			keys = append(keys, parts[n])
+		} else {
+			keys = append(keys, "")
 		}
+	}
+	return strings.Join(keys, ".")
+}
 
-		key := parts[n]
-		metaSeries[key] = append(metaSeries[key], s)
+func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) map[string][]*ts.Series {
+	metaSeries := make(map[string][]*ts.Series)
+
+	if len(nodes) > 0 {
+		for _, s := range seriesList.Values {
+			key := getAggregationKey(s, nodes)
+			metaSeries[key] = append(metaSeries[key], s)
+		}
 	}
 
-	return applyFnToMetaSeries(ctx, series, metaSeries, fname)
+	return metaSeries
 }
 
 // Takes a serieslist and maps a callback to subgroups within as defined by multiple nodes
@@ -560,37 +626,16 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 // 		sumSeries(ganglia.server2.*.cpu.load5),sumSeries(ganglia.server2.*.cpu.load10),sumSeries(ganglia.server2.*.cpu.load15),...
 //
 // NOTE: if len(nodes) = 0, aggregate all series into 1 series.
-func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
-	metaSeries := make(map[string][]*ts.Series)
+func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
+	metaSeries := getMetaSeriesGrouping(seriesList, nodes)
 
-	nodeLen := len(nodes)
-	if nodeLen == 0 {
-		key := "*" // put into single group, not ideal, but more graphite-ish.
-		for _, s := range series.Values {
-			metaSeries[key] = append(metaSeries[key], s)
-		}
-	} else {
-		for _, s := range series.Values {
-			parts := strings.Split(s.Name(), ".")
-
-			var keys []string
-			for _, n := range nodes {
-				if n < 0 {
-					n = len(parts) + n
-				}
-
-				if n >= len(parts) || n < 0 {
-					return aggregate(ctx, series, fname)
-				}
-
-				keys = append(keys, parts[n])
-			}
-			key := strings.Join(keys, ".")
-			metaSeries[key] = append(metaSeries[key], s)
-		}
+	if len(metaSeries) == 0 {
+		// if nodes is an empty slice or every node in nodes exceeds the number
+		// of parts in each series, just treat it like aggregate
+		return aggregate(ctx, seriesList, fname)
 	}
 
-	return applyFnToMetaSeries(ctx, series, metaSeries, fname)
+	return applyFnToMetaSeries(ctx, seriesList, metaSeries, fname)
 }
 
 func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries map[string][]*ts.Series, fname string) (ts.SeriesList, error) {

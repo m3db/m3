@@ -24,14 +24,15 @@ package prom
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -45,12 +46,6 @@ type readHandler struct {
 	hOpts     options.HandlerOptions
 	scope     tally.Scope
 	logger    *zap.Logger
-}
-
-type readRequest struct {
-	query         string
-	start, end    time.Time
-	step, timeout time.Duration
 }
 
 func newReadHandler(
@@ -73,15 +68,15 @@ func newReadHandler(
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	fetchOptions, fetchErr := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
-	if fetchErr != nil {
-		respondError(w, fetchErr, http.StatusBadRequest)
+	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 
-	request, perr := native.ParseRequest(ctx, r, false, h.hOpts)
-	if perr != nil {
-		respondError(w, perr, http.StatusBadRequest)
+	request, err := native.ParseRequest(ctx, r, false, h.hOpts)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 
@@ -107,7 +102,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("error creating range query",
 			zap.Error(err), zap.String("query", request.Params.Query))
-		respondError(w, err, http.StatusInternalServerError)
+		respondError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()
@@ -116,8 +111,12 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if res.Err != nil {
 		h.logger.Error("error executing range query",
 			zap.Error(res.Err), zap.String("query", request.Params.Query))
-		respondError(w, res.Err, http.StatusInternalServerError)
+		respondError(w, res.Err)
 		return
+	}
+
+	for _, warn := range resultMetadata.Warnings {
+		res.Warnings = append(res.Warnings, errors.New(warn.Message))
 	}
 
 	query := request.Params.Query
@@ -127,7 +126,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err), zap.String("query", query))
 	}
 
-	handleroptions.AddWarningHeaders(w, resultMetadata)
+	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	respond(w, &queryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
