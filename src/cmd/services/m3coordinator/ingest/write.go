@@ -471,6 +471,13 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
 				downsample.GraphiteIDSchemeTagValue)
 		}
+		// If prom type is set then send it to aggregator too to do not loose it.
+		// Currently it's passed as a tag and later filtered out when series will back to
+		// the coordinator.
+		// Also, see note above.
+		if value.Attributes.PromType != ts.PromMetricTypeUnknown {
+			appender.AddTag(downsample.PromTypeTagValue, []byte{byte(value.Attributes.PromType)})
+		}
 
 		opts := downsample.SampleAppenderOptions{
 			MetricType: value.Attributes.M3Type,

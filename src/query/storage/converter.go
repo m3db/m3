@@ -151,42 +151,47 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 
 // SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
 func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
-	var metricType annotation.MetricType
-
-	switch seriesAttributes.PromType {
-
-	case ts.PromMetricTypeUnknown:
-		metricType = annotation.MetricType_UNKNOWN
-
-	case ts.PromMetricTypeCounter:
-		metricType = annotation.MetricType_COUNTER
-
-	case ts.PromMetricTypeGauge:
-		metricType = annotation.MetricType_GAUGE
-
-	case ts.PromMetricTypeHistogram:
-		metricType = annotation.MetricType_HISTOGRAM
-
-	case ts.PromMetricTypeGaugeHistogram:
-		metricType = annotation.MetricType_GAUGE_HISTOGRAM
-
-	case ts.PromMetricTypeSummary:
-		metricType = annotation.MetricType_SUMMARY
-
-	case ts.PromMetricTypeInfo:
-		metricType = annotation.MetricType_INFO
-
-	case ts.PromMetricTypeStateSet:
-		metricType = annotation.MetricType_STATESET
-
-	default:
-		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
+	metricType, err := PromMetricTypeToAnnotationPayloadType(seriesAttributes.PromType)
+	if err != nil {
+		return annotation.Payload{}, err
 	}
 
 	return annotation.Payload{
 		MetricType:        metricType,
 		HandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
+}
+
+func PromMetricTypeToAnnotationPayloadType(t ts.PromMetricType) (annotation.MetricType, error) {
+	switch t {
+
+	case ts.PromMetricTypeUnknown:
+		return annotation.MetricType_UNKNOWN, nil
+
+	case ts.PromMetricTypeCounter:
+		return annotation.MetricType_COUNTER, nil
+
+	case ts.PromMetricTypeGauge:
+		return annotation.MetricType_GAUGE, nil
+
+	case ts.PromMetricTypeHistogram:
+		return annotation.MetricType_HISTOGRAM, nil
+
+	case ts.PromMetricTypeGaugeHistogram:
+		return annotation.MetricType_GAUGE_HISTOGRAM, nil
+
+	case ts.PromMetricTypeSummary:
+		return annotation.MetricType_SUMMARY, nil
+
+	case ts.PromMetricTypeInfo:
+		return annotation.MetricType_INFO, nil
+
+	case ts.PromMetricTypeStateSet:
+		return annotation.MetricType_STATESET, nil
+
+	default:
+		return annotation.MetricType_UNKNOWN, fmt.Errorf("invalid Prometheus metric type %v", t)
+	}
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
