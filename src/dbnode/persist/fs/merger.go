@@ -249,10 +249,15 @@ func (m *merger) Merge(
 
 			if err == nil {
 				err = onFlush.OnFlushNewSeries(persist.OnFlushNewSeriesEvent{
-					Shard:          shard,
-					BlockStart:     startTime,
-					FirstWrite:     mergeWithData.FirstWrite,
-					SeriesMetadata: seriesMetadata,
+					Shard:      shard,
+					BlockStart: startTime,
+					FirstWrite: mergeWithData.FirstWrite,
+					SeriesMetadata: persist.SeriesMetadata{
+						Type:     persist.SeriesDocumentType,
+						Document: seriesMetadata,
+						// The lifetime of the shard series metadata is longly lived.
+						LifeTime: persist.SeriesMetadataLifeTimeLong,
+					},
 				})
 			}
 

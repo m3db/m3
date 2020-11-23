@@ -31,7 +31,6 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -144,11 +143,6 @@ type HandlerOptions interface {
 	// SetTagOptions sets the tag options.
 	SetTagOptions(opts models.TagOptions) HandlerOptions
 
-	// TimeoutOpts returns the timeout options.
-	TimeoutOpts() *prometheus.TimeoutOpts
-	// SetTimeoutOpts sets the timeout options.
-	SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions
-
 	// FetchOptionsBuilder returns the fetch options builder.
 	FetchOptionsBuilder() handleroptions.FetchOptionsBuilder
 	// SetFetchOptionsBuilder sets the fetch options builder.
@@ -235,7 +229,6 @@ type handlerOptions struct {
 	embeddedDbCfg         *dbconfig.DBConfiguration
 	createdAt             time.Time
 	tagOptions            models.TagOptions
-	timeoutOpts           *prometheus.TimeoutOpts
 	fetchOptionsBuilder   handleroptions.FetchOptionsBuilder
 	queryContextOptions   models.QueryContextOptions
 	instrumentOpts        instrument.Options
@@ -281,13 +274,6 @@ func NewHandlerOptions(
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
 	m3dbOpts m3db.Options,
 ) (HandlerOptions, error) {
-	timeout := cfg.Query.TimeoutOrDefault()
-	if embeddedDbCfg != nil &&
-		embeddedDbCfg.Client.FetchTimeout != nil &&
-		*embeddedDbCfg.Client.FetchTimeout > timeout {
-		timeout = *embeddedDbCfg.Client.FetchTimeout
-	}
-
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
 		storeMetricsType = *cfg.StoreMetricsType
@@ -312,15 +298,12 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
-		timeoutOpts: &prometheus.TimeoutOpts{
-			FetchTimeout: timeout,
-		},
-		queryRouter:         queryRouter,
-		instantQueryRouter:  instantQueryRouter,
-		graphiteStorageOpts: graphiteStorageOpts,
-		m3dbOpts:            m3dbOpts,
-		storeMetricsType:    storeMetricsType,
-		namespaceHooks:      NoopNamespaceHooks,
+		queryRouter:           queryRouter,
+		instantQueryRouter:    instantQueryRouter,
+		graphiteStorageOpts:   graphiteStorageOpts,
+		m3dbOpts:              m3dbOpts,
+		storeMetricsType:      storeMetricsType,
+		namespaceHooks:        NoopNamespaceHooks,
 	}, nil
 }
 
@@ -418,16 +401,6 @@ func (o *handlerOptions) TagOptions() models.TagOptions {
 func (o *handlerOptions) SetTagOptions(tags models.TagOptions) HandlerOptions {
 	opts := *o
 	opts.tagOptions = tags
-	return &opts
-}
-
-func (o *handlerOptions) TimeoutOpts() *prometheus.TimeoutOpts {
-	return o.timeoutOpts
-}
-
-func (o *handlerOptions) SetTimeoutOpts(t *prometheus.TimeoutOpts) HandlerOptions {
-	opts := *o
-	opts.timeoutOpts = t
 	return &opts
 }
 

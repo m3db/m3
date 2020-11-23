@@ -130,6 +130,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Write headers before response.
+	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
+
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
 	// than increment success/failure metrics.
@@ -174,8 +177,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-		handleroptions.AddWarningHeaders(w, readResult.Meta)
-
 		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
@@ -228,7 +229,6 @@ func WriteSnappyCompressed(
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	w.Header().Set("Content-Encoding", "snappy")
-	handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -404,18 +404,11 @@ func parseRequest(
 		return nil, nil, err
 	}
 
-	timeout := opts.TimeoutOpts().FetchTimeout
-	timeout, err = prometheus.ParseRequestTimeout(r, timeout)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		return nil, nil, rErr
 	}
 
-	fetchOpts.Timeout = timeout
 	return req, fetchOpts, nil
 }
 

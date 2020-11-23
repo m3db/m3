@@ -24,9 +24,9 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -40,7 +40,7 @@ type Handler struct {
 
 // RegisterRoutes registers the namespace routes
 func RegisterRoutes(
-	addRoute handler.AddRouteFn,
+	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
@@ -56,10 +56,18 @@ func RegisterRoutes(
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
-	if err := addRoute(CreateURL, createHandler, CreateHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    CreateURL,
+		Handler: createHandler,
+		Methods: []string{CreateHTTPMethod},
+	}); err != nil {
 		return err
 	}
-	if err := addRoute(CreateNamespaceURL, createHandler, CreateNamespaceHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    CreateNamespaceURL,
+		Handler: createHandler,
+		Methods: []string{CreateNamespaceHTTPMethod},
+	}); err != nil {
 		return err
 	}
 

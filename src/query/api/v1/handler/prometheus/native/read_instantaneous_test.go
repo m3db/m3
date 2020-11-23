@@ -95,7 +95,7 @@ func testPromReadInstantHandler(
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup(timeoutOpts, nil)
+	setup := newTestSetup(t, nil)
 	promReadInstant := setup.Handlers.instantRead
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -172,7 +172,7 @@ func testPromReadInstantHandler(
 }
 
 func TestPromReadInstantHandlerStorageError(t *testing.T) {
-	setup := newTestSetup(timeoutOpts, nil)
+	setup := newTestSetup(t, nil)
 	promReadInstant := setup.Handlers.instantRead
 
 	storageErr := fmt.Errorf("storage err")

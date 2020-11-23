@@ -273,18 +273,30 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not parse query restrict tags config", zap.Error(err))
 	}
 
+	timeout := cfg.Query.TimeoutOrDefault()
+	if runOpts.DBConfig != nil &&
+		runOpts.DBConfig.Client.FetchTimeout != nil &&
+		*runOpts.DBConfig.Client.FetchTimeout > timeout {
+		timeout = *runOpts.DBConfig.Client.FetchTimeout
+	}
+
+	fetchOptsBuilderLimitsOpts := cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Limits:        fetchOptsBuilderLimitsOpts,
+			RestrictByTag: storageRestrictByTags,
+			Timeout:       timeout,
+		})
+	if err != nil {
+		logger.Fatal("could not set fetch options parser", zap.Error(err))
+	}
+
 	var (
-		clusterNamespacesWatcher   m3.ClusterNamespacesWatcher
-		backendStorage             storage.Storage
-		clusterClient              clusterclient.Client
-		downsampler                downsample.Downsampler
-		fetchOptsBuilderLimitsOpts = cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
-		fetchOptsBuilder           = handleroptions.NewFetchOptionsBuilder(
-			handleroptions.FetchOptionsBuilderOptions{
-				Limits:        fetchOptsBuilderLimitsOpts,
-				RestrictByTag: storageRestrictByTags,
-			})
-		queryCtxOpts = models.QueryContextOptions{
+		clusterNamespacesWatcher m3.ClusterNamespacesWatcher
+		backendStorage           storage.Storage
+		clusterClient            clusterclient.Client
+		downsampler              downsample.Downsampler
+		queryCtxOpts             = models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOptsBuilderLimitsOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOptsBuilderLimitsOpts.DocsLimit,
 			RequireExhaustive:  fetchOptsBuilderLimitsOpts.RequireExhaustive,

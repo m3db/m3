@@ -55,7 +55,7 @@ var (
 )
 
 // ResponseVerifier is a function that checks if the query response is valid.
-type ResponseVerifier func(int, string, error) error
+type ResponseVerifier func(int, map[string][]string, string, error) error
 
 // Coordinator is a wrapper for a coordinator. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
@@ -363,7 +363,7 @@ func (c *coordinator) query(
 	defer resp.Body.Close()
 	b, err := ioutil.ReadAll(resp.Body)
 
-	return verifier(resp.StatusCode, string(b), err)
+	return verifier(resp.StatusCode, resp.Header, string(b), err)
 }
 
 func (c *coordinator) RunQuery(
