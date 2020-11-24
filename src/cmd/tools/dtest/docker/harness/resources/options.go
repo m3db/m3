@@ -35,11 +35,11 @@ type SetupOptions interface {
 }
 
 type dbnodeImageNameOption struct {
-	image dockerImage
+	dockerImage
 }
 
-func (c dbnodeImageNameOption) apply(opts *setupOptions) {
-	opts.dbNodeImage = c.image
+func (o dbnodeImageNameOption) apply(opts *setupOptions) {
+	opts.dbNodeImage = o.dockerImage
 }
 
 func WithDBNodeImage(name, tag string) SetupOptions {
@@ -47,11 +47,11 @@ func WithDBNodeImage(name, tag string) SetupOptions {
 }
 
 type coordinatorImageNameOption struct {
-	image dockerImage
+	dockerImage
 }
 
-func (c coordinatorImageNameOption) apply(opts *setupOptions) {
-	opts.coordinatorImage = c.image
+func (o coordinatorImageNameOption) apply(opts *setupOptions) {
+	opts.coordinatorImage = o.dockerImage
 }
 
 func WithCoordinatorImage(name, tag string) SetupOptions {
