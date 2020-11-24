@@ -1430,6 +1430,13 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
 	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
+	// Pass in mock cold flusher and expect the cold flush ns process to finish.
+	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
+	mockOnColdFlushNs.EXPECT().Done().Return(nil)
+	mockOnColdFlush := NewMockOnColdFlush(ctrl)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
+	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
+
 	sourceShard0 := NewMockdatabaseShard(ctrl)
 	sourceShard1 := NewMockdatabaseShard(ctrl)
 	sourceNs.shards[0] = sourceShard0
