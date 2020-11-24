@@ -72,10 +72,19 @@ func setupTest(t *testing.T) testHandlers {
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetEngine(engine)
 	queryable := &mockQueryable{}
-	readHandler, err := newReadHandler(hOpts, queryable, WithEngine(testPromQLEngine))
+	readHandler, err := newReadHandler(hOpts, opts{
+		promQLEngine: testPromQLEngine,
+		queryable:    queryable,
+		instant:      false,
+		newQueryFn:   newRangeQueryFn(testPromQLEngine, queryable),
+	})
 	require.NoError(t, err)
-	readInstantHandler, err := newReadHandler(hOpts,
-		queryable, WithInstantEngine(testPromQLEngine))
+	readInstantHandler, err := newReadHandler(hOpts, opts{
+		promQLEngine: testPromQLEngine,
+		queryable:    queryable,
+		instant:      true,
+		newQueryFn:   newInstantQueryFn(testPromQLEngine, queryable),
+	})
 	require.NoError(t, err)
 	return testHandlers{
 		queryable:          queryable,

@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"time"
 
+	promstorage "github.com/prometheus/prometheus/storage"
+
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/errors"
@@ -43,6 +45,7 @@ func init() {
 type opts struct {
 	promQLEngine *promql.Engine
 	instant      bool
+	queryable    promstorage.Queryable
 	newQueryFn   NewQueryFn
 }
 
@@ -66,31 +69,37 @@ func withEngine(promQLEngine *promql.Engine, instant bool) Option {
 		}
 		o.instant = instant
 		o.promQLEngine = promQLEngine
-		o.newQueryFn = newRangeQueryFn
+		o.newQueryFn = newRangeQueryFn(promQLEngine, o.queryable)
 		if instant {
-			o.newQueryFn = newInstantQueryFn
+			o.newQueryFn = newInstantQueryFn(promQLEngine, o.queryable)
 		}
 		return nil
 	}
 }
 
 func newDefaultOptions(hOpts options.HandlerOptions) opts {
-	return opts{
-		promQLEngine: hOpts.PrometheusEngine(),
-		instant:      false,
-		newQueryFn:   newRangeQueryFn,
-	}
-}
-
-// NewReadHandler creates a handler to handle PromQL requests.
-func NewReadHandler(hOpts options.HandlerOptions, options ...Option) (http.Handler, error) {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
+	return opts{
+		promQLEngine: hOpts.PrometheusEngine(),
+		queryable:    queryable,
+		instant:      false,
+		newQueryFn:   newRangeQueryFn(hOpts.PrometheusEngine(), queryable),
+	}
+}
 
-	return newReadHandler(hOpts, queryable, options...)
+// NewReadHandler creates a handler to handle PromQL requests.
+func NewReadHandler(hOpts options.HandlerOptions, options ...Option) (http.Handler, error) {
+	opts := newDefaultOptions(hOpts)
+	for _, optionFn := range options {
+		if err := optionFn(&opts); err != nil {
+			return nil, err
+		}
+	}
+	return newReadHandler(hOpts, opts)
 }
 
 // ApplyRangeWarnings applies warnings encountered during execution.

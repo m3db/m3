@@ -42,69 +42,55 @@ import (
 )
 
 // NewQueryFn creates a new promql Query.
-type NewQueryFn func(
-	engine *promql.Engine,
-	queryable promstorage.Queryable,
-	params models.RequestParams,
-) (promql.Query, error)
+type NewQueryFn func(params models.RequestParams) (promql.Query, error)
 
 var (
 	newRangeQueryFn = func(
 		engine *promql.Engine,
 		queryable promstorage.Queryable,
-		params models.RequestParams,
-	) (promql.Query, error) {
-		return engine.NewRangeQuery(
-			queryable,
-			params.Query,
-			params.Start,
-			params.End,
-			params.Step)
+	) NewQueryFn {
+		return func(params models.RequestParams) (promql.Query, error) {
+			return engine.NewRangeQuery(
+				queryable,
+				params.Query,
+				params.Start,
+				params.End,
+				params.Step)
+		}
 	}
 
 	newInstantQueryFn = func(
 		engine *promql.Engine,
 		queryable promstorage.Queryable,
-		params models.RequestParams,
-	) (promql.Query, error) {
-		return engine.NewInstantQuery(
-			queryable,
-			params.Query,
-			params.Now)
+	) NewQueryFn {
+		return func(params models.RequestParams) (promql.Query, error) {
+			return engine.NewInstantQuery(
+				queryable,
+				params.Query,
+				params.Now)
+		}
 	}
 )
 
 type readHandler struct {
-	engine     *promql.Engine
-	queryable  promstorage.Queryable
-	hOpts      options.HandlerOptions
-	scope      tally.Scope
-	logger     *zap.Logger
-	opts       opts
+	hOpts  options.HandlerOptions
+	scope  tally.Scope
+	logger *zap.Logger
+	opts   opts
 }
 
 func newReadHandler(
 	hOpts options.HandlerOptions,
-	queryable promstorage.Queryable,
-	options ...Option,
+	options opts,
 ) (http.Handler, error) {
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
 		map[string]string{"handler": "prometheus-read"},
 	)
-	opts := newDefaultOptions(hOpts)
-	for _, optionFn := range options {
-		if err := optionFn(&opts); err != nil {
-			return nil, err
-		}
-	}
-
 	return &readHandler{
-		engine:     opts.promQLEngine,
-		queryable:  queryable,
-		hOpts:      hOpts,
-		opts:       opts,
-		scope:      scope,
-		logger:     hOpts.InstrumentOpts().Logger(),
+		hOpts:  hOpts,
+		opts:   options,
+		scope:  scope,
+		logger: hOpts.InstrumentOpts().Logger(),
 	}, nil
 }
 
@@ -138,7 +124,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 	}
 
-	qry, err := h.opts.newQueryFn(h.engine, h.queryable, params)
+	qry, err := h.opts.newQueryFn(params)
 	if err != nil {
 		h.logger.Error("error creating query",
 			zap.Error(err), zap.String("query", params.Query),
