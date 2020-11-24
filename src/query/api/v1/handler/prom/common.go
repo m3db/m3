@@ -53,7 +53,8 @@ const (
 
 type errorType string
 
-type queryData struct {
+// QueryData struct to be used when responding from HTTP handler.
+type QueryData struct {
 	ResultType promql.ValueType `json:"resultType"`
 	Result     promql.Value     `json:"result"`
 }
@@ -66,7 +67,8 @@ type response struct {
 	Warnings  []string    `json:"warnings,omitempty"`
 }
 
-func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) {
+// Responds with HTTP OK status code and writes response JSON to response body.
+func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) {
 	statusMessage := statusSuccess
 	var warningStrings []string
 	for _, warning := range warnings {
@@ -88,7 +90,8 @@ func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 	w.Write(b)
 }
 
-func respondError(w http.ResponseWriter, err error) {
+// Responds with error status code and writes error JSON to response body.
+func RespondError(w http.ResponseWriter, err error) {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	b, marshalErr := json.Marshal(&response{
 		Status: statusError,

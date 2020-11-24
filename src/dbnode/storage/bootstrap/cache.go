@@ -39,13 +39,11 @@ var (
 type cache struct {
 	sync.Mutex
 
-	fsOpts                    fs.Options
-	namespaceDetails          []NamespaceDetails
-	infoFilesByNamespace      InfoFilesByNamespace
-	indexInfoFilesByNamespace IndexInfoFilesByNamespace
-	iOpts                     instrument.Options
-	hasPopulatedInfo          bool
-	hasPopulatedIndexInfo     bool
+	fsOpts               fs.Options
+	namespaceDetails     []NamespaceDetails
+	infoFilesByNamespace InfoFilesByNamespace
+	iOpts                instrument.Options
+	hasPopulatedInfo     bool
 }
 
 // NewCache creates a cache specifically to be used during the bootstrap process.
@@ -56,11 +54,10 @@ func NewCache(options CacheOptions) (Cache, error) {
 		return nil, err
 	}
 	return &cache{
-		fsOpts:                    options.FilesystemOptions(),
-		namespaceDetails:          options.NamespaceDetails(),
-		infoFilesByNamespace:      make(InfoFilesByNamespace, len(options.NamespaceDetails())),
-		indexInfoFilesByNamespace: make(IndexInfoFilesByNamespace, len(options.NamespaceDetails())),
-		iOpts:                     options.InstrumentOptions(),
+		fsOpts:               options.FilesystemOptions(),
+		namespaceDetails:     options.NamespaceDetails(),
+		infoFilesByNamespace: make(InfoFilesByNamespace, len(options.NamespaceDetails())),
+		iOpts:                options.InstrumentOptions(),
 	}, nil
 }
 
@@ -88,24 +85,10 @@ func (c *cache) InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.Rea
 	return infoFileResults, nil
 }
 
-func (c *cache) IndexInfoFilesForNamespace(ns namespace.Metadata) (
-	[]fs.ReadIndexInfoFileResult,
-	error,
-) {
-	infoFiles, ok := c.readIndexInfoFiles()[ns]
-	// This should never happen as Cache object is initialized with all namespaces to bootstrap.
-	if !ok {
-		return nil, fmt.Errorf("attempting to read index info files for namespace %v not "+
-			"specified at bootstrap startup", ns.ID().String())
-	}
-	return infoFiles, nil
-}
-
 func (c *cache) Evict() {
 	c.Lock()
 	defer c.Unlock()
 	c.hasPopulatedInfo = false
-	c.hasPopulatedIndexInfo = false
 }
 
 func (c *cache) ReadInfoFiles() InfoFilesByNamespace {
@@ -128,30 +111,11 @@ func (c *cache) populateInfoFilesByNamespaceWithLock() {
 		}
 		for _, shard := range finder.Shards {
 			result[shard] = fs.ReadInfoFiles(c.fsOpts.FilePathPrefix(),
-				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(),
-				c.fsOpts.DecodingOptions(), persist.FileSetFlushType)
+				finder.Namespace.ID(), shard, c.fsOpts.InfoReaderBufferSize(), c.fsOpts.DecodingOptions(),
+				persist.FileSetFlushType)
 		}
 
 		c.infoFilesByNamespace[finder.Namespace] = result
-	}
-}
-
-func (c *cache) readIndexInfoFiles() IndexInfoFilesByNamespace {
-	c.Lock()
-	defer c.Unlock()
-	if !c.hasPopulatedIndexInfo {
-		c.populateIndexInfoFilesByNamespaceWithLock()
-		c.hasPopulatedIndexInfo = true
-	}
-	return c.indexInfoFilesByNamespace
-}
-
-func (c *cache) populateIndexInfoFilesByNamespaceWithLock() {
-	for i := range c.namespaceDetails {
-		finder := c.namespaceDetails[i]
-		c.indexInfoFilesByNamespace[finder.Namespace] = fs.ReadIndexInfoFiles(
-			c.fsOpts.FilePathPrefix(), finder.Namespace.ID(),
-			c.fsOpts.InfoReaderBufferSize())
 	}
 }
 

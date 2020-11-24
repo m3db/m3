@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -1054,24 +1053,6 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 	}
 }
 
-func (s *peersSource) readBlockMetadataAndIndex(
-	dataBlock block.Metadata,
-	batch []doc.Document,
-	flushBatch func() error,
-) (bool, error) {
-	d, err := convert.FromSeriesIDAndTags(dataBlock.ID, dataBlock.Tags)
-	if err != nil {
-		return false, err
-	}
-
-	batch = append(batch, d)
-	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return true, flushBatch()
-	}
-
-	return true, nil
-}
-
 func (s *peersSource) peerAvailability(
 	_ namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
@@ -1167,31 +1148,6 @@ func (s *peersSource) peerAvailability(
 	}
 
 	return availableShardTimeRanges, nil
-}
-
-func (s *peersSource) markIndexResultErrorAsUnfulfilled(
-	r result.IndexBootstrapResult,
-	resultLock *sync.Mutex,
-	err error,
-	shard uint32,
-	timeRange xtime.Range,
-) {
-	// NB(r): We explicitly do not remove entries from the index results
-	// as they are additive and get merged together with results from other
-	// bootstrappers by just appending the result (ounlike data bootstrap
-	// results that when merged replace the block with the current block).
-	// It would also be difficult to remove only series that were added to the
-	// index block as results from a specific data block can be subsets of the
-	// index block and there's no way to definitively delete the entry we added
-	// as a result of just this data file failing.
-	resultLock.Lock()
-	defer resultLock.Unlock()
-
-	unfulfilled := result.NewShardTimeRanges().Set(
-		shard,
-		xtime.NewRanges(timeRange),
-	)
-	r.Add(result.NewIndexBlockByVolumeType(time.Time{}), unfulfilled)
 }
 
 func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
