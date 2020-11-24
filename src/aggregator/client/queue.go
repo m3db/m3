@@ -218,6 +218,7 @@ func (q *queue) writeAndReset() {
 	if err := q.writeFn(q.buf); err != nil {
 		q.log.Error("error writing data",
 			zap.Int("buffer_size", len(q.buf)),
+			zap.String("target_instance_id", q.instance.ID()),
 			zap.String("target_instance", q.instance.Endpoint()),
 			zap.Error(err),
 		)

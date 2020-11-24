@@ -703,21 +703,6 @@ func (mr *MockCacheMockRecorder) InfoFilesForShard(ns, shard interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InfoFilesForShard", reflect.TypeOf((*MockCache)(nil).InfoFilesForShard), ns, shard)
 }
 
-// IndexInfoFilesForNamespace mocks base method
-func (m *MockCache) IndexInfoFilesForNamespace(ns namespace.Metadata) ([]fs.ReadIndexInfoFileResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexInfoFilesForNamespace", ns)
-	ret0, _ := ret[0].([]fs.ReadIndexInfoFileResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IndexInfoFilesForNamespace indicates an expected call of IndexInfoFilesForNamespace
-func (mr *MockCacheMockRecorder) IndexInfoFilesForNamespace(ns interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexInfoFilesForNamespace", reflect.TypeOf((*MockCache)(nil).IndexInfoFilesForNamespace), ns)
-}
-
 // ReadInfoFiles mocks base method
 func (m *MockCache) ReadInfoFiles() InfoFilesByNamespace {
 	m.ctrl.T.Helper()
