@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/require"
@@ -57,10 +58,6 @@ type testHandlers struct {
 }
 
 func setupTest(t *testing.T) testHandlers {
-	opts := Options{
-		PromQLEngine: testPromQLEngine,
-	}
-
 	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{
 		Timeout: 15 * time.Second,
 	}
@@ -75,8 +72,20 @@ func setupTest(t *testing.T) testHandlers {
 		SetFetchOptionsBuilder(fetchOptsBuilder).
 		SetEngine(engine)
 	queryable := &mockQueryable{}
-	readHandler := newReadHandler(opts, hOpts, queryable)
-	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
+	readHandler, err := newReadHandler(hOpts, opts{
+		promQLEngine: testPromQLEngine,
+		queryable:    queryable,
+		instant:      false,
+		newQueryFn:   newRangeQueryFn(testPromQLEngine, queryable),
+	})
+	require.NoError(t, err)
+	readInstantHandler, err := newReadHandler(hOpts, opts{
+		promQLEngine: testPromQLEngine,
+		queryable:    queryable,
+		instant:      true,
+		newQueryFn:   newInstantQueryFn(testPromQLEngine, queryable),
+	})
+	require.NoError(t, err)
 	return testHandlers{
 		queryable:          queryable,
 		readHandler:        readHandler,
