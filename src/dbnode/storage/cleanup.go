@@ -39,20 +39,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type (
-	commitLogFilesFn func(commitlog.Options) (
-		persist.CommitLogFiles,
-		[]commitlog.ErrorWithPath,
-		error,
-	)
-	snapshotMetadataFilesFn func(fs.Options) (
-		[]fs.SnapshotMetadata,
-		[]fs.SnapshotMetadataErrorWithPaths,
-		error,
-	)
-)
+type commitLogFilesFn func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
+type snapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
 
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
+
+type deleteFilesFn func(files []string) error
 
 type deleteInactiveDirectoriesFn func(parentDirPath string, activeDirNames []string) error
 
@@ -76,7 +68,7 @@ type cleanupManager struct {
 	snapshotMetadataFilesFn snapshotMetadataFilesFn
 	snapshotFilesFn         snapshotFilesFn
 
-	deleteFilesFn               fs.DeleteFilesFn
+	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
 	warmFlushCleanupInProgress  bool
 	coldFlushCleanupInProgress  bool
@@ -221,7 +213,6 @@ func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) erro
 
 	return multiErr.FinalError()
 }
-
 func (m *cleanupManager) Report() {
 	m.RLock()
 	coldFlushCleanupInProgress := m.coldFlushCleanupInProgress

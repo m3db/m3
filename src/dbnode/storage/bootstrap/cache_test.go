@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -134,54 +133,6 @@ func TestCacheReadInfoFilesInvariantViolation(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCacheReadIndexInfoFiles(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	md1 := testNamespaceMetadata(t, ident.StringID("ns1"))
-	md2 := testNamespaceMetadata(t, ident.StringID("ns2"))
-
-	fsOpts := testFilesystemOptions.SetFilePathPrefix(dir)
-
-	shards := map[uint32]struct{}{
-		0: struct{}{},
-		1: struct{}{},
-	}
-	writeIndexFilesets(t, md1.ID(), shards, fsOpts)
-	writeIndexFilesets(t, md2.ID(), shards, fsOpts)
-
-	opts := NewCacheOptions().
-		SetFilesystemOptions(fsOpts).
-		SetInstrumentOptions(fsOpts.InstrumentOptions()).
-		SetNamespaceDetails([]NamespaceDetails{
-			{
-				Namespace: md1,
-				Shards:    []uint32{0, 1},
-			},
-			{
-				Namespace: md2,
-				Shards:    []uint32{0, 1},
-			},
-		})
-	cache, err := NewCache(opts)
-	require.NoError(t, err)
-
-	infoFilesByNamespace := cache.ReadInfoFiles()
-	require.NotEmpty(t, infoFilesByNamespace)
-
-	// Ensure we have two namespaces.
-	require.Equal(t, 2, len(infoFilesByNamespace))
-
-	// Ensure each shard has three info files (one for each fileset written).
-	infoFiles, err := cache.IndexInfoFilesForNamespace(md1)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(infoFiles))
-
-	infoFiles, err = cache.IndexInfoFilesForNamespace(md2)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(infoFiles))
-}
-
 func testNamespaceMetadata(t *testing.T, nsID ident.ID) namespace.Metadata {
 	rOpts := testRetentionOptions.SetBlockSize(testBlockSize)
 	md, err := namespace.NewMetadata(nsID, testNamespaceOptions.
@@ -201,45 +152,6 @@ type testSeries struct {
 	id   string
 	tags map[string]string
 	data []byte
-}
-
-func writeIndexFilesets(
-	t *testing.T,
-	namespace ident.ID,
-	shards map[uint32]struct{},
-	fsOpts fs.Options,
-) {
-	blockStart := testStart
-	blockSize := 10 * time.Hour
-	numBlocks := 3
-	for i := 0; i < numBlocks; i++ {
-		writeIndexFiles(t, namespace, shards, blockStart.Add(time.Duration(i)*blockSize),
-			blockSize, fsOpts)
-	}
-}
-
-func writeIndexFiles(
-	t *testing.T,
-	namespace ident.ID,
-	shards map[uint32]struct{},
-	blockStart time.Time,
-	blockSize time.Duration,
-	fsOpts fs.Options,
-) {
-	idxWriter, err := fs.NewIndexWriter(fsOpts)
-	require.NoError(t, err)
-	require.NoError(t, idxWriter.Open(fs.IndexWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			FileSetContentType: persist.FileSetIndexContentType,
-			Namespace:          namespace,
-			BlockStart:         blockStart,
-		},
-		BlockSize:       blockSize,
-		FileSetType:     persist.FileSetFlushType,
-		Shards:          shards,
-		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
-	}))
-	require.NoError(t, idxWriter.Close())
 }
 
 func writeFilesets(t *testing.T, namespace ident.ID, shard uint32, fsOpts fs.Options) {
