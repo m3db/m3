@@ -324,12 +324,12 @@ const (
 type SeriesMetadataLifeTime uint8
 
 const (
-	// SeriesMetadataLifeTimeLong means the underlying memory's life time is long lived and exceeds
+	// SeriesLifeTimeLong means the underlying memory's life time is long lived and exceeds
 	// the execution duration of the series metadata receiver.
-	SeriesMetadataLifeTimeLong SeriesMetadataLifeTime = iota
-	// SeriesMetadataLifeTimeShortLived means that the underlying memory is only valid for the duration
+	SeriesLifeTimeLong SeriesMetadataLifeTime = iota
+	// SeriesLifeTimeShort means that the underlying memory is only valid for the duration
 	// of the OnFlushNewSeries call. Must clone the underlying bytes in order to extend the life time.
-	SeriesMetadataLifeTimeShortLived
+	SeriesLifeTimeShort
 )
 
 // SeriesMetadataType describes the type of series metadata.

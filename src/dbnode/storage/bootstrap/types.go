@@ -430,9 +430,6 @@ type InfoFileResultsPerShard map[uint32][]fs.ReadInfoFileResult
 // InfoFilesByNamespace maps a namespace to info files grouped by shard.
 type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
 
-// IndexInfoFilesByNamespace maps a namespace to index info files.
-type IndexInfoFilesByNamespace map[namespace.Metadata][]fs.ReadIndexInfoFileResult
-
 // Cache provides a snapshot of info files for use throughout all stages of the bootstrap.
 type Cache interface {
 	// InfoFilesForNamespace returns the info files grouped by namespace.
@@ -440,9 +437,6 @@ type Cache interface {
 
 	// InfoFilesForShard returns the info files grouped by shard for the provided namespace.
 	InfoFilesForShard(ns namespace.Metadata, shard uint32) ([]fs.ReadInfoFileResult, error)
-
-	// IndexInfoFilesForNamespace returns the index info files.
-	IndexInfoFilesForNamespace(ns namespace.Metadata) ([]fs.ReadIndexInfoFileResult, error)
 
 	// ReadInfoFiles returns info file results for each shard grouped by namespace. A cached copy
 	// is returned if the info files have already been read.
