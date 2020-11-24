@@ -46,7 +46,7 @@ func RegisterRoutes(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-	hooks options.NamespaceHooks,
+	hooks options.NamespaceValidator,
 ) error {
 	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
 		defaults, instrumentOpts, hooks)

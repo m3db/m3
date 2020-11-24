@@ -30,8 +30,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
@@ -210,10 +211,10 @@ type HandlerOptions interface {
 	// StoreMetricsType returns true if storing of metrics type is enabled.
 	StoreMetricsType() bool
 
-	// SetNamespaceHooks sets the NamespaceHooks.
-	SetNamespaceHooks(NamespaceHooks) HandlerOptions
-	// NamespaceHooks returns the NamespaceHooks.
-	NamespaceHooks() NamespaceHooks
+	// SetNamespaceValidator sets the NamespaceValidator.
+	SetNamespaceValidator(NamespaceValidator) HandlerOptions
+	// NamespaceValidator returns the NamespaceValidator.
+	NamespaceValidator() NamespaceValidator
 }
 
 // HandlerOptions represents handler options.
@@ -240,7 +241,7 @@ type handlerOptions struct {
 	instantQueryRouter    QueryRouter
 	graphiteStorageOpts   graphite.M3WrappedStorageOptions
 	m3dbOpts              m3db.Options
-	namespaceHooks        NamespaceHooks
+	namespaceValidator    NamespaceValidator
 	storeMetricsType      bool
 }
 
@@ -303,7 +304,7 @@ func NewHandlerOptions(
 		graphiteStorageOpts:   graphiteStorageOpts,
 		m3dbOpts:              m3dbOpts,
 		storeMetricsType:      storeMetricsType,
-		namespaceHooks:        NoopNamespaceHooks,
+		namespaceValidator:    validators.NamespaceValidator,
 	}, nil
 }
 
@@ -556,27 +557,18 @@ func (o *handlerOptions) StoreMetricsType() bool {
 	return o.storeMetricsType
 }
 
-func (o *handlerOptions) SetNamespaceHooks(value NamespaceHooks) HandlerOptions {
+func (o *handlerOptions) SetNamespaceValidator(value NamespaceValidator) HandlerOptions {
 	opts := *o
-	opts.namespaceHooks = value
+	opts.namespaceValidator = value
 	return &opts
 }
 
-func (o *handlerOptions) NamespaceHooks() NamespaceHooks {
-	return o.namespaceHooks
+func (o *handlerOptions) NamespaceValidator() NamespaceValidator {
+	return o.namespaceValidator
 }
 
-// NamespaceHooks allows dynamic plugging into the namespace lifecycle.
-type NamespaceHooks interface {
+// NamespaceValidator defines namespace validation logics.
+type NamespaceValidator interface {
 	// ValidateNewNamespace gets invoked when creating a new namespace.
-	ValidateNewNamespace(newNs namespace.Metadata, existing []namespace.Metadata) error
-}
-
-// NoopNamespaceHooks is an instance of noopNamespaceHooks.
-var NoopNamespaceHooks = &noopNamespaceHooks{}
-
-type noopNamespaceHooks struct{}
-
-func (h *noopNamespaceHooks) ValidateNewNamespace(namespace.Metadata, []namespace.Metadata) error {
-	return nil
+	ValidateNewNamespace(newNs dbnamespace.Metadata, existing []dbnamespace.Metadata) error
 }

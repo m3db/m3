@@ -114,7 +114,7 @@ func RegisterRoutes(
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-	hooks options.NamespaceHooks,
+	hooks options.NamespaceValidator,
 ) error {
 	applyMiddleware := func(
 		f func(svc handleroptions.ServiceNameAndDefaults,

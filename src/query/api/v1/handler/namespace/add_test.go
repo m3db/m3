@@ -28,13 +28,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
-
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -82,7 +79,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), options.NoopNamespaceHooks)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -167,7 +164,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), options.NoopNamespaceHooks)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409
@@ -190,8 +187,8 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 					BufferPastNanos:                          600000000000,
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
-							},
-						},
+				},
+			},
 		},
 	}
 
@@ -206,13 +203,13 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestApplyHookValidator(t *testing.T) {
+func TestApplyNewNamespaceValidator(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	hooks := &testNamespaceHooks{}
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), hooks)
+	validator := &testNamespaceValidator{}
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
@@ -248,52 +245,14 @@ func TestApplyHookValidator(t *testing.T) {
 	addHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, 1, hooks.invocationCount)
+	assert.Equal(t, 1, validator.invocationCount)
 }
 
-func TestValidateNewMetadata(t *testing.T) {
-	// Valid.
-	addReq := new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	require.NoError(t, validateNewMetadata(md))
-
-	// Valid without index options.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
-	addReq.Options.IndexOptions = nil
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	require.NoError(t, validateNewMetadata(md))
-
-	// Invalid without retention options.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions = nil
-	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 / 2
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.Error(t, err)
-	require.Equal(t, "retention options must be set", err.Error())
-
-	// Prevent mismatching block sizes.
-	addReq = new(admin.NamespaceAddRequest)
-	require.NoError(t, jsonpb.Unmarshal(strings.NewReader(testAddJSON), addReq))
-	addReq.Options.RetentionOptions.BlockSizeNanos = 7200000000000
-	addReq.Options.IndexOptions.BlockSizeNanos = 7200000000000 * 2
-	md, err = namespace.ToMetadata(addReq.Name, addReq.Options)
-	require.NoError(t, err)
-	err = validateNewMetadata(md)
-	require.Error(t, err)
-	require.Equal(t, "index and retention block size must match (2h0m0s, 4h0m0s)", err.Error())
-}
-
-type testNamespaceHooks struct {
+type testNamespaceValidator struct {
 	invocationCount int
 }
 
-func (h *testNamespaceHooks) ValidateNewNamespace(namespace.Metadata, []namespace.Metadata) error {
-	h.invocationCount++
+func (v *testNamespaceValidator) ValidateNewNamespace(namespace.Metadata, []namespace.Metadata) error {
+	v.invocationCount++
 	return errors.New("expected validation error")
 }

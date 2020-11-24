@@ -149,7 +149,7 @@ func NewCreateHandler(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-	namespaceHooks options.NamespaceHooks,
+	namespaceValidator options.NamespaceValidator,
 ) (http.Handler, error) {
 	placementHandlerOptions, err := placement.NewHandlerOptions(client,
 		cfg, nil, instrumentOpts)
@@ -159,7 +159,7 @@ func NewCreateHandler(
 	return &createHandler{
 		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
 		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
-		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts, namespaceHooks),
+		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts, namespaceValidator),
 		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
 		embeddedDbCfg:          embeddedDbCfg,
