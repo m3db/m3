@@ -151,6 +151,14 @@ func TestNamespaceToRetentionInvalid(t *testing.T) {
 }
 
 func TestToMetadataValid(t *testing.T) {
+	for _, nsopts := range validNamespaceOpts {
+		nsOpts, err := namespace.ToMetadata("abc", &nsopts)
+		require.NoError(t, err)
+		assertEqualMetadata(t, "abc", nsopts, nsOpts)
+	}
+}
+
+func TestToMetadataNilIndexOpts(t *testing.T) {
 	nsopts := validNamespaceOpts[0]
 
 	nsopts.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
@@ -161,15 +169,6 @@ func TestToMetadataValid(t *testing.T) {
 	assert.Equal(t,
 		time.Duration(nsopts.RetentionOptions.BlockSizeNanos),
 		nsOpts.Options().IndexOptions().BlockSize())
-}
-
-func TestToMetadataNilIndexOpts(t *testing.T) {
-
-	for _, nsopts := range validNamespaceOpts {
-		nsOpts, err := namespace.ToMetadata("abc", &nsopts)
-		require.NoError(t, err)
-		assertEqualMetadata(t, "abc", nsopts, nsOpts)
-	}
 }
 
 func TestToMetadataInvalid(t *testing.T) {
