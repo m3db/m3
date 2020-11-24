@@ -256,7 +256,7 @@ func (m *merger) Merge(
 						Type:     persist.SeriesDocumentType,
 						Document: seriesMetadata,
 						// The lifetime of the shard series metadata is longly lived.
-						LifeTime: persist.SeriesMetadataLifeTimeLong,
+						LifeTime: persist.SeriesLifeTimeLong,
 					},
 				})
 			}
