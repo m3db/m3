@@ -49,8 +49,7 @@ var (
 	defaultCoordinatorOptions = dockerResourceOptions{
 		source:        defaultCoordinatorSource,
 		containerName: defaultCoordinatorName,
-		imageName:     "",
-		imageTag:      "",
+		image:         dockerImage{},
 		dockerFile:    defaultCoordinatorDockerfile,
 		portList:      defaultCoordinatorList,
 	}

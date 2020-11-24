@@ -88,9 +88,8 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) {
 
 	iOpts := instrument.NewOptions()
 	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-		imageName: options.dbNodeImage.name,
-		imageTag:  options.dbNodeImage.tag,
-		iOpts:     iOpts,
+		image: options.dbNodeImage,
+		iOpts: iOpts,
 	})
 
 	success := false
@@ -112,9 +111,8 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) {
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		imageName: options.coordinatorImage.name,
-		imageTag:  options.coordinatorImage.tag,
-		iOpts:     iOpts,
+		image: options.coordinatorImage,
+		iOpts: iOpts,
 	})
 
 	defer func() {

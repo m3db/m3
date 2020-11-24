@@ -51,8 +51,7 @@ type dockerResourceOptions struct {
 	overrideDefaults bool
 	source           string
 	containerName    string
-	imageName        string
-	imageTag         string
+	image            dockerImage
 	dockerFile       string
 	portList         []int
 	mounts           []string
@@ -74,12 +73,12 @@ func (o dockerResourceOptions) withDefaults(
 		o.containerName = defaultOpts.containerName
 	}
 
-	if len(o.imageName) == 0 {
-		o.imageName = defaultOpts.imageName
+	if len(o.image.name) == 0 {
+		o.image.name = defaultOpts.image.name
 	}
 
-	if len(o.imageTag) == 0 {
-		o.imageTag = defaultOpts.imageTag
+	if len(o.image.tag) == 0 {
+		o.image.tag = defaultOpts.image.tag
 	}
 
 	if len(o.dockerFile) == 0 {

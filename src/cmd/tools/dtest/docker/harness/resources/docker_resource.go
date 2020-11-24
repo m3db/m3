@@ -49,8 +49,7 @@ func newDockerResource(
 ) (*dockerResource, error) {
 	var (
 		source        = resourceOpts.source
-		imageName     = resourceOpts.imageName
-		imageTag      = resourceOpts.imageTag
+		image         = resourceOpts.image
 		containerName = resourceOpts.containerName
 		dockerFile    = resourceOpts.dockerFile
 		iOpts         = resourceOpts.iOpts
@@ -84,15 +83,15 @@ func newDockerResource(
 
 	var resource *dockertest.Resource
 	var err error
-	if imageName == "" {
+	if image.name == "" {
 		logger.Info("building and running container with options",
 			zap.String("dockerFile", dockerFile), zap.Any("options", opts))
 		resource, err = pool.BuildAndRunWithOptions(dockerFile, opts, hostConfigOpts)
 	} else {
-		opts = useImage(opts, imageName, imageTag)
-		image := fmt.Sprintf("%v:%v", imageName, imageTag)
+		opts = useImage(opts, image.name, image.tag)
+		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
 		logger.Info("running container with options",
-			zap.String("image", image), zap.Any("options", opts))
+			zap.String("image", imageWithTag), zap.Any("options", opts))
 		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
 	}
 
