@@ -45,7 +45,6 @@ var (
 	defaultDBNodeOptions = dockerResourceOptions{
 		source:        defaultDBNodeSource,
 		containerName: defaultDBNodeContainerName,
-		image:         dockerImage{},
 		dockerFile:    getDockerfile(defaultDBNodeDockerfile),
 		portList:      defaultDBNodePortList,
 	}

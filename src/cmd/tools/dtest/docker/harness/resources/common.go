@@ -73,12 +73,8 @@ func (o dockerResourceOptions) withDefaults(
 		o.containerName = defaultOpts.containerName
 	}
 
-	if len(o.image.name) == 0 {
-		o.image.name = defaultOpts.image.name
-	}
-
-	if len(o.image.tag) == 0 {
-		o.image.tag = defaultOpts.image.tag
+	if o.image == (dockerImage{}) {
+		o.image = defaultOpts.image
 	}
 
 	if len(o.dockerFile) == 0 {
@@ -107,9 +103,9 @@ func newOptions(name string) *dockertest.RunOptions {
 	}
 }
 
-func useImage(opts *dockertest.RunOptions, name, tag string) *dockertest.RunOptions {
-	opts.Repository = name
-	opts.Tag = tag
+func useImage(opts *dockertest.RunOptions, image dockerImage) *dockertest.RunOptions {
+	opts.Repository = image.name
+	opts.Tag = image.tag
 	return opts
 }
 

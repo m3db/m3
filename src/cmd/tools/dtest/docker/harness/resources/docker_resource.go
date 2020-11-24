@@ -88,7 +88,7 @@ func newDockerResource(
 			zap.String("dockerFile", dockerFile), zap.Any("options", opts))
 		resource, err = pool.BuildAndRunWithOptions(dockerFile, opts, hostConfigOpts)
 	} else {
-		opts = useImage(opts, image.name, image.tag)
+		opts = useImage(opts, image)
 		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
 		logger.Info("running container with options",
 			zap.String("image", imageWithTag), zap.Any("options", opts))
