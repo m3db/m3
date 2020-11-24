@@ -114,7 +114,7 @@ func RegisterRoutes(
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-	hooks options.NamespaceValidator,
+	namespaceValidator options.NamespaceValidator,
 ) error {
 	applyMiddleware := func(
 		f func(svc handleroptions.ServiceNameAndDefaults,
@@ -142,7 +142,7 @@ func RegisterRoutes(
 	// Add M3DB namespaces.
 	if err := r.Register(queryhttp.RegisterOptions{
 		Path:    M3DBAddURL,
-		Handler: applyMiddleware(NewAddHandler(client, instrumentOpts, hooks).ServeHTTP, defaults),
+		Handler: applyMiddleware(NewAddHandler(client, instrumentOpts, namespaceValidator).ServeHTTP, defaults),
 		Methods: []string{AddHTTPMethod},
 	}); err != nil {
 		return err
