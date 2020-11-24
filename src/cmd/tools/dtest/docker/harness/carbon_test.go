@@ -32,7 +32,7 @@ import (
 )
 
 func findVerifier(expected string) resources.ResponseVerifier {
-	return func(status int, s string, err error) error {
+	return func(status int, _ map[string][]string, s string, err error) error {
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func renderVerifier(v float64) resources.ResponseVerifier {
 		Datapoints [][]float64 `json:"datapoints"`
 	}
 
-	return func(status int, s string, err error) error {
+	return func(status int, _ map[string][]string, s string, err error) error {
 		if err != nil {
 			return err
 		}

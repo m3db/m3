@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -70,32 +70,46 @@ func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOpti
 
 // RegisterRoutes registers the topic routes
 func RegisterRoutes(
-	addRoute handler.AddRouteFn,
+	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
 ) error {
-	if err := addRoute(InitURL, newInitHandler(client, cfg, instrumentOpts),
-		InitHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    InitURL,
+		Handler: newInitHandler(client, cfg, instrumentOpts),
+		Methods: []string{InitHTTPMethod},
+	}); err != nil {
 		return err
 	}
-	if err := addRoute(GetURL, newGetHandler(client, cfg, instrumentOpts),
-		GetHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    GetURL,
+		Handler: newGetHandler(client, cfg, instrumentOpts),
+		Methods: []string{GetHTTPMethod},
+	}); err != nil {
 		return err
 	}
-	if err := addRoute(AddURL, newAddHandler(client, cfg, instrumentOpts),
-		AddHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    AddURL,
+		Handler: newAddHandler(client, cfg, instrumentOpts),
+		Methods: []string{AddHTTPMethod},
+	}); err != nil {
 		return err
 	}
-	if err := addRoute(UpdateURL, newUpdateHandler(client, cfg, instrumentOpts),
-		UpdateHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    UpdateURL,
+		Handler: newUpdateHandler(client, cfg, instrumentOpts),
+		Methods: []string{UpdateHTTPMethod},
+	}); err != nil {
 		return err
 	}
-	if err := addRoute(DeleteURL, newDeleteHandler(client, cfg, instrumentOpts),
-		DeleteHTTPMethod); err != nil {
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    DeleteURL,
+		Handler: newDeleteHandler(client, cfg, instrumentOpts),
+		Methods: []string{DeleteHTTPMethod},
+	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 

@@ -84,22 +84,13 @@ func newDefaultOptions(hOpts options.HandlerOptions) opts {
 
 // NewReadHandler creates a handler to handle PromQL requests.
 func NewReadHandler(hOpts options.HandlerOptions, options ...Option) (http.Handler, error) {
-	return NewReadHandlerWithHooks(hOpts, &noopReadHandlerHooks{}, options...)
-}
-
-// NewReadHandlerWithHooks creates a handler for PromQL requests that accepts ReadHandlerHooks.
-func NewReadHandlerWithHooks(
-	hOpts options.HandlerOptions,
-	hooks ReadHandlerHooks,
-	options ...Option,
-) (http.Handler, error) {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
 
-	return newReadHandler(hOpts, hooks, queryable, options...)
+	return newReadHandler(hOpts, queryable, options...)
 }
 
 // ApplyRangeWarnings applies warnings encountered during execution.

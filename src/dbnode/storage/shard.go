@@ -171,7 +171,7 @@ type dbShard struct {
 	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetsFn               filesetsFn
 	filesetPathsBeforeFn     filesetPathsBeforeFn
-	deleteFilesFn            fs.DeleteFilesFn
+	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
@@ -1325,6 +1325,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			entryRefCountIncremented: true,
 		},
 	})
+
 	// i.e. unable to enqueue into shard insert queue
 	if err != nil {
 		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing

@@ -110,6 +110,9 @@ const (
 	// LimitHeader is the header added when returned series are limited.
 	LimitHeader = M3HeaderPrefix + "Results-Limited"
 
+	// TimeoutHeader is the header added with the effective timeout.
+	TimeoutHeader = M3HeaderPrefix + "Timeout"
+
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results
 	// are maxed.
 	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"

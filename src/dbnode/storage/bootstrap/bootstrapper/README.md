@@ -6,7 +6,6 @@ The collection of bootstrappers comprise the task executed when bootstrapping a 
 
 - `fs`: The filesystem bootstrapper, used to bootstrap as much data as possible from the local filesystem.
 - `peers`: The peers bootstrapper, used to bootstrap any remaining data from peers. This is used for a full node join too.
-  - *NOTE*: For the node leave case, the peers bs will persist default volume type index filesets to disk with non-overlapping shard time ranges to avoid re-building the entire index segment w/ new shards.
 - `commitlog`: The commit log bootstrapper, currently only used in the case that peers bootstrapping fails. Once the current block is being snapshotted frequently to disk it might be faster and make more sense to not actively use the peers bootstrapper and just use a combination of the filesystem bootstrapper and the minimal time range required from the commit log bootstrapper.
     - *NOTE*: the commitlog bootstrapper is special cased in that it runs for the *entire* bootstrappable range per shard whereas other bootstrappers fill in the unfulfilled gaps as bootstrapping progresses.
 

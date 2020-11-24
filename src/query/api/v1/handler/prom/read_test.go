@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -59,12 +58,11 @@ type testHandlers struct {
 }
 
 func setupTest(t *testing.T) testHandlers {
-	timeoutOpts := &prometheus.TimeoutOpts{
-		FetchTimeout: 15 * time.Second,
+	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{
+		Timeout: 15 * time.Second,
 	}
-
-	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
-	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	require.NoError(t, err)
 	instrumentOpts := instrument.NewOptions()
 	engineOpts := executor.NewEngineOptions().
 		SetLookbackDuration(time.Minute).
@@ -72,13 +70,12 @@ func setupTest(t *testing.T) testHandlers {
 	engine := executor.NewEngine(engineOpts)
 	hOpts := options.EmptyHandlerOptions().
 		SetFetchOptionsBuilder(fetchOptsBuilder).
-		SetEngine(engine).
-		SetTimeoutOpts(timeoutOpts)
+		SetEngine(engine)
 	queryable := &mockQueryable{}
-	readHandler, err := newReadHandler(hOpts, &noopReadHandlerHooks{}, queryable, WithEngine(testPromQLEngine))
+	readHandler, err := newReadHandler(hOpts, queryable, WithEngine(testPromQLEngine))
 	require.NoError(t, err)
 	readInstantHandler, err := newReadHandler(hOpts,
-		&noopReadHandlerHooks{}, queryable, WithInstantEngine(testPromQLEngine))
+		queryable, WithInstantEngine(testPromQLEngine))
 	require.NoError(t, err)
 	return testHandlers{
 		queryable:          queryable,

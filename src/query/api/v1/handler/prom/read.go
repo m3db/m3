@@ -41,16 +41,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ReadHandlerHooks allows dynamic plugging into read request processing.
-type ReadHandlerHooks interface {
-	// OnParsedRequest gets invoked after parsing request arguments.
-	OnParsedRequest(
-		context.Context,
-		*http.Request,
-		models.RequestParams,
-	) (models.RequestParams, error)
-}
-
 // NewQueryFn creates a new promql Query.
 type NewQueryFn func(
 	engine *promql.Engine,
@@ -86,7 +76,6 @@ var (
 
 type readHandler struct {
 	engine     *promql.Engine
-	hooks      ReadHandlerHooks
 	queryable  promstorage.Queryable
 	hOpts      options.HandlerOptions
 	scope      tally.Scope
@@ -96,7 +85,6 @@ type readHandler struct {
 
 func newReadHandler(
 	hOpts options.HandlerOptions,
-	hooks ReadHandlerHooks,
 	queryable promstorage.Queryable,
 	options ...Option,
 ) (http.Handler, error) {
@@ -112,7 +100,6 @@ func newReadHandler(
 
 	return &readHandler{
 		engine:     opts.promQLEngine,
-		hooks:      hooks,
 		queryable:  queryable,
 		hOpts:      hOpts,
 		opts:       opts,
@@ -136,11 +123,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, err := h.hooks.OnParsedRequest(ctx, r, request.Params)
-	if err != nil {
-		RespondError(w, err)
-		return
-	}
+	params := request.Params
 
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
@@ -186,19 +169,9 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.Bool("instant", h.opts.instant))
 	}
 
-	handleroptions.AddWarningHeaders(w, resultMetadata)
+	handleroptions.AddResponseHeaders(w, resultMetadata, fetchOptions)
 	Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
 	}, res.Warnings)
-}
-
-type noopReadHandlerHooks struct{}
-
-func (h *noopReadHandlerHooks) OnParsedRequest(
-	_ context.Context,
-	_ *http.Request,
-	params models.RequestParams,
-) (models.RequestParams, error) {
-	return params, nil
 }
