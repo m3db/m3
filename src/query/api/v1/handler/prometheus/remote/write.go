@@ -493,6 +493,31 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
+	if promType := r.Header.Get(headers.PromTypeHeader); promType != "" {
+		var tp prompb.MetricType
+		switch strings.ToLower(promType) {
+		case "counter":
+			tp = prompb.MetricType_COUNTER
+		case "gauge":
+			tp = prompb.MetricType_GAUGE
+		case "gauge-histogram":
+			tp = prompb.MetricType_GAUGE_HISTOGRAM
+		case "histogram":
+			tp = prompb.MetricType_HISTOGRAM
+		case "info":
+			tp = prompb.MetricType_INFO
+		case "stateset":
+			tp = prompb.MetricType_STATESET
+		case "summary":
+			tp = prompb.MetricType_SUMMARY
+		default:
+			return parseRequestResult{}, fmt.Errorf("unknown prom metric type %s", promType)
+		}
+		for i := range req.Timeseries {
+			req.Timeseries[i].Type = tp
+		}
+	}
+
 	return parseRequestResult{
 		Request:        &req,
 		Options:        opts,
