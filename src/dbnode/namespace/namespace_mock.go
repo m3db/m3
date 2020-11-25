@@ -30,9 +30,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -879,10 +879,10 @@ func (mr *MockSchemaRegistryMockRecorder) SetSchemaHistory(id, history interface
 }
 
 // RegisterListener mocks base method
-func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (close.SimpleCloser, error) {
+func (m *MockSchemaRegistry) RegisterListener(id ident.ID, listener SchemaListener) (resource.SimpleCloser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", id, listener)
-	ret0, _ := ret[0].(close.SimpleCloser)
+	ret0, _ := ret[0].(resource.SimpleCloser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1352,6 +1352,34 @@ func (m *MockDynamicOptions) ForceColdWritesEnabled() bool {
 func (mr *MockDynamicOptionsMockRecorder) ForceColdWritesEnabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceColdWritesEnabled", reflect.TypeOf((*MockDynamicOptions)(nil).ForceColdWritesEnabled))
+}
+
+// SetAllowEmptyInitialNamespaceRegistry mocks base method
+func (m *MockDynamicOptions) SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAllowEmptyInitialNamespaceRegistry", value)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+// SetAllowEmptyInitialNamespaceRegistry indicates an expected call of SetAllowEmptyInitialNamespaceRegistry
+func (mr *MockDynamicOptionsMockRecorder) SetAllowEmptyInitialNamespaceRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAllowEmptyInitialNamespaceRegistry", reflect.TypeOf((*MockDynamicOptions)(nil).SetAllowEmptyInitialNamespaceRegistry), value)
+}
+
+// AllowEmptyInitialNamespaceRegistry mocks base method
+func (m *MockDynamicOptions) AllowEmptyInitialNamespaceRegistry() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllowEmptyInitialNamespaceRegistry")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AllowEmptyInitialNamespaceRegistry indicates an expected call of AllowEmptyInitialNamespaceRegistry
+func (mr *MockDynamicOptionsMockRecorder) AllowEmptyInitialNamespaceRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllowEmptyInitialNamespaceRegistry", reflect.TypeOf((*MockDynamicOptions)(nil).AllowEmptyInitialNamespaceRegistry))
 }
 
 // MockNamespaceWatch is a mock of NamespaceWatch interface

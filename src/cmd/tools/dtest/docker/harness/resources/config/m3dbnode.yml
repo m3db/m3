@@ -1,6 +1,5 @@
 coordinator:
-  listenAddress:
-    value: "0.0.0.0:7201"
+  listenAddress: 0.0.0.0:7201
 
   local:
     namespaces:
@@ -20,9 +19,6 @@ coordinator:
     sanitization: prometheus
     samplingRate: 1.0
     extended: none
-
-  limits:
-    maxComputedDatapoints: 10000
 
   tagOptions:
     # Configuration setting for generating metric IDs from tags.
@@ -56,17 +52,7 @@ db:
   gcPercentage: 100
 
   writeNewSeriesAsync: true
-  writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
-
-  bootstrap:
-    bootstrappers:
-        - filesystem
-        - commitlog
-        - peers
-        - uninitialized_topology
-    commitlog:
-      returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
     series:
@@ -81,24 +67,25 @@ db:
       calculationType: fixed
       size: 2097152
 
-  fs:
+  filesystem:
     filePathPrefix: /var/lib/m3db
 
-  config:
-      service:
-          env: default_env
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 127.0.0.1:2379
-      seedNodes:
-          initialCluster:
-              - hostID: m3db_local
-                endpoint: http://127.0.0.1:2380
-
+  discovery:
+    config:
+        service:
+            env: default_env
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 127.0.0.1:2379
+        seedNodes:
+            initialCluster:
+                - hostID: m3db_local
+                  endpoint: http://127.0.0.1:2380
+  
   # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
   # for quick local setup (which this config will send data to).
 

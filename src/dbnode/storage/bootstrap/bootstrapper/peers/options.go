@@ -22,6 +22,7 @@ package peers
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"runtime"
 
@@ -53,11 +54,14 @@ var (
 	// Update BootstrapPeersConfiguration comment in
 	// src/cmd/services/m3dbnode/config package if this is changed.
 	DefaultShardPersistenceFlushConcurrency = 1
+	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
+	defaultIndexSegmentConcurrency = 1
 )
 
 var (
 	errAdminClientNotSet           = errors.New("admin client not set")
 	errPersistManagerNotSet        = errors.New("persist manager not set")
+	errIndexClaimsManagerNotSet    = errors.New("index claims manager not set")
 	errCompactorNotSet             = errors.New("compactor not set")
 	errIndexOptionsNotSet          = errors.New("index options not set")
 	errFilesystemOptionsNotSet     = errors.New("filesystem options not set")
@@ -70,8 +74,10 @@ type options struct {
 	defaultShardConcurrency          int
 	shardPersistenceConcurrency      int
 	shardPersistenceFlushConcurrency int
+	indexSegmentConcurrency          int
 	persistenceMaxQueueSize          int
 	persistManager                   persist.Manager
+	indexClaimsManager               fs.IndexClaimsManager
 	runtimeOptionsManager            m3dbruntime.OptionsManager
 	contextPool                      context.Pool
 	fsOpts                           fs.Options
@@ -86,6 +92,7 @@ func NewOptions() Options {
 		defaultShardConcurrency:          DefaultShardConcurrency,
 		shardPersistenceConcurrency:      DefaultShardPersistenceConcurrency,
 		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
+		indexSegmentConcurrency:          defaultIndexSegmentConcurrency,
 		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
 		// Use a zero pool, this should be overriden at config time.
 		contextPool: context.NewPool(context.NewOptions().
@@ -101,6 +108,9 @@ func (o *options) Validate() error {
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
 	}
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
+	}
 	if o.compactor == nil {
 		return errCompactorNotSet
 	}
@@ -112,6 +122,9 @@ func (o *options) Validate() error {
 	}
 	if o.fsOpts == nil {
 		return errFilesystemOptionsNotSet
+	}
+	if n := o.indexSegmentConcurrency; n <= 0 {
+		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
 	return nil
 }
@@ -166,6 +179,16 @@ func (o *options) ShardPersistenceFlushConcurrency() int {
 	return o.shardPersistenceFlushConcurrency
 }
 
+func (o *options) SetIndexSegmentConcurrency(value int) Options {
+	opts := *o
+	opts.indexSegmentConcurrency = value
+	return &opts
+}
+
+func (o *options) IndexSegmentConcurrency() int {
+	return o.indexSegmentConcurrency
+}
+
 func (o *options) SetPersistenceMaxQueueSize(value int) Options {
 	opts := *o
 	opts.persistenceMaxQueueSize = value
@@ -184,6 +207,16 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
+}
+
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
 }
 
 func (o *options) SetCompactor(value *compaction.Compactor) Options {

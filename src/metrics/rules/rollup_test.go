@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -52,6 +52,7 @@ var (
 		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
+		KeepOriginal:       false,
 		Targets: []*rulepb.RollupTarget{
 			&rulepb.RollupTarget{
 				Name: "rName1",
@@ -59,11 +60,11 @@ var (
 				Policies: []*policypb.Policy{
 					&policypb.Policy{
 						StoragePolicy: &policypb.StoragePolicy{
-							Resolution: &policypb.Resolution{
+							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
 							},
-							Retention: &policypb.Retention{
+							Retention: policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
@@ -79,6 +80,7 @@ var (
 		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
+		KeepOriginal:       false,
 		Targets: []*rulepb.RollupTarget{
 			&rulepb.RollupTarget{
 				Name: "rName1",
@@ -86,11 +88,11 @@ var (
 				Policies: []*policypb.Policy{
 					&policypb.Policy{
 						StoragePolicy: &policypb.StoragePolicy{
-							Resolution: &policypb.Resolution{
+							Resolution: policypb.Resolution{
 								WindowSize: int64(time.Minute),
 								Precision:  int64(time.Minute),
 							},
-							Retention: &policypb.Retention{
+							Retention: policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
@@ -100,11 +102,11 @@ var (
 					},
 					&policypb.Policy{
 						StoragePolicy: &policypb.StoragePolicy{
-							Resolution: &policypb.Resolution{
+							Resolution: policypb.Resolution{
 								WindowSize: int64(5 * time.Minute),
 								Precision:  int64(time.Minute),
 							},
-							Retention: &policypb.Retention{
+							Retention: policypb.Retention{
 								Period: int64(48 * time.Hour),
 							},
 						},
@@ -123,6 +125,7 @@ var (
 		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
+		KeepOriginal:       false,
 		TargetsV2: []*rulepb.RollupTargetV2{
 			&rulepb.RollupTargetV2{
 				Pipeline: &pipelinepb.Pipeline{
@@ -154,29 +157,29 @@ var (
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Second.Nanoseconds(),
 							Precision:  time.Second.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 24 * time.Hour.Nanoseconds(),
 						},
 					},
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 720 * time.Hour.Nanoseconds(),
 						},
 					},
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: time.Hour.Nanoseconds(),
 							Precision:  time.Hour.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 365 * 24 * time.Hour.Nanoseconds(),
 						},
 					},
@@ -202,11 +205,11 @@ var (
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 720 * time.Hour.Nanoseconds(),
 						},
 					},
@@ -221,6 +224,7 @@ var (
 		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
+		KeepOriginal:       true,
 		TargetsV2: []*rulepb.RollupTargetV2{
 			&rulepb.RollupTargetV2{
 				Pipeline: &pipelinepb.Pipeline{
@@ -239,11 +243,11 @@ var (
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 1800 * time.Hour.Nanoseconds(),
 						},
 					},
@@ -270,6 +274,7 @@ var (
 		tombstoned:   false,
 		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
+		keepOriginal: false,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -295,6 +300,7 @@ var (
 		tombstoned:   true,
 		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
+		keepOriginal: false,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -321,6 +327,7 @@ var (
 		tombstoned:   false,
 		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
+		keepOriginal: false,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -381,6 +388,7 @@ var (
 		tombstoned:   true,
 		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
+		keepOriginal: true,
 		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -482,11 +490,11 @@ func TestNewRollupRuleSnapshotFromV2ProtoInvalidProto(t *testing.T) {
 				},
 				StoragePolicies: []*policypb.StoragePolicy{
 					&policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: 10 * time.Minute.Nanoseconds(),
 							Precision:  time.Minute.Nanoseconds(),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: 1800 * time.Hour.Nanoseconds(),
 						},
 					},
@@ -525,6 +533,7 @@ func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
 		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
+		KeepOriginal:       false,
 	}
 	res, err := newRollupRuleSnapshotFromProto(input, filterOpts)
 	require.NoError(t, err)
@@ -536,6 +545,7 @@ func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
 		rawFilter:          "tag1:value1 tag2:value2",
 		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
+		keepOriginal:       false,
 	}
 	require.True(t, cmp.Equal(expected, res, testRollupRuleSnapshotCmpOpts...))
 	require.NotNil(t, res.filter)
@@ -556,6 +566,7 @@ func TestNewRollupRuleSnapshotFromFields(t *testing.T) {
 		testRollupRuleSnapshot3.filter,
 		testRollupRuleSnapshot3.lastUpdatedAtNanos,
 		testRollupRuleSnapshot3.lastUpdatedBy,
+		false,
 	)
 	require.NoError(t, err)
 	require.True(t, cmp.Equal(testRollupRuleSnapshot3, res, testRollupRuleSnapshotCmpOpts...))
@@ -577,6 +588,7 @@ func TestNewRollupRuleSnapshotFromFieldsValidationError(t *testing.T) {
 			nil,
 			1234,
 			"test_user",
+			false,
 		)
 		require.Error(t, err)
 		_, ok := err.(errors.ValidationError)
@@ -721,6 +733,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 		rawFilter:          "tag1:value1 tag2:value2",
 		lastUpdatedAtNanos: 10000,
 		lastUpdatedBy:      "john",
+		keepOriginal:       false,
 	}
 	require.True(t, cmp.Equal(expected, rr.snapshots[1], testRollupRuleSnapshotCmpOpts...))
 }
@@ -746,6 +759,7 @@ func TestRollupRuleRollupRuleView(t *testing.T) {
 		Tombstoned:    true,
 		CutoverMillis: 67890,
 		Filter:        "tag3:value3 tag4:value4",
+		KeepOriginal:  true,
 		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -788,6 +802,7 @@ func TestNewRollupRuleHistory(t *testing.T) {
 			Tombstoned:    true,
 			CutoverMillis: 67890,
 			Filter:        "tag3:value3 tag4:value4",
+			KeepOriginal:  true,
 			Targets: []view.RollupTarget{
 				{
 					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{

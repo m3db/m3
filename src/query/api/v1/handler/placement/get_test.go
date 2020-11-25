@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/service"
@@ -70,7 +70,9 @@ func setupPlacementTest(t *testing.T, ctrl *gomock.Controller, initPlacement pla
 	mockClient.EXPECT().Services(gomock.Any()).Return(mockServices, nil).AnyTimes()
 	mockServices.EXPECT().PlacementService(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ interface{}, opts placement.Options) (placement.Service, error) {
-			ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), "", opts), opts)
+			ps := service.NewPlacementService(
+				storage.NewPlacementStorage(mem.NewStore(), "", opts),
+				service.WithPlacementOptions(opts))
 			if initPlacement != nil {
 				_, err := ps.Set(initPlacement)
 				require.NoError(t, err)
@@ -149,7 +151,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(nil, errors.New("key not found"))
+		mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()

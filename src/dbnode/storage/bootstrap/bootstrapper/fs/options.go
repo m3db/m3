@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	goruntime "runtime"
 
@@ -39,11 +40,12 @@ import (
 )
 
 var (
-	errPersistManagerNotSet    = errors.New("persist manager not set")
-	errCompactorNotSet         = errors.New("compactor not set")
-	errIndexOptionsNotSet      = errors.New("index options not set")
-	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
-	errMigrationOptionsNotSet  = errors.New("migration options not set")
+	errPersistManagerNotSet     = errors.New("persist manager not set")
+	errIndexClaimsManagerNotSet = errors.New("index claims manager not set")
+	errCompactorNotSet          = errors.New("compactor not set")
+	errIndexOptionsNotSet       = errors.New("index options not set")
+	errFilesystemOptionsNotSet  = errors.New("filesystem options not set")
+	errMigrationOptionsNotSet   = errors.New("migration options not set")
 
 	// NB(r): Bootstrapping data doesn't use large amounts of memory
 	// that won't be released, so its fine to do this as fast as possible.
@@ -56,21 +58,28 @@ var (
 	// us splitting an index block into smaller pieces is moot because we'll
 	// pull a lot more data into memory if we create more than one at a time.
 	defaultBootstrapIndexNumProcessors = 1
+
+	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
+	defaultIndexSegmentConcurrency = 1
+
+	// defaultIndexSegmentsVerify defines default for index segments validation.
+	defaultIndexSegmentsVerify = false
 )
 
 type options struct {
-	instrumentOpts              instrument.Options
-	resultOpts                  result.Options
-	fsOpts                      fs.Options
-	indexOpts                   index.Options
-	persistManager              persist.Manager
-	compactor                   *compaction.Compactor
-	bootstrapDataNumProcessors  int
-	bootstrapIndexNumProcessors int
-	runtimeOptsMgr              runtime.OptionsManager
-	identifierPool              ident.Pool
-	migrationOpts               migration.Options
-	storageOpts                 storage.Options
+	instrumentOpts          instrument.Options
+	resultOpts              result.Options
+	fsOpts                  fs.Options
+	indexOpts               index.Options
+	persistManager          persist.Manager
+	indexClaimsManager      fs.IndexClaimsManager
+	compactor               *compaction.Compactor
+	indexSegmentConcurrency int
+	indexSegmentsVerify     bool
+	runtimeOptsMgr          runtime.OptionsManager
+	identifierPool          ident.Pool
+	migrationOpts           migration.Options
+	storageOpts             storage.Options
 }
 
 // NewOptions creates new bootstrap options
@@ -82,20 +91,23 @@ func NewOptions() Options {
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 
 	return &options{
-		instrumentOpts:              instrument.NewOptions(),
-		resultOpts:                  result.NewOptions(),
-		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
-		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
-		runtimeOptsMgr:              runtime.NewOptionsManager(),
-		identifierPool:              idPool,
-		migrationOpts:               migration.NewOptions(),
-		storageOpts:                 storage.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		resultOpts:              result.NewOptions(),
+		indexSegmentConcurrency: defaultIndexSegmentConcurrency,
+		indexSegmentsVerify:     defaultIndexSegmentsVerify,
+		runtimeOptsMgr:          runtime.NewOptionsManager(),
+		identifierPool:          idPool,
+		migrationOpts:           migration.NewOptions(),
+		storageOpts:             storage.NewOptions(),
 	}
 }
 
 func (o *options) Validate() error {
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
 	}
 	if o.compactor == nil {
 		return errCompactorNotSet
@@ -111,6 +123,9 @@ func (o *options) Validate() error {
 	}
 	if err := o.migrationOpts.Validate(); err != nil {
 		return err
+	}
+	if n := o.indexSegmentConcurrency; n <= 0 {
+		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
 	return nil
 }
@@ -165,6 +180,16 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
+}
+
 func (o *options) SetCompactor(value *compaction.Compactor) Options {
 	opts := *o
 	opts.compactor = value
@@ -175,24 +200,24 @@ func (o *options) Compactor() *compaction.Compactor {
 	return o.compactor
 }
 
-func (o *options) SetBoostrapDataNumProcessors(value int) Options {
+func (o *options) SetIndexSegmentConcurrency(value int) Options {
 	opts := *o
-	opts.bootstrapDataNumProcessors = value
+	opts.indexSegmentConcurrency = value
 	return &opts
 }
 
-func (o *options) BoostrapDataNumProcessors() int {
-	return o.bootstrapDataNumProcessors
+func (o *options) IndexSegmentConcurrency() int {
+	return o.indexSegmentConcurrency
 }
 
-func (o *options) SetBoostrapIndexNumProcessors(value int) Options {
+func (o *options) SetIndexSegmentsVerify(value bool) Options {
 	opts := *o
-	opts.bootstrapIndexNumProcessors = value
+	opts.indexSegmentsVerify = value
 	return &opts
 }
 
-func (o *options) BoostrapIndexNumProcessors() int {
-	return o.bootstrapIndexNumProcessors
+func (o *options) IndexSegmentsVerify() bool {
+	return o.indexSegmentsVerify
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

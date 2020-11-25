@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package server contains the code to run the dbnode server.
 package server
 
 import (
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -73,6 +73,7 @@ import (
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
@@ -83,7 +84,6 @@ import (
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/lockfile"
 	"github.com/m3db/m3/src/x/mmap"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
@@ -91,6 +91,9 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3dbx/vellum/levenshtein"
+	"github.com/m3dbx/vellum/levenshtein2"
+	"github.com/m3dbx/vellum/regexp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
@@ -141,7 +144,10 @@ type RunOptions struct {
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
-	// StorageOptions are options to apply to the database storage options.
+	// Transforms are transforms to apply to the database storage options.
+	Transforms []storage.OptionTransform
+
+	// StorageOptions are additional storage options.
 	StorageOptions StorageOptions
 
 	// CustomBuildTags are additional tags to be added to the instrument build
@@ -167,7 +173,7 @@ func Run(runOpts RunOptions) {
 		cfg = runOpts.Config
 	}
 
-	err := cfg.InitDefaultsAndValidate()
+	err := cfg.Validate()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -175,7 +181,7 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -222,21 +228,22 @@ func Run(runOpts RunOptions) {
 	// file will remain on the file system. When a dbnode starts after an ungracefully stop,
 	// it will be able to acquire the lock despite the fact the the lock file exists.
 	lockPath := path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), filePathPrefixLockFile)
-	fslock, err := lockfile.CreateAndAcquire(lockPath, newDirectoryMode)
+	fslock, err := createAndAcquireLockfile(lockPath, newDirectoryMode)
 	if err != nil {
-		logger.Fatal("could not acquire lock", zap.String("path", lockPath), zap.Error(err))
+		logger.Fatal("could not acqurie lock", zap.String("path", lockPath), zap.Error(err))
 	}
-	defer fslock.Release()
+	// nolint: errcheck
+	defer fslock.releaseLockfile()
 
 	go bgValidateProcessLimits(logger)
-	debug.SetGCPercent(cfg.GCPercentage)
+	debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
-	scope, _, err := cfg.Metrics.NewRootScope()
+	scope, _, err := cfg.MetricsOrDefault().NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
 		logger.Fatal("could not resolve local host ID", zap.Error(err))
 	}
@@ -267,17 +274,23 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.SeedNodes == nil {
+	discoveryConfig := cfg.DiscoveryOrDefault()
+	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
+	if err != nil {
+		logger.Fatal("could not get env config from discovery config", zap.Error(err))
+	}
+
+	if envConfig.SeedNodes == nil {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		service, err := cfg.EnvironmentConfig.Services.SyncCluster()
+		service, err := envConfig.Services.SyncCluster()
 		if err != nil {
 			logger.Fatal("invalid cluster configuration", zap.Error(err))
 		}
 
 		clusters := service.Service.ETCDClusters
-		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
+		seedNodes := envConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
 			if err != nil {
@@ -330,18 +343,18 @@ func Run(runOpts RunOptions) {
 	// are constructed allowing for type to be picked
 	// by the caller using instrument.NewTimer(...).
 	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
-	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+	timerOpts.StandardSampleRate = cfg.MetricsOrDefault().SampleRate()
 
 	var (
 		opts  = storage.NewOptions()
-		iopts = opts.InstrumentOptions().
+		iOpts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
 			SetTimerOptions(timerOpts).
 			SetTracer(tracer).
 			SetCustomBuildTags(runOpts.CustomBuildTags)
 	)
-	opts = opts.SetInstrumentOptions(iopts)
+	opts = opts.SetInstrumentOptions(iOpts)
 
 	// Only override the default MemoryTracker (which has default limits) if a custom limit has
 	// been set.
@@ -361,7 +374,17 @@ func Run(runOpts RunOptions) {
 		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
 	}
 
-	buildReporter := instrument.NewBuildReporter(iopts)
+	// Set global index options.
+	if n := cfg.Index.RegexpDFALimitOrDefault(); n > 0 {
+		regexp.SetStateLimit(n)
+		levenshtein.SetStateLimit(n)
+		levenshtein2.SetStateLimit(n)
+	}
+	if n := cfg.Index.RegexpFSALimitOrDefault(); n > 0 {
+		regexp.SetDefaultLimit(n)
+	}
+
+	buildReporter := instrument.NewBuildReporter(iOpts)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("unable to start build reporter", zap.Error(err))
 	}
@@ -392,8 +415,9 @@ func Run(runOpts RunOptions) {
 			SetLimitEnabled(true).
 			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbpsOrDefault()).
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEveryOrDefault())).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsyncOrDefault()).
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDurationOrDefault())
+
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
@@ -413,6 +437,16 @@ func Run(runOpts RunOptions) {
 	}
 	defer stopReporting()
 
+	// Setup index regexp compilation cache.
+	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
+		Size:  cfg.Cache.RegexpConfiguration().SizeOrDefault(),
+		Scope: iOpts.MetricsScope(),
+	})
+
+	for _, transform := range runOpts.Transforms {
+		opts = transform(opts)
+	}
+
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
@@ -424,7 +458,14 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
-	queryLimits, err := limits.NewQueryLimits(docsLimit, bytesReadLimit, iopts)
+	limitOpts := limits.NewOptions().
+		SetDocsLimitOpts(docsLimit).
+		SetBytesReadLimitOpts(bytesReadLimit).
+		SetInstrumentOptions(iOpts)
+	if builder := opts.SourceLoggerBuilder(); builder != nil {
+		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
+	}
+	queryLimits, err := limits.NewQueryLimits(limitOpts)
 	if err != nil {
 		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
 	}
@@ -434,7 +475,8 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
-	if cfg.WriteNewSeriesAsync {
+
+	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
 	indexOpts = indexOpts.SetInsertMode(insertMode).
@@ -462,7 +504,11 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	policy := cfg.PoolingPolicy
+	policy, err := cfg.PoolingPolicyOrDefault()
+	if err != nil {
+		logger.Fatal("could not get pooling policy", zap.Error(err))
+	}
+
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		poolOptions(
@@ -504,28 +550,29 @@ func Run(runOpts RunOptions) {
 		SetMmapReporter(mmapReporter)
 
 	var commitLogQueueSize int
-	specified := cfg.CommitLog.Queue.Size
-	switch cfg.CommitLog.Queue.CalculationType {
+	cfgCommitLog := cfg.CommitLogOrDefault()
+	specified := cfgCommitLog.Queue.Size
+	switch cfgCommitLog.Queue.CalculationType {
 	case config.CalculationTypeFixed:
 		commitLogQueueSize = specified
 	case config.CalculationTypePerCPU:
 		commitLogQueueSize = specified * runtime.NumCPU()
 	default:
 		logger.Fatal("unknown commit log queue size type",
-			zap.Any("type", cfg.CommitLog.Queue.CalculationType))
+			zap.Any("type", cfgCommitLog.Queue.CalculationType))
 	}
 
 	var commitLogQueueChannelSize int
-	if cfg.CommitLog.QueueChannel != nil {
-		specified := cfg.CommitLog.QueueChannel.Size
-		switch cfg.CommitLog.Queue.CalculationType {
+	if cfgCommitLog.QueueChannel != nil {
+		specified := cfgCommitLog.QueueChannel.Size
+		switch cfgCommitLog.Queue.CalculationType {
 		case config.CalculationTypeFixed:
 			commitLogQueueChannelSize = specified
 		case config.CalculationTypePerCPU:
 			commitLogQueueChannelSize = specified * runtime.NumCPU()
 		default:
 			logger.Fatal("unknown commit log queue channel size type",
-				zap.Any("type", cfg.CommitLog.Queue.CalculationType))
+				zap.Any("type", cfgCommitLog.Queue.CalculationType))
 		}
 	} else {
 		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
@@ -536,14 +583,18 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options.
-	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
+	poolingPolicy, err := cfg.PoolingPolicyOrDefault()
+	if err != nil {
+		logger.Fatal("could not get pooling policy", zap.Error(err))
+	}
 
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, poolingPolicy)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
 		SetStrategy(commitlog.StrategyWriteBehind).
-		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
-		SetFlushInterval(cfg.CommitLog.FlushEvery).
+		SetFlushSize(cfgCommitLog.FlushMaxBytes).
+		SetFlushInterval(cfgCommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
 
@@ -589,17 +640,27 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
-	var (
-		envCfg environment.ConfigureResults
-	)
-	if len(cfg.EnvironmentConfig.Statics) == 0 {
+	// Set the index claims manager
+	icm, err := fs.NewIndexClaimsManager(fsopts)
+	if err != nil {
+		logger.Fatal("could not create index claims manager", zap.Error(err))
+	}
+	defer func() {
+		// Reset counter of index claims managers after server teardown.
+		fs.ResetIndexClaimsManagersUnsafe()
+	}()
+	opts = opts.SetIndexClaimsManager(icm)
+
+	forceColdWrites := opts.ForceColdWritesEnabled()
+	var envCfgResults environment.ConfigureResults
+	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iopts,
+		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: forceColdWrites,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -607,17 +668,17 @@ func Run(runOpts RunOptions) {
 	} else {
 		logger.Info("creating static config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iopts,
+		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: forceColdWrites,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
 		}
 	}
 
-	syncCfg, err := envCfg.SyncCluster()
+	syncCfg, err := envCfgResults.SyncCluster()
 	if err != nil {
 		logger.Fatal("invalid cluster config", zap.Error(err))
 	}
@@ -657,36 +718,40 @@ func Run(runOpts RunOptions) {
 	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
 		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
 	}
+
+	listenAddress := cfg.ListenAddressOrDefault()
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchanOpts).ListenAndServe()
+		listenAddress, contextPool, tchanOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
-			zap.String("address", cfg.ListenAddress), zap.Error(err))
+			zap.String("address", listenAddress), zap.Error(err))
 	}
 	defer tchannelthriftNodeClose()
-	logger.Info("node tchannelthrift: listening", zap.String("address", cfg.ListenAddress))
+	logger.Info("node tchannelthrift: listening", zap.String("address", listenAddress))
 
+	httpListenAddress := cfg.HTTPNodeListenAddressOrDefault()
 	httpjsonNodeClose, err := hjnode.NewServer(service,
-		cfg.HTTPNodeListenAddress, contextPool, nil).ListenAndServe()
+		httpListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open httpjson interface",
-			zap.String("address", cfg.HTTPNodeListenAddress), zap.Error(err))
+			zap.String("address", httpListenAddress), zap.Error(err))
 	}
 	defer httpjsonNodeClose()
-	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
+	logger.Info("node httpjson: listening", zap.String("address", httpListenAddress))
 
-	if cfg.DebugListenAddress != "" {
+	debugListenAddress := cfg.DebugListenAddressOrDefault()
+	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
 		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
-			queryconfig.Configuration{}, nil, iopts)
+			queryconfig.Configuration{}, nil, iOpts)
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
-			envCfg, err := cfg.EnvironmentConfig.Services.SyncCluster()
-			if err != nil || envCfg.Service == nil {
+			envCfgCluster, err := envConfig.Services.SyncCluster()
+			if err != nil || envCfgCluster.Service == nil {
 				logger.Warn("could not get cluster config for debug writer",
 					zap.Error(err),
-					zap.Bool("envCfgServiceIsNil", envCfg.Service == nil))
+					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
 				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
@@ -696,12 +761,12 @@ func Run(runOpts RunOptions) {
 						{
 							ServiceName: handleroptions.M3DBServiceName,
 							Defaults: []handleroptions.ServiceOptionsDefault{
-								handleroptions.WithDefaultServiceEnvironment(envCfg.Service.Env),
-								handleroptions.WithDefaultServiceZone(envCfg.Service.Zone),
+								handleroptions.WithDefaultServiceEnvironment(envCfgCluster.Service.Env),
+								handleroptions.WithDefaultServiceZone(envCfgCluster.Service.Zone),
 							},
 						},
 					},
-					iopts)
+					iOpts)
 				if err != nil {
 					logger.Error("unable to create debug writer", zap.Error(err))
 				}
@@ -716,12 +781,12 @@ func Run(runOpts RunOptions) {
 				}
 			}
 
-			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
+			if err := http.ListenAndServe(debugListenAddress, mux); err != nil {
 				logger.Error("debug server could not listen",
-					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+					zap.String("address", debugListenAddress), zap.Error(err))
 			} else {
 				logger.Info("debug server listening",
-					zap.String("address", cfg.DebugListenAddress),
+					zap.String("address", debugListenAddress),
 				)
 			}
 		}()
@@ -752,10 +817,9 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
+		cfg.Client, iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 		syncCfg.KVStore, logger, runOpts.CustomOptions)
-
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -789,7 +853,7 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, tchannelOpts, topologyInitializer,
+				clientCfg, iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
 				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
@@ -829,16 +893,6 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetRepairEnabled(false)
 	}
 
-	if runOpts.StorageOptions.OnColdFlush != nil {
-		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
-	}
-
-	opts = opts.SetBackgroundProcessFns(append(opts.BackgroundProcessFns(), runOpts.StorageOptions.BackgroundProcessFns...))
-
-	if runOpts.StorageOptions.NamespaceHooks != nil {
-		opts = opts.SetNamespaceHooks(runOpts.StorageOptions.NamespaceHooks)
-	}
-
 	// Set bootstrap options - We need to create a topology map provider from the
 	// same topology that will be passed to the cluster so that when we make
 	// bootstrapping decisions they are in sync with the clustered database
@@ -848,71 +902,34 @@ func Run(runOpts RunOptions) {
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
-	bs, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-		rsOpts, opts, topoMapProvider, origin, m3dbClient)
+	bs, err := cfg.Bootstrap.New(
+		rsOpts, opts, topoMapProvider, origin, m3dbClient,
+	)
 	if err != nil {
 		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
-
 	opts = opts.SetBootstrapProcessProvider(bs)
-	timeout := bootstrapConfigInitTimeout
-
-	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers")
-	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
-		logger.Error("unable to start emitting bootstrap gauge",
-			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
-			zap.Error(err),
-		)
-	}
-	defer func() {
-		if err := bsGauge.Close(); err != nil {
-			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
-		}
-	}()
-
-	kvWatchBootstrappers(syncCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
-		func(bootstrappers []string) {
-			if len(bootstrappers) == 0 {
-				logger.Error("updated bootstrapper list is empty")
-				return
-			}
-
-			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-				rsOpts, opts, topoMapProvider, origin, m3dbClient)
-			if err != nil {
-				logger.Error("updated bootstrapper list failed", zap.Error(err))
-				return
-			}
-
-			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
-
-			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
-				logger.Error("unable to update bootstrap gauge with new bootstrappers",
-					zap.Strings("bootstrappers", bootstrappers),
-					zap.Error(err),
-				)
-			}
-		})
 
 	// Start the cluster services now that the M3DB client is available.
+	clusterListenAddress := cfg.ClusterListenAddressOrDefault()
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
-		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		clusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
-			zap.String("address", cfg.ClusterListenAddress), zap.Error(err))
+			zap.String("address", clusterListenAddress), zap.Error(err))
 	}
 	defer tchannelthriftClusterClose()
-	logger.Info("cluster tchannelthrift: listening", zap.String("address", cfg.ClusterListenAddress))
+	logger.Info("cluster tchannelthrift: listening", zap.String("address", clusterListenAddress))
 
+	httpClusterListenAddress := cfg.HTTPClusterListenAddressOrDefault()
 	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
-		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
+		httpClusterListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open httpjson interface",
-			zap.String("address", cfg.HTTPClusterListenAddress), zap.Error(err))
+			zap.String("address", httpClusterListenAddress), zap.Error(err))
 	}
 	defer httpjsonClusterClose()
-	logger.Info("cluster httpjson: listening", zap.String("address", cfg.HTTPClusterListenAddress))
+	logger.Info("cluster httpjson: listening", zap.String("address", httpClusterListenAddress))
 
 	// Initialize clustered database.
 	clusterTopoWatch, err := topo.Watch()
@@ -959,7 +976,7 @@ func Run(runOpts RunOptions) {
 
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
-			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 	}()
@@ -1308,60 +1325,13 @@ func setEncodersPerBlockLimitOnChange(
 	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
-// this function will block for at most waitTimeout to try to get an initial value
-// before we kick off the bootstrap
-func kvWatchBootstrappers(
-	kv kv.Store,
-	logger *zap.Logger,
-	waitTimeout time.Duration,
-	defaultBootstrappers []string,
-	onUpdate func(bootstrappers []string),
-) {
-	vw, err := kv.Watch(kvconfig.BootstrapperKey)
-	if err != nil {
-		logger.Fatal("could not watch value for key with KV",
-			zap.String("key", kvconfig.BootstrapperKey))
-	}
-
-	initializedCh := make(chan struct{})
-
-	var initialized bool
-	go func() {
-		opts := util.NewOptions().SetLogger(logger)
-
-		for range vw.C() {
-			v, err := util.StringArrayFromValue(vw.Get(),
-				kvconfig.BootstrapperKey, defaultBootstrappers, opts)
-			if err != nil {
-				logger.Error("error converting KV update to string array",
-					zap.String("key", kvconfig.BootstrapperKey),
-					zap.Error(err),
-				)
-				continue
-			}
-
-			onUpdate(v)
-
-			if !initialized {
-				initialized = true
-				close(initializedCh)
-			}
-		}
-	}()
-
-	select {
-	case <-time.After(waitTimeout):
-	case <-initializedCh:
-	}
-}
-
 func withEncodingAndPoolingOptions(
 	cfg config.DBConfiguration,
 	logger *zap.Logger,
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
-	iopts := opts.InstrumentOptions()
+	iOpts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	// Set the max bytes pool byte slice alloc size for the thrift pooling.
@@ -1371,9 +1341,9 @@ func withEncodingAndPoolingOptions(
 	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
+		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
-		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
+		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
 
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
@@ -1598,7 +1568,7 @@ func withEncodingAndPoolingOptions(
 			runtimeOpts   = opts.RuntimeOptionsManager()
 			wiredListOpts = block.WiredListOptions{
 				RuntimeOptionsManager: runtimeOpts,
-				InstrumentOptions:     iopts,
+				InstrumentOptions:     iOpts,
 				ClockOptions:          opts.ClockOptions(),
 			}
 			lruCfg = cfg.Cache.SeriesConfiguration().LRU
@@ -1658,15 +1628,15 @@ func withEncodingAndPoolingOptions(
 
 	// Set index options.
 	indexOpts := opts.IndexOptions().
-		SetInstrumentOptions(iopts).
+		SetInstrumentOptions(iOpts).
 		SetMemSegmentOptions(
 			opts.IndexOptions().MemSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+				SetInstrumentOptions(iOpts)).
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts).
+				SetInstrumentOptions(iOpts).
 				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
@@ -1700,7 +1670,7 @@ func withEncodingAndPoolingOptions(
 
 func newAdminClient(
 	config client.Configuration,
-	iopts instrument.Options,
+	iOpts instrument.Options,
 	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
@@ -1745,8 +1715,8 @@ func newAdminClient(
 	options = append(options, custom...)
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			InstrumentOptions: iOpts.
+				SetMetricsScope(iOpts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
 		},
 		options...,

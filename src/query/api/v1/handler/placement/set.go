@@ -21,6 +21,7 @@
 package placement
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -78,10 +80,10 @@ func (h *SetHandler) ServeHTTP(
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOptions)
 
-	req, pErr := h.parseRequest(r)
-	if pErr != nil {
-		logger.Error("unable to parse request", zap.Error(pErr))
-		xhttp.Error(w, pErr, http.StatusBadRequest)
+	req, err := h.parseRequest(r)
+	if err != nil {
+		logger.Error("unable to parse request", zap.Error(err))
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -91,7 +93,7 @@ func (h *SetHandler) ServeHTTP(
 		serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		logger.Error("unable to create placement service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -100,7 +102,7 @@ func (h *SetHandler) ServeHTTP(
 	if err != nil {
 		if err != kv.ErrNotFound {
 			logger.Error("unable to get current placement", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 
@@ -111,8 +113,18 @@ func (h *SetHandler) ServeHTTP(
 	newPlacement, err := placement.NewPlacementFromProto(req.Placement)
 	if err != nil {
 		logger.Error("unable to create new placement from proto", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
+	}
+
+	if err := placement.Validate(newPlacement); err != nil {
+		if !req.Force {
+			logger.Error("unable to validate new placement", zap.Error(err))
+			xhttp.WriteError(w,
+				xerrors.NewRenamedError(err, fmt.Errorf("unable to validate new placement: %w", err)))
+			return
+		}
+		logger.Warn("unable to validate new placement, continuing with force", zap.Error(err))
 	}
 
 	var (
@@ -144,7 +156,7 @@ func (h *SetHandler) ServeHTTP(
 
 		if err != nil {
 			logger.Error("unable to update placement", zap.Error(err), zap.Bool("isNewPlacement", isNewPlacement))
-			xhttp.Error(w, err, http.StatusInternalServerError)
+			xhttp.WriteError(w, err)
 			return
 		}
 
@@ -165,7 +177,7 @@ func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, 
 
 	req := &admin.PlacementSetRequest{}
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, err
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return req, nil

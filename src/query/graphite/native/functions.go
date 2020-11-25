@@ -55,6 +55,8 @@ const (
 	lastSeriesFnName     = "lastSeries"
 	maxFnName            = "max"
 	maxSeriesFnName      = "maxSeries"
+	medianFnName         = "median"
+	medianSeriesFnName   = "medianSeries"
 	minFnName            = "min"
 	minSeriesFnName      = "minSeries"
 	multiplyFnName       = "multiply"
@@ -62,7 +64,7 @@ const (
 	rangeFnName          = "range"
 	rangeOfFnName        = "rangeOf"
 	rangeOfSeriesFnName  = "rangeOfSeries"
-	stdevFnName           = "stdev"
+	stdevFnName          = "stdev"
 	stddevFnName         = "stddev"
 	stddevSeriesFnName   = "stddevSeries"
 	sumFnName            = "sum"
@@ -420,7 +422,12 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 	}
 
 	numTypes := len(f.in)
-	if len(in) < numTypes {
+	numRequiredTypes := numTypes
+	if f.variadic {
+		// Variadic can avoid specifying the last arg.
+		numRequiredTypes--
+	}
+	if len(in) < numRequiredTypes {
 		err := fmt.Errorf("call args mismatch: expected at least %d, actual %d",
 			len(f.in), len(in))
 		return reflect.Value{}, err

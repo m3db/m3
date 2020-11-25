@@ -200,17 +200,16 @@ func (d *downsamplerAndWriter) shouldDownsample(
 	overrides WriteOptions,
 ) bool {
 	var (
-		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
 		_, downsampleOverride = d.downsampleOverrideRules(overrides)
 	)
-	// Only downsample if the downsampler exists, and they either want to use the default mapping
+	// Only downsample if the downsampler is enabled, and they either want to use the default mapping
 	// rules, or they're trying to override the mapping rules and they've provided at least one
 	// override to do so.
-	return downsamplerExists && (useDefaultMappingRules || downsampleOverride)
+	return d.downsampler.Enabled() && (useDefaultMappingRules || downsampleOverride)
 }
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(
@@ -294,13 +293,21 @@ func (d *downsamplerAndWriter) writeToStorage(
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		return d.writeWithOptions(ctx, storage.WriteQueryOptions{
+		// NB(r): Allocate the write query at the top
+		// of the pooled worker instead of need to pass
+		// the options down the stack which can cause
+		// the stack to grow (and sometimes cause stack splits).
+		writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
 			Annotation: annotation,
 			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
+		if err != nil {
+			return err
+		}
+		return d.store.Write(ctx, writeQuery)
 	}
 
 	var (
@@ -314,35 +321,32 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
+			// NB(r): Allocate the write query at the top
+			// of the pooled worker instead of need to pass
+			// the options down the stack which can cause
+			// the stack to grow (and sometimes cause stack splits).
+			writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
 				Annotation: annotation,
 				Attributes: storageAttributesFromPolicy(p),
 			})
+			if err == nil {
+				err = d.store.Write(ctx, writeQuery)
+			}
 			if err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
 				errLock.Unlock()
 			}
+
 			wg.Done()
 		})
 	}
 
 	wg.Wait()
 	return multiErr.FinalError()
-}
-
-func (d *downsamplerAndWriter) writeWithOptions(
-	ctx context.Context,
-	opts storage.WriteQueryOptions,
-) error {
-	writeQuery, err := storage.NewWriteQuery(opts)
-	if err != nil {
-		return err
-	}
-	return d.store.Write(ctx, writeQuery)
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
@@ -397,13 +401,20 @@ func (d *downsamplerAndWriter) WriteBatch(
 				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
-					err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
+					// NB(r): Allocate the write query at the top
+					// of the pooled worker instead of need to pass
+					// the options down the stack which can cause
+					// the stack to grow (and sometimes cause stack splits).
+					writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 						Tags:       value.Tags,
 						Datapoints: value.Datapoints,
 						Unit:       value.Unit,
 						Annotation: value.Annotation,
 						Attributes: storageAttributesFromPolicy(p),
 					})
+					if err == nil {
+						err = d.store.Write(ctx, writeQuery)
+					}
 					if err != nil {
 						addError(err)
 					}

@@ -165,7 +165,8 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	fanoutOpts := options.FanoutOptions
 	result := &rpc.FetchOptions{
-		Limit: int64(options.SeriesLimit),
+		Limit:  int64(options.SeriesLimit),
+		Source: options.Source,
 	}
 
 	unagg, err := encodeFanoutOption(fanoutOpts.FanoutUnaggregated)
@@ -498,6 +499,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 		result.LookbackDuration = &duration
 	}
 
+	result.Source = rpcFetchOptions.Source
 	return result, nil
 }
 

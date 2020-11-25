@@ -78,6 +78,14 @@ type Options interface {
 	// persistence enabled.
 	ShardPersistenceFlushConcurrency() int
 
+	// SetIndexSegmentConcurrency sets the concurrency for
+	// building index segments.
+	SetIndexSegmentConcurrency(value int) Options
+
+	// IndexSegmentConcurrency returns the concurrency for
+	// building index segments.
+	IndexSegmentConcurrency() int
+
 	// SetPersistenceMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
@@ -95,6 +103,13 @@ type Options interface {
 	// PersistManager returns the persistence manager used to flush blocks
 	// when performing a bootstrap with persistence.
 	PersistManager() persist.Manager
+
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager. It's used to manage
+	// concurrent claims for volume indices per ns and block start.
+	IndexClaimsManager() fs.IndexClaimsManager
 
 	// SetCompactor sets the compactor used to compact segment builders into segments.
 	SetCompactor(value *compaction.Compactor) Options

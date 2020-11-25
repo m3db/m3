@@ -38,12 +38,10 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -212,7 +210,7 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	for _, instanceProto := range instancesProto {
 		instance, err := placement.NewInstanceFromProto(instanceProto)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.NewInvalidParamsError(err)
 		}
 		res = append(res, instance)
 	}
@@ -222,82 +220,123 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 
 // RegisterRoutes registers the placement routes
 func RegisterRoutes(
-	r *mux.Router,
+	r *queryhttp.EndpointRegistry,
 	defaults []handleroptions.ServiceOptionsDefault,
 	opts HandlerOptions,
-) {
+) error {
 	// Init
 	var (
-		initHandler      = NewInitHandler(opts)
-		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
-		initFn           = applyMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		initHandler = NewInitHandler(opts)
+		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(DeprecatedM3DBInitURL, deprecatedInitFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
-	r.HandleFunc(M3CoordinatorInitURL, initFn).Methods(InitHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBInitURL,
+		M3AggInitURL,
+		M3CoordinatorInitURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: initFn,
+		Methods: []string{InitHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Get
 	var (
-		getHandler      = NewGetHandler(opts)
-		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
-		getFn           = applyMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		getHandler = NewGetHandler(opts)
+		getFn      = applyMiddleware(getHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(DeprecatedM3DBGetURL, deprecatedGetFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
-	r.HandleFunc(M3CoordinatorGetURL, getFn).Methods(GetHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBGetURL,
+		M3AggGetURL,
+		M3CoordinatorGetURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: getFn,
+		Methods: []string{GetHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Delete all
 	var (
-		deleteAllHandler      = NewDeleteAllHandler(opts)
-		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
-		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteAllHandler = NewDeleteAllHandler(opts)
+		deleteAllFn      = applyMiddleware(deleteAllHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBDeleteAllURL,
+		M3AggDeleteAllURL,
+		M3CoordinatorDeleteAllURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: deleteAllFn,
+		Methods: []string{DeleteAllHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Add
 	var (
-		addHandler      = NewAddHandler(opts)
-		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
-		addFn           = applyMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		addHandler = NewAddHandler(opts)
+		addFn      = applyMiddleware(addHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3CoordinatorAddURL, addFn).Methods(AddHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBAddURL,
+		M3AggAddURL,
+		M3CoordinatorAddURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: addFn,
+		Methods: []string{AddHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Delete
 	var (
-		deleteHandler      = NewDeleteHandler(opts)
-		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
-		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteHandler = NewDeleteHandler(opts)
+		deleteFn      = applyMiddleware(deleteHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBDeleteURL,
+		M3AggDeleteURL,
+		M3CoordinatorDeleteURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: deleteFn,
+		Methods: []string{DeleteHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
-		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
-	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBReplaceURL,
+		M3AggReplaceURL,
+		M3CoordinatorReplaceURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: replaceFn,
+		Methods: []string{ReplaceHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Set
 	var (
 		setHandler = NewSetHandler(opts)
-		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults)
 	)
-	r.HandleFunc(M3DBSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3AggSetURL, setFn).Methods(SetHTTPMethod)
-	r.HandleFunc(M3CoordinatorSetURL, setFn).Methods(SetHTTPMethod)
+	if err := r.RegisterPaths([]string{
+		M3DBSetURL,
+		M3AggSetURL,
+		M3CoordinatorSetURL,
+	}, queryhttp.RegisterPathsOptions{
+		Handler: setFn,
+		Methods: []string{SetHTTPMethod},
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func newPlacementCutoverNanosFn(
@@ -377,74 +416,38 @@ type m3aggregatorPlacementOpts struct {
 	propagationDelay time.Duration
 }
 
-type unsafeAddError struct {
-	hosts string
-}
-
-func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
-}
-
 func validateAllAvailable(p placement.Placement) error {
-	badInsts := []string{}
+	var bad []string
 	for _, inst := range p.Instances() {
 		if !inst.IsAvailable() {
-			badInsts = append(badInsts, inst.ID())
+			bad = append(bad, inst.ID())
 		}
 	}
-	if len(badInsts) > 0 {
-		return unsafeAddError{
-			hosts: strings.Join(badInsts, ","),
-		}
+	if len(bad) > 0 {
+		str := strings.Join(bad, ", ")
+		err := fmt.Errorf("instances do not have all shards available: [%s]", str)
+		return xerrors.NewInvalidParamsError(err)
 	}
 	return nil
 }
 
 func applyMiddleware(
-	f func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
-	defaults []handleroptions.ServiceOptionsDefault,
-	instrumentOpts instrument.Options,
-) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
-		parseServiceMiddleware(f, defaults),
-		instrumentOpts,
-	).ServeHTTP
-}
-
-func applyDeprecatedMiddleware(
-	f func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
-	defaults []handleroptions.ServiceOptionsDefault,
-	instrumentOpts instrument.Options,
-) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			svc := handleroptions.ServiceNameAndDefaults{
-				ServiceName: handleroptions.M3DBServiceName,
-				Defaults:    defaults,
-			}
-			f(svc, w, r)
-		},
-		instrumentOpts,
-	).ServeHTTP
-}
-
-func parseServiceMiddleware(
 	next func(svc handleroptions.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
 	defaults []handleroptions.ServiceOptionsDefault,
-) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
 			svc = handleroptions.ServiceNameAndDefaults{Defaults: defaults}
 			err error
 		)
 		svc.ServiceName, err = parseServiceFromRequest(r)
 		if err != nil {
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 			return
 		}
 
 		next(svc, w, r)
-	}
+	})
 }
 
 func parseServiceFromRequest(r *http.Request) (string, error) {

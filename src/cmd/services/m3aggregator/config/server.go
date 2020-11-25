@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/server/http"
 	"github.com/m3db/m3/src/aggregator/server/m3msg"
 	"github.com/m3db/m3/src/aggregator/server/rawtcp"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
@@ -78,9 +77,6 @@ type RawTCPServerConfiguration struct {
 	// Read buffer size.
 	ReadBufferSize *int `yaml:"readBufferSize"`
 
-	// Msgpack iterator configuration.
-	MsgpackIterator msgpackUnaggregatedIteratorConfiguration `yaml:"msgpackIterator"`
-
 	// Protobuf iterator configuration.
 	ProtobufIterator protobufUnaggregatedIteratorConfiguration `yaml:"protobufIterator"`
 }
@@ -103,10 +99,6 @@ func (c *RawTCPServerConfiguration) NewServerOptions(
 	}
 	opts = opts.SetServerOptions(serverOpts)
 
-	// Set msgpack iterator options.
-	msgpackItOpts := c.MsgpackIterator.NewOptions(instrumentOpts)
-	opts = opts.SetMsgpackUnaggregatedIteratorOptions(msgpackItOpts)
-
 	// Set protobuf iterator options.
 	protobufItOpts := c.ProtobufIterator.NewOptions(instrumentOpts)
 	opts = opts.SetProtobufUnaggregatedIteratorOptions(protobufItOpts)
@@ -117,48 +109,6 @@ func (c *RawTCPServerConfiguration) NewServerOptions(
 	if c.ErrorLogLimitPerSecond != nil {
 		opts = opts.SetErrorLogLimitPerSecond(*c.ErrorLogLimitPerSecond)
 	}
-	return opts
-}
-
-// msgpackUnaggregatedIteratorConfiguration contains configuration for msgpack unaggregated iterator.
-type msgpackUnaggregatedIteratorConfiguration struct {
-	// Whether to ignore encoded data streams whose version is higher than the current known version.
-	IgnoreHigherVersion *bool `yaml:"ignoreHigherVersion"`
-
-	// Reader buffer size.
-	ReaderBufferSize *int `yaml:"readerBufferSize"`
-
-	// Whether a float slice is considered a "large" slice and therefore resort to
-	// the large floats pool for allocating that slice.
-	LargeFloatsSize *int `yaml:"largeFloatsSize"`
-
-	// Pool of large float slices.
-	LargeFloatsPool pool.BucketizedPoolConfiguration `yaml:"largeFloatsPool"`
-}
-
-func (c *msgpackUnaggregatedIteratorConfiguration) NewOptions(
-	instrumentOpts instrument.Options,
-) msgpack.UnaggregatedIteratorOptions {
-	scope := instrumentOpts.MetricsScope()
-	opts := msgpack.NewUnaggregatedIteratorOptions()
-	if c.IgnoreHigherVersion != nil {
-		opts = opts.SetIgnoreHigherVersion(*c.IgnoreHigherVersion)
-	}
-	if c.ReaderBufferSize != nil {
-		opts = opts.SetReaderBufferSize(*c.ReaderBufferSize)
-	}
-	if c.LargeFloatsSize != nil {
-		opts = opts.SetLargeFloatsSize(*c.LargeFloatsSize)
-	}
-
-	// NB(xichen): intentionally not using the same floats pool used for computing
-	// timer quantiles to accommodate different usage patterns and reduce contention.
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("large-floats-pool"))
-	largeFloatsPoolOpts := c.LargeFloatsPool.NewObjectPoolOptions(iOpts)
-	largeFloatsPool := pool.NewFloatsPool(c.LargeFloatsPool.NewBuckets(), largeFloatsPoolOpts)
-	opts = opts.SetLargeFloatsPool(largeFloatsPool)
-	largeFloatsPool.Init()
-
 	return opts
 }
 

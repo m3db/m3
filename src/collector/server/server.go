@@ -136,12 +136,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
-	listenAddress, err := cfg.ListenAddress.Resolve()
-	if err != nil {
-		logger.Fatal("unable to resolve listen address", zap.Error(err))
-	}
-
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srv := &http.Server{Addr: cfg.ListenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(ctx); err != nil {
@@ -150,10 +145,10 @@ func Run(runOpts RunOptions) {
 	}()
 
 	go func() {
-		logger.Info("starting server", zap.String("address", listenAddress))
+		logger.Info("starting server", zap.String("address", cfg.ListenAddress))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server error while listening",
-				zap.String("address", listenAddress), zap.Error(err))
+				zap.String("address", cfg.ListenAddress), zap.Error(err))
 		}
 	}()
 

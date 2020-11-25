@@ -26,19 +26,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -47,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -184,19 +184,7 @@ type Database interface {
 		start time.Time,
 		shards []uint32,
 		iterOpts index.IterationOptions,
-	) ([]xio.IndexChecksum, error) // FIXME: change when exact type known.
-
-	// ReadMismatches performs a wide blockwise query that applies a received
-	// index checksum block batch.
-	ReadMismatches(
-		ctx context.Context,
-		namespace ident.ID,
-		query index.Query,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		queryStart time.Time,
-		shards []uint32,
-		iterOpts index.IterationOptions,
-	) ([]wide.ReadMismatch, error) // TODO: update this type when reader hooked up
+	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -291,6 +279,15 @@ type Namespace interface {
 
 	// StorageOptions returns storage options.
 	StorageOptions() Options
+
+	// ReadOnly returns true if this Namespace is read only.
+	ReadOnly() bool
+
+	// SetReadOnly sets the value of ReadOnly option.
+	SetReadOnly(value bool)
+
+	// DocRef returns the doc if already present in a namespace shard.
+	DocRef(id ident.ID) (doc.Document, bool, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -375,22 +372,13 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID for the
+	// FetchWideEntry retrieves the wide entry for an ID for the
 	// block at time start.
-	FetchIndexChecksum(
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
-	) (block.StreamedChecksum, error)
-
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-	) (wide.StreamedMismatch, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -478,7 +466,7 @@ type databaseNamespace interface {
 // must make sure to release
 type SeriesReadWriteRef struct {
 	// Series reference for read/writing.
-	Series series.DatabaseSeries
+	Series bootstrap.SeriesRef
 	// UniqueIndex is the unique index of the series (as applicable).
 	UniqueIndex uint64
 	// Shard is the shard of the series.
@@ -548,23 +536,14 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
-	// FetchIndexChecksum retrieves the index checksum for an ID.
-	FetchIndexChecksum(
+	// FetchWideEntry retrieves wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (block.StreamedChecksum, error)
-
-	// FetchReadMismatch retrieves the read mismatches for an ID for the
-	// block at time start, with the given batchReader.
-	FetchReadMismatch(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -661,7 +640,6 @@ type databaseShard interface {
 	SeriesReadWriteRef(
 		id ident.ID,
 		tags ident.TagIterator,
-		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
@@ -670,12 +648,12 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		sourceNsID ident.ID,
-		sourceShardID uint32,
+		targetNs Namespace,
+		shardID uint32,
 		blockReaders []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
-		targetSchemaDesc namespace.SchemaDescr,
 	) (int64, error)
 
 	// LatestVolume returns the latest volume for the combination of shard+blockStart.
@@ -691,12 +669,6 @@ type ShardSnapshotResult struct {
 // by persisting data and updating shard state/block leases.
 type ShardColdFlush interface {
 	Done() error
-}
-
-// ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
-// for the shard.
-type ShardSeriesReadWriteRefOptions struct {
-	ReverseIndex bool
 }
 
 // NamespaceIndex indexes namespace writes.
@@ -1026,6 +998,9 @@ type OnColdFlushNamespace interface {
 	Done() error
 }
 
+// OptionTransform transforms given Options.
+type OptionTransform func(Options) Options
+
 // Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -1125,6 +1100,12 @@ type Options interface {
 
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
+
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager.
+	IndexClaimsManager() fs.IndexClaimsManager
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
@@ -1269,6 +1250,18 @@ type Options interface {
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
 
+	// SetForceColdWritesEnabled sets options for forcing cold writes.
+	SetForceColdWritesEnabled(value bool) Options
+
+	// SetForceColdWritesEnabled returns options for forcing cold writes.
+	ForceColdWritesEnabled() bool
+
+	// SetSourceLoggerBuilder sets the limit source logger builder.
+	SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options
+
+	// SetSourceLoggerBuilder returns the limit source logger builder.
+	SourceLoggerBuilder() limits.SourceLoggerBuilder
+
 	// SetMemoryTracker sets the MemoryTracker.
 	SetMemoryTracker(memTracker MemoryTracker) Options
 
@@ -1324,6 +1317,12 @@ type Options interface {
 
 	// NamespaceHooks returns the NamespaceHooks.
 	NamespaceHooks() NamespaceHooks
+
+	// SetTileAggregator sets the TileAggregator.
+	SetTileAggregator(aggregator TileAggregator) Options
+
+	// TileAggregator returns the TileAggregator.
+	TileAggregator() TileAggregator
 }
 
 // MemoryTracker tracks memory.
@@ -1391,12 +1390,28 @@ type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
 	Start, End time.Time
 	// Step is the downsampling step.
-	Step time.Duration
+	Step       time.Duration
+	InsOptions instrument.Options
 }
+
+// TileAggregator is the interface for AggregateTiles.
+type TileAggregator interface {
+	// AggregateTiles does tile aggregation.
+	AggregateTiles(
+		opts AggregateTilesOptions,
+		ns Namespace,
+		shardID uint32,
+		readers []fs.DataFileSetReader,
+		writer fs.StreamingWriter,
+	) (int64, error)
+}
+
+// NewTileAggregatorFn creates a new TileAggregator.
+type NewTileAggregatorFn func(iOpts instrument.Options) TileAggregator
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {
-	// OnCreatedNamespace gets invoked after each namespace is created.
+	// OnCreatedNamespace gets invoked after each namespace is initialized.
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 

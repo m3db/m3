@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -48,12 +47,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
@@ -136,7 +136,7 @@ type sessionState struct {
 type session struct {
 	state                                sessionState
 	opts                                 Options
-	runtimeOptsListenerCloser            xclose.Closer
+	runtimeOptsListenerCloser            xresource.SimpleCloser
 	scope                                tally.Scope
 	nowFn                                clock.NowFn
 	log                                  *zap.Logger

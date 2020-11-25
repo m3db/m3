@@ -90,8 +90,16 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 	c.nowFn = func() time.Time { return now }
 	source := newMockSource()
 	input := []testValue{
-		{namespace: testValues[1].namespace, id: testValues[0].id, result: testValues[0].result},
-		{namespace: testValues[1].namespace, id: testValues[1].id, result: rules.NewMatchResult(0, now.Add(time.Second).UnixNano(), nil, nil)},
+		{
+			namespace: testValues[1].namespace,
+			id:        testValues[0].id,
+			result:    testValues[0].result,
+		},
+		{
+			namespace: testValues[1].namespace,
+			id:        testValues[1].id,
+			result:    rules.NewMatchResult(0, now.Add(time.Second).UnixNano(), nil, nil, true),
+		},
 	}
 	populateCache(c, input, now, source, populateBoth)
 	entry, ok := c.namespaces.Get(testValues[1].namespace)
@@ -103,7 +111,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 		id         = testValues[1].id
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs)
+	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs, true)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -153,7 +161,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 		id         = testValues[1].id
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs)
+	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs, true)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -200,7 +208,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 		id         = testValues[1].id
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs)
+	result := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs, true)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -248,7 +256,13 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 	populateCache(c, input, now, source, populateBoth)
 
 	newVersion := 3
-	newResult := rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs)
+	newResult := rules.NewMatchResult(
+		0,
+		math.MaxInt64,
+		testForExistingID,
+		testForNewRollupIDs,
+		true,
+	)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "bar", "baz", "cat", "lol"} {
 		source.setResult([]byte(id), newResult)
@@ -346,7 +360,7 @@ func TestCacheMatchParallel(t *testing.T) {
 
 	newVersion := 3
 	nowNanos := time.Now().UnixNano()
-	newResult := rules.NewMatchResult(0, nowNanos, testForExistingID, testForNewRollupIDs)
+	newResult := rules.NewMatchResult(0, nowNanos, testForExistingID, testForNewRollupIDs, true)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "baz"} {
 		source.setResult([]byte(id), newResult)

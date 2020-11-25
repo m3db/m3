@@ -1,7 +1,4 @@
 db:
-  logging:
-    level: info
-
   tracing:
     backend: jaeger
     jaeger:
@@ -11,72 +8,29 @@ db:
         type: const
         param: 1
 
-  metrics:
-    prometheus:
-      handlerPath: /metrics
-    sanitization: prometheus
-    samplingRate: 1.0
-    extended: detailed
-
-  listenAddress: 0.0.0.0:9000
-  clusterListenAddress: 0.0.0.0:9001
-  httpNodeListenAddress: 0.0.0.0:9002
-  httpClusterListenAddress: 0.0.0.0:9003
-  debugListenAddress: 0.0.0.0:9004
-
   hostID:
     resolver: environment
     envVarName: M3DB_HOST_ID
 
-  client:
-    writeConsistencyLevel: majority
-    readConsistencyLevel: unstrict_majority
-
-  gcPercentage: 100
-
-  writeNewSeriesAsync: true
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
-  bootstrap:
-    bootstrappers:
-        - filesystem
-        - peers
-        - commitlog
-        - uninitialized_topology
-    commitlog:
-      returnUnfulfilledForCorruptCommitLogFiles: false
-
-  cache:
-    series:
-      policy: lru
-    postingsList:
-      size: 262144
-
-  commitlog:
-    flushMaxBytes: 524288
-    flushEvery: 1s
-    queue:
-      calculationType: fixed
-      size: 2097152
-
-  fs:
-    filePathPrefix: /var/lib/m3db
-
-  config:
+  # Note: cannot use type: "m3db_single_node" since sometimes
+  # multiple DB nodes spawned using the m3_stack start script
+  # and as such the non-seed nodes need to point etcd not to 
+  # localhost but to m3db_seed:2379 specifically.
+  discovery:
+    config:
       service:
-          env: default_env
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - m3db_seed:2379
+        env: default_env
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+          - zone: embedded
+            endpoints:
+              - m3db_seed:2379
       seedNodes:
-          initialCluster:
-              - hostID: m3db_seed
-                endpoint: http://m3db_seed:2380
+        initialCluster:
+          - hostID: m3db_seed
+            endpoint: http://m3db_seed:2380
 
   # proto:
   #   schemaFilePath: /etc/m3dbnode/schema.proto

@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -268,7 +266,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 		return block.LeaseState{Volume: 0}, nil
 	}).AnyTimes()
-	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.SetBlockLeaseManager(mockBlockLeaseManager)
+	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.
+		SetBlockLeaseManager(mockBlockLeaseManager)
 
 	// Generate data.
 	for _, shard := range shards {
@@ -771,8 +770,6 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	} else {
 		require.False(t, onRetrieveCalled)
 	}
-
-	require.NoError(t, err)
 }
 
 // TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method

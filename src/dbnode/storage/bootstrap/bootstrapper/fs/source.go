@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -37,13 +36,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs/migrator"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -77,8 +79,6 @@ type fileSystemSource struct {
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
-	persistManager    *bootstrapper.SharedPersistManager
-	compactor         *bootstrapper.SharedCompactor
 	metrics           fileSystemSourceMetrics
 }
 
@@ -104,12 +104,6 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		nowFn:       opts.ResultOptions().ClockOptions().NowFn(),
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
-		persistManager: &bootstrapper.SharedPersistManager{
-			Mgr: opts.PersistManager(),
-		},
-		compactor: &bootstrapper.SharedCompactor{
-			Compactor: opts.Compactor(),
-		},
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
 			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
@@ -328,14 +322,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
 	runOpts bootstrap.RunOptions,
+	runResult *runResult,
 	readerPool *bootstrapper.ReaderPool,
 	readersCh <-chan bootstrapper.TimeWindowReaders,
 	builder *result.IndexBuilder,
-) *runResult {
-	var (
-		runResult  = newRunResult()
-		resultOpts = s.opts.ResultOptions()
-	)
+	persistManager *bootstrapper.SharedPersistManager,
+	compactor *bootstrapper.SharedCompactor,
+) {
+	resultOpts := s.opts.ResultOptions()
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
@@ -343,10 +337,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		builder.Builder().Reset()
 
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-			runOpts, runResult, resultOpts, timeWindowReaders, readerPool, builder)
+			runOpts, runResult, resultOpts, timeWindowReaders, readerPool,
+			builder, persistManager, compactor)
 	}
-
-	return runResult
 }
 
 // markRunResultErrorsAndUnfulfilled checks the list of times that had errors and makes
@@ -397,6 +390,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
 	builder *result.IndexBuilder,
+	persistManager *bootstrapper.SharedPersistManager,
+	compactor *bootstrapper.SharedCompactor,
 ) {
 	var (
 		blockPool            = ropts.DatabaseBlockOptions().DatabaseBlockPool()
@@ -486,9 +481,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if err == nil && run == bootstrapIndexRunType {
 				// Mark index block as fulfilled.
 				fulfilled := result.NewShardTimeRanges().Set(shard, xtime.NewRanges(timeRange))
+				runResult.Lock()
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
 					idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
+				runResult.Unlock()
 				if err != nil {
 					s.log.Error("indexResults MarkFulfilled failed", zap.Error(err),
 						zap.Time("timeRangeStart", timeRange.Start))
@@ -542,7 +539,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
 
 		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+		runResult.Lock()
 		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
+		runResult.Unlock()
 		if !ok {
 			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 				blockStart.String(), blockStart.UnixNano())
@@ -584,7 +583,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				ns,
 				requestedRanges,
 				builder.Builder(),
-				s.persistManager,
+				persistManager,
+				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,
@@ -606,7 +606,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				ns,
 				requestedRanges,
 				builder.Builder(),
-				s.compactor,
+				compactor,
 				s.opts.ResultOptions(),
 				s.opts.FilesystemOptions().MmapReporter(),
 				blockStart,
@@ -632,7 +632,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		newFulfilled.AddRanges(indexBlock.Fulfilled())
 
 		// Replace index block for default index volume type.
+		runResult.Lock()
 		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+		runResult.Unlock()
 	}
 
 	// Return readers to pool.
@@ -800,7 +802,8 @@ func (s *fileSystemSource) read(
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
 	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
-	readersCh := make(chan bootstrapper.TimeWindowReaders)
+	indexSegmentConcurrency := s.opts.IndexSegmentConcurrency()
+	readersCh := make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
 	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
@@ -828,11 +831,56 @@ func (s *fileSystemSource) read(
 		NowFn:                     s.nowFn,
 		Cache:                     cache,
 	})
-	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-		accumulator, runOpts, readerPool, readersCh, builder)
+
+	bootstrapFromReadersRunResult := newRunResult()
+
+	var buildWg sync.WaitGroup
+	for i := 0; i < indexSegmentConcurrency; i++ {
+		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+		segBuilder, err := alloc()
+		if err != nil {
+			return nil, err
+		}
+
+		builder := result.NewIndexBuilder(segBuilder)
+
+		indexOpts := s.opts.IndexOptions()
+		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
+			index.DocumentArrayPoolCapacity,
+			indexOpts.SegmentBuilderOptions(),
+			indexOpts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				FSTWriterOptions: &fst.WriterOptions{
+					// DisableRegistry is set to true to trade a larger FST size
+					// for a faster FST compaction since we want to reduce the end
+					// to end latency for time to first index a metric.
+					DisableRegistry: true,
+				},
+			})
+		if err != nil {
+			return nil, err
+		}
+
+		persistManager, err := fs.NewPersistManager(s.opts.FilesystemOptions())
+		if err != nil {
+			return nil, err
+		}
+
+		buildWg.Add(1)
+		go func() {
+			s.bootstrapFromReaders(run, md,
+				accumulator, runOpts, bootstrapFromReadersRunResult,
+				readerPool, readersCh, builder,
+				&bootstrapper.SharedPersistManager{Mgr: persistManager},
+				&bootstrapper.SharedCompactor{Compactor: compactor})
+			buildWg.Done()
+		}()
+	}
+
+	buildWg.Wait()
 
 	// Merge any existing results if necessary.
-	setOrMergeResult(bootstrapFromDataReadersResult)
+	setOrMergeResult(bootstrapFromReadersRunResult)
 
 	return res, nil
 }
@@ -847,6 +895,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	shardTimeRanges result.ShardTimeRanges,
 	cache bootstrap.Cache,
 ) (*runResult, error) {
+	// No locking required, all local to this fn until returned.
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
 	for shard, ranges := range shardTimeRanges.Iter() {
@@ -932,12 +981,22 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
-		segments, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
+		fsOpts := s.fsopts
+		verify := s.opts.IndexSegmentsVerify()
+		if verify {
+			// Make sure for this call to read index segments
+			// to validate the index segment.
+			// If fails validation will rebuild since missing from
+			// fulfilled range.
+			fsOpts = fsOpts.SetIndexReaderAutovalidateIndexSegments(true)
+		}
+
+		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
 			},
-			FilesystemOptions: s.fsopts,
+			FilesystemOptions: fsOpts,
 		})
 		if err != nil {
 			s.log.Error("unable to read segments from index fileset",
@@ -958,8 +1017,8 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]result.Segment, 0, len(segments))
-		for _, segment := range segments {
+		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
+		for _, segment := range readResult.Segments {
 			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType
@@ -1004,6 +1063,12 @@ func (r *runResult) addIndexBlockIfNotExists(
 }
 
 func (r *runResult) mergedResult(other *runResult) *runResult {
+	r.Lock()
+	defer r.Unlock()
+
+	other.Lock()
+	defer other.Unlock()
+
 	return &runResult{
 		data:  result.MergedDataBootstrapResult(r.data, other.data),
 		index: result.MergedIndexBootstrapResult(r.index, other.index),

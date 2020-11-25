@@ -133,8 +133,13 @@ func testFilterFn(t *testing.T, id ident.ID) (uint32, bool) {
 }
 
 func TestWideSeriesResults(t *testing.T) {
+	var (
+		max       = 31
+		blockSize = time.Hour * 2
+		now       = time.Now().Truncate(blockSize)
+	)
+
 	// Test many different permutations of element count and batch sizes.
-	max := 31
 	for documentCount := 0; documentCount < max; documentCount++ {
 		for docBatchSize := 1; docBatchSize < max; docBatchSize++ {
 			for batchSize := 1; batchSize < max; batchSize++ {
@@ -149,7 +154,7 @@ func TestWideSeriesResults(t *testing.T) {
 				drainAndCheckBatches(t, expected, true, batchCh, doneCh)
 
 				wideQueryOptions, err := NewWideQueryOptions(
-					time.Now(), batchSize, time.Hour*2, nil, IterationOptions{})
+					now, batchSize, blockSize, nil, IterationOptions{})
 
 				require.NoError(t, err)
 
@@ -198,6 +203,9 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 
 		batchCh = make(chan *ident.IDBatch)
 		doneCh  = make(chan struct{})
+
+		blockSize = time.Hour * 2
+		now       = time.Now().Truncate(blockSize)
 	)
 
 	docs := buildDocs(documentCount, docBatchSize)
@@ -207,7 +215,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 	drainAndCheckBatches(t, expected, false, batchCh, doneCh)
 
 	wideQueryOptions, err := NewWideQueryOptions(
-		time.Now(), batchSize, time.Hour*2, shards, IterationOptions{})
+		now, batchSize, blockSize, shards, IterationOptions{})
 	require.NoError(t, err)
 	filter := func(id ident.ID) (uint32, bool) {
 		i, _ := testFilterFn(t, id)

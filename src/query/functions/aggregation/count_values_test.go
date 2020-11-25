@@ -105,7 +105,7 @@ var (
 )
 
 func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
-	tagName := "tag-name"
+	tagName := "tag_name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
 		StringParameter: tagName,
 	})
@@ -123,7 +123,7 @@ func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
 }
 
 func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
-	tagName := "tag-name"
+	tagName := "tag_name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
 		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
@@ -147,7 +147,7 @@ func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 }
 
 func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
-	tagName := "tag-name"
+	tagName := "tag_name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
 		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
@@ -199,7 +199,7 @@ func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 }
 
 func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
-	tagName := "0_tag-name"
+	tagName := "tag_name_0"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
 		MatchingTags: [][]byte{[]byte("a")}, Without: false, StringParameter: tagName,
 	})
@@ -217,7 +217,7 @@ func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
 }
 
 func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
-	tagName := "tag-name"
+	tagName := "tag_name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
 		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
@@ -301,3 +301,16 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	assert.Equal(t, ex.Tags, sink.Meta.Tags.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
+
+func TestShouldFailWhenInvalidLabelName(t *testing.T) {
+	tagName := "tag-name"
+	op, _ := NewCountValuesOp(CountValuesType, NodeParams{
+		StringParameter: tagName,
+	})
+	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, simpleMetas, simpleVals)
+	c, _ := executor.NewControllerWithSink(parser.NodeID(1))
+	node := op.(countValuesOp).Node(c, transform.Options{})
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	require.Error(t, err)
+}
+

@@ -28,11 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -43,12 +41,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -60,6 +60,7 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
+	errNamespaceReadOnly         = errors.New("cannot write to a read only namespace")
 )
 
 type commitLogWriter interface {
@@ -104,6 +105,7 @@ type dbNamespace struct {
 	sync.RWMutex
 
 	closed             bool
+	readOnly           bool
 	shutdownCh         chan struct{}
 	id                 ident.ID
 	shardSet           sharding.ShardSet
@@ -120,7 +122,7 @@ type dbNamespace struct {
 
 	// schemaDescr caches the latest schema for the namespace.
 	// schemaDescr is updated whenever schema registry is updated.
-	schemaListener xclose.SimpleCloser
+	schemaListener xresource.SimpleCloser
 	schemaDescr    namespace.SchemaDescr
 
 	// Contains an entry to all shards for fast shard lookup, an
@@ -677,6 +679,10 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
@@ -702,6 +708,10 @@ func (n *dbNamespace) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	if n.ReadOnly() {
+		return SeriesWrite{}, errNamespaceReadOnly
+	}
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
@@ -742,12 +752,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	if err != nil {
 		return SeriesReadWriteRef{}, owned, err
 	}
-
-	opts := ShardSeriesReadWriteRefOptions{
-		ReverseIndex: n.reverseIndex != nil,
-	}
-
-	res, err := shard.SeriesReadWriteRef(id, tags, opts)
+	res, err := shard.SeriesReadWriteRef(id, tags)
 	return res, true, err
 }
 
@@ -913,36 +918,22 @@ func (n *dbNamespace) ReadEncoded(
 	return res, err
 }
 
-func (n *dbNamespace) FetchIndexChecksum(
+func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return block.EmptyStreamedChecksum, err
-	}
-	res, err := shard.FetchIndexChecksum(ctx, id, blockStart, nsCtx)
-	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, err
-}
 
-func (n *dbNamespace) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-) (wide.StreamedMismatch, error) {
-	callStart := n.nowFn()
-	shard, nsCtx, err := n.readableShardFor(id)
-	if err != nil {
-		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return wide.EmptyStreamedMismatch, err
+		return block.EmptyStreamedWideEntry, err
 	}
-	res, err := shard.FetchReadMismatch(ctx, mismatchChecker, id, blockStart, nsCtx)
+
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
 	return res, err
 }
 
@@ -1145,7 +1136,7 @@ func (n *dbNamespace) WarmFlush(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	if !n.nopts.FlushEnabled() {
+	if n.ReadOnly() || !n.nopts.FlushEnabled() {
 		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1261,7 +1252,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	// If repair is enabled we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	if !n.nopts.ColdWritesEnabled() && !n.nopts.RepairEnabled() {
+	enabled := n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()
+	if n.ReadOnly() || !enabled {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1589,6 +1581,14 @@ func (n *dbNamespace) Index() (NamespaceIndex, error) {
 	return n.reverseIndex, nil
 }
 
+func (n *dbNamespace) ReadOnly() bool {
+	return n.readOnly
+}
+
+func (n *dbNamespace) SetReadOnly(value bool) {
+	n.readOnly = value
+}
+
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
@@ -1733,11 +1733,8 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
-	n.RLock()
-	nsCtx := n.nsContextWithRLock()
-	n.RUnlock()
-
 	var (
+		processedShards   = opts.InsOptions.MetricsScope().Counter("processed-shards")
 		targetShards      = n.OwnedShards()
 		bytesPool         = sourceNs.StorageOptions().BytesPool()
 		fsOptions         = sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions()
@@ -1778,9 +1775,10 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts, nsCtx.Schema)
+			sourceNs.ID(), n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
 
 		processedTileCount += shardProcessedTileCount
+		processedShards.Inc(1)
 		if err != nil {
 			return 0, fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 		}
@@ -1795,4 +1793,12 @@ func (n *dbNamespace) aggregateTiles(
 		zap.Duration("took", time.Now().Sub(startedAt)))
 
 	return processedTileCount, nil
+}
+
+func (n *dbNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+	shard, _, err := n.readableShardFor(id)
+	if err != nil {
+		return doc.Document{}, false, err
+	}
+	return shard.DocRef(id)
 }

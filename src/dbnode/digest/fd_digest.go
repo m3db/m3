@@ -25,12 +25,12 @@ import (
 	"hash/adler32"
 	"os"
 
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // FdWithDigest is a container for a file descriptor and the digest for the file contents.
 type FdWithDigest interface {
-	xclose.Closer
+	xresource.Closer
 
 	// Fd returns the file descriptor.
 	Fd() *os.File
