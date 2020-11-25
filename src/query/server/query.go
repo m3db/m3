@@ -72,7 +72,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	prometheuspromql "github.com/prometheus/prometheus/promql"

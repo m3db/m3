@@ -62,10 +62,6 @@ const (
 						}
 					}
 				]
-			},
-			"extendedOptions": {
-				"@type": "testm3db.io/m3.test.PingResponse",
-				"Value": "bar"
 			}
 		}
 }
@@ -199,7 +195,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("bar"),
+						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
 					},
 				},
 			},
