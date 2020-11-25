@@ -913,7 +913,6 @@ func TestWideQuery(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
 		"root",
