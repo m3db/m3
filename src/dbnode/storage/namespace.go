@@ -1751,6 +1751,11 @@ func (n *dbNamespace) aggregateTiles(
 		blockReaders = append(blockReaders, reader)
 	}
 
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	if err != nil {
+		return 0, err
+	}
+
 	var processedTileCount int64
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
@@ -1775,13 +1780,18 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
+			sourceNs.ID(), n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
+			onColdFlushNs, opts)
 
 		processedTileCount += shardProcessedTileCount
 		processedShards.Inc(1)
 		if err != nil {
 			return 0, fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 		}
+	}
+
+	if err := onColdFlushNs.Done(); err != nil {
+		return 0, err
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
