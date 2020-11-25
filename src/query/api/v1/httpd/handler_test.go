@@ -48,6 +48,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +102,7 @@ func setupHandler(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
-		nil,
+		newPromEngine(),
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
@@ -122,6 +123,13 @@ func setupHandler(
 	}
 
 	return NewHandler(opts, customHandlers...), nil
+}
+
+func newPromEngine() *promql.Engine {
+	return promql.NewEngine(promql.EngineOpts{
+		MaxSamples:         10000,
+		Timeout:            100 * time.Second,
+	})
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -394,7 +402,8 @@ func TestCustomRoutes(t *testing.T) {
 		})
 	require.NoError(t, err)
 	opts, err := options.NewHandlerOptions(
-		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
+		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")),
+		engine, newPromEngine(), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
 		fetchOptsBuilder, models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),

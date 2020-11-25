@@ -170,11 +170,16 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	opts := prom.Options{
-		PromQLEngine: h.options.PrometheusEngine(),
+	promqlQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
+		prom.WithEngine(h.options.PrometheusEngine()))
+	if err != nil {
+		return err
 	}
-	promqlQueryHandler := prom.NewReadHandler(opts, nativeSourceOpts)
-	promqlInstantQueryHandler := prom.NewReadInstantHandler(opts, nativeSourceOpts)
+	promqlInstantQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
+		prom.WithInstantEngine(h.options.PrometheusEngine()))
+	if err != nil {
+		return err
+	}
 	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
 	nativePromReadInstantHandler := native.NewPromReadInstantHandler(nativeSourceOpts)
 
