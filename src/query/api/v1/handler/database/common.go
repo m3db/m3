@@ -25,6 +25,7 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -45,9 +46,10 @@ func RegisterRoutes(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
+	namespaceValidator options.NamespaceValidator,
 ) error {
 	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
-		defaults, instrumentOpts)
+		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err
 	}

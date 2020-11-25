@@ -66,7 +66,7 @@ var (
 	}
 
 	validNamespaceOpts = []nsproto.NamespaceOptions{
-		nsproto.NamespaceOptions{
+		{
 			BootstrapEnabled:      true,
 			FlushEnabled:          true,
 			WritesToCommitLog:     true,
@@ -78,7 +78,7 @@ var (
 			ExtendedOptions:       validExtendedOpts,
 			StagingState:          &nsproto.StagingState{Status: nsproto.StagingStatus_INITIALIZING},
 		},
-		nsproto.NamespaceOptions{
+		{
 			BootstrapEnabled:  true,
 			FlushEnabled:      true,
 			WritesToCommitLog: true,
@@ -92,7 +92,7 @@ var (
 	}
 
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
-		nsproto.NamespaceOptions{
+		{
 			RetentionOptions: &validRetentionOpts,
 			SchemaOptions:    testSchemaOptions,
 		},
@@ -100,7 +100,7 @@ var (
 
 	invalidRetentionOpts = []nsproto.RetentionOptions{
 		// block size < buffer past
-		nsproto.RetentionOptions{
+		{
 			RetentionPeriodNanos:                     toNanos(1200), // 20h
 			BlockSizeNanos:                           toNanos(2),    // 2m
 			BufferFutureNanos:                        toNanos(12),   // 12m
@@ -109,7 +109,7 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 		// block size > retention
-		nsproto.RetentionOptions{
+		{
 			RetentionPeriodNanos:                     toNanos(1200), // 20h
 			BlockSizeNanos:                           toNanos(1260), // 21h
 			BufferFutureNanos:                        toNanos(12),   // 12m
@@ -150,7 +150,7 @@ func TestNamespaceToRetentionInvalid(t *testing.T) {
 	}
 }
 
-func TestToNamespaceValid(t *testing.T) {
+func TestToMetadataValid(t *testing.T) {
 	for _, nsopts := range validNamespaceOpts {
 		nsOpts, err := namespace.ToMetadata("abc", &nsopts)
 		require.NoError(t, err)
@@ -158,7 +158,20 @@ func TestToNamespaceValid(t *testing.T) {
 	}
 }
 
-func TestToNamespaceInvalid(t *testing.T) {
+func TestToMetadataNilIndexOpts(t *testing.T) {
+	nsopts := validNamespaceOpts[0]
+
+	nsopts.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
+	nsopts.IndexOptions = nil
+
+	nsOpts, err := namespace.ToMetadata("id", &nsopts)
+	require.NoError(t, err)
+	assert.Equal(t,
+		time.Duration(nsopts.RetentionOptions.BlockSizeNanos),
+		nsOpts.Options().IndexOptions().BlockSize())
+}
+
+func TestToMetadataInvalid(t *testing.T) {
 	for _, nsopts := range validNamespaceOpts {
 		_, err := namespace.ToMetadata("", &nsopts)
 		require.Error(t, err)

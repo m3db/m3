@@ -1411,7 +1411,7 @@ type NewTileAggregatorFn func(iOpts instrument.Options) TileAggregator
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {
-	// OnCreatedNamespace gets invoked after each namespace is created.
+	// OnCreatedNamespace gets invoked after each namespace is initialized.
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 
