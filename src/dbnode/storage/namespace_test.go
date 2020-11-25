@@ -940,9 +940,9 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = DefaultTestOptions()
+		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
 
-	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
