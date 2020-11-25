@@ -30,18 +30,19 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-func TestValidateNewNamespace(t *testing.T) {
-	var (
-		id   = ident.BytesID("id")
-		opts = namespace.NewOptions()
-	)
+var (
+	id   = ident.BytesID("id")
+	opts = namespace.NewOptions()
+)
 
+func TestValidateNewNamespace(t *testing.T) {
 	valid, err := namespace.NewMetadata(id, opts)
 	require.NoError(t, err)
 
 	assert.NoError(t, NamespaceValidator.ValidateNewNamespace(valid, nil))
+}
 
-	// Prevent mismatching block sizes.
+func TestValidateNewNamespaceFailOnBlockSize(t *testing.T) {
 	mismatchingBlockOpts := opts.
 		SetRetentionOptions(opts.RetentionOptions().SetBlockSize(7200000000000)).
 		SetIndexOptions(opts.IndexOptions().SetBlockSize(7200000000000 * 2))
@@ -50,4 +51,12 @@ func TestValidateNewNamespace(t *testing.T) {
 
 	err = NamespaceValidator.ValidateNewNamespace(mismatchingBlocks, nil)
 	assert.EqualError(t, err, "index and retention block size must match (2h0m0s, 4h0m0s)")
+}
+
+func TestValidateNewNamespaceFailDuplicate(t *testing.T) {
+	ns, err := namespace.NewMetadata(id, opts)
+	require.NoError(t, err)
+
+	err = NamespaceValidator.ValidateNewNamespace(ns, []namespace.Metadata{ns})
+	assert.Equal(t, ErrNamespaceExists, err)
 }

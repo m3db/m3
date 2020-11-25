@@ -203,7 +203,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestApplyNewNamespaceValidator(t *testing.T) {
+func TestNamespaceAddHandler_InvokesNewNamespaceValidator(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
