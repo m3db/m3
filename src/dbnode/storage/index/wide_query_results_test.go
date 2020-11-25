@@ -93,16 +93,22 @@ func buildExpected(t *testing.T, docs [][]doc.Document) [][]string {
 func drainAndCheckBatches(
 	t *testing.T,
 	expected [][]string,
+	checkShard bool,
 	batchCh <-chan *ident.IDBatch,
 	doneCh chan<- struct{},
 ) {
 	go func() {
 		i := 0
+		var exShard uint32
 		for batch := range batchCh {
-			batchStr := make([]string, 0, len(batch.IDs))
-			for _, id := range batch.IDs {
-				batchStr = append(batchStr, id.String())
-				id.Finalize()
+			batchStr := make([]string, 0, len(batch.ShardIDs))
+			for _, shardID := range batch.ShardIDs {
+				batchStr = append(batchStr, shardID.ID.String())
+				shardID.ID.Finalize()
+				if checkShard {
+					assert.Equal(t, exShard, shardID.Shard)
+				}
+				exShard++
 			}
 
 			batch.Processed()
@@ -117,6 +123,13 @@ func drainAndCheckBatches(
 		assert.Equal(t, len(expected), i)
 		doneCh <- struct{}{}
 	}()
+}
+
+func testFilterFn(t *testing.T, id ident.ID) (uint32, bool) {
+	i, err := strconv.Atoi(strings.TrimPrefix(id.String(), "foo"))
+	require.NoError(t, err)
+	// mark this shard as not owned by this node; should not appear in result
+	return uint32(i), true
 }
 
 func TestWideSeriesResults(t *testing.T) {
@@ -138,13 +151,18 @@ func TestWideSeriesResults(t *testing.T) {
 				docs := buildDocs(documentCount, docBatchSize)
 				// NB: expected should have docs split by `batchSize`
 				expected := buildExpected(t, buildDocs(documentCount, batchSize))
-				drainAndCheckBatches(t, expected, batchCh, doneCh)
+				drainAndCheckBatches(t, expected, true, batchCh, doneCh)
 
 				wideQueryOptions, err := NewWideQueryOptions(
 					now, batchSize, blockSize, nil, IterationOptions{})
 
 				require.NoError(t, err)
-				wideRes := NewWideQueryResults(testNs, testIDPool, nil, batchCh, wideQueryOptions)
+
+				filter := func(id ident.ID) (uint32, bool) {
+					return testFilterFn(t, id)
+				}
+
+				wideRes := NewWideQueryResults(testNs, testIDPool, filter, batchCh, wideQueryOptions)
 				var runningSize, batchDocCount int
 				for _, docBatch := range docs {
 					size, docsCount, err := wideRes.AddDocuments(docBatch)
@@ -176,7 +194,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 		// This shard is part of the shard set being queried, but it will be
 		// flagged as not being owned by this node in the filter function, thus
 		// it should not appear in the result.
-		notOwnedShard = 7
+		notOwnedShard = uint32(7)
 
 		// After reading the last queried shard, add documents should
 		// short-circuit future shards by returning shard exhausted error.
@@ -192,16 +210,15 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 
 	docs := buildDocs(documentCount, docBatchSize)
 	// NB: feed these in out of order to ensure WideQueryOptions sorts them.
-	shards := []uint32{21, uint32(notOwnedShard), 41, uint32(lastQueriedShard), 1}
+	shards := []uint32{21, notOwnedShard, 41, uint32(lastQueriedShard), 1}
 	expected := [][]string{{"foo1", "foo21", "foo41"}, {"foo42"}}
-	drainAndCheckBatches(t, expected, batchCh, doneCh)
+	drainAndCheckBatches(t, expected, false, batchCh, doneCh)
 
 	wideQueryOptions, err := NewWideQueryOptions(
 		now, batchSize, blockSize, shards, IterationOptions{})
 	require.NoError(t, err)
 	filter := func(id ident.ID) (uint32, bool) {
-		i, err := strconv.Atoi(strings.TrimPrefix(id.String(), "foo"))
-		require.NoError(t, err)
+		i, _ := testFilterFn(t, id)
 		// mark this shard as not owned by this node; should not appear in result
 		owned := i != notOwnedShard
 		return uint32(i), owned
@@ -216,7 +233,7 @@ func TestWideSeriesResultsWithShardFilter(t *testing.T) {
 		minInclusive := i * docBatchSize
 		maxExclusive := minInclusive + docBatchSize
 		for _, shard := range shards {
-			if int(shard) == notOwnedShard {
+			if shard == notOwnedShard {
 				continue
 			}
 
