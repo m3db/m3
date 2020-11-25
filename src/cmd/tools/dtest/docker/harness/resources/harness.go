@@ -66,8 +66,8 @@ type dockerResources struct {
 // single DB node.
 func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) {
 	options := setupOptions{}
-	for _, o := range opts {
-		o.apply(&options)
+	for _, f := range opts {
+		f(&options)
 	}
 
 	pool, err := dockertest.NewPool("")

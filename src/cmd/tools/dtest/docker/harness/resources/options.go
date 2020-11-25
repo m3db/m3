@@ -30,30 +30,19 @@ type setupOptions struct {
 	coordinatorImage dockerImage
 }
 
-type SetupOptions interface {
-	apply(*setupOptions)
-}
+// SetupOptions is used for passing docker test setup parameters
+type SetupOptions func(*setupOptions)
 
-type dbnodeImageNameOption struct {
-	dockerImage
-}
-
-func (o dbnodeImageNameOption) apply(opts *setupOptions) {
-	opts.dbNodeImage = o.dockerImage
-}
-
+// WithDBNodeImage sets the name and tag of m3dbnode docker image to be used
 func WithDBNodeImage(name, tag string) SetupOptions {
-	return dbnodeImageNameOption{dockerImage{name, tag}}
+	return func(o *setupOptions) {
+		o.dbNodeImage = dockerImage{name, tag}
+	}
 }
 
-type coordinatorImageNameOption struct {
-	dockerImage
-}
-
-func (o coordinatorImageNameOption) apply(opts *setupOptions) {
-	opts.coordinatorImage = o.dockerImage
-}
-
+// WithCoordinatorImage sets the name and tag of m3coordinator docker image to be used
 func WithCoordinatorImage(name, tag string) SetupOptions {
-	return coordinatorImageNameOption{dockerImage{name, tag}}
+	return func(o *setupOptions) {
+		o.coordinatorImage = dockerImage{name, tag}
+	}
 }
