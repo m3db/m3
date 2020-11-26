@@ -601,7 +601,7 @@ type databaseShard interface {
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(
 		flush persist.FlushPreparer,
-		resources coldFlushReuseableResources,
+		resources coldFlushReusableResources,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (ShardColdFlush, error)

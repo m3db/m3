@@ -1187,7 +1187,7 @@ type idAndBlockStart struct {
 	blockStart xtime.UnixNano
 }
 
-type coldFlushReuseableResources struct {
+type coldFlushReusableResources struct {
 	// dirtySeries is a map from a composite key of <series ID, block start>
 	// to an element in a list in the dirtySeriesToWrite map. This map is used
 	// to quickly test whether a series is dirty for a particular block start.
@@ -1209,13 +1209,13 @@ type coldFlushReuseableResources struct {
 	fsReader      fs.DataFileSetReader
 }
 
-func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+func newColdFlushReusableResources(opts Options) (coldFlushReusableResources, error) {
 	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		return coldFlushReuseableResources{}, nil
+		return coldFlushReusableResources{}, nil
 	}
 
-	return coldFlushReuseableResources{
+	return coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		// TODO(juchan): set pool options.
@@ -1224,7 +1224,7 @@ func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, 
 	}, nil
 }
 
-func (r *coldFlushReuseableResources) reset() {
+func (r *coldFlushReusableResources) reset() {
 	for _, seriesList := range r.dirtySeriesToWrite {
 		if seriesList != nil {
 			seriesList.Reset()
@@ -1260,7 +1260,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	shards := n.OwnedShards()
 
-	resources, err := newColdFlushReuseableResources(n.opts)
+	resources, err := newColdFlushReusableResources(n.opts)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
