@@ -39,7 +39,9 @@ func TestErrorMsg(t *testing.T) {
 	defer testSetup.Close()
 
 	require.NoError(t, testSetup.StartServer())
-	defer require.NoError(t, testSetup.StopServer())
+	defer func() {
+		require.NoError(t, testSetup.StopServer())
+	}()
 
 	var (
 		storageOpts = testSetup.StorageOpts()
