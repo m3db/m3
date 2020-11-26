@@ -1209,10 +1209,10 @@ type coldFlushReusableResources struct {
 	fsReader      fs.DataFileSetReader
 }
 
-func newColdFlushReusableResources(opts Options) (coldFlushReusableResources, error) {
+func newColdFlushReusableResources(opts Options) coldFlushReusableResources {
 	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		return coldFlushReusableResources{}, nil
+		return coldFlushReusableResources{}
 	}
 
 	return coldFlushReusableResources{
@@ -1221,7 +1221,7 @@ func newColdFlushReusableResources(opts Options) (coldFlushReusableResources, er
 		// TODO(juchan): set pool options.
 		idElementPool: newIDElementPool(nil),
 		fsReader:      fsReader,
-	}, nil
+	}
 }
 
 func (r *coldFlushReusableResources) reset() {
@@ -1259,12 +1259,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	}
 
 	shards := n.OwnedShards()
-
-	resources, err := newColdFlushReusableResources(n.opts)
-	if err != nil {
-		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
-		return err
-	}
+	resources := newColdFlushReusableResources(n.opts)
 
 	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
 	// time between when we rotate out the active cold mutable index segments (happens here) and when
@@ -1273,6 +1268,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// where they will be evicted from the in-mem index.
 	var (
 		onColdFlushDone OnColdFlushDone
+		err             error
 	)
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
