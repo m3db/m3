@@ -515,10 +515,7 @@ func (s *seeker) SeekWideEntry(
 				// NB: this entry is not being taken, can free memory.
 				resources.decodeIndexEntryBytesPool.Put(entry.ID)
 				resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-				if err != nil {
-					return xio.WideEntry{}, err
-				}
-				return xio.WideEntry{}, nil
+				return xio.WideEntry{}, err
 			}
 		}
 
