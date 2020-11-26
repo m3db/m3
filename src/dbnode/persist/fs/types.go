@@ -222,7 +222,11 @@ type DataFileSetSeeker interface {
 
 	// SeekWideEntry seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a wide entry checksum of the series.
-	SeekWideEntry(id ident.ID, filter schema.WideEntryFilter, resources ReusableSeekerResources) (xio.WideEntry, error)
+	SeekWideEntry(
+		id ident.ID,
+		filter schema.WideEntryFilter,
+		resources ReusableSeekerResources,
+	) (xio.WideEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -260,7 +264,11 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekWideEntry is the same as in DataFileSetSeeker.
-	SeekWideEntry(id ident.ID, filter schema.WideEntryFilter, resources ReusableSeekerResources) (xio.WideEntry, error)
+	SeekWideEntry(
+		id ident.ID,
+		filter schema.WideEntryFilter,
+		resources ReusableSeekerResources,
+	) (xio.WideEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
