@@ -941,12 +941,9 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-// batchProcessWideQuery runs the given query against the namespace index,
-// iterating in a batchwise fashion across all matching IDs, applying the given
-// IDBatchProcessor batch processing function to each ID discovered.
-func (d *db) batchProcessWideQuery(
+func (d *db) BatchProcessWideQuery(
 	ctx context.Context,
-	n databaseNamespace,
+	n WideNamespace,
 	query index.Query,
 	batchProcessor IDBatchProcessor,
 	opts index.WideQueryOptions,
@@ -994,7 +991,7 @@ func (d *db) WideQuery(
 	shards []uint32,
 	iterOpts index.IterationOptions,
 ) ([]xio.WideEntry, error) { // nolint FIXME: change when exact type known.
-	n, err := d.namespaceFor(namespace)
+	n, err := d.WideNamespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
@@ -1029,8 +1026,9 @@ func (d *db) WideQuery(
 	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedWideEntries = streamedWideEntries[:0]
+
 		for _, shardID := range batch.ShardIDs {
-			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start)
+			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start, nil)
 			if err != nil {
 				return err
 			}
@@ -1050,7 +1048,7 @@ func (d *db) WideQuery(
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+	err = d.BatchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1224,6 +1222,16 @@ func (d *db) FlushState(
 		return fileOpState{}, err
 	}
 	return n.FlushState(shardID, blockStart)
+}
+
+func (d *db) WideNamespaceFor(namespace ident.ID) (WideNamespace, error) {
+	ns, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	return ns, nil
 }
 
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {

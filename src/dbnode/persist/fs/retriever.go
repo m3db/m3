@@ -40,6 +40,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -314,7 +315,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
 		case streamWideEntryReq:
-			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
+			entry, err := seeker.SeekWideEntry(req.id, req.wideFilter, seekerResources)
 			if err != nil {
 				if errors.Is(err, errSeekIDNotFound) {
 					// Missing, return empty result, successful lookup.
@@ -663,10 +664,12 @@ func (r *blockRetriever) StreamWideEntry(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	req := r.reqPool.Get()
 	req.streamReqType = streamWideEntryReq
+	req.wideFilter = filter
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
@@ -788,6 +791,7 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	wideEntry     xio.WideEntry
+	wideFilter    schema.WideEntryFilter
 	reader        xio.SegmentReader
 
 	err error
@@ -965,6 +969,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.wideEntry = xio.WideEntry{}
+	req.wideFilter = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

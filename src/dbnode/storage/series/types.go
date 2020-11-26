@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -90,6 +91,7 @@ type DatabaseSeries interface {
 	FetchWideEntry(
 		ctx context.Context,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (block.StreamedWideEntry, error)
 

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -175,6 +176,9 @@ type Database interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
+	// WideNamespaceFor returns the WideNamespace for the given ID, if it exists.
+	WideNamespaceFor(namespace ident.ID) (WideNamespace, error)
+
 	// WideQuery performs a wide blockwise query that provides batched results
 	// that can exceed query limits.
 	WideQuery(
@@ -185,6 +189,17 @@ type Database interface {
 		shards []uint32,
 		iterOpts index.IterationOptions,
 	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
+
+	// BatchProcessWideQuery runs the given query against the namespace index,
+	// iterating in a batchwise fashion across all matching IDs, applying the given
+	// IDBatchProcessor batch processing function to each ID discovered.
+	BatchProcessWideQuery(
+		ctx context.Context,
+		n WideNamespace,
+		query index.Query,
+		batchProcessor IDBatchProcessor,
+		opts index.WideQueryOptions,
+	) error
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -307,8 +322,30 @@ type SeriesWrite struct {
 	PendingIndexInsert writes.PendingIndexInsert
 }
 
-type databaseNamespace interface {
+// WideNamespace is a namespace with wide operations.
+type WideNamespace interface {
 	Namespace
+
+	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
+	// FetchWideEntry retrieves the wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		filter schema.WideEntryFilter,
+	) (block.StreamedWideEntry, error)
+}
+
+type databaseNamespace interface {
+	WideNamespace
 
 	// Close will release the namespace resources and close the namespace.
 	Close() error
@@ -350,14 +387,6 @@ type databaseNamespace interface {
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
 
-	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
-	WideQueryIDs(
-		ctx context.Context,
-		query index.Query,
-		collector chan *ident.IDBatch,
-		opts index.WideQueryOptions,
-	) error
-
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
 		ctx context.Context,
@@ -371,14 +400,6 @@ type databaseNamespace interface {
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
-
-	// FetchWideEntry retrieves the wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart time.Time,
-	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -542,6 +563,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (block.StreamedWideEntry, error)
 
@@ -1250,6 +1272,12 @@ type Options interface {
 
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
+
+	// SetIterationOptions sets iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns iteration options.
+	IterationOptions() index.IterationOptions
 
 	// SetForceColdWritesEnabled sets options for forcing cold writes.
 	SetForceColdWritesEnabled(value bool) Options
