@@ -30,7 +30,7 @@ type setupOptions struct {
 	coordinatorImage dockerImage
 }
 
-// SetupOption is a setup option.
+// SetupOptions is a setup option.
 type SetupOptions func(*setupOptions)
 
 // WithDBNodeImage sets an option to use an image name and tag for the DB node.

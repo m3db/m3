@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package resources contain resources needed to setup docker containers for M3 tests
 package resources
 
 import (
@@ -64,7 +65,7 @@ type dockerResources struct {
 
 // SetupSingleM3DBNode creates docker resources representing a setup with a
 // single DB node.
-func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) {
+func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nolint: gocyclo
 	options := setupOptions{}
 	for _, f := range opts {
 		f(&options)
