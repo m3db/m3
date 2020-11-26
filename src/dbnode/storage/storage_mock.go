@@ -346,17 +346,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-<<<<<<< HEAD
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
-=======
 func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards)
 	ret0, _ := ret[0].(wide.QueryIterator)
->>>>>>> Squash it
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -364,11 +357,7 @@ func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query 
 // WideQuery indicates an expected call of WideQuery
 func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-<<<<<<< HEAD
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
-=======
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*MockDatabase)(nil).WideQuery), ctx, namespace, query, start, shards)
->>>>>>> Squash it
 }
 
 // FetchBlocks mocks base method
@@ -782,31 +771,18 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // WideQuery mocks base method
-<<<<<<< HEAD
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
-	ret0, _ := ret[0].([]xio.WideEntry)
-=======
 func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32) (wide.QueryIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards)
 	ret0, _ := ret[0].(wide.QueryIterator)
->>>>>>> Squash it
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WideQuery indicates an expected call of WideQuery
-<<<<<<< HEAD
-func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards, iterOpts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards, iterOpts)
-=======
 func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQuery", reflect.TypeOf((*Mockdatabase)(nil).WideQuery), ctx, namespace, query, start, shards)
->>>>>>> Squash it
 }
 
 // FetchBlocks mocks base method

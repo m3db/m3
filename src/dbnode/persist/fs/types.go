@@ -660,6 +660,15 @@ type Segments interface {
 	BlockStart() time.Time
 }
 
+// IndexClaimsManager manages concurrent claims to volume indices per ns and block start.
+// This allows multiple threads to safely increment the volume index.
+type IndexClaimsManager interface {
+	ClaimNextIndexFileSetVolumeIndex(
+		md namespace.Metadata,
+		blockStart time.Time,
+	) (int, error)
+}
+
 // BlockRecord wraps together M3TSZ data bytes with their checksum.
 type BlockRecord struct {
 	Data         []byte
