@@ -947,6 +947,7 @@ func (a *noopTileAggregator) AggregateTiles(
 	shardID uint32,
 	readers []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
+	onFlushSeries persist.OnFlushSeries,
 ) (int64, error) {
 	return 0, nil
 }

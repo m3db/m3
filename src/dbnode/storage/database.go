@@ -1029,8 +1029,8 @@ func (d *db) WideQuery(
 	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedWideEntries = streamedWideEntries[:0]
-		for _, id := range batch.IDs {
-			streamedWideEntry, err := d.fetchWideEntries(ctx, n, id, start)
+		for _, shardID := range batch.ShardIDs {
+			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start)
 			if err != nil {
 				return err
 			}
@@ -1056,26 +1056,6 @@ func (d *db) WideQuery(
 	}
 
 	return collectedChecksums, nil
-}
-
-func (d *db) fetchWideEntries(
-	ctx context.Context,
-	ns databaseNamespace,
-	id ident.ID,
-	start time.Time,
-) (block.StreamedWideEntry, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideEntry)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", ns.ID().String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-		)
-	}
-
-	defer sp.Finish()
-
-	return ns.FetchWideEntry(ctx, id, start)
 }
 
 func (d *db) FetchBlocks(

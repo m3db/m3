@@ -653,6 +653,7 @@ type databaseShard interface {
 		blockReaders []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
+		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
 
@@ -1403,6 +1404,7 @@ type TileAggregator interface {
 		shardID uint32,
 		readers []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
+		onFlushSeries persist.OnFlushSeries,
 	) (int64, error)
 }
 
@@ -1411,7 +1413,7 @@ type NewTileAggregatorFn func(iOpts instrument.Options) TileAggregator
 
 // NamespaceHooks allows dynamic plugging into the namespace lifecycle.
 type NamespaceHooks interface {
-	// OnCreatedNamespace gets invoked after each namespace is created.
+	// OnCreatedNamespace gets invoked after each namespace is initialized.
 	OnCreatedNamespace(Namespace, GetNamespaceFn) error
 }
 

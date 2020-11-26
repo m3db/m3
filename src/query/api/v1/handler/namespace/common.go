@@ -32,6 +32,7 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
@@ -113,6 +114,7 @@ func RegisterRoutes(
 	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
+	namespaceValidator options.NamespaceValidator,
 ) error {
 	applyMiddleware := func(
 		f func(svc handleroptions.ServiceNameAndDefaults,
@@ -140,7 +142,7 @@ func RegisterRoutes(
 	// Add M3DB namespaces.
 	if err := r.Register(queryhttp.RegisterOptions{
 		Path:    M3DBAddURL,
-		Handler: applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Handler: applyMiddleware(NewAddHandler(client, instrumentOpts, namespaceValidator).ServeHTTP, defaults),
 		Methods: []string{AddHTTPMethod},
 	}); err != nil {
 		return err

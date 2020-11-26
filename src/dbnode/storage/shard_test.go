@@ -1899,14 +1899,17 @@ func TestShardAggregateTiles(t *testing.T) {
 		}),
 		writer.EXPECT().Close(),
 	)
+	noOpColdFlushNs := &persist.NoOpColdFlushNamespace{}
 
 	targetNs := NewMockNamespace(ctrl)
 	aggregator.EXPECT().
-		AggregateTiles(opts, targetNs, sourceShard.ID(), gomock.Len(2), writer).
+		AggregateTiles(opts, targetNs, sourceShard.ID(), gomock.Len(2), writer,
+			noOpColdFlushNs).
 		Return(expectedProcessedTileCount, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
-		sourceNsID, targetNs, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
+		sourceNsID, targetNs, sourceShard.ID(), blockReaders, writer,
+		sourceBlockVolumes, noOpColdFlushNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
 }
@@ -1929,7 +1932,8 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	writer := fs.NewMockStreamingWriter(ctrl)
 
 	_, err := targetShard.AggregateTiles(
-		srcNsID, nil, 1, blockReaders, writer, sourceBlockVolumes, AggregateTilesOptions{})
+		srcNsID, nil, 1, blockReaders, writer, sourceBlockVolumes,
+		&persist.NoOpColdFlushNamespace{}, AggregateTilesOptions{})
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 

@@ -171,7 +171,7 @@ type dbShard struct {
 	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetsFn               filesetsFn
 	filesetPathsBeforeFn     filesetPathsBeforeFn
-	deleteFilesFn            fs.DeleteFilesFn
+	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
@@ -1325,6 +1325,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			entryRefCountIncremented: true,
 		},
 	})
+
 	// i.e. unable to enqueue into shard insert queue
 	if err != nil {
 		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing
@@ -2288,7 +2289,7 @@ func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
 	resources coldFlushReuseableResources,
 	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
@@ -2394,7 +2395,8 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
+		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx,
+			onFlushSeries)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2663,6 +2665,7 @@ func (s *dbShard) AggregateTiles(
 	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
 	sourceBlockVolumes []shardBlockVolume,
+	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	if len(blockReaders) != len(sourceBlockVolumes) {
@@ -2736,7 +2739,7 @@ func (s *dbShard) AggregateTiles(
 	var multiErr xerrors.MultiError
 
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
-		opts, targetNs, s.ID(), openBlockReaders, writer)
+		opts, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
