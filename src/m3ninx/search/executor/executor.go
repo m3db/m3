@@ -64,6 +64,7 @@ func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
 		return nil, err
 	}
 
+	// get size.
 	iter, err := e.newIteratorFn(s, e.readers)
 	if err != nil {
 		return nil, err

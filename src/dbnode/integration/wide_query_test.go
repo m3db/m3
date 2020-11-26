@@ -1,4 +1,5 @@
-// +build big
+// +build integration
+
 //
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -23,6 +24,7 @@
 package integration
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"runtime"
@@ -31,12 +33,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -57,20 +61,20 @@ const (
 	wideTagValFmt = "val-%05d"
 )
 
-type shardedWideEntry struct {
+type shardedIndexEntry struct {
 	shard   uint32
 	entries []schema.WideEntry
 }
 
-// buildExpectedChecksumsByShard sorts the given IDs into ascending shard order,
+// buildExpectedWideEntryByShard sorts the given IDs into ascending shard order,
 // applying given shard filters.
-func buildExpectedChecksumsByShard(
+func buildExpectedWideEntryByShard(
 	ids []string,
 	allowedShards []uint32,
 	shardSet sharding.ShardSet,
 	batchSize int,
 ) []schema.WideEntry {
-	shardedEntries := make([]shardedWideEntry, 0, len(ids))
+	shardedEntries := make([]shardedIndexEntry, 0, len(ids))
 	for i, id := range ids {
 		entry := schema.WideEntry{
 			IndexEntry: schema.IndexEntry{
@@ -109,7 +113,7 @@ func buildExpectedChecksumsByShard(
 			continue
 		}
 
-		shardedEntries = append(shardedEntries, shardedWideEntry{
+		shardedEntries = append(shardedEntries, shardedIndexEntry{
 			shard:   shard,
 			entries: []schema.WideEntry{entry},
 		})
@@ -129,22 +133,90 @@ func buildExpectedChecksumsByShard(
 
 func assertTags(
 	t *testing.T,
-	encodedTags checked.Bytes,
+	encodedTags []byte,
 	decoder serialize.TagDecoder,
 	expected int64,
+	msgAndArgs ...interface{},
 ) {
-	encodedTags.IncRef()
-	encoded := encodedTags.Bytes()
-	encodedTags.DecRef()
-
-	decoder.Reset(checked.NewBytes(encoded, nil))
-	assert.Equal(t, 1, decoder.Len())
-	assert.True(t, decoder.Next())
+	decoder.Reset(checked.NewBytes(encodedTags, nil))
+	assert.Equal(t, 1, decoder.Len(), msgAndArgs...)
+	assert.True(t, decoder.Next(), msgAndArgs...)
 	tag := decoder.Current()
-	assert.Equal(t, wideTagName, tag.Name.String())
-	assert.Equal(t, fmt.Sprintf(wideTagValFmt, expected), tag.Value.String())
-	assert.False(t, decoder.Next())
-	require.NoError(t, decoder.Err())
+	assert.Equal(t, wideTagName, tag.Name.String(), msgAndArgs...)
+	assert.Equal(t, fmt.Sprintf(wideTagValFmt, expected), tag.Value.String(), msgAndArgs...)
+	assert.False(t, decoder.Next(), msgAndArgs...)
+	require.NoError(t, decoder.Err(), msgAndArgs...)
+}
+
+func assertData(
+	t *testing.T,
+	ex int64,
+	exTime time.Time,
+	chkData checked.Bytes,
+) {
+	chkData.IncRef()
+	data := chkData.Bytes()
+	chkData.DecRef()
+
+	decoder := m3tsz.NewDecoder(true, nil)
+	dataReader := bytes.NewBuffer(data)
+	it := decoder.Decode(dataReader)
+	assert.NoError(t, it.Err())
+	assert.True(t, it.Next())
+	ts, _, _ := it.Current()
+	assert.True(t, ts.Timestamp.Equal(exTime))
+	assert.Equal(t, float64(ex), ts.Value)
+	assert.False(t, it.Next())
+	assert.NoError(t, it.Err())
+}
+
+type testWideQuerySeries struct {
+	Shard            uint32
+	ID               []byte
+	EncodedTags      []byte
+	MetadataChecksum int64
+}
+
+func copyBytes(b []byte) []byte {
+	empty := make([]byte, 0, len(b))
+	return append(empty, b...)
+}
+
+func wideQueryIterSeries(
+	t *testing.T,
+	iter wide.QueryIterator,
+) []testWideQuerySeries {
+	var results []testWideQuerySeries
+
+	for iter.Next() {
+		shardIter := iter.Current()
+
+		for shardIter.Next() {
+			seriesIter := shardIter.Current()
+
+			for seriesIter.Next() {
+				// Should get datapoints here when implemented.
+			}
+
+			meta := seriesIter.SeriesMetadata()
+			results = append(results, testWideQuerySeries{
+				Shard:       shardIter.Shard(),
+				ID:          copyBytes(meta.ID.Bytes()),
+				EncodedTags: copyBytes(meta.EncodedTags),
+			})
+
+			require.NoError(t, seriesIter.Err(), "wide series iter error")
+			seriesIter.Close()
+		}
+
+		require.NoError(t, shardIter.Err(), "wide shard iter error")
+		shardIter.Close()
+	}
+
+	require.NoError(t, iter.Err(), "wide iter error")
+	iter.Close()
+
+	return results
 }
 
 func TestWideFetch(t *testing.T) {
@@ -252,8 +324,7 @@ func TestWideFetch(t *testing.T) {
 	log.Info("filesets found on disk")
 
 	var (
-		query    = index.Query{Query: idx.MustCreateRegexpQuery([]byte(wideTagName), []byte("val.*"))}
-		iterOpts = index.IterationOptions{}
+		query = index.Query{Query: idx.MustCreateRegexpQuery([]byte(wideTagName), []byte("val.*"))}
 	)
 
 	// Test sharding on query which matches every element.
@@ -279,17 +350,22 @@ func TestWideFetch(t *testing.T) {
 	for _, tt := range shardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
-			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
-				now, tt.shards, iterOpts)
+			iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), query,
+				now, tt.shards)
 			require.NoError(t, err)
 
-			expected := buildExpectedChecksumsByShard(ids, tt.shards,
+			chk := wideQueryIterSeries(t, iter)
+
+			expected := buildExpectedWideEntryByShard(ids, tt.shards,
 				testSetup.ShardSet(), batchSize)
 			require.Equal(t, len(expected), len(chk))
-			for i, checksum := range chk {
-				assert.Equal(t, expected[i].MetadataChecksum, checksum.MetadataChecksum)
-				require.Equal(t, string(expected[i].ID), checksum.ID.String())
-				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
+			for i, entry := range chk {
+				assert.Equal(t, expected[i].MetadataChecksum, entry.MetadataChecksum,
+					fmt.Sprintf("fail entry match: i=%d", i))
+				assert.Equal(t, expected[i].ID, entry.ID,
+					fmt.Sprintf("fail id match: i=%d", i))
+				assertTags(t, entry.EncodedTags, decoder, entry.MetadataChecksum,
+					fmt.Sprintf("fail metadata entry match: i=%d", i))
 			}
 
 			ctx.Close()
@@ -321,18 +397,20 @@ func TestWideFetch(t *testing.T) {
 	for _, tt := range exactShardFilterTests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.NewContext()
-			chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
-				now, tt.shards, iterOpts)
+			iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), exactQuery,
+				now, tt.shards)
 			require.NoError(t, err)
 
-			if tt.expected {
-				require.Equal(t, 1, len(chk))
-				checksum := chk[0]
-				assert.Equal(t, int64(1), checksum.MetadataChecksum)
-				assert.Equal(t, exactID, checksum.ID.String())
-				assertTags(t, checksum.EncodedTags, decoder, checksum.MetadataChecksum)
-			} else {
+			chk := wideQueryIterSeries(t, iter)
+
+			if !tt.expected {
 				assert.Equal(t, 0, len(chk))
+			} else {
+				require.Equal(t, 1, len(chk))
+				entry := chk[0]
+				assert.Equal(t, int64(1), entry.MetadataChecksum)
+				assert.Equal(t, exactID, string(entry.ID))
+				assertTags(t, entry.EncodedTags, decoder, entry.MetadataChecksum)
 			}
 
 			ctx.Close()
@@ -346,20 +424,22 @@ func TestWideFetch(t *testing.T) {
 	var multiErr xerrors.MultiError
 	for i := 0; i < runtime.NumCPU(); i++ {
 		q := index.Query{Query: idx.NewAllQuery()}
-		expected := buildExpectedChecksumsByShard(
+		expected := buildExpectedWideEntryByShard(
 			ids, nil, testSetup.ShardSet(), batchSize)
 		wg.Add(1)
 		go func() {
 			var runError error
 			for j := 0; j < runs; j++ {
 				ctx := context.NewContext()
-				chk, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
-					now, nil, iterOpts)
+				iter, err := testSetup.DB().WideQuery(ctx, nsMetadata.ID(), q,
+					now, nil)
 
 				if err != nil {
 					runError = fmt.Errorf("query err: %v", err)
 					break
 				}
+
+				chk := wideQueryIterSeries(t, iter)
 
 				if len(expected) != len(chk) {
 					runError = fmt.Errorf("expected %d results, got %d",
@@ -367,10 +447,10 @@ func TestWideFetch(t *testing.T) {
 					break
 				}
 
-				for i, checksum := range chk {
-					if expected[i].MetadataChecksum != checksum.MetadataChecksum {
-						runError = fmt.Errorf("expected %d checksum, got %d",
-							expected[i].MetadataChecksum, checksum.MetadataChecksum)
+				for i, entry := range chk {
+					if expected[i].MetadataChecksum != entry.MetadataChecksum {
+						runError = fmt.Errorf("expected %d entry, got %d",
+							expected[i].MetadataChecksum, entry.MetadataChecksum)
 						break
 					}
 				}

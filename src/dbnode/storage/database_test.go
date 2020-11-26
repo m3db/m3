@@ -39,6 +39,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -185,7 +186,7 @@ func newTestDatabase(
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
 
 	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
-	shardSet, err := sharding.NewShardSet(shards, nil)
+	shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
 	require.NoError(t, err)
 
 	database, err := NewDatabase(shardSet, opts)
@@ -306,7 +307,7 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 		close(mapCh)
 	}()
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
-		index.Query{}, time.Now(), nil, index.IterationOptions{})
+		index.Query{}, time.Now(), nil)
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
@@ -327,35 +328,34 @@ func TestDatabaseWideEntry(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 
-	indexChecksumWithID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveWideEntry().
-		Return(
-			xio.WideEntry{
-				ID:               ident.StringID("foo"),
-				MetadataChecksum: 5,
-			}, nil)
+	streamedEntry := block.NewMockStreamedWideEntry(ctrl)
+	streamedEntry.EXPECT().RetrieveWideEntry().
+		Return(xio.WideEntry{
+			ID:               ident.StringID("foo"),
+			MetadataChecksum: 5,
+		}, nil)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
-		Return(indexChecksumWithID, nil)
+		Return(streamedEntry, nil)
 
-	indexChecksumWithoutID := block.NewMockStreamedWideEntry(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveWideEntry().
+	wideEntryWithoutID := block.NewMockStreamedWideEntry(ctrl)
+	wideEntryWithoutID.EXPECT().RetrieveWideEntry().
 		Return(xio.WideEntry{MetadataChecksum: 7}, nil)
 	mockNamespace.EXPECT().FetchWideEntry(ctx, seriesID, start).
-		Return(indexChecksumWithoutID, nil)
+		Return(wideEntryWithoutID, nil)
 	d.namespaces.Set(nsID, mockNamespace)
 
-	res, err := d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
+	res, err := d.fetchWideEntry(ctx, mockNamespace, seriesID, start)
 	require.NoError(t, err)
 	checksum, err := res.RetrieveWideEntry()
 	require.NoError(t, err)
 	assert.Equal(t, "foo", checksum.ID.String())
 	assert.Equal(t, 5, int(checksum.MetadataChecksum))
 
-	res, err = d.fetchWideEntries(ctx, mockNamespace, seriesID, start)
-	require.NoError(t, err)
+	res, err = d.fetchWideEntry(ctx, mockNamespace, seriesID, start)
 	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
+	checksum, err = res.RetrieveWideEntry()
 	require.NoError(t, err)
 	assert.Nil(t, checksum.ID)
 	assert.Equal(t, 7, int(checksum.MetadataChecksum))
@@ -945,28 +945,79 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 type wideQueryTestFn func(
 	ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 	ns *MockdatabaseNamespace, d *db, q index.Query,
-	now time.Time, shards []uint32, iterOpts index.IterationOptions,
+	now time.Time, shards []uint32,
 )
+
+func exhaustWideQueryIter(
+	t *testing.T,
+	iter wide.QueryIterator,
+) {
+	for iter.Next() {
+		shardIter := iter.Current()
+		for shardIter.Next() {
+			seriesIter := shardIter.Current()
+			for seriesIter.Next() {
+			}
+			require.NoError(t, seriesIter.Err(), "wide series iter error")
+			seriesIter.Close()
+		}
+		require.NoError(t, shardIter.Err(), "wide shard iter error")
+		shardIter.Close()
+	}
+	require.NoError(t, iter.Err(), "wide iter error")
+	iter.Close()
+}
+
+func exhaustWideQueryIterResult(
+	t *testing.T,
+	iter wide.QueryIterator,
+) []error {
+	var errs []error
+	for iter.Next() {
+		shardIter := iter.Current()
+		for shardIter.Next() {
+			seriesIter := shardIter.Current()
+			for seriesIter.Next() {
+			}
+			if err := seriesIter.Err(); err != nil {
+				errs = append(errs, err)
+			}
+			seriesIter.Close()
+		}
+		if err := shardIter.Err(); err != nil {
+			errs = append(errs, err)
+		}
+		shardIter.Close()
+	}
+	if err := iter.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	iter.Close()
+	return errs
+}
 
 func TestWideQuery(t *testing.T) {
 	readMismatchTest := func(
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
+		now time.Time, shards []uint32) {
 		ns.EXPECT().FetchWideEntry(gomock.Any(),
 			ident.StringID("foo"), gomock.Any()).
 			Return(block.EmptyStreamedWideEntry, nil)
 
-		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
+		iter, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards)
 		require.NoError(t, err)
+		exhaustWideQueryIter(t, iter)
 
-		_, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil, iterOpts)
-		require.Error(t, err)
+		iter, err = d.WideQuery(ctx, ident.StringID("testns"), q, now, nil)
+		require.NoError(t, err)
+		errs := exhaustWideQueryIterResult(t, iter)
+		require.Error(t, errs[0])
 	}
 
 	exSpans := []string{
-		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
+		tracepoint.DBWideEntry,
 		tracepoint.DBWideQuery,
 		"root",
 	}
@@ -1038,7 +1089,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
 
-	testFn(ctx, t, ctrl, ns, d, q, start, shards, iterOpts)
+	testFn(ctx, t, ctrl, ns, d, q, now, shards)
 	ns.EXPECT().Close().Return(nil)
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitLog
@@ -1495,12 +1546,16 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions())
+	opts.QueryFunc = func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error) {
+		return nil, nil
+	}
+
 	require.Error(t, err)
 	opts.InsOptions = d.opts.InstrumentOptions()
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(sourceNs, gomock.Any()).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)

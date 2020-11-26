@@ -24,8 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -40,36 +39,38 @@ func TestSeriesBlockIterator(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	it := encoding.NewMockReaderIterator(ctrl)
-	start := time.Now().Truncate(time.Hour)
+	var (
+		opts = Options{
+			FrameSize: time.Duration(100),
+			Start:     xtime.UnixNano(0),
+		}
 
-	it.EXPECT().Err().Return(nil)
-	it.EXPECT().Reset(gomock.Any(), nil)
-	it.EXPECT().Next().Return(true)
-	it.EXPECT().Current().Return(ts.Datapoint{
-		Timestamp: start,
-		Value:     1,
-	}, xtime.Second, nil)
-	it.EXPECT().Next().Return(false)
+		seriesIter     = wide.NewMockQuerySeriesIterator(ctrl)
+		blockIter      = wide.NewMockCrossBlockIterator(ctrl)
+		seriesMetadata = wide.SeriesMetadata{
+			ID:          ident.BytesID("foobar"),
+			EncodedTags: ts.EncodedTags("encoded tags"),
+		}
+	)
 
-	iterPool := encoding.NewMockReaderIteratorPool(ctrl)
-	iterPool.EXPECT().Get().Return(it)
+	gomock.InOrder(
+		seriesIter.EXPECT().SeriesMetadata().Return(seriesMetadata),
+		seriesIter.EXPECT().Next().Return(true),
+		seriesIter.EXPECT().Current().Return(ts.Datapoint{Value: 12}, xtime.Second, nil),
+		seriesIter.EXPECT().Next().Return(true),
+		seriesIter.EXPECT().Current().Return(ts.Datapoint{Value: 15}, xtime.Second, nil),
+		seriesIter.EXPECT().Next().Return(false),
+		seriesIter.EXPECT().Err().Return(nil),
+	)
 
-	opts := Options{
-		FrameSize:          time.Duration(100),
-		Start:              xtime.UnixNano(0),
-		ReaderIteratorPool: iterPool,
-	}
+	gomock.InOrder(
+		blockIter.EXPECT().Next().Return(true),
+		blockIter.EXPECT().Current().Return(seriesIter),
+		blockIter.EXPECT().Next().Return(false),
+		blockIter.EXPECT().Err().Return(nil),
+	)
 
-	reader := fs.NewMockCrossBlockReader(ctrl)
-	reader.EXPECT().Next().Return(true)
-	tags := ts.EncodedTags("encoded tags")
-	records := []fs.BlockRecord{{Data: []byte("block_record")}}
-	reader.EXPECT().Current().Return(ident.StringID("foobar"), tags, records)
-	reader.EXPECT().Next().Return(false)
-	reader.EXPECT().Err().Return(nil)
-
-	iter, err := NewSeriesBlockIterator(reader, opts)
+	iter, err := NewSeriesBlockIterator(blockIter, opts)
 	require.NoError(t, err)
 	assert.True(t, iter.Next())
 	frameIter, id, iterTags := iter.Current()
@@ -77,9 +78,10 @@ func TestSeriesBlockIterator(t *testing.T) {
 	frame := frameIter.Current()
 
 	assert.False(t, frameIter.Next())
+	assert.NoError(t, frameIter.Err())
 	assert.False(t, iter.Next())
-	assert.Equal(t, []float64{1.0}, frame.Values())
+	assert.Equal(t, []float64{12, 15}, frame.Values())
 
 	assert.Equal(t, "foobar", id.String())
-	assert.Equal(t, string(tags), string(iterTags))
+	assert.Equal(t, "encoded tags", string(iterTags))
 }

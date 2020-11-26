@@ -35,10 +35,12 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -992,8 +994,7 @@ func (d *db) WideQuery(
 	query index.Query,
 	queryStart time.Time,
 	shards []uint32,
-	iterOpts index.IterationOptions,
-) ([]xio.WideEntry, error) { // nolint FIXME: change when exact type known.
+) (wide.QueryIterator, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1001,13 +1002,13 @@ func (d *db) WideQuery(
 	}
 
 	var (
-		batchSize = d.opts.WideBatchSize()
-		blockSize = n.Options().IndexOptions().BlockSize()
-
-		collectedChecksums = make([]xio.WideEntry, 0, 10)
+		batchSize  = d.opts.WideBatchSize()
+		blockSize  = n.Options().IndexOptions().BlockSize()
+		blockStart = queryStart.Truncate(blockSize)
+		iterOpts   = d.opts.IterationOptions()
 	)
 
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
+	opts, err := index.NewWideQueryOptions(blockStart, batchSize, blockSize, shards, iterOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1026,39 +1027,69 @@ func (d *db) WideQuery(
 
 	defer sp.Finish()
 
-	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
-	indexChecksumProcessor := func(batch *ident.IDBatch) error {
-		streamedWideEntries = streamedWideEntries[:0]
+	wideOpts := wide.NewOptions().SetReaderIteratorPool(d.opts.ReaderIteratorPool())
+	iter := wide.NewQueryIterator(blockStart, shards, wideOpts)
+	streamedEntries := make([]block.StreamedWideEntry, 0, batchSize)
+
+	wideEntryProcessor := func(batch *ident.IDBatch) error {
+		// Fetch wide entries.
+		streamedEntries = streamedEntries[:0]
+		defer func() {
+			// Be sure to finalize any streamed entries
+			// for both happy path and also early return.
+			// This also frees any resources held by the
+			// resulting wide entries.
+			for _, streamEntry := range streamedEntries {
+				streamEntry.Finalize()
+			}
+		}()
+
 		for _, id := range batch.IDs {
-			streamedWideEntry, err := d.fetchWideEntries(ctx, n, id, start)
+			streamEntry, err := d.fetchWideEntry(ctx, n, id, start)
 			if err != nil {
 				return err
 			}
 
-			streamedWideEntries = append(streamedWideEntries, streamedWideEntry)
+			streamedEntries = append(streamedEntries, streamEntry)
 		}
 
-		for _, streamedWideEntry := range streamedWideEntries {
-			checksum, err := streamedWideEntry.RetrieveWideEntry()
+		for _, streamEntry := range streamedEntries {
+			entry, err := streamEntry.RetrieveWideEntry()
 			if err != nil {
 				return err
 			}
 
-			collectedChecksums = append(collectedChecksums, checksum)
+			if entry.Empty() {
+				// Should not surface to the iterator.
+				continue
+			}
+
+			// Push the data to wide query iterator results.
+			shardIter, err := iter.ShardIter(entry.Shard)
+			if err != nil {
+				return err
+			}
+
+			shardIter.PushRecord(wide.ShardIteratorRecord{
+				ID:               entry.ID.Bytes(),
+				EncodedTags:      entry.EncodedTags.Bytes(),
+				MetadataChecksum: entry.MetadataChecksum,
+				Data:             entry.Data.Bytes(),
+			})
 		}
 
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err := d.batchProcessWideQuery(ctx, n, query, wideEntryProcessor, opts)
+		iter.SetDoneError(err)
+	}()
 
-	return collectedChecksums, nil
+	return iter, nil
 }
 
-func (d *db) fetchWideEntries(
+func (d *db) fetchWideEntry(
 	ctx context.Context,
 	ns databaseNamespace,
 	id ident.ID,
@@ -1310,6 +1341,14 @@ func (d *db) AggregateTiles(
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return 0, err
+	}
+
+	opts.QueryFunc = func(blockStart time.Time, shards []uint32) (wide.QueryIterator, error) {
+		queryCtx := context.NewContext()
+		defer queryCtx.Close()
+
+		query := index.Query{Query: idx.NewAllQuery()}
+		return d.WideQuery(queryCtx, sourceNsID, query, blockStart, shards)
 	}
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)

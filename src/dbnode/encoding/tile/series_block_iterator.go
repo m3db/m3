@@ -23,40 +23,35 @@ package tile
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type seriesBlockIter struct {
-	reader fs.CrossBlockReader
-
 	err       error
 	exhausted bool
 
-	step  time.Duration
-	start xtime.UnixNano
+	blockIter wide.CrossBlockIterator
+	step      time.Duration
+	start     xtime.UnixNano
 
-	iter        SeriesFrameIterator
-	blockIter   fs.CrossBlockIterator
-	encodedTags ts.EncodedTags
-	id          ident.BytesID
+	frameIter SeriesFrameIterator
+	metadata  wide.SeriesMetadata
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
 func NewSeriesBlockIterator(
-	reader fs.CrossBlockReader,
+	blockIter wide.CrossBlockIterator,
 	opts Options,
 ) (SeriesBlockIterator, error) {
 	return &seriesBlockIter{
-		reader: reader,
+		start:     opts.Start,
+		step:      opts.FrameSize,
+		blockIter: blockIter,
 
-		start: opts.Start,
-		step:  opts.FrameSize,
-
-		iter:      newSeriesFrameIterator(newRecorder()),
-		blockIter: fs.NewCrossBlockIterator(opts.ReaderIteratorPool),
+		frameIter: newSeriesFrameIterator(newRecorder()),
 	}, nil
 }
 
@@ -65,26 +60,25 @@ func (b *seriesBlockIter) Next() bool {
 		return false
 	}
 
-	if !b.reader.Next() {
+	if !b.blockIter.Next() {
 		b.exhausted = true
-		b.err = b.reader.Err()
+		b.err = b.blockIter.Err()
 		return false
 	}
 
-	var blockRecords []fs.BlockRecord
-	b.id, b.encodedTags, blockRecords = b.reader.Current()
-	b.blockIter.Reset(blockRecords)
-	b.iter.Reset(b.start, b.step, b.blockIter)
+	queryIter := b.blockIter.Current()
+	b.metadata = queryIter.SeriesMetadata()
+	b.frameIter.Reset(b.start, b.step, queryIter)
 	return true
 }
 
 func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.BytesID, ts.EncodedTags) {
-	return b.iter, b.id, b.encodedTags
+	return b.frameIter, b.metadata.ID, b.metadata.EncodedTags
 }
 
 func (b *seriesBlockIter) Close() error {
 	b.blockIter.Close()
-	return b.iter.Close()
+	return b.frameIter.Close()
 }
 
 func (b *seriesBlockIter) Err() error {

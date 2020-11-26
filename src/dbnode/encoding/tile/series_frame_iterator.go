@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/wide"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -36,7 +36,7 @@ type seriesFrameIter struct {
 	started   bool
 	curr      SeriesBlockFrame
 
-	iter fs.CrossBlockIterator
+	iter wide.QuerySeriesIterator
 
 	frameStep  time.Duration
 	frameStart xtime.UnixNano
@@ -52,7 +52,7 @@ func newSeriesFrameIterator(recorder *recorder) SeriesFrameIterator {
 func (b *seriesFrameIter) Reset(
 	start xtime.UnixNano,
 	frameStep time.Duration,
-	iter fs.CrossBlockIterator,
+	iter wide.QuerySeriesIterator,
 ) error {
 	if frameStep <= 0 {
 		b.err = fmt.Errorf("frame step must be > 0, is %d", frameStep)
@@ -120,17 +120,12 @@ func (b *seriesFrameIter) Next() bool {
 		b.curr.record(dp, unit, annotation)
 	}
 
-	if !hasAny {
-		b.exhausted = true
-		return true
-	}
-
 	if err := b.iter.Err(); err != nil {
 		b.err = err
 		return false
 	}
 
-	if !hasMore {
+	if !hasAny || !hasMore {
 		b.exhausted = true
 	}
 

@@ -373,23 +373,12 @@ func (r *blockRetriever) fetchBatch(
 		seeker     ConcurrentDataFileSetSeeker
 		callbackWg sync.WaitGroup
 	)
-
 	defer func() {
-		filteredReqs := allReqs[:0]
 		// Make sure requests are always fulfilled so if there's a code bug
 		// then errSeekNotCompleted is returned because req.success is not set
 		// rather than we have dangling goroutines stacking up.
-		for _, req := range allReqs {
-			if !req.waitingForCallback {
-				req.onDone()
-				continue
-			}
-
-			filteredReqs = append(filteredReqs, req)
-		}
-
 		callbackWg.Wait()
-		for _, req := range filteredReqs {
+		for _, req := range allReqs {
 			req.onDone()
 		}
 
@@ -413,6 +402,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 	}()
 
+	// Resolve the seeker from the seeker mgr.
 	var err error
 	seeker, err = seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -633,7 +623,6 @@ func (r *blockRetriever) Stream(
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
-		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
 	}
 
@@ -663,7 +652,6 @@ func (r *blockRetriever) StreamWideEntry(
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
-		req.resultWg.Done()
 		return block.EmptyStreamedWideEntry, err
 	}
 
@@ -817,13 +805,7 @@ func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Cont
 }
 
 func (req *retrieveRequest) onDone() {
-	var (
-		err           = req.err
-		success       = req.success
-		streamReqType = req.streamReqType
-	)
-
-	if err == nil && !success {
+	if req.err == nil && !req.success {
 		// Require explicit success, otherwise this request
 		// was never completed.
 		// This helps catch code bugs where this element wasn't explicitly
@@ -834,7 +816,7 @@ func (req *retrieveRequest) onDone() {
 
 	req.resultWg.Done()
 
-	switch streamReqType {
+	switch req.streamReqType {
 	case streamDataReq:
 		// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
 		// code path will call req.onCallerOrRetrieverDone() when it's done.
@@ -843,7 +825,7 @@ func (req *retrieveRequest) onDone() {
 		// the happy path that calls this pre-emptively has not executed either.
 		// That is if-and-only-if request is data request and is successful and
 		// will req.onCallerOrRetrieverDone() be called in a deferred manner.
-		if !success {
+		if !req.success {
 			req.onCallerOrRetrieverDone()
 		}
 	default:
@@ -1055,6 +1037,12 @@ func (r *reuseableRetrieverResources) resetDataReqs() {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
+}
+
+func (r *reuseableRetrieverResources) appendDataReq(
+	req *retrieveRequest,
+) {
+	r.dataReqs = append(r.dataReqs, req)
 }
 
 func (r *reuseableRetrieverResources) resetWideEntryReqs() {
