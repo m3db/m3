@@ -104,6 +104,7 @@ func (w TestIndexWrites) MatchesTestSeriesIters(
 		writes, ok := writesByID[id]
 		require.True(t, ok, id)
 		writes.matchesSeriesIter(t, iter)
+		actualCount++
 	}
 	require.Equal(t, len(writesByID), actualCount)
 
