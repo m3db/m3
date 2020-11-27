@@ -59,55 +59,55 @@ func (v BytesID) IsNoFinalize() bool {
 func (v BytesID) Finalize() {
 }
 
-var _ ID = (*ReuseableBytesID)(nil)
+var _ ID = (*ReusableBytesID)(nil)
 
-// ReuseableBytesID is a reuseable bytes ID, use with extreme care in
+// ReusableBytesID is a reusable bytes ID, use with extreme care in
 // places where the lifecycle is known (there is no checking with this
 // ID).
-type ReuseableBytesID struct {
+type ReusableBytesID struct {
 	bytes []byte
 }
 
-// NewReuseableBytesID returns a new reuseable bytes ID, use with extreme
+// NewReusableBytesID returns a new reusable bytes ID, use with extreme
 // care in places where the lifecycle is known (there is no checking with
 // this ID).
-func NewReuseableBytesID() *ReuseableBytesID {
-	return &ReuseableBytesID{}
+func NewReusableBytesID() *ReusableBytesID {
+	return &ReusableBytesID{}
 }
 
 // Reset resets the bytes ID for reuse, make sure there are zero references
 // to this ID from any other data structure at this point.
-func (i *ReuseableBytesID) Reset(bytes []byte) {
+func (i *ReusableBytesID) Reset(bytes []byte) {
 	i.bytes = bytes
 }
 
 // Bytes implements ID.
-func (i *ReuseableBytesID) Bytes() []byte {
+func (i *ReusableBytesID) Bytes() []byte {
 	return i.bytes
 }
 
 // Equal implements ID.
-func (i *ReuseableBytesID) Equal(value ID) bool {
+func (i *ReusableBytesID) Equal(value ID) bool {
 	return bytes.Equal(i.bytes, value.Bytes())
 }
 
 // NoFinalize implements ID.
-func (i *ReuseableBytesID) NoFinalize() {
+func (i *ReusableBytesID) NoFinalize() {
 }
 
 // IsNoFinalize implements ID.
-func (i *ReuseableBytesID) IsNoFinalize() bool {
-	// Reuseable bytes ID are always not able to not be finalized
+func (i *ReusableBytesID) IsNoFinalize() bool {
+	// Reusable bytes ID are always not able to not be finalized
 	// as this ID is reused with reset.
 	return false
 }
 
 // Finalize implements ID.
-func (i *ReuseableBytesID) Finalize() {
+func (i *ReusableBytesID) Finalize() {
 	// Noop as it will be re-used.
 }
 
 // String returns the bytes ID as a string.
-func (i *ReuseableBytesID) String() string {
+func (i *ReusableBytesID) String() string {
 	return string(i.bytes)
 }

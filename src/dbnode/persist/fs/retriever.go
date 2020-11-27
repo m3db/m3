@@ -200,7 +200,7 @@ func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
 		seekerResources    = NewReusableSeekerResources(r.fsOpts)
-		retrieverResources = newReuseableRetrieverResources()
+		retrieverResources = newReusableRetrieverResources()
 		inFlight           []*retrieveRequest
 		currBatchReqs      []*retrieveRequest
 	)
@@ -302,7 +302,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	reqs []*retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) []*retrieveRequest {
 	retrieverResources.resetDataReqs()
 	retrieverResources.resetWideEntryReqs()
@@ -367,7 +367,7 @@ func (r *blockRetriever) fetchBatch(
 	blockStart time.Time,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) {
 	var (
 		seeker     ConcurrentDataFileSetSeeker
@@ -1045,35 +1045,35 @@ func (p *reqPool) Put(req *retrieveRequest) {
 	p.pool.Put(req)
 }
 
-type reuseableRetrieverResources struct {
+type reusableRetrieverResources struct {
 	dataReqs      []*retrieveRequest
 	wideEntryReqs []*retrieveRequest
 }
 
-func newReuseableRetrieverResources() *reuseableRetrieverResources {
-	return &reuseableRetrieverResources{}
+func newReusableRetrieverResources() *reusableRetrieverResources {
+	return &reusableRetrieverResources{}
 }
 
-func (r *reuseableRetrieverResources) resetAll() {
+func (r *reusableRetrieverResources) resetAll() {
 	r.resetDataReqs()
 	r.resetWideEntryReqs()
 }
 
-func (r *reuseableRetrieverResources) resetDataReqs() {
+func (r *reusableRetrieverResources) resetDataReqs() {
 	for i := range r.dataReqs {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) resetWideEntryReqs() {
+func (r *reusableRetrieverResources) resetWideEntryReqs() {
 	for i := range r.wideEntryReqs {
 		r.wideEntryReqs[i] = nil
 	}
 	r.wideEntryReqs = r.wideEntryReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) appendWideEntryReq(
+func (r *reusableRetrieverResources) appendWideEntryReq(
 	req *retrieveRequest,
 ) {
 	r.wideEntryReqs = append(r.wideEntryReqs, req)
