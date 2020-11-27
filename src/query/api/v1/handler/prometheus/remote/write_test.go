@@ -86,6 +86,31 @@ func TestPromWriteParsing(t *testing.T) {
 	require.Equal(t, ingest.WriteOptions{}, r.Options)
 }
 
+func TestMetricTypeHeader(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	handlerOpts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+	r, err := handler.(*PromWriteHandler).parseRequest(req)
+	require.NoError(t, err)
+	require.Equal(t, prompb.MetricType_UNKNOWN, r.Request.Timeseries[0].Type)
+
+	promReq = test.GeneratePromWriteRequest()
+	promReqBody = test.GeneratePromWriteRequestBody(t, promReq)
+	req = httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+	req.Header.Add(headers.PromTypeHeader, "counter")
+	r, err = handler.(*PromWriteHandler).parseRequest(req)
+	require.NoError(t, err)
+	require.Equal(t, prompb.MetricType_COUNTER, r.Request.Timeseries[0].Type)
+}
+
 func TestPromWrite(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
