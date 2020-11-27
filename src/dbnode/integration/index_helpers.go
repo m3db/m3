@@ -52,29 +52,54 @@ type TestSeriesIterator interface {
 	Tags() ident.TagIterator
 }
 
+// TestSeriesIterators is a an iterator over TestSeriesIterator.
+type TestSeriesIterators interface {
+
+	// Next moves to the next item.
+	Next() bool
+
+	// Current returns the current value.
+	Current() TestSeriesIterator
+}
+
+type testSeriesIterators struct {
+	encoding.SeriesIterators
+	idx int
+}
+
+func (t *testSeriesIterators) Next() bool {
+	if t.idx >= t.Len() {
+		return false
+	}
+	t.idx++
+
+	return true
+}
+
+func (t *testSeriesIterators) Current() TestSeriesIterator {
+	return t.Iters()[t.idx]
+}
+
 // MatchesSeriesIters matches index writes with expected series.
 func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
-	testSeriesIters := make([]TestSeriesIterator, 0, seriesIters.Len())
-	for _, iter := range seriesIters.Iters() {
-		testSeriesIters = append(testSeriesIters, iter)
-	}
-
-	w.MatchesTestSeriesIters(t, testSeriesIters)
+	w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
 }
 
 // MatchesTestSeriesIters matches index writes with expected test series.
-func (w TestIndexWrites) MatchesTestSeriesIters(t *testing.T, seriesIters []TestSeriesIterator) {
+func (w TestIndexWrites) MatchesTestSeriesIters(t *testing.T, seriesIters TestSeriesIterators) {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
 	}
-	require.Equal(t, len(writesByID), len(seriesIters))
-	for _, iter := range seriesIters {
+	var actualCount int
+	for seriesIters.Next() {
+		iter := seriesIters.Current()
 		id := iter.ID().String()
 		writes, ok := writesByID[id]
 		require.True(t, ok, id)
 		writes.matchesSeriesIter(t, iter)
 	}
+	require.Equal(t, len(writesByID), actualCount)
 }
 
 func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator) {
