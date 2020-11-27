@@ -53,7 +53,17 @@ type TestSeriesIterator interface {
 }
 
 // MatchesSeriesIters matches index writes with expected series.
-func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters []TestSeriesIterator) {
+func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
+	testSeriesIters := make([]TestSeriesIterator, 0, seriesIters.Len())
+	for _, iter := range seriesIters.Iters() {
+		testSeriesIters = append(testSeriesIters, iter)
+	}
+
+	w.MatchesTestSeriesIters(t, testSeriesIters)
+}
+
+// MatchesTestSeriesIters matches index writes with expected test series.
+func (w TestIndexWrites) MatchesTestSeriesIters(t *testing.T, seriesIters []TestSeriesIterator) {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
