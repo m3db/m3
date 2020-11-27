@@ -77,7 +77,7 @@ func (t *testSeriesIterators) Next() bool {
 }
 
 func (t *testSeriesIterators) Current() TestSeriesIterator {
-	return t.Iters()[t.idx]
+	return t.Iters()[t.idx-1]
 }
 
 // MatchesSeriesIters matches index writes with expected series.
