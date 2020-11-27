@@ -81,12 +81,18 @@ func (t *testSeriesIterators) Current() TestSeriesIterator {
 }
 
 // MatchesSeriesIters matches index writes with expected series.
-func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
-	w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
+func (w TestIndexWrites) MatchesSeriesIters(
+	t *testing.T,
+	seriesIters encoding.SeriesIterators,
+) int {
+	return w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
 }
 
 // MatchesTestSeriesIters matches index writes with expected test series.
-func (w TestIndexWrites) MatchesTestSeriesIters(t *testing.T, seriesIters TestSeriesIterators) {
+func (w TestIndexWrites) MatchesTestSeriesIters(
+	t *testing.T,
+	seriesIters TestSeriesIterators,
+) int {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
@@ -100,6 +106,8 @@ func (w TestIndexWrites) MatchesTestSeriesIters(t *testing.T, seriesIters TestSe
 		writes.matchesSeriesIter(t, iter)
 	}
 	require.Equal(t, len(writesByID), actualCount)
+
+	return actualCount
 }
 
 func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator) {
