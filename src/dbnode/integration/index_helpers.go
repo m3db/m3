@@ -84,8 +84,14 @@ func (t *testSeriesIterators) Current() TestSeriesIterator {
 func (w TestIndexWrites) MatchesSeriesIters(
 	t *testing.T,
 	seriesIters encoding.SeriesIterators,
-) int {
-	return w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
+) {
+	actualCount := w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
+
+	uniqueIDs := make(map[string]struct{})
+	for _, wi := range w {
+		uniqueIDs[wi.id.String()] = struct{}{}
+	}
+	require.Equal(t, len(uniqueIDs), actualCount)
 }
 
 // MatchesTestSeriesIters matches index writes with expected test series.
@@ -106,7 +112,6 @@ func (w TestIndexWrites) MatchesTestSeriesIters(
 		writes.matchesSeriesIter(t, iter)
 		actualCount++
 	}
-	require.Equal(t, len(writesByID), actualCount)
 
 	return actualCount
 }
