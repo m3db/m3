@@ -123,6 +123,7 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
+	metricType ts.PromMetricType,
 	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
@@ -131,6 +132,7 @@ func (i *Ingester) Ingest(
 	op := i.p.Get().(*ingestOp)
 	op.c = ctx
 	op.id = id
+	op.metricType = metricType
 	op.metricNanos = metricNanos
 	op.value = value
 	op.sp = sp
@@ -152,12 +154,12 @@ type ingestOp struct {
 
 	c           context.Context
 	id          []byte
+	metricType  ts.PromMetricType
 	metricNanos int64
 	value       float64
 	sp          policy.StoragePolicy
 	callback    m3msg.Callbackable
 	tags        models.Tags
-	promType    ts.PromMetricType
 	datapoints  ts.Datapoints
 	q           storage.WriteQuery
 }
@@ -217,9 +219,9 @@ func (op *ingestOp) resetWriteQuery() error {
 	op.resetDataPoints()
 	return op.q.Reset(storage.WriteQueryOptions{
 		Tags:       op.tags,
+		Type:       op.metricType,
 		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
-		Type:       op.promType,
 		Attributes: storagemetadata.Attributes{
 			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  op.sp.Resolution().Window,
@@ -249,12 +251,6 @@ func (op *ingestOp) resetTags() error {
 			}
 			// Continue, whether we updated and need to restart iteration,
 			// or if passing for the second time
-			continue
-		}
-		if bytes.Equal(name, downsample.PromTypeTagValue) {
-			if len(value) == 1 {
-				op.promType = ts.PromMetricType(value[0])
-			}
 			continue
 		}
 

@@ -23,6 +23,7 @@ package protobuf
 import (
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // AggregatedDecoder is a decoder for decoding aggregated metrics.
@@ -50,6 +51,15 @@ func (d *AggregatedDecoder) Decode(b []byte) error {
 // ID returns the decoded id.
 func (d AggregatedDecoder) ID() []byte {
 	return d.pb.Metric.TimedMetric.Id
+}
+
+func (d AggregatedDecoder) Type() ts.PromMetricType {
+	switch d.pb.Metric.TimedMetric.Type {
+	case metricpb.MetricType_COUNTER:
+		return ts.PromMetricTypeCounter
+	default:
+		return ts.PromMetricTypeGauge
+	}
 }
 
 // TimeNanos returns the decoded timestamp.

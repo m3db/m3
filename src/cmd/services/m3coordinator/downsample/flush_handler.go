@@ -49,8 +49,6 @@ var (
 	// GraphiteIDSchemeTagValue specifies that the graphite ID
 	// scheme should be used for a metric.
 	GraphiteIDSchemeTagValue = []byte("graphite")
-	// PromTypeTagValue specifies metric type
-	PromTypeTagValue = []byte("__promt__")
 )
 
 var (

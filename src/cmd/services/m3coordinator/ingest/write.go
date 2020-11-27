@@ -471,13 +471,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
 				downsample.GraphiteIDSchemeTagValue)
 		}
-		// If prom type is set then send it to aggregator too to do not loose it.
-		// Currently it's passed as a tag and later filtered out when series will back to
-		// the coordinator.
-		// Also, see note above.
-		if value.Attributes.PromType != ts.PromMetricTypeUnknown {
-			appender.AddTag(downsample.PromTypeTagValue, []byte{byte(value.Attributes.PromType)})
-		}
 
 		opts := downsample.SampleAppenderOptions{
 			MetricType: value.Attributes.M3Type,
@@ -502,14 +495,24 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
-			switch value.Attributes.M3Type {
-			case ts.M3MetricTypeGauge:
-				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
-			case ts.M3MetricTypeCounter:
-				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
-			case ts.M3MetricTypeTimer:
-				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+			if value.Attributes.PromType != ts.PromMetricTypeUnknown {
+				switch value.Attributes.PromType {
+				case ts.PromMetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				default:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				}
+			} else {
+				switch value.Attributes.M3Type {
+				case ts.M3MetricTypeGauge:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				case ts.M3MetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				case ts.M3MetricTypeTimer:
+					err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+				}
 			}
+
 			if err != nil {
 				// If we see an error break out so we can try processing the
 				// next datapoint.
