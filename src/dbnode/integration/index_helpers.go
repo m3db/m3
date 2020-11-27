@@ -41,15 +41,25 @@ import (
 // TestIndexWrites holds index writes for testing.
 type TestIndexWrites []testIndexWrite
 
+// TestSeriesIterator is a minimal subset of encoding.SeriesIterator.
+type TestSeriesIterator interface {
+	encoding.Iterator
+
+	// ID gets the ID of the series.
+	ID() ident.ID
+
+	// Tags returns an iterator over the tags associated with the ID.
+	Tags() ident.TagIterator
+}
+
 // MatchesSeriesIters matches index writes with expected series.
-func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
+func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters []TestSeriesIterator) {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
 	}
-	require.Equal(t, len(writesByID), seriesIters.Len())
-	iters := seriesIters.Iters()
-	for _, iter := range iters {
+	require.Equal(t, len(writesByID), len(seriesIters))
+	for _, iter := range seriesIters {
 		id := iter.ID().String()
 		writes, ok := writesByID[id]
 		require.True(t, ok, id)
@@ -57,7 +67,7 @@ func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.S
 	}
 }
 
-func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIterator) {
+func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator) {
 	found := make([]bool, len(w))
 	count := 0
 	for iter.Next() {
