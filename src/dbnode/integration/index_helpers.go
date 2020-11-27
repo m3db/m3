@@ -89,7 +89,7 @@ func (w TestIndexWrites) MatchesSeriesIters(
 
 	uniqueIDs := make(map[string]struct{})
 	for _, wi := range w {
-		uniqueIDs[wi.id.String()] = struct{}{}
+		uniqueIDs[wi.ID.String()] = struct{}{}
 	}
 	require.Equal(t, len(uniqueIDs), actualCount)
 }
