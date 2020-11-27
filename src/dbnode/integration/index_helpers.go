@@ -45,7 +45,7 @@ type TestIndexWrites []TestIndexWrite
 func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
-		writesByID[wi.id.String()] = append(writesByID[wi.ID.String()], wi)
+		writesByID[wi.ID.String()] = append(writesByID[wi.ID.String()], wi)
 	}
 	require.Equal(t, len(writesByID), seriesIters.Len())
 	iters := seriesIters.Iters()
@@ -143,7 +143,7 @@ func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
 	for i := 0; i < numWrites; i++ {
 		id, tags := genIDTags(periodID, i, numTags)
-		writes = append(writes, testIndexWrite{
+		writes = append(writes, TestIndexWrite{
 			ID:        id,
 			Tags:      tags,
 			Timestamp: startTime.Add(time.Duration(i) * step).Truncate(time.Second),
