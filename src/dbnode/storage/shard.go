@@ -2287,7 +2287,7 @@ func (s *dbShard) WarmFlush(
 
 func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
-	resources coldFlushReuseableResources,
+	resources coldFlushReusableResources,
 	nsCtx namespace.Context,
 	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
