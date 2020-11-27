@@ -42,7 +42,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	// Test setup with cold-writes-enabled namespace.
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
-		SetRetentionOptions(defaultIntegrationTestRetentionOpts.
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts.
 			SetRetentionPeriod(12 * time.Hour)).
 		SetColdWritesEnabled(true)
 	nsID := ident.StringID("testColdWriteNs1")
