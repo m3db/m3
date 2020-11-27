@@ -72,7 +72,7 @@ func TestIngest(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, ts.PromMetricTypeGauge, metricNanos, 0, val, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)
@@ -93,7 +93,7 @@ func TestIngest(t *testing.T) {
 		},
 		Tags: models.NewTags(2, nil).AddTags(
 			[]models.Tag{
-				models.Tag{
+				{
 					Name:  []byte("__name__"),
 					Value: []byte("foo"),
 				},
@@ -144,7 +144,7 @@ func TestIngestNonRetryableError(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, ts.PromMetricTypeGauge, metricNanos, 0, val, sp, callback)
 
 	for appender.cntErr() != 1 {
 		time.Sleep(100 * time.Millisecond)

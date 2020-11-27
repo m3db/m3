@@ -1810,6 +1810,7 @@ func testFlushLocalMetricFn() (
 	return func(
 		idPrefix []byte,
 		id id.RawID,
+		metricType metric.Type,
 		idSuffix []byte,
 		timeNanos int64,
 		value float64,

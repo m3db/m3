@@ -722,7 +722,7 @@ func (s *m3storage) writeSingle(
 	session := namespace.Session()
 
 	annot := query.Annotation()
-	if query.Options().Type != ts.PromMetricTypeUnknown && (annot == nil || len(annot) == 0) {
+	if query.Options().Type != ts.PromMetricTypeUnknown && len(annot) == 0 {
 		tp, err := storage.PromMetricTypeToAnnotationPayloadType(query.Options().Type)
 		if err != nil {
 			return err
