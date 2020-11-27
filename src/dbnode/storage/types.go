@@ -288,14 +288,6 @@ type Namespace interface {
 
 	// DocRef returns the doc if already present in a namespace shard.
 	DocRef(id ident.ID) (doc.Document, bool, error)
-
-	// FetchWideEntry retrieves wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart time.Time,
-	) (block.StreamedWideEntry, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -379,6 +371,14 @@ type databaseNamespace interface {
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// FetchWideEntry retrieves the wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
