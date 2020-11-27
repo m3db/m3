@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package resources contain resources needed to setup docker containers for M3 tests.
+// Package resources contains resources needed to setup docker containers for M3 tests.
 package resources
 
 import (
