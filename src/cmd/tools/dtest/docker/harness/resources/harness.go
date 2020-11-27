@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package resources contains resources needed to setup docker containers for M3 tests.
 package resources
 
 import (
@@ -64,7 +65,12 @@ type dockerResources struct {
 
 // SetupSingleM3DBNode creates docker resources representing a setup with a
 // single DB node.
-func SetupSingleM3DBNode() (DockerResources, error) {
+func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nolint: gocyclo
+	options := setupOptions{}
+	for _, f := range opts {
+		f(&options)
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, err
@@ -83,6 +89,7 @@ func SetupSingleM3DBNode() (DockerResources, error) {
 
 	iOpts := instrument.NewOptions()
 	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
+		image: options.dbNodeImage,
 		iOpts: iOpts,
 	})
 
@@ -105,6 +112,7 @@ func SetupSingleM3DBNode() (DockerResources, error) {
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
+		image: options.coordinatorImage,
 		iOpts: iOpts,
 	})
 

@@ -1187,7 +1187,7 @@ type idAndBlockStart struct {
 	blockStart xtime.UnixNano
 }
 
-type coldFlushReuseableResources struct {
+type coldFlushReusableResources struct {
 	// dirtySeries is a map from a composite key of <series ID, block start>
 	// to an element in a list in the dirtySeriesToWrite map. This map is used
 	// to quickly test whether a series is dirty for a particular block start.
@@ -1209,22 +1209,22 @@ type coldFlushReuseableResources struct {
 	fsReader      fs.DataFileSetReader
 }
 
-func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+func newColdFlushReusableResources(opts Options) coldFlushReusableResources {
 	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		return coldFlushReuseableResources{}, nil
+		return coldFlushReusableResources{}
 	}
 
-	return coldFlushReuseableResources{
+	return coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		// TODO(juchan): set pool options.
 		idElementPool: newIDElementPool(nil),
 		fsReader:      fsReader,
-	}, nil
+	}
 }
 
-func (r *coldFlushReuseableResources) reset() {
+func (r *coldFlushReusableResources) reset() {
 	for _, seriesList := range r.dirtySeriesToWrite {
 		if seriesList != nil {
 			seriesList.Reset()
@@ -1259,12 +1259,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	}
 
 	shards := n.OwnedShards()
-
-	resources, err := newColdFlushReuseableResources(n.opts)
-	if err != nil {
-		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
-		return err
-	}
+	resources := newColdFlushReusableResources(n.opts)
 
 	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
 	// time between when we rotate out the active cold mutable index segments (happens here) and when
@@ -1273,6 +1268,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// where they will be evicted from the in-mem index.
 	var (
 		onColdFlushDone OnColdFlushDone
+		err             error
 	)
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
