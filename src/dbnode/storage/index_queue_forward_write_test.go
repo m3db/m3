@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -35,7 +34,7 @@ import (
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
-	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -208,9 +207,9 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 }
 
 func TestNamespaceForwardIndexWideQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -224,7 +223,10 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
-	queryTimes := []time.Time{now, nextBlockTime}
+	queryTimes := []time.Time{
+		now.Truncate(blockSize),
+		nextBlockTime.Truncate(blockSize),
+	}
 	for _, ts := range queryTimes {
 		collector := make(chan *ident.IDBatch)
 		doneCh := make(chan struct{})
@@ -232,9 +234,9 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 		go func() {
 			i := 0
 			for b := range collector {
-				batchStr := make([]string, 0, len(b.IDs))
-				for _, id := range b.IDs {
-					batchStr = append(batchStr, id.String())
+				batchStr := make([]string, 0, len(b.ShardIDs))
+				for _, shardID := range b.ShardIDs {
+					batchStr = append(batchStr, shardID.ID.String())
 				}
 
 				withinIndex := i < len(expectedBatchIDs)
@@ -494,7 +496,7 @@ func verifyShard(
 	next time.Time,
 	id string,
 ) {
-	allQueriesSuccess := xclock.WaitUntil(func() bool {
+	allQueriesSuccess := clock.WaitUntil(func() bool {
 		query := m3ninxidx.NewFieldQuery([]byte(id))
 		// check current index block for series
 		res, err := idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{

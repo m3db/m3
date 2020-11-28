@@ -70,7 +70,9 @@ func setupPlacementTest(t *testing.T, ctrl *gomock.Controller, initPlacement pla
 	mockClient.EXPECT().Services(gomock.Any()).Return(mockServices, nil).AnyTimes()
 	mockServices.EXPECT().PlacementService(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ interface{}, opts placement.Options) (placement.Service, error) {
-			ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), "", opts), opts)
+			ps := service.NewPlacementService(
+				storage.NewPlacementStorage(mem.NewStore(), "", opts),
+				service.WithPlacementOptions(opts))
 			if initPlacement != nil {
 				_, err := ps.Set(initPlacement)
 				require.NoError(t, err)

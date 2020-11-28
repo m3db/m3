@@ -101,7 +101,9 @@ func parseRequest(
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOpts.DocsLimit,
-		}}
+			Instantaneous:      instantaneous,
+		},
+	}
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
 	if restrictOpts != nil {
@@ -118,11 +120,9 @@ func parseRequest(
 		params models.RequestParams
 	)
 	if instantaneous {
-		params, err = parseInstantaneousParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts)
+		params, err = parseInstantaneousParams(r, engine.Options(), fetchOpts)
 	} else {
-		params, err = parseParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts)
+		params, err = parseParams(r, engine.Options(), fetchOpts)
 	}
 	if err != nil {
 		return ParsedOptions{}, err
@@ -175,7 +175,7 @@ func read(
 	parseOpts := engine.Options().ParseOptions()
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
-		return emptyResult, err
+		return emptyResult, xerrors.NewInvalidParamsError(err)
 	}
 
 	// Detect clients closing connections.

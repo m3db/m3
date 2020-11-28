@@ -31,6 +31,7 @@ import (
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
@@ -39,6 +40,7 @@ import (
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
 
+	"github.com/m3dbx/vellum/regexp"
 	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.etcd.io/etcd/pkg/types"
@@ -51,6 +53,47 @@ const (
 	defaultEtcdServerPort = 2380
 )
 
+var (
+	defaultLogging = xlog.Configuration{
+		Level: "info",
+	}
+	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
+	defaultMetricsExtendedMetricsType = instrument.DetailedExtendedMetrics
+	defaultMetrics                    = instrument.MetricsConfiguration{
+		PrometheusReporter: &instrument.PrometheusConfiguration{
+			HandlerPath: "/metrics",
+		},
+		Sanitization:    &defaultMetricsSanitization,
+		SamplingRate:    1.0,
+		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+	}
+	defaultListenAddress            = "0.0.0.0:9000"
+	defaultClusterListenAddress     = "0.0.0.0:9001"
+	defaultHTTPNodeListenAddress    = "0.0.0.0:9002"
+	defaultHTTPClusterListenAddress = "0.0.0.0:9003"
+	defaultDebugListenAddress       = "0.0.0.0:9004"
+	defaultHostIDValue              = "m3db_local"
+	defaultHostID                   = hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &defaultHostIDValue,
+	}
+	defaultGCPercentage                  = 100
+	defaultWriteNewSeriesAsync           = true
+	defaultWriteNewSeriesBackoffDuration = 2 * time.Millisecond
+	defaultCommitLogPolicy               = CommitLogPolicy{
+		FlushMaxBytes: 524288,
+		FlushEvery:    time.Second * 1,
+		Queue: CommitLogQueuePolicy{
+			Size:            2097152,
+			CalculationType: CalculationTypeFixed,
+		},
+	}
+	defaultDiscoveryType = discovery.M3DBSingleNodeType
+	defaultDiscovery     = discovery.Configuration{
+		Type: &defaultDiscoveryType,
+	}
+)
+
 // Configuration is the top level configuration that includes both a DB
 // node and a coordinator.
 type Configuration struct {
@@ -61,10 +104,10 @@ type Configuration struct {
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
-// InitDefaultsAndValidate initializes all default values and validates the Configuration.
-// We use this method to validate fields where the validator package falls short.
-func (c *Configuration) InitDefaultsAndValidate() error {
-	return c.DB.InitDefaultsAndValidate()
+// Validate validates the Configuration. We use this method to validate fields
+// where the validator package falls short.
+func (c *Configuration) Validate() error {
+	return c.DB.Validate()
 }
 
 // DBConfiguration is the configuration for a DB node.
@@ -76,42 +119,34 @@ type DBConfiguration struct {
 	Transforms TransformConfiguration `yaml:"transforms"`
 
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging *xlog.Configuration `yaml:"logging"`
 
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// The host and port on which to listen for the node service.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// The host and port on which to listen for the cluster service.
-	ClusterListenAddress string `yaml:"clusterListenAddress" validate:"nonzero"`
+	ClusterListenAddress *string `yaml:"clusterListenAddress"`
 
 	// The HTTP host and port on which to listen for the node service.
-	HTTPNodeListenAddress string `yaml:"httpNodeListenAddress" validate:"nonzero"`
+	HTTPNodeListenAddress *string `yaml:"httpNodeListenAddress"`
 
 	// The HTTP host and port on which to listen for the cluster service.
-	HTTPClusterListenAddress string `yaml:"httpClusterListenAddress" validate:"nonzero"`
+	HTTPClusterListenAddress *string `yaml:"httpClusterListenAddress"`
 
 	// The host and port on which to listen for debug endpoints.
-	DebugListenAddress string `yaml:"debugListenAddress"`
+	DebugListenAddress *string `yaml:"debugListenAddress"`
 
 	// HostID is the local host ID configuration.
-	HostID hostid.Configuration `yaml:"hostID"`
+	HostID *hostid.Configuration `yaml:"hostID"`
 
 	// Client configuration, used for inter-node communication and when used as a coordinator.
 	Client client.Configuration `yaml:"client"`
 
 	// The initial garbage collection target percentage.
 	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
-
-	// TODO(V1): Move to `limits`.
-	// Write new series limit per second to limit overwhelming during new ID bursts.
-	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
-
-	// TODO(V1): Move to `limits`.
-	// Write new series backoff between batches of new series insertions.
-	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
 	// The tick configuration, omit this to use default settings.
 	Tick *TickConfiguration `yaml:"tick"`
@@ -129,7 +164,7 @@ type DBConfiguration struct {
 	Filesystem FilesystemConfiguration `yaml:"filesystem"`
 
 	// The commit log policy for the node.
-	CommitLog CommitLogPolicy `yaml:"commitlog"`
+	CommitLog *CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing data within a cluster.
 	Repair *RepairPolicy `yaml:"repair"`
@@ -138,16 +173,19 @@ type DBConfiguration struct {
 	Replication *ReplicationPolicy `yaml:"replication"`
 
 	// The pooling policy.
-	PoolingPolicy PoolingPolicy `yaml:"pooling"`
+	PoolingPolicy *PoolingPolicy `yaml:"pooling"`
 
-	// The environment (static or dynamic) configuration.
-	EnvironmentConfig environment.Configuration `yaml:"config"`
+	// The discovery configuration.
+	Discovery *discovery.Configuration `yaml:"discovery"`
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
-	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+	WriteNewSeriesAsync *bool `yaml:"writeNewSeriesAsync"`
+
+	// Write new series backoff between batches of new series insertions.
+	WriteNewSeriesBackoffDuration *time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
@@ -171,14 +209,145 @@ type DBConfiguration struct {
 	Debug config.DebugConfiguration `yaml:"debug"`
 }
 
-// InitDefaultsAndValidate initializes all default values and validates the Configuration.
-// We use this method to validate fields where the validator package falls short.
-func (c *DBConfiguration) InitDefaultsAndValidate() error {
+// LoggingOrDefault returns the logging configuration or defaults.
+func (c *DBConfiguration) LoggingOrDefault() xlog.Configuration {
+	if c.Logging == nil {
+		return defaultLogging
+	}
+
+	return *c.Logging
+}
+
+// MetricsOrDefault returns metrics configuration or defaults.
+func (c *DBConfiguration) MetricsOrDefault() *instrument.MetricsConfiguration {
+	if c.Metrics == nil {
+		return &defaultMetrics
+	}
+
+	return c.Metrics
+}
+
+// ListenAddressOrDefault returns the listen address or default.
+func (c *DBConfiguration) ListenAddressOrDefault() string {
+	if c.ListenAddress == nil {
+		return defaultListenAddress
+	}
+
+	return *c.ListenAddress
+}
+
+// ClusterListenAddressOrDefault returns the listen address or default.
+func (c *DBConfiguration) ClusterListenAddressOrDefault() string {
+	if c.ClusterListenAddress == nil {
+		return defaultClusterListenAddress
+	}
+
+	return *c.ClusterListenAddress
+}
+
+// HTTPNodeListenAddressOrDefault returns the listen address or default.
+func (c *DBConfiguration) HTTPNodeListenAddressOrDefault() string {
+	if c.HTTPNodeListenAddress == nil {
+		return defaultHTTPNodeListenAddress
+	}
+
+	return *c.HTTPNodeListenAddress
+}
+
+// HTTPClusterListenAddressOrDefault returns the listen address or default.
+func (c *DBConfiguration) HTTPClusterListenAddressOrDefault() string {
+	if c.HTTPClusterListenAddress == nil {
+		return defaultHTTPClusterListenAddress
+	}
+
+	return *c.HTTPClusterListenAddress
+}
+
+// DebugListenAddressOrDefault returns the listen address or default.
+func (c *DBConfiguration) DebugListenAddressOrDefault() string {
+	if c.DebugListenAddress == nil {
+		return defaultDebugListenAddress
+	}
+
+	return *c.DebugListenAddress
+}
+
+// HostIDOrDefault returns the host ID or default.
+func (c *DBConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return defaultHostID
+	}
+
+	return *c.HostID
+}
+
+// CommitLogOrDefault returns the commit log policy or default.
+func (c *DBConfiguration) CommitLogOrDefault() CommitLogPolicy {
+	if c.CommitLog == nil {
+		return defaultCommitLogPolicy
+	}
+
+	return *c.CommitLog
+}
+
+// GCPercentageOrDefault returns the GC percentage or default.
+func (c *DBConfiguration) GCPercentageOrDefault() int {
+	if c.GCPercentage == 0 {
+		return defaultGCPercentage
+	}
+
+	return c.GCPercentage
+}
+
+// WriteNewSeriesAsyncOrDefault returns whether to write new series async or not.
+func (c *DBConfiguration) WriteNewSeriesAsyncOrDefault() bool {
+	if c.WriteNewSeriesAsync == nil {
+		return defaultWriteNewSeriesAsync
+	}
+
+	return *c.WriteNewSeriesAsync
+}
+
+// WriteNewSeriesBackoffDurationOrDefault returns the backoff duration for new series inserts.
+func (c *DBConfiguration) WriteNewSeriesBackoffDurationOrDefault() time.Duration {
+	if c.WriteNewSeriesBackoffDuration == nil {
+		return defaultWriteNewSeriesBackoffDuration
+	}
+
+	return *c.WriteNewSeriesBackoffDuration
+}
+
+// PoolingPolicyOrDefault returns the pooling policy or default.
+func (c *DBConfiguration) PoolingPolicyOrDefault() (PoolingPolicy, error) {
+	var policy PoolingPolicy
+	if c.PoolingPolicy != nil {
+		policy = *c.PoolingPolicy
+	}
+
+	if err := policy.InitDefaultsAndValidate(); err != nil {
+		return PoolingPolicy{}, err
+	}
+
+	return policy, nil
+}
+
+// DiscoveryOrDefault returns the discovery configuration or defaults.
+func (c *DBConfiguration) DiscoveryOrDefault() discovery.Configuration {
+	if c.Discovery == nil {
+		return defaultDiscovery
+	}
+
+	return *c.Discovery
+}
+
+// Validate validates the Configuration. We use this method to validate fields
+// where the validator package falls short.
+func (c *DBConfiguration) Validate() error {
 	if err := c.Filesystem.Validate(); err != nil {
 		return err
 	}
 
-	if err := c.PoolingPolicy.InitDefaultsAndValidate(); err != nil {
+	if _, err := c.PoolingPolicyOrDefault(); err != nil {
 		return err
 	}
 
@@ -211,6 +380,14 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
+	// RegexpDFALimit is the limit on the max number of states used by a
+	// regexp deterministic finite automaton. Default is 10,000 states.
+	RegexpDFALimit *int `yaml:"regexpDFALimit"`
+
+	// RegexpFSALimit is the limit on the max number of bytes used by the
+	// finite state automaton. Default is 10mb (10 million as int).
+	RegexpFSALimit *uint `yaml:"regexpFSALimit"`
+
 	// ForwardIndexProbability determines the likelihood that an incoming write is
 	// written to the next block, when arriving close to the block boundary.
 	//
@@ -226,6 +403,24 @@ type IndexConfiguration struct {
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+}
+
+// RegexpDFALimitOrDefault returns the deterministic finite automaton states
+// limit or default.
+func (c IndexConfiguration) RegexpDFALimitOrDefault() int {
+	if c.RegexpDFALimit == nil {
+		return regexp.StateLimit()
+	}
+	return *c.RegexpDFALimit
+}
+
+// RegexpFSALimitOrDefault returns the finite state automaton size
+// limit or default.
+func (c IndexConfiguration) RegexpFSALimitOrDefault() uint {
+	if c.RegexpFSALimit == nil {
+		return regexp.DefaultLimit()
+	}
+	return *c.RegexpFSALimit
 }
 
 // TransformConfiguration contains configuration options that can transform
@@ -447,12 +642,19 @@ func (c *ProtoConfiguration) Validate() error {
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
-	hostID, err := cfg.HostID.Resolve()
+	hostID, err := cfg.HostIDOrDefault().Resolve()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed resolving hostID %w", err)
 	}
+
+	discoveryCfg := cfg.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
+	}
+
+	kvCfg := envCfg.SeedNodes
 	newKVCfg.Name = hostID
 
 	dir := kvCfg.RootDir

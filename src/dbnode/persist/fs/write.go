@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -390,7 +391,7 @@ func (w *writer) closeWOIndex() error {
 		return err
 	}
 
-	return closeAll(
+	return xresource.CloseAll(
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
 		w.summariesFdWithDigest,
@@ -458,10 +459,10 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset        int64
-		prevID        []byte
-		tagsReuseable = w.tagsIterator
-		tagsEncoder   = w.tagEncoderPool.Get()
+		offset       int64
+		prevID       []byte
+		tagsReusable = w.tagsIterator
+		tagsEncoder  = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
 	for i, entry := range w.indexEntries {
@@ -473,7 +474,7 @@ func (w *writer) writeIndexFileContents(
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
-		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReusable)
 		if err != nil {
 			return err
 		}

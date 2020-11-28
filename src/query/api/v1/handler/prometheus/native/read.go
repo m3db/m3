@@ -37,14 +37,26 @@ import (
 )
 
 const (
-	// PromReadURL is the url for native prom read handler, this matches the
+	// PromReadURL is the URL for native prom read handler, this matches the
 	// default URL for the query range endpoint found on a Prometheus server.
 	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
-	// PromReadInstantURL is the url for native instantaneous prom read
+	// PromReadInstantURL is the URL for native instantaneous prom read
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server.
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+
+	// PrometheusReadURL is the URL for native prom read handler.
+	PrometheusReadURL = "/prometheus" + PromReadURL
+
+	// PrometheusReadInstantURL is the URL for native instantaneous prom read handler.
+	PrometheusReadInstantURL = "/prometheus" + PromReadInstantURL
+
+	// M3QueryReadURL is the URL for native m3 query read handler.
+	M3QueryReadURL = "/m3query" + PromReadURL
+
+	// M3QueryReadInstantURL is the URL for native instantaneous m3 query read handler.
+	M3QueryReadInstantURL = "/m3query" + PromReadInstantURL
 )
 
 var (
@@ -138,18 +150,23 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	handleroptions.AddWarningHeaders(w, result.Meta)
+	handleroptions.AddResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
+	keepNaNs := h.opts.Config().ResultOptions.KeepNaNs
+	if !keepNaNs {
+		keepNaNs = result.Meta.KeepNaNs
+	}
+
 	if h.instant {
-		renderResultsInstantaneousJSON(w, result, h.opts.Config().ResultOptions.KeepNans)
+		renderResultsInstantaneousJSON(w, result, keepNaNs)
 		return
 	}
 
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
-		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNaNs,
 	})
 
 	if err != nil {

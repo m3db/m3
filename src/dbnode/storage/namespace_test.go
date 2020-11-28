@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -56,9 +57,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
-)
+var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 
 type closerFn func()
 
@@ -799,9 +798,7 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
 	dopts := DefaultTestOptions()
 
-	var (
-		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
-	)
+	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	ropts := metadata.Options().RetentionOptions()
@@ -901,6 +898,7 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 	assertNeedsFlush(t, ns, t2, t1, false)
 	assertNeedsFlush(t, ns, t2, t0, false)
 }
+
 func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -942,11 +940,9 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = DefaultTestOptions()
-	)
-
-	var (
 		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
+
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
@@ -1413,11 +1409,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		sourceBlockSize               = time.Hour
 		targetBlockSize               = 2 * time.Hour
 		start                         = time.Now().Truncate(targetBlockSize)
-		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
 		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		sourceShard0ID         uint32 = 10
-		sourceShard1ID         uint32 = 20
+		shard0ID               uint32 = 10
+		shard1ID               uint32 = 20
+		insOpts                       = instrument.NewOptions()
 	)
+
+	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
 	defer sourceCloser()
@@ -1431,17 +1430,24 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
 	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
+	// Pass in mock cold flusher and expect the cold flush ns process to finish.
+	mockOnColdFlushNs := NewMockOnColdFlushNamespace(ctrl)
+	mockOnColdFlushNs.EXPECT().Done().Return(nil)
+	mockOnColdFlush := NewMockOnColdFlush(ctrl)
+	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
+	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
+
 	sourceShard0 := NewMockdatabaseShard(ctrl)
 	sourceShard1 := NewMockdatabaseShard(ctrl)
 	sourceNs.shards[0] = sourceShard0
 	sourceNs.shards[1] = sourceShard1
 
-	sourceShard0.EXPECT().ID().Return(sourceShard0ID)
+	sourceShard0.EXPECT().ID().Return(shard0ID)
 	sourceShard0.EXPECT().IsBootstrapped().Return(true)
 	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
 	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
 
-	sourceShard1.EXPECT().ID().Return(sourceShard1ID)
+	sourceShard1.EXPECT().ID().Return(shard1ID)
 	sourceShard1.EXPECT().IsBootstrapped().Return(true)
 	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
 	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
@@ -1458,8 +1464,18 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard0ID, gomock.Any(), gomock.Any(), sourceBlockVolumes0, opts, targetNs.Schema()).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(sourceNsIDMatcher, sourceShard1ID, gomock.Any(), gomock.Any(), sourceBlockVolumes1, opts, targetNs.Schema()).Return(int64(2), nil)
+
+	targetShard0.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes0, gomock.Any(), opts).
+		Return(int64(3), nil)
+
+	targetShard1.EXPECT().
+		AggregateTiles(
+			sourceNsIDMatcher, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
+			sourceBlockVolumes1, gomock.Any(), opts).
+		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
 

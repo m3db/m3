@@ -42,8 +42,11 @@ const (
 	StepParam = "step"
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
-	maxInt64      = float64(math.MaxInt64)
-	minInt64      = float64(math.MinInt64)
+	// TimeoutParam is the timeout parameter.
+	TimeoutParam = "timeout"
+	maxInt64     = float64(math.MaxInt64)
+	minInt64     = float64(math.MinInt64)
+	maxTimeout   = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
@@ -58,6 +61,12 @@ type FetchOptionsBuilder interface {
 type FetchOptionsBuilderOptions struct {
 	Limits        FetchOptionsBuilderLimitsOptions
 	RestrictByTag *storage.RestrictByTag
+	Timeout       time.Duration
+}
+
+// Validate validates the fetch options builder options.
+func (o FetchOptionsBuilderOptions) Validate() error {
+	return validateTimeout(o.Timeout)
 }
 
 // FetchOptionsBuilderLimitsOptions provides limits options to use when
@@ -75,8 +84,11 @@ type fetchOptionsBuilder struct {
 // NewFetchOptionsBuilder returns a new fetch options builder.
 func NewFetchOptionsBuilder(
 	opts FetchOptionsBuilderOptions,
-) FetchOptionsBuilder {
-	return fetchOptionsBuilder{opts: opts}
+) (FetchOptionsBuilder, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return fetchOptionsBuilder{opts: opts}, nil
 }
 
 // ParseLimit parses request limit from either header or query string.
@@ -146,6 +158,10 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	req *http.Request,
 ) (*storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
+
+	if source := req.Header.Get(headers.SourceHeader); len(source) > 0 {
+		fetchOpts.Source = []byte(source)
+	}
 
 	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
@@ -241,6 +257,11 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		return nil, err
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
+	}
+
+	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse timeout: err=%v", err)
 	}
 
 	return fetchOpts, nil
@@ -340,4 +361,47 @@ func ParseDuration(r *http.Request, key string) (time.Duration, error) {
 
 	return 0, fmt.Errorf("cannot parse duration='%s': as_duration_err=%s, as_float_err=%s",
 		str, durationErr, floatErr)
+}
+
+// ParseRequestTimeout parses the input request timeout with a default.
+func ParseRequestTimeout(
+	r *http.Request,
+	configFetchTimeout time.Duration,
+) (time.Duration, error) {
+	var timeout string
+	if v := r.FormValue(TimeoutParam); v != "" {
+		timeout = v
+	}
+	// Note: Header should take precedence.
+	if v := r.Header.Get(TimeoutParam); v != "" {
+		timeout = v
+	}
+
+	if timeout == "" {
+		return configFetchTimeout, nil
+	}
+
+	duration, err := time.ParseDuration(timeout)
+	if err != nil {
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': %v", err))
+	}
+
+	if err := validateTimeout(duration); err != nil {
+		return 0, err
+	}
+
+	return duration, nil
+}
+
+func validateTimeout(v time.Duration) error {
+	if v <= 0 {
+		return xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': less than or equal to zero %v", v))
+	}
+	if v > maxTimeout {
+		return xerrors.NewInvalidParamsError(
+			fmt.Errorf("invalid 'timeout': %v greater than max %v", v, maxTimeout))
+	}
+	return nil
 }

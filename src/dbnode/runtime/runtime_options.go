@@ -33,7 +33,7 @@ const (
 	DefaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 
 	// DefaultReadConsistencyLevel is the default read consistency level
-	DefaultReadConsistencyLevel = topology.ReadConsistencyLevelMajority
+	DefaultReadConsistencyLevel = topology.ReadConsistencyLevelUnstrictMajority
 
 	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
 	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority

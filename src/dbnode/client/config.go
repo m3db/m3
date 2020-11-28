@@ -365,7 +365,7 @@ func (c Configuration) NewAdminClient(
 		v = v.SetReadConsistencyLevel(*c.ReadConsistencyLevel)
 	}
 	if c.ConnectConsistencyLevel != nil {
-		v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
+		v = v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
 	}
 	if c.BackgroundHealthCheckFailLimit != nil {
 		v = v.SetBackgroundHealthCheckFailLimit(*c.BackgroundHealthCheckFailLimit)

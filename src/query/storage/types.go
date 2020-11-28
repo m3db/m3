@@ -133,6 +133,8 @@ type FetchOptions struct {
 	Scope tally.Scope
 	// Timeout is the timeout for the request.
 	Timeout time.Duration
+	// Source is the source for the query.
+	Source []byte
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for

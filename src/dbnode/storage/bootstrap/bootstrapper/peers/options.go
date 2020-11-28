@@ -61,6 +61,7 @@ var (
 var (
 	errAdminClientNotSet           = errors.New("admin client not set")
 	errPersistManagerNotSet        = errors.New("persist manager not set")
+	errIndexClaimsManagerNotSet    = errors.New("index claims manager not set")
 	errCompactorNotSet             = errors.New("compactor not set")
 	errIndexOptionsNotSet          = errors.New("index options not set")
 	errFilesystemOptionsNotSet     = errors.New("filesystem options not set")
@@ -76,6 +77,7 @@ type options struct {
 	indexSegmentConcurrency          int
 	persistenceMaxQueueSize          int
 	persistManager                   persist.Manager
+	indexClaimsManager               fs.IndexClaimsManager
 	runtimeOptionsManager            m3dbruntime.OptionsManager
 	contextPool                      context.Pool
 	fsOpts                           fs.Options
@@ -105,6 +107,9 @@ func (o *options) Validate() error {
 	}
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+	if o.indexClaimsManager == nil {
+		return errIndexClaimsManagerNotSet
 	}
 	if o.compactor == nil {
 		return errCompactorNotSet
@@ -202,6 +207,16 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
+}
+
+func (o *options) SetIndexClaimsManager(value fs.IndexClaimsManager) Options {
+	opts := *o
+	opts.indexClaimsManager = value
+	return &opts
+}
+
+func (o *options) IndexClaimsManager() fs.IndexClaimsManager {
+	return o.indexClaimsManager
 }
 
 func (o *options) SetCompactor(value *compaction.Compactor) Options {

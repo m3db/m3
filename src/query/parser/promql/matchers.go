@@ -295,10 +295,11 @@ func NewFunctionExpr(
 		p, err = scalar.NewTimeOp(tagOptions)
 		return p, true, err
 
-	// NB: no-ops.
 	case linear.SortType, linear.SortDescType:
-		return nil, false, err
+		p, err = linear.NewSortOp(name)
+		return p, true, err
 
+	// NB: no-ops.
 	case scalar.ScalarType:
 		return nil, false, err
 

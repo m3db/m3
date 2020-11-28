@@ -44,6 +44,9 @@ type QueryContextOptions struct {
 	LimitMaxDocs int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
+	// Instantaneous indicates an instant query.
+	Instantaneous     bool
+	// RestrictFetchType restricts the query fetches.
 	RestrictFetchType *RestrictFetchTypeQueryContextOptions
 }
 

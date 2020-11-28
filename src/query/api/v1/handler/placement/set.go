@@ -21,6 +21,7 @@
 package placement
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 	"time"
@@ -114,6 +115,16 @@ func (h *SetHandler) ServeHTTP(
 		logger.Error("unable to create new placement from proto", zap.Error(err))
 		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
+	}
+
+	if err := placement.Validate(newPlacement); err != nil {
+		if !req.Force {
+			logger.Error("unable to validate new placement", zap.Error(err))
+			xhttp.WriteError(w,
+				xerrors.NewRenamedError(err, fmt.Errorf("unable to validate new placement: %w", err)))
+			return
+		}
+		logger.Warn("unable to validate new placement, continuing with force", zap.Error(err))
 	}
 
 	var (

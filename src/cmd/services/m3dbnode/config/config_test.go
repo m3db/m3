@@ -95,9 +95,6 @@ db:
 
   gcPercentage: 100
 
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
   bootstrap:
       filesystem:
           numProcessorsPerCPU: 0.42
@@ -277,41 +274,42 @@ db:
                 lowWatermark: 0.01
                 highWatermark: 0.02
 
-  config:
-      service:
-          env: production
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 1.1.1.1:2379
-                    - 1.1.1.2:2379
-                    - 1.1.1.3:2379
-
-      seedNodes:
-          listenPeerUrls:
-              - http://0.0.0.0:2380
-          listenClientUrls:
-              - http://0.0.0.0:2379
-          rootDir: /var/lib/etcd
-          initialAdvertisePeerUrls:
-              - http://1.1.1.1:2380
-          advertiseClientUrls:
-              - http://1.1.1.1:2379
-          initialCluster:
-              - hostID: host1
-                endpoint: http://1.1.1.1:2380
-                clusterState: existing
-              - hostID: host2
-                endpoint: http://1.1.1.2:2380
-              - hostID: host3
-                endpoint: http://1.1.1.3:2380
+  discovery:
+    config:
+        service:
+            env: production
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 1.1.1.1:2379
+                      - 1.1.1.2:2379
+                      - 1.1.1.3:2379
+  
+        seedNodes:
+            listenPeerUrls:
+                - http://0.0.0.0:2380
+            listenClientUrls:
+                - http://0.0.0.0:2379
+            rootDir: /var/lib/etcd
+            initialAdvertisePeerUrls:
+                - http://1.1.1.1:2380
+            advertiseClientUrls:
+                - http://1.1.1.1:2379
+            initialCluster:
+                - hostID: host1
+                  endpoint: http://1.1.1.1:2380
+                  clusterState: existing
+                - hostID: host2
+                  endpoint: http://1.1.1.2:2380
+                - hostID: host3
+                  endpoint: http://1.1.1.3:2380
   hashing:
     seed: 42
   writeNewSeriesAsync: true
-
+  writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
 `
@@ -339,6 +337,8 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    regexpDFALimit: null
+    regexpFSALimit: null
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
@@ -409,8 +409,6 @@ func TestConfiguration(t *testing.T) {
     writeShardsInitializing: null
     shardsLeavingCountTowardsConsistency: null
   gcPercentage: 100
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
     mode: null
@@ -422,6 +420,7 @@ func TestConfiguration(t *testing.T) {
     peers: null
     cacheSeriesMetadata: null
     indexSegmentConcurrency: null
+    verify: null
   blockRetrieve: null
   cache:
     series: null
@@ -607,68 +606,73 @@ func TestConfiguration(t *testing.T) {
       size: 8
       lowWatermark: 0
       highWatermark: 0
-  config:
-    services:
-    - async: false
-      clientOverrides:
-        hostQueueFlushInterval: null
-        targetHostQueueFlushSize: null
-      service:
-        zone: embedded
-        env: production
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-        - zone: embedded
-          endpoints:
-          - 1.1.1.1:2379
-          - 1.1.1.2:2379
-          - 1.1.1.3:2379
-          keepAlive: null
-          tls: null
-          autoSyncInterval: 0s
-        m3sd:
-          initTimeout: null
-        watchWithRevision: 0
-        newDirectoryMode: null
-    statics: []
-    seedNodes:
-      rootDir: /var/lib/etcd
-      initialAdvertisePeerUrls:
-      - http://1.1.1.1:2380
-      advertiseClientUrls:
-      - http://1.1.1.1:2379
-      listenPeerUrls:
-      - http://0.0.0.0:2380
-      listenClientUrls:
-      - http://0.0.0.0:2379
-      initialCluster:
-      - hostID: host1
-        endpoint: http://1.1.1.1:2380
-        clusterState: existing
-      - hostID: host2
-        endpoint: http://1.1.1.2:2380
-        clusterState: ""
-      - hostID: host3
-        endpoint: http://1.1.1.3:2380
-        clusterState: ""
-      clientTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
-      peerTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
+  discovery:
+    type: null
+    m3dbCluster: null
+    m3AggregatorCluster: null
+    config:
+      services:
+      - async: false
+        clientOverrides:
+          hostQueueFlushInterval: null
+          targetHostQueueFlushSize: null
+        service:
+          zone: embedded
+          env: production
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+          - zone: embedded
+            endpoints:
+            - 1.1.1.1:2379
+            - 1.1.1.2:2379
+            - 1.1.1.3:2379
+            keepAlive: null
+            tls: null
+            autoSyncInterval: 0s
+          m3sd:
+            initTimeout: null
+          watchWithRevision: 0
+          newDirectoryMode: null
+      statics: []
+      seedNodes:
+        rootDir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+        - http://1.1.1.1:2380
+        advertiseClientUrls:
+        - http://1.1.1.1:2379
+        listenPeerUrls:
+        - http://0.0.0.0:2380
+        listenClientUrls:
+        - http://0.0.0.0:2379
+        initialCluster:
+        - hostID: host1
+          endpoint: http://1.1.1.1:2380
+          clusterState: existing
+        - hostID: host2
+          endpoint: http://1.1.1.2:2380
+          clusterState: ""
+        - hostID: host3
+          endpoint: http://1.1.1.3:2380
+          clusterState: ""
+        clientTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
+        peerTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  writeNewSeriesBackoffDuration: 2ms
   proto: null
   tracing:
     serviceName: ""
@@ -719,6 +723,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
+    writeNewSeriesPerSecond: 0
   wide: null
   tchannel: null
   debug:

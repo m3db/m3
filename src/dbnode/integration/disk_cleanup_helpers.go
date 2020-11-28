@@ -37,9 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
-)
+var errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 
 func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, error) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
