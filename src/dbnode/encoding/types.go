@@ -150,19 +150,19 @@ type Options interface {
 	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
 	ByteFieldDictionaryLRUSize() int
 
-	// SetIStreamReaderSizeM3TSZ sets the iStream bufio reader size
+	// SetIStreamReaderSizeM3TSZ sets the IStream bufio reader size
 	// for m3tsz encoding iteration.
 	SetIStreamReaderSizeM3TSZ(value int) Options
 
-	// IStreamReaderSizeM3TSZ returns the iStream bufio reader size
+	// IStreamReaderSizeM3TSZ returns the IStream bufio reader size
 	// for m3tsz encoding iteration.
 	IStreamReaderSizeM3TSZ() int
 
-	// SetIStreamReaderSizeProto sets the iStream bufio reader size
+	// SetIStreamReaderSizeProto sets the IStream bufio reader size
 	// for proto encoding iteration.
 	SetIStreamReaderSizeProto(value int) Options
 
-	// SetIStreamReaderSizeProto returns the iStream bufio reader size
+	// SetIStreamReaderSizeProto returns the IStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
 }
@@ -338,31 +338,6 @@ type EncoderAllocate func() Encoder
 
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
 type ReaderIteratorAllocate func(reader xio.Reader64, descr namespace.SchemaDescr) ReaderIterator
-
-// IStream encapsulates a readable stream.
-type IStream interface {
-	// Read reads len(b) bytes.
-	Read([]byte) (int, error)
-
-	// ReadBit reads the next Bit.
-	ReadBit() (Bit, error)
-
-	// ReadByte reads the next Byte.
-	ReadByte() (byte, error)
-
-	// ReadBits reads the next Bits.
-	ReadBits(numBits uint8) (uint64, error)
-
-	// PeekBits looks at the next Bits, but doesn't move the pos.
-	PeekBits(numBits uint8) (uint64, error)
-
-	// RemainingBitsInCurrentByte returns the number of bits remaining to
-	// be read in the current byte.
-	RemainingBitsInCurrentByte() uint
-
-	// Reset resets the IStream.
-	Reset(reader xio.Reader64)
-}
 
 // OStream encapsulates a writable stream.
 type OStream interface {

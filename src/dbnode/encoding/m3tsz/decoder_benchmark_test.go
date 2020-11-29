@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-// BenchmarkM3TSZDecode-12    	   16813	     71793 ns/op
+// BenchmarkM3TSZDecode-12    	   16867	     69272 ns/op
 func BenchmarkM3TSZDecode(b *testing.B) {
 	var (
 		encodingOpts = encoding.NewOptions()

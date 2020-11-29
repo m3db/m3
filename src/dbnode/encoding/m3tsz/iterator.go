@@ -33,7 +33,7 @@ import (
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type readerIterator struct {
-	is   encoding.IStream
+	is   *encoding.IStream
 	opts encoding.Options
 
 	err        error   // current error

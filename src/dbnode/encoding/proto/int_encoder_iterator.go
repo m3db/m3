@@ -144,7 +144,7 @@ func (eit *intEncoderAndIterator) encodeIntValDiff(stream encoding.OStream, valB
 	stream.WriteBits(valBits, int(numSig))
 }
 
-func (eit *intEncoderAndIterator) readIntValue(stream encoding.IStream) error {
+func (eit *intEncoderAndIterator) readIntValue(stream *encoding.IStream) error {
 	if eit.hasEncodedFirst {
 		changeExistsControlBit, err := stream.ReadBit()
 		if err != nil {
@@ -178,7 +178,7 @@ func (eit *intEncoderAndIterator) readIntValue(stream encoding.IStream) error {
 	return nil
 }
 
-func (eit *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
+func (eit *intEncoderAndIterator) readIntSig(stream *encoding.IStream) error {
 	updateControlBit, err := stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -212,7 +212,7 @@ func (eit *intEncoderAndIterator) readIntSig(stream encoding.IStream) error {
 	return nil
 }
 
-func (eit *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error {
+func (eit *intEncoderAndIterator) readIntValDiff(stream *encoding.IStream) error {
 	negativeControlBit, err := stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(

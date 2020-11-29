@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-// iStream encapsulates a readable stream.
-type iStream struct {
+// IStream encapsulates a readable stream.
+type IStream struct {
 	r         xio.Reader64
 	err       error  // error encountered
 	current   uint64 // current uint64 we are working off of
@@ -35,12 +35,13 @@ type iStream struct {
 	remaining uint8  // bits remaining in current to be read
 }
 
-// NewIStream creates a new iStream
-func NewIStream(reader64 xio.Reader64) IStream {
-	return &iStream{r: reader64}
+// NewIStream creates a new IStream
+func NewIStream(reader64 xio.Reader64) *IStream {
+	return &IStream{r: reader64}
 }
 
-func (is *iStream) Read(b []byte) (int, error) {
+// Read reads len(b) bytes.
+func (is *IStream) Read(b []byte) (int, error) {
 	var i int
 	for ; i < len(b); i++ {
 		res, err := is.ReadBits(8)
@@ -52,17 +53,20 @@ func (is *iStream) Read(b []byte) (int, error) {
 	return i, nil
 }
 
-func (is *iStream) ReadByte() (byte, error) {
+// ReadByte reads the next Byte.
+func (is *IStream) ReadByte() (byte, error) {
 	res, err := is.ReadBits(8)
 	return byte(res), err
 }
 
-func (is *iStream) ReadBit() (Bit, error) {
+// ReadBit reads the next Bit.
+func (is *IStream) ReadBit() (Bit, error) {
 	res, err := is.ReadBits(1)
 	return Bit(res), err
 }
 
-func (is *iStream) ReadBits(numBits uint8) (uint64, error) {
+// ReadBits reads the next Bits.
+func (is *IStream) ReadBits(numBits uint8) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -80,7 +84,8 @@ func (is *iStream) ReadBits(numBits uint8) (uint64, error) {
 	return res | is.consumeBuffer(bitsNeeded), nil
 }
 
-func (is *iStream) PeekBits(numBits uint8) (uint64, error) {
+// PeekBits looks at the next Bits, but doesn't move the pos.
+func (is *IStream) PeekBits(numBits uint8) (uint64, error) {
 	if numBits <= is.remaining {
 		return readBitsInWord(is.current, numBits), nil
 	}
@@ -97,7 +102,8 @@ func (is *iStream) PeekBits(numBits uint8) (uint64, error) {
 	return res | readBitsInWord(next, bitsNeeded), nil
 }
 
-func (is *iStream) RemainingBitsInCurrentByte() uint {
+// RemainingBitsInCurrentByte returns the number of bits remaining to be read in the current byte.
+func (is *IStream) RemainingBitsInCurrentByte() uint {
 	return uint(is.remaining % 8)
 }
 
@@ -107,14 +113,14 @@ func readBitsInWord(w uint64, numBits uint8) uint64 {
 }
 
 // consumeBuffer consumes numBits in is.current.
-func (is *iStream) consumeBuffer(numBits uint8) uint64 {
+func (is *IStream) consumeBuffer(numBits uint8) uint64 {
 	res := readBitsInWord(is.current, numBits)
 	is.current <<= numBits
 	is.remaining -= numBits
 	return res
 }
 
-func (is *iStream) readWordFromStream() error {
+func (is *IStream) readWordFromStream() error {
 	current, bytes, err := is.r.Read64()
 	is.current = current
 	is.remaining = 8 * bytes
@@ -123,7 +129,8 @@ func (is *iStream) readWordFromStream() error {
 	return err
 }
 
-func (is *iStream) Reset(reader xio.Reader64) {
+// Reset resets the IStream.
+func (is *IStream) Reset(reader xio.Reader64) {
 	is.err = nil
 	is.current = 0
 	is.remaining = 0

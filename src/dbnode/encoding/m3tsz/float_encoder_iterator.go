@@ -55,7 +55,7 @@ func (eit *FloatEncoderAndIterator) WriteFloat(stream encoding.OStream, val floa
 }
 
 // ReadFloat reads a compressed float from the stream.
-func (eit *FloatEncoderAndIterator) ReadFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) ReadFloat(stream *encoding.IStream) error {
 	if eit.NotFirst {
 		return eit.readNextFloat(stream)
 	}
@@ -102,7 +102,7 @@ func (eit *FloatEncoderAndIterator) writeXOR(stream encoding.OStream, currXOR ui
 	stream.WriteBits(currXOR>>uint(curTrailing), numMeaningfulBits)
 }
 
-func (eit *FloatEncoderAndIterator) readFullFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) readFullFloat(stream *encoding.IStream) error {
 	vb, err := stream.ReadBits(64)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (eit *FloatEncoderAndIterator) readFullFloat(stream encoding.IStream) error
 	return nil
 }
 
-func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) readNextFloat(stream *encoding.IStream) error {
 	cb, err := stream.ReadBits(1)
 	if err != nil {
 		return err

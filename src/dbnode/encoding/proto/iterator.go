@@ -56,7 +56,7 @@ type iterator struct {
 	err                  error
 	schema               *desc.MessageDescriptor
 	schemaDesc           namespace.SchemaDescr
-	stream               encoding.IStream
+	stream               *encoding.IStream
 	marshaller           customFieldMarshaller
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter

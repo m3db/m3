@@ -73,8 +73,7 @@ func TestIStreamReadByte(t *testing.T) {
 
 func TestIStreamPeekBitsSuccess(t *testing.T) {
 	byteStream := []byte{0xa9, 0xfe, 0xfe, 0xdf, 0x9b, 0x57, 0x21, 0xf1}
-	o := NewIStream(xio.NewBytesReader64(byteStream))
-	is := o.(*iStream)
+	is := NewIStream(xio.NewBytesReader64(byteStream))
 	inputs := []struct {
 		numBits  uint8
 		expected uint64
@@ -177,8 +176,7 @@ func TestIStreamRemainingBitsInCurrentByte(t *testing.T) {
 }
 
 func TestIStreamReset(t *testing.T) {
-	o := NewIStream(xio.NewBytesReader64([]byte{0xff}))
-	is := o.(*iStream)
+	is := NewIStream(xio.NewBytesReader64([]byte{0xff}))
 	_, _ = is.ReadBits(8)
 	_, _ = is.ReadBits(1)
 	is.Reset(xio.NewBytesReader64(nil))
