@@ -1769,7 +1769,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 
 	// Assert block has data
 	data, err := xio.ToBytes(xio.NewSegmentReader(seg))
-	require.NoError(t, err)
+	require.Equal(t, io.EOF, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 
