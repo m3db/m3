@@ -134,7 +134,7 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 	cb = (cb << 1) | nextCB
 	if cb == opcodeContainedValueXOR {
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(eit.PrevXOR)
-		numMeaningfulBits := uint(64 - previousLeading - previousTrailing)
+		numMeaningfulBits := uint8(64 - previousLeading - previousTrailing)
 		meaningfulBits, err := stream.ReadBits(numMeaningfulBits)
 		if err != nil {
 			return err
@@ -153,7 +153,7 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 	numLeadingZeros := (numLeadingZeroesAndNumMeaningfulBits & bits12To6Mask) >> 6
 	numMeaningfulBits := (numLeadingZeroesAndNumMeaningfulBits & bits6To0Mask) + 1
 
-	meaningfulBits, err := stream.ReadBits(uint(numMeaningfulBits))
+	meaningfulBits, err := stream.ReadBits(uint8(numMeaningfulBits))
 	if err != nil {
 		return err
 	}

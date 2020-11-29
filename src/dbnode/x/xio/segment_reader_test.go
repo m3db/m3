@@ -60,15 +60,9 @@ func testSegmentReader(
 	checksum := uint32(10)
 	segment := ts.NewSegment(checkd(head), checkd(tail), checksum, ts.FinalizeNone)
 	r := NewSegmentReader(segment)
-	var b [100]byte
-	n, err := r.Read(b[:])
-	require.NoError(t, err)
-	require.Equal(t, len(expected), n)
-	require.Equal(t, expected, b[:n])
-
-	n, err = r.Read(b[:])
+	bytes, err := ToBytes(r)
 	require.Equal(t, io.EOF, err)
-	require.Equal(t, 0, n)
+	require.Equal(t, expected, bytes)
 
 	seg, err := r.Segment()
 	require.NoError(t, err)
@@ -92,13 +86,14 @@ func testSegmentReader(
 	cloned.Finalize()
 	segment.Finalize()
 }
+
 func TestSegmentReaderNoPool(t *testing.T) {
 	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
 	testSegmentReader(t, checkd, nil)
 }
 
 func TestSegmentReaderWithPool(t *testing.T) {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {

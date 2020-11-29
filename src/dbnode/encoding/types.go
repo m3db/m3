@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -151,19 +150,19 @@ type Options interface {
 	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
 	ByteFieldDictionaryLRUSize() int
 
-	// SetIStreamReaderSizeM3TSZ sets the istream bufio reader size
+	// SetIStreamReaderSizeM3TSZ sets the iStream bufio reader size
 	// for m3tsz encoding iteration.
 	SetIStreamReaderSizeM3TSZ(value int) Options
 
-	// IStreamReaderSizeM3TSZ returns the istream bufio reader size
+	// IStreamReaderSizeM3TSZ returns the iStream bufio reader size
 	// for m3tsz encoding iteration.
 	IStreamReaderSizeM3TSZ() int
 
-	// SetIStreamReaderSizeProto sets the istream bufio reader size
+	// SetIStreamReaderSizeProto sets the iStream bufio reader size
 	// for proto encoding iteration.
 	SetIStreamReaderSizeProto(value int) Options
 
-	// SetIStreamReaderSizeProto returns the istream bufio reader size
+	// SetIStreamReaderSizeProto returns the iStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
 }
@@ -191,7 +190,7 @@ type ReaderIterator interface {
 
 	// Reset resets the iterator to read from a new reader with
 	// a new schema (for schema aware iterators).
-	Reset(reader io.Reader, schema namespace.SchemaDescr)
+	Reset(reader xio.Reader64, schema namespace.SchemaDescr)
 }
 
 // MultiReaderIterator is an iterator that iterates in order over
@@ -328,10 +327,7 @@ type MutableSeriesIterators interface {
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
-	Decode(reader io.Reader) ReaderIterator
-
-	// Decode64 decodes the encoded data slice of bytes.
-	Decode64(data []byte) ReaderIterator
+	Decode(reader xio.Reader64) ReaderIterator
 }
 
 // NewDecoderFn creates a new decoder.
@@ -341,7 +337,7 @@ type NewDecoderFn func() Decoder
 type EncoderAllocate func() Encoder
 
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
-type ReaderIteratorAllocate func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
+type ReaderIteratorAllocate func(reader xio.Reader64, descr namespace.SchemaDescr) ReaderIterator
 
 // IStream encapsulates a readable stream.
 type IStream interface {
@@ -355,17 +351,17 @@ type IStream interface {
 	ReadByte() (byte, error)
 
 	// ReadBits reads the next Bits.
-	ReadBits(numBits uint) (uint64, error)
+	ReadBits(numBits uint8) (uint64, error)
 
 	// PeekBits looks at the next Bits, but doesn't move the pos.
-	PeekBits(numBits uint) (uint64, error)
+	PeekBits(numBits uint8) (uint64, error)
 
 	// RemainingBitsInCurrentByte returns the number of bits remaining to
 	// be read in the current byte.
 	RemainingBitsInCurrentByte() uint
 
 	// Reset resets the IStream.
-	Reset(r io.Reader)
+	Reset(reader xio.Reader64)
 }
 
 // OStream encapsulates a writable stream.

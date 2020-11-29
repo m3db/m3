@@ -21,11 +21,10 @@
 package pools
 
 import (
-	"io"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -212,12 +211,12 @@ func BuildIteratorPools(
 	encodingOpts := encoding.NewOptions().
 		SetReaderIteratorPool(readerIteratorPool)
 
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	readerIteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
-	pools.multiReaderIterator.Init(func(r io.Reader, s namespace.SchemaDescr) encoding.ReaderIterator {
+	pools.multiReaderIterator.Init(func(r xio.Reader64, s namespace.SchemaDescr) encoding.ReaderIterator {
 		iter := readerIteratorPool.Get()
 		iter.Reset(r, s)
 		return iter

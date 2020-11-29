@@ -25,7 +25,6 @@
 package encoding
 
 import (
-	"io"
 	"reflect"
 	"time"
 
@@ -707,7 +706,7 @@ func (mr *MockReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockReaderIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
+func (m *MockReaderIterator) Reset(reader xio.Reader64, schema namespace.SchemaDescr) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", reader, schema)
 }
@@ -1495,7 +1494,7 @@ func (m *MockDecoder) EXPECT() *MockDecoderMockRecorder {
 }
 
 // Decode mocks base method
-func (m *MockDecoder) Decode(reader io.Reader) ReaderIterator {
+func (m *MockDecoder) Decode(reader xio.Reader64) ReaderIterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Decode", reader)
 	ret0, _ := ret[0].(ReaderIterator)
@@ -1506,20 +1505,6 @@ func (m *MockDecoder) Decode(reader io.Reader) ReaderIterator {
 func (mr *MockDecoderMockRecorder) Decode(reader interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode", reflect.TypeOf((*MockDecoder)(nil).Decode), reader)
-}
-
-// Decode64 mocks base method
-func (m *MockDecoder) Decode64(data []byte) ReaderIterator {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Decode64", data)
-	ret0, _ := ret[0].(ReaderIterator)
-	return ret0
-}
-
-// Decode64 indicates an expected call of Decode64
-func (mr *MockDecoderMockRecorder) Decode64(data interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode64", reflect.TypeOf((*MockDecoder)(nil).Decode64), data)
 }
 
 // MockIStream is a mock of IStream interface
@@ -1591,7 +1576,7 @@ func (mr *MockIStreamMockRecorder) ReadByte() *gomock.Call {
 }
 
 // ReadBits mocks base method
-func (m *MockIStream) ReadBits(numBits uint) (uint64, error) {
+func (m *MockIStream) ReadBits(numBits uint8) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1606,7 +1591,7 @@ func (mr *MockIStreamMockRecorder) ReadBits(numBits interface{}) *gomock.Call {
 }
 
 // PeekBits mocks base method
-func (m *MockIStream) PeekBits(numBits uint) (uint64, error) {
+func (m *MockIStream) PeekBits(numBits uint8) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeekBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1635,15 +1620,15 @@ func (mr *MockIStreamMockRecorder) RemainingBitsInCurrentByte() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockIStream) Reset(r io.Reader) {
+func (m *MockIStream) Reset(reader xio.Reader64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", r)
+	m.ctrl.Call(m, "Reset", reader)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockIStreamMockRecorder) Reset(r interface{}) *gomock.Call {
+func (mr *MockIStreamMockRecorder) Reset(reader interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockIStream)(nil).Reset), r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockIStream)(nil).Reset), reader)
 }
 
 // MockOStream is a mock of OStream interface

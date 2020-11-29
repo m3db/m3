@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"io"
 	"math"
 	"runtime"
 	"time"
@@ -37,6 +36,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -48,7 +48,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -187,7 +187,7 @@ var (
 	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
-	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
+	defaultSeriesIteratorArrayPoolBuckets []pool.Bucket
 
 	// defaulWriteRetrier is the default write retrier for write attempts
 	defaultWriteRetrier = xretry.NewRetrier(
@@ -445,7 +445,7 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	opts.isProtoEnabled = false
@@ -454,7 +454,7 @@ func (o *options) SetEncodingM3TSZ() Options {
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	opts.isProtoEnabled = true

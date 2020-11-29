@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -41,11 +41,6 @@ import (
 
 const (
 	asyncWriteWorkerPoolDefaultSize = 128
-)
-
-var (
-	errConfigurationMustSupplyConfig = errors.New(
-		"must supply config when no topology initializer parameter supplied")
 )
 
 // Configuration is a configuration that can be used to construct a client.
@@ -298,8 +293,8 @@ func (c Configuration) NewAdminClient(
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
 		syncNsInit           namespace.Initializer
-		asyncTopoInits       = []topology.Initializer{}
-		asyncClientOverrides = []environment.ClientOverrides{}
+		asyncTopoInits       []topology.Initializer
+		asyncClientOverrides []environment.ClientOverrides
 	)
 
 	var buildAsyncPool bool
@@ -412,9 +407,8 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
+	v = v.SetReaderIteratorAllocate(func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	if c.Proto != nil && c.Proto.Enabled {

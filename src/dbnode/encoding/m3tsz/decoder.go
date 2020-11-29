@@ -21,9 +21,8 @@
 package m3tsz
 
 import (
-	"io"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
 type decoder struct {
@@ -40,11 +39,6 @@ func NewDecoder(intOptimized bool, opts encoding.Options) encoding.Decoder {
 }
 
 // Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
+func (dec *decoder) Decode(reader xio.Reader64) encoding.ReaderIterator {
 	return NewReaderIterator(reader, dec.intOptimized, dec.opts)
-}
-
-// Decode decodes the encoded slice of bytes.
-func (dec *decoder) Decode64(data []byte) encoding.ReaderIterator {
-	return NewReaderIterator64(data, dec.intOptimized, dec.opts)
 }

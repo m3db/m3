@@ -317,7 +317,7 @@ type NamespacesTester struct {
 func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 	iterPool := encoding.NewMultiReaderIteratorPool(pool.NewObjectPoolOptions())
 	iterPool.Init(
-		func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
 			return m3tsz.NewReaderIterator(r,
 				m3tsz.DefaultIntOptimizationEnabled,
 				encoding.NewOptions())

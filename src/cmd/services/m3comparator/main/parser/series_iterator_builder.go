@@ -21,7 +21,6 @@
 package parser
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -34,9 +33,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const sep rune = '!'
-const tagSep rune = '.'
-
 // Data is a set of datapoints.
 type Data []ts.Datapoint
 
@@ -46,7 +42,7 @@ type IngestSeries struct {
 	Tags       Tags
 }
 
-var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+var iterAlloc = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
 	return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 }
 

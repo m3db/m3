@@ -21,12 +21,12 @@
 package m3tsz
 
 import (
-	"bytes"
 	"encoding/base64"
 	"math/rand"
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,7 @@ import (
 func BenchmarkM3TSZDecode(b *testing.B) {
 	var (
 		encodingOpts = encoding.NewOptions()
-		reader       = bytes.NewReader(nil)
+		reader       = xio.NewBytesReader64(nil)
 		seriesRun    = prepareSampleSeriesRun(b)
 	)
 
@@ -49,24 +49,6 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 		require.NoError(b, iter.Err())
 	}
 }
-
-// BenchmarkM3TSZDecode64-12    	   17222	     69151 ns/op
-func BenchmarkM3TSZDecode64(b *testing.B) {
-	var (
-		encodingOpts = encoding.NewOptions()
-		seriesRun    = prepareSampleSeriesRun(b)
-	)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		iter := NewReaderIterator64(seriesRun[i], DefaultIntOptimizationEnabled, encodingOpts)
-		for iter.Next() {
-			_, _, _ = iter.Current()
-		}
-		require.NoError(b, iter.Err())
-	}
-}
-
 func prepareSampleSeriesRun(b *testing.B) [][]byte {
 	var (
 		rnd          = rand.New(rand.NewSource(42))

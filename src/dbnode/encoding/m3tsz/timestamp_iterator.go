@@ -41,6 +41,8 @@ type TimestampIterator struct {
 
 	Opts encoding.Options
 
+	markerEncodingScheme encoding.MarkerEncodingScheme
+
 	TimeUnitChanged bool
 	Done            bool
 
@@ -49,9 +51,8 @@ type TimestampIterator struct {
 	// for situations where looking ahead is not safe.
 	SkipMarkers bool
 
-	numValueBits         uint
-	numBits              uint
-	markerEncodingScheme encoding.MarkerEncodingScheme
+	numValueBits         uint8
+	numBits              uint8
 }
 
 // NewTimestampIterator creates a new TimestampIterator.
@@ -60,8 +61,8 @@ func NewTimestampIterator(opts encoding.Options, skipMarkers bool) TimestampIter
 	return TimestampIterator{
 		Opts:                 opts,
 		SkipMarkers:          skipMarkers,
-		numValueBits:         uint(mes.NumValueBits()),
-		numBits:              uint(mes.NumOpcodeBits() + mes.NumValueBits()),
+		numValueBits:         uint8(mes.NumValueBits()),
+		numBits:              uint8(mes.NumOpcodeBits() + mes.NumValueBits()),
 		markerEncodingScheme: mes,
 	}
 }
@@ -254,12 +255,12 @@ func (it *TimestampIterator) readDeltaOfDelta(
 
 		cb = (cb << 1) | nextCB
 		if cb == buckets[i].Opcode() {
-			dodBits, err := stream.ReadBits(uint(buckets[i].NumValueBits()))
+			dodBits, err := stream.ReadBits(uint8(buckets[i].NumValueBits()))
 			if err != nil {
 				return 0, err
 			}
 
-			dod := encoding.SignExtend(dodBits, uint(buckets[i].NumValueBits()))
+			dod := encoding.SignExtend(dodBits, uint8(buckets[i].NumValueBits()))
 			timeUnit, err := it.TimeUnit.Value()
 			if err != nil {
 				return 0, nil
@@ -269,7 +270,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		}
 	}
 
-	numValueBits := uint(tes.DefaultBucket().NumValueBits())
+	numValueBits := uint8(tes.DefaultBucket().NumValueBits())
 	dodBits, err := stream.ReadBits(numValueBits)
 	if err != nil {
 		return 0, err
@@ -316,7 +317,7 @@ func (it *TimestampIterator) readVarint(stream encoding.IStream) (int, error) {
 	return int(res), err
 }
 
-func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits uint) (uint64, bool) {
+func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits uint8) (uint64, bool) {
 	res, err := stream.PeekBits(numBits)
 	if err != nil {
 		return 0, false

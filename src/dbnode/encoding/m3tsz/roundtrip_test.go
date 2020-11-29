@@ -22,13 +22,11 @@ package m3tsz
 
 import (
 	"bytes"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/testgen"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
@@ -99,13 +97,11 @@ func TestIntOverflow(t *testing.T) {
 }
 
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
-	validateRoundTrip(t, input, true, false)
-	validateRoundTrip(t, input, false, false)
-	validateRoundTrip(t, input, true, true)
-	validateRoundTrip(t, input, false, true)
+	validateRoundTrip(t, input, true)
+	validateRoundTrip(t, input, false)
 }
 
-func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool, useDecode64 bool) {
+func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
@@ -150,14 +146,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool, useDecod
 	stream, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 
-	var it encoding.ReaderIterator
-	if useDecode64 {
-		data, err := ioutil.ReadAll(stream)
-		require.NoError(t, err)
-		it = decoder.Decode64(data)
-	} else {
-		it = decoder.Decode(stream)
-	}
+	it := decoder.Decode(stream)
 	defer it.Close()
 
 	i := 0
