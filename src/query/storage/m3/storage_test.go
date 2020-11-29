@@ -239,9 +239,12 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 }
 
 func TestLocalWriteUnaggregatedNamespaceUninitializedError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	// We setup an empty dynamic cluster, which will by default have an uninitialized unaggregated namespace.
+	// We setup an empty dynamic cluster, which will by default
+	// have an uninitialized unaggregated namespace.
 	store := newTestStorage(t, &dynamicCluster{})
 
 	opts := newWriteQuery(t).Options()
@@ -251,7 +254,7 @@ func TestLocalWriteUnaggregatedNamespaceUninitializedError(t *testing.T) {
 
 	err = store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "unaggregated namespace not yet initialized"),
+	assert.True(t, strings.Contains(err.Error(), "unaggregated namespace is not yet initialized"),
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
 }
 

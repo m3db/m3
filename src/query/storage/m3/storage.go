@@ -55,7 +55,8 @@ var (
 	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured             = goerrors.New("no namespaces configured")
-	errUnaggregatedNamespaceUninitialized = goerrors.New("unaggregated namespace is not yet initialized")
+	errUnaggregatedNamespaceUninitialized = goerrors.New(
+		"unaggregated namespace is not yet initialized")
 )
 
 type m3storage struct {
@@ -700,7 +701,7 @@ func (s *m3storage) writeSingle(
 	case storagemetadata.UnaggregatedMetricsType:
 		namespace, exists = s.clusters.UnaggregatedClusterNamespace()
 		if !exists {
-			err = fmt.Errorf("unaggregated namespace not yet initialized")
+			err = errUnaggregatedNamespaceUninitialized
 		}
 	case storagemetadata.AggregatedMetricsType:
 		attrs := RetentionResolution{

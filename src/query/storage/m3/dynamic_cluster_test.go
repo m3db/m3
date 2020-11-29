@@ -76,6 +76,8 @@ func newNamespaceOptions() namespace.Options {
 }
 
 func TestDynamicClustersUninitialized(t *testing.T) {
+	t.Parallel()
+
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -95,6 +97,7 @@ func TestDynamicClustersUninitialized(t *testing.T) {
 	clusters, err := NewDynamicClusters(opts)
 	require.NoError(t, err)
 
+	//nolint:errcheck
 	defer clusters.Close()
 
 	// Aggregated namespaces should not exist
@@ -460,8 +463,11 @@ func assertClusterNamespace(clusters Clusters, expectedID ident.ID, expectedOpts
 		}); !ok {
 			return false
 		}
-	} else if ns, ok = clusters.UnaggregatedClusterNamespace(); !ok {
-		return false
+	} else {
+		ns, ok = clusters.UnaggregatedClusterNamespace()
+		if !ok {
+			return false
+		}
 	}
 	return assert.ObjectsAreEqual(expectedID.String(), ns.NamespaceID().String()) &&
 		assert.ObjectsAreEqual(expectedOpts, ns.Options())
