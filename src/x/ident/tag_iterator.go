@@ -68,11 +68,11 @@ func newTagSliceIter(
 	pool Pool,
 ) *tagSliceIter {
 	iter := &tagSliceIter{
-		nameBytesID:  NewReuseableBytesID(),
-		valueBytesID: NewReuseableBytesID(),
+		nameBytesID:  NewReusableBytesID(),
+		valueBytesID: NewReusableBytesID(),
 		pool:         pool,
 	}
-	iter.currentReuseableTag = Tag{
+	iter.currentReusableTag = Tag{
 		Name:  iter.nameBytesID,
 		Value: iter.valueBytesID,
 	}
@@ -97,13 +97,13 @@ type tagsSlice struct {
 }
 
 type tagSliceIter struct {
-	backingSlice        tagsSlice
-	currentIdx          int
-	currentTag          Tag
-	currentReuseableTag Tag
-	nameBytesID         *ReuseableBytesID
-	valueBytesID        *ReuseableBytesID
-	pool                Pool
+	backingSlice       tagsSlice
+	currentIdx         int
+	currentTag         Tag
+	currentReusableTag Tag
+	nameBytesID        *ReusableBytesID
+	valueBytesID       *ReusableBytesID
+	pool               Pool
 }
 
 func (i *tagSliceIter) Next() bool {
@@ -115,7 +115,7 @@ func (i *tagSliceIter) Next() bool {
 		} else {
 			i.nameBytesID.Reset(i.backingSlice.fields[i.currentIdx].Name)
 			i.valueBytesID.Reset(i.backingSlice.fields[i.currentIdx].Value)
-			i.currentTag = i.currentReuseableTag
+			i.currentTag = i.currentReusableTag
 		}
 		return true
 	}

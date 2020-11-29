@@ -234,9 +234,9 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 		go func() {
 			i := 0
 			for b := range collector {
-				batchStr := make([]string, 0, len(b.IDs))
-				for _, id := range b.IDs {
-					batchStr = append(batchStr, id.String())
+				batchStr := make([]string, 0, len(b.ShardIDs))
+				for _, shardID := range b.ShardIDs {
+					batchStr = append(batchStr, shardID.ID.String())
 				}
 
 				withinIndex := i < len(expectedBatchIDs)

@@ -288,6 +288,14 @@ type Namespace interface {
 
 	// DocRef returns the doc if already present in a namespace shard.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+
+	// FetchWideEntry retrieves wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+	) (block.StreamedWideEntry, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -371,14 +379,6 @@ type databaseNamespace interface {
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
-
-	// FetchWideEntry retrieves the wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart time.Time,
-	) (block.StreamedWideEntry, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -601,7 +601,7 @@ type databaseShard interface {
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(
 		flush persist.FlushPreparer,
-		resources coldFlushReuseableResources,
+		resources coldFlushReusableResources,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (ShardColdFlush, error)
@@ -653,6 +653,7 @@ type databaseShard interface {
 		blockReaders []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
 		sourceBlockVolumes []shardBlockVolume,
+		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
 
@@ -1403,6 +1404,7 @@ type TileAggregator interface {
 		shardID uint32,
 		readers []fs.DataFileSetReader,
 		writer fs.StreamingWriter,
+		onFlushSeries persist.OnFlushSeries,
 	) (int64, error)
 }
 
