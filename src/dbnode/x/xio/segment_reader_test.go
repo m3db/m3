@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"encoding/binary"
 	"io"
 	"testing"
 
@@ -48,6 +49,8 @@ var (
 		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
+
+	checkdNoPool = func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
 )
 
 type byteFunc func(d []byte) checked.Bytes
@@ -88,8 +91,7 @@ func testSegmentReader(
 }
 
 func TestSegmentReaderNoPool(t *testing.T) {
-	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
-	testSegmentReader(t, checkd, nil)
+	testSegmentReader(t, checkdNoPool, nil)
 }
 
 func TestSegmentReaderWithPool(t *testing.T) {
@@ -109,4 +111,53 @@ func TestSegmentReaderWithPool(t *testing.T) {
 	}
 
 	testSegmentReader(t, checkd, bytesPool)
+}
+
+func TestSegmentReader64(t *testing.T) {
+	data := make([]byte, 32)
+	for i := range data {
+		data[i] = 100 + byte(i)
+	}
+
+	for headLen := 0; headLen < len(data); headLen++ {
+		for tailLen := 0; tailLen < len(data)-headLen; tailLen++ {
+			testSegmentReader64(t, data[:headLen], data[headLen:headLen+tailLen])
+		}
+	}
+}
+
+func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
+	var expected []byte
+	expected = append(expected, head...)
+	expected = append(expected, tail...)
+
+	var (
+		segment      = ts.NewSegment(checkdNoPool(head), checkdNoPool(tail), 0, ts.FinalizeNone)
+		r            = NewSegmentReader(segment)
+		peeked, read []byte
+		buf          [8]byte
+		word         uint64
+		n            byte
+		err          error
+	)
+
+	for {
+		word, n, err = r.Peek64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		peeked = append(peeked, buf[:n]...)
+
+		word, n, err = r.Read64()
+		if err != nil {
+			break
+		}
+		binary.BigEndian.PutUint64(buf[:], word)
+		read = append(read, buf[:n]...)
+	}
+
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, expected, peeked)
+	require.Equal(t, expected, read)
 }
