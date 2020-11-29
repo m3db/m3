@@ -150,7 +150,7 @@ func FromRawSeriesIDAndTags(
 	encodedTags ts.EncodedTags,
 	tagDecoder serialize.TagDecoder,
 ) (doc.Document, error) {
-	var tagIter = ident.EmptyTagIterator
+	tagIter := ident.EmptyTagIterator
 	if len(encodedTags) > 0 {
 		encodedTagBytes := checked.NewBytes(encodedTags, nil)
 		tagDecoder.Reset(encodedTagBytes)

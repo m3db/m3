@@ -70,8 +70,8 @@ var (
 	testNamespaceOptions      = namespace.NewOptions()
 	testRetentionOptions      = retention.NewOptions()
 	testDefaultFsOpts         = fs.NewOptions()
-	testDefaultRunOpts        = bootstrap.NewRunOptions().
-		SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+
+	testDefaultRunOpts    = bootstrap.NewRunOptions().SetPersistConfig(bootstrap.PersistConfig{})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 	testShardRanges       = testShardTimeRanges()

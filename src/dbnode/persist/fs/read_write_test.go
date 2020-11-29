@@ -592,7 +592,7 @@ func readMetadata(
 }
 
 func decodeTags(t *testing.T, encodedTags ts.EncodedTags) ident.TagIterator {
-	var tags = ident.EmptyTagIterator
+	tags := ident.EmptyTagIterator
 	if len(encodedTags) > 0 {
 		tagsDecoder := testTagDecoderPool.Get()
 		tagsDecoder.Reset(checkedBytes(encodedTags))
