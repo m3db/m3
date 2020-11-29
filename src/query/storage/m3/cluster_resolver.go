@@ -89,8 +89,8 @@ func resolveClusterNamespacesForQuery(
 	// First check if the unaggregated cluster can fully satisfy the query range.
 	// If so, return it and shortcircuit, as unaggregated will necessarily have
 	// every metric.
-	ns, ok := clusters.UnaggregatedClusterNamespace()
-	if !ok {
+	ns, initialized := clusters.UnaggregatedClusterNamespace()
+	if !initialized {
 		return consolidators.NamespaceInvalid, nil, errUnaggregatedNamespaceUninitialized
 	}
 

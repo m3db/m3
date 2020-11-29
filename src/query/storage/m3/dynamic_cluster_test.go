@@ -104,7 +104,7 @@ func TestDynamicClustersUninitialized(t *testing.T) {
 	})
 	require.False(t, ok)
 
-	// Unaggregated namespaces hould not exist
+	// Unaggregated namespaces should not be initialized
 	_, ok = clusters.UnaggregatedClusterNamespace()
 	require.False(t, ok)
 
