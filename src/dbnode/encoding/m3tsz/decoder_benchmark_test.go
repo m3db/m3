@@ -25,10 +25,10 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-
-	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkM3TSZDecode-12    	   10000	    108797 ns/op
@@ -49,9 +49,10 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 		require.NoError(b, iter.Err())
 	}
 }
+
 func prepareSampleSeriesRun(b *testing.B) [][]byte {
 	var (
-		rnd          = rand.New(rand.NewSource(42))
+		rnd          = rand.New(rand.NewSource(42)) // nolint: gosec
 		sampleSeries = make([][]byte, 0, len(sampleSeriesBase64))
 		seriesRun    = make([][]byte, 0, b.N)
 	)

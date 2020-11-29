@@ -51,13 +51,15 @@ func TestIStreamReadBits(t *testing.T) {
 }
 
 func TestIStreamReadByte(t *testing.T) {
-	byteStream := []uint8{
-		0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7,
-		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
-	}
+	var (
+		byteStream = []uint8{
+			0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7,
+			0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
+		}
+		is  = NewIStream(xio.NewBytesReader64(byteStream))
+		res = make([]byte, 0, len(byteStream))
+	)
 
-	is := NewIStream(xio.NewBytesReader64(byteStream))
-	var res []byte
 	for range byteStream {
 		read, err := is.ReadByte()
 		require.NoError(t, err)
@@ -152,7 +154,7 @@ func TestIStreamPeekAfterReadBits(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(0x30405060708090A), res)
 
-	res, err = is.PeekBits(64)
+	_, err = is.PeekBits(64)
 	require.EqualError(t, err, io.EOF.Error())
 }
 
@@ -168,7 +170,7 @@ func TestIStreamRemainingBitsInCurrentByte(t *testing.T) {
 			require.Equal(t, expected, is.RemainingBitsInCurrentByte())
 			bit, err := is.ReadBit()
 			require.NoError(t, err)
-			expectedBit := Bit(b>>i)&1
+			expectedBit := Bit(b>>i) & 1
 			require.Equal(t, expectedBit, bit)
 		}
 	}

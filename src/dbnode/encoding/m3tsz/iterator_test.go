@@ -33,7 +33,11 @@ import (
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(xio.NewBytesReader64(rawBytes), false, encoding.NewOptions()).(*readerIterator)
+	return NewReaderIterator(
+		xio.NewBytesReader64(rawBytes),
+		false,
+		encoding.NewOptions(),
+	).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {

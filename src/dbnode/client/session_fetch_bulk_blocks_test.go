@@ -57,17 +57,19 @@ import (
 )
 
 var (
-	blockSize       = 2 * time.Hour
-	nsID            = ident.StringID("testNs1")
-	nsRetentionOpts = retention.NewOptions().
-		SetBlockSize(blockSize).
-		SetRetentionPeriod(48 * blockSize)
+	blockSize = 2 * time.Hour
+	nsID      = ident.StringID("testNs1")
+
+	nsRetentionOpts = retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+
 	testTagDecodingPool = serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testTagEncodingPool = serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
+
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
@@ -1767,6 +1769,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 
 	// Assert block has data
 	data, err := xio.ToBytes(xio.NewSegmentReader(seg))
+	require.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 

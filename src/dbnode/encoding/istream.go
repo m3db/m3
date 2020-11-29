@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-// iStream encapsulates a readable stream based directly on []byte slice and operating in 64 bit words.
+// iStream encapsulates a readable stream.
 type iStream struct {
 	r         xio.Reader64
 	err       error  // error encountered

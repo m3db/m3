@@ -211,16 +211,18 @@ func BuildIteratorPools(
 	encodingOpts := encoding.NewOptions().
 		SetReaderIteratorPool(readerIteratorPool)
 
-	readerIteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(
+		func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
+			return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		})
 
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
-	pools.multiReaderIterator.Init(func(r xio.Reader64, s namespace.SchemaDescr) encoding.ReaderIterator {
-		iter := readerIteratorPool.Get()
-		iter.Reset(r, s)
-		return iter
-	})
+	pools.multiReaderIterator.Init(
+		func(r xio.Reader64, s namespace.SchemaDescr) encoding.ReaderIterator {
+			iter := readerIteratorPool.Get()
+			iter.Reset(r, s)
+			return iter
+		})
 
 	pools.seriesIterator = encoding.NewSeriesIteratorPool(defaultPerSeriesPoolOpts)
 	pools.seriesIterator.Init()

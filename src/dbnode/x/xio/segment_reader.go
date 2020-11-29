@@ -64,7 +64,7 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 	if sr.si+8 < nh {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res := binary.BigEndian.Uint64(sr.lazyHead[sr.si:])
+		res = binary.BigEndian.Uint64(sr.lazyHead[sr.si:])
 		sr.si += 8
 		return res, 8, nil
 	}
@@ -84,7 +84,7 @@ func (sr *segmentReader) Read64() (word uint64, n byte, err error) {
 	if sr.si+8 < nht {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res := binary.BigEndian.Uint64(sr.lazyTail[sr.si-nh:])
+		res = binary.BigEndian.Uint64(sr.lazyTail[sr.si-nh:])
 		sr.si += 8
 		return res, 8, nil
 	}
@@ -114,7 +114,7 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 	if i+8 < nh {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res := binary.BigEndian.Uint64(sr.lazyHead[i:])
+		res = binary.BigEndian.Uint64(sr.lazyHead[i:])
 		return res, 8, nil
 	}
 
@@ -133,7 +133,7 @@ func (sr *segmentReader) Peek64() (word uint64, n byte, err error) {
 	if i+8 < nht {
 		// NB: this compiles to a single 64 bit load followed by
 		// a BSWAPQ on amd64 gc 1.13 (https://godbolt.org/z/oTK1jx).
-		res := binary.BigEndian.Uint64(sr.lazyTail[i-nh:])
+		res = binary.BigEndian.Uint64(sr.lazyTail[i-nh:])
 		return res, 8, nil
 	}
 

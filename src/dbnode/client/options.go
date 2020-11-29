@@ -445,7 +445,10 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(
+		r xio.Reader64,
+		_ namespace.SchemaDescr,
+	) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	opts.isProtoEnabled = false
@@ -454,7 +457,10 @@ func (o *options) SetEncodingM3TSZ() Options {
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(
+		r xio.Reader64,
+		descr namespace.SchemaDescr,
+	) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	opts.isProtoEnabled = true

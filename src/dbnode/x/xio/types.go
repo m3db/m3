@@ -103,7 +103,6 @@ type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	Reset(blocks [][]BlockReader)
 }
 
-
 // Reader64 is a reader for reading 64 bit words.
 type Reader64 interface {
 

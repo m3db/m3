@@ -2,6 +2,8 @@ package xio
 
 import "encoding/binary"
 
+// ToBytes reads and returns the contents of Reader64 as a slice of bytes.
+// Should normally return io.EOF as an error.
 func ToBytes(reader Reader64) ([]byte, error) {
 	var (
 		res []byte

@@ -51,8 +51,8 @@ type TimestampIterator struct {
 	// for situations where looking ahead is not safe.
 	SkipMarkers bool
 
-	numValueBits         uint8
-	numBits              uint8
+	numValueBits uint8
+	numBits      uint8
 }
 
 // NewTimestampIterator creates a new TimestampIterator.

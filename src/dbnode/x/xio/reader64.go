@@ -5,15 +5,18 @@ import (
 	"io"
 )
 
+// BytesReader64 implements a Reader64 over a slice of bytes.
 type BytesReader64 struct {
 	data  []byte
 	index int
 }
 
+// NewBytesReader64 creates a new BytesReader64.
 func NewBytesReader64(data []byte) *BytesReader64 {
 	return &BytesReader64{data: data}
 }
 
+// Read64 reads and returns a 64 bit word plus a number of bytes (up to 8) actually read.
 func (r *BytesReader64) Read64() (word uint64, n byte, err error) {
 	if r.index+8 <= len(r.data) {
 		// NB: this compiles to a single 64 bit load followed by
@@ -34,6 +37,7 @@ func (r *BytesReader64) Read64() (word uint64, n byte, err error) {
 	return res << (64 - 8*bytes), bytes, nil
 }
 
+// Peek64 peeks and returns the next 64 bit word plus a number of bytes (up to 8) available.
 func (r *BytesReader64) Peek64() (word uint64, n byte, err error) {
 	if r.index+8 <= len(r.data) {
 		// NB: this compiles to a single 64 bit load followed by
@@ -55,6 +59,7 @@ func (r *BytesReader64) Peek64() (word uint64, n byte, err error) {
 	return res << (64 - 8*bytes), bytes, nil
 }
 
+// Reset resets the BytesReader64 for reuse.
 func (r *BytesReader64) Reset(data []byte) {
 	r.data = data
 	r.index = 0
