@@ -330,7 +330,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 			// Enqueue for fetch in batch in offset ascending order.
 			req.wideEntry = entry
-			entry.Shard = req.shard
+			req.wideEntry.Shard = req.shard
 			retrieverResources.appendWideEntryReq(req)
 
 		default:
