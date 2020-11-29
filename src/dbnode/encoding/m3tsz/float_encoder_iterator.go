@@ -122,7 +122,6 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream *encoding.IStream) erro
 
 	if cb == opcodeZeroValueXOR {
 		eit.PrevXOR = 0
-		eit.PrevFloatBits ^= eit.PrevXOR
 		return nil
 	}
 
