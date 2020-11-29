@@ -162,8 +162,8 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, numExpectedBytes, len(rawBytes))
 
-	buff := xio.NewBytesReader64(rawBytes)
-	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
+	r := xio.NewBytesReader64(rawBytes)
+	iter := NewIterator(r, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	i := 0
 	for iter.Next() {
@@ -224,8 +224,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try reading the stream just using the vl1 schema.
-	buff := xio.NewBytesReader64(rawBytes)
-	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
+	r := xio.NewBytesReader64(rawBytes)
+	iter := NewIterator(r, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
 
 	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation := iter.Current()
@@ -260,8 +260,8 @@ func TestRoundTripMidStreamSchemaChanges(t *testing.T) {
 	require.NoError(t, iter.Err())
 
 	// Try reading the stream just using the vl2 schema.
-	buff = xio.NewBytesReader64(rawBytes)
-	iter = NewIterator(buff, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
+	r = xio.NewBytesReader64(rawBytes)
+	iter = NewIterator(r, namespace.GetTestSchemaDescr(testVL2Schema), testEncodingOptions)
 
 	require.True(t, iter.Next(), "iter err: %v", iter.Err())
 	dp, unit, annotation = iter.Current()
