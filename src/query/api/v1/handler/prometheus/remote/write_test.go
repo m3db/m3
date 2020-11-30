@@ -87,6 +87,71 @@ func TestPromWriteParsing(t *testing.T) {
 }
 
 func TestMetricTypeHeader(t *testing.T) {
+	tests := []struct {
+		headerValue  string
+		expectedType prompb.MetricType
+	}{
+		{
+			expectedType: prompb.MetricType_UNKNOWN,
+		},
+		{
+			headerValue:  "counter",
+			expectedType: prompb.MetricType_COUNTER,
+		},
+		{
+			headerValue:  "Counter",
+			expectedType: prompb.MetricType_COUNTER,
+		},
+		{
+			headerValue:  "gauge",
+			expectedType: prompb.MetricType_GAUGE,
+		},
+		{
+			headerValue:  "histogram",
+			expectedType: prompb.MetricType_HISTOGRAM,
+		},
+		{
+			headerValue:  "gauge-histogram",
+			expectedType: prompb.MetricType_GAUGE_HISTOGRAM,
+		},
+		{
+			headerValue:  "summary",
+			expectedType: prompb.MetricType_SUMMARY,
+		},
+		{
+			headerValue:  "info",
+			expectedType: prompb.MetricType_INFO,
+		},
+		{
+			headerValue:  "stateset",
+			expectedType: prompb.MetricType_STATESET,
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	handlerOpts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	for _, testCase := range tests {
+		t.Run(testCase.headerValue, func(tt *testing.T) {
+			promReq := test.GeneratePromWriteRequest()
+			promReqBody := test.GeneratePromWriteRequestBody(tt, promReq)
+			req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+			if testCase.headerValue > "" {
+				req.Header.Add(headers.PromTypeHeader, testCase.headerValue)
+			}
+			r, err := handler.(*PromWriteHandler).parseRequest(req)
+			require.NoError(tt, err)
+			require.Equal(tt, testCase.expectedType, r.Request.Timeseries[0].Type)
+		})
+	}
+}
+
+func TestInvalidMetricTypeHeader(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -98,17 +163,9 @@ func TestMetricTypeHeader(t *testing.T) {
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-	r, err := handler.(*PromWriteHandler).parseRequest(req)
-	require.NoError(t, err)
-	require.Equal(t, prompb.MetricType_UNKNOWN, r.Request.Timeseries[0].Type)
-
-	promReq = test.GeneratePromWriteRequest()
-	promReqBody = test.GeneratePromWriteRequestBody(t, promReq)
-	req = httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-	req.Header.Add(headers.PromTypeHeader, "counter")
-	r, err = handler.(*PromWriteHandler).parseRequest(req)
-	require.NoError(t, err)
-	require.Equal(t, prompb.MetricType_COUNTER, r.Request.Timeseries[0].Type)
+	req.Header.Add(headers.PromTypeHeader, "random")
+	_, err = handler.(*PromWriteHandler).parseRequest(req)
+	require.Error(t, err)
 }
 
 func TestPromWrite(t *testing.T) {

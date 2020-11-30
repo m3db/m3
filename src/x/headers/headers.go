@@ -44,7 +44,8 @@ const (
 	MetricsTypeHeader = M3HeaderPrefix + "Metrics-Type"
 
 	// PromTypeHeader sets the prometheus metric type. Valid values are
-	// "counter", "gauge", etc.
+	// "counter", "gauge", etc. (see src/query/api/v1/handler/prometheus/remote/write.go
+	// field `headerToMetricType`)
 	PromTypeHeader = M3HeaderPrefix + "Prom-Type"
 
 	// WriteTypeHeader is a header that controls if default
