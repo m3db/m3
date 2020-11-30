@@ -73,9 +73,6 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
-	// DBWideEntry is the operation name for the tchannelthrift WideEntry path.
-	DBWideEntry = "storage.db.WideEntry"
-
 	// DBFetchMismatch is the operation name for the tchannelthrift DBFetchMismatch path.
 	DBFetchMismatch = "storage.db.FetchMismatch"
 

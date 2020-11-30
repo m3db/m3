@@ -223,6 +223,8 @@ linters:
     # New line required before return would require a large fraction of the
     # code base to need updating, it's not worth the perceived benefit.
     - nlreturn 
+    # Opinionated and sometimes wrong.
+    - paralleltest
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
@@ -295,4 +297,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: 5a3a12bba59e058b7a4cee6ec472c3f5786f741b
+  new-from-rev: master

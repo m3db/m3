@@ -55,8 +55,8 @@ type Clusters interface {
 	NonReadyClusterNamespaces() ClusterNamespaces
 
 	// UnaggregatedClusterNamespace returns the valid unaggregated
-	// cluster namespace.
-	UnaggregatedClusterNamespace() ClusterNamespace
+	// cluster namespace. If the namespace is not yet initialized, returns false.
+	UnaggregatedClusterNamespace() (ClusterNamespace, bool)
 
 	// AggregatedClusterNamespace returns an aggregated cluster namespace
 	// at a specific retention and resolution.
@@ -258,8 +258,8 @@ func (c *clusters) NonReadyClusterNamespaces() ClusterNamespaces {
 	return nil
 }
 
-func (c *clusters) UnaggregatedClusterNamespace() ClusterNamespace {
-	return c.unaggregatedNamespace
+func (c *clusters) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
+	return c.unaggregatedNamespace, true
 }
 
 func (c *clusters) AggregatedClusterNamespace(

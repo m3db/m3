@@ -235,7 +235,7 @@ func (t *testClusters) Close() error {
 	panic("implement me")
 }
 
-func (t *testClusters) UnaggregatedClusterNamespace() m3.ClusterNamespace {
+func (t *testClusters) UnaggregatedClusterNamespace() (m3.ClusterNamespace, bool) {
 	panic("implement me")
 }
 
