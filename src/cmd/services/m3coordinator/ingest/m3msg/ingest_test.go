@@ -103,6 +103,7 @@ func TestIngest(t *testing.T) {
 				},
 			},
 		),
+		Type: ts.PromMetricTypeGauge,
 		Unit: xtime.Second,
 	})
 	require.NoError(t, err)
