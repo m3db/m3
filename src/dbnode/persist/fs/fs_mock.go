@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	persist "github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -523,18 +524,18 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 }
 
 // SeekWideEntry mocks base method
-func (m *MockDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.WideEntry, error) {
+func (m *MockDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 schema.WideEntryFilter, arg2 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1)
+	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1, arg2)
 	ret0, _ := ret[0].(xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SeekWideEntry indicates an expected call of SeekWideEntry
-func (mr *MockDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1, arg2)
 }
 
 // MockIndexFileSetWriter is a mock of IndexFileSetWriter interface
@@ -1259,18 +1260,18 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1
 }
 
 // SeekWideEntry mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 ReusableSeekerResources) (xio.WideEntry, error) {
+func (m *MockConcurrentDataFileSetSeeker) SeekWideEntry(arg0 ident.ID, arg1 schema.WideEntryFilter, arg2 ReusableSeekerResources) (xio.WideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1)
+	ret := m.ctrl.Call(m, "SeekWideEntry", arg0, arg1, arg2)
 	ret0, _ := ret[0].(xio.WideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SeekWideEntry indicates an expected call of SeekWideEntry
-func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekWideEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeekWideEntry", reflect.TypeOf((*MockConcurrentDataFileSetSeeker)(nil).SeekWideEntry), arg0, arg1, arg2)
 }
 
 // MockMergeWith is a mock of MergeWith interface

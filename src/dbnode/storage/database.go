@@ -941,12 +941,9 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-// batchProcessWideQuery runs the given query against the namespace index,
-// iterating in a batchwise fashion across all matching IDs, applying the given
-// IDBatchProcessor batch processing function to each ID discovered.
-func (d *db) batchProcessWideQuery(
+func (d *db) BatchProcessWideQuery(
 	ctx context.Context,
-	n databaseNamespace,
+	n Namespace,
 	query index.Query,
 	batchProcessor IDBatchProcessor,
 	opts index.WideQueryOptions,
@@ -1029,8 +1026,9 @@ func (d *db) WideQuery(
 	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedWideEntries = streamedWideEntries[:0]
+
 		for _, shardID := range batch.ShardIDs {
-			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start)
+			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start, nil)
 			if err != nil {
 				return err
 			}
@@ -1050,7 +1048,7 @@ func (d *db) WideQuery(
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+	err = d.BatchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
 	if err != nil {
 		return nil, err
 	}

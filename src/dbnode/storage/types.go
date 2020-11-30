@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -186,6 +187,17 @@ type Database interface {
 		iterOpts index.IterationOptions,
 	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
 
+	// BatchProcessWideQuery runs the given query against the namespace index,
+	// iterating in a batchwise fashion across all matching IDs, applying the given
+	// IDBatchProcessor batch processing function to each ID discovered.
+	BatchProcessWideQuery(
+		ctx context.Context,
+		n Namespace,
+		query index.Query,
+		batchProcessor IDBatchProcessor,
+		opts index.WideQueryOptions,
+	) error
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -289,12 +301,22 @@ type Namespace interface {
 	// DocRef returns the doc if already present in a namespace shard.
 	DocRef(id ident.ID) (doc.Document, bool, error)
 
-	// FetchWideEntry retrieves wide entry for an ID for the
+	// WideQueryIDs resolves the given query into known IDs in s streaming
+	// fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
+	// FetchWideEntry retrieves the wide entry for an ID for the
 	// block at time start.
 	FetchWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 	) (block.StreamedWideEntry, error)
 }
 
@@ -357,14 +379,6 @@ type databaseNamespace interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
-
-	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
-	WideQueryIDs(
-		ctx context.Context,
-		query index.Query,
-		collector chan *ident.IDBatch,
-		opts index.WideQueryOptions,
-	) error
 
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
@@ -546,6 +560,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (block.StreamedWideEntry, error)
 
@@ -1255,6 +1270,12 @@ type Options interface {
 
 	// OnColdFlush returns the on cold flush processor.
 	OnColdFlush() OnColdFlush
+
+	// SetIterationOptions sets iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns iteration options.
+	IterationOptions() index.IterationOptions
 
 	// SetForceColdWritesEnabled sets options for forcing cold writes.
 	SetForceColdWritesEnabled(value bool) Options

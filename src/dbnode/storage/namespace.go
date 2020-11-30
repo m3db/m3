@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -922,6 +923,7 @@ func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 ) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -931,7 +933,7 @@ func (n *dbNamespace) FetchWideEntry(
 		return block.EmptyStreamedWideEntry, err
 	}
 
-	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, filter, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return res, err

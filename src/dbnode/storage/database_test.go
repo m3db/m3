@@ -902,7 +902,7 @@ func TestWideQuery(t *testing.T) {
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
 		ns.EXPECT().FetchWideEntry(gomock.Any(),
-			ident.StringID("foo"), gomock.Any()).
+			ident.StringID("foo"), gomock.Any(), nil).
 			Return(block.EmptyStreamedWideEntry, nil)
 
 		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)

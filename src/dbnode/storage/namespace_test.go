@@ -303,6 +303,48 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
+func TestNamespaceFetchWideEntryShardNotOwned(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	for i := range ns.shards {
+		ns.shards[i] = nil
+	}
+	_, err := ns.FetchWideEntry(ctx, ident.StringID("foo"), time.Now(), nil)
+	require.Error(t, err)
+}
+
+func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	id := ident.StringID("foo")
+	start := time.Now()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().FetchWideEntry(ctx, id, start, gomock.Any(), gomock.Any()).Return(nil, nil)
+	ns.shards[testShardIDs[0].ID()] = shard
+
+	shard.EXPECT().IsBootstrapped().Return(true)
+	_, err := ns.FetchWideEntry(ctx, id, start, nil)
+	require.NoError(t, err)
+
+	shard.EXPECT().IsBootstrapped().Return(false)
+	_, err = ns.FetchWideEntry(ctx, id, start, nil)
+	require.Error(t, err)
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
+}
+
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
