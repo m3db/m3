@@ -1433,6 +1433,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
@@ -1441,7 +1444,6 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
 		start      = time.Now().Truncate(time.Hour)
 	)
 
@@ -1451,7 +1453,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)
