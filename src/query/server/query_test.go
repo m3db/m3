@@ -253,7 +253,7 @@ func TestIngest(t *testing.T) {
 			gomock.Any(),
 			42.0,
 			gomock.Any(),
-			nil).
+			[]byte{8, 2}).
 		Do(func(_, _, _, _, _, _, _ interface{}) {
 			numWrites.Add(1)
 		})
