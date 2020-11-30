@@ -941,12 +941,9 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-// batchProcessWideQuery runs the given query against the namespace index,
-// iterating in a batchwise fashion across all matching IDs, applying the given
-// IDBatchProcessor batch processing function to each ID discovered.
-func (d *db) batchProcessWideQuery(
+func (d *db) BatchProcessWideQuery(
 	ctx context.Context,
-	n databaseNamespace,
+	n Namespace,
 	query index.Query,
 	batchProcessor IDBatchProcessor,
 	opts index.WideQueryOptions,
@@ -1029,8 +1026,9 @@ func (d *db) WideQuery(
 	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedWideEntries = streamedWideEntries[:0]
-		for _, id := range batch.IDs {
-			streamedWideEntry, err := d.fetchWideEntries(ctx, n, id, start)
+
+		for _, shardID := range batch.ShardIDs {
+			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start, nil)
 			if err != nil {
 				return err
 			}
@@ -1050,32 +1048,12 @@ func (d *db) WideQuery(
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+	err = d.BatchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return collectedChecksums, nil
-}
-
-func (d *db) fetchWideEntries(
-	ctx context.Context,
-	ns databaseNamespace,
-	id ident.ID,
-	start time.Time,
-) (block.StreamedWideEntry, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideEntry)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", ns.ID().String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-		)
-	}
-
-	defer sp.Finish()
-
-	return ns.FetchWideEntry(ctx, id, start)
 }
 
 func (d *db) FetchBlocks(
@@ -1312,7 +1290,7 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),

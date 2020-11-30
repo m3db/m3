@@ -87,7 +87,8 @@ const (
 )
 
 var (
-	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	// DefaultIntegrationTestRetentionOpts are default integration test retention options.
+	DefaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
 )
 
 // TestOptions contains integration test options.
@@ -333,7 +334,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
-		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts)
 
 	for _, ns := range testNamespaces {
 		md, err := namespace.NewMetadata(ns, nsOpts)

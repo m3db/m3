@@ -638,7 +638,7 @@ func TestShardColdFlush(t *testing.T) {
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
-	resources := coldFlushReuseableResources{
+	resources := coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		idElementPool:      newIDElementPool(nil),
@@ -711,7 +711,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	dirtySeriesToWrite[xtime.ToUnixNano(t2)] = newIDList(idElementPool)
 	dirtySeriesToWrite[xtime.ToUnixNano(t3)] = newIDList(idElementPool)
 
-	resources := coldFlushReuseableResources{
+	resources := coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: dirtySeriesToWrite,
 		idElementPool:      idElementPool,
@@ -1613,26 +1613,30 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := xio.WideEntry{
-		ID:               ident.StringID("foo"),
-		MetadataChecksum: 5,
-	}
+	var (
+		checksum = xio.WideEntry{
+			ID:               ident.StringID("foo"),
+			MetadataChecksum: 5,
+		}
 
-	wideEntry := block.NewMockStreamedWideEntry(ctrl)
+		wideEntry = block.NewMockStreamedWideEntry(ctrl)
+	)
 	retriever.EXPECT().
 		StreamWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).Return(wideEntry, nil).Times(2)
+			start, gomock.Any(), gomock.Any()).Return(wideEntry, nil).Times(2)
 
 	// First call to RetrieveWideEntry is expected to error on retrieval
 	wideEntry.EXPECT().RetrieveWideEntry().
 		Return(xio.WideEntry{}, errors.New("err"))
-	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
+	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"),
+		start, nil, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
 	wideEntry.EXPECT().RetrieveWideEntry().Return(checksum, nil)
-	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
+	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"),
+		start, nil, namespace.Context{})
 	require.NoError(t, err)
 	retrieved, err := r.RetrieveWideEntry()
 	require.NoError(t, err)
@@ -1844,6 +1848,9 @@ func TestShardAggregateTiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	var (
 		sourceBlockSize = time.Hour
 		targetBlockSize = 2 * time.Hour
@@ -1864,8 +1871,6 @@ func TestShardAggregateTiles(t *testing.T) {
 
 	sourceShard := testDatabaseShard(t, testOpts)
 	defer assert.NoError(t, sourceShard.Close())
-
-	sourceNsID := sourceShard.namespace.ID()
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
 	reader0.EXPECT().Entries().Return(firstSourceBlockEntries)
@@ -1900,13 +1905,22 @@ func TestShardAggregateTiles(t *testing.T) {
 		writer.EXPECT().Close(),
 	)
 
-	targetNs := NewMockNamespace(ctrl)
+	var (
+		noOpColdFlushNs = &persist.NoOpColdFlushNamespace{}
+		sourceNs        = NewMockNamespace(ctrl)
+		targetNs        = NewMockNamespace(ctrl)
+	)
+
+	sourceNs.EXPECT().ID().Return(sourceShard.namespace.ID())
+
 	aggregator.EXPECT().
-		AggregateTiles(opts, targetNs, sourceShard.ID(), gomock.Len(2), writer).
+		AggregateTiles(ctx, sourceNs, targetNs, sourceShard.ID(), gomock.Len(2), writer,
+			noOpColdFlushNs, opts).
 		Return(expectedProcessedTileCount, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
-		sourceNsID, targetNs, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes, opts)
+		ctx, sourceNs, targetNs, sourceShard.ID(), blockReaders, writer,
+		sourceBlockVolumes, noOpColdFlushNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
 }
@@ -1915,21 +1929,24 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	var (
-		srcNsID = ident.StringID("src")
-		start   = time.Now()
-	)
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
 	defer assert.NoError(t, targetShard.Close())
 
-	var blockReaders []fs.DataFileSetReader
-	sourceBlockVolumes := []shardBlockVolume{{start, 0}}
-
-	writer := fs.NewMockStreamingWriter(ctrl)
+	var (
+		start              = time.Now()
+		blockReaders       []fs.DataFileSetReader
+		sourceBlockVolumes = []shardBlockVolume{{start, 0}}
+		writer             = fs.NewMockStreamingWriter(ctrl)
+		sourceNs           = NewMockNamespace(ctrl)
+		targetNs           = NewMockNamespace(ctrl)
+	)
 
 	_, err := targetShard.AggregateTiles(
-		srcNsID, nil, 1, blockReaders, writer, sourceBlockVolumes, AggregateTilesOptions{})
+		ctx, sourceNs, targetNs, 1, blockReaders, writer, sourceBlockVolumes,
+		&persist.NoOpColdFlushNamespace{}, AggregateTilesOptions{})
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 

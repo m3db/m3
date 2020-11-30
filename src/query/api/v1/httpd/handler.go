@@ -51,7 +51,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
 	"go.uber.org/zap"
 )
@@ -170,11 +170,16 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	opts := prom.Options{
-		PromQLEngine: h.options.PrometheusEngine(),
+	promqlQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
+		prom.WithEngine(h.options.PrometheusEngine()))
+	if err != nil {
+		return err
 	}
-	promqlQueryHandler := prom.NewReadHandler(opts, nativeSourceOpts)
-	promqlInstantQueryHandler := prom.NewReadInstantHandler(opts, nativeSourceOpts)
+	promqlInstantQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
+		prom.WithInstantEngine(h.options.PrometheusEngine()))
+	if err != nil {
+		return err
+	}
 	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
 	nativePromReadInstantHandler := native.NewPromReadInstantHandler(nativeSourceOpts)
 
@@ -390,7 +395,7 @@ func (h *Handler) RegisterRoutes() error {
 	if clusterClient != nil {
 		err = database.RegisterRoutes(h.registry, clusterClient,
 			h.options.Config(), h.options.EmbeddedDbCfg(),
-			serviceOptionDefaults, instrumentOpts)
+			serviceOptionDefaults, instrumentOpts, h.options.NamespaceValidator())
 		if err != nil {
 			return err
 		}
@@ -402,7 +407,8 @@ func (h *Handler) RegisterRoutes() error {
 		}
 
 		err = namespace.RegisterRoutes(h.registry, clusterClient,
-			h.options.Clusters(), serviceOptionDefaults, instrumentOpts)
+			h.options.Clusters(), serviceOptionDefaults, instrumentOpts,
+			h.options.NamespaceValidator())
 		if err != nil {
 			return err
 		}

@@ -35,7 +35,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-var errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
+var errReusableTagIteratorRequired = errors.New("reusable tags iterator is required")
 
 // Metadata is metadata for a time series, it can
 // have several underlying sources.
@@ -101,30 +101,30 @@ func (m Metadata) BytesID() []byte {
 
 // ResetOrReturnProvidedTagIterator returns a tag iterator
 // for the series, returning a direct ref to a provided tag
-// iterator or using the reuseable tag iterator provided by the
+// iterator or using the reusable tag iterator provided by the
 // callsite if it needs to iterate over tags or fields.
 func (m Metadata) ResetOrReturnProvidedTagIterator(
-	reuseableTagsIterator ident.TagsIterator,
+	reusableTagsIterator ident.TagsIterator,
 ) (ident.TagIterator, error) {
-	if reuseableTagsIterator == nil {
+	if reusableTagsIterator == nil {
 		// Always check to make sure callsites won't
 		// get a bad allocation pattern of having
 		// to create one here inline if the metadata
 		// they are passing in suddenly changes from
 		// tagsIter to tags or fields with metadata.
-		return nil, errReuseableTagIteratorRequired
+		return nil, errReusableTagIteratorRequired
 	}
 	if m.tagsIter != nil {
 		return m.tagsIter, nil
 	}
 
 	if len(m.tags.Values()) > 0 {
-		reuseableTagsIterator.Reset(m.tags)
-		return reuseableTagsIterator, reuseableTagsIterator.Err()
+		reusableTagsIterator.Reset(m.tags)
+		return reusableTagsIterator, reusableTagsIterator.Err()
 	}
 
-	reuseableTagsIterator.ResetFields(m.metadata.Fields)
-	return reuseableTagsIterator, reuseableTagsIterator.Err()
+	reusableTagsIterator.ResetFields(m.metadata.Fields)
+	return reusableTagsIterator, reusableTagsIterator.Err()
 }
 
 // Finalize will finalize any resources that requested
@@ -324,12 +324,12 @@ const (
 type SeriesMetadataLifeTime uint8
 
 const (
-	// SeriesMetadataLifeTimeLong means the underlying memory's life time is long lived and exceeds
+	// SeriesLifeTimeLong means the underlying memory's life time is long lived and exceeds
 	// the execution duration of the series metadata receiver.
-	SeriesMetadataLifeTimeLong SeriesMetadataLifeTime = iota
-	// SeriesMetadataLifeTimeShortLived means that the underlying memory is only valid for the duration
+	SeriesLifeTimeLong SeriesMetadataLifeTime = iota
+	// SeriesLifeTimeShort means that the underlying memory is only valid for the duration
 	// of the OnFlushNewSeries call. Must clone the underlying bytes in order to extend the life time.
-	SeriesMetadataLifeTimeShortLived
+	SeriesLifeTimeShort
 )
 
 // SeriesMetadataType describes the type of series metadata.
