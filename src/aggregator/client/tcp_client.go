@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -15,38 +17,80 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/uber-go/tally"
 )
 
-// LegacyClient is raw Protobuf over TCP M3 Aggregator client
-type LegacyClient struct {
+var _ AdminClient = (*TCPClient)(nil)
+
+// TCPClient sends metrics to M3 Aggregator via over custom TCP protocol.
+type TCPClient struct {
 	nowFn                      clock.NowFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
 	shardFn                    sharding.ShardFn
 	placementWatcher           placement.StagedPlacementWatcher
-	metrics                    legacyClientMetrics
+	metrics                    tcpClientMetrics
 }
 
-// NewLegacyClient returns new Protobuf over TCP M3 Aggregator client
-func NewLegacyClient(opts Options) (*LegacyClient, error) {
-	c := &LegacyClient{
-		metrics: newLegacyClientMetrics(nil),
+// NewTCPClient returns new Protobuf over TCP M3 Aggregator client.
+func NewTCPClient(opts Options) (*TCPClient, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
+
+	var (
+		instrumentOpts   = opts.InstrumentOptions()
+		writerMgr        instanceWriterManager
+		placementWatcher placement.StagedPlacementWatcher
+	)
+
+	writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
+	writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
+	writerMgr = newInstanceWriterManager(writerMgrOpts)
+
+	onPlacementsAddedFn := func(placements []placement.Placement) {
+		for _, placement := range placements {
+			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
+		}
+	}
+
+	onPlacementsRemovedFn := func(placements []placement.Placement) {
+		for _, placement := range placements {
+			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
+		}
+	}
+
+	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
+		SetClockOptions(opts.ClockOptions()).
+		SetOnPlacementsAddedFn(onPlacementsAddedFn).
+		SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
+	placementWatcher = placement.NewStagedPlacementWatcher(opts.StagedPlacementWatcherOptions().
+		SetActiveStagedPlacementOptions(activeStagedPlacementOpts))
+
+	c := &TCPClient{
+		nowFn:                      opts.ClockOptions().NowFn(),
+		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
+		shardCutoffLingerDuration:  opts.ShardCutoffLingerDuration(),
+		writerMgr:                  writerMgr,
+		shardFn:                    opts.ShardFn(),
+		placementWatcher:           placementWatcher,
+		metrics:                    newTCPClientMetrics(instrumentOpts.MetricsScope()),
+	}
+
 	if err := c.placementWatcher.Watch(); err != nil {
 		return nil, err
 	}
+
 	return c, nil
 }
 
-// Init does nothing for LegacyClient, just satisfies Client interface
-func (c *LegacyClient) Init() error {
+// Init does nothing for TCPClient, just satisfies Client interface.
+func (c *TCPClient) Init() error {
 	return nil
 }
 
 // WriteUntimedCounter writes untimed counter metrics.
-func (c *LegacyClient) WriteUntimedCounter(
+func (c *TCPClient) WriteUntimedCounter(
 	counter unaggregated.Counter,
 	metadatas metadata.StagedMetadatas,
 ) error {
@@ -63,7 +107,7 @@ func (c *LegacyClient) WriteUntimedCounter(
 }
 
 // WriteUntimedBatchTimer writes untimed batch timer metrics.
-func (c *LegacyClient) WriteUntimedBatchTimer(
+func (c *TCPClient) WriteUntimedBatchTimer(
 	batchTimer unaggregated.BatchTimer,
 	metadatas metadata.StagedMetadatas,
 ) error {
@@ -80,7 +124,7 @@ func (c *LegacyClient) WriteUntimedBatchTimer(
 }
 
 // WriteUntimedGauge writes untimed gauge metrics.
-func (c *LegacyClient) WriteUntimedGauge(
+func (c *TCPClient) WriteUntimedGauge(
 	gauge unaggregated.Gauge,
 	metadatas metadata.StagedMetadatas,
 ) error {
@@ -97,7 +141,7 @@ func (c *LegacyClient) WriteUntimedGauge(
 }
 
 // WriteTimed writes timed metrics.
-func (c *LegacyClient) WriteTimed(
+func (c *TCPClient) WriteTimed(
 	metric aggregated.Metric,
 	metadata metadata.TimedMetadata,
 ) error {
@@ -114,7 +158,7 @@ func (c *LegacyClient) WriteTimed(
 }
 
 // WritePassthrough writes passthrough metrics.
-func (c *LegacyClient) WritePassthrough(
+func (c *TCPClient) WritePassthrough(
 	metric aggregated.Metric,
 	storagePolicy policy.StoragePolicy,
 ) error {
@@ -131,7 +175,7 @@ func (c *LegacyClient) WritePassthrough(
 }
 
 // WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
-func (c *LegacyClient) WriteTimedWithStagedMetadatas(
+func (c *TCPClient) WriteTimedWithStagedMetadatas(
 	metric aggregated.Metric,
 	metadatas metadata.StagedMetadatas,
 ) error {
@@ -148,7 +192,7 @@ func (c *LegacyClient) WriteTimedWithStagedMetadatas(
 }
 
 // WriteForwarded writes forwarded metrics.
-func (c *LegacyClient) WriteForwarded(
+func (c *TCPClient) WriteForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
@@ -165,19 +209,37 @@ func (c *LegacyClient) WriteForwarded(
 }
 
 // Flush flushes any remaining data buffered by the client.
-func (c *LegacyClient) Flush() error {
+func (c *TCPClient) Flush() error {
 	c.metrics.flush.Inc(1)
 	return c.writerMgr.Flush()
 }
 
 // Close closes the client.
-func (c *LegacyClient) Close() error {
+func (c *TCPClient) Close() error {
 	c.placementWatcher.Unwatch() // nolint: errcheck
 	// writerMgr errors out if trying to close twice
 	return c.writerMgr.Close()
 }
 
-func (c *LegacyClient) write(
+// ActivePlacement returns the currently active placement
+func (c *TCPClient) ActivePlacement() (placement.Placement, error) {
+	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return nil, err
+	}
+	defer onStagedPlacementDoneFn()
+
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		return nil, err
+	}
+	defer onPlacementDoneFn()
+
+	return placement.Clone(), nil
+}
+
+//nolint:gocritic
+func (c *TCPClient) write(
 	metricID id.RawID,
 	timeNanos int64,
 	payload payloadUnion,
@@ -220,13 +282,13 @@ func (c *LegacyClient) write(
 	return multiErr.FinalError()
 }
 
-func (c *LegacyClient) shouldWriteForShard(nowNanos int64, shard shard.Shard) bool {
+func (c *TCPClient) shouldWriteForShard(nowNanos int64, shard shard.Shard) bool {
 	writeEarliestNanos, writeLatestNanos := c.writeTimeRangeFor(shard)
 	return nowNanos >= writeEarliestNanos && nowNanos <= writeLatestNanos
 }
 
 // writeTimeRangeFor returns the time range for writes going to a given shard.
-func (c *LegacyClient) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
+func (c *TCPClient) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
 	var (
 		cutoverNanos  = shard.CutoverNanos()
 		cutoffNanos   = shard.CutoffNanos()
@@ -244,7 +306,7 @@ func (c *LegacyClient) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
 	return earliestNanos, latestNanos
 }
 
-type legacyClientMetrics struct {
+type tcpClientMetrics struct {
 	writeUntimedCounter    tally.Counter
 	writeUntimedBatchTimer tally.Counter
 	writeUntimedGauge      tally.Counter
@@ -255,10 +317,10 @@ type legacyClientMetrics struct {
 	shardNotWriteable      tally.Counter
 }
 
-func newLegacyClientMetrics(
+func newTCPClientMetrics(
 	scope tally.Scope,
-) legacyClientMetrics {
-	return legacyClientMetrics{
+) tcpClientMetrics {
+	return tcpClientMetrics{
 		writeUntimedCounter:    scope.Counter("writeUntimedCounter"),
 		writeUntimedBatchTimer: scope.Counter("writeUntimedBatchTimer"),
 		writeUntimedGauge:      scope.Counter("writeUntimedGauge"),
