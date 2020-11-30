@@ -2659,8 +2659,8 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	sourceNsID ident.ID,
-	targetNs Namespace,
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
 	shardID uint32,
 	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
@@ -2684,7 +2684,11 @@ func (s *dbShard) AggregateTiles(
 		}
 	}()
 
-	maxEntries := 0
+	var (
+		sourceNsID = sourceNs.ID()
+		maxEntries = 0
+	)
+
 	for sourceBlockPos, blockReader := range blockReaders {
 		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 		openOpts := fs.DataReaderOpenOptions{
@@ -2739,7 +2743,7 @@ func (s *dbShard) AggregateTiles(
 	var multiErr xerrors.MultiError
 
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
-		opts, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries)
+		ctx, sourceNs, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries, opts)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)

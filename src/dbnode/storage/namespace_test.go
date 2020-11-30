@@ -1377,6 +1377,9 @@ func TestNamespaceFlushState(t *testing.T) {
 }
 
 func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
@@ -1390,18 +1393,21 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 
-	_, err := targetNs.AggregateTiles(sourceNs, opts)
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 
 	sourceNs.bootstrapState = Bootstrapped
 
-	_, err = targetNs.AggregateTiles(sourceNs, opts)
+	_, err = targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	var (
 		sourceNsID                    = ident.StringID("source")
@@ -1463,21 +1469,19 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceBlockVolumes0 := []shardBlockVolume{{start, 5}, {secondSourceBlockStart, 15}}
 	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
 
-	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-
 	targetShard0.EXPECT().
 		AggregateTiles(
-			sourceNsIDMatcher, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
+			ctx, sourceNs, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
 			sourceBlockVolumes0, gomock.Any(), opts).
 		Return(int64(3), nil)
 
 	targetShard1.EXPECT().
 		AggregateTiles(
-			sourceNsIDMatcher, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
+			ctx, sourceNs, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
 			sourceBlockVolumes1, gomock.Any(), opts).
 		Return(int64(2), nil)
 
-	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)
