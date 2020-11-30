@@ -41,23 +41,82 @@ import (
 // TestIndexWrites holds index writes for testing.
 type TestIndexWrites []TestIndexWrite
 
+// TestSeriesIterator is a minimal subset of encoding.SeriesIterator.
+type TestSeriesIterator interface {
+	encoding.Iterator
+
+	// ID gets the ID of the series.
+	ID() ident.ID
+
+	// Tags returns an iterator over the tags associated with the ID.
+	Tags() ident.TagIterator
+}
+
+// TestSeriesIterators is a an iterator over TestSeriesIterator.
+type TestSeriesIterators interface {
+
+	// Next moves to the next item.
+	Next() bool
+
+	// Current returns the current value.
+	Current() TestSeriesIterator
+}
+
+type testSeriesIterators struct {
+	encoding.SeriesIterators
+	idx int
+}
+
+func (t *testSeriesIterators) Next() bool {
+	if t.idx >= t.Len() {
+		return false
+	}
+	t.idx++
+
+	return true
+}
+
+func (t *testSeriesIterators) Current() TestSeriesIterator {
+	return t.Iters()[t.idx-1]
+}
+
 // MatchesSeriesIters matches index writes with expected series.
-func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
+func (w TestIndexWrites) MatchesSeriesIters(
+	t *testing.T,
+	seriesIters encoding.SeriesIterators,
+) {
+	actualCount := w.MatchesTestSeriesIters(t, &testSeriesIterators{SeriesIterators: seriesIters})
+
+	uniqueIDs := make(map[string]struct{})
+	for _, wi := range w {
+		uniqueIDs[wi.ID.String()] = struct{}{}
+	}
+	require.Equal(t, len(uniqueIDs), actualCount)
+}
+
+// MatchesTestSeriesIters matches index writes with expected test series.
+func (w TestIndexWrites) MatchesTestSeriesIters(
+	t *testing.T,
+	seriesIters TestSeriesIterators,
+) int {
 	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.ID.String()] = append(writesByID[wi.ID.String()], wi)
 	}
-	require.Equal(t, len(writesByID), seriesIters.Len())
-	iters := seriesIters.Iters()
-	for _, iter := range iters {
+	var actualCount int
+	for seriesIters.Next() {
+		iter := seriesIters.Current()
 		id := iter.ID().String()
 		writes, ok := writesByID[id]
 		require.True(t, ok, id)
 		writes.matchesSeriesIter(t, iter)
+		actualCount++
 	}
+
+	return actualCount
 }
 
-func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIterator) {
+func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator) {
 	found := make([]bool, len(w))
 	count := 0
 	for iter.Next() {
