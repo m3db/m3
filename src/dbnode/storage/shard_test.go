@@ -1613,26 +1613,30 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	checksum := xio.WideEntry{
-		ID:               ident.StringID("foo"),
-		MetadataChecksum: 5,
-	}
+	var (
+		checksum = xio.WideEntry{
+			ID:               ident.StringID("foo"),
+			MetadataChecksum: 5,
+		}
 
-	wideEntry := block.NewMockStreamedWideEntry(ctrl)
+		wideEntry = block.NewMockStreamedWideEntry(ctrl)
+	)
 	retriever.EXPECT().
 		StreamWideEntry(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).Return(wideEntry, nil).Times(2)
+			start, gomock.Any(), gomock.Any()).Return(wideEntry, nil).Times(2)
 
 	// First call to RetrieveWideEntry is expected to error on retrieval
 	wideEntry.EXPECT().RetrieveWideEntry().
 		Return(xio.WideEntry{}, errors.New("err"))
-	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
+	r, err := shard.FetchWideEntry(ctx, ident.StringID("foo"),
+		start, nil, namespace.Context{})
 	require.NoError(t, err)
 	_, err = r.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
 	wideEntry.EXPECT().RetrieveWideEntry().Return(checksum, nil)
-	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"), start, namespace.Context{})
+	r, err = shard.FetchWideEntry(ctx, ident.StringID("foo"),
+		start, nil, namespace.Context{})
 	require.NoError(t, err)
 	retrieved, err := r.RetrieveWideEntry()
 	require.NoError(t, err)
