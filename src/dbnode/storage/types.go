@@ -176,9 +176,6 @@ type Database interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
-	// WideNamespaceFor returns the WideNamespace for the given ID, if it exists.
-	WideNamespaceFor(namespace ident.ID) (WideNamespace, error)
-
 	// WideQuery performs a wide blockwise query that provides batched results
 	// that can exceed query limits.
 	WideQuery(
@@ -195,7 +192,7 @@ type Database interface {
 	// IDBatchProcessor batch processing function to each ID discovered.
 	BatchProcessWideQuery(
 		ctx context.Context,
-		n WideNamespace,
+		n Namespace,
 		query index.Query,
 		batchProcessor IDBatchProcessor,
 		opts index.WideQueryOptions,
@@ -303,6 +300,24 @@ type Namespace interface {
 
 	// DocRef returns the doc if already present in a namespace shard.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+
+	// WideQueryIDs resolves the given query into known IDs in s streaming
+	// fashion.
+	WideQueryIDs(
+		ctx context.Context,
+		query index.Query,
+		collector chan *ident.IDBatch,
+		opts index.WideQueryOptions,
+	) error
+
+	// FetchWideEntry retrieves the wide entry for an ID for the
+	// block at time start.
+	FetchWideEntry(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		filter schema.WideEntryFilter,
+	) (block.StreamedWideEntry, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -322,30 +337,8 @@ type SeriesWrite struct {
 	PendingIndexInsert writes.PendingIndexInsert
 }
 
-// WideNamespace is a namespace with wide operations.
-type WideNamespace interface {
-	Namespace
-
-	// WideQueryIDs resolves the given query into known IDs in s streaming fashion.
-	WideQueryIDs(
-		ctx context.Context,
-		query index.Query,
-		collector chan *ident.IDBatch,
-		opts index.WideQueryOptions,
-	) error
-
-	// FetchWideEntry retrieves the wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart time.Time,
-		filter schema.WideEntryFilter,
-	) (block.StreamedWideEntry, error)
-}
-
 type databaseNamespace interface {
-	WideNamespace
+	Namespace
 
 	// Close will release the namespace resources and close the namespace.
 	Close() error

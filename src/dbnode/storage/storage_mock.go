@@ -346,21 +346,6 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
-// WideNamespaceFor mocks base method
-func (m *MockDatabase) WideNamespaceFor(namespace ident.ID) (WideNamespace, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideNamespaceFor", namespace)
-	ret0, _ := ret[0].(WideNamespace)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WideNamespaceFor indicates an expected call of WideNamespaceFor
-func (mr *MockDatabaseMockRecorder) WideNamespaceFor(namespace interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideNamespaceFor", reflect.TypeOf((*MockDatabase)(nil).WideNamespaceFor), namespace)
-}
-
 // WideQuery mocks base method
 func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
@@ -377,7 +362,7 @@ func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shar
 }
 
 // BatchProcessWideQuery mocks base method
-func (m *MockDatabase) BatchProcessWideQuery(ctx context.Context, n WideNamespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
+func (m *MockDatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchProcessWideQuery", ctx, n, query, batchProcessor, opts)
 	ret0, _ := ret[0].(error)
@@ -800,21 +785,6 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
-// WideNamespaceFor mocks base method
-func (m *Mockdatabase) WideNamespaceFor(namespace ident.ID) (WideNamespace, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WideNamespaceFor", namespace)
-	ret0, _ := ret[0].(WideNamespace)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WideNamespaceFor indicates an expected call of WideNamespaceFor
-func (mr *MockdatabaseMockRecorder) WideNamespaceFor(namespace interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideNamespaceFor", reflect.TypeOf((*Mockdatabase)(nil).WideNamespaceFor), namespace)
-}
-
 // WideQuery mocks base method
 func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
@@ -831,7 +801,7 @@ func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shar
 }
 
 // BatchProcessWideQuery mocks base method
-func (m *Mockdatabase) BatchProcessWideQuery(ctx context.Context, n WideNamespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
+func (m *Mockdatabase) BatchProcessWideQuery(ctx context.Context, n Namespace, query index.Query, batchProcessor IDBatchProcessor, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchProcessWideQuery", ctx, n, query, batchProcessor, opts)
 	ret0, _ := ret[0].(error)
@@ -1225,200 +1195,8 @@ func (mr *MockNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockNamespace)(nil).DocRef), id)
 }
 
-// MockWideNamespace is a mock of WideNamespace interface
-type MockWideNamespace struct {
-	ctrl     *gomock.Controller
-	recorder *MockWideNamespaceMockRecorder
-}
-
-// MockWideNamespaceMockRecorder is the mock recorder for MockWideNamespace
-type MockWideNamespaceMockRecorder struct {
-	mock *MockWideNamespace
-}
-
-// NewMockWideNamespace creates a new mock instance
-func NewMockWideNamespace(ctrl *gomock.Controller) *MockWideNamespace {
-	mock := &MockWideNamespace{ctrl: ctrl}
-	mock.recorder = &MockWideNamespaceMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockWideNamespace) EXPECT() *MockWideNamespaceMockRecorder {
-	return m.recorder
-}
-
-// Options mocks base method
-func (m *MockWideNamespace) Options() namespace.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Options")
-	ret0, _ := ret[0].(namespace.Options)
-	return ret0
-}
-
-// Options indicates an expected call of Options
-func (mr *MockWideNamespaceMockRecorder) Options() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockWideNamespace)(nil).Options))
-}
-
-// ID mocks base method
-func (m *MockWideNamespace) ID() ident.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ID")
-	ret0, _ := ret[0].(ident.ID)
-	return ret0
-}
-
-// ID indicates an expected call of ID
-func (mr *MockWideNamespaceMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockWideNamespace)(nil).ID))
-}
-
-// Metadata mocks base method
-func (m *MockWideNamespace) Metadata() namespace.Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Metadata")
-	ret0, _ := ret[0].(namespace.Metadata)
-	return ret0
-}
-
-// Metadata indicates an expected call of Metadata
-func (mr *MockWideNamespaceMockRecorder) Metadata() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockWideNamespace)(nil).Metadata))
-}
-
-// Schema mocks base method
-func (m *MockWideNamespace) Schema() namespace.SchemaDescr {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Schema")
-	ret0, _ := ret[0].(namespace.SchemaDescr)
-	return ret0
-}
-
-// Schema indicates an expected call of Schema
-func (mr *MockWideNamespaceMockRecorder) Schema() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockWideNamespace)(nil).Schema))
-}
-
-// NumSeries mocks base method
-func (m *MockWideNamespace) NumSeries() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NumSeries")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// NumSeries indicates an expected call of NumSeries
-func (mr *MockWideNamespaceMockRecorder) NumSeries() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockWideNamespace)(nil).NumSeries))
-}
-
-// Shards mocks base method
-func (m *MockWideNamespace) Shards() []Shard {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Shards")
-	ret0, _ := ret[0].([]Shard)
-	return ret0
-}
-
-// Shards indicates an expected call of Shards
-func (mr *MockWideNamespaceMockRecorder) Shards() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockWideNamespace)(nil).Shards))
-}
-
-// SetIndex mocks base method
-func (m *MockWideNamespace) SetIndex(reverseIndex NamespaceIndex) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetIndex", reverseIndex)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetIndex indicates an expected call of SetIndex
-func (mr *MockWideNamespaceMockRecorder) SetIndex(reverseIndex interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndex", reflect.TypeOf((*MockWideNamespace)(nil).SetIndex), reverseIndex)
-}
-
-// Index mocks base method
-func (m *MockWideNamespace) Index() (NamespaceIndex, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Index")
-	ret0, _ := ret[0].(NamespaceIndex)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Index indicates an expected call of Index
-func (mr *MockWideNamespaceMockRecorder) Index() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Index", reflect.TypeOf((*MockWideNamespace)(nil).Index))
-}
-
-// StorageOptions mocks base method
-func (m *MockWideNamespace) StorageOptions() Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StorageOptions")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// StorageOptions indicates an expected call of StorageOptions
-func (mr *MockWideNamespaceMockRecorder) StorageOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageOptions", reflect.TypeOf((*MockWideNamespace)(nil).StorageOptions))
-}
-
-// ReadOnly mocks base method
-func (m *MockWideNamespace) ReadOnly() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadOnly")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ReadOnly indicates an expected call of ReadOnly
-func (mr *MockWideNamespaceMockRecorder) ReadOnly() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOnly", reflect.TypeOf((*MockWideNamespace)(nil).ReadOnly))
-}
-
-// SetReadOnly mocks base method
-func (m *MockWideNamespace) SetReadOnly(value bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetReadOnly", value)
-}
-
-// SetReadOnly indicates an expected call of SetReadOnly
-func (mr *MockWideNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadOnly", reflect.TypeOf((*MockWideNamespace)(nil).SetReadOnly), value)
-}
-
-// DocRef mocks base method
-func (m *MockWideNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// DocRef indicates an expected call of DocRef
-func (mr *MockWideNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockWideNamespace)(nil).DocRef), id)
-}
-
 // WideQueryIDs mocks base method
-func (m *MockWideNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
+func (m *MockNamespace) WideQueryIDs(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQueryIDs", ctx, query, collector, opts)
 	ret0, _ := ret[0].(error)
@@ -1426,13 +1204,13 @@ func (m *MockWideNamespace) WideQueryIDs(ctx context.Context, query index.Query,
 }
 
 // WideQueryIDs indicates an expected call of WideQueryIDs
-func (mr *MockWideNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
+func (mr *MockNamespaceMockRecorder) WideQueryIDs(ctx, query, collector, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockWideNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideQueryIDs", reflect.TypeOf((*MockNamespace)(nil).WideQueryIDs), ctx, query, collector, opts)
 }
 
 // FetchWideEntry mocks base method
-func (m *MockWideNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
+func (m *MockNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
@@ -1441,9 +1219,9 @@ func (m *MockWideNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blo
 }
 
 // FetchWideEntry indicates an expected call of FetchWideEntry
-func (mr *MockWideNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
+func (mr *MockNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockWideNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
 }
 
 // MockdatabaseNamespace is a mock of databaseNamespace interface

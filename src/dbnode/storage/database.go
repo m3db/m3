@@ -943,7 +943,7 @@ func (d *db) ReadEncoded(
 
 func (d *db) BatchProcessWideQuery(
 	ctx context.Context,
-	n WideNamespace,
+	n Namespace,
 	query index.Query,
 	batchProcessor IDBatchProcessor,
 	opts index.WideQueryOptions,
@@ -991,7 +991,7 @@ func (d *db) WideQuery(
 	shards []uint32,
 	iterOpts index.IterationOptions,
 ) ([]xio.WideEntry, error) { // nolint FIXME: change when exact type known.
-	n, err := d.WideNamespaceFor(namespace)
+	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
@@ -1222,16 +1222,6 @@ func (d *db) FlushState(
 		return fileOpState{}, err
 	}
 	return n.FlushState(shardID, blockStart)
-}
-
-func (d *db) WideNamespaceFor(namespace ident.ID) (WideNamespace, error) {
-	ns, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceRead.Inc(1)
-		return nil, err
-	}
-
-	return ns, nil
 }
 
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
