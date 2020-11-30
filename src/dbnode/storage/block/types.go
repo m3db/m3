@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -312,6 +313,7 @@ type DatabaseBlockRetriever interface {
 		shard uint32,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (StreamedWideEntry, error)
 
@@ -336,6 +338,7 @@ type DatabaseShardBlockRetriever interface {
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
 	) (StreamedWideEntry, error)
 }

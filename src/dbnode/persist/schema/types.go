@@ -85,6 +85,9 @@ type WideEntry struct {
 	MetadataChecksum int64
 }
 
+// WideEntryFilter provides a filter for wide entries.
+type WideEntryFilter func(entry WideEntry) (bool, error)
+
 // IndexEntryHasher hashes an index entry.
 type IndexEntryHasher interface {
 	// HashIndexEntry computes a hash value for this IndexEntry using its ID, tags,
