@@ -7,6 +7,7 @@ M3DB Testing Patterns
 These are package local tests where we use mocks/stubs to ensure components interact with each other
 as we expect.
 
+
 These come in two flavours:
 - white-box: i.e. the tests know about the internals of the components they are testing, and may modify them
   (by injecting functions, changing consts) for testing.
