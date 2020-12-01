@@ -34,6 +34,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -50,7 +51,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -194,8 +194,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		updateOpenLeaseConcurrency = 4
 		// NB(r): Try to make sure same req structs are reused frequently
 		// to surface any race issues that might occur with pooling.
-		poolOpts = pool.NewObjectPoolOptions().
-				SetSize(fetchConcurrency / 2)
+		poolOpts = pool.NewObjectPoolOptions().SetSize(fetchConcurrency / 2)
 	)
 	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
 	segReaderPool.Init()
@@ -857,7 +856,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 }
 
 func testTagsFromIDAndVolume(seriesID string, volume int) ident.Tags {
-	tags := []ident.Tag{}
+	var tags []ident.Tag
 	for j := 0; j < 5; j++ {
 		tags = append(tags, ident.StringTag(
 			fmt.Sprintf("%s.tag.%d.name", seriesID, j),
