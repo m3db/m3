@@ -215,7 +215,7 @@ func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime
 type genIDTagsOption func(ident.Tags) ident.Tags
 
 func genIDTags(i int, j int, numTags int, opts ...genIDTagsOption) (ident.ID, ident.TagIterator) {
-	id := fmt.Sprintf("foo.%d.%d", i, j)
+	id := fmt.Sprintf("foo.%05d.%05d", i, j)
 	tags := make([]ident.Tag, 0, numTags)
 	for i := 0; i < numTags; i++ {
 		tags = append(tags, ident.StringTag(
