@@ -959,7 +959,7 @@ func (req *retrieveRequest) Finalize() {
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
 	req.finalized.Store(false)
-	req.finalizes = 0
+	atomic.StoreUint32(&req.finalizes, 0)
 	req.source = nil
 	req.shard = 0
 	req.id = nil
