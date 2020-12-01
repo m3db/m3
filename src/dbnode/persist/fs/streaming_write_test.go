@@ -174,7 +174,7 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Close()
@@ -208,7 +208,7 @@ func TestStreamingWriterAbort(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 0)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Abort()
