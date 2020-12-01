@@ -101,9 +101,13 @@ M3DB will consult the database object to check if the namespace exists, and if i
 
 At the same time, the write will be appended to the commit log, which is periodically compacted via a snapshot process. Details of this is outlined in the [commit log](/docs/m3db/architecture/commitlogs) page.
 
-**Note:** Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured [consistency level](/docs/m3db/architecture/consistencylevels).
+{{% notice warning %}}
+Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured [consistency level](/docs/m3db/architecture/consistencylevels).
+{{% /notice %}}
 
-**Note:** M3DB "default" write is writeTagged which also accepts list of pairs (tag name, tag value), which it then uses to update the reverse index of the namespace. Work to document that is TBD.
+{{% notice warning %}}
+M3DB "default" write is writeTagged which also accepts list of pairs (tag name, tag value), which it then uses to update the reverse index of the namespace. Work to document that is TBD.
+{{% /notice %}}
 
 ## Read Path
 
