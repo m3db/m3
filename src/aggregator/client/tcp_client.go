@@ -221,21 +221,21 @@ func (c *TCPClient) Close() error {
 	return c.writerMgr.Close()
 }
 
-// ActivePlacement returns the currently active placement
-func (c *TCPClient) ActivePlacement() (placement.Placement, error) {
+// ActivePlacement returns a copy of the currently active placement and its version.
+func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
 	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer onStagedPlacementDoneFn()
 
 	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer onPlacementDoneFn()
-
-	return placement.Clone(), nil
+	// TODO: expose version once related PR lands
+	return placement.Clone(), 0, nil
 }
 
 //nolint:gocritic
