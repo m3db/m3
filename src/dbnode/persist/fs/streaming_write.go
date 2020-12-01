@@ -83,6 +83,11 @@ func NewStreamingWriter(opts Options) (StreamingWriter, error) {
 }
 
 func (w *streamingWriter) Open(opts StreamingWriterOpenOptions) error {
+	if opts.PlannedRecordsCount <= 0 {
+		return fmt.Errorf(
+			"PlannedRecordsCount must be positive, got %d", opts.PlannedRecordsCount)
+	}
+
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: opts.BlockSize,
 		Identifier: FileSetFileIdentifier{
@@ -105,9 +110,10 @@ func (w *streamingWriter) Open(opts StreamingWriterOpenOptions) error {
 	w.bloomFilter = bloom.NewBloomFilter(m, k)
 
 	summariesApprox := float64(opts.PlannedRecordsCount) * w.options.IndexSummariesPercent()
-	w.summaryEvery = 0
+	w.summaryEvery = 1
 	if summariesApprox > 0 {
-		w.summaryEvery = int64(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
+		w.summaryEvery = int64(math.Max(1,
+			math.Floor(float64(opts.PlannedRecordsCount)/summariesApprox)))
 	}
 
 	if err := w.writer.Open(writerOpts); err != nil {
