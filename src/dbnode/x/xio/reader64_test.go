@@ -36,7 +36,7 @@ func TestBytesReader64(t *testing.T) {
 	)
 
 	for l := 0; l < len(data); l++ {
-		testBytesReader64(t, r, data)
+		testBytesReader64(t, r, data[:l])
 	}
 }
 
@@ -44,11 +44,12 @@ func testBytesReader64(t *testing.T, r *BytesReader64, data []byte) {
 	r.Reset(data)
 
 	var (
-		peeked, read []byte
-		buf          [8]byte
-		word         uint64
-		n            byte
-		err          error
+		peeked = []byte{}
+		read   = []byte{}
+		buf    [8]byte
+		word   uint64
+		n      byte
+		err    error
 	)
 
 	for {

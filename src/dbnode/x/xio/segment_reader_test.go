@@ -50,7 +50,7 @@ var (
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
 
-	checkdNoPool = func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
+	checkedNoPool = func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
 )
 
 type byteFunc func(d []byte) checked.Bytes
@@ -91,7 +91,7 @@ func testSegmentReader(
 }
 
 func TestSegmentReaderNoPool(t *testing.T) {
-	testSegmentReader(t, checkdNoPool, nil)
+	testSegmentReader(t, checkedNoPool, nil)
 }
 
 func TestSegmentReaderWithPool(t *testing.T) {
@@ -132,7 +132,7 @@ func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
 	expected = append(expected, tail...)
 
 	var (
-		segment      = ts.NewSegment(checkdNoPool(head), checkdNoPool(tail), 0, ts.FinalizeNone)
+		segment      = ts.NewSegment(checkedNoPool(head), checkedNoPool(tail), 0, ts.FinalizeNone)
 		r            = NewSegmentReader(segment)
 		peeked, read []byte
 		buf          [8]byte
