@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -399,10 +400,11 @@ func (s *dbShard) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	return s.DatabaseBlockRetriever.StreamWideEntry(ctx, s.shard, id,
-		blockStart, nsCtx)
+		blockStart, filter, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1142,13 +1144,14 @@ func (s *dbShard) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
 
-	return reader.FetchWideEntry(ctx, blockStart, nsCtx)
+	return reader.FetchWideEntry(ctx, blockStart, filter, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -2659,8 +2662,8 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	sourceNsID ident.ID,
-	targetNs Namespace,
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
 	shardID uint32,
 	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
@@ -2684,7 +2687,11 @@ func (s *dbShard) AggregateTiles(
 		}
 	}()
 
-	maxEntries := 0
+	var (
+		sourceNsID = sourceNs.ID()
+		maxEntries = 0
+	)
+
 	for sourceBlockPos, blockReader := range blockReaders {
 		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 		openOpts := fs.DataReaderOpenOptions{
@@ -2739,7 +2746,7 @@ func (s *dbShard) AggregateTiles(
 	var multiErr xerrors.MultiError
 
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
-		opts, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries)
+		ctx, sourceNs, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries, opts)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
