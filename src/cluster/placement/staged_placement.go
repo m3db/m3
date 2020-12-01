@@ -39,6 +39,7 @@ type activeStagedPlacement struct {
 	sync.RWMutex
 
 	placements            Placements
+	version               int
 	nowFn                 clock.NowFn
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
@@ -50,13 +51,15 @@ type activeStagedPlacement struct {
 
 func newActiveStagedPlacement(
 	placements []Placement,
+	version int,
 	opts ActiveStagedPlacementOptions,
-) ActiveStagedPlacement {
+) *activeStagedPlacement {
 	if opts == nil {
 		opts = NewActiveStagedPlacementOptions()
 	}
 	p := &activeStagedPlacement{
 		placements:            placements,
+		version:               version,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		onPlacementsAddedFn:   opts.OnPlacementsAddedFn(),
 		onPlacementsRemovedFn: opts.OnPlacementsRemovedFn(),
@@ -92,6 +95,12 @@ func (p *activeStagedPlacement) Close() error {
 	}
 	p.placements = nil
 	return nil
+}
+
+func (p *activeStagedPlacement) Version() int {
+	p.RLock()
+	defer p.RUnlock()
+	return p.version
 }
 
 func (p *activeStagedPlacement) onPlacementDone() { p.RUnlock() }
@@ -174,9 +183,9 @@ func (sp *stagedPlacement) ActiveStagedPlacement(timeNanos int64) ActiveStagedPl
 		idx--
 	}
 	if idx < 0 {
-		return newActiveStagedPlacement(sp.placements, sp.opts)
+		return newActiveStagedPlacement(sp.placements, sp.version, sp.opts)
 	}
-	return newActiveStagedPlacement(sp.placements[idx:], sp.opts)
+	return newActiveStagedPlacement(sp.placements[idx:], sp.version, sp.opts)
 }
 
 func (sp *stagedPlacement) Version() int { return sp.version }
