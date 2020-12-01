@@ -248,8 +248,8 @@ func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
 		return nil, 0, err
 	}
 	defer onPlacementDoneFn()
-	// TODO: expose version once related PR lands
-	return placement.Clone(), 0, nil
+
+	return placement.Clone(), stagedPlacement.Version(), nil
 }
 
 //nolint:gocritic
