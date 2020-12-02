@@ -118,15 +118,47 @@ func (r shardTimeRanges) Equal(other ShardTimeRanges) bool {
 
 // IsSuperset returns whether the current shard time ranges is a superset of the
 // other shard time ranges.
+//
+// The following are superset conditions.
+// - Always superset if other shard time ranges are empty. (Even empty vs empty).
+// - Shards must be a superset of shards in other.
+// - Time ranges must be a superset of time ranges in other.
+//
+// The following are superset failure conditions:
+// - Partially overlapping shards.
+// - Non overlapping shards.
+// - Partially overlapping time ranges.
+// - Non overlapping time ranges.
 func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
+	// If other shard time ranges is empty then the curr shard time ranges
+	// is considered a superset.
+	if other.Len() == 0 {
+		return true
+	}
+
+	// Short-circuit if we have more shards than other.
 	if len(r) < other.Len() {
 		return false
 	}
+
+	// Check if other ranges has any shards we do not have.
+	for shard := range other.Iter() {
+		if _, ok := r.Get(shard); !ok {
+			return false
+		}
+	}
+
 	for shard, ranges := range r {
-		otherRanges := other.GetOrAdd(shard)
+		otherRanges, ok := other.Get(shard)
+		if !ok {
+			continue
+		}
+
+		// Short-circuit if we have more ranges than other.
 		if ranges.Len() < otherRanges.Len() {
 			return false
 		}
+
 		it := ranges.Iter()
 		otherIt := otherRanges.Iter()
 
