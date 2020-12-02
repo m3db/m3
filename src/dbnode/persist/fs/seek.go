@@ -77,6 +77,9 @@ type seeker struct {
 	indexFd       *os.File
 	indexFileSize int64
 
+	shard   uint32
+	entries int
+
 	unreadBuf []byte
 
 	// Bloom filter associated with the shard / block the seeker is responsible
@@ -158,6 +161,7 @@ func (s *seeker) Open(
 		return errClonesShouldNotBeOpened
 	}
 
+	s.shard = shard
 	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
 	var (
 		infoFd, digestFd, bloomFilterFd, summariesFd *os.File
@@ -230,6 +234,7 @@ func (s *seeker) Open(
 	s.start = xtime.UnixNano(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
+	s.entries = int(info.Entries)
 
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
@@ -554,6 +559,8 @@ func (s *seeker) SeekWideEntry(
 		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 		return xio.WideEntry{
+			Shard:            s.shard,
+			ShardEntries:     s.entries,
 			ID:               id,
 			Size:             entry.Size,
 			Offset:           entry.Offset,

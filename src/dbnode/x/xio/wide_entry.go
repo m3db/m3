@@ -31,6 +31,7 @@ type WideEntry struct {
 	finalized bool
 
 	Shard            uint32
+	ShardEntries	 int
 	ID               ident.ID
 	Size             int64
 	Offset           int64
