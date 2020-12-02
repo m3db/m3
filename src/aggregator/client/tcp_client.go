@@ -222,6 +222,23 @@ func (c *TCPClient) WriteForwarded(
 	return c.write(metric.ID, metric.TimeNanos, payload)
 }
 
+// ActivePlacement returns a copy of the currently active placement and its version.
+func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
+	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return nil, 0, err
+	}
+	defer onStagedPlacementDoneFn()
+
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		return nil, 0, err
+	}
+	defer onPlacementDoneFn()
+
+	return placement.Clone(), stagedPlacement.Version(), nil
+}
+
 // Flush flushes any remaining data buffered by the client.
 func (c *TCPClient) Flush() error {
 	c.metrics.flush.Inc(1)
