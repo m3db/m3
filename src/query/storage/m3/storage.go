@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -725,25 +724,6 @@ func (s *m3storage) writeSingle(
 
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
-
-	annot := query.Annotation()
-	if query.Options().Type != ts.PromMetricTypeUnknown && len(annot) == 0 {
-		tp, err := storage.PromMetricTypeToAnnotationPayloadType(query.Options().Type)
-		if err != nil {
-			return err
-		}
-
-		annotationPayload := annotation.Payload{MetricType: tp}
-		annot, err = annotationPayload.Marshal()
-		if err != nil {
-			return err
-		}
-
-		if len(annot) == 0 {
-			annot = nil
-		}
-	}
-
 	return session.WriteTagged(namespaceID, identID, iterator,
-		datapoint.Timestamp, datapoint.Value, query.Unit(), annot)
+		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
 }

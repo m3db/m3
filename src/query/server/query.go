@@ -548,7 +548,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
-			tagOptions, instrumentOptions)
+			tagOptions, instrumentOptions, *cfg.StoreMetricsType)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}

@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
@@ -56,6 +57,7 @@ type Options struct {
 	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
 	TagOptions        models.TagOptions
+	storeMetricsType  bool
 }
 
 type ingestMetrics struct {
@@ -99,14 +101,15 @@ func NewIngester(
 			// pooled, but currently this is the only way to get tag decoder.
 			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
-				s:       opts.Appender,
-				r:       retrier,
-				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
-				tagOpts: tagOpts,
-				p:       p,
-				m:       m,
-				logger:  opts.InstrumentOptions.Logger(),
-				sampler: opts.Sampler,
+				s:                opts.Appender,
+				r:                retrier,
+				it:               serialize.NewMetricTagsIterator(tagDecoder, nil),
+				tagOpts:          tagOpts,
+				p:                p,
+				m:                m,
+				logger:           opts.InstrumentOptions.Logger(),
+				sampler:          opts.Sampler,
+				storeMetricsType: opts.storeMetricsType,
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -141,16 +144,17 @@ func (i *Ingester) Ingest(
 }
 
 type ingestOp struct {
-	s         storage.Appender
-	r         retry.Retrier
-	it        id.SortedTagIterator
-	tagOpts   models.TagOptions
-	p         pool.ObjectPool
-	m         ingestMetrics
-	logger    *zap.Logger
-	sampler   *sampler.Sampler
-	attemptFn retry.Fn
-	ingestFn  func()
+	s                storage.Appender
+	r                retry.Retrier
+	it               id.SortedTagIterator
+	tagOpts          models.TagOptions
+	p                pool.ObjectPool
+	m                ingestMetrics
+	logger           *zap.Logger
+	sampler          *sampler.Sampler
+	attemptFn        retry.Fn
+	ingestFn         func()
+	storeMetricsType bool
 
 	c           context.Context
 	id          []byte
@@ -217,9 +221,9 @@ func (op *ingestOp) resetWriteQuery() error {
 		return err
 	}
 	op.resetDataPoints()
-	return op.q.Reset(storage.WriteQueryOptions{
+
+	wq := storage.WriteQueryOptions{
 		Tags:       op.tags,
-		Type:       op.metricType,
 		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
 		Attributes: storagemetadata.Attributes{
@@ -227,7 +231,39 @@ func (op *ingestOp) resetWriteQuery() error {
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},
-	})
+	}
+
+	if op.storeMetricsType {
+		var err error
+		wq.Annotation, err = op.convertTypeToAnnotation(op.metricType)
+		if err != nil {
+			return err
+		}
+	}
+
+	return op.q.Reset(wq)
+}
+
+func (op *ingestOp) convertTypeToAnnotation(tp ts.PromMetricType) ([]byte, error) {
+	if tp == ts.PromMetricTypeUnknown {
+		return nil, nil
+	}
+
+	atp, err := storage.PromMetricTypeToAnnotationPayloadType(tp)
+	if err != nil {
+		return nil, err
+	}
+
+	annotationPayload := annotation.Payload{MetricType: atp}
+	annot, err := annotationPayload.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(annot) == 0 {
+		annot = nil
+	}
+	return annot, nil
 }
 
 func (op *ingestOp) resetTags() error {

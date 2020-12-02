@@ -59,7 +59,7 @@ func TestIngest(t *testing.T) {
 	}
 	appender := &mockAppender{}
 	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
-		instrument.NewOptions())
+		instrument.NewOptions(), true)
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")
@@ -132,7 +132,7 @@ func TestIngestNonRetryableError(t *testing.T) {
 	nonRetryableError := xerrors.NewNonRetryableError(errors.New("bad request error"))
 	appender := &mockAppender{expectErr: nonRetryableError}
 	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
-		instrumentOpts)
+		instrumentOpts, true)
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")

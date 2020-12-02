@@ -245,7 +245,6 @@ type WriteQueryOptions struct {
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
-	Type       ts.PromMetricType
 	Attributes storagemetadata.Attributes
 }
 
