@@ -79,7 +79,7 @@ func TestIngest(t *testing.T) {
 	}
 
 	expected, err := storage.NewWriteQuery(storage.WriteQueryOptions{
-		Annotation: nil,
+		Annotation: []byte{8, 2},
 		Attributes: storagemetadata.Attributes{
 			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  time.Minute,
@@ -103,7 +103,6 @@ func TestIngest(t *testing.T) {
 				},
 			},
 		),
-		Type: ts.PromMetricTypeGauge,
 		Unit: xtime.Second,
 	})
 	require.NoError(t, err)
