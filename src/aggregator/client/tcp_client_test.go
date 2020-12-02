@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -791,30 +790,6 @@ func TestTCPClientInitAndClose(t *testing.T) {
 	c := mustNewTestTCPClient(t, testOptions())
 	require.NoError(t, c.Init())
 	require.NoError(t, c.Close())
-}
-
-func TestTCPClientActivePlacement(t *testing.T) {
-	var (
-		c               = mustNewTestTCPClient(t, testOptions())
-		emptyPl         = placement.NewPlacement()
-		ctrl            = gomock.NewController(t)
-		mockPl          = placement.NewMockPlacement(ctrl)
-		stagedPlacement = placement.NewMockActiveStagedPlacement(ctrl)
-		watcher         = placement.NewMockStagedPlacementWatcher(ctrl)
-		doneCalls       int
-	)
-
-	c.placementWatcher = watcher
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() { doneCalls++ }, nil)
-	stagedPlacement.EXPECT().Version().Return(42)
-	stagedPlacement.EXPECT().ActivePlacement().Return(mockPl, func() { doneCalls++ }, nil)
-	mockPl.EXPECT().Clone().Return(emptyPl)
-
-	pl, v, err := c.ActivePlacement()
-	assert.NoError(t, err)
-	assert.Equal(t, 42, v)
-	assert.Equal(t, 2, doneCalls)
-	assert.Equal(t, emptyPl, pl)
 }
 
 func mustNewTestTCPClient(t *testing.T, opts Options) *TCPClient {

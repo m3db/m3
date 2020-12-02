@@ -235,23 +235,6 @@ func (c *TCPClient) Close() error {
 	return c.writerMgr.Close()
 }
 
-// ActivePlacement returns a copy of the currently active placement and its version.
-func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
-	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
-	if err != nil {
-		return nil, 0, err
-	}
-	defer onStagedPlacementDoneFn()
-
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		return nil, 0, err
-	}
-	defer onPlacementDoneFn()
-
-	return placement.Clone(), stagedPlacement.Version(), nil
-}
-
 //nolint:gocritic
 func (c *TCPClient) write(
 	metricID id.RawID,
