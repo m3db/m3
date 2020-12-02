@@ -102,7 +102,7 @@ var (
 
 	typeStringMap map[string]Type
 
-	graphiteAggregationNames = map[Type][]byte{
+	typeStringNames = map[Type][]byte{
 		Last:   []byte("last"),
 		Min:    []byte("min"),
 		Max:    []byte("upper"),
@@ -256,9 +256,9 @@ func (a *Type) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// GraphiteName returns the graphite name of the Type.
-func (a Type) GraphiteName() []byte {
-	name, ok := graphiteAggregationNames[a]
+// Name returns the name of the Type.
+func (a Type) Name() []byte {
+	name, ok := typeStringNames[a]
 	if ok {
 		return name
 	}

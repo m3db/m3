@@ -595,7 +595,7 @@ func (a *metricsAppender) augmentTags(
 			var (
 				count = tags.countPrefix(graphite.Prefix)
 				name  = graphite.TagName(count)
-				value = types[0].GraphiteName()
+				value = types[0].Name()
 			)
 			tags.append(name, value)
 		}
