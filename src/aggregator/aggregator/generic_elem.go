@@ -539,8 +539,8 @@ func (e *GenericElem) processValueWithAggregationLock(
 				case NoPrefixNoSuffix:
 					flushLocalFn(nil, e.id, metric.GaugeType, nil, point.TimeNanos, point.Value, e.sp)
 				case WithPrefixWithSuffix:
-					flushLocalFn(e.FullPrefix(e.opts), e.id, metric.GaugeType, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(e.FullPrefix(e.opts), e.id, metric.GaugeType,
+						e.TypeStringFor(e.aggTypesOpts, aggType), point.TimeNanos, point.Value, e.sp)
 				}
 			}
 		} else {

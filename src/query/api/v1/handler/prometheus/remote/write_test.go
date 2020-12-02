@@ -138,15 +138,16 @@ func TestMetricTypeHeader(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.headerValue, func(tt *testing.T) {
+			tc := testCase // nolint
 			promReq := test.GeneratePromWriteRequest()
 			promReqBody := test.GeneratePromWriteRequestBody(tt, promReq)
 			req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-			if testCase.headerValue > "" {
-				req.Header.Add(headers.PromTypeHeader, testCase.headerValue)
+			if tc.headerValue > "" {
+				req.Header.Add(headers.PromTypeHeader, tc.headerValue)
 			}
 			r, err := handler.(*PromWriteHandler).parseRequest(req)
 			require.NoError(tt, err)
-			require.Equal(tt, testCase.expectedType, r.Request.Timeseries[0].Type)
+			require.Equal(tt, tc.expectedType, r.Request.Timeseries[0].Type)
 		})
 	}
 }

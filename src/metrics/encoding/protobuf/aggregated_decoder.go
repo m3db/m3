@@ -53,7 +53,8 @@ func (d AggregatedDecoder) ID() []byte {
 	return d.pb.Metric.TimedMetric.Id
 }
 
-func (d AggregatedDecoder) Type() ts.PromMetricType {
+// Type returns the type of the metric.
+func (d *AggregatedDecoder) Type() ts.PromMetricType {
 	switch d.pb.Metric.TimedMetric.Type {
 	case metricpb.MetricType_COUNTER:
 		return ts.PromMetricTypeCounter

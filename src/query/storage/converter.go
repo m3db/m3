@@ -162,9 +162,9 @@ func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (
 	}, nil
 }
 
+// PromMetricTypeToAnnotationPayloadType convert PromMetricType to annotation.MetricType.
 func PromMetricTypeToAnnotationPayloadType(t ts.PromMetricType) (annotation.MetricType, error) {
 	switch t {
-
 	case ts.PromMetricTypeUnknown:
 		return annotation.MetricType_UNKNOWN, nil
 
