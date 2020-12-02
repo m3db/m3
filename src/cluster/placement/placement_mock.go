@@ -1134,6 +1134,20 @@ func (mr *MockActiveStagedPlacementMockRecorder) ActivePlacement() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivePlacement", reflect.TypeOf((*MockActiveStagedPlacement)(nil).ActivePlacement))
 }
 
+// Version mocks base method
+func (m *MockActiveStagedPlacement) Version() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Version")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Version indicates an expected call of Version
+func (mr *MockActiveStagedPlacementMockRecorder) Version() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockActiveStagedPlacement)(nil).Version))
+}
+
 // Close mocks base method
 func (m *MockActiveStagedPlacement) Close() error {
 	m.ctrl.T.Helper()
