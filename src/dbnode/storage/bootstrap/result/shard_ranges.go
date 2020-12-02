@@ -136,11 +136,6 @@ func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
 		return true
 	}
 
-	// Short-circuit if we have more shards than other.
-	if len(r) < other.Len() {
-		return false
-	}
-
 	// Check if other ranges has any shards we do not have.
 	for shard := range other.Iter() {
 		if _, ok := r.Get(shard); !ok {
@@ -152,11 +147,6 @@ func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
 		otherRanges, ok := other.Get(shard)
 		if !ok {
 			continue
-		}
-
-		// Short-circuit if we have more ranges than other.
-		if ranges.Len() < otherRanges.Len() {
-			return false
 		}
 
 		it := ranges.Iter()
