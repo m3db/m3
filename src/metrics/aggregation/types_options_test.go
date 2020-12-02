@@ -61,7 +61,6 @@ func TestOptionsSetDefaultTimerAggregationTypes(t *testing.T) {
 	o := NewTypesOptions().SetDefaultTimerAggregationTypes(aggTypes)
 	require.Equal(t, aggTypes, o.DefaultTimerAggregationTypes())
 	require.Equal(t, []float64{0.99, 0.9999}, o.Quantiles())
-	//fmt.Printf("type string %v\n", o.(*options).counterTypeStrings)
 	require.Equal(t, typeStrings(nil), o.(*options).counterTypeStrings)
 }
 
