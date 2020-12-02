@@ -52,11 +52,14 @@ type StreamingWriter interface {
 
 // StreamingWriterOpenOptions in the options for the StreamingWriter.
 type StreamingWriterOpenOptions struct {
-	NamespaceID         ident.ID
-	ShardID             uint32
-	BlockStart          time.Time
-	BlockSize           time.Duration
-	VolumeIndex         int
+	NamespaceID ident.ID
+	ShardID     uint32
+	BlockStart  time.Time
+	BlockSize   time.Duration
+	VolumeIndex int
+
+	// PlannedRecordsCount is an estimate of the number of series to be written.
+	// Must be greater than 0.
 	PlannedRecordsCount uint
 }
 
@@ -188,7 +191,8 @@ func (w *streamingWriter) writeIndexRelated(
 	// time window
 	w.bloomFilter.Add(id)
 
-	if entry.index%w.summaryEvery == 0 {
+	writeSummary := w.summaryEvery == 0 || entry.index%w.summaryEvery == 0
+	if writeSummary {
 		// Capture the offset for when we write this summary back, only capture
 		// for every summary we'll actually write to avoid a few memcopies
 		entry.indexFileOffset = w.indexOffset
@@ -200,7 +204,7 @@ func (w *streamingWriter) writeIndexRelated(
 	}
 	w.indexOffset += length
 
-	if entry.index%w.summaryEvery == 0 {
+	if writeSummary {
 		err = w.writer.writeSummariesEntry(id, entry)
 		if err != nil {
 			return err
