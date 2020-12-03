@@ -28,11 +28,11 @@ import (
 
 	"github.com/m3db/m3/src/cluster/mocks"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
 )
 
@@ -248,7 +248,8 @@ func TestWatchCompactedRevision(t *testing.T) {
 	go wh.Watch("foo")
 	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
 
-	assert.Equal(t, int32(4), atomic.LoadInt32(updateCalled))
+	called := atomic.LoadInt32(updateCalled)
+	assert.True(t, called >= int32(2), "expected at least 2 updates, got: %v", called)
 
 	lastRead := atomic.LoadInt32(updateCalled)
 	ec.Put(context.Background(), "foo", "bar-11")

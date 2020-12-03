@@ -29,6 +29,8 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 // NewWatchManager creates a new watch manager
@@ -42,9 +44,10 @@ func NewWatchManager(opts Options) (WatchManager, error) {
 		opts:   opts,
 		logger: opts.InstrumentsOptions().Logger(),
 		m: metrics{
-			etcdWatchCreate: scope.Counter("etcd-watch-create"),
-			etcdWatchError:  scope.Counter("etcd-watch-error"),
-			etcdWatchReset:  scope.Counter("etcd-watch-reset"),
+			etcdWatchCreate:     scope.Counter("etcd-watch-create"),
+			etcdWatchError:      scope.Counter("etcd-watch-error"),
+			etcdWatchReset:      scope.Counter("etcd-watch-reset"),
+			etcdWatchUpdateRcvd: scope.Counter("etcd-watch-update-rcvd"),
 		},
 		updateFn:      opts.UpdateFn(),
 		tickAndStopFn: opts.TickAndStopFn(),
@@ -61,9 +64,10 @@ type manager struct {
 }
 
 type metrics struct {
-	etcdWatchCreate tally.Counter
-	etcdWatchError  tally.Counter
-	etcdWatchReset  tally.Counter
+	etcdWatchCreate     tally.Counter
+	etcdWatchError      tally.Counter
+	etcdWatchReset      tally.Counter
+	etcdWatchUpdateRcvd tally.Counter
 }
 
 func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchChan, context.CancelFunc, error) {
@@ -127,50 +131,63 @@ func (w *manager) Watch(key string) {
 			}
 		}
 
+		processWatchUpdate := func(r clientv3.WatchResponse) bool {
+			// handle the update
+			if err = r.Err(); err == nil {
+				w.m.etcdWatchUpdateRcvd.Inc(1)
+				if r.IsProgressNotify() {
+					// Do not call updateFn on ProgressNotify as it happens periodically with no update events
+					return true
+				}
+
+				if err = w.updateFn(key, r.Events); err != nil {
+					logger.Error("received notification for key, but failed to get value", zap.Error(err))
+				}
+
+				return true
+			}
+
+			// Unhappy path: watch failed/was cancelled
+			w.m.etcdWatchError.Inc(1)
+			logger.Error(
+				"received error on watch channel, recreating watch",
+				zap.Uint64("etcd_cluster_id", r.Header.ClusterId),
+				zap.Uint64("etcd_member_id", r.Header.MemberId),
+				zap.Bool("etcd_watch_is_canceled", r.Canceled),
+				zap.Error(err),
+			)
+
+			// If the current revision has been compacted, set watchChan to
+			// nil so the watch is recreated with a valid start revision
+			if err == rpctypes.ErrCompacted {
+				logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
+				revOverride = r.CompactRevision
+			}
+
+			// Attempt to get the latest version
+			if err = w.updateFn(key, nil); err != nil {
+				logger.Error("failed to get value after watch was compacted", zap.Error(err))
+			}
+
+			return false
+		}
+
 		select {
 		case r, ok := <-watchChan:
-			if !ok {
-				// the watch chan is closed, set it to nil so it will be recreated
-				// this is unlikely to happen but just to be defensive
-				cancelFn()
-				watchChan = nil
-				logger.Warn("etcd watch channel closed on key, recreating a watch channel")
-
-				// avoid recreating watch channel too frequently
-				time.Sleep(w.opts.WatchChanResetInterval())
+			if !ok || !processWatchUpdate(r) {
+				// the watch encountered an error, set it to nil so it will be recreated
+				logger.Debug("resetting watch channel")
 				w.m.etcdWatchReset.Inc(1)
 
-				continue
-			}
-
-			// handle the update
-			if err = r.Err(); err != nil {
-				logger.Error(
-					"received error on watch channel",
-					zap.Uint64("etcd_cluster_id", r.Header.ClusterId),
-					zap.Uint64("etcd_member_id", r.Header.MemberId),
-					zap.Bool("etcd_watch_is_canceled", r.Canceled),
-					zap.Error(err),
-				)
-				w.m.etcdWatchError.Inc(1)
-				// do not stop here, even though the update contains an error
-				// we still take this chance to attempt a Get() for the latest value
-
-				// If the current revision has been compacted, set watchChan to
-				// nil so the watch is recreated with a valid start revision
-				if err == rpctypes.ErrCompacted {
-					logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
-					revOverride = r.CompactRevision
-					watchChan = nil
-				}
-			}
-
-			if r.IsProgressNotify() {
-				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
-				continue
-			}
-			if err = w.updateFn(key, r.Events); err != nil {
-				logger.Error("received notification for key, but failed to get value", zap.Error(err))
+				cancelFn()
+				watchChan = nil
+				// avoid recreating watch channel too frequently
+				// this is different than the watch creation error case:
+				// we use jitter on server-side cancellations, compations, or leader loss to reduce
+				// thundering herd effect.
+				max := uint32(w.opts.WatchChanResetInterval())
+				sleep := time.Duration(unsafe.Fastrandn(max))
+				time.Sleep(sleep)
 			}
 		case <-ticker.C:
 			if w.tickAndStopFn(key) {
