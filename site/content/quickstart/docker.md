@@ -93,8 +93,6 @@ This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that crea
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
-
 In another terminal, use the following command.
 
 {{< tabs name="create_placement_namespace" >}}
