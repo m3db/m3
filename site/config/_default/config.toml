@@ -59,7 +59,7 @@ pygmentsUseClassic = false
 #pygmentsOptions = "linenos=table"
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
-enableGitInfo = true
+# enableGitInfo = true
 
 [permalinks]
   "/" = "/docs/:section/:filename/"
