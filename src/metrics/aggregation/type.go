@@ -104,13 +104,13 @@ var (
 
 	typeStringNames = map[Type][]byte{
 		Last:   []byte("last"),
-		Min:    []byte("min"),
+		Min:    []byte("lower"),
 		Max:    []byte("upper"),
 		Mean:   []byte("mean"),
 		Median: []byte("median"),
 		Count:  []byte("count"),
 		Sum:    []byte("sum"),
-		SumSq:  []byte("sum_squares"),
+		SumSq:  []byte("sum_sq"),
 		Stdev:  []byte("stdev"),
 		P10:    []byte("p10"),
 		P20:    []byte("p20"),
@@ -124,7 +124,8 @@ var (
 		P95:    []byte("p95"),
 		P99:    []byte("p99"),
 		P999:   []byte("p999"),
-		P9999:  []byte("p9999")}
+		P9999:  []byte("p9999"),
+	}
 )
 
 // Type defines an aggregation function.
