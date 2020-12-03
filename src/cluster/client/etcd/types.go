@@ -25,6 +25,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
@@ -134,4 +135,11 @@ type Cluster interface {
 
 	DialTimeout() time.Duration
 	SetDialTimeout(value time.Duration) Cluster
+}
+
+// EtcdConfigService is an etcd-backed m3cluster client.
+type EtcdConfigService interface {
+	client.Client
+
+	EtcdClients() []EtcdClient
 }

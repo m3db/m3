@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -55,12 +56,23 @@ const (
 
 var errInvalidNamespace = errors.New("invalid namespace")
 
+var (
+	// make sure m3cluster and etcd client interfaces are implemented, and
+	// EtcdConfigService is a superset of cluster client.
+	_ client.Client = EtcdConfigService((*csclient)(nil))
+)
+
 type newClientFn func(cluster Cluster) (*clientv3.Client, error)
 
 type cacheFileForZoneFn func(zone string) etcdkv.CacheFileFn
 
-// NewConfigServiceClient returns a ConfigServiceClient.
-func NewConfigServiceClient(opts Options) (client.Client, error) {
+// EtcdClient is a cached etcd client for a zone.
+type EtcdClient struct {
+	Client *clientv3.Client
+	Zone   string
+}
+
+func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -81,6 +93,11 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 		retrier: retry.NewRetrier(opts.RetryOptions()),
 		stores:  make(map[string]kv.TxnStore),
 	}, nil
+}
+
+// NewConfigServiceClient returns a ConfigServiceClient.
+func NewConfigServiceClient(opts Options) (client.Client, error) {
+	return NewEtcdConfigServiceClient(opts)
 }
 
 type csclient struct {
@@ -274,6 +291,29 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 
 	c.clis[zone] = cli
 	return cli, nil
+}
+
+// EtcdClients returns all currently cached etcd clients.
+func (c *csclient) EtcdClients() []EtcdClient {
+	c.Lock()
+	defer c.Unlock()
+
+	var (
+		zones   = make([]string, 0, len(c.clis))
+		clients = make([]EtcdClient, 0, len(c.clis))
+	)
+
+	for k := range c.clis {
+		zones = append(zones, k)
+	}
+
+	sort.Strings(zones)
+
+	for _, zone := range zones {
+		clients = append(clients, EtcdClient{Zone: zone, Client: c.clis[zone]})
+	}
+
+	return clients
 }
 
 func newClient(cluster Cluster) (*clientv3.Client, error) {
