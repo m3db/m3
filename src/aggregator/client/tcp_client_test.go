@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -784,6 +785,30 @@ func TestTCPClientWriteTimeRangeFor(t *testing.T) {
 		require.Equal(t, input.expectedEarliest, earliest)
 		require.Equal(t, input.expectedLatest, latest)
 	}
+}
+
+func TestTCPClientActivePlacement(t *testing.T) {
+	var (
+		c               = mustNewTestTCPClient(t, testOptions())
+		emptyPl         = placement.NewPlacement()
+		ctrl            = gomock.NewController(t)
+		mockPl          = placement.NewMockPlacement(ctrl)
+		stagedPlacement = placement.NewMockActiveStagedPlacement(ctrl)
+		watcher         = placement.NewMockStagedPlacementWatcher(ctrl)
+		doneCalls       int
+	)
+
+	c.placementWatcher = watcher
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() { doneCalls++ }, nil)
+	stagedPlacement.EXPECT().Version().Return(42)
+	stagedPlacement.EXPECT().ActivePlacement().Return(mockPl, func() { doneCalls++ }, nil)
+	mockPl.EXPECT().Clone().Return(emptyPl)
+
+	pl, v, err := c.ActivePlacement()
+	assert.NoError(t, err)
+	assert.Equal(t, 42, v)
+	assert.Equal(t, 2, doneCalls)
+	assert.Equal(t, emptyPl, pl)
 }
 
 func TestTCPClientInitAndClose(t *testing.T) {
