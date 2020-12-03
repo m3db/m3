@@ -21,246 +21,193 @@
 package handler
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestReadyHandlerHealthy(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	session := client.NewMockSession(ctrl)
-	session.EXPECT().ReadClusterAvailability().Return(true, nil)
-	session.EXPECT().WriteClusterAvailability().Return(true, nil)
-
-	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("test-ns"),
-		Session:     session,
-		Retention:   24 * time.Hour,
-	})
-	require.NoError(t, err)
-
-	opts := options.EmptyHandlerOptions().SetClusters(clusters)
-	readyHandler := NewReadyHandler(opts)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(ReadyHTTPMethod, ReadyURL, nil)
-
-	readyHandler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	expectedResponse := `{
-		"readyReads": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
+func TestReadyHandler(t *testing.T) {
+	tests := []struct {
+		name               string
+		prepare            func(session *client.MockSession)
+		queryString        string
+		expectedStatusCode int
+		expectedResponse   string
+	}{
+		{
+			name: "healthy",
+			prepare: func(session *client.MockSession) {
+				session.EXPECT().ReadClusterAvailability().Return(true, nil)
+				session.EXPECT().WriteClusterAvailability().Return(true, nil)
 			},
-			"id": "test-ns"
-		  }
-		],
-		"readyWrites": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
+			expectedStatusCode: http.StatusOK,
+			expectedResponse: `{
+				"readyReads": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				],
+				"readyWrites": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				]
+			  }`,
+		},
+		{
+			name: "unhealthy",
+			prepare: func(session *client.MockSession) {
+				session.EXPECT().ReadClusterAvailability().Return(true, nil)
+				session.EXPECT().WriteClusterAvailability().Return(false, nil)
 			},
-			"id": "test-ns"
-		  }
-		]
-	  }`
-
-	expected := xtest.MustPrettyJSONString(t, expectedResponse)
-	actual := xtest.MustPrettyJSONString(t, string(body))
-
-	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
-}
-
-func TestReadyHandlerUnhealthy(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	session := client.NewMockSession(ctrl)
-	session.EXPECT().ReadClusterAvailability().Return(true, nil)
-	session.EXPECT().WriteClusterAvailability().Return(false, nil)
-
-	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("test-ns"),
-		Session:     session,
-		Retention:   24 * time.Hour,
-	})
-	require.NoError(t, err)
-
-	opts := options.EmptyHandlerOptions().SetClusters(clusters)
-	readyHandler := NewReadyHandler(opts)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(ReadyHTTPMethod, ReadyURL, nil)
-
-	readyHandler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-
-	expectedResponse := `{
-		"readyReads": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedResponse: `{
+				"readyReads": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				],
+				"notReadyWrites": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				]
+			  }`,
+		},
+		{
+			name: "healthy only reads",
+			prepare: func(session *client.MockSession) {
+				session.EXPECT().ReadClusterAvailability().Return(true, nil)
+				session.EXPECT().WriteClusterAvailability().Return(false, nil)
 			},
-			"id": "test-ns"
-		  }
-		],
-		"notReadyWrites": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
+			queryString:        "writes=false",
+			expectedStatusCode: http.StatusOK,
+			expectedResponse: `{
+				"readyReads": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				],
+				"notReadyWrites": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				]
+			  }`,
+		},
+		{
+			name: "healthy only writes",
+			prepare: func(session *client.MockSession) {
+				session.EXPECT().ReadClusterAvailability().Return(false, nil)
+				session.EXPECT().WriteClusterAvailability().Return(true, nil)
 			},
-			"id": "test-ns"
-		  }
-		]
-	  }`
+			queryString:        "reads=false",
+			expectedStatusCode: http.StatusOK,
+			expectedResponse: `{
+				"notReadyReads": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				],
+				"readyWrites": [
+				  {
+					"attributes": {
+					  "metricsType": "unaggregated",
+					  "resolution": "0s",
+					  "retention": "24h0m0s"
+					},
+					"id": "test-ns"
+				  }
+				]
+			  }`,
+		},
+	}
 
-	expected := xtest.MustPrettyJSONString(t, expectedResponse)
-	actual := xtest.MustPrettyJSONString(t, string(body))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
 
-	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
-}
+			session := client.NewMockSession(ctrl)
 
-func TestReadyHandlerOnlyReads(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
+			test.prepare(session)
 
-	session := client.NewMockSession(ctrl)
-	session.EXPECT().ReadClusterAvailability().Return(true, nil)
-	session.EXPECT().WriteClusterAvailability().Return(false, nil)
+			clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("test-ns"),
+				Session:     session,
+				Retention:   24 * time.Hour,
+			})
+			require.NoError(t, err)
 
-	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("test-ns"),
-		Session:     session,
-		Retention:   24 * time.Hour,
-	})
-	require.NoError(t, err)
+			opts := options.EmptyHandlerOptions().SetClusters(clusters)
+			readyHandler := NewReadyHandler(opts)
 
-	opts := options.EmptyHandlerOptions().SetClusters(clusters)
-	readyHandler := NewReadyHandler(opts)
+			w := httptest.NewRecorder()
+			url := ReadyURL
+			if test.queryString != "" {
+				url += fmt.Sprintf("?%s", test.queryString)
+			}
+			req := httptest.NewRequest(ReadyHTTPMethod, url, nil)
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(ReadyHTTPMethod, ReadyURL+"?writes=false", nil)
+			readyHandler.ServeHTTP(w, req)
 
-	readyHandler.ServeHTTP(w, req)
+			resp := w.Result()
+			defer resp.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expectedStatusCode, resp.StatusCode)
 
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+			expected := xtest.MustPrettyJSONString(t, test.expectedResponse)
+			actual := xtest.MustPrettyJSONString(t, string(body))
 
-	expectedResponse := `{
-		"readyReads": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
-			},
-			"id": "test-ns"
-		  }
-		],
-		"notReadyWrites": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
-			},
-			"id": "test-ns"
-		  }
-		]
-	  }`
-
-	expected := xtest.MustPrettyJSONString(t, expectedResponse)
-	actual := xtest.MustPrettyJSONString(t, string(body))
-
-	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
-}
-
-func TestReadyHandlerOnlyWrites(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	session := client.NewMockSession(ctrl)
-	session.EXPECT().ReadClusterAvailability().Return(false, nil)
-	session.EXPECT().WriteClusterAvailability().Return(true, nil)
-
-	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("test-ns"),
-		Session:     session,
-		Retention:   24 * time.Hour,
-	})
-	require.NoError(t, err)
-
-	opts := options.EmptyHandlerOptions().SetClusters(clusters)
-	readyHandler := NewReadyHandler(opts)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(ReadyHTTPMethod, ReadyURL+"?reads=false", nil)
-
-	readyHandler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	expectedResponse := `{
-		"notReadyReads": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
-			},
-			"id": "test-ns"
-		  }
-		],
-		"readyWrites": [
-		  {
-			"attributes": {
-			  "metricsType": "unaggregated",
-			  "resolution": "0s",
-			  "retention": "24h0m0s"
-			},
-			"id": "test-ns"
-		  }
-		]
-	  }`
-
-	expected := xtest.MustPrettyJSONString(t, expectedResponse)
-	actual := xtest.MustPrettyJSONString(t, string(body))
-
-	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+			assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+		})
+	}
 }
