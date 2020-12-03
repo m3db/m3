@@ -37,12 +37,14 @@ import (
 type AggregatorClientType int
 
 const (
-	// LegacyAggregatorClient is the legacy aggregator client type and uses it's own
-	// TCP negotation, load balancing and data transmission protocol.
+	// LegacyAggregatorClient is an alias for TCPAggregatorClient
 	LegacyAggregatorClient AggregatorClientType = iota
 	// M3MsgAggregatorClient is the M3Msg aggregator client type that uses M3Msg to
 	// handle publishing to a M3Msg topic the aggregator consumes from.
 	M3MsgAggregatorClient
+	// TCPAggregatorClient is the TCP aggregator client type and uses it's own
+	// TCP negotiation, load balancing and data transmission protocol.
+	TCPAggregatorClient
 
 	defaultAggregatorClient = LegacyAggregatorClient
 
@@ -79,11 +81,12 @@ var (
 	validAggregatorClientTypes = []AggregatorClientType{
 		LegacyAggregatorClient,
 		M3MsgAggregatorClient,
+		TCPAggregatorClient,
 	}
 
-	errLegacyClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
-	errM3MsgClientNoOptions         = errors.New("m3msg aggregator client: no m3msg options set")
-	errNoRWOpts                     = errors.New("no rw opts set for aggregator")
+	errTCPClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
+	errM3MsgClientNoOptions      = errors.New("m3msg aggregator client: no m3msg options set")
+	errNoRWOpts                  = errors.New("no rw opts set for aggregator")
 )
 
 func (t AggregatorClientType) String() string {
@@ -92,6 +95,8 @@ func (t AggregatorClientType) String() string {
 		return "legacy"
 	case M3MsgAggregatorClient:
 		return "m3msg"
+	case TCPAggregatorClient:
+		return "tcp"
 	}
 	return "unknown"
 }
@@ -279,8 +284,10 @@ func (o *options) Validate() error {
 		}
 		return opts.Validate()
 	case LegacyAggregatorClient:
+		fallthrough // intentional, LegacyAggregatorClient is an alias
+	case TCPAggregatorClient:
 		if o.watcherOpts == nil {
-			return errLegacyClientNoWatcherOptions
+			return errTCPClientNoWatcherOptions
 		}
 		return nil
 	default:

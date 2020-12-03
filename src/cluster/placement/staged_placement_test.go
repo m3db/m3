@@ -296,7 +296,7 @@ func TestNewActiveStagedPlacement(t *testing.T) {
 			}
 		},
 	)
-	ap := newActiveStagedPlacement(testActivePlacements, opts).(*activeStagedPlacement)
+	ap := newActiveStagedPlacement(testActivePlacements, 0, opts)
 	require.Equal(t, len(testActivePlacements), len(allInstances))
 	require.Equal(t, len(testActivePlacements), len(ap.placements))
 	for i := 0; i < len(testActivePlacements); i++ {
@@ -380,7 +380,7 @@ func TestActiveStagedPlacementCloseSuccess(t *testing.T) {
 				removedInstances = append(removedInstances, placement.Instances())
 			}
 		})
-	p := newActiveStagedPlacement(testActivePlacements, opts)
+	p := newActiveStagedPlacement(testActivePlacements, 0, opts)
 	require.NoError(t, p.Close())
 	require.Equal(t, 2, len(addedInstances))
 	require.Equal(t, 2, len(removedInstances))
@@ -452,9 +452,16 @@ func TestStagedPlacementNilProto(t *testing.T) {
 func TestStagedPlacementValidProto(t *testing.T) {
 	sp, err := NewStagedPlacementFromProto(1, testStagedPlacementProto, NewActiveStagedPlacementOptions())
 	require.NoError(t, err)
+
 	pss := sp.(*stagedPlacement)
 	require.Equal(t, 1, pss.Version())
+	require.Equal(t, 1, pss.ActiveStagedPlacement(0).Version())
+
+	pss.SetVersion(42)
+	require.Equal(t, 42, pss.ActiveStagedPlacement(0).Version())
+
 	require.Equal(t, len(pss.placements), len(testStagedPlacementProto.Snapshots))
+
 	for i := 0; i < len(testStagedPlacementProto.Snapshots); i++ {
 		validateSnapshot(t, testActivePlacements[i], pss.placements[i])
 	}

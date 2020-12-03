@@ -124,12 +124,9 @@ func TestSetStreamOptions(t *testing.T) {
 }
 
 func TestSetAdminClient(t *testing.T) {
-	c, err := client.NewClient(client.NewOptions())
-	require.NoError(t, err)
-	value, ok := c.(client.AdminClient)
-	require.True(t, ok)
-	o := NewOptions().SetAdminClient(value)
-	require.True(t, value == o.AdminClient())
+	var c client.AdminClient = &client.M3MsgClient{}
+	o := NewOptions().SetAdminClient(c)
+	require.True(t, c == o.AdminClient())
 }
 
 func TestSetRuntimeOptionsManager(t *testing.T) {

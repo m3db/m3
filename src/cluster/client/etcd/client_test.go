@@ -27,9 +27,10 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
-	"github.com/stretchr/testify/require"
 )
 
 func TestETCDClientGen(t *testing.T) {
@@ -295,6 +296,29 @@ func TestReuseKVStore(t *testing.T) {
 	client.storeLock.Lock()
 	require.Equal(t, 2, len(client.stores))
 	client.storeLock.Unlock()
+}
+
+func TestGetEtcdClients(t *testing.T) {
+	opts := testOptions()
+	c, err := NewEtcdConfigServiceClient(opts)
+	require.NoError(t, err)
+
+	c1, err := c.etcdClientGen("zone2")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(c.clis))
+
+	c2, err := c.etcdClientGen("zone1")
+	require.NoError(t, err)
+	require.Equal(t, 2, len(c.clis))
+	require.False(t, c1 == c2)
+
+	clients := c.Clients()
+	require.Len(t, clients, 2)
+
+	assert.Equal(t, clients[0].Zone, "zone1")
+	assert.Equal(t, clients[0].Client, c2)
+	assert.Equal(t, clients[1].Zone, "zone2")
+	assert.Equal(t, clients[1].Client, c1)
 }
 
 func TestValidateNamespace(t *testing.T) {
