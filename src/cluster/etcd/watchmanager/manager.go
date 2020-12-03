@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -96,7 +96,8 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 }
 
 func (w *manager) Watch(key string) {
-	ticker := time.Tick(w.opts.WatchChanCheckInterval()) //nolint: megacheck
+	ticker := time.NewTicker(w.opts.WatchChanCheckInterval())
+	defer ticker.Stop()
 
 	var (
 		revOverride int64
@@ -163,7 +164,7 @@ func (w *manager) Watch(key string) {
 				w.logger.Error("received notification for key, but failed to get value",
 					zap.String("key", key), zap.Error(err))
 			}
-		case <-ticker:
+		case <-ticker.C:
 			if w.tickAndStopFn(key) {
 				w.logger.Info("watch on key ended", zap.String("key", key))
 				return
