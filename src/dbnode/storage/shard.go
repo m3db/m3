@@ -2806,10 +2806,9 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
-func (s *dbShard) WideScan(
-	shardID uint32,
+func (s *dbShard) Scan(
 	blockStart time.Time,
-	processor func(batch *xio.WideEntry) error,
+	processor fs.EntryProcessor,
 ) error {
 	latestVolume, err := s.LatestVolume(blockStart)
 	if err != nil {
@@ -2825,7 +2824,7 @@ func (s *dbShard) WideScan(
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   s.namespace.ID(),
-			Shard:       shardID,
+			Shard:       s.ID(),
 			BlockStart:  blockStart,
 			VolumeIndex: latestVolume,
 		},
@@ -2852,7 +2851,7 @@ func (s *dbShard) WideScan(
 	}()
 
 	for {
-		entry, err := reader.StreamingReadWideEntry()
+		id, encodedTags, data, dataChecksum, err := reader.StreamingRead()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -2860,7 +2859,7 @@ func (s *dbShard) WideScan(
 			return err
 		}
 
-		if err := processor(&entry); err != nil {
+		if err := processor(id, encodedTags, data, dataChecksum); err != nil {
 			return err
 		}
 	}

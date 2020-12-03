@@ -342,21 +342,6 @@ func (mr *MockDataFileSetReaderMockRecorder) StreamingRead() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingRead", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingRead))
 }
 
-// StreamingReadWideEntry mocks base method
-func (m *MockDataFileSetReader) StreamingReadWideEntry() (xio.WideEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamingReadWideEntry")
-	ret0, _ := ret[0].(xio.WideEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// StreamingReadWideEntry indicates an expected call of StreamingReadWideEntry
-func (mr *MockDataFileSetReaderMockRecorder) StreamingReadWideEntry() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingReadWideEntry", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingReadWideEntry))
-}
-
 // Validate mocks base method
 func (m *MockDataFileSetReader) Validate() error {
 	m.ctrl.T.Helper()

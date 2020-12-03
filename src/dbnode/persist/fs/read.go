@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -97,7 +96,6 @@ type reader struct {
 	entriesRead     int
 	metadataRead    int
 	decoder         *msgpack.Decoder
-	hasher          schema.IndexEntryHasher
 	digestBuf       digest.Buffer
 	bytesPool       pool.CheckedBytesPool
 	tagDecoderPool  serialize.TagDecoderPool
@@ -146,7 +144,6 @@ func NewReader(
 		indexDecoderStream:         newReaderDecoderStream(),
 		dataReader:                 digest.NewReaderWithDigest(nil),
 		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
-		hasher:                     opts.DecodingOptions().IndexEntryHasher(),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
 		tagDecoderPool:             opts.TagDecoderPool(),
@@ -376,89 +373,40 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) streamingReadIndexEntry() (schema.IndexEntry, error) {
+func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
 	if !r.streamingEnabled {
-		return schema.IndexEntry{}, errStreamingRequired
+		return nil, nil, nil, 0, errStreamingRequired
 	}
 
 	if r.entriesRead >= r.entries {
-		return schema.IndexEntry{}, io.EOF
+		return nil, nil, nil, 0, io.EOF
 	}
 
-	entry, err := r.decoder.DecodeIndexEntry(nil /*NB: no pooling */)
+	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
-		return schema.IndexEntry{}, err
+		return nil, nil, nil, 0, err
 	}
 
-	r.entriesRead++
-
-	return entry, nil
-}
-
-// NB: not passing the whole IndexEntry because of linter message:
-// "hugeParam: e is heavy (88 bytes); consider passing it by pointer".
-func (r *reader) dataForIndexEntry(offset, size, checksum int64) ([]byte, error) {
-	if offset+size > int64(len(r.dataMmap.Bytes)) {
-		return nil, fmt.Errorf(
+	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
+		return nil, nil, nil, 0, fmt.Errorf(
 			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
-			offset, size, len(r.dataMmap.Bytes))
+			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
 	}
-	data := r.dataMmap.Bytes[offset : offset+size]
+	data := r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size]
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if checksum != int64(digest.Checksum(data)) {
-		return nil, errSeekChecksumMismatch
-	}
-
-	return data, nil
-}
-
-func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
-	entry, err := r.streamingReadIndexEntry()
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-
-	data, err := r.dataForIndexEntry(entry.Offset, entry.Size, entry.DataChecksum)
-	if err != nil {
-		return nil, nil, nil, 0, err
+	if entry.DataChecksum != int64(digest.Checksum(data)) {
+		return nil, nil, nil, 0, errSeekChecksumMismatch
 	}
 
 	r.streamingData = append(r.streamingData[:0], data...)
 	r.streamingID = append(r.streamingID[:0], entry.ID...)
 	r.streamingTags = append(r.streamingTags[:0], entry.EncodedTags...)
 
+	r.entriesRead++
+
 	return r.streamingID, r.streamingTags, r.streamingData, uint32(entry.DataChecksum), nil
-}
-
-func (r *reader) StreamingReadWideEntry() (xio.WideEntry, error) {
-	entry, err := r.streamingReadIndexEntry()
-	if err != nil {
-		return xio.WideEntry{}, err
-	}
-
-	data, err := r.dataForIndexEntry(entry.Offset, entry.Size, entry.DataChecksum)
-	if err != nil {
-		return xio.WideEntry{}, err
-	}
-
-	metadataChecksum := r.hasher.HashIndexEntry(entry.ID, entry.EncodedTags, entry.DataChecksum)
-
-	var checkedEncodedTags checked.Bytes
-	if tags := entry.EncodedTags; len(tags) > 0 {
-		checkedEncodedTags = r.entryClonedBytes(tags)
-	}
-
-	return xio.WideEntry{
-		ID:               r.entryClonedID(entry.ID),
-		Size:             entry.Size,
-		Offset:           entry.Offset,
-		DataChecksum:     entry.DataChecksum,
-		EncodedTags:      checkedEncodedTags,
-		MetadataChecksum: metadataChecksum,
-		Data:             r.entryClonedBytes(data),
-	}, nil
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {

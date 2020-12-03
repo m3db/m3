@@ -157,13 +157,6 @@ type DataFileSetReader interface {
 	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
 	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
 
-	// StreamingReadWideEntry returns the next xio.WideEntry value
-	// (ordered by id), or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
-	// NB: unlike other Streaming methods, StreamingReadWideEntry returns pooled
-	// byte slices (fields of xio.WideEntry).
-	StreamingReadWideEntry() (xio.WideEntry, error)
-
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
@@ -684,3 +677,11 @@ type IndexClaimsManager interface {
 		blockStart time.Time,
 	) (int, error)
 }
+
+// EntryProcessor is a function that processes a single data fileset entry.
+type EntryProcessor func(
+	id ident.BytesID,
+	encodedTags ts.EncodedTags,
+	data []byte,
+	dataChecksum uint32,
+) error
