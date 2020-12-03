@@ -9,7 +9,7 @@ weight: 1
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 <!-- TODO: Does this link actually tell you that anymore? -->
 {{% notice warning %}}
-Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode with a separate M3Coordinator, [read the clustered mode guide](/docs/cluster/docker_cluster).
+Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode with a separate M3Coordinator, [read the clustered mode guide](/docs/cluster/).
 {{% /notice %}}
 
 ## Prerequisites
