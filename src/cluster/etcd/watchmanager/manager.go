@@ -145,7 +145,13 @@ func (w *manager) Watch(key string) {
 
 			// handle the update
 			if err = r.Err(); err != nil {
-				logger.Error("received error on watch channel", zap.Error(err))
+				logger.Error(
+					"received error on watch channel",
+					zap.Uint64("etcd_cluster_id", r.Header.ClusterId),
+					zap.Uint64("etcd_member_id", r.Header.MemberId),
+					zap.Bool("etcd_watch_is_canceled", r.Canceled),
+					zap.Error(err),
+				)
 				w.m.etcdWatchError.Inc(1)
 				// do not stop here, even though the update contains an error
 				// we still take this chance to attempt a Get() for the latest value
