@@ -1812,3 +1812,16 @@ func (n *dbNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
 	}
 	return shard.DocRef(id)
 }
+
+func (n *dbNamespace) WideScan(
+	shardID uint32,
+	blockStart time.Time,
+	processor func(batch *xio.WideEntry) error,
+) error {
+	shard, _, err := n.ReadableShardAt(shardID)
+	if err != nil {
+		return err
+	}
+
+	return shard.WideScan(shardID, blockStart, processor)
+}

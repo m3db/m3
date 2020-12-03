@@ -2806,6 +2806,66 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
+func (s *dbShard) WideScan(
+	shardID uint32,
+	blockStart time.Time,
+	processor func(batch *xio.WideEntry) error,
+) error {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return err
+	}
+
+	reader, err := fs.NewReader(
+		s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       shardID,
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		if errors.Is(err, fs.ErrCheckpointFileNotFound) {
+			// A very recent source block might not have been flushed yet.
+			return nil
+		}
+		s.logger.Error("blockReader.Open",
+			zap.Error(err),
+			zap.Time("blockStart", blockStart),
+			zap.Int("volumeIndex", latestVolume))
+		return err
+	}
+
+	defer func() {
+		if err := reader.Close(); err != nil {
+			s.logger.Error("could not close DataFileSetReader", zap.Error(err))
+		}
+	}()
+
+	for {
+		entry, err := reader.StreamingReadWideEntry()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+
+		if err := processor(&entry); err != nil {
+			return err
+		}
+	}
+}
+
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	s.logger.Debug("shard flush outcome",
 		zap.Uint32("shard", s.ID()),

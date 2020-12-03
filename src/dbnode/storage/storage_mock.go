@@ -1224,6 +1224,20 @@ func (mr *MockNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
 }
 
+// WideScan mocks base method
+func (m *MockNamespace) WideScan(shardID uint32, blockStart time.Time, processor func(*xio.WideEntry) error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideScan", shardID, blockStart, processor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WideScan indicates an expected call of WideScan
+func (mr *MockNamespaceMockRecorder) WideScan(shardID, blockStart, processor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideScan", reflect.TypeOf((*MockNamespace)(nil).WideScan), shardID, blockStart, processor)
+}
+
 // MockdatabaseNamespace is a mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -1443,6 +1457,20 @@ func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID,
 func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchWideEntry), ctx, id, blockStart, filter)
+}
+
+// WideScan mocks base method
+func (m *MockdatabaseNamespace) WideScan(shardID uint32, blockStart time.Time, processor func(*xio.WideEntry) error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideScan", shardID, blockStart, processor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WideScan indicates an expected call of WideScan
+func (mr *MockdatabaseNamespaceMockRecorder) WideScan(shardID, blockStart, processor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideScan", reflect.TypeOf((*MockdatabaseNamespace)(nil).WideScan), shardID, blockStart, processor)
 }
 
 // Close mocks base method
@@ -2358,6 +2386,20 @@ func (m *MockdatabaseShard) LatestVolume(blockStart time.Time) (int, error) {
 func (mr *MockdatabaseShardMockRecorder) LatestVolume(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LatestVolume", reflect.TypeOf((*MockdatabaseShard)(nil).LatestVolume), blockStart)
+}
+
+// WideScan mocks base method
+func (m *MockdatabaseShard) WideScan(shardID uint32, blockStart time.Time, processor func(*xio.WideEntry) error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WideScan", shardID, blockStart, processor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WideScan indicates an expected call of WideScan
+func (mr *MockdatabaseShardMockRecorder) WideScan(shardID, blockStart, processor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WideScan", reflect.TypeOf((*MockdatabaseShard)(nil).WideScan), shardID, blockStart, processor)
 }
 
 // MockShardColdFlush is a mock of ShardColdFlush interface

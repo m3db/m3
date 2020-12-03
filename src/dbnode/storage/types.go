@@ -318,6 +318,14 @@ type Namespace interface {
 		blockStart time.Time,
 		filter schema.WideEntryFilter,
 	) (block.StreamedWideEntry, error)
+
+	// WideScan performs a "full table scan" on the given shard/block,
+	// calling processor on every entry read.
+	WideScan(
+		shardID uint32,
+		blockStart time.Time,
+		processor func(batch *xio.WideEntry) error,
+	) error
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -679,6 +687,14 @@ type databaseShard interface {
 
 	// LatestVolume returns the latest volume for the combination of shard+blockStart.
 	LatestVolume(blockStart time.Time) (int, error)
+
+	// WideScan performs a "full table scan" on the given shard/block,
+	// calling processor on every entry read.
+	WideScan(
+		shardID uint32,
+		blockStart time.Time,
+		processor func(batch *xio.WideEntry) error,
+	) error
 }
 
 // ShardSnapshotResult is a result from a shard snapshot.
