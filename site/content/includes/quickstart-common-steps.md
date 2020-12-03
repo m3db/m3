@@ -26,11 +26,11 @@ The `namespaceName` argument must match the namespace in the `local` section of 
 In another terminal, use the following command.
 
 {{< tabs name="create_placement_namespace" >}}
-{{% tab name="Command" %}}
+{{< tab name="Command" >}}
 
-{{% codeinclude file="quickstart/create-database.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/create-database.sh" language="shell" >}}
 
-{{% /tab %}}
+{{< /tab >}}
 {{% tab name="Output" %}}
 
 ```json
@@ -111,7 +111,7 @@ In another terminal, use the following command.
 }
 ```
 
-{{< /tab >}}
+{{% /tab %}}
 {{< /tabs >}}
 
 Placement initialization can take a minute or two. Once all the shards have the `AVAILABLE` state, the node has finished bootstrapping, and you should see the following messages in the node console output.
@@ -274,17 +274,17 @@ Label names may contain ASCII letters, numbers, underscores, and Unicode charact
 {{< tabs name="write_metrics" >}}
 {{< tab name="Command 1" >}}
 
-{{% codeinclude file="quickstart/write-metrics-1.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/write-metrics-1.sh" language="shell" >}}
 
 {{< /tab >}}
 {{< tab name="Command 2" >}}
 
-{{% codeinclude file="quickstart/write-metrics-2.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/write-metrics-2.sh" language="shell" >}}
 
 {{< /tab >}}
 {{< tab name="Command 3" >}}
 
-{{% codeinclude file="quickstart/write-metrics-3.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/write-metrics-3.sh" language="shell" >}}
 
 {{< /tab >}}
 {{< /tabs >}}

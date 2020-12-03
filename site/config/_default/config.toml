@@ -38,8 +38,18 @@ metaDataFormat = "yaml"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = true
 # staticDir = ["static"]
-defaultContentLanguageInSubdir= true
+# defaultContentLanguageInSubdir= true
+
+[languages]
+[languages.en]
+title = "Kubernetes"
+description = "Production-Grade Container Orchestration"
+languageName ="English"
+# Weight used for sorting.
+weight = 1
+languagedirection = "ltr"
 
 # Highlighting config.
 pygmentsCodeFences = true
