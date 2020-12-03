@@ -2688,8 +2688,8 @@ func (s *dbShard) AggregateTiles(
 	}()
 
 	var (
-		sourceNsID = sourceNs.ID()
-		maxEntries = 0
+		sourceNsID         = sourceNs.ID()
+		plannedSeriesCount = 1
 	)
 
 	for sourceBlockPos, blockReader := range blockReaders {
@@ -2718,8 +2718,8 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		entries := blockReader.Entries()
-		if entries > maxEntries {
-			maxEntries = entries
+		if entries > plannedSeriesCount {
+			plannedSeriesCount = entries
 		}
 
 		openBlockReaders = append(openBlockReaders, blockReader)
@@ -2737,7 +2737,7 @@ func (s *dbShard) AggregateTiles(
 		BlockStart:          opts.Start,
 		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
 		VolumeIndex:         nextVolume,
-		PlannedRecordsCount: uint(maxEntries),
+		PlannedRecordsCount: uint(plannedSeriesCount),
 	}
 	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err
