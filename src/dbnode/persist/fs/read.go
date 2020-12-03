@@ -395,6 +395,8 @@ func (r *reader) streamingReadIndexEntry() (schema.IndexEntry, error) {
 	return entry, nil
 }
 
+// NB: not passing the whole IndexEntry because of linter message:
+// "hugeParam: e is heavy (88 bytes); consider passing it by pointer".
 func (r *reader) dataForIndexEntry(offset, size, checksum int64) ([]byte, error) {
 	if offset+size > int64(len(r.dataMmap.Bytes)) {
 		return nil, fmt.Errorf(
@@ -441,7 +443,7 @@ func (r *reader) StreamingReadWideEntry() (xio.WideEntry, error) {
 		return xio.WideEntry{}, err
 	}
 
-	metadataChecksum := r.hasher.HashIndexEntry(entry)
+	metadataChecksum := r.hasher.HashIndexEntry(entry.ID, entry.EncodedTags, entry.DataChecksum)
 
 	var checkedEncodedTags checked.Bytes
 	if tags := entry.EncodedTags; len(tags) > 0 {
