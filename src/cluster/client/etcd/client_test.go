@@ -312,7 +312,7 @@ func TestGetEtcdClients(t *testing.T) {
 	require.Equal(t, 2, len(c.clis))
 	require.False(t, c1 == c2)
 
-	clients := c.EtcdClients()
+	clients := c.Clients()
 	require.Len(t, clients, 2)
 
 	assert.Equal(t, clients[0].Zone, "zone1")

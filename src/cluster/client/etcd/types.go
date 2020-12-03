@@ -137,9 +137,9 @@ type Cluster interface {
 	SetDialTimeout(value time.Duration) Cluster
 }
 
-// EtcdConfigService is an etcd-backed m3cluster client.
-type EtcdConfigService interface {
+// Client is an etcd-backed m3cluster client.
+type Client interface {
 	client.Client
 
-	EtcdClients() []EtcdClient
+	Clients() []ZoneClient
 }
