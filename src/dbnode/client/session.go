@@ -769,6 +769,79 @@ func (s *session) hostQueues(
 	return queues, replicas, majority, nil
 }
 
+func (s *session) WriteClusterAvailability() (bool, error) {
+	level := s.opts.WriteConsistencyLevel()
+	return s.clusterAvailability(level)
+}
+
+func (s *session) ReadClusterAvailability() (bool, error) {
+	var convertedConsistencyLevel topology.ConsistencyLevel
+	level := s.opts.ReadConsistencyLevel()
+	switch level {
+	case topology.ReadConsistencyLevelNone:
+		// Already ready.
+		return true, nil
+	case topology.ReadConsistencyLevelOne:
+		convertedConsistencyLevel = topology.ConsistencyLevelOne
+	case topology.ReadConsistencyLevelUnstrictMajority:
+		convertedConsistencyLevel = topology.ConsistencyLevelOne
+	case topology.ReadConsistencyLevelMajority:
+		convertedConsistencyLevel = topology.ConsistencyLevelMajority
+	case topology.ReadConsistencyLevelUnstrictAll:
+		convertedConsistencyLevel = topology.ConsistencyLevelOne
+	case topology.ReadConsistencyLevelAll:
+		convertedConsistencyLevel = topology.ConsistencyLevelAll
+	default:
+		return false, fmt.Errorf("unknown consistency level: %d", level)
+	}
+	return s.clusterAvailability(convertedConsistencyLevel)
+}
+
+func (s *session) clusterAvailability(
+	level topology.ConsistencyLevel,
+) (bool, error) {
+	s.state.RLock()
+	queues := s.state.queues
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	if err != nil {
+		return false, err
+	}
+
+	shards := topoMap.ShardSet().AllIDs()
+	minConnectionCount := s.opts.MinConnectionCount()
+	replicas := topoMap.Replicas()
+	majority := topoMap.MajorityReplicas()
+
+	for _, shardID := range shards {
+		shardReplicasAvailable := 0
+		routeErr := topoMap.RouteShardForEach(shardID, func(idx int, _ shard.Shard, _ topology.Host) {
+			if queues[idx].ConnectionCount() >= minConnectionCount {
+				shardReplicasAvailable++
+			}
+		})
+		if routeErr != nil {
+			return false, routeErr
+		}
+		var clusterAvailableForShard bool
+		switch level {
+		case topology.ConsistencyLevelAll:
+			clusterAvailableForShard = shardReplicasAvailable == replicas
+		case topology.ConsistencyLevelMajority:
+			clusterAvailableForShard = shardReplicasAvailable >= majority
+		case topology.ConsistencyLevelOne:
+			clusterAvailableForShard = shardReplicasAvailable > 0
+		default:
+			return false, fmt.Errorf("unknown consistency level: %d", level)
+		}
+		if !clusterAvailableForShard {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, replicas, majority int) {
 	prevQueues := s.state.queues
 
@@ -1879,9 +1952,14 @@ func (s *session) Replicas() int {
 
 func (s *session) TopologyMap() (topology.Map, error) {
 	s.state.RLock()
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	return topoMap, err
+}
+
+func (s *session) topologyMapWithStateRLock() (topology.Map, error) {
 	status := s.state.status
 	topoMap := s.state.topoMap
-	s.state.RUnlock()
 
 	// Make sure the session is open, as thats what sets the initial topology.
 	if status != statusOpen {
