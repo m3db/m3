@@ -331,7 +331,7 @@ function test_metric_type_survives_aggregation {
     id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
     rangeStart=${start} \
     rangeEnd=${end} \
-    jq_path="$jq_path" expected_value="CAE=" \
+    jq_path="$jq_path" expected_value="CAEQAQ==" \
     retry_with_backoff dbnode_fetch
 }
 
