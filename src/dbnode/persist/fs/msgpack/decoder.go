@@ -522,7 +522,7 @@ func (dec *Decoder) decodeWideEntry(
 		return emptyWideEntry, MismatchLookupStatus
 	}
 
-	// compareID must have been before the curret entry.ID, so this
+	// compareID must have been before the current entry.ID, so this
 	// ID will not be matched.
 	return emptyWideEntry, NotFoundLookupStatus
 }

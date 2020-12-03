@@ -153,9 +153,16 @@ type DataFileSetReader interface {
 
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
 	// values ordered by id, or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
 	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
 	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
+
+	// StreamingReadWideEntry returns the next xio.WideEntry value
+	// (ordered by id), or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
+	// NB: unlike other Streaming methods, StreamingReadWideEntry returns pooled
+	// byte slices (fields of xio.WideEntry).
+	StreamingReadWideEntry() (xio.WideEntry, error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -216,7 +223,7 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
-	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
+	// made in order. The returned IndexEntry can also be passed to SeekByIndexEntry
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
