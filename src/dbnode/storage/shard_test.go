@@ -1982,10 +1982,14 @@ func TestShardScan(t *testing.T) {
 		},
 	}
 
+	processor := fs.NewMockDataEntryProcessor(ctrl)
+	processor.EXPECT().SetEntriesCount(len(shardEntries))
+
 	reader, _ := getMockReader(ctrl, t, shard, start, nil)
 	reader.EXPECT().Entries().Return(len(shardEntries))
 	for _, entry := range shardEntries {
 		reader.EXPECT().StreamingRead().Return(entry, nil)
+		processor.EXPECT().ProcessEntry(entry)
 	}
 	reader.EXPECT().StreamingRead().Return(fs.StreamedDataEntry{}, io.EOF)
 
@@ -1993,15 +1997,7 @@ func TestShardScan(t *testing.T) {
 		return reader, nil
 	}
 
-	var processedEntries []fs.StreamedDataEntry
-	processor := func(entry fs.StreamedDataEntry, entriesCount int) error {
-		assert.Equal(t, len(shardEntries), entriesCount)
-		processedEntries = append(processedEntries, entry)
-		return nil
-	}
-
 	require.NoError(t, shard.ScanData(start, processor))
-	assert.Equal(t, shardEntries, processedEntries)
 }
 
 func getMockReader(

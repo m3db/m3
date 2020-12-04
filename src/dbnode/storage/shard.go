@@ -2843,7 +2843,7 @@ func (s *dbShard) ScanData(
 		}
 	}()
 
-	entriesCount := reader.Entries()
+	processor.SetEntriesCount(reader.Entries())
 
 	for {
 		entry, err := reader.StreamingRead()
@@ -2854,7 +2854,7 @@ func (s *dbShard) ScanData(
 			return err
 		}
 
-		if err := processor(entry, entriesCount); err != nil {
+		if err := processor.ProcessEntry(entry); err != nil {
 			return err
 		}
 	}
