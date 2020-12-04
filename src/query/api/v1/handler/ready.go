@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	// ReadyURL is the url to check for readyiness.
+	// ReadyURL is the url to check for readiness.
 	ReadyURL = "/ready"
 
 	// ReadyHTTPMethod is the HTTP method used with this resource.
