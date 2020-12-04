@@ -461,7 +461,7 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		t.Fatalf("test timed out, deadlock?")
 	}
 
-	// release placement lock to allow expiration process to proceed
+	// release placement lock to unblock expiration process
 	doneFn()
 	select {
 	case <-doneCh:
@@ -469,7 +469,7 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		t.Fatalf("test timed out, deadlock?")
 	}
 
-	// there's no good way to know when expire process has been completed,
+	// there's no good way to determine when expire process has been completed,
 	// try polling for 100ms
 	for i := 0; i < 100; i++ {
 		if ranCleanup.Load() && p.expiring.Load() == int32(0) {
