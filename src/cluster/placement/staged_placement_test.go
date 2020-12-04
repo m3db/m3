@@ -450,8 +450,8 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 	require.NotNil(t, pl)
 	require.NotNil(t, doneFn)
 
-	// active placement is not the first in the list, so cleanup for past
-	// placements should be triggered:
+	// active placement is not the first in the list - expiration of past
+	// placements must be triggered
 	require.Equal(t, int32(1), p.expiring.Load())
 
 	// make sure p.Version() call was attempted at least once
@@ -461,7 +461,7 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		t.Fatalf("test timed out, deadlock?")
 	}
 
-	// release placement lock so cleanup can proceed:
+	// release placement lock to allow expiration process to proceed
 	doneFn()
 	select {
 	case <-doneCh:
@@ -469,7 +469,8 @@ func testActiveStagedPlacementVersionWhileExpiring(t *testing.T) {
 		t.Fatalf("test timed out, deadlock?")
 	}
 
-	// no hooks to know when expire process has been completed, so poll for 100ms:
+	// there's no good way to know when expire process has been completed,
+	// try polling for 100ms
 	for i := 0; i < 100; i++ {
 		if ranCleanup.Load() && p.expiring.Load() == int32(0) {
 			break
