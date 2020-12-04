@@ -683,8 +683,6 @@ func (s *session) hostQueues(
 		newQueues = append(newQueues, newQueue)
 	}
 
-	shards := topoMap.ShardSet().AllIDs()
-	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topoMap.Replicas()
 	majority := topoMap.MajorityReplicas()
 
@@ -731,35 +729,25 @@ func (s *session) hostQueues(
 				return nil, 0, 0, ErrClusterConnectTimeout
 			}
 		}
-		// Be optimistic
-		clusterAvailable := true
-		for _, shardID := range shards {
-			shardReplicasAvailable := 0
-			routeErr := topoMap.RouteShardForEach(shardID, func(idx int, _ shard.Shard, _ topology.Host) {
-				if queues[idx].ConnectionCount() >= minConnectionCount {
-					shardReplicasAvailable++
-				}
-			})
-			if routeErr != nil {
-				return nil, 0, 0, routeErr
-			}
-			var clusterAvailableForShard bool
-			switch connectConsistencyLevel {
-			case topology.ConnectConsistencyLevelAll:
-				clusterAvailableForShard = shardReplicasAvailable == replicas
-			case topology.ConnectConsistencyLevelMajority:
-				clusterAvailableForShard = shardReplicasAvailable >= majority
-			case topology.ConnectConsistencyLevelOne:
-				clusterAvailableForShard = shardReplicasAvailable > 0
-			default:
-				return nil, 0, 0, errSessionInvalidConnectClusterConnectConsistencyLevel
-			}
-			if !clusterAvailableForShard {
-				clusterAvailable = false
-				break
-			}
+
+		var level topology.ConsistencyLevel
+		switch connectConsistencyLevel {
+		case topology.ConnectConsistencyLevelAll:
+			level = topology.ConsistencyLevelAll
+		case topology.ConnectConsistencyLevelMajority:
+			level = topology.ConsistencyLevelMajority
+		case topology.ConnectConsistencyLevelOne:
+			level = topology.ConsistencyLevelOne
+		default:
+			return nil, 0, 0, errSessionInvalidConnectClusterConnectConsistencyLevel
 		}
-		if clusterAvailable { // All done
+		clusterAvailable, err := s.clusterAvailabilityWithQueuesAndMap(level,
+			queues, topoMap)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if clusterAvailable {
+			// All done
 			break
 		}
 		time.Sleep(clusterConnectWaitInterval)
@@ -807,7 +795,14 @@ func (s *session) clusterAvailability(
 	if err != nil {
 		return false, err
 	}
+	return s.clusterAvailabilityWithQueuesAndMap(level, queues, topoMap)
+}
 
+func (s *session) clusterAvailabilityWithQueuesAndMap(
+	level topology.ConsistencyLevel,
+	queues []hostQueue,
+	topoMap topology.Map,
+) (bool, error) {
 	shards := topoMap.ShardSet().AllIDs()
 	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topoMap.Replicas()
