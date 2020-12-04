@@ -154,8 +154,8 @@ type DataFileSetReader interface {
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
 	// values ordered by id, or error, will return io.EOF at end of volume.
 	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
-	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
-	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
+	// Note: the returned data gets invalidated on the next call to StreamingRead.
+	StreamingRead() (StreamedDataEntry, error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -678,10 +678,20 @@ type IndexClaimsManager interface {
 	) (int, error)
 }
 
-// EntryProcessor is a function that processes a single data fileset entry.
-type EntryProcessor func(
-	id ident.BytesID,
-	encodedTags ts.EncodedTags,
-	data []byte,
-	dataChecksum uint32,
+// StreamedDataEntry contains the data of single entry returned by streaming method(s).
+// The underlying data slices are reused and invalidated on every read.
+type StreamedDataEntry struct {
+	ID           ident.BytesID
+	EncodedTags  ts.EncodedTags
+	Data         []byte
+	DataChecksum uint32
+}
+
+// NewReaderFn creates a new DataFileSetReader.
+type NewReaderFn func(bytesPool pool.CheckedBytesPool, opts Options) (DataFileSetReader, error)
+
+// DataEntryProcessor is a function that processes a single data fileset entry.
+type DataEntryProcessor func(
+	entry StreamedDataEntry,
+	entriesCount int,
 ) error

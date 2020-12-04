@@ -174,6 +174,7 @@ type dbShard struct {
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
+	newReaderFn              fs.NewReaderFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
@@ -317,6 +318,7 @@ func newDatabaseShard(
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,
+		newReaderFn:          fs.NewReader,
 		identifierPool:       opts.IdentifierPool(),
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
@@ -580,7 +582,7 @@ func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
 		return shardIterateBatchMinSize
 	}
-	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
+	t := math.Ceil(shardIterateBatchPercent * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
@@ -1941,7 +1943,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				return nil, nil, err
 			}
-			return result, PageToken(data), nil
+			return result, data, nil
 		}
 
 		// Otherwise we move on to the previous block.
@@ -2806,17 +2808,16 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
-func (s *dbShard) Scan(
+func (s *dbShard) ScanData(
 	blockStart time.Time,
-	processor fs.EntryProcessor,
+	processor fs.DataEntryProcessor,
 ) error {
 	latestVolume, err := s.LatestVolume(blockStart)
 	if err != nil {
 		return err
 	}
 
-	reader, err := fs.NewReader(
-		s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
 		return err
 	}
@@ -2833,14 +2834,6 @@ func (s *dbShard) Scan(
 	}
 
 	if err := reader.Open(openOpts); err != nil {
-		if errors.Is(err, fs.ErrCheckpointFileNotFound) {
-			// A very recent source block might not have been flushed yet.
-			return nil
-		}
-		s.logger.Error("blockReader.Open",
-			zap.Error(err),
-			zap.Time("blockStart", blockStart),
-			zap.Int("volumeIndex", latestVolume))
 		return err
 	}
 
@@ -2850,8 +2843,10 @@ func (s *dbShard) Scan(
 		}
 	}()
 
+	entriesCount := reader.Entries()
+
 	for {
-		id, encodedTags, data, dataChecksum, err := reader.StreamingRead()
+		entry, err := reader.StreamingRead()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -2859,7 +2854,7 @@ func (s *dbShard) Scan(
 			return err
 		}
 
-		if err := processor(id, encodedTags, data, dataChecksum); err != nil {
+		if err := processor(entry, entriesCount); err != nil {
 			return err
 		}
 	}

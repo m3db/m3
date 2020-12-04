@@ -509,11 +509,11 @@ type Shard interface {
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
 
-	// Scan performs a "full table scan" on the given block,
+	// ScanData performs a "full table scan" on the given block,
 	// calling processor function on every entry read.
-	Scan(
+	ScanData(
 		blockStart time.Time,
-		processor fs.EntryProcessor,
+		processor fs.DataEntryProcessor,
 	) error
 }
 

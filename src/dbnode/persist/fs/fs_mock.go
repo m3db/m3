@@ -325,15 +325,12 @@ func (mr *MockDataFileSetReaderMockRecorder) StreamingEnabled() *gomock.Call {
 }
 
 // StreamingRead mocks base method
-func (m *MockDataFileSetReader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
+func (m *MockDataFileSetReader) StreamingRead() (StreamedDataEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingRead")
-	ret0, _ := ret[0].(ident.BytesID)
-	ret1, _ := ret[1].(ts.EncodedTags)
-	ret2, _ := ret[2].([]byte)
-	ret3, _ := ret[3].(uint32)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
+	ret0, _ := ret[0].(StreamedDataEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamingRead indicates an expected call of StreamingRead
