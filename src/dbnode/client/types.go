@@ -62,6 +62,12 @@ type Client interface {
 
 // Session can write and read to a cluster.
 type Session interface {
+	// WriteClusterAvailability returns whether cluster is available for writes.
+	WriteClusterAvailability() (bool, error)
+
+	// ReadClusterAvailability returns whether cluster is available for reads.
+	ReadClusterAvailability() (bool, error)
+
 	// Write value to the database for an ID.
 	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 

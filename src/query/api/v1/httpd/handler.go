@@ -226,6 +226,11 @@ func (h *Handler) RegisterRoutes() error {
 		wrapped(m3json.NewWriteJSONHandler(h.options)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
+	// Readiness endpoint.
+	h.router.HandleFunc(handler.ReadyURL,
+		wrapped(handler.NewReadyHandler(h.options)).ServeHTTP,
+	).Methods(handler.ReadyHTTPMethod)
+
 	// Tag completion endpoints.
 	h.router.HandleFunc(native.CompleteTagsURL,
 		wrapped(native.NewCompleteTagsHandler(h.options)).ServeHTTP,
