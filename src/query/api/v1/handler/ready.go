@@ -76,6 +76,9 @@ type readyResult struct {
 	NotReadyWrites []readyResultNamespace `json:"notReadyWrites,omitempty"`
 }
 
+// ServeHTTP serves HTTP handler. This comment only here so doesn't break
+// lint by not being "ServeHTTP" as the comment above this function
+// which needs // nolint:gocyclo.
 // nolint:gocyclo
 func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(r.Context(), h.instrumentOpts)
