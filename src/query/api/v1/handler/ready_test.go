@@ -199,7 +199,7 @@ func TestReadyHandler(t *testing.T) {
 			readyHandler.ServeHTTP(w, req)
 
 			resp := w.Result()
-			defer resp.Close()
+			defer resp.Body.Close()
 			body, err := ioutil.ReadAll(resp.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectedStatusCode, resp.StatusCode)
