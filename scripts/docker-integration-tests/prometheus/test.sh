@@ -37,6 +37,13 @@ setup_single_m3db_node
 echo "Start Prometheus containers"
 docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 
+function test_readiness {
+  # Check readiness probe eventually succeeds
+  echo "Check readiness probe eventually succeeds"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl --write-out "%{http_code}" --silent --output /dev/null 0.0.0.0:7201/ready) -eq "200" ]]'
+}
+
 function test_prometheus_remote_read {
   # Ensure Prometheus can proxy a Prometheus query
   echo "Wait until the remote write endpoint generates and allows for data to be queried"
@@ -383,6 +390,9 @@ function test_series {
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
 }
+
+echo "Running readiness test"
+test_readiness
 
 echo "Running prometheus tests"
 test_prometheus_remote_read
