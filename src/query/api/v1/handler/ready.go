@@ -76,6 +76,7 @@ type readyResult struct {
 	NotReadyWrites []readyResultNamespace `json:"notReadyWrites,omitempty"`
 }
 
+// nolint:gocyclo
 func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(r.Context(), h.instrumentOpts)
 
