@@ -30,6 +30,15 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+// DefaultReaderIteratorAllocFn returns a function for allocating NewReaderIterator.
+func DefaultReaderIteratorAllocFn(
+	opts encoding.Options,
+) func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	return func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		return NewReaderIterator(r, DefaultIntOptimizationEnabled, opts)
+	}
+}
+
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type readerIterator struct {

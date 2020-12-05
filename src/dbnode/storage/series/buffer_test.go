@@ -60,10 +60,7 @@ func newBufferTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(
-		func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-			return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-		})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	bufferBucketPool := NewBufferBucketPool(nil)
 	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)

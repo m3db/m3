@@ -41,10 +41,8 @@ const (
 	defaultReplicas                    = 3
 	defaultSeriesIteratorPoolSize      = 2 << 12 // ~8k
 	defaultCheckedBytesWrapperPoolSize = 2 << 12 // ~8k
-	defaultBucketCapacity              = 256
 	defaultPoolableConcurrentQueries   = 64
 	defaultPoolableSeriesPerQuery      = 4096
-	defaultSeriesReplicaReaderPoolSize = defaultPoolableConcurrentQueries * defaultPoolableSeriesPerQuery * defaultReplicas
 )
 
 var (
@@ -211,10 +209,7 @@ func BuildIteratorPools(
 	encodingOpts := encoding.NewOptions().
 		SetReaderIteratorPool(readerIteratorPool)
 
-	readerIteratorPool.Init(
-		func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
-			return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-		})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
 	pools.multiReaderIterator.Init(

@@ -452,12 +452,7 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(
-		r xio.Reader64,
-		_ namespace.SchemaDescr,
-	) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	opts.readerIteratorAllocate = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	opts.isProtoEnabled = false
 	return &opts
 }

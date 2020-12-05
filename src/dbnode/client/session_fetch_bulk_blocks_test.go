@@ -102,9 +102,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	p.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	return p
 }
 

@@ -500,22 +500,12 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(
-		r xio.Reader64,
-		_ namespace.SchemaDescr,
-	) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
-	multiReaderIteratorPool.Init(func(
-		r xio.Reader64,
-		_ namespace.SchemaDescr,
-	) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	multiReaderIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.

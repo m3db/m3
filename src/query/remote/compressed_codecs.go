@@ -46,9 +46,7 @@ func initializeVars() {
 			b.Reset(nil)
 		}))
 
-	iterAlloc = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 }
 
 var (

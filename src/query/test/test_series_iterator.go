@@ -67,9 +67,7 @@ func init() {
 	Middle = Start.Add(BlockSize)
 	End = Middle.Add(BlockSize)
 
-	testIterAlloc = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	testIterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 }
 
 // Builds a MultiReaderIterator representing a single replica

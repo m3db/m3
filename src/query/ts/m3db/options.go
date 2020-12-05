@@ -28,8 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -43,9 +41,7 @@ var (
 	defaultCount            = 10
 	defaultLookbackDuration = time.Duration(0)
 	defaultConsolidationFn  = consolidators.TakeLast
-	defaultIterAlloc        = func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	defaultIterAlloc        = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true

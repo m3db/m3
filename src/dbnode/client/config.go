@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -407,10 +406,7 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(
-		func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-			return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-		})
+	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)

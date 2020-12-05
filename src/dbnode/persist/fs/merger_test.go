@@ -75,9 +75,7 @@ func init() {
 	srPool = xio.NewSegmentReaderPool(poolOpts)
 	srPool.Init()
 	multiIterPool = encoding.NewMultiReaderIteratorPool(poolOpts)
-	multiIterPool.Init(func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	multiIterPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, poolOpts)
 	})
