@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/pborman/uuid"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -53,7 +53,7 @@ const (
 func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceMetadataAdminService {
 	if idGen == nil {
 		idGen = func() string {
-			return uuid.NewV4().String()
+			return uuid.New()
 		}
 	}
 	if len(key) == 0 {
