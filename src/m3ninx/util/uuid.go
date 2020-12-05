@@ -29,7 +29,7 @@ import (
 
 var errUUIDForbidden = errors.New("generating UUIDs is forbidden")
 
-var encodedLen = base64.StdEncoding.EncodedLen(len(uuid.NewRandom().Array()))
+var encodedLen = base64.StdEncoding.EncodedLen(len(new(uuid.Array)))
 
 // NewUUIDFn is a function for creating new UUIDs.
 type NewUUIDFn func() ([]byte, error)
