@@ -131,7 +131,6 @@ func (w *manager) Watch(key string) {
 		case r, ok := <-watchChan:
 			if !ok {
 				// the watch chan is closed, set it to nil so it will be recreated
-				// this is unlikely to happen but just to be defensive
 				cancelFn()
 				watchChan = nil
 				logger.Warn("etcd watch channel closed on key, recreating a watch channel")
@@ -161,14 +160,17 @@ func (w *manager) Watch(key string) {
 				if err == rpctypes.ErrCompacted {
 					logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
 					revOverride = r.CompactRevision
-					watchChan = nil
+				} else {
+					logger.Warn("recreating watch due to an error")
 				}
-			}
 
-			if r.IsProgressNotify() {
+				cancelFn()
+				watchChan = nil
+			} else if r.IsProgressNotify() {
 				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
 				continue
 			}
+
 			if err = w.updateFn(key, r.Events); err != nil {
 				logger.Error("received notification for key, but failed to get value", zap.Error(err))
 			}
