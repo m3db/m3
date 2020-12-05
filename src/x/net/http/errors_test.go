@@ -18,19 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package handler contains root level handlers.
-package handler
+package xhttp
 
-// HeaderKeyType is the type for the header key.
-type HeaderKeyType int
+import (
+	"fmt"
+	"testing"
 
-const (
-	// HeaderKey is the key which headers will be added to in the request context.
-	HeaderKey HeaderKeyType = iota
+	"github.com/stretchr/testify/require"
 
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
-	RoutePrefixV1 = "/api/v1"
-
-	// RoutePrefixExperimental is the experimental prefix for all coordinator routes.
-	RoutePrefixExperimental = "/api/experimental"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
+
+func TestIsClientError(t *testing.T) {
+	tests := []struct {
+		err      error
+		expected bool
+	}{
+		{NewError(fmt.Errorf("xhttp.Error(400)"), 400), true},
+		{NewError(fmt.Errorf("xhttp.Error(499)"), 499), true},
+		{xerrors.NewInvalidParamsError(fmt.Errorf("InvalidParamsError")), true},
+		{xerrors.NewRetryableError(xerrors.NewInvalidParamsError(
+			fmt.Errorf("InvalidParamsError insde RetyrableError"))), true},
+
+		{NewError(fmt.Errorf("xhttp.Error(399)"), 399), false},
+		{NewError(fmt.Errorf("xhttp.Error(500)"), 500), false},
+		{xerrors.NewRetryableError(fmt.Errorf("any error inside RetryableError")), false},
+		{fmt.Errorf("any error"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.err.Error(), func(t *testing.T) {
+			require.Equal(t, tt.expected, IsClientError(tt.err))
+		})
+	}
+}

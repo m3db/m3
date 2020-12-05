@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package handler contains root level handlers.
-package handler
+package client
 
-// HeaderKeyType is the type for the header key.
-type HeaderKeyType int
+import (
+	"testing"
 
-const (
-	// HeaderKey is the key which headers will be added to in the request context.
-	HeaderKey HeaderKeyType = iota
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
-	RoutePrefixV1 = "/api/v1"
-
-	// RoutePrefixExperimental is the experimental prefix for all coordinator routes.
-	RoutePrefixExperimental = "/api/experimental"
+	"github.com/m3db/m3/src/msg/producer"
 )
+
+func TestNewM3MsgClient(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	p := producer.NewMockProducer(ctrl)
+	p.EXPECT().Init()
+	p.EXPECT().NumShards().Return(uint32(1))
+
+	opts := NewM3MsgOptions().
+		SetProducer(p)
+
+	c, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
+	assert.NotNil(t, c)
+	assert.NoError(t, err)
+}

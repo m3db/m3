@@ -101,6 +101,31 @@ var (
 	}
 
 	typeStringMap map[string]Type
+
+	typeStringNames = map[Type][]byte{
+		Last:   []byte("last"),
+		Min:    []byte("lower"),
+		Max:    []byte("upper"),
+		Mean:   []byte("mean"),
+		Median: []byte("median"),
+		Count:  []byte("count"),
+		Sum:    []byte("sum"),
+		SumSq:  []byte("sum_sq"),
+		Stdev:  []byte("stdev"),
+		P10:    []byte("p10"),
+		P20:    []byte("p20"),
+		P30:    []byte("p30"),
+		P40:    []byte("p40"),
+		P50:    []byte("p50"),
+		P60:    []byte("p60"),
+		P70:    []byte("p70"),
+		P80:    []byte("p80"),
+		P90:    []byte("p90"),
+		P95:    []byte("p95"),
+		P99:    []byte("p99"),
+		P999:   []byte("p999"),
+		P9999:  []byte("p9999"),
+	}
 )
 
 // Type defines an aggregation function.
@@ -230,6 +255,15 @@ func (a *Type) UnmarshalText(data []byte) error {
 	}
 	*a = parsed
 	return nil
+}
+
+// Name returns the name of the Type.
+func (a Type) Name() []byte {
+	name, ok := typeStringNames[a]
+	if ok {
+		return name
+	}
+	return a.Bytes()
 }
 
 func validateProtoType(a aggregationpb.AggregationType) error {
