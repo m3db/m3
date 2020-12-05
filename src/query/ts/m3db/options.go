@@ -37,11 +37,11 @@ import (
 )
 
 var (
-	defaultCapacity         = 1024
-	defaultCount            = 10
-	defaultLookbackDuration = time.Duration(0)
-	defaultConsolidationFn  = consolidators.TakeLast
-	defaultIterAlloc        = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
+	defaultCapacity             = 1024
+	defaultCount                = 10
+	defaultLookbackDuration     = time.Duration(0)
+	defaultConsolidationFn      = consolidators.TakeLast
+	defaultIterAlloc            = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true

@@ -187,7 +187,7 @@ var (
 	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
-	defaultSeriesIteratorArrayPoolBuckets []pool.Bucket
+	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
 	// defaulWriteRetrier is the default write retrier for write attempts
 	defaultWriteRetrier = xretry.NewRetrier(

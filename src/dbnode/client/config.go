@@ -292,8 +292,8 @@ func (c Configuration) NewAdminClient(
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
 		syncNsInit           namespace.Initializer
-		asyncTopoInits       []topology.Initializer
-		asyncClientOverrides []environment.ClientOverrides
+		asyncTopoInits       = []topology.Initializer{}
+		asyncClientOverrides = []environment.ClientOverrides{}
 	)
 
 	var buildAsyncPool bool
