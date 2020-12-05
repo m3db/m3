@@ -68,7 +68,8 @@ func main() {
 		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 		idFilter       = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
-		benchmark      = getopt.StringLong("benchmark", 'B', "", "benchmark mode (optional), [series/datapoints]")
+		benchmark      = getopt.StringLong(
+			"benchmark", 'B', "", "benchmark mode (optional), [series/datapoints]")
 	)
 	getopt.Parse()
 
@@ -98,13 +99,13 @@ func main() {
 		log.Fatalf("unknown fileset type: %s", *fileSetTypeArg)
 	}
 
-	var benchmarkMode benchmarkMode
+	var benchMode benchmarkMode
 	switch *benchmark {
 	case "":
 	case "series":
-		benchmarkMode = benchmarkSeries
+		benchMode = benchmarkSeries
 	case "datapoints":
-		benchmarkMode = benchmarkDatapoints
+		benchMode = benchmarkDatapoints
 	default:
 		log.Fatalf("unknown benchmark type: %s", *benchmark)
 	}
@@ -155,13 +156,13 @@ func main() {
 			continue
 		}
 
-		if benchmarkMode != benchmarkSeries {
+		if benchMode != benchmarkSeries {
 			data.IncRef()
 
 			iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
 			for iter.Next() {
 				dp, _, annotation := iter.Current()
-				if benchmarkMode == benchmarkNone {
+				if benchMode == benchmarkNone {
 					// Use fmt package so it goes to stdout instead of stderr
 					fmt.Printf("{id: %s, dp: %+v", id.String(), dp)
 					if len(annotation) > 0 {
@@ -183,15 +184,15 @@ func main() {
 		seriesCount++
 	}
 
-	if benchmarkMode != benchmarkNone {
-		runTime := time.Now().Sub(start)
+	if benchMode != benchmarkNone {
+		runTime := time.Since(start)
 		fmt.Printf("Running time: %s\n", runTime)
 		fmt.Printf("\n%d series read\n", seriesCount)
 		if runTime > 0 {
 			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds())
 		}
 
-		if benchmarkMode == benchmarkDatapoints {
+		if benchMode == benchmarkDatapoints {
 			fmt.Printf("\n%d datapoints decoded\n", datapointCount)
 			fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds())
 		}
