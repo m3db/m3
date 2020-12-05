@@ -190,6 +190,14 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
 }
 
+func (s *replicatedSession) ReadClusterAvailability() (bool, error) {
+	return s.session.ReadClusterAvailability()
+}
+
+func (s *replicatedSession) WriteClusterAvailability() (bool, error) {
+	return s.session.WriteClusterAvailability()
+}
+
 // Write value to the database for an ID.
 func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	return s.replicate(replicatedParams{
