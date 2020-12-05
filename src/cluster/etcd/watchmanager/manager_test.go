@@ -240,8 +240,8 @@ func TestWatchNoLeader(t *testing.T) {
 			updates)
 	}
 
-	ecluster.Members[1].Restart(t)
-	ecluster.Members[2].Restart(t)
+	require.NoError(t, ecluster.Members[1].Restart(t))
+	require.NoError(t, ecluster.Members[2].Restart(t))
 	// wait for leader + election delay just in case
 	time.Sleep(time.Duration(3*ecluster.Members[0].ElectionTicks) * tickDuration)
 
