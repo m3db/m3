@@ -21,9 +21,10 @@
 package rate
 
 import (
+	"time"
+
 	"go.uber.org/atomic"
 	"golang.org/x/sys/cpu"
-	"time"
 
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -61,7 +62,7 @@ func (l *Limiter) Limit() int64 {
 // The limiter is racy on window changes, and can be overly aggressive rejecting requests.
 // As the limits are usually at least 10k+, the error is worth the speedup.
 func (l *Limiter) IsAllowed(n int64, now xtime.UnixNano) bool {
-	var limit = l.Limit()
+	limit := l.Limit()
 	if limit <= 0 {
 		return true
 	}
@@ -83,8 +84,9 @@ func (l *Limiter) IsAllowed(n int64, now xtime.UnixNano) bool {
 	return allowed <= limit
 }
 
-// Reset resets the internal state. It does not reset all the values atomically, but it usually should not be a problem,
-// as dynamic rate limits in aggregator are set under a lock.
+// Reset resets the internal state. It does not reset all the values atomically,
+// but it should not be a problem, as dynamic rate limits in aggregator
+// are usually reset under a lock.
 func (l *Limiter) Reset(limit int64) {
 	l.allowed.Store(0)
 	l.alignedLast.Store(int64(zeroTime))

@@ -21,12 +21,13 @@
 package rate
 
 import (
-	xtime "github.com/m3db/m3/src/x/time"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func xnow() xtime.UnixNano {
@@ -35,9 +36,9 @@ func xnow() xtime.UnixNano {
 
 func BenchmarkLimiter(b *testing.B) {
 	var (
-		allowedPerSecond = int64(100)
-		now              = xnow()
-		limiter          = NewLimiter(allowedPerSecond)
+		allowedPerSecond int64 = 100
+		now                    = xnow()
+		limiter                = NewLimiter(allowedPerSecond)
 	)
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -56,7 +57,7 @@ func BenchmarkLimiter(b *testing.B) {
 }
 
 func TestLimiterLimit(t *testing.T) {
-	var allowedPerSecond = int64(10)
+	var allowedPerSecond int64 = 10
 
 	limiter := NewLimiter(allowedPerSecond)
 	require.Equal(t, allowedPerSecond, limiter.Limit())
@@ -64,14 +65,14 @@ func TestLimiterLimit(t *testing.T) {
 
 func TestLimiterIsAllowed(t *testing.T) {
 	var (
-		allowedPerSecond = int64(10)
-		now              = xnow()
+		allowedPerSecond int64 = 10
+		now                    = xnow()
 	)
 
 	limiter := NewLimiter(allowedPerSecond)
 	require.True(t, limiter.IsAllowed(5, now))
 	for i := 0; i < 5; i++ {
-		now  += xtime.UnixNano(100*time.Millisecond)
+		now += xtime.UnixNano(100 * time.Millisecond)
 		require.True(t, limiter.IsAllowed(1, now))
 	}
 	require.False(t, limiter.IsAllowed(1, now))
@@ -83,8 +84,8 @@ func TestLimiterIsAllowed(t *testing.T) {
 
 func TestLimiterUnlimited(t *testing.T) {
 	var (
-		unlimitedLimit = int64(0)
-		now              = xnow()
+		unlimitedLimit int64 = 0
+		now                  = xnow()
 	)
 
 	limiter := NewLimiter(unlimitedLimit)
@@ -96,8 +97,8 @@ func TestLimiterUnlimited(t *testing.T) {
 
 func TestLimiterReset(t *testing.T) {
 	var (
-		allowedPerSecond = int64(10)
-		now              = xnow()
+		allowedPerSecond int64 = 10
+		now                    = xnow()
 	)
 
 	limiter := NewLimiter(allowedPerSecond)
