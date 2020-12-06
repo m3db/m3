@@ -29,7 +29,10 @@ import (
 
 func BenchmarkLimiter(b *testing.B) {
 	allowedPerSecond := int64(100)
-	limiter := NewLimiter(allowedPerSecond, time.Now)
+	now := time.Now().Truncate(time.Second)
+	limiter := NewLimiter(allowedPerSecond, func() time.Time {
+		return now
+	})
 	
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
