@@ -37,7 +37,7 @@ func BenchmarkLimiter(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			var allowed bool
-			for i := int64(0); i < allowedPerSecond*10; i++ {
+			for i := int64(0); i <= allowedPerSecond+1; i++ {
 				allowed = limiter.IsAllowed(1)
 			}
 

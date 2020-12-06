@@ -21,42 +21,39 @@
 package rate
 
 import (
-	"sync"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
-	zeroTime = time.Unix(0, 0)
+	zeroTime = xtime.UnixNano(0)
 )
 
 // Limiter is a simple rate limiter to control how frequently events are allowed to happen.
 type Limiter struct {
-	sync.RWMutex
-
-	limitPerSecond int64
 	nowFn          clock.NowFn
 
-	alignedLast time.Time
-	allowed     int64
+	alignedLast atomic.Int64
+	allowed     atomic.Int64
+	limitPerSecond atomic.Int64
 }
 
 // NewLimiter creates a new rate limiter.
 func NewLimiter(l int64, fn clock.NowFn) *Limiter {
-	return &Limiter{
-		limitPerSecond: l,
+	limiter := &Limiter{
 		nowFn:          fn,
 	}
+	limiter.limitPerSecond.Store(l)
+	return limiter
 }
 
 // Limit returns the current limit.
 func (l *Limiter) Limit() int64 {
-	l.RLock()
-	limit := l.limitPerSecond
-	l.RUnlock()
-	return limit
+	return l.limitPerSecond.Load()
 }
 
 // IsAllowed returns whether n events may happen now.
@@ -65,33 +62,27 @@ func (l *Limiter) Limit() int64 {
 // is much bigger than the typical batch size, which is indeed the case in the aggregation
 // layer as each batch size is usually fairly small.
 func (l *Limiter) IsAllowed(n int64) bool {
-	alignedNow := l.nowFn().Truncate(time.Second)
-	l.RLock()
-	if !alignedNow.After(l.alignedLast) {
-		isAllowed := atomic.AddInt64(&l.allowed, n) <= l.limitPerSecond
-		l.RUnlock()
-		return isAllowed
-	}
-	l.RUnlock()
+	var (
+		limit = l.Limit()
+		allowed = l.allowed.Add(n)
+		alignedNow = xtime.ToUnixNano(l.nowFn().Truncate(time.Second))
+		alignedLast = xtime.UnixNano(l.alignedLast.Load())
+	)
 
-	l.Lock()
-	if !alignedNow.After(l.alignedLast) {
-		isAllowed := atomic.AddInt64(&l.allowed, n) <= l.limitPerSecond
-		l.Unlock()
-		return isAllowed
+	if alignedNow == alignedLast {
+		return allowed <= limit
 	}
-	l.alignedLast = alignedNow
-	l.allowed = n
-	isAllowed := l.allowed <= l.limitPerSecond
-	l.Unlock()
-	return isAllowed
+
+	if 	l.alignedLast.CAS(int64(alignedLast), int64(alignedNow)) {
+		l.allowed.Store(n)
+		return n <= limit
+	}
+	return allowed <= limit
 }
 
 // Reset resets the internal state.
 func (l *Limiter) Reset(limit int64) {
-	l.Lock()
-	l.alignedLast = zeroTime
-	l.allowed = 0
-	l.limitPerSecond = limit
-	l.Unlock()
+	l.allowed.Store(0)
+	l.alignedLast.Store(int64(zeroTime))
+	l.limitPerSecond.Store(limit)
 }
