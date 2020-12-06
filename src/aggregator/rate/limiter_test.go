@@ -27,6 +27,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func BenchmarkLimiter(b *testing.B) {
+	allowedPerSecond := int64(10000)
+	limiter := NewLimiter(allowedPerSecond, time.Now)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			limiter.IsAllowed(1)
+		}
+	})
+	require.Equal(b, allowedPerSecond, limiter.Limit())
+}
+
 func TestLimiterLimit(t *testing.T) {
 	allowedPerSecond := int64(10)
 	now := time.Now().Truncate(time.Second)
