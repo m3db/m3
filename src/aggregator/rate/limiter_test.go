@@ -28,11 +28,19 @@ import (
 )
 
 func BenchmarkLimiter(b *testing.B) {
-	allowedPerSecond := int64(10000)
+	allowedPerSecond := int64(100)
 	limiter := NewLimiter(allowedPerSecond, time.Now)
+	
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			limiter.IsAllowed(1)
+			var allowed bool
+			for i := int64(0); i < allowedPerSecond*10; i++ {
+				allowed = limiter.IsAllowed(1)
+			}
+
+			if allowed {
+				b.Fatalf("expected limit to be hit")
+			}
 		}
 	})
 	require.Equal(b, allowedPerSecond, limiter.Limit())
