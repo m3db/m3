@@ -39,7 +39,9 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -179,6 +181,7 @@ type Entry struct {
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
 	decompressor aggregation.IDDecompressor
+	nowFn        clock.NowFn
 }
 
 // NewEntry creates a new entry.
@@ -188,6 +191,8 @@ func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *En
 		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
 		metrics:      newEntryMetrics(scope),
 		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
+		rateLimiter:  rate.NewLimiter(0),
+		nowFn:        opts.ClockOptions().NowFn(),
 	}
 	e.ResetSetData(lists, runtimeOpts, opts)
 	return e
@@ -211,7 +216,7 @@ func (e *Entry) ResetSetData(lists *metricLists, runtimeOpts runtime.Options, op
 	e.cutoverNanos = uninitializedCutoverNanos
 	e.lists = lists
 	e.numWriters = 0
-	e.recordLastAccessed(e.opts.ClockOptions().NowFn()())
+	e.recordLastAccessed(e.nowFn())
 	e.Unlock()
 }
 
@@ -370,7 +375,7 @@ func (e *Entry) addUntimed(
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	currTime := e.opts.ClockOptions().NowFn()()
+	currTime := e.nowFn()
 	e.recordLastAccessed(currTime)
 
 	e.RLock()
@@ -652,7 +657,7 @@ func (e *Entry) addTimed(
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	currTime := e.opts.ClockOptions().NowFn()()
+	currTime := e.nowFn()
 	e.recordLastAccessed(currTime)
 
 	e.RLock()
@@ -888,7 +893,7 @@ func (e *Entry) addForwarded(
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	currTime := e.opts.ClockOptions().NowFn()()
+	currTime := e.nowFn()
 	e.recordLastAccessed(currTime)
 
 	e.RLock()
@@ -1047,26 +1052,13 @@ func (e *Entry) shouldExpire(now time.Time) bool {
 
 func (e *Entry) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
 	newLimit := runtimeOpts.WriteValuesPerMetricLimitPerSecond()
-	if newLimit <= 0 {
-		e.rateLimiter = nil
-		return
-	}
-	if e.rateLimiter == nil {
-		nowFn := e.opts.ClockOptions().NowFn()
-		e.rateLimiter = rate.NewLimiter(newLimit, nowFn)
-		return
-	}
 	e.rateLimiter.Reset(newLimit)
 }
 
 func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) error {
-	e.RLock()
 	rateLimiter := e.rateLimiter
-	e.RUnlock()
-	if rateLimiter == nil {
-		return nil
-	}
-	if rateLimiter.IsAllowed(numValues) {
+
+	if rateLimiter.IsAllowed(numValues, xtime.ToUnixNano(e.nowFn())) {
 		return nil
 	}
 	m.valueRateLimitExceeded.Inc(1)

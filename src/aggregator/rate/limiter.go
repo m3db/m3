@@ -21,11 +21,10 @@
 package rate
 
 import (
+	"go.uber.org/atomic"
+	"golang.org/x/sys/cpu"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -34,24 +33,22 @@ var (
 )
 
 // Limiter is a simple rate limiter to control how frequently events are allowed to happen.
+// It trades some accuracy on resets for speed.
 type Limiter struct {
-	nowFn          clock.NowFn
-
-	alignedLast atomic.Int64
-	allowed     atomic.Int64
 	limitPerSecond atomic.Int64
+	alignedLast    atomic.Int64
+	_              cpu.CacheLinePad // prevent false sharing
+	allowed        atomic.Int64
 }
 
 // NewLimiter creates a new rate limiter.
-func NewLimiter(l int64, fn clock.NowFn) *Limiter {
-	limiter := &Limiter{
-		nowFn:          fn,
-	}
+func NewLimiter(l int64) *Limiter {
+	limiter := &Limiter{}
 	limiter.limitPerSecond.Store(l)
 	return limiter
 }
 
-// Limit returns the current limit.
+// Limit returns the current limit. A zero limit means no limit is set.
 func (l *Limiter) Limit() int64 {
 	return l.limitPerSecond.Load()
 }
@@ -61,11 +58,17 @@ func (l *Limiter) Limit() int64 {
 // requests in the same second from going through. This is a non-issue if the limit
 // is much bigger than the typical batch size, which is indeed the case in the aggregation
 // layer as each batch size is usually fairly small.
-func (l *Limiter) IsAllowed(n int64) bool {
+// The limiter is racy on window changes, and can be overly aggressive rejecting requests.
+// As the limits are usually at least 10k+, the error is worth the speedup.
+func (l *Limiter) IsAllowed(n int64, now xtime.UnixNano) bool {
+	var limit = l.Limit()
+	if limit <= 0 {
+		return true
+	}
+
 	var (
-		limit = l.Limit()
-		allowed = l.allowed.Add(n)
-		alignedNow = xtime.ToUnixNano(l.nowFn().Truncate(time.Second))
+		allowed     = l.allowed.Add(n)
+		alignedNow  = now - now%xtime.UnixNano(time.Second) // truncate to second boundary
 		alignedLast = xtime.UnixNano(l.alignedLast.Load())
 	)
 
@@ -73,14 +76,15 @@ func (l *Limiter) IsAllowed(n int64) bool {
 		return allowed <= limit
 	}
 
-	if 	l.alignedLast.CAS(int64(alignedLast), int64(alignedNow)) {
+	if l.alignedLast.CAS(int64(alignedLast), int64(alignedNow)) {
 		l.allowed.Store(n)
 		return n <= limit
 	}
 	return allowed <= limit
 }
 
-// Reset resets the internal state.
+// Reset resets the internal state. It does not reset all the values atomically, but it usually should not be a problem,
+// as dynamic rate limits in aggregator are set under a lock.
 func (l *Limiter) Reset(limit int64) {
 	l.allowed.Store(0)
 	l.alignedLast.Store(int64(zeroTime))

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -465,8 +466,7 @@ func (m *metricMap) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
 		return
 	}
 	if m.rateLimiter == nil {
-		nowFn := m.opts.ClockOptions().NowFn()
-		m.rateLimiter = rate.NewLimiter(newLimit, nowFn)
+		m.rateLimiter = rate.NewLimiter(newLimit)
 		return
 	}
 	m.rateLimiter.Reset(newLimit)
@@ -483,7 +483,7 @@ func (m *metricMap) applyNewMetricRateLimitWithLock(now time.Time) error {
 		m.metrics.noRateLimitWarmup.Inc(1)
 		return nil
 	}
-	if m.rateLimiter.IsAllowed(1) {
+	if m.rateLimiter.IsAllowed(1, xtime.ToUnixNano(now)) {
 		return nil
 	}
 	m.metrics.newMetricRateLimitExceeded.Inc(1)
