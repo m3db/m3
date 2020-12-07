@@ -157,7 +157,8 @@ type DataFileSetReader interface {
 	StreamingReadMetadata() (
 		id ident.BytesID, encodedTags ts.EncodedTags, length int, checksum uint32, err error)
 
-	// Read returns the next id, tags, data, checksum tuple or error, will return io.EOF at end of volume.
+	// Read returns the next id, tags, data, checksum tuple or error,
+	// will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
