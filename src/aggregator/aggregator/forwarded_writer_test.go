@@ -220,7 +220,7 @@ func TestForwardedWriterUnregisterWriterClosed(t *testing.T) {
 		aggKey = testForwardedWriterAggregationKey
 	)
 
-	w.Close()
+	require.NoError(t, w.Close())
 	require.Equal(t, errForwardedWriterClosed, w.Unregister(mt, mid, aggKey))
 }
 
