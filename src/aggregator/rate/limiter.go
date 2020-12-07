@@ -73,14 +73,11 @@ func (l *Limiter) IsAllowed(n int64, now xtime.UnixNano) bool {
 		alignedLast = xtime.UnixNano(l.alignedLast.Load())
 	)
 
-	if alignedNow == alignedLast {
-		return allowed <= limit
+	if alignedNow > alignedLast && l.alignedLast.CAS(int64(alignedLast), int64(alignedNow)) {
+		l.allowed.Store(n)
+		allowed = n
 	}
 
-	if l.alignedLast.CAS(int64(alignedLast), int64(alignedNow)) {
-		l.allowed.Store(n)
-		return n <= limit
-	}
 	return allowed <= limit
 }
 
