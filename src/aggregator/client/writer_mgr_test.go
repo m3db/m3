@@ -26,11 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/x/clock"
 )
 
 var (
@@ -145,6 +146,7 @@ func TestWriterManagerWriteUntimedNoInstances(t *testing.T) {
 	mgr.closed = false
 	err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Error(t, err)
+	require.NoError(t, mgr.Close())
 }
 
 func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
@@ -249,6 +251,9 @@ func TestWriterManagerCloseAlreadyClosed(t *testing.T) {
 }
 
 func TestWriterManagerCloseSuccess(t *testing.T) {
+	opts := goleak.IgnoreCurrent() // TODO: other tests don't clean up properly
+	defer goleak.VerifyNone(t, opts)
+
 	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
 
 	// Add instance list and close.
@@ -258,9 +263,12 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	require.True(t, clock.WaitUntil(func() bool {
 		for _, w := range mgr.writers {
 			wr := w.instanceWriter.(*writer)
-			wr.Lock()
-			defer wr.Unlock()
-			if !wr.closed {
+			closed := func() bool {
+				wr.Lock()
+				defer wr.Unlock()
+				return wr.closed
+			}
+			if !closed() {
 				return false
 			}
 		}

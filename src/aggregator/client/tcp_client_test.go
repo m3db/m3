@@ -744,7 +744,6 @@ func TestTCPClientClosed(t *testing.T) {
 	c := mustNewTestTCPClient(t, testOptions())
 
 	require.NoError(t, c.Close())
-	require.Equal(t, errInstanceWriterManagerClosed, c.Close())
 }
 
 func TestTCPClientCloseSuccess(t *testing.T) {
@@ -845,7 +844,7 @@ func testTCPClientOptions() Options {
 	plOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementStore(store).
 		SetStagedPlacementKey(placementKey).
-		SetInitWatchTimeout(time.Nanosecond)
+		SetInitWatchTimeout(time.Millisecond)
 	return NewOptions().
 		SetClockOptions(clock.NewOptions()).
 		SetConnectionOptions(testConnectionOptions()).
