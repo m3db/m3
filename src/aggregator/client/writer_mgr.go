@@ -192,7 +192,6 @@ func (mgr *writerManager) Flush() error {
 
 func (mgr *writerManager) Close() error {
 	mgr.Lock()
-	close(mgr.doneCh)
 
 	if mgr.closed {
 		mgr.Unlock()
@@ -204,6 +203,7 @@ func (mgr *writerManager) Close() error {
 		writer.Close()
 	}
 
+	close(mgr.doneCh)
 	mgr.Unlock()
 	mgr.wg.Wait()
 
