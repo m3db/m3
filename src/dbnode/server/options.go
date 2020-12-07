@@ -26,5 +26,6 @@ import (
 
 // StorageOptions are options to apply to the database storage options.
 type StorageOptions struct {
+	TChanChannelFn    node.NewTChanChannelFn
 	TChanNodeServerFn node.NewTChanNodeServerFn
 }
