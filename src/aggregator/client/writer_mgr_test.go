@@ -164,6 +164,7 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 		payloadRes payloadUnion
 	)
 	writer := NewMockinstanceWriter(ctrl)
+	writer.EXPECT().QueueSize().AnyTimes()
 	writer.EXPECT().
 		Write(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
@@ -216,6 +217,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	)
 
 	writer1 := NewMockinstanceWriter(ctrl)
+	writer1.EXPECT().QueueSize().AnyTimes()
 	writer1.EXPECT().
 		Flush().
 		DoAndReturn(func() error {
@@ -224,6 +226,7 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 		})
 	errTestFlush := errors.New("test flush error")
 	writer2 := NewMockinstanceWriter(ctrl)
+	writer2.EXPECT().QueueSize().AnyTimes()
 	writer2.EXPECT().
 		Flush().
 		DoAndReturn(func() error {
