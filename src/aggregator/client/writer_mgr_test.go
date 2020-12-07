@@ -266,12 +266,11 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	require.True(t, clock.WaitUntil(func() bool {
 		for _, w := range mgr.writers {
 			wr := w.instanceWriter.(*writer)
-			closed := func() bool {
-				wr.Lock()
-				defer wr.Unlock()
-				return wr.closed
-			}
-			if !closed() {
+			wr.Lock()
+			closed := wr.closed
+			wr.Unlock()
+
+			if !closed {
 				return false
 			}
 		}

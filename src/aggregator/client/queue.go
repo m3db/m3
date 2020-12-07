@@ -152,7 +152,10 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	q.writeFn = q.conn.Write
 
 	q.wg.Add(1)
-	go q.drain()
+	go func() {
+		defer q.wg.Done()
+		q.drain()
+	}()
 
 	return q
 }
@@ -226,7 +229,6 @@ func (q *queue) writeAndReset() {
 }
 
 func (q *queue) drain() {
-	defer q.wg.Done()
 	defer q.conn.Close()
 	timer := time.NewTimer(q.batchFlushDeadline)
 	lastDrain := time.Now()
