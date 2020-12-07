@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -602,26 +603,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
-			// NB(bodu): If we are persisting an index segment to disk, we need to delete any existing
-			// index filesets at this block start. The newly persisted index segments becomes the new source of truth.
-			var (
-				filesToDelete  = []string{}
-				persistSuccess bool
-			)
-			defer func() {
-				if persistSuccess {
-					if err := s.deleteFilesFn(filesToDelete); err != nil {
-						instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-							l.Error("failed to delete non default index filesets",
-								zap.Error(err),
-								zap.Stringer("namespace", ns.ID()),
-								zap.Stringer("requestedRanges", requestedRanges))
-						})
-					}
-				}
-			}()
-			filesToDelete = s.appendIndexFilesetFilesToDelete(ns, blockStart, cache, filesToDelete, runResult, iopts)
-
 			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			// Use info log with more high level attributes.
@@ -656,7 +637,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if err == nil {
 				// Track success.
 				s.metrics.persistedIndexBlocksWrite.Inc(1)
-				persistSuccess = true
 			} else {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
@@ -704,74 +684,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
 		remainingRanges, timesWithErrors)
-}
-
-// appendIndexFilesetFilesToDelete appends all index filesets at a block start for deletion.
-// Also removes index results from given block start since results are not complete and/or corrupted
-// and require an index segment rebuild.
-func (s *fileSystemSource) appendIndexFilesetFilesToDelete(
-	ns namespace.Metadata,
-	blockStart time.Time,
-	cache bootstrap.Cache,
-	filesToDelete []string,
-	runResult *runResult,
-	iopts instrument.Options,
-) []string {
-	infoFiles, err := cache.IndexInfoFilesForNamespace(ns)
-	if err != nil {
-		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-			l.Error("failed to get index info files from cache",
-				zap.Error(err),
-				zap.Time("blockStart", blockStart),
-				zap.Stringer("namespace", ns.ID()))
-		})
-	}
-	for i := range infoFiles {
-		if err := infoFiles[i].Err.Error(); err != nil {
-			// We already log errors once when bootstrapping from persisted
-			// index blocks just continue here.
-			continue
-		}
-
-		info := infoFiles[i].Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
-		if blockStart.Equal(indexBlockStart) {
-			filesToDelete = append(filesToDelete, infoFiles[i].AbsoluteFilePaths...)
-		}
-	}
-
-	// Remove index results for the block we're deleting.
-	if err := removeIndexResults(ns, blockStart, runResult); err != nil {
-		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-			l.Error("error removing partial/corrupted index results",
-				zap.Error(err),
-				zap.Time("blockStart", blockStart),
-				zap.Stringer("namespace", ns.ID()))
-		})
-	}
-
-	return filesToDelete
-}
-
-func removeIndexResults(
-	ns namespace.Metadata,
-	blockStart time.Time,
-	runResult *runResult,
-) error {
-	runResult.Lock()
-	defer runResult.Unlock()
-
-	multiErr := xerrors.NewMultiError()
-	results, ok := runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)]
-	if ok {
-		for volumeType, indexBlock := range results.Iter() {
-			for _, seg := range indexBlock.Segments() {
-				multiErr = multiErr.Add(seg.Segment().Close())
-			}
-			results.DeleteBlock(volumeType)
-		}
-	}
-	return multiErr.FinalError()
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
@@ -1041,24 +953,63 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 	result    *runResult
 }
 
-func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
+// Get instersecting shard time ranges of an index block and requested
+// shard time ranges.
+func (s *fileSystemSource) fulfillableShardTimeRanges(
+	info indexpb.IndexVolumeInfo,
+	shardTimeRanges result.ShardTimeRanges,
+	blockStart time.Time,
+	blockSize time.Duration,
+) result.ShardTimeRanges {
+	indexBlockRange := xtime.Range{
+		Start: blockStart,
+		End:   blockStart.Add(blockSize),
+	}
+	willFulfill := result.NewShardTimeRanges()
+	for _, shard := range info.Shards {
+		tr, ok := shardTimeRanges.Get(shard)
+		if !ok {
+			// No ranges match for this shard.
+			continue
+		}
+		if _, ok := willFulfill.Get(shard); !ok {
+			willFulfill.Set(shard, xtime.NewRanges())
+		}
+
+		iter := tr.Iter()
+		for iter.Next() {
+			curr := iter.Value()
+			intersection, intersects := curr.Intersect(indexBlockRange)
+			if !intersects {
+				continue
+			}
+			willFulfill.GetOrAdd(shard).AddRange(intersection)
+		}
+	}
+	return willFulfill
+}
+
+type validatedIndexBlock struct {
+	volumeType idxpersist.IndexVolumeType
+	segments   []segment.Segment
+	fulfilled  result.ShardTimeRanges
+}
+
+func (s *fileSystemSource) validateAndDeleteCorruptedIndexBlocks(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	cache bootstrap.Cache,
-) (bootstrapFromIndexPersistedBlocksResult, error) {
-	res := bootstrapFromIndexPersistedBlocksResult{
-		fulfilled: result.NewShardTimeRanges(),
-	}
-
+) (map[xtime.UnixNano][]validatedIndexBlock, error) {
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	infoFiles, err := cache.IndexInfoFilesForNamespace(ns)
 	if err != nil {
-		return bootstrapFromIndexPersistedBlocksResult{}, err
+		return nil, err
 	}
 
 	// Track corrupted block starts as we will attempt to later recover
 	// from corruption by building an index segment from TSDB data.
 	corruptedBlockStarts := make(map[xtime.UnixNano]struct{})
+	validatedIndexBlocks := make(map[xtime.UnixNano][]validatedIndexBlock)
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
 			s.log.Error("unable to read index info file",
@@ -1070,45 +1021,18 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
-		info := infoFile.Info
-		indexBlockStartUnixNanos := xtime.UnixNano(info.BlockStart)
-		indexBlockStart := indexBlockStartUnixNanos.ToTime()
-
+		indexBlockStartUnixNanos := xtime.UnixNano(infoFile.Info.BlockStart)
 		if _, ok := corruptedBlockStarts[indexBlockStartUnixNanos]; ok {
-			s.log.Info("index block corrupted skipping index info file",
-				zap.Stringer("namespace", ns.ID()),
-				zap.Stringer("blockStart", indexBlockStart),
-				zap.String("filepath", infoFile.Err.Filepath()),
-			)
 			continue
 		}
 
-		indexBlockRange := xtime.Range{
-			Start: indexBlockStart,
-			End:   indexBlockStart.Add(indexBlockSize),
-		}
-		willFulfill := result.NewShardTimeRanges()
-		for _, shard := range info.Shards {
-			tr, ok := shardTimeRanges.Get(shard)
-			if !ok {
-				// No ranges match for this shard.
-				continue
-			}
-			if _, ok := willFulfill.Get(shard); !ok {
-				willFulfill.Set(shard, xtime.NewRanges())
-			}
-
-			iter := tr.Iter()
-			for iter.Next() {
-				curr := iter.Value()
-				intersection, intersects := curr.Intersect(indexBlockRange)
-				if !intersects {
-					continue
-				}
-				willFulfill.GetOrAdd(shard).AddRange(intersection)
-			}
-		}
-
+		indexBlockStart := indexBlockStartUnixNanos.ToTime()
+		willFulfill := s.fulfillableShardTimeRanges(
+			infoFile.Info,
+			shardTimeRanges,
+			indexBlockStart,
+			indexBlockSize,
+		)
 		if willFulfill.IsEmpty() {
 			// No matching shard/time ranges with this block.
 			continue
@@ -1141,46 +1065,105 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			if errors.Is(err, fs.ErrIndexReaderValidationFailed) {
 				// Emit a metric for failed validations.
 				s.metrics.indexBlocksFailedValidation.Inc(1)
-				// Track corrupted blocks and remove any loaded results.
 				corruptedBlockStarts[indexBlockStartUnixNanos] = struct{}{}
-				if err := removeIndexResults(ns, indexBlockStart, res.result); err != nil {
-					s.log.Error("error removing partial/corrupted index results",
-						zap.Error(err),
-						zap.Stringer("namespace", ns.ID()),
-						zap.Time("blockStart", indexBlockStart),
-					)
-				}
 			}
 			continue
 		}
 
-		// Track success.
-		s.metrics.persistedIndexBlocksRead.Inc(1)
+		validatedIndexBlocks[indexBlockStartUnixNanos] = append(validatedIndexBlocks[indexBlockStartUnixNanos], validatedIndexBlock{
+			volumeType: volumeTypeFromInfo(&infoFile.Info),
+			segments:   readResult.Segments,
+			fulfilled:  willFulfill,
+		})
+	}
 
-		// Record result.
-		segmentsFulfilled := willFulfill
-		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
-		for _, segment := range readResult.Segments {
-			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
+	var filesToDelete []string
+	for i := range infoFiles {
+		if err := infoFiles[i].Err.Error(); err != nil {
+			continue
 		}
-		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
-		volumeType := volumeTypeFromInfo(&info)
-		indexBlockByVolumeType.SetBlock(volumeType, result.NewIndexBlock(persistedSegments, segmentsFulfilled))
 
-		if res.result == nil {
-			res.result = newRunResult()
+		indexBlockStartUnixNanos := xtime.UnixNano(infoFiles[i].Info.BlockStart)
+		if _, ok := corruptedBlockStarts[indexBlockStartUnixNanos]; !ok {
+			continue
 		}
-		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
-		// as we've already passed the ranges fulfilled to the block that
-		// we place in the IndexResuts with the call to Add(...).
-		res.result.index.Add(indexBlockByVolumeType, nil)
 
-		// NB(bodu): We only mark ranges as fulfilled for the default index volume type.
-		// It's possible to have other index volume types but the default type is required to
-		// fulfill bootstrappable ranges.
-		if volumeType == idxpersist.DefaultIndexVolumeType {
-			res.fulfilled.AddRanges(segmentsFulfilled)
+		filesToDelete = append(filesToDelete, infoFiles[i].AbsoluteFilePaths...)
+	}
+	// Delete all index segments in corrupted blocks.
+	iopts := s.opts.ResultOptions().InstrumentOptions()
+	if err := s.deleteFilesFn(filesToDelete); err != nil {
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.Error("failed to delete index filesets at corrupted blocks",
+				zap.Error(err),
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("requestedRanges", shardTimeRanges))
+		})
+	}
+
+	multiErr := xerrors.NewMultiError()
+	for blockStart, blocks := range validatedIndexBlocks {
+		if _, ok := corruptedBlockStarts[blockStart]; !ok {
+			continue
+		}
+		// Remove corrupted blocks from validated blocks
+		for _, b := range blocks {
+			for i, seg := range b.segments {
+				multiErr = multiErr.Add(seg.Close())
+				b.segments[i] = nil
+			}
+		}
+		validatedIndexBlocks[blockStart] = nil
+	}
+	return validatedIndexBlocks, multiErr.FinalError()
+}
+
+func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
+	ns namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+) (bootstrapFromIndexPersistedBlocksResult, error) {
+	res := bootstrapFromIndexPersistedBlocksResult{
+		fulfilled: result.NewShardTimeRanges(),
+	}
+
+	validatedIndexBlocks, err := s.validateAndDeleteCorruptedIndexBlocks(
+		ns,
+		shardTimeRanges,
+		cache,
+	)
+	if err != nil {
+		return res, err
+	}
+
+	for indexBlockStartUnixNanos, blocks := range validatedIndexBlocks {
+		for _, b := range blocks {
+			// Track success.
+			s.metrics.persistedIndexBlocksRead.Inc(1)
+
+			// Record result.
+			// NB(bodu): All segments read from disk are already persisted.
+			persistedSegments := make([]result.Segment, 0, len(b.segments))
+			for _, segment := range b.segments {
+				persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
+			}
+			indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStartUnixNanos.ToTime())
+			indexBlockByVolumeType.SetBlock(b.volumeType, result.NewIndexBlock(persistedSegments, b.fulfilled))
+
+			if res.result == nil {
+				res.result = newRunResult()
+			}
+			// NB(r): Don't need to call MarkFulfilled on the IndexResults here
+			// as we've already passed the ranges fulfilled to the block that
+			// we place in the IndexResuts with the call to Add(...).
+			res.result.index.Add(indexBlockByVolumeType, nil)
+
+			// NB(bodu): We only mark ranges as fulfilled for the default index volume type.
+			// It's possible to have other index volume types but the default type is required to
+			// fulfill bootstrappable ranges.
+			if b.volumeType == idxpersist.DefaultIndexVolumeType {
+				res.fulfilled.AddRanges(b.fulfilled)
+			}
 		}
 	}
 
