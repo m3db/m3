@@ -2838,7 +2838,7 @@ func (s *dbShard) ScanData(
 	}
 
 	readEntriesErr := s.scanDataWithReader(reader, processor)
-	// Always close the reader regardless of if failed, but 
+	// Always close the reader regardless of if failed, but
 	// make sure to propagate if an error occurred closing the reader too.
 	readCloseErr := reader.Close()
 	if err := readEntriesErr; err != nil {
