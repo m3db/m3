@@ -20,6 +20,7 @@ require (
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
+	github.com/chronosphereio/victor v0.0.0-20201116163333-353bdc2746cd // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0 // indirect
