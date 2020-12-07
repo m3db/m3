@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,14 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package xhttp
 
 import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	TChanChannelFn    node.NewTChanChannelFn
-	TChanNodeServerFn node.NewTChanNodeServerFn
+func TestIsClientError(t *testing.T) {
+	tests := []struct {
+		err      error
+		expected bool
+	}{
+		{NewError(fmt.Errorf("xhttp.Error(400)"), 400), true},
+		{NewError(fmt.Errorf("xhttp.Error(499)"), 499), true},
+		{xerrors.NewInvalidParamsError(fmt.Errorf("InvalidParamsError")), true},
+		{xerrors.NewRetryableError(xerrors.NewInvalidParamsError(
+			fmt.Errorf("InvalidParamsError insde RetyrableError"))), true},
+
+		{NewError(fmt.Errorf("xhttp.Error(399)"), 399), false},
+		{NewError(fmt.Errorf("xhttp.Error(500)"), 500), false},
+		{xerrors.NewRetryableError(fmt.Errorf("any error inside RetryableError")), false},
+		{fmt.Errorf("any error"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.err.Error(), func(t *testing.T) {
+			require.Equal(t, tt.expected, IsClientError(tt.err))
+		})
+	}
 }

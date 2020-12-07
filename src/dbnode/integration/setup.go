@@ -149,6 +149,7 @@ type TestSetup interface {
 	Scope() tally.TestScope
 	M3DBClient() client.Client
 	M3DBVerificationAdminClient() client.AdminClient
+	TChannelClient() *TestTChannelClient
 	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	SetTopologyInitializer(topology.Initializer)
@@ -787,6 +788,10 @@ func (ts *testSetup) StopServer() error {
 	// Wait for graceful server close
 	<-ts.closedCh
 	return nil
+}
+
+func (ts *testSetup) TChannelClient() *TestTChannelClient {
+	return ts.tchannelClient
 }
 
 func (ts *testSetup) WriteBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
