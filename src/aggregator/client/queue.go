@@ -95,7 +95,7 @@ type instanceQueue interface {
 	// Enqueue enqueues a data buffer.
 	Enqueue(buf protobuf.Buffer) error
 
-	// Size returns the number of times in the queue.
+	// Size returns the number of items in the queue.
 	Size() int
 
 	// Close closes the queue, it blocks until the queue is drained.
