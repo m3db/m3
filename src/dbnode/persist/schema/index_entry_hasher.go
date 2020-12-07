@@ -22,6 +22,9 @@ package schema
 
 import (
 	"github.com/cespare/xxhash/v2"
+
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type xxHasher struct{}
@@ -31,10 +34,15 @@ func NewXXHasher() IndexEntryHasher {
 	return xxHasher{}
 }
 
-func (h xxHasher) HashIndexEntry(e IndexEntry) int64 {
+func (x xxHasher) HashIndexEntry(
+	id ident.BytesID,
+	encodedTags ts.EncodedTags,
+	dataChecksum int64,
+) int64 {
 	hash := uint64(7)
-	hash = 31*hash + xxhash.Sum64(e.ID)
-	hash = 31*hash + xxhash.Sum64(e.EncodedTags)
-	hash = 31*hash + uint64(e.DataChecksum)
+	hash = 31*hash + xxhash.Sum64(id)
+	hash = 31*hash + xxhash.Sum64(encodedTags)
+	hash = 31*hash + uint64(dataChecksum)
+
 	return int64(hash)
 }
