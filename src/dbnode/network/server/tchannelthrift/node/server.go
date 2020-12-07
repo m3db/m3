@@ -59,7 +59,7 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 		immutableOpts := *chanOpts
 		opts = &immutableOpts
 	}
-	channel, err := tchannel.NewChannel(channel.ChannelName, opts)
+	channel, err := s.opts.TChanChannelFn()(s.service, channel.ChannelName, opts)
 	if err != nil {
 		return nil, err
 	}
