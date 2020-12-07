@@ -377,7 +377,7 @@ func TestServiceSetMetadata(t *testing.T) {
 		wg.Add(1)
 		md := md
 		go func() {
-			meta, ok := service.GetMetadata(md)
+			meta, ok := service.Metadata(md)
 			assert.True(t, ok)
 			assert.Equal(t, meta, md)
 			wg.Done()

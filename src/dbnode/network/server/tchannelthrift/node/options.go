@@ -28,6 +28,21 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
+// NewTChanChannelFn creates a tchan channel.
+type NewTChanChannelFn func(
+	service Service,
+	channelName string,
+	opts *tchannel.ChannelOptions,
+) (*tchannel.Channel, error)
+
+func defaultTChanChannelFn(
+	service Service,
+	channelName string,
+	opts *tchannel.ChannelOptions,
+) (*tchannel.Channel, error) {
+	return tchannel.NewChannel(channelName, opts)
+}
+
 // NewTChanNodeServerFn creates a tchan node server.
 type NewTChanNodeServerFn func(
 	service Service,
@@ -49,6 +64,12 @@ type Options interface {
 	// ChannelOptions returns the tchan channel options.
 	ChannelOptions() *tchannel.ChannelOptions
 
+	// SetTChanChannelFn sets a tchan node channel registration.
+	SetTChanChannelFn(value NewTChanChannelFn) Options
+
+	// TChanChannelFn returns a tchan node channel registration.
+	TChanChannelFn() NewTChanChannelFn
+
 	// SetTChanNodeServerFn sets a tchan node server builder.
 	SetTChanNodeServerFn(value NewTChanNodeServerFn) Options
 
@@ -65,6 +86,7 @@ type Options interface {
 type options struct {
 	channelOptions    *tchannel.ChannelOptions
 	instrumentOpts    instrument.Options
+	tchanChannelFn    NewTChanChannelFn
 	tchanNodeServerFn NewTChanNodeServerFn
 }
 
@@ -72,6 +94,7 @@ type options struct {
 func NewOptions(chanOpts *tchannel.ChannelOptions) Options {
 	return &options{
 		channelOptions:    chanOpts,
+		tchanChannelFn:    defaultTChanChannelFn,
 		tchanNodeServerFn: defaultTChanNodeServerFn,
 	}
 }
@@ -83,6 +106,16 @@ func (o *options) SetChannelOptions(value *tchannel.ChannelOptions) Options {
 
 func (o *options) ChannelOptions() *tchannel.ChannelOptions {
 	return o.channelOptions
+}
+
+func (o *options) SetTChanChannelFn(value NewTChanChannelFn) Options {
+	opts := *o
+	opts.tchanChannelFn = value
+	return &opts
+}
+
+func (o *options) TChanChannelFn() NewTChanChannelFn {
+	return o.tchanChannelFn
 }
 
 func (o *options) SetTChanNodeServerFn(value NewTChanNodeServerFn) Options {
