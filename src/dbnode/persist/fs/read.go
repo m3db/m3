@@ -363,22 +363,22 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32, error) {
+func (r *reader) StreamingRead() (StreamedDataEntry, error) {
 	if !r.streamingEnabled {
-		return nil, nil, nil, 0, errStreamingRequired
+		return StreamedDataEntry{}, errStreamingRequired
 	}
 
 	if r.entriesRead >= r.entries {
-		return nil, nil, nil, 0, io.EOF
+		return StreamedDataEntry{}, io.EOF
 	}
 
 	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
-		return nil, nil, nil, 0, err
+		return StreamedDataEntry{}, err
 	}
 
 	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
-		return nil, nil, nil, 0, fmt.Errorf(
+		return StreamedDataEntry{}, fmt.Errorf(
 			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
 			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
 	}
@@ -387,7 +387,7 @@ func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32,
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
 	if entry.DataChecksum != int64(digest.Checksum(data)) {
-		return nil, nil, nil, 0, errSeekChecksumMismatch
+		return StreamedDataEntry{}, errSeekChecksumMismatch
 	}
 
 	r.streamingData = append(r.streamingData[:0], data...)
@@ -396,7 +396,14 @@ func (r *reader) StreamingRead() (ident.BytesID, ts.EncodedTags, []byte, uint32,
 
 	r.entriesRead++
 
-	return r.streamingID, r.streamingTags, r.streamingData, uint32(entry.DataChecksum), nil
+	dataEntry := StreamedDataEntry{
+		ID:           r.streamingID,
+		EncodedTags:  r.streamingTags,
+		Data:         r.streamingData,
+		DataChecksum: uint32(entry.DataChecksum),
+	}
+
+	return dataEntry, nil
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {

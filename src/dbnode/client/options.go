@@ -318,9 +318,16 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 }
 
 func defaultNewConnectionFn(
-	channelName string, address string, opts Options,
+	channelName string, address string, clientOpts Options,
 ) (xresource.SimpleCloser, rpc.TChanNode, error) {
-	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
+	// NB(r): Keep ref to a local channel options since it's actually modified
+	// by TChannel itself to set defaults.
+	var opts *tchannel.ChannelOptions
+	if chanOpts := clientOpts.ChannelOptions(); chanOpts != nil {
+		immutableOpts := *chanOpts
+		opts = &immutableOpts
+	}
+	channel, err := tchannel.NewChannel(channelName, opts)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -142,13 +143,10 @@ type DataFileSetReader interface {
 	Status() DataFileSetReaderStatus
 
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
-	// values ordered by id, or error; will return io.EOF at end of volume.
+	// values ordered by id, or error, will return io.EOF at end of volume.
 	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
-	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
-	// Note: the returned id, encodedTags and data get invalidated on the next
-	// call to StreamingRead.
-	StreamingRead() (
-		id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
+	// Note: the returned data gets invalidated on the next call to StreamingRead.
+	StreamingRead() (StreamedDataEntry, error)
 
 	// StreamingReadMetadata returns the next unpooled id, encodedTags, length checksum
 	// values ordered by id, or error; will return io.EOF at end of volume.
@@ -224,13 +222,17 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
-	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
+	// made in order. The returned IndexEntry can also be passed to SeekByIndexEntry
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekWideEntry seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a wide entry checksum of the series.
-	SeekWideEntry(id ident.ID, resources ReusableSeekerResources) (xio.WideEntry, error)
+	SeekWideEntry(
+		id ident.ID,
+		filter schema.WideEntryFilter,
+		resources ReusableSeekerResources,
+	) (xio.WideEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -268,7 +270,11 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekWideEntry is the same as in DataFileSetSeeker.
-	SeekWideEntry(id ident.ID, resources ReusableSeekerResources) (xio.WideEntry, error)
+	SeekWideEntry(
+		id ident.ID,
+		filter schema.WideEntryFilter,
+		resources ReusableSeekerResources,
+	) (xio.WideEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
@@ -676,4 +682,24 @@ type IndexClaimsManager interface {
 		md namespace.Metadata,
 		blockStart time.Time,
 	) (int, error)
+}
+
+// StreamedDataEntry contains the data of single entry returned by streaming method(s).
+// The underlying data slices are reused and invalidated on every read.
+type StreamedDataEntry struct {
+	ID           ident.BytesID
+	EncodedTags  ts.EncodedTags
+	Data         []byte
+	DataChecksum uint32
+}
+
+// NewReaderFn creates a new DataFileSetReader.
+type NewReaderFn func(bytesPool pool.CheckedBytesPool, opts Options) (DataFileSetReader, error)
+
+// DataEntryProcessor processes StreamedDataEntries.
+type DataEntryProcessor interface {
+	// SetEntriesCount sets the number of entries to be processed.
+	SetEntriesCount(int)
+	// ProcessEntry processes a single StreamedDataEntry.
+	ProcessEntry(StreamedDataEntry) error
 }

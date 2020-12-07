@@ -1,11 +1,10 @@
 ---
-title: "Docker"
+linkTitle: "Docker"
+title: Creating a Single Node M3DB Cluster with Docker
 weight: 1
 ---
 
 <!-- TODO: Fix dates. Cross-platform date generation is a pain, so maybe use Docker locally? See what Netlify supports, or maybe there is a Hugo variable, or create a shortcode -->
-
-## Creating a Single Node M3DB Cluster with Docker
 
 This guide shows how to install and configure M3DB, create a single-node cluster, and read and write metrics to it.
 
@@ -93,8 +92,6 @@ For example, if the cluster placement states that node A owns shards 1, 2, and 3
 This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
-
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML config.
 
 In another terminal, use the following command.
 

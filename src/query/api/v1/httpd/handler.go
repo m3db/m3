@@ -286,6 +286,15 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
+	// Readiness endpoint.
+	if err := h.registry.Register(queryhttp.RegisterOptions{
+		Path:    handler.ReadyURL,
+		Handler: handler.NewReadyHandler(h.options),
+		Methods: methods(handler.ReadyHTTPMethod),
+	}); err != nil {
+		return err
+	}
+
 	// Tag completion endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
 		Path:    native.CompleteTagsURL,

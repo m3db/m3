@@ -572,8 +572,12 @@ func readData(
 	reader DataFileSetReader,
 ) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
 	if reader.StreamingEnabled() {
-		id, encodedTags, data, checksum, err := reader.StreamingRead()
-		return id, decodeTags(t, encodedTags), checked.NewBytes(data, nil), checksum, err
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			return nil, nil, nil, 0, err
+		}
+		tags := decodeTags(t, entry.EncodedTags)
+		return entry.ID, tags, checked.NewBytes(entry.Data, nil), entry.DataChecksum, err
 	}
 
 	return reader.Read()
