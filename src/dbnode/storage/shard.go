@@ -2837,12 +2837,20 @@ func (s *dbShard) ScanData(
 		return err
 	}
 
-	defer func() {
-		if err := reader.Close(); err != nil {
-			s.logger.Error("could not close DataFileSetReader", zap.Error(err))
-		}
-	}()
+	readEntriesErr := s.scanDataWithReader(reader, processor)
+	// Always close the reader regardless of if failed, but 
+	// make sure to propagate if an error occurred closing the reader too.
+	readCloseErr := reader.Close()
+	if err := readEntriesErr; err != nil {
+		return readEntriesErr
+	}
+	return readCloseErr
+}
 
+func (s *dbShard) scanDataWithReader(
+	reader fs.DataFileSetReader,
+	processor fs.DataEntryProcessor,
+) error {
 	processor.SetEntriesCount(reader.Entries())
 
 	for {
