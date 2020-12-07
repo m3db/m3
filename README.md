@@ -22,6 +22,8 @@ M3 contributors and maintainers have monthly (every four weeks) meetings. Join o
 Recordings of past meetups can be found here: [https://vimeo.com/user/120001164/folder/2290331](https://vimeo.com/user/120001164/folder/2290331).
 
 
+
+
 ## Office Hours
 
 Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: [https://calendly.com/chronosphere-intro/m3-community-office-hours](https://calendly.com/chronosphere-intro/m3-community-office-hours).
