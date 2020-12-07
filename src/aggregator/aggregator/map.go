@@ -118,6 +118,7 @@ func newMetricMap(shard uint32, opts Options) *metricMap {
 	metricLists := newMetricLists(shard, opts)
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("map")
 	m := &metricMap{
+		rateLimiter:  rate.NewLimiter(0),
 		shard:        shard,
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
@@ -461,21 +462,10 @@ func (m *metricMap) forEachEntry(entryFn hashedEntryFn) {
 
 func (m *metricMap) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
 	newLimit := runtimeOpts.WriteNewMetricLimitPerShardPerSecond()
-	if newLimit <= 0 {
-		m.rateLimiter = nil
-		return
-	}
-	if m.rateLimiter == nil {
-		m.rateLimiter = rate.NewLimiter(newLimit)
-		return
-	}
 	m.rateLimiter.Reset(newLimit)
 }
 
 func (m *metricMap) applyNewMetricRateLimitWithLock(now time.Time) error {
-	if m.rateLimiter == nil {
-		return nil
-	}
 	// If we are still in the warmup phase and possibly ingesting a large amount
 	// of new metrics, no rate limit is applied.
 	noLimitWarmupDuration := m.runtimeOpts.WriteNewMetricNoLimitWarmupDuration()
