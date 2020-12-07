@@ -3,7 +3,6 @@ title: M3 Documentation
 weight: 1
 ---
 
-
 ## About
 
 After using open-source metrics solutions and finding issues with them at scale – such as reliability, cost, and
