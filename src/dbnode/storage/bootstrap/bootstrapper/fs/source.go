@@ -606,18 +606,21 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			// Use info log with more high level attributes.
+			// NB(bodu): In the case of missing index filesets, it is possible to
+			// bootstrap more index data than we need as re-building index segments
+			// for a block may include index data from other index volume types.
 			s.log.Info("rebuilding file set index segment",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Int("totalEntries", totalEntries),
 				zap.Time("blockStart", blockStart),
 				zap.Time("blockEnd", blockEnd))
-			// NB(bodu): The index claims manager ensures that we properly advance the volume index
-			// past existing volume indices.
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				// NB(bodu): The index claims manager ensures that we properly
+				// advance the volume index past existing volume indices.
 				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
