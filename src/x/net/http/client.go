@@ -44,6 +44,14 @@ type HTTPClientOptions struct {
 
 // NewHTTPClient constructs a new HTTP Client.
 func NewHTTPClient(o HTTPClientOptions) *http.Client {
+	// Before we added the Proxy option, we unconditionally set the field in
+	// the http.Transport we construct below to http.ProxyFromEnvironment. To
+	// keep that behavior unchanged now that we added the field, we need to
+	// set the option if it is nil.
+  if o.Proxy == nil {
+		o.Proxy = http.ProxyFromEnvironment
+	}
+
 	return &http.Client{
 		Timeout: o.RequestTimeout,
 		Transport: &http.Transport{
