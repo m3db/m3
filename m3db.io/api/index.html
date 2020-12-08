@@ -1032,6 +1032,18 @@
 <td>bool</td>
 <td>false</td>
 </tr>
+<tr>
+<td>sidecarContainers</td>
+<td>SidecarContainers is used to add sidecar containers to the pods that run the cluster's nodes. If any storage volumes are needed by the sidecar containers, see SidecarVolumes below.</td>
+<td>[]corev1.Container</td>
+<td>false</td>
+</tr>
+<tr>
+<td>sidecarVolumes</td>
+<td>SidecarVolumes is used to add any volumes that are required by sidecar containers.</td>
+<td>[]corev1.Volume</td>
+<td>false</td>
+</tr>
 </tbody>
 </table>
 <p><a href="#table-of-contents">Back to TOC</a></p>
