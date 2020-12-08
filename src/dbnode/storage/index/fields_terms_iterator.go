@@ -21,7 +21,9 @@
 package index
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -76,9 +78,7 @@ type fieldsAndTermsIter struct {
 	}
 
 	restrictByPostingsBitmap *pilosaroaring.Bitmap
-
-	restrictByPostings          postings.List
-	restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
+	restrictByPostings       *roaring.ReadOnlyBitmap
 }
 
 var (
@@ -96,12 +96,16 @@ func newFieldsAndTermsIterator(
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error) {
-	var restrictByPostingsIntersect *roaring.ReadOnlyBitmapIntersectCheck
+	var restrictByPostings *roaring.ReadOnlyBitmap
 	if index.MigrationReadOnlyPostings() {
-		restrictByPostingsIntersect = roaring.NewReadOnlyBitmapIntersectCheck()
+		var err error
+		restrictByPostings, err = roaring.NewReadOnlyBitmap(nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 	iter := &fieldsAndTermsIter{
-		restrictByPostingsIntersect: restrictByPostingsIntersect,
+		restrictByPostings: restrictByPostings,
 	}
 	err := iter.Reset(reader, opts)
 	if err != nil {
@@ -115,7 +119,7 @@ func (fti *fieldsAndTermsIter) Reset(
 	opts fieldsAndTermsIteratorOpts,
 ) error {
 	// Keep restrict by postings intersect check until completely closed.
-	restrictByPostingsIntersect := fti.restrictByPostingsIntersect
+	restrictByPostings := fti.restrictByPostings
 
 	// Close per use items.
 	if multiErr := fti.closePerUse(); multiErr.FinalError() != nil {
@@ -126,7 +130,8 @@ func (fti *fieldsAndTermsIter) Reset(
 	*fti = fieldsAndTermsIterZeroed
 
 	// Restore restrict by postings intersect check.
-	fti.restrictByPostingsIntersect = restrictByPostingsIntersect
+	fti.restrictByPostings = restrictByPostings
+	fti.restrictByPostings.Reset(nil)
 
 	// Set per use fields.
 	fti.reader = reader
@@ -159,7 +164,26 @@ func (fti *fieldsAndTermsIter) Reset(
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	if index.MigrationReadOnlyPostings() {
-		fti.restrictByPostings = pl
+		// Copy into a single flat read only bitmap so that can do fast intersect.
+		var buff bytes.Buffer
+		bitmap := pilosaroaring.NewBitmap()
+		iter := pl.Iterator()
+		for iter.Next() {
+			bitmap.DirectAdd(uint64(iter.Current()))
+		}
+		if _, err := bitmap.WriteTo(&buff); err != nil {
+			return err
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
+		if err := iter.Close(); err != nil {
+			return err
+		}
+
+		if err := fti.restrictByPostings.Reset(buff.Bytes()); err != nil {
+			return err
+		}
 	} else {
 		var ok bool
 		fti.restrictByPostingsBitmap, ok = roaring.BitmapFromPostingsList(pl)
@@ -187,12 +211,12 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 			// Check term isn't part of at least some of the documents we're
 			// restricted to providing results for based on intersection
 			// count.
-			restrictBy := fti.restrictByPostings
-			match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
-			if err != nil {
-				fti.err = err
+			curr, ok := roaring.ReadOnlyBitmapFromPostingsList(curr)
+			if !ok {
+				fti.err = fmt.Errorf("next fields postings not read only bitmap")
 				return false
 			}
+			match := fti.restrictByPostings.IntersectsAny(curr)
 			if !match {
 				// No match.
 				continue
@@ -278,12 +302,11 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 			// Check term isn't part of at least some of the documents we're
 			// restricted to providing results for based on intersection
 			// count.
-			restrictBy := fti.restrictByPostings
-			curr := fti.current.postings
-			match, err := fti.restrictByPostingsIntersect.Intersects(restrictBy, curr)
-			if err != nil {
-				return false, err
+			curr, ok := roaring.ReadOnlyBitmapFromPostingsList(fti.current.postings)
+			if !ok {
+				return false, fmt.Errorf("next terms postings not read only bitmap")
 			}
+			match := fti.restrictByPostings.IntersectsAny(curr)
 			if match {
 				// Matches, this is next result.
 				return true, nil
@@ -299,7 +322,7 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 				return false, errUnpackBitmapFromPostingsList
 			}
 
-			// Check term isn part of at least some of the documents we're
+			// Check term isn't part of at least some of the documents we're
 			// restricted to providing results for based on intersection
 			// count.
 			// Note: IntersectionCount is significantly faster than intersecting and
@@ -354,9 +377,6 @@ func (fti *fieldsAndTermsIter) closePerUse() xerrors.MultiError {
 
 func (fti *fieldsAndTermsIter) Close() error {
 	multiErr := fti.closePerUse()
-	if fti.restrictByPostingsIntersect != nil {
-		multiErr = multiErr.Add(fti.restrictByPostingsIntersect.Close())
-	}
 	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

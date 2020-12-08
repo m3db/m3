@@ -166,6 +166,66 @@ func (b bitmapReadOnlyContainer) contains(v uint16) bool {
 	return (b.values[v/64] & (1 << uint64(v%64))) != 0
 }
 
+func (b bitmapReadOnlyContainer) containsAnyRange(start, end int32) bool {
+	i, j := start/64, end/64
+
+	// Same uint64.
+	if i == j {
+		offi, offj := uint(start%64), uint(64-end%64)
+		return popcount((b.values[i]>>offi)<<(offj+offi)) > 0
+	}
+
+	// At start.
+	if off := uint(start) % 64; off != 0 {
+		if popcount(b.values[i]>>off) > 0 {
+			return true
+		}
+	}
+
+	// Count uint64 in between.
+	for ; i < j; i++ {
+		if popcount(b.values[i]) > 0 {
+			return true
+		}
+	}
+
+	// Count partial ending uint64.
+	if j < int32(len(b.values)) {
+		off := 64 - (uint(end) % 64)
+		if popcount(b.values[j]<<off) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func popcount(x uint64) uint64 {
+	return uint64(bits.OnesCount64(x))
+}
+
+func (b bitmapReadOnlyContainer) intersectsAnyBitmap(other bitmapReadOnlyContainer) bool {
+	var (
+		ab = b.values[:bitmapN]
+		bb = other.values[:bitmapN]
+	)
+	for i := 0; i < bitmapN; i += 4 {
+		if ab[i]&bb[i] != 0 {
+			return true
+		}
+		if ab[i+1]&bb[i+1] != 0 {
+			return true
+		}
+		if ab[i+2]&bb[i+2] != 0 {
+			return true
+		}
+		if ab[i+3]&bb[i+3] != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 type arrayReadOnlyContainer struct {
 	values []uint16
 }
@@ -178,6 +238,39 @@ func (a arrayReadOnlyContainer) contains(v uint16) bool {
 	return idx < n && a.values[idx] == v
 }
 
+func (a arrayReadOnlyContainer) intersectsAnyArray(other arrayReadOnlyContainer) bool {
+	for i, j := 0, 0; i < len(a.values) && j < len(other.values); {
+		if a.values[i] < a.values[j] {
+			i++
+			continue
+		}
+		if a.values[j] < a.values[i] {
+			j++
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func (a arrayReadOnlyContainer) intersectsAnyBitmap(other bitmapReadOnlyContainer) bool {
+	for _, value := range a.values {
+		if other.contains(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a arrayReadOnlyContainer) intersectsAnyRuns(other runReadOnlyContainer) bool {
+	for _, value := range a.values {
+		if other.contains(value) {
+			return true
+		}
+	}
+	return false
+}
+
 type runReadOnlyContainer struct {
 	values []interval16
 }
@@ -188,6 +281,35 @@ func (r runReadOnlyContainer) contains(v uint16) bool {
 		return r.values[i].last >= v
 	})
 	return idx < n && v >= r.values[idx].start && v <= r.values[idx].last
+}
+
+func (r runReadOnlyContainer) intersectsAnyRuns(other runReadOnlyContainer) bool {
+	for i, j := 0, 0; i < len(r.values) && j < len(other.values); {
+		va, vb := r.values[i], other.values[j]
+		if va.last < vb.start {
+			i++
+		} else if va.start > vb.last {
+			j++
+		} else if va.last > vb.last && va.start >= vb.start {
+			return true
+		} else if va.last > vb.last && va.start < vb.start {
+			return true
+		} else if va.last <= vb.last && va.start >= vb.start {
+			return true
+		} else if va.last <= vb.last && va.start < vb.start {
+			return true
+		}
+	}
+	return false
+}
+
+func (r runReadOnlyContainer) intersectsAnyBitmap(other bitmapReadOnlyContainer) bool {
+	for _, value := range r.values {
+		if other.containsAnyRange(int32(value.start), int32(value.last)+1) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c readOnlyContainer) validate() error {
@@ -373,6 +495,95 @@ func (b *ReadOnlyBitmap) ContainerIterator() containerIterator {
 // Equal returns whether this postings list matches another.
 func (b *ReadOnlyBitmap) Equal(other postings.List) bool {
 	return postings.Equal(b, other)
+}
+
+// IntersectsAny checks whether other bitmap intersects any values in this one.
+func (b *ReadOnlyBitmap) IntersectsAny(other *ReadOnlyBitmap) bool {
+	if b.keyN < 1 || other.keyN < 1 {
+		return false
+	}
+	for i, j := uint64(0), uint64(0); i < b.keyN && j < other.keyN; {
+		ki, kj := b.keyAtIndex(int(i)), other.keyAtIndex(int(j))
+		if ki < kj {
+			i++
+			continue
+		}
+		if kj < ki {
+			j++
+			continue
+		}
+
+		// Same key.
+		ci, _ := b.containerAtIndex(i)
+		cj, _ := other.containerAtIndex(j)
+		switch ci.containerType {
+		case containerArray:
+			left, _ := ci.array()
+
+			switch cj.containerType {
+			case containerArray:
+				right, _ := cj.array()
+				if left.intersectsAnyArray(right) {
+					return true
+				}
+			case containerBitmap:
+				right, _ := cj.bitmap()
+				if left.intersectsAnyBitmap(right) {
+					return true
+				}
+			case containerRun:
+				right, _ := cj.runs()
+				if left.intersectsAnyRuns(right) {
+					return true
+				}
+			}
+		case containerBitmap:
+			left, _ := ci.bitmap()
+
+			switch cj.containerType {
+			case containerArray:
+				right, _ := cj.array()
+				if right.intersectsAnyBitmap(left) {
+					return true
+				}
+			case containerBitmap:
+				right, _ := cj.bitmap()
+				if left.intersectsAnyBitmap(right) {
+					return true
+				}
+			case containerRun:
+				right, _ := cj.runs()
+				if right.intersectsAnyBitmap(left) {
+					return true
+				}
+			}
+		case containerRun:
+			left, _ := ci.runs()
+
+			switch cj.containerType {
+			case containerArray:
+				right, _ := cj.array()
+				if right.intersectsAnyRuns(left) {
+					return true
+				}
+			case containerBitmap:
+				right, _ := cj.bitmap()
+				if left.intersectsAnyBitmap(right) {
+					return true
+				}
+			case containerRun:
+				right, _ := cj.runs()
+				if left.intersectsAnyRuns(right) {
+					return true
+				}
+			}
+		}
+
+		i++
+		j++
+	}
+
+	return false
 }
 
 func (b *ReadOnlyBitmap) keyAtIndex(index int) uint64 {

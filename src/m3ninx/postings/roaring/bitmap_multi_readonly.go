@@ -85,47 +85,6 @@ func IsReadOnlyPostingsList(pl postings.List) bool {
 	return ok
 }
 
-// ReadOnlyBitmapIntersectCheck is a check that can be repeated
-// against read only bitmaps without allocations.
-type ReadOnlyBitmapIntersectCheck struct {
-	multiBitmapIterator *multiBitmapIterator
-	intersect           []readOnlyIterable
-}
-
-// NewReadOnlyBitmapIntersectCheck creates a new bitmap intersect checker,
-// it is zero allocation once allocated to compare two bitmaps.
-func NewReadOnlyBitmapIntersectCheck() *ReadOnlyBitmapIntersectCheck {
-	return &ReadOnlyBitmapIntersectCheck{
-		multiBitmapIterator: newMultiBitmapIterator(multiBitmapOptions{}),
-		intersect:           make([]readOnlyIterable, 2),
-	}
-}
-
-// Intersects returns whether two posting lists intersect or not.
-func (c *ReadOnlyBitmapIntersectCheck) Intersects(a, b postings.List) (bool, error) {
-	if pl, ok := a.(readOnlyIterable); ok {
-		c.intersect[0] = pl
-	} else {
-		return false, ErrNotReadOnlyBitmap
-	}
-	if pl, ok := b.(readOnlyIterable); ok {
-		c.intersect[1] = pl
-	} else {
-		return false, ErrNotReadOnlyBitmap
-	}
-
-	c.multiBitmapIterator.Reset(multiBitmapOptions{
-		op:        multiBitmapOpIntersect,
-		intersect: c.intersect,
-	})
-	return c.multiBitmapIterator.Next(), nil
-}
-
-// Close will close the intersect checker.
-func (c *ReadOnlyBitmapIntersectCheck) Close() error {
-	return c.multiBitmapIterator.Close()
-}
-
 var _ postings.List = (*multiBitmap)(nil)
 var _ readOnlyIterable = (*multiBitmap)(nil)
 

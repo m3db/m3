@@ -147,17 +147,26 @@ func TestMultiBitmap(t *testing.T) {
 		}
 		for i := 0; i < each; i++ {
 			t.Run(fmt.Sprintf("i=%d, test=+%v", i, test), func(t *testing.T) {
+				var bitmapsRW, bitmapsRO []postings.List
+
 				allReadOnly, err := NewReadOnlyRangePostingsList(0, uint64(test.insertRange))
 				require.NoError(t, err)
 
 				reg, regReadOnly :=
 					genRandBitmapsAndReadOnlyBitmaps(t, test.numRegular, genOpts)
+				bitmapsRW, bitmapsRO = append(bitmapsRW, reg...), append(bitmapsRO, regReadOnly...)
+
 				union, unionReadOnly :=
 					genRandBitmapsAndReadOnlyBitmaps(t, test.numUnion, genOpts)
+				bitmapsRW, bitmapsRO = append(bitmapsRW, union...), append(bitmapsRO, unionReadOnly...)
+
 				negate, negateReadOnly :=
 					genRandBitmapsAndReadOnlyBitmaps(t, test.numNegate, genOpts)
+				bitmapsRW, bitmapsRO = append(bitmapsRW, negate...), append(bitmapsRO, negateReadOnly...)
+
 				negateUnion, negateUnionReadOnly :=
 					genRandBitmapsAndReadOnlyBitmaps(t, test.numNegateUnion, genOpts)
+				bitmapsRW, bitmapsRO = append(bitmapsRW, negateUnion...), append(bitmapsRO, negateUnionReadOnly...)
 
 				// First create the inner multi-bitmaps.
 				multiInner := concat(regReadOnly)
@@ -223,7 +232,7 @@ func TestMultiBitmap(t *testing.T) {
 				equal := postings.Equal(multi, transformed)
 				if !equal {
 					fmt.Printf("negate: %v\n", postingsString(negate[0]))
-					msg := fmt.Sprintf("multi-bitmap: %s\nstandard: %s\n",
+					msg := fmt.Sprintf("multi-bitmap: %s, standard: %s",
 						postingsString(multi), postingsString(transformed))
 
 					if debug := os.Getenv("TEST_DEBUG_DIR"); debug != "" {
@@ -234,6 +243,29 @@ func TestMultiBitmap(t *testing.T) {
 						msg += fmt.Sprintf("wrote debug: %s\n", debug)
 					}
 					require.True(t, equal, msg)
+				}
+
+				// Check for IntersectsAny.
+				for i := 0; i < len(bitmapsRW); i++ {
+					for j := 0; j < len(bitmapsRW); j++ {
+						bi := bitmapFromPostings(t, bitmapsRW[i])
+						bj := bitmapFromPostings(t, bitmapsRW[j])
+
+						expected := bi.IntersectionCount(bj) > 0
+
+						roi := bitmapReadOnlyFromPostings(t, bitmapsRO[i])
+						roj := bitmapReadOnlyFromPostings(t, bitmapsRO[j])
+						actual := roi.IntersectsAny(roj)
+
+						equal := expected == actual
+						if !equal {
+							msg := fmt.Sprintf("expect: %v, actual: %v, left: %s, right: %s",
+								expected, actual,
+								postingsString(bitmapsRW[i]), postingsString(bitmapsRW[j]))
+
+							require.Equal(t, equal, msg)
+						}
+					}
 				}
 
 				// Check for contains.
@@ -274,6 +306,12 @@ func TestMultiBitmapWithEmptyReadOnlyBitmap(t *testing.T) {
 
 func bitmapFromPostings(t *testing.T, pl postings.List) *roaring.Bitmap {
 	b, ok := BitmapFromPostingsList(pl)
+	require.True(t, ok)
+	return b
+}
+
+func bitmapReadOnlyFromPostings(t *testing.T, pl postings.List) *ReadOnlyBitmap {
+	b, ok := ReadOnlyBitmapFromPostingsList(pl)
 	require.True(t, ok)
 	return b
 }
