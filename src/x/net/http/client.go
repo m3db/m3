@@ -48,7 +48,7 @@ func NewHTTPClient(o HTTPClientOptions) *http.Client {
 	// the http.Transport we construct below to http.ProxyFromEnvironment. To
 	// keep that behavior unchanged now that we added the field, we need to
 	// set the option if it is nil.
-  if o.Proxy == nil {
+	if o.Proxy == nil {
 		o.Proxy = http.ProxyFromEnvironment
 	}
 
