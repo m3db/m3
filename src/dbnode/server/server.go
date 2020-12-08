@@ -656,7 +656,7 @@ func Run(runOpts RunOptions) {
 			InstrumentOpts:         iopts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: true,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -667,7 +667,7 @@ func Run(runOpts RunOptions) {
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
 			InstrumentOpts:         iopts,
 			HostID:                 hostID,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: true,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
