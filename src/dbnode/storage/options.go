@@ -254,7 +254,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
-		forceColdWritesEnabled:          true,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
