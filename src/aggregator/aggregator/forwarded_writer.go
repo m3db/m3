@@ -33,6 +33,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -141,7 +142,7 @@ type forwardedWriter struct {
 	shard  uint32
 	client client.AdminClient
 
-	closed             bool
+	closed             atomic.Bool
 	aggregations       map[idKey]*forwardedAggregation // Aggregations for each forward metric id
 	metrics            forwardedWriterMetrics
 	aggregationMetrics *forwardedAggregationMetrics
@@ -168,7 +169,7 @@ func (w *forwardedWriter) Register(
 	metricID id.RawID,
 	aggKey aggregationKey,
 ) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error) {
-	if w.closed {
+	if w.closed.Load() {
 		w.metrics.registerWriterClosed.Inc(1)
 		return nil, nil, errForwardedWriterClosed
 	}
@@ -188,7 +189,7 @@ func (w *forwardedWriter) Unregister(
 	metricID id.RawID,
 	aggKey aggregationKey,
 ) error {
-	if w.closed {
+	if w.closed.Load() {
 		w.metrics.unregisterWriterClosed.Inc(1)
 		return errForwardedWriterClosed
 	}
@@ -219,6 +220,10 @@ func (w *forwardedWriter) Prepare() {
 }
 
 func (w *forwardedWriter) Flush() error {
+	if w.closed.Load() {
+		return errForwardedWriterClosed
+	}
+
 	if err := w.client.Flush(); err != nil {
 		w.metrics.flushErrorsClient.Inc(1)
 		return err
@@ -230,12 +235,9 @@ func (w *forwardedWriter) Flush() error {
 // NB: Do not close the client here as it is shared by all the forward
 // writers. The aggregator is responsible for closing the client.
 func (w *forwardedWriter) Close() error {
-	if w.closed {
+	if w.closed.Swap(true) {
 		return errForwardedWriterClosed
 	}
-	w.closed = true
-	w.client = nil
-	w.aggregations = nil
 	return nil
 }
 
