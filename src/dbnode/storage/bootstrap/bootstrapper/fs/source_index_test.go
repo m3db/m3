@@ -513,7 +513,11 @@ func TestBootstrapIndexUnfulfilledRanges(t *testing.T) {
 		src.fsopts.InfoReaderBufferSize())
 	require.Equal(t, 1, len(infoFiles[1:]))
 
-	for i := range infoFiles[1:] {
+	for i := range infoFiles {
+		// Skip non default index volumes since we wrote no test data to these.
+		if volumeTypeFromInfo(&infoFiles[i].Info) != idxpersist.DefaultIndexVolumeType {
+			continue
+		}
 		validateInfoFile(t, times.start.UnixNano(), &infoFiles[i])
 	}
 
