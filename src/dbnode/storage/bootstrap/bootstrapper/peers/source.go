@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -55,7 +56,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 )
 
 type peersSource struct {
