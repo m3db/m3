@@ -118,9 +118,6 @@ func (fti *fieldsAndTermsIter) Reset(
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) error {
-	// Keep restrict by postings intersect check until completely closed.
-	restrictByPostings := fti.restrictByPostings
-
 	// Close per use items.
 	if multiErr := fti.closePerUse(); multiErr.FinalError() != nil {
 		return multiErr.FinalError()
@@ -128,12 +125,6 @@ func (fti *fieldsAndTermsIter) Reset(
 
 	// Zero state.
 	*fti = fieldsAndTermsIterZeroed
-
-	// Restore restrict by postings intersect check.
-	fti.restrictByPostings = restrictByPostings
-	if index.MigrationReadOnlyPostings() {
-		fti.restrictByPostings.Reset(nil)
-	}
 
 	// Set per use fields.
 	fti.reader = reader
@@ -192,7 +183,8 @@ func (fti *fieldsAndTermsIter) Reset(
 			return err
 		}
 
-		if err := fti.restrictByPostings.Reset(buff.Bytes()); err != nil {
+		fti.restrictByPostings, err = roaring.NewReadOnlyBitmap(buff.Bytes())
+		if err != nil {
 			return err
 		}
 	} else {
