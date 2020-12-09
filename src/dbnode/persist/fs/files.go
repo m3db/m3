@@ -82,9 +82,7 @@ const (
 	errUnexpectedFilenamePattern = "unexpected filename: %s"
 )
 
-var (
-	defaultBufioReaderSize = bufio.NewReader(nil).Size()
-)
+var defaultBufioReaderSize = bufio.NewReader(nil).Size()
 
 type fileOpener func(filePath string) (*os.File, error)
 
@@ -923,7 +921,6 @@ func SortedSnapshotMetadataFiles(opts Options) (
 		path.Join(
 			snapshotsDirPath,
 			fmt.Sprintf("*%s%s%s", separator, metadataFileSuffix, fileSuffix)))
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1564,7 +1561,7 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 		return -1, err
 	}
 
-	var currentSnapshotIndex = -1
+	currentSnapshotIndex := -1
 	for _, snapshot := range snapshotFiles {
 		if snapshot.ID.BlockStart.Equal(blockStart) {
 			currentSnapshotIndex = snapshot.ID.VolumeIndex
@@ -1596,6 +1593,12 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 	// Make sure the checkpoint file was completely written out and its
 	// not just an empty file.
 	return f.Size() == CheckpointFileSizeBytes, nil
+}
+
+// CheckpointFilePathUnsafe is a method to get the checkpoint file path given a namespace/block/volume index
+// and is meant to be used only in testing and is unsafe for normal use.
+func CheckpointFilePathUnsafe(prefix string, t time.Time, index int) string {
+	return filesetPathFromTimeAndIndex(prefix, t, index, checkpointFileSuffix)
 }
 
 // FileExists returns whether a file at the given path exists.

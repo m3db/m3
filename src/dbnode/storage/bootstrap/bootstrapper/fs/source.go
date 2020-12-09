@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -1072,6 +1073,7 @@ func (s *fileSystemSource) validateAndDeleteCorruptedIndexBlocks(
 			}
 			continue
 		}
+		log.Println("[YEET] validated index block start ->", indexBlockStartUnixNanos)
 
 		validatedIndexBlocks[indexBlockStartUnixNanos] = append(validatedIndexBlocks[indexBlockStartUnixNanos], validatedIndexBlock{
 			volumeType: volumeTypeFromInfo(&infoFile.Info),

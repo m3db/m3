@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -263,7 +264,12 @@ func validateGoodTaggedSeries(
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
 		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		for _, indexBlock := range indexBlockByVolumeType.Iter() {
+		for volumeType, indexBlock := range indexBlockByVolumeType.Iter() {
+			// Skip non default index volumes as we're currently writing no
+			// data to these volume types in these tests.
+			if volumeType != idxpersist.DefaultIndexVolumeType {
+				continue
+			}
 			require.Equal(t, 1, len(indexBlock.Segments()))
 			for _, seg := range indexBlock.Segments() {
 				reader, err := seg.Segment().Reader()
@@ -305,7 +311,10 @@ func validateGoodTaggedSeries(
 	}
 }
 
-func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
+func TestBootstrapIndexAndCorruptedBlock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -340,9 +349,9 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 	// the unfulfilled shard time ranges case (missing default index volume type
 	// and/or index segments failed validation).
 	var (
-		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
-		shards                    = map[uint32]struct{}{testShard: struct{}{}}
-		filesToDelete             []string
+		shards        = map[uint32]struct{}{testShard: struct{}{}}
+		volumeIndex   = 1
+		filesToDelete []string
 	)
 	idxWriter, err := fs.NewIndexWriter(src.fsopts)
 	require.NoError(t, err)
@@ -351,15 +360,37 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 			FileSetContentType: persist.FileSetIndexContentType,
 			Namespace:          nsMD.ID(),
 			BlockStart:         times.start,
-			VolumeIndex:        1,
+			VolumeIndex:        volumeIndex,
 		},
 		BlockSize:       nsMD.Options().IndexOptions().BlockSize(),
 		FileSetType:     persist.FileSetFlushType,
 		Shards:          shards,
-		IndexVolumeType: notDefaultIndexVolumeType,
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 	}))
 	// Don't need to write any actual data.
 	require.NoError(t, idxWriter.Close())
+
+	// Use a mock cache to return info files from the original cache which would contain
+	// info files that would otherwise be invisible since we're going to muck w/ the
+	// checkpoint file.
+	mockCache := bootstrap.NewMockCache(ctrl)
+	mockCache.EXPECT().InfoFilesForShard(nsMD, testShard).
+		Return(tester.Cache.InfoFilesForShard(nsMD, testShard)).AnyTimes()
+	mockCache.EXPECT().ReadInfoFiles().
+		Return(tester.Cache.ReadInfoFiles()).AnyTimes()
+	mockCache.EXPECT().IndexInfoFilesForNamespace(nsMD).
+		Return(tester.Cache.IndexInfoFilesForNamespace(nsMD)).AnyTimes()
+	tester.Cache = mockCache
+
+	// Write corrupted empty byte slice to checkpoint file so it fails validation.
+	namespaceDir := fs.NamespaceIndexDataDirPath(src.fsopts.FilePathPrefix(), nsMD.ID())
+	checkpointFilePath := fs.CheckpointFilePathUnsafe(namespaceDir, times.start, volumeIndex)
+	checkpointFd, err := fs.OpenWritable(checkpointFilePath, os.FileMode(0755))
+	require.NoError(t, err)
+	_, err = checkpointFd.Write(make([]byte, fs.CheckpointFileSizeBytes))
+	require.NoError(t, err)
+	require.NoError(t, checkpointFd.Close())
+
 	src.deleteFilesFn = func(files []string) error {
 		filesToDelete = append(filesToDelete, files...)
 		multiErr := xerrors.NewMultiError()
@@ -400,10 +431,111 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, segment.IsPersisted())
 
-	// Check that the non default index volume type (missing default index volume type)
-	// was not added to the index results.
-	_, ok = blockByVolumeType.GetBlock(notDefaultIndexVolumeType)
-	require.False(t, ok)
+	// Check that the second segment is mutable and was not written out
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	segment = block.Segments()[0]
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
+
+	// Validate results
+	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
+
+	// Validate that wrote the block out (and no index blocks
+	// were read as existing index blocks on disk)
+	counters := scope.Snapshot().Counters()
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+}
+
+// Tests unfulfilled ranges for the default index volume type. Non default
+// index volume type segments may not fulfill requested ranges.
+func TestBootstrapIndexUnfulfilledRanges(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	timesOpts := testTimesOptions{
+		numBlocks: 2,
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
+
+	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
+
+	opts := newTestOptionsWithPersistManager(t, dir)
+	scope := tally.NewTestScope("", nil)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	// Should always be run with persist enabled.
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+		times.shardTimeRanges, opts.FilesystemOptions(), nsMD)
+	defer tester.Finish()
+
+	// Write out non default type index volume type index block and ensure
+	// that it gets deleted and is not loaded into the index results to test
+	// the unfulfilled shard time ranges case (missing default index volume type
+	// and/or index segments failed validation).
+	var (
+		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
+		shards                    = map[uint32]struct{}{testShard: struct{}{}}
+	)
+	idxWriter, err := fs.NewIndexWriter(src.fsopts)
+	require.NoError(t, err)
+	require.NoError(t, idxWriter.Open(fs.IndexWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			FileSetContentType: persist.FileSetIndexContentType,
+			Namespace:          nsMD.ID(),
+			BlockStart:         times.start,
+			VolumeIndex:        1,
+		},
+		BlockSize:       nsMD.Options().IndexOptions().BlockSize(),
+		FileSetType:     persist.FileSetFlushType,
+		Shards:          shards,
+		IndexVolumeType: notDefaultIndexVolumeType,
+	}))
+	// Don't need to write any actual data.
+	require.NoError(t, idxWriter.Close())
+
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
+
+	// Check that single persisted segment got written out in addition to the non
+	// default index volume type segment.
+	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
+		src.fsopts.InfoReaderBufferSize())
+	require.Equal(t, 1, len(infoFiles[1:]))
+
+	for _, infoFile := range infoFiles[1:] {
+		require.NoError(t, infoFile.Err.Error())
+		require.Equal(t, times.start.UnixNano(), infoFile.Info.BlockStart)
+		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
+		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
+		require.Equal(t, 1, len(infoFile.Info.Segments))
+		require.Equal(t, 1, len(infoFile.Info.Shards))
+		require.Equal(t, testShard, infoFile.Info.Shards[0])
+	}
+
+	// Check that the segment is not a mutable segment for this block
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	segment := block.Segments()[0]
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable and was not written out
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
