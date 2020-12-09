@@ -253,10 +253,7 @@ func (op *ingestOp) convertTypeToAnnotation(tp ts.PromMetricType) ([]byte, error
 		handleValueResets = true
 	}
 
-	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
-		PromType:          tp,
-		HandleValueResets: handleValueResets,
-	})
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(tp, handleValueResets)
 	if err != nil {
 		return nil, err
 	}

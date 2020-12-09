@@ -22,6 +22,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -510,6 +511,8 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
 				case ts.M3MetricTypeTimer:
 					err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+				default:
+					err = fmt.Errorf("unknown m3type '%v'", value.Attributes.M3Type)
 				}
 			}
 
