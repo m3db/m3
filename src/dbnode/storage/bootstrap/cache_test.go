@@ -136,7 +136,7 @@ func TestCacheReadInfoFilesInvariantViolation(t *testing.T) {
 
 func TestCacheReadIndexInfoFiles(t *testing.T) {
 	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
+	defer require.NoError(t, os.RemoveAll(dir))
 
 	md1 := testNamespaceMetadata(t, ident.StringID("ns1"))
 	md2 := testNamespaceMetadata(t, ident.StringID("ns2"))
@@ -144,8 +144,8 @@ func TestCacheReadIndexInfoFiles(t *testing.T) {
 	fsOpts := testFilesystemOptions.SetFilePathPrefix(dir)
 
 	shards := map[uint32]struct{}{
-		0: struct{}{},
-		1: struct{}{},
+		0: {},
+		1: {},
 	}
 	writeIndexFilesets(t, md1.ID(), shards, fsOpts)
 	writeIndexFilesets(t, md2.ID(), shards, fsOpts)

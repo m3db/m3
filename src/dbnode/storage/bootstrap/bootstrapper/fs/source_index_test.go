@@ -27,6 +27,9 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -39,8 +42,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 type testTimesOptions struct {
@@ -264,7 +265,8 @@ func validateGoodTaggedSeries(
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
 		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		for volumeType, indexBlock := range indexBlockByVolumeType.Iter() {
+		for volumeType := range indexBlockByVolumeType.Iter() {
+			indexBlock := indexBlockByVolumeType.Iter()[volumeType]
 			// Skip non default index volumes as we're currently writing no
 			// data to these volume types in these tests.
 			if volumeType != idxpersist.DefaultIndexVolumeType {
@@ -349,7 +351,7 @@ func TestBootstrapIndexAndCorruptedBlock(t *testing.T) {
 	// the unfulfilled shard time ranges case (missing default index volume type
 	// and/or index segments failed validation).
 	var (
-		shards        = map[uint32]struct{}{testShard: struct{}{}}
+		shards        = map[uint32]struct{}{testShard: {}}
 		volumeIndex   = 1
 		filesToDelete []string
 	)
@@ -411,14 +413,8 @@ func TestBootstrapIndexAndCorruptedBlock(t *testing.T) {
 		src.fsopts.InfoReaderBufferSize())
 	require.Equal(t, 1, len(infoFiles))
 
-	for _, infoFile := range infoFiles {
-		require.NoError(t, infoFile.Err.Error())
-		require.Equal(t, times.start.UnixNano(), infoFile.Info.BlockStart)
-		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
-		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
-		require.Equal(t, 1, len(infoFile.Info.Segments))
-		require.Equal(t, 1, len(infoFile.Info.Shards))
-		require.Equal(t, testShard, infoFile.Info.Shards[0])
+	for i := range infoFiles {
+		validateInfoFile(t, times.start.UnixNano(), &infoFiles[i])
 	}
 
 	// Check that the segment is not a mutable segment for this block
@@ -455,7 +451,7 @@ func TestBootstrapIndexAndCorruptedBlock(t *testing.T) {
 // index volume type segments may not fulfill requested ranges.
 func TestBootstrapIndexUnfulfilledRanges(t *testing.T) {
 	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
+	defer require.NoError(t, os.RemoveAll(dir))
 
 	timesOpts := testTimesOptions{
 		numBlocks: 2,
@@ -489,7 +485,7 @@ func TestBootstrapIndexUnfulfilledRanges(t *testing.T) {
 	// and/or index segments failed validation).
 	var (
 		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
-		shards                    = map[uint32]struct{}{testShard: struct{}{}}
+		shards                    = map[uint32]struct{}{testShard: {}}
 	)
 	idxWriter, err := fs.NewIndexWriter(src.fsopts)
 	require.NoError(t, err)
@@ -517,14 +513,8 @@ func TestBootstrapIndexUnfulfilledRanges(t *testing.T) {
 		src.fsopts.InfoReaderBufferSize())
 	require.Equal(t, 1, len(infoFiles[1:]))
 
-	for _, infoFile := range infoFiles[1:] {
-		require.NoError(t, infoFile.Err.Error())
-		require.Equal(t, times.start.UnixNano(), infoFile.Info.BlockStart)
-		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
-		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
-		require.Equal(t, 1, len(infoFile.Info.Segments))
-		require.Equal(t, 1, len(infoFile.Info.Shards))
-		require.Equal(t, testShard, infoFile.Info.Shards[0])
+	for i := range infoFiles[1:] {
+		validateInfoFile(t, times.start.UnixNano(), &infoFiles[i])
 	}
 
 	// Check that the segment is not a mutable segment for this block
@@ -640,7 +630,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Now write index block segment from first two data blocks
 	testData := testGoodTaggedSeriesDataBlocks()
-	shards := map[uint32]struct{}{testShard: struct{}{}}
+	shards := map[uint32]struct{}{testShard: {}}
 	writeTSDBPersistedIndexBlock(t, dir, testNsMetadata(t), times.start, shards,
 		append(testData[0], testData[1]...))
 
@@ -828,4 +818,18 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 	tester.EnsureNoWrites()
+}
+
+func validateInfoFile(
+	t *testing.T,
+	blockStartNanos int64,
+	infoFile *fs.ReadIndexInfoFileResult,
+) {
+	require.NoError(t, infoFile.Err.Error())
+	require.Equal(t, blockStartNanos, infoFile.Info.BlockStart)
+	require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
+	require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
+	require.Equal(t, 1, len(infoFile.Info.Segments))
+	require.Equal(t, 1, len(infoFile.Info.Shards))
+	require.Equal(t, testShard, infoFile.Info.Shards[0])
 }

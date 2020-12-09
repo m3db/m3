@@ -1595,8 +1595,9 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 	return f.Size() == CheckpointFileSizeBytes, nil
 }
 
-// CheckpointFilePathUnsafe is a method to get the checkpoint file path given a namespace/block/volume index
-// and is meant to be used only in testing and is unsafe for normal use.
+// CheckpointFilePathUnsafe is a method to get the checkpoint file path given a
+// namespace/block/volume index and is meant to be used only in testing and is
+// unsafe for normal use.
 func CheckpointFilePathUnsafe(prefix string, t time.Time, index int) string {
 	return filesetPathFromTimeAndIndex(prefix, t, index, checkpointFileSuffix)
 }
