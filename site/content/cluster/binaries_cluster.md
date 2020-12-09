@@ -24,7 +24,7 @@ An M3 deployment typically has two main node types:
 -   **Coordinator node**: `m3coordinator` nodes coordinate reads and writes across all nodes in the cluster. It's a lightweight process, and does not store any data. This role typically runs alongside a Prometheus instance, or is part of a collector agent such as statsD.
 -   **Storage node**: The `m3dbnode` processes are the workhorses of M3, they store data and serve reads and writes.
 
-And exposes two ports:
+A `m3coordinator` node exposes two ports:
 
 -   `7201` to manage the cluster topology, you make most API calls to this endpoint
 -   `7203` for Prometheus to scrape the metrics produced by M3DB and M3Coordinator
@@ -79,8 +79,8 @@ For example, if you used `M3DC_HOST_ID` for the environment variable name, use t
 
 ```yaml
 hostID:
-  resolver: hostname
-    - ${M3DC_HOST_ID:""}
+  resolver: config
+  value: ${M3DC_HOST_ID:""}
 ```
 
 Then start the `m3dbnode` process with:
@@ -123,7 +123,7 @@ You can find more information on configuring M3DB in the [operational guides sec
 {{% /notice %}}
 
 {{% notice note %}}
-The steps in this guide have the following 3 seed nodes, you need to change your configuration to suit the details of yours, including the details of an etcd cluster in the `etcdClusters` section of the M3 configuration file.
+The steps in this guide have the following 3 seed nodes, you need to change your configuration to suit the details of yours, including the details of an etcd cluster in the `m3dbCluster` > `endpoints` section of the M3 configuration file.
 {{% /notice %}}
 
 -   m3db001 (Region=us-east1, Zone=us-east1-a, Static IP=10.142.0.1)
@@ -141,17 +141,14 @@ This example updates the `service` and `seedNodes` sections to match the node de
 
 ```yaml
 config:
-  service:
-    env: default_env
-    zone: embedded
-    service: m3db
-    cacheDir: /var/lib/m3kv
-    etcdClusters:
-      - zone: embedded
-        endpoints:
-          - 10.142.0.1:2379
-          - 10.142.0.2:2379
-          - 10.142.0.3:2379
+  discovery: 
+    type: m3db_cluster 
+    m3dbCluster: 
+      env: default_env
+      endpoints:
+        - 10.142.0.1:2379
+        - 10.142.0.2:2379
+        - 10.142.0.3:2379
 ```
 
 ## Start the storage nodes
@@ -175,8 +172,6 @@ You can daemon-ize the node startup process using your favorite utility such as 
 This guide uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
-
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML configuration.
 
 In the example below, the configuration for each host matches the details outlined above for the three nodes used. `isolationGroup` specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. You should use at least as many isolation groups as your replication factor. This example uses the availability zones `us-east1-a`, `us-east1-b`, `us-east1-c` as the isolation groups which matches our replication factor of 3. [Read more details in this guide](/docs/operational_guide/replication_and_deployment_in_zones).
 
@@ -240,7 +235,28 @@ curl -X POST {{% apiendpoint %}}database/create -d '{
 {{% /tab %}}
 {{< /tabs >}}
 
-If you need to setup multiple namespaces, you can run the command above above multiple times with different namespace configurations.
+If you need to setup multiple namespaces, you can run the command above multiple times with different namespace configurations.
+
+### Ready a Namespace
+<!-- TODO: Why?> -->
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{% codeinclude file="quickstart/ready-namespace.sh" language="shell" %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
 
 ### Replication factor
 
