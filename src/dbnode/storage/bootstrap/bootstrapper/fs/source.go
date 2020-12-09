@@ -92,8 +92,6 @@ type fileSystemSource struct {
 type fileSystemSourceMetrics struct {
 	persistedIndexBlocksRead           tally.Counter
 	persistedIndexBlocksWrite          tally.Counter
-	persistedIndexBlocksRead           tally.Counter
-	persistedIndexBlocksWrite          tally.Counter
 	persistedIndexBlocksOutOfRetention tally.Counter
 	indexBlocksFailedValidation        tally.Counter
 }
