@@ -150,9 +150,10 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 }
 
 // SeriesAttributesToAnnotationPayload converts passed arguments into an annotation.Payload.
-func SeriesAttributesToAnnotationPayload(promType ts.PromMetricType, handleValueResets bool) (annotation.Payload, error) {
+func SeriesAttributesToAnnotationPayload(
+	promType ts.PromMetricType,
+	handleValueResets bool) (annotation.Payload, error) {
 	var metricType annotation.MetricType
-
 	switch promType {
 
 	case ts.PromMetricTypeUnknown:
