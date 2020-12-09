@@ -653,7 +653,9 @@ func (i *promTSIter) Next() bool {
 		return true
 	}
 
-	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(
+		i.attributes[i.idx].PromType,
+		i.attributes[i.idx].HandleValueResets)
 	if err != nil {
 		i.err = err
 		return false

@@ -56,7 +56,7 @@ type Options struct {
 	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
 	TagOptions        models.TagOptions
-	storeMetricsType  bool
+	StoreMetricsType  bool
 }
 
 type ingestMetrics struct {
@@ -108,7 +108,7 @@ func NewIngester(
 				metrics:          m,
 				logger:           opts.InstrumentOptions.Logger(),
 				sampler:          opts.Sampler,
-				storeMetricsType: opts.storeMetricsType,
+				storeMetricsType: opts.StoreMetricsType,
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest

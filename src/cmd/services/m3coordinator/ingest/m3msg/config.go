@@ -100,6 +100,6 @@ func (cfg Configuration) newOptions(
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		Sampler:           sampler,
 		InstrumentOptions: instrumentOptions,
-		storeMetricsType:  storeMetricsType,
+		StoreMetricsType:  storeMetricsType,
 	}, nil
 }
