@@ -349,6 +349,7 @@ func writeTestDataToDisk(
 	return writeTestDataToDiskWithShards(metadata, setup, seriesMaps, volume, setup.ShardSet())
 }
 
+// nolint: unused
 func writeTestDataToDiskWithShards(
 	metadata namespace.Metadata,
 	setup TestSetup,
