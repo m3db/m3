@@ -240,11 +240,11 @@ func (a arrayReadOnlyContainer) contains(v uint16) bool {
 
 func (a arrayReadOnlyContainer) intersectsAnyArray(other arrayReadOnlyContainer) bool {
 	for i, j := 0, 0; i < len(a.values) && j < len(other.values); {
-		if a.values[i] < a.values[j] {
+		if a.values[i] < other.values[j] {
 			i++
 			continue
 		}
-		if a.values[j] < a.values[i] {
+		if other.values[j] < a.values[i] {
 			j++
 			continue
 		}

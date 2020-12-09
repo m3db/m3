@@ -96,17 +96,7 @@ func newFieldsAndTermsIterator(
 	reader segment.Reader,
 	opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error) {
-	var restrictByPostings *roaring.ReadOnlyBitmap
-	if index.MigrationReadOnlyPostings() {
-		var err error
-		restrictByPostings, err = roaring.NewReadOnlyBitmap(nil)
-		if err != nil {
-			return nil, err
-		}
-	}
-	iter := &fieldsAndTermsIter{
-		restrictByPostings: restrictByPostings,
-	}
+	iter := &fieldsAndTermsIter{}
 	err := iter.Reset(reader, opts)
 	if err != nil {
 		return nil, err
