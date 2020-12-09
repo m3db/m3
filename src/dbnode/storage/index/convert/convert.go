@@ -145,22 +145,23 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 }
 
 // FromRawSeriesIDAndTags converts the provided raw series id+encoded tags into a document.
+// tagDecoder is meant to be reusable.
 func FromRawSeriesIDAndTags(
 	id ident.BytesID,
 	encodedTags ts.EncodedTags,
 	tagDecoder serialize.TagDecoder,
 ) (doc.Document, error) {
-	tagIter := ident.EmptyTagIterator
+	tagsIter := ident.EmptyTagIterator
 	if len(encodedTags) > 0 {
 		encodedTagBytes := checked.NewBytes(encodedTags, nil)
 		tagDecoder.Reset(encodedTagBytes)
 		if err := tagDecoder.Err(); err != nil {
 			return doc.Document{}, err
 		}
-		tagIter = tagDecoder
+		tagsIter = tagDecoder
 	}
 
-	return fromSeriesIDAndTagIter(id, tagIter)
+	return fromSeriesIDAndTagIter(id, tagsIter)
 }
 
 // FromSeriesIDAndTagIter converts the provided series id+tags iterator into a document.

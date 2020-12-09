@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -452,18 +451,18 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 	return id, tags, data, uint32(entry.DataChecksum), nil
 }
 
-func (r *reader) StreamingReadMetadata() (ident.BytesID, ts.EncodedTags, int, uint32, error) {
+func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 	if !r.streamingEnabled {
-		return nil, nil, 0, 0, errStreamingRequired
+		return StreamedMetadataEntry{}, errStreamingRequired
 	}
 
 	if r.metadataRead >= r.entries {
-		return nil, nil, 0, 0, io.EOF
+		return StreamedMetadataEntry{}, io.EOF
 	}
 
 	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
-		return nil, nil, 0, 0, err
+		return StreamedMetadataEntry{}, err
 	}
 
 	r.streamingID = append(r.streamingID[:0], entry.ID...)
@@ -471,7 +470,14 @@ func (r *reader) StreamingReadMetadata() (ident.BytesID, ts.EncodedTags, int, ui
 
 	r.metadataRead++
 
-	return r.streamingID, r.streamingTags, int(entry.Size), uint32(entry.DataChecksum), nil
+	metadataEntry := StreamedMetadataEntry{
+		ID:           r.streamingID,
+		EncodedTags:  r.streamingTags,
+		Length:       int(entry.Size),
+		DataChecksum: uint32(entry.DataChecksum),
+	}
+
+	return metadataEntry, nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {

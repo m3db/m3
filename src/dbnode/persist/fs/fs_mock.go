@@ -340,15 +340,12 @@ func (mr *MockDataFileSetReaderMockRecorder) StreamingRead() *gomock.Call {
 }
 
 // StreamingReadMetadata mocks base method
-func (m *MockDataFileSetReader) StreamingReadMetadata() (ident.BytesID, ts.EncodedTags, int, uint32, error) {
+func (m *MockDataFileSetReader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamingReadMetadata")
-	ret0, _ := ret[0].(ident.BytesID)
-	ret1, _ := ret[1].(ts.EncodedTags)
-	ret2, _ := ret[2].(int)
-	ret3, _ := ret[3].(uint32)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
+	ret0, _ := ret[0].(StreamedMetadataEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // StreamingReadMetadata indicates an expected call of StreamingReadMetadata

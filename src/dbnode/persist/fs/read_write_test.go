@@ -588,8 +588,9 @@ func readMetadata(
 	reader DataFileSetReader,
 ) (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error) {
 	if reader.StreamingEnabled() {
-		id, encodedTags, length, checksum, err := reader.StreamingReadMetadata()
-		return id, decodeTags(t, encodedTags), length, checksum, err
+		entry, err := reader.StreamingReadMetadata()
+		tags := decodeTags(t, entry.EncodedTags)
+		return entry.ID, tags, entry.Length, entry.DataChecksum, err
 	}
 
 	return reader.ReadMetadata()

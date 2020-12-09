@@ -145,6 +145,7 @@ type DataFileSetReader interface {
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
 	// values ordered by id, or error, will return io.EOF at end of volume.
 	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
+	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
 	// Note: the returned data gets invalidated on the next call to StreamingRead.
 	StreamingRead() (StreamedDataEntry, error)
 
@@ -152,10 +153,8 @@ type DataFileSetReader interface {
 	// values ordered by id, or error; will return io.EOF at end of volume.
 	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
 	// Use either StreamingRead or StreamingReadMetadata to progress through a volume, but not both.
-	// Note: the returned id and encodedTags get invalidated on the next
-	// call to StreamingReadMetadata.
-	StreamingReadMetadata() (
-		id ident.BytesID, encodedTags ts.EncodedTags, length int, checksum uint32, err error)
+	// Note: the returned data get invalidated on the next call to StreamingReadMetadata.
+	StreamingReadMetadata() (StreamedMetadataEntry, error)
 
 	// Read returns the next id, tags, data, checksum tuple or error,
 	// will return io.EOF at end of volume.
@@ -685,12 +684,21 @@ type IndexClaimsManager interface {
 	) (int, error)
 }
 
-// StreamedDataEntry contains the data of single entry returned by streaming method(s).
+// StreamedDataEntry contains the data of single entry returned by streaming method.
 // The underlying data slices are reused and invalidated on every read.
 type StreamedDataEntry struct {
 	ID           ident.BytesID
 	EncodedTags  ts.EncodedTags
 	Data         []byte
+	DataChecksum uint32
+}
+
+// StreamedMetadataEntry contains the metadata of single entry returned by streaming method.
+// The underlying data slices are reused and invalidated on every read.
+type StreamedMetadataEntry struct {
+	ID           ident.BytesID
+	EncodedTags  ts.EncodedTags
+	Length       int
 	DataChecksum uint32
 }
 

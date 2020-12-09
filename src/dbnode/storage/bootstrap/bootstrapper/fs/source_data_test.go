@@ -882,10 +882,10 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	rOpts.StreamingEnabled = true
 	reader.EXPECT().Open(rOpts).Return(nil)
-	reader.EXPECT().StreamingReadMetadata().Return(ident.BytesID("foo"),
-		[]byte{}, 0, uint32(0), nil)
-	reader.EXPECT().StreamingReadMetadata().Return(nil,
-		nil, 0, uint32(0), errors.New("error"))
+	reader.EXPECT().StreamingReadMetadata().Return(
+		fs.StreamedMetadataEntry{ID: ident.BytesID("foo")}, nil)
+	reader.EXPECT().StreamingReadMetadata().Return(
+		fs.StreamedMetadataEntry{}, errors.New("error"))
 
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()
