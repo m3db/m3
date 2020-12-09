@@ -37,7 +37,7 @@ Once a namespace has finished bootstrapping, you must mark it as ready so that M
 {{< tabs name="ready_namespaces" >}}
 {{% tab name="Command" %}}
 
-{{% codeinclude file="operational_guide/ready-namespace.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/operational_guide/ready-namespace.sh" language="shell" >}}
 
 {{% /tab %}}
 {{% tab name="Output" %}}
@@ -94,7 +94,7 @@ Once a namespace has finished bootstrapping, you must mark it as ready so that M
 {{< tabs name="ready_namespaces_adv" >}}
 {{% tab name="Command" %}}
 
-{{% codeinclude file="operational_guide/ready-namespace.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/operational_guide/ready-namespace.sh" language="shell" >}}
 
 {{% /tab %}}
 {{% tab name="Output" %}}

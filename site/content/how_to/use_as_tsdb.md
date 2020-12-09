@@ -148,7 +148,7 @@ Once a namespace has finished bootstrapping, you must mark it as ready before re
 {{< tabs name="ready_namespaces" >}}
 {{% tab name="Command" %}}
 
-{{% codeinclude file="quickstart/ready-namespace.sh" language="shell" %}}
+{{< codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" >}}
 
 {{% /tab %}}
 {{% tab name="Output" %}}
