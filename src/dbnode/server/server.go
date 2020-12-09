@@ -715,6 +715,9 @@ func Run(runOpts RunOptions) {
 	}
 	tchanOpts := ttnode.NewOptions(tchannelOpts).
 		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := runOpts.StorageOptions.TChanChannelFn; fn != nil {
+		tchanOpts = tchanOpts.SetTChanChannelFn(fn)
+	}
 	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
 		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
 	}

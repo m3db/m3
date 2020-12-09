@@ -117,7 +117,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	parsedOptions, rErr := ParseRequest(ctx, r, h.instant, h.opts)
 	if rErr != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		h.promReadMetrics.incError(rErr)
 		logger.Error("could not parse request", zap.Error(rErr))
 		xhttp.WriteError(w, rErr)
 		return
@@ -143,7 +143,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("range query error",
 			zap.Error(err),
 			zap.Any("parsedOptions", parsedOptions))
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 
 		xhttp.WriteError(w, err)
 		return

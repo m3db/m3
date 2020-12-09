@@ -24,7 +24,8 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/x/clock"
@@ -44,7 +45,7 @@ type activeStagedPlacement struct {
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
 
-	expiring int32
+	expiring atomic.Int32
 	closed   bool
 	doneFn   DoneFn
 }
@@ -98,8 +99,6 @@ func (p *activeStagedPlacement) Close() error {
 }
 
 func (p *activeStagedPlacement) Version() int {
-	p.RLock()
-	defer p.RUnlock()
 	return p.version
 }
 
@@ -115,7 +114,7 @@ func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placem
 	}
 	placement := p.placements[idx]
 	// If the placement that's in effect is not the first placment, expire the stale ones.
-	if idx > 0 && atomic.CompareAndSwapInt32(&p.expiring, 0, 1) {
+	if idx > 0 && p.expiring.CAS(0, 1) {
 		go p.expire()
 	}
 	return placement, nil
@@ -126,7 +125,7 @@ func (p *activeStagedPlacement) expire() {
 	// because this code path is triggered very infrequently.
 	cleanup := func() {
 		p.Unlock()
-		atomic.StoreInt32(&p.expiring, 0)
+		p.expiring.Store(0)
 	}
 	p.Lock()
 	defer cleanup()

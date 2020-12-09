@@ -253,12 +253,15 @@ type Service interface {
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
 
+	// Database returns the current database.
+	Database() (storage.Database, error)
+
 	// SetMetadata sets a metadata key to the given value.
 	SetMetadata(key, value string)
 
-	// GetMetadata returns the metadata for the given key and a bool indicating
+	// Metadata returns the metadata for the given key and a bool indicating
 	// if it is present.
-	GetMetadata(key string) (string, bool)
+	Metadata(key string) (string, bool)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -349,7 +352,7 @@ func (s *service) SetMetadata(key, value string) {
 	s.state.health = newHealth
 }
 
-func (s *service) GetMetadata(key string) (string, bool) {
+func (s *service) Metadata(key string) (string, bool) {
 	s.state.RLock()
 	md, found := s.state.health.Metadata[key]
 	s.state.RUnlock()
@@ -2197,9 +2200,18 @@ func (s *service) SetDatabase(db storage.Database) error {
 	if s.state.db != nil {
 		return errDatabaseHasAlreadyBeenSet
 	}
-
 	s.state.db = db
 	return nil
+}
+
+func (s *service) Database() (storage.Database, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+
+	if s.state.db == nil {
+		return nil, errDatabaseIsNotInitializedYet
+	}
+	return s.state.db, nil
 }
 
 func (s *service) startWriteRPCWithDB() (storage.Database, error) {

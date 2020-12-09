@@ -101,6 +101,14 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	}
 }
 
+func (m *promReadMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.fetchErrorsClient.Inc(1)
+	} else {
+		m.fetchErrorsServer.Inc(1)
+	}
+}
+
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
@@ -109,7 +117,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
 	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		h.promReadMetrics.incError(rErr)
 		logger.Error("remote read query parse error",
 			zap.Error(rErr),
 			zap.Any("req", req),
@@ -121,7 +129,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
 			zap.Error(err),
 			zap.Any("req", req),
@@ -183,7 +191,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 	} else {
 		h.promReadMetrics.fetchSuccess.Inc(1)
 	}
