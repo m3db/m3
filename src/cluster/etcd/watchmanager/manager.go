@@ -71,13 +71,16 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 
 	ctx, cancelFn := context.WithCancel(clientv3.WithRequireLeader(context.Background()))
 
-	var watchChan clientv3.WatchChan
+	var (
+		watcher   = clientv3.NewWatcher(w.opts.Client())
+		watchChan clientv3.WatchChan
+	)
 	go func() {
 		wOpts := w.opts.WatchOptions()
 		if rev > 0 {
 			wOpts = append(wOpts, clientv3.WithRev(rev))
 		}
-		watchChan = w.opts.Watcher().Watch(
+		watchChan = watcher.Watch(
 			ctx,
 			key,
 			wOpts...,
@@ -85,13 +88,22 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 		close(doneCh)
 	}()
 
-	timeout := w.opts.WatchChanInitTimeout()
+	var (
+		timeout       = w.opts.WatchChanInitTimeout()
+		cancelWatchFn = func() {
+			cancelFn()
+			if err := watcher.Close(); err != nil {
+				w.logger.Info("error closing watcher", zap.Error(err))
+			}
+		}
+	)
+
 	select {
 	case <-doneCh:
-		return watchChan, cancelFn, nil
+		return watchChan, cancelWatchFn, nil
 	case <-time.After(timeout):
-		cancelFn()
-		return nil, nil, fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
+		err := fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
+		return nil, cancelWatchFn, err
 	}
 }
 
@@ -108,6 +120,16 @@ func (w *manager) Watch(key string) {
 
 	defer ticker.Stop()
 
+	resetWatch := func() {
+		w.m.etcdWatchReset.Inc(1)
+
+		cancelFn()
+		// set it to nil so it will be recreated
+		watchChan = nil
+		// avoid recreating watch channel too frequently
+		time.Sleep(w.opts.WatchChanResetInterval())
+	}
+
 	for {
 		if watchChan == nil {
 			w.m.etcdWatchCreate.Inc(1)
@@ -121,8 +143,7 @@ func (w *manager) Watch(key string) {
 				if err = w.updateFn(key, nil); err != nil {
 					logger.Error("failed to get value for key", zap.Error(err))
 				}
-				// avoid recreating watch channel too frequently
-				time.Sleep(w.opts.WatchChanResetInterval())
+				resetWatch()
 				continue
 			}
 		}
@@ -130,15 +151,8 @@ func (w *manager) Watch(key string) {
 		select {
 		case r, ok := <-watchChan:
 			if !ok {
-				// the watch chan is closed, set it to nil so it will be recreated
-				cancelFn()
-				watchChan = nil
+				resetWatch()
 				logger.Warn("etcd watch channel closed on key, recreating a watch channel")
-
-				// avoid recreating watch channel too frequently
-				time.Sleep(w.opts.WatchChanResetInterval())
-				w.m.etcdWatchReset.Inc(1)
-
 				continue
 			}
 
@@ -164,8 +178,7 @@ func (w *manager) Watch(key string) {
 					logger.Warn("recreating watch due to an error")
 				}
 
-				cancelFn()
-				watchChan = nil
+				resetWatch()
 			} else if r.IsProgressNotify() {
 				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
 				continue
