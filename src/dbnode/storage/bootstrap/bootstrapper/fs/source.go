@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -84,8 +85,9 @@ type fileSystemSource struct {
 }
 
 type fileSystemSourceMetrics struct {
-	persistedIndexBlocksRead  tally.Counter
-	persistedIndexBlocksWrite tally.Counter
+	persistedIndexBlocksRead           tally.Counter
+	persistedIndexBlocksWrite          tally.Counter
+	persistedIndexBlocksOutOfRetention tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -106,8 +108,9 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		metrics: fileSystemSourceMetrics{
-			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksRead:           scope.Counter("persist-index-blocks-read"),
+			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 		},
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
@@ -404,6 +407,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
+	defer func() {
+		// Return readers to pool.
+		for _, shardReaders := range shardReaders {
+			for _, r := range shardReaders.Readers {
+				if err := r.Close(); err == nil {
+					readerPool.Put(r)
+				}
+			}
+		}
+	}()
+
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.Readers
@@ -586,7 +600,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -631,15 +652,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		runResult.Lock()
 		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 		runResult.Unlock()
-	}
-
-	// Return readers to pool.
-	for _, shardReaders := range shardReaders {
-		for _, r := range shardReaders.Readers {
-			if err := r.Close(); err == nil {
-				readerPool.Put(r)
-			}
-		}
 	}
 
 	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
