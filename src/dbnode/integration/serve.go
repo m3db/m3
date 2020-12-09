@@ -41,15 +41,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTestShardSet creates a default shard set
-func newTestShardSet(numShards int) (sharding.ShardSet, error) {
+// newTestShardSetFromOffset creates a default shard set from an offset.
+func newTestShardSetFromRange(numShards, start, end int) (sharding.ShardSet, error) {
 	var ids []uint32
-	for i := uint32(0); i < uint32(numShards); i++ {
+	for i := uint32(start); i < uint32(end); i++ {
 		ids = append(ids, i)
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
 	return sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
+}
+
+// newTestShardSet creates a default shard set from offset 0.
+func newTestShardSet(numShards int) (sharding.ShardSet, error) {
+	return newTestShardSetFromRange(numShards, 0, numShards)
 }
 
 // newTopologyInitializerForShardSet creates a default topology initializer for a shard set
