@@ -131,7 +131,9 @@ func (fti *fieldsAndTermsIter) Reset(
 
 	// Restore restrict by postings intersect check.
 	fti.restrictByPostings = restrictByPostings
-	fti.restrictByPostings.Reset(nil)
+	if index.MigrationReadOnlyPostings() {
+		fti.restrictByPostings.Reset(nil)
+	}
 
 	// Set per use fields.
 	fti.reader = reader
@@ -165,19 +167,28 @@ func (fti *fieldsAndTermsIter) Reset(
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	if index.MigrationReadOnlyPostings() {
 		// Copy into a single flat read only bitmap so that can do fast intersect.
-		var buff bytes.Buffer
-		bitmap := pilosaroaring.NewBitmap()
-		iter := pl.Iterator()
-		for iter.Next() {
-			bitmap.DirectAdd(uint64(iter.Current()))
+		var (
+			bitmap *pilosaroaring.Bitmap
+			buff   bytes.Buffer
+		)
+		if b, ok := roaring.BitmapFromPostingsList(pl); ok {
+			bitmap = b
+		} else {
+			bitmap = pilosaroaring.NewBitmap()
+
+			iter := pl.Iterator()
+			for iter.Next() {
+				bitmap.DirectAdd(uint64(iter.Current()))
+			}
+			if err := iter.Err(); err != nil {
+				return err
+			}
+			if err := iter.Close(); err != nil {
+				return err
+			}
 		}
+
 		if _, err := bitmap.WriteTo(&buff); err != nil {
-			return err
-		}
-		if err := iter.Err(); err != nil {
-			return err
-		}
-		if err := iter.Close(); err != nil {
 			return err
 		}
 
