@@ -33,7 +33,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/mocks"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -60,7 +59,7 @@ func TestGetAndSet(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	value, err := store.Get("foo")
@@ -89,7 +88,7 @@ func TestNoCache(t *testing.T) {
 
 	ec, opts, closeFn := testStore(t)
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
@@ -112,7 +111,7 @@ func TestNoCache(t *testing.T) {
 	verifyValue(t, value, "bar1", 1)
 
 	// new store but no cache file set
-	store, err = NewStore(ec, ec, opts)
+	store, err = NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -136,7 +135,7 @@ func TestCacheDirCreation(t *testing.T) {
 		return path.Join(cdir, opts.Prefix())
 	})
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	info, err := os.Stat(cdir)
@@ -164,7 +163,7 @@ func TestCache(t *testing.T) {
 		return f.Name()
 	})
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
@@ -190,7 +189,7 @@ func TestCache(t *testing.T) {
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
 	// new store but with cache file
-	store, err = NewStore(ec, ec, opts)
+	store, err = NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("key", genProto("bar1"))
@@ -212,7 +211,7 @@ func TestSetIfNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	version, err := store.SetIfNotExists("foo", genProto("bar"))
@@ -233,7 +232,7 @@ func TestCheckAndSet(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.CheckAndSet("foo", 1, genProto("bar"))
@@ -261,7 +260,7 @@ func TestWatchClose(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -312,7 +311,7 @@ func TestWatchLastVersion(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	w, err := store.Watch("foo")
@@ -348,7 +347,7 @@ func TestWatchFromExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -387,7 +386,7 @@ func TestWatchFromNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	w, err := store.Watch("foo")
@@ -415,7 +414,7 @@ func TestWatchFromNotExist(t *testing.T) {
 func TestGetFromKvNotFound(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 	c := store.(*client)
 	_, err = c.Set("foo", genProto("bar1"))
@@ -432,7 +431,7 @@ func TestMultipleWatchesFromExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -484,7 +483,7 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 	w1, err := store.Watch("foo")
 	require.NoError(t, err)
@@ -525,14 +524,14 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 func TestWatchNonBlocking(t *testing.T) {
 	t.Parallel()
 
-	ec, opts, closeFn := testStore(t)
+	ecluster, opts, closeFn := testCluster(t)
 	defer closeFn()
+
+	ec := ecluster.Client(0)
 
 	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(500 * time.Millisecond)
 
-	failTotal := 3
-	mw := mocks.NewBlackholeWatcher(ec, failTotal, func() { time.Sleep(time.Minute) })
-	store, err := NewStore(ec, mw, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 	c := store.(*client)
 
@@ -540,10 +539,13 @@ func TestWatchNonBlocking(t *testing.T) {
 	require.NoError(t, err)
 
 	before := time.Now()
+	ecluster.Members[0].Blackhole()
 	w1, err := c.Watch("foo")
 	require.WithinDuration(t, time.Now(), before, 100*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w1.C()))
+	ecluster.Members[0].Unblackhole()
+	ecluster.Members[0].DropConnections()
 
 	// watch channel will error out, but Get() will be tried
 	<-w1.C()
@@ -556,7 +558,7 @@ func TestHistory(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.History("k1", 10, 5)
@@ -614,7 +616,7 @@ func TestDelete(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Delete("foo")
@@ -651,7 +653,7 @@ func TestDelete_UpdateCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	c, err := NewStore(ec, ec, opts)
+	c, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	store := c.(*client)
@@ -680,7 +682,7 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	setStore, err := NewStore(ec, ec, opts)
+	setStore, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	setClient := setStore.(*client)
@@ -702,7 +704,7 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(clientCachePath)
 
-	getStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+	getStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(clientCachePath, fmt.Sprintf("%s.json", ns))
 		return nsFile
 	}))
@@ -757,7 +759,7 @@ func TestDelete_TriggerWatch(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	vw, err := store.Watch("foo")
@@ -799,7 +801,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
 
-	setStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
 	}))
 	require.NoError(t, err)
@@ -847,7 +849,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	// create new etcd cluster
 	ec2, opts, closeFn2 := testStore(t)
 	defer closeFn2()
-	getStore, err := NewStore(ec2, ec2, opts.SetCacheFileFn(func(ns string) string {
+	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
 		return nsFile
 	}))
@@ -882,7 +884,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
 
-	setStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
 	}))
 	require.NoError(t, err)
@@ -932,7 +934,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	// create new etcd cluster
 	ec2, opts, closeFn2 := testStore(t)
 	defer closeFn2()
-	getStore, err := NewStore(ec2, ec2, opts.SetCacheFileFn(func(ns string) string {
+	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
 		return nsFile
 	}))
@@ -969,7 +971,7 @@ func TestTxn(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	r, err := store.Commit(
@@ -1040,7 +1042,7 @@ func TestTxn_ConditionFail(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Commit(
@@ -1079,7 +1081,7 @@ func TestTxn_UnknownType(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, ec, opts)
+	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Commit(
@@ -1109,7 +1111,7 @@ func TestWatchWithStartRevision(t *testing.T) {
 
 			opts = opts.SetWatchWithRevision(rev)
 
-			store, err := NewStore(ec, ec, opts)
+			store, err := NewStore(ec, opts)
 			require.NoError(t, err)
 
 			for i := 1; i <= 50; i++ {
@@ -1147,10 +1149,8 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
+func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
-	ec := ecluster.RandClient()
-
 	closer := func() {
 		ecluster.Terminate(t)
 	}
@@ -1163,7 +1163,12 @@ func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 		SetRetryOptions(retry.NewOptions().SetMaxRetries(1).SetMaxBackoff(0)).
 		SetPrefix("test")
 
-	return ec, opts, closer
+	return ecluster, opts, closer
+}
+
+func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
+	ecluster, opts, closer := testCluster(t)
+	return ecluster.RandClient(), opts, closer
 }
 
 func readCacheJSONAndFilename(dirPath string) (string, []byte, error) {
