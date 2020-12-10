@@ -102,6 +102,9 @@ var (
 	errRollupRuleNoTransforms       = errors.New("rollup rule has no transforms set")
 )
 
+// CustomRuleStoreFn is a function to swap the backend used for the rule stores.
+type CustomRuleStoreFn func(clusterclient.Client) (kv.TxnStore, error)
+
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
 	Storage                    storage.Storage
