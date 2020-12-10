@@ -120,7 +120,7 @@ func (w *manager) Watch(key string) {
 
 	defer ticker.Stop()
 
-	resetWatch := func() {
+	resetWatchWithSleep := func() {
 		w.m.etcdWatchReset.Inc(1)
 
 		cancelFn()
@@ -143,7 +143,7 @@ func (w *manager) Watch(key string) {
 				if err = w.updateFn(key, nil); err != nil {
 					logger.Error("failed to get value for key", zap.Error(err))
 				}
-				resetWatch()
+				resetWatchWithSleep()
 				continue
 			}
 		}
@@ -151,7 +151,7 @@ func (w *manager) Watch(key string) {
 		select {
 		case r, ok := <-watchChan:
 			if !ok {
-				resetWatch()
+				resetWatchWithSleep()
 				logger.Warn("etcd watch channel closed on key, recreating a watch channel")
 				continue
 			}
@@ -178,7 +178,7 @@ func (w *manager) Watch(key string) {
 					logger.Warn("recreating watch due to an error")
 				}
 
-				resetWatch()
+				resetWatchWithSleep()
 			} else if r.IsProgressNotify() {
 				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
 				continue
