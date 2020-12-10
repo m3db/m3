@@ -86,6 +86,89 @@ func TestPromWriteParsing(t *testing.T) {
 	require.Equal(t, ingest.WriteOptions{}, r.Options)
 }
 
+func TestMetricTypeHeader(t *testing.T) {
+	tests := []struct {
+		headerValue  string
+		expectedType prompb.MetricType
+	}{
+		{
+			expectedType: prompb.MetricType_UNKNOWN,
+		},
+		{
+			headerValue:  "counter",
+			expectedType: prompb.MetricType_COUNTER,
+		},
+		{
+			headerValue:  "Counter",
+			expectedType: prompb.MetricType_COUNTER,
+		},
+		{
+			headerValue:  "gauge",
+			expectedType: prompb.MetricType_GAUGE,
+		},
+		{
+			headerValue:  "histogram",
+			expectedType: prompb.MetricType_HISTOGRAM,
+		},
+		{
+			headerValue:  "gauge-histogram",
+			expectedType: prompb.MetricType_GAUGE_HISTOGRAM,
+		},
+		{
+			headerValue:  "summary",
+			expectedType: prompb.MetricType_SUMMARY,
+		},
+		{
+			headerValue:  "info",
+			expectedType: prompb.MetricType_INFO,
+		},
+		{
+			headerValue:  "stateset",
+			expectedType: prompb.MetricType_STATESET,
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	handlerOpts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	for _, testCase := range tests {
+		t.Run(testCase.headerValue, func(tt *testing.T) {
+			tc := testCase // nolint
+			promReq := test.GeneratePromWriteRequest()
+			promReqBody := test.GeneratePromWriteRequestBody(tt, promReq)
+			req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+			if tc.headerValue > "" {
+				req.Header.Add(headers.PromTypeHeader, tc.headerValue)
+			}
+			r, err := handler.(*PromWriteHandler).parseRequest(req)
+			require.NoError(tt, err)
+			require.Equal(tt, tc.expectedType, r.Request.Timeseries[0].Type)
+		})
+	}
+}
+
+func TestInvalidMetricTypeHeader(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	handlerOpts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+	req.Header.Add(headers.PromTypeHeader, "random")
+	_, err = handler.(*PromWriteHandler).parseRequest(req)
+	require.Error(t, err)
+}
+
 func TestPromWrite(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()

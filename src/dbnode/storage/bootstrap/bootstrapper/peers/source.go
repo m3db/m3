@@ -21,10 +21,16 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -50,10 +56,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type peersSource struct {
@@ -61,6 +63,11 @@ type peersSource struct {
 	log               *zap.Logger
 	newPersistManager func() (persist.Manager, error)
 	nowFn             clock.NowFn
+	metrics           peersSourceMetrics
+}
+
+type peersSourceMetrics struct {
+	persistedIndexBlocksOutOfRetention tally.Counter
 }
 
 type persistenceFlush struct {
@@ -76,6 +83,8 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 	}
 
 	iopts := opts.ResultOptions().InstrumentOptions()
+	scope := iopts.MetricsScope().SubScope("peers-bootstrapper")
+	iopts = iopts.SetMetricsScope(scope)
 	return &peersSource{
 		opts: opts,
 		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
@@ -83,6 +92,9 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 			return fs.NewPersistManager(opts.FilesystemOptions())
 		},
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		metrics: peersSourceMetrics{
+			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+		},
 	}, nil
 }
 
@@ -824,7 +836,17 @@ func (s *peersSource) processReaders(
 		timesWithErrors []time.Time
 		totalEntries    int
 	)
-	defer docsPool.Put(batch)
+	defer func() {
+		docsPool.Put(batch)
+		// Return readers to pool.
+		for _, shardReaders := range timeWindowReaders.Readers {
+			for _, r := range shardReaders.Readers {
+				if err := r.Close(); err == nil {
+					readerPool.Put(r)
+				}
+			}
+		}
+	}()
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -934,7 +956,14 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if err != nil {
+		if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+			// Bail early if the index segment is already out of retention.
+			// This can happen when the edge of requested ranges at time of data bootstrap
+			// is now out of retention.
+			s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+			s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+			return remainingRanges, timesWithErrors
+		} else if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -977,15 +1006,6 @@ func (s *peersSource) processReaders(
 	resultLock.Lock()
 	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 	resultLock.Unlock()
-
-	// Return readers to pool.
-	for _, shardReaders := range timeWindowReaders.Readers {
-		for _, r := range shardReaders.Readers {
-			if err := r.Close(); err == nil {
-				readerPool.Put(r)
-			}
-		}
-	}
 
 	return remainingRanges, timesWithErrors
 }

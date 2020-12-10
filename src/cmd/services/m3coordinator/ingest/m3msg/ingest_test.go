@@ -59,7 +59,7 @@ func TestIngest(t *testing.T) {
 	}
 	appender := &mockAppender{}
 	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
-		instrument.NewOptions())
+		instrument.NewOptions(), true)
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")
@@ -72,14 +72,14 @@ func TestIngest(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, ts.PromMetricTypeGauge, metricNanos, 0, val, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	expected, err := storage.NewWriteQuery(storage.WriteQueryOptions{
-		Annotation: nil,
+		Annotation: []byte{8, 2},
 		Attributes: storagemetadata.Attributes{
 			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  time.Minute,
@@ -93,7 +93,7 @@ func TestIngest(t *testing.T) {
 		},
 		Tags: models.NewTags(2, nil).AddTags(
 			[]models.Tag{
-				models.Tag{
+				{
 					Name:  []byte("__name__"),
 					Value: []byte("foo"),
 				},
@@ -131,7 +131,7 @@ func TestIngestNonRetryableError(t *testing.T) {
 	nonRetryableError := xerrors.NewNonRetryableError(errors.New("bad request error"))
 	appender := &mockAppender{expectErr: nonRetryableError}
 	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
-		instrumentOpts)
+		instrumentOpts, true)
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")
@@ -144,7 +144,7 @@ func TestIngestNonRetryableError(t *testing.T) {
 	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, ts.PromMetricTypeGauge, metricNanos, 0, val, sp, callback)
 
 	for appender.cntErr() != 1 {
 		time.Sleep(100 * time.Millisecond)
