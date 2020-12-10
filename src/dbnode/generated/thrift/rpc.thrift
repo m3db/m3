@@ -29,12 +29,19 @@ enum TimeType {
 
 enum ErrorType {
 	INTERNAL_ERROR,
-	BAD_REQUEST
+	BAD_REQUEST,
+	RESOURCE_EXHAUSTED
+}
+
+enum ErrorCode {
+    NONE,
+    RESOURCE_EXHAUSTED
 }
 
 exception Error {
 	1: required ErrorType type = ErrorType.INTERNAL_ERROR
 	2: required string message
+	3: optional ErrorCode code = ErrorCode.NONE
 }
 
 exception WriteBatchRawErrors {

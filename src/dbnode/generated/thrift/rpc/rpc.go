@@ -107,8 +107,9 @@ func (p *TimeType) Value() (driver.Value, error) {
 type ErrorType int64
 
 const (
-	ErrorType_INTERNAL_ERROR ErrorType = 0
-	ErrorType_BAD_REQUEST    ErrorType = 1
+	ErrorType_INTERNAL_ERROR     ErrorType = 0
+	ErrorType_BAD_REQUEST        ErrorType = 1
+	ErrorType_RESOURCE_EXHAUSTED ErrorType = 2
 )
 
 func (p ErrorType) String() string {
@@ -117,6 +118,8 @@ func (p ErrorType) String() string {
 		return "INTERNAL_ERROR"
 	case ErrorType_BAD_REQUEST:
 		return "BAD_REQUEST"
+	case ErrorType_RESOURCE_EXHAUSTED:
+		return "RESOURCE_EXHAUSTED"
 	}
 	return "<UNSET>"
 }
@@ -127,6 +130,8 @@ func ErrorTypeFromString(s string) (ErrorType, error) {
 		return ErrorType_INTERNAL_ERROR, nil
 	case "BAD_REQUEST":
 		return ErrorType_BAD_REQUEST, nil
+	case "RESOURCE_EXHAUSTED":
+		return ErrorType_RESOURCE_EXHAUSTED, nil
 	}
 	return ErrorType(0), fmt.Errorf("not a valid ErrorType string")
 }
@@ -156,6 +161,64 @@ func (p *ErrorType) Scan(value interface{}) error {
 }
 
 func (p *ErrorType) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
+type ErrorCode int64
+
+const (
+	ErrorCode_NONE               ErrorCode = 0
+	ErrorCode_RESOURCE_EXHAUSTED ErrorCode = 1
+)
+
+func (p ErrorCode) String() string {
+	switch p {
+	case ErrorCode_NONE:
+		return "NONE"
+	case ErrorCode_RESOURCE_EXHAUSTED:
+		return "RESOURCE_EXHAUSTED"
+	}
+	return "<UNSET>"
+}
+
+func ErrorCodeFromString(s string) (ErrorCode, error) {
+	switch s {
+	case "NONE":
+		return ErrorCode_NONE, nil
+	case "RESOURCE_EXHAUSTED":
+		return ErrorCode_RESOURCE_EXHAUSTED, nil
+	}
+	return ErrorCode(0), fmt.Errorf("not a valid ErrorCode string")
+}
+
+func ErrorCodePtr(v ErrorCode) *ErrorCode { return &v }
+
+func (p ErrorCode) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *ErrorCode) UnmarshalText(text []byte) error {
+	q, err := ErrorCodeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *ErrorCode) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = ErrorCode(v)
+	return nil
+}
+
+func (p *ErrorCode) Value() (driver.Value, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -223,14 +286,18 @@ func (p *AggregateQueryType) Value() (driver.Value, error) {
 // Attributes:
 //  - Type
 //  - Message
+//  - Code
 type Error struct {
 	Type    ErrorType `thrift:"type,1,required" db:"type" json:"type"`
 	Message string    `thrift:"message,2,required" db:"message" json:"message"`
+	Code    ErrorCode `thrift:"code,3" db:"code" json:"code,omitempty"`
 }
 
 func NewError() *Error {
 	return &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 }
 
@@ -241,6 +308,16 @@ func (p *Error) GetType() ErrorType {
 func (p *Error) GetMessage() string {
 	return p.Message
 }
+
+var Error_Code_DEFAULT ErrorCode = 0
+
+func (p *Error) GetCode() ErrorCode {
+	return p.Code
+}
+func (p *Error) IsSetCode() bool {
+	return p.Code != Error_Code_DEFAULT
+}
+
 func (p *Error) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -268,6 +345,10 @@ func (p *Error) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetMessage = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -308,6 +389,16 @@ func (p *Error) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Error) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		temp := ErrorCode(v)
+		p.Code = temp
+	}
+	return nil
+}
+
 func (p *Error) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Error"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -317,6 +408,9 @@ func (p *Error) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -351,6 +445,21 @@ func (p *Error) writeField2(oprot thrift.TProtocol) (err error) {
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:message: ", p), err)
+	}
+	return err
+}
+
+func (p *Error) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err := oprot.WriteFieldBegin("code", thrift.I32, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:code: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.Code)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.code (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:code: ", p), err)
+		}
 	}
 	return err
 }
@@ -2657,6 +2766,8 @@ func (p *FetchRawResult_) ReadField1(iprot thrift.TProtocol) error {
 func (p *FetchRawResult_) ReadField2(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -3980,6 +4091,8 @@ func (p *FetchTaggedIDResult_) ReadField4(iprot thrift.TProtocol) error {
 func (p *FetchTaggedIDResult_) ReadField5(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -4907,6 +5020,8 @@ func (p *Block) ReadField2(iprot thrift.TProtocol) error {
 func (p *Block) ReadField3(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -5955,6 +6070,8 @@ func (p *BlockMetadataV2) ReadField2(iprot thrift.TProtocol) error {
 func (p *BlockMetadataV2) ReadField3(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -7688,6 +7805,8 @@ func (p *WriteBatchRawError) ReadField1(iprot thrift.TProtocol) error {
 func (p *WriteBatchRawError) ReadField2(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -19038,6 +19157,8 @@ func (p *NodeQueryResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeQueryResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -19293,6 +19414,8 @@ func (p *NodeAggregateResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeAggregateResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -19548,6 +19671,8 @@ func (p *NodeFetchResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeFetchResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -19772,6 +19897,8 @@ func (p *NodeWriteResult) Read(iprot thrift.TProtocol) error {
 func (p *NodeWriteResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -19978,6 +20105,8 @@ func (p *NodeWriteTaggedResult) Read(iprot thrift.TProtocol) error {
 func (p *NodeWriteTaggedResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -20215,6 +20344,8 @@ func (p *NodeAggregateRawResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeAggregateRawResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -20468,6 +20599,8 @@ func (p *NodeFetchBatchRawResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeFetchBatchRawResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -20719,6 +20852,8 @@ func (p *NodeFetchBatchRawV2Result) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeFetchBatchRawV2Result) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -20970,6 +21105,8 @@ func (p *NodeFetchBlocksRawResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeFetchBlocksRawResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -21225,6 +21362,8 @@ func (p *NodeFetchTaggedResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeFetchTaggedResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -21476,6 +21615,8 @@ func (p *NodeFetchBlocksMetadataRawV2Result) ReadField0(iprot thrift.TProtocol) 
 func (p *NodeFetchBlocksMetadataRawV2Result) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -22470,6 +22611,8 @@ func (p *NodeRepairResult) Read(iprot thrift.TProtocol) error {
 func (p *NodeRepairResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -22703,6 +22846,8 @@ func (p *NodeTruncateResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeTruncateResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -22956,6 +23101,8 @@ func (p *NodeAggregateTilesResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeAggregateTilesResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -23161,6 +23308,8 @@ func (p *NodeHealthResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeHealthResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -23366,6 +23515,8 @@ func (p *NodeBootstrappedResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeBootstrappedResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -23571,6 +23722,8 @@ func (p *NodeBootstrappedInPlacementOrNoPlacementResult) ReadField0(iprot thrift
 func (p *NodeBootstrappedInPlacementOrNoPlacementResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -23776,6 +23929,8 @@ func (p *NodeGetPersistRateLimitResult) ReadField0(iprot thrift.TProtocol) error
 func (p *NodeGetPersistRateLimitResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -24027,6 +24182,8 @@ func (p *NodeSetPersistRateLimitResult) ReadField0(iprot thrift.TProtocol) error
 func (p *NodeSetPersistRateLimitResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -24232,6 +24389,8 @@ func (p *NodeGetWriteNewSeriesAsyncResult) ReadField0(iprot thrift.TProtocol) er
 func (p *NodeGetWriteNewSeriesAsyncResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -24483,6 +24642,8 @@ func (p *NodeSetWriteNewSeriesAsyncResult) ReadField0(iprot thrift.TProtocol) er
 func (p *NodeSetWriteNewSeriesAsyncResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -24688,6 +24849,8 @@ func (p *NodeGetWriteNewSeriesBackoffDurationResult) ReadField0(iprot thrift.TPr
 func (p *NodeGetWriteNewSeriesBackoffDurationResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -24941,6 +25104,8 @@ func (p *NodeSetWriteNewSeriesBackoffDurationResult) ReadField0(iprot thrift.TPr
 func (p *NodeSetWriteNewSeriesBackoffDurationResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -25146,6 +25311,8 @@ func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) ReadField0(iprot thr
 func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -25397,6 +25564,8 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) ReadField0(iprot thr
 func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -25648,6 +25817,8 @@ func (p *NodeDebugProfileStartResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeDebugProfileStartResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -25899,6 +26070,8 @@ func (p *NodeDebugProfileStopResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *NodeDebugProfileStopResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -26150,6 +26323,8 @@ func (p *NodeDebugIndexMemorySegmentsResult) ReadField0(iprot thrift.TProtocol) 
 func (p *NodeDebugIndexMemorySegmentsResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -27381,6 +27556,8 @@ func (p *ClusterHealthResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *ClusterHealthResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -27605,6 +27782,8 @@ func (p *ClusterWriteResult) Read(iprot thrift.TProtocol) error {
 func (p *ClusterWriteResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -27811,6 +27990,8 @@ func (p *ClusterWriteTaggedResult) Read(iprot thrift.TProtocol) error {
 func (p *ClusterWriteTaggedResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -28048,6 +28229,8 @@ func (p *ClusterQueryResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *ClusterQueryResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -28303,6 +28486,8 @@ func (p *ClusterAggregateResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *ClusterAggregateResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -28558,6 +28743,8 @@ func (p *ClusterFetchResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *ClusterFetchResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
@@ -28809,6 +28996,8 @@ func (p *ClusterTruncateResult) ReadField0(iprot thrift.TProtocol) error {
 func (p *ClusterTruncateResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
+
+		Code: 0,
 	}
 	if err := p.Err.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
