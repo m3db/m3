@@ -36,6 +36,7 @@ import (
 )
 
 func TestWatchChan(t *testing.T) {
+	t.Parallel()
 	wh, ecluster, _, _, _, closer := testCluster(t) //nolint:dogsled
 	defer closer()
 
@@ -64,6 +65,7 @@ func TestWatchChan(t *testing.T) {
 }
 
 func TestWatchSimple(t *testing.T) {
+	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 	require.Equal(t, int32(0), atomic.LoadInt32(updateCalled))
@@ -111,6 +113,7 @@ func TestWatchSimple(t *testing.T) {
 }
 
 func TestWatchRecreate(t *testing.T) {
+	t.Parallel()
 	wh, ecluster, updateCalled, shouldStop, doneCh, closer := testCluster(t)
 	defer closer()
 
@@ -160,6 +163,7 @@ func TestWatchRecreate(t *testing.T) {
 }
 
 func TestWatchNoLeader(t *testing.T) {
+	t.Parallel()
 	const (
 		watchInitAndRetryDelay = 200 * time.Millisecond
 		watchCheckInterval     = 50 * time.Millisecond
@@ -278,6 +282,7 @@ func TestWatchNoLeader(t *testing.T) {
 }
 
 func TestWatchCompactedRevision(t *testing.T) {
+	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 
