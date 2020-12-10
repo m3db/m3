@@ -12,15 +12,13 @@ This guide assumes you have read the [quickstart](/docs/quickstart), and builds 
 {{% /notice %}}
 
 {{% notice tip %}}
-We recommend you use [our Kubernetes operator](https://operator.m3db.io/) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
+We recommend you use [our Kubernetes operator](/docs/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
-
 
 ## Prerequisites
 
 -   A running Kubernetes cluster.
     -   For local testing, you can use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/), [Docker desktop](https://www.docker.com/products/docker-desktop), or [we have a script](https://raw.githubusercontent.com/m3db/m3db-operator/master/scripts/kind-create-cluster.sh) you can use to start a 3 node cluster with [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
--   To use the M3DB operator chart, you need [Helm](https://helm.sh/)
 
 ## Create An etcd Cluster
 
@@ -29,7 +27,7 @@ M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io)
 We have example services and stateful sets you can use, but feel free to use your own configuration and change any later instructions accordingly.
 
 ```shell
-kubectl apply -f https://github.com/m3db/m3db-operator/blob/v0.9.0/example/etcd/etcd-minikube.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/etcd/etcd-minikube.yaml
 ```
 
 If the etcd cluster is running on your local machine, update your _/etc/hosts_ file to match the domains specified in the `etcd` `--initial-cluster` argument. For example to match the `StatefulSet` declaration in the _etcd-minikube.yaml_ above, that is:
@@ -46,18 +44,12 @@ Verify that the cluster is running with something like the Kubernetes dashboard,
 kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 ```
 
-## Install the Operator with Helm
+## Install the Operator
 
-Add the M3 operator repository:
-
-```shell
-helm repo add m3db https://m3-helm-charts.storage.googleapis.com/stable
-```
-
-Install the M3 operator chart:
+Install the bundled operator manifests in the current namespace:
 
 ```shell
-helm install m3db-operator m3db/m3db-operator
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml
 ```
 
 ## Create an M3 Cluster
@@ -73,7 +65,7 @@ The cluster derives pod identity from the `podIdentityConfig` parameter, which i
 [Read more details on all the parameters in the Operator API docs](https://operator.m3db.io/api/).
 
 ```shell
-kubectl apply -f https://github.com/m3db/m3db-operator/blob/v0.9.0/example/m3db-local.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/m3db-local.yaml
 ```
 
 Verify that the cluster is running with something like the Kubernetes dashboard, or the command below:
