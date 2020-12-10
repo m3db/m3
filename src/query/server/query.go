@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -742,13 +743,17 @@ func newDownsampler(
 			"must set this config for downsampler")
 	}
 
-	kvStore, err := clusterManagementClient.KV()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create KV store from the "+
-			"cluster management config client")
-	}
-	if applyCustomRuleStore != nil {
-		kvStore, err = applyCustomRuleStore(kvStore)
+	var kvStore kv.Store
+	var err error
+
+	if applyCustomRuleStore == nil {
+		kvStore, err = clusterManagementClient.KV()
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to create KV store from the "+
+				"cluster management config client")
+		}
+	} else {
+		kvStore, err = applyCustomRuleStore(clusterManagementClient)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to apply custom rule store")
 		}
