@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	xbytes "github.com/m3db/m3/src/metrics/x/bytes"
+	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -288,6 +289,7 @@ func TestRuleSetLatest(t *testing.T) {
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
 				},
+				Tags: []models.Tag{},
 			},
 			{
 				ID:            "mappingRule3",
@@ -299,6 +301,7 @@ func TestRuleSetLatest(t *testing.T) {
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
 					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 				},
+				Tags: []models.Tag{},
 			},
 			{
 				ID:            "mappingRule4",
@@ -309,6 +312,7 @@ func TestRuleSetLatest(t *testing.T) {
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
+				Tags: []models.Tag{},
 			},
 			{
 				ID:            "mappingRule5",
@@ -320,6 +324,7 @@ func TestRuleSetLatest(t *testing.T) {
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
+				Tags: []models.Tag{},
 			},
 		},
 		RollupRules: []view.RollupRule{

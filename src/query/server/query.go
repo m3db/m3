@@ -149,6 +149,9 @@ type RunOptions struct {
 	// CustomBuildTags are additional tags to be added to the instrument build
 	// reporter.
 	CustomBuildTags map[string]string
+
+	// ApplyCustomRuleStore provides an option to swap the backend used for the rule stores.
+	ApplyCustomRuleStore downsample.CustomRuleStoreFn
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -545,10 +548,15 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
+		storeMetricsType := false
+		if cfg.StoreMetricsType != nil {
+			storeMetricsType = *cfg.StoreMetricsType
+		}
+
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
-			tagOptions, instrumentOptions)
+			tagOptions, instrumentOptions, storeMetricsType)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
@@ -664,7 +672,7 @@ func newM3DBStorage(
 		ds, err := newDownsampler(
 			cfg.Downsample, clusterClient,
 			fanoutStorage, clusterNamespacesWatcher,
-			tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
+			tsdbOpts.TagOptions(), instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
 		if err != nil {
 			return nil, err
 		}
@@ -723,6 +731,7 @@ func newDownsampler(
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
+	applyCustomRuleStore downsample.CustomRuleStoreFn,
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -737,6 +746,12 @@ func newDownsampler(
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create KV store from the "+
 			"cluster management config client")
+	}
+	if applyCustomRuleStore != nil {
+		kvStore, err = applyCustomRuleStore(kvStore)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to apply custom rule store")
+		}
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
