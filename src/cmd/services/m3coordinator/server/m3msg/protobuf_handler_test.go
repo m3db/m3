@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -233,6 +234,7 @@ type mockWriter struct {
 func (m *mockWriter) write(
 	ctx context.Context,
 	name []byte,
+	metricType ts.PromMetricType,
 	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
