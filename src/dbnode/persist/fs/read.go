@@ -395,14 +395,12 @@ func (r *reader) StreamingRead() (StreamedDataEntry, error) {
 
 	r.entriesRead++
 
-	dataEntry := StreamedDataEntry{
+	return StreamedDataEntry{
 		ID:           r.streamingID,
 		EncodedTags:  r.streamingTags,
 		Data:         r.streamingData,
 		DataChecksum: uint32(entry.DataChecksum),
-	}
-
-	return dataEntry, nil
+	}, nil
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
@@ -470,14 +468,12 @@ func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
 
 	r.metadataRead++
 
-	metadataEntry := StreamedMetadataEntry{
+	return StreamedMetadataEntry{
 		ID:           r.streamingID,
 		EncodedTags:  r.streamingTags,
 		Length:       int(entry.Size),
 		DataChecksum: uint32(entry.DataChecksum),
-	}
-
-	return metadataEntry, nil
+	}, nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
