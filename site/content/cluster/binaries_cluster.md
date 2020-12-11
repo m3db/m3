@@ -8,7 +8,7 @@ weight: 2
 This guide shows you the steps involved in creating an M3 cluster using M3 binaries, typically you would automate this with infrastructure as code tools such as Terraform or [Kubernetes](/docs/operator).
 
 {{% notice note %}}
-This guide assumes you have read the [quickstart](/docs/quickstart), and builds upon the concepts in that guide.
+This guide assumes you have read the [quickstart](/docs/quickstart/binaries), and builds upon the concepts in that guide.
 {{% /notice %}}
 
 ## M3 Architecture
@@ -44,7 +44,7 @@ You can download the latest release as [pre-compiled binaries from the M3 GitHub
 
 ### Prerequisites
 
--   [Go 1.10 or higher](https://golang.org/dl/)
+-   [Go](https://golang.org/dl/)
 -   [Make](https://www.gnu.org/software/make/)
 
 ### Build
@@ -75,12 +75,12 @@ When using GCP the name of your instance is the host name. When you create an in
 When using AWS, you can use the host name supplied for the provisioned VM as your host ID, or use the `environment` host ID resolver and pass the host ID when launching the database process with an environment variable.
 {{% /notice %}}
 
-For example, if you used `M3DC_HOST_ID` for the environment variable name, use the following in your configuration:
+For example, if you used `M3DB_HOST_ID` for the environment variable name, use the following in your configuration:
 
 ```yaml
 hostID:
   resolver: config
-  value: ${M3DC_HOST_ID:""}
+  value: ${M3DB_HOST_ID:""}
 ```
 
 Then start the `m3dbnode` process with:
