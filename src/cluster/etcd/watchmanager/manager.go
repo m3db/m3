@@ -23,6 +23,7 @@ package watchmanager
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -80,6 +81,7 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 		if rev > 0 {
 			wOpts = append(wOpts, clientv3.WithRev(rev))
 		}
+
 		watchChan = watcher.Watch(
 			ctx,
 			key,
@@ -111,6 +113,7 @@ func (w *manager) Watch(key string) {
 	var (
 		ticker = time.NewTicker(w.opts.WatchChanCheckInterval())
 		logger = w.logger.With(zap.String("watch_key", key))
+		rnd    = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 
 		revOverride int64
 		watchChan   clientv3.WatchChan
@@ -127,7 +130,9 @@ func (w *manager) Watch(key string) {
 		// set it to nil so it will be recreated
 		watchChan = nil
 		// avoid recreating watch channel too frequently
-		time.Sleep(w.opts.WatchChanResetInterval())
+		dur := w.opts.WatchChanResetInterval()
+		dur += time.Duration(rnd.Int63n(int64(dur)))
+		time.Sleep(dur)
 	}
 
 	for {
@@ -172,14 +177,17 @@ func (w *manager) Watch(key string) {
 				// If the current revision has been compacted, set watchChan to
 				// nil so the watch is recreated with a valid start revision
 				if err == rpctypes.ErrCompacted {
-					logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
 					revOverride = r.CompactRevision
+					logger.Warn("recreating watch at revision", zap.Int64("revision", revOverride))
 				} else {
 					logger.Warn("recreating watch due to an error")
 				}
 
 				resetWatchWithSleep()
 			} else if r.IsProgressNotify() {
+				if r.CompactRevision > revOverride {
+					revOverride = r.CompactRevision
+				}
 				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
 				continue
 			}
