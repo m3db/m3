@@ -729,6 +729,7 @@ func TestConfiguration(t *testing.T) {
   debug:
     mutexProfileFraction: 0
     blockProfileRate: 0
+    forceColdWritesEnabled: null
 coordinator: null
 `
 
