@@ -26,9 +26,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
-func newError(errType rpc.ErrorType, err error) *rpc.Error {
+func newError(errType rpc.ErrorType, errCode rpc.ErrorCode, err error) *rpc.Error {
 	rpcErr := rpc.NewError()
 	rpcErr.Type = errType
+	rpcErr.Code = errCode
 	rpcErr.Message = fmt.Sprintf("%v", err)
 	return rpcErr
 }
@@ -43,14 +44,31 @@ func IsBadRequestError(err *rpc.Error) bool {
 	return err != nil && err.Type == rpc.ErrorType_BAD_REQUEST
 }
 
+// IsResourceExhaustedError returns whether the error is a resource exhausted error.
+func IsResourceExhaustedError(err *rpc.Error) bool {
+	// NB: To maintain better backwards compatibility, Resource Exhausted errors might also be
+	// defined by BAD_REQUEST error type coupled with RESOURCE_EXHAUSTED error code
+	return err != nil &&
+		(err.Type == rpc.ErrorType_RESOURCE_EXHAUSTED ||
+			(err.Type == rpc.ErrorType_BAD_REQUEST && err.Code == rpc.ErrorCode_RESOURCE_EXHAUSTED))
+}
+
 // NewInternalError creates a new internal error
 func NewInternalError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_INTERNAL_ERROR, err)
+	return newError(rpc.ErrorType_INTERNAL_ERROR, rpc.ErrorCode_NONE, err)
 }
 
 // NewBadRequestError creates a new bad request error
 func NewBadRequestError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_BAD_REQUEST, err)
+	return newError(rpc.ErrorType_BAD_REQUEST, rpc.ErrorCode_NONE, err)
+}
+
+// NewResourceExhaustedError creates a new resource exhausted error.
+func NewResourceExhaustedError(err error) *rpc.Error {
+	// NB: To maintain better backwards compatibility, using BAD_REQUEST error type coupled with
+	// RESOURCE_EXHAUSTED error code. After a reasonable amount of time this should be switched to
+	// RESOURCE_EXHAUSTED error code (added after M3 release v1.0.0)
+	return newError(rpc.ErrorType_BAD_REQUEST, rpc.ErrorCode_RESOURCE_EXHAUSTED, err)
 }
 
 // NewWriteBatchRawError creates a new write batch error
