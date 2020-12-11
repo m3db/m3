@@ -130,6 +130,40 @@ func GetInnerInvalidParamsError(err error) error {
 	return nil
 }
 
+type resourceExhaustedError struct {
+	containedError
+}
+
+// NewResourceExhaustedError creates a new resource exhausted error.
+func NewResourceExhaustedError(inner error) error {
+	return resourceExhaustedError{containedError{inner}}
+}
+
+func (e resourceExhaustedError) Error() string {
+	return e.inner.Error()
+}
+
+func (e resourceExhaustedError) InnerError() error {
+	return e.inner
+}
+
+// IsResourceExhausted returns true if this is a resource exhausted error.
+func IsResourceExhausted(err error) bool {
+	return GetInnerResourceExhaustedError(err) != nil
+}
+
+// GetInnerResourceExhaustedError returns an inner resource exhausted error if contained by
+// this error, nil otherwise.
+func GetInnerResourceExhaustedError(err error) error {
+	for err != nil {
+		if _, ok := err.(resourceExhaustedError); ok { //nolint:errorlint
+			return InnerError(err)
+		}
+		err = InnerError(err)
+	}
+	return nil
+}
+
 type retryableError struct {
 	containedError
 }
