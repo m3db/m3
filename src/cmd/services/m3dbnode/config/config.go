@@ -160,6 +160,10 @@ type DBConfiguration struct {
 
 	// TChannel exposes TChannel config options.
 	TChannel *TChannelConfiguration `yaml:"tchannel"`
+
+	// ForceColdWritesEnabled will force enable cold writes for all namespaces
+	// if set.
+	ForceColdWritesEnabled *bool `yaml:"forceColdWritesEnabled"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.

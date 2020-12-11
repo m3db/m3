@@ -728,6 +728,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
   tchannel: null
+  forceColdWritesEnabled: null
 coordinator: null
 `
 
