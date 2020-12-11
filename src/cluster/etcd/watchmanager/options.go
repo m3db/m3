@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	errNilWatch                  = errors.New("invalid options: nil watcher")
+	errNilClient                 = errors.New("invalid options: nil client")
 	errNilUpdateFn               = errors.New("invalid options: nil updateFn")
 	errNilTickAndStopFn          = errors.New("invalid options: nil tickAndStopFn")
 	errNilInstrumentOptions      = errors.New("invalid options: nil instrument options")
@@ -54,7 +54,7 @@ func NewOptions() Options {
 }
 
 type options struct {
-	watcher       clientv3.Watcher
+	client        *clientv3.Client
 	updateFn      UpdateFn
 	tickAndStopFn TickAndStopFn
 
@@ -65,13 +65,13 @@ type options struct {
 	iopts                  instrument.Options
 }
 
-func (o *options) Watcher() clientv3.Watcher {
-	return o.watcher
+func (o *options) Client() *clientv3.Client {
+	return o.client
 }
 
-func (o *options) SetWatcher(w clientv3.Watcher) Options {
+func (o *options) SetClient(cli *clientv3.Client) Options {
 	opts := *o
-	opts.watcher = w
+	opts.client = cli
 	return &opts
 }
 
@@ -146,8 +146,8 @@ func (o *options) SetInstrumentsOptions(iopts instrument.Options) Options {
 }
 
 func (o *options) Validate() error {
-	if o.watcher == nil {
-		return errNilWatch
+	if o.client == nil {
+		return errNilClient
 	}
 
 	if o.updateFn == nil {
