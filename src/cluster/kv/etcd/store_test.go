@@ -1159,7 +1159,7 @@ func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
 		SetWatchChanCheckInterval(50 * time.Millisecond).
 		SetWatchChanResetInterval(150 * time.Millisecond).
 		SetWatchChanInitTimeout(150 * time.Millisecond).
-		SetRequestTimeout(100 * time.Millisecond).
+		SetRequestTimeout(200 * time.Millisecond).
 		SetRetryOptions(retry.NewOptions().SetMaxRetries(1).SetMaxBackoff(0)).
 		SetPrefix("test")
 
