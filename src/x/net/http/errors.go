@@ -108,7 +108,7 @@ func getStatusCode(err error) int {
 	case Error:
 		return v.Code()
 	case error:
-		if xerrors.IsInvalidParams(v) {
+		if xerrors.IsInvalidParams(v) || xerrors.IsResourceExhausted(v) {
 			return http.StatusBadRequest
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return http.StatusGatewayTimeout

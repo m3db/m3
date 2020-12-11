@@ -318,16 +318,26 @@ func (e MultiError) FinalError() error {
 	if e.err == nil {
 		return nil
 	}
-	allInvalidParamsErr := IsInvalidParams(e.err)
-	for _, containedErr := range e.errors {
-		if !IsInvalidParams(containedErr) {
-			allInvalidParamsErr = false
-			break
+
+	allSatisfy := func(predicate func(error) bool) bool {
+		if !predicate(e.err) {
+			return false
 		}
+		for _, containedErr := range e.errors {
+			if !predicate(containedErr) {
+				return false
+			}
+		}
+		return true
 	}
-	if allInvalidParamsErr {
+
+	if allSatisfy(IsInvalidParams) {
 		// Make sure to correctly wrap this error as an invalid params error.
 		return NewInvalidParamsError(e)
+	}
+	if allSatisfy(IsResourceExhausted) {
+		// Make sure to correctly wrap this error as an resource exhausted error.
+		return NewResourceExhaustedError(e)
 	}
 	return e
 }

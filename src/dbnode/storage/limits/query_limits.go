@@ -192,7 +192,7 @@ func (q *lookbackLimit) exceeded() error {
 func (q *lookbackLimit) checkLimit(recent int64) error {
 	if q.options.Limit > 0 && recent > q.options.Limit {
 		q.metrics.exceeded.Inc(1)
-		return xerrors.NewInvalidParamsError(fmt.Errorf(
+		return xerrors.NewResourceExhaustedError(fmt.Errorf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback))
 	}

@@ -92,7 +92,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if batchErr != nil {
 		var foundInternalErr bool
 		for _, err := range batchErr.Errors() {
-			if client.IsBadRequestError(err) {
+			if client.IsBadRequestError(err) || client.IsResourceExhaustedError(err) {
 				continue
 			}
 			foundInternalErr = true

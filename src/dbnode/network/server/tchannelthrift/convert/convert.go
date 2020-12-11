@@ -192,6 +192,9 @@ func ToRPCError(err error) *rpc.Error {
 	if xerrors.IsInvalidParams(err) {
 		return tterrors.NewBadRequestError(err)
 	}
+	if xerrors.IsResourceExhausted(err) {
+		return tterrors.NewResourceExhaustedError(err)
+	}
 	return tterrors.NewInternalError(err)
 }
 

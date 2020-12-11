@@ -69,7 +69,7 @@ func (w *writeAttempt) perform() error {
 		w.args.namespace, w.args.id, w.args.tags, w.args.t,
 		w.args.value, w.args.unit, w.args.annotation)
 
-	if IsBadRequestError(err) {
+	if IsBadRequestError(err) || IsResourceExhaustedError(err) {
 		// Do not retry bad request errors
 		err = xerrors.NewNonRetryableError(err)
 	}

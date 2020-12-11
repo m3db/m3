@@ -446,7 +446,7 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 
 func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
-		if IsBadRequestError(consistencyResultErr) {
+		if IsBadRequestError(consistencyResultErr) || IsResourceExhaustedError(consistencyResultErr) {
 			s.metrics.writeNodesRespondingBadRequestErrors[idx].Inc(1)
 		} else {
 			s.metrics.writeNodesRespondingErrors[idx].Inc(1)
@@ -454,7 +454,8 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.writeSuccess.Inc(1)
-	} else if IsBadRequestError(consistencyResultErr) {
+	} else if IsBadRequestError(consistencyResultErr) ||
+		IsResourceExhaustedError(consistencyResultErr) {
 		s.metrics.writeErrorsBadRequest.Inc(1)
 	} else {
 		s.metrics.writeErrorsInternalError.Inc(1)
@@ -470,7 +471,8 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32,
 
 func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
-		if IsBadRequestError(consistencyResultErr) {
+		if IsBadRequestError(consistencyResultErr) ||
+			IsResourceExhaustedError(consistencyResultErr) {
 			s.metrics.fetchNodesRespondingBadRequestErrors[idx].Inc(1)
 		} else {
 			s.metrics.fetchNodesRespondingErrors[idx].Inc(1)
@@ -478,7 +480,8 @@ func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.fetchSuccess.Inc(1)
-	} else if IsBadRequestError(consistencyResultErr) {
+	} else if IsBadRequestError(consistencyResultErr) ||
+		IsResourceExhaustedError(consistencyResultErr) {
 		s.metrics.fetchErrorsBadRequest.Inc(1)
 	} else {
 		s.metrics.fetchErrorsInternalError.Inc(1)
@@ -1741,12 +1744,7 @@ func (s *session) fetchIDsAttempt(
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
 			if err != nil {
-				if IsBadRequestError(err) {
-					// Wrap with invalid params and non-retryable so it is
-					// not retried.
-					err = xerrors.NewInvalidParamsError(err)
-					err = xerrors.NewNonRetryableError(err)
-				}
+				err = WrapIfNonRetryable(err)
 				atomic.AddInt32(&errs, 1)
 				// NB(r): reuse the error lock here as we do not want to create
 				// a whole lot of locks for every single ID fetched due to size

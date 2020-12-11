@@ -1027,7 +1027,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedResults[i].result)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
-			if tterrors.IsBadRequestError(rawResult.Err) {
+			if tterrors.IsBadRequestError(rawResult.Err) ||
+				tterrors.IsResourceExhaustedError(rawResult.Err) {
 				nonRetryableErrors++
 			} else {
 				retryableErrors++
@@ -1093,7 +1094,8 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 		encodedResult, err := db.ReadEncoded(ctx, nsIdx, tsID, start, end)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
-			if tterrors.IsBadRequestError(rawResult.Err) {
+			if tterrors.IsBadRequestError(rawResult.Err) ||
+				tterrors.IsResourceExhaustedError(rawResult.Err) {
 				nonRetryableErrors++
 			} else {
 				retryableErrors++
@@ -1104,7 +1106,8 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 		segments, rpcErr := s.readEncodedResult(ctx, nsIdx, encodedResult)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
-			if tterrors.IsBadRequestError(rawResult.Err) {
+			if tterrors.IsBadRequestError(rawResult.Err) ||
+				tterrors.IsResourceExhaustedError(rawResult.Err) {
 				nonRetryableErrors++
 			} else {
 				retryableErrors++
@@ -2542,7 +2545,7 @@ func (r *writeBatchPooledReq) HandleError(index int, err error) {
 		return
 	}
 
-	if xerrors.IsInvalidParams(err) {
+	if xerrors.IsInvalidParams(err) || xerrors.IsResourceExhausted(err) {
 		r.nonRetryableErrors++
 		r.errs = append(
 			r.errs,

@@ -361,10 +361,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 		for _, err := range errs {
 			switch {
-			case client.IsBadRequestError(err):
+			case client.IsBadRequestError(err) || client.IsResourceExhaustedError(err):
 				numBadRequest++
 				lastBadRequestErr = err.Error()
-			case xerrors.IsInvalidParams(err):
+			case xerrors.IsInvalidParams(err) || xerrors.IsResourceExhausted(err):
 				numBadRequest++
 				lastBadRequestErr = err.Error()
 			default:

@@ -54,6 +54,35 @@ func IsBadRequestError(err error) bool {
 	return false
 }
 
+// IsResourceExhaustedError determines if the error is a resource exhausted error.
+func IsResourceExhaustedError(err error) bool {
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedError(e) { //nolint:errorlint
+			return true
+		}
+		if e := xerrors.GetInnerResourceExhaustedError(err); e != nil {
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
+}
+
+// WrapIfNonRetryable wraps the error with non-retryable type if appropriate.
+func WrapIfNonRetryable(err error) error {
+	// NB: due to resource exhausted RPC error implementation, it has to be checked
+	// before bad request error. See NewResourceExhausted() in
+	// src/dbnode/network/server/tchannelthrift/errors/errors.go for more details.
+	if IsResourceExhaustedError(err) {
+		err = xerrors.NewResourceExhaustedError(err)
+		err = xerrors.NewNonRetryableError(err)
+	} else if IsBadRequestError(err) {
+		err = xerrors.NewInvalidParamsError(err)
+		err = xerrors.NewNonRetryableError(err)
+	}
+	return err
+}
+
 // IsConsistencyResultError determines if the error is a consistency result error.
 func IsConsistencyResultError(err error) bool {
 	_, ok := err.(consistencyResultErr)
@@ -137,15 +166,15 @@ func newConsistencyResultError(
 	enqueued, responded int,
 	errs []error,
 ) consistencyResultError {
-	// NB(r): if any errors are bad request errors, encapsulate that error
-	// to ensure the error itself is wholly classified as a bad request error
+	// NB(r): if any errors are bad request or resource exhausted errors, encapsulate that error
+	// to ensure the error itself is wholly classified accordingly
 	var topLevelErr error
 	for i := 0; i < len(errs); i++ {
 		if topLevelErr == nil {
 			topLevelErr = errs[i]
 			continue
 		}
-		if IsBadRequestError(errs[i]) {
+		if IsBadRequestError(errs[i]) || IsResourceExhaustedError(errs[i]) {
 			topLevelErr = errs[i]
 			break
 		}

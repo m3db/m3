@@ -208,7 +208,11 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
 			accum.numShardsPending, accum.errors)
 		for i := range accum.errors {
-			if IsBadRequestError(accum.errors[i]) {
+			if IsResourceExhaustedError(accum.errors[i]) {
+				err = xerrors.NewResourceExhaustedError(err)
+				err = xerrors.NewNonRetryableError(err)
+				break
+			} else if IsBadRequestError(accum.errors[i]) {
 				err = xerrors.NewInvalidParamsError(err)
 				err = xerrors.NewNonRetryableError(err)
 				break

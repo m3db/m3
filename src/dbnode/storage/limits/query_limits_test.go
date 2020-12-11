@@ -66,7 +66,7 @@ func TestQueryLimits(t *testing.T) {
 	require.Error(t, queryLimits.DocsLimit().Inc(2, nil))
 	err = queryLimits.AnyExceeded()
 	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsResourceExhausted(err))
 
 	opts = testQueryLimitOptions(docOpts, bytesOpts, instrument.NewOptions())
 	queryLimits, err = NewQueryLimits(opts)
@@ -81,7 +81,7 @@ func TestQueryLimits(t *testing.T) {
 	require.Error(t, queryLimits.BytesReadLimit().Inc(2, nil))
 	err = queryLimits.AnyExceeded()
 	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsResourceExhausted(err))
 }
 
 func TestLookbackLimit(t *testing.T) {
@@ -160,7 +160,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
-		require.True(t, xerrors.IsInvalidParams(err))
+		require.True(t, xerrors.IsResourceExhausted(err))
 		exceededCount++
 	}
 	err = limit.exceeded()
@@ -168,7 +168,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
-		require.True(t, xerrors.IsInvalidParams(err))
+		require.True(t, xerrors.IsResourceExhausted(err))
 		exceededCount++
 	}
 	return exceededCount

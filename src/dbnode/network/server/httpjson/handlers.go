@@ -266,7 +266,7 @@ func writeError(w http.ResponseWriter, errValue interface{}) {
 	case Error:
 		w.WriteHeader(v.StatusCode())
 	case error:
-		if xerrors.IsInvalidParams(v) {
+		if xerrors.IsInvalidParams(v) || xerrors.IsResourceExhausted(v) {
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)

@@ -1567,7 +1567,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			_, _, err = entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
-				if xerrors.IsInvalidParams(err) {
+				if xerrors.IsInvalidParams(err) || xerrors.IsResourceExhausted(err) {
 					s.metrics.insertAsyncWriteInvalidParamsErrors.Inc(1)
 				} else {
 					s.metrics.insertAsyncWriteInternalErrors.Inc(1)

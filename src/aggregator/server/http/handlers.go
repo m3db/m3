@@ -148,7 +148,7 @@ func writeResponse(w http.ResponseWriter, resp interface{}, err error) {
 
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
-	} else if xerrors.IsInvalidParams(err) {
+	} else if xerrors.IsInvalidParams(err) || xerrors.IsResourceExhausted(err) {
 		w.WriteHeader(http.StatusBadRequest)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)

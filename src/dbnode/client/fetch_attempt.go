@@ -59,7 +59,7 @@ func (f *fetchAttempt) perform() error {
 		f.args.ids, f.args.start, f.args.end)
 	f.result = result
 
-	if IsBadRequestError(err) {
+	if IsBadRequestError(err) || IsResourceExhaustedError(err) {
 		// Do not retry bad request errors
 		err = xerrors.NewNonRetryableError(err)
 	}
