@@ -1,6 +1,3 @@
 [submodule ".ci"]
 	path = .ci
 	url = https://github.com/m3db/ci-scripts.git
-[submodule "site/site/docs-theme"]
-	path = site/site/docs-theme
-	url = https://github.com/chronosphereio/docs-theme
