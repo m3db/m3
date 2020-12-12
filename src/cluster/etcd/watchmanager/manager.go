@@ -184,6 +184,7 @@ func (w *manager) Watch(key string) {
 				}
 
 				resetWatchWithSleep()
+				continue
 			} else if r.IsProgressNotify() {
 				if r.CompactRevision > revOverride {
 					revOverride = r.CompactRevision
