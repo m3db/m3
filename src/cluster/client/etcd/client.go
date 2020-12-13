@@ -219,11 +219,7 @@ func (c *csclient) txnGen(
 	if ok {
 		return store, nil
 	}
-	if store, err = etcdkv.NewStore(
-		cli.KV,
-		cli.Watcher,
-		c.newkvOptions(opts, cacheFileFn),
-	); err != nil {
+	if store, err = etcdkv.NewStore(cli, c.newkvOptions(opts, cacheFileFn)); err != nil {
 		return nil, err
 	}
 
