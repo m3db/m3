@@ -27,9 +27,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -317,28 +318,37 @@ func TestWatchLastVersion(t *testing.T) {
 	w, err := store.Watch("foo")
 	require.NoError(t, err)
 	require.Nil(t, w.Get())
+	defer w.Close()
 
-	var errs int32
-	lastVersion := 50
+	var (
+		doneCh      = make(chan struct{})
+		lastVersion = 50
+	)
+
 	go func() {
 		for i := 1; i <= lastVersion; i++ {
 			_, err := store.Set("foo", genProto(fmt.Sprintf("bar%d", i)))
-			if err != nil {
-				atomic.AddInt32(&errs, 1)
+			assert.NoError(t, err)
+		}
+	}()
+
+	go func() {
+		defer close(doneCh)
+		for {
+			<-w.C()
+			value := w.Get()
+			if value.Version() == lastVersion {
+				return
 			}
 		}
 	}()
 
-	for {
-		<-w.C()
-		value := w.Get()
-		if value.Version() == lastVersion-int(atomic.LoadInt32(&errs)) {
-			break
-		}
+	select {
+	case <-time.After(5 * time.Second):
+		t.Fatal("test timed out")
+	case <-doneCh:
 	}
 	verifyValue(t, w.Get(), fmt.Sprintf("bar%d", lastVersion), lastVersion)
-
-	w.Close()
 }
 
 func TestWatchFromExist(t *testing.T) {
@@ -800,6 +810,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
+	defer closeFn()
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -883,6 +894,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
+	defer closeFn()
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -1156,10 +1168,10 @@ func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
 	}
 
 	opts := NewOptions().
-		SetWatchChanCheckInterval(50 * time.Millisecond).
-		SetWatchChanResetInterval(150 * time.Millisecond).
-		SetWatchChanInitTimeout(150 * time.Millisecond).
-		SetRequestTimeout(100 * time.Millisecond).
+		SetWatchChanCheckInterval(100 * time.Millisecond).
+		SetWatchChanResetInterval(200 * time.Millisecond).
+		SetWatchChanInitTimeout(200 * time.Millisecond).
+		SetRequestTimeout(200 * time.Millisecond).
 		SetRetryOptions(retry.NewOptions().SetMaxRetries(1).SetMaxBackoff(0)).
 		SetPrefix("test")
 
