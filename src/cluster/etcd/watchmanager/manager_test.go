@@ -223,13 +223,6 @@ func TestWatchNoLeader(t *testing.T) {
 	leaderIdx := ecluster.WaitLeader(t)
 	require.True(t, leaderIdx >= 0 && leaderIdx < len(ecluster.Members), "got invalid leader")
 
-	for i := 0; i < 10; i++ {
-		if atomic.LoadInt32(&updateCalled) == int32(1) {
-			break
-		}
-		time.Sleep(watchInitAndRetryDelay)
-	}
-
 	// simulate quorum loss
 	ecluster.Members[1].Stop(t)
 	ecluster.Members[2].Stop(t)
@@ -249,8 +242,13 @@ func TestWatchNoLeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// give some time for watch to be updated
-	runtime.Gosched()
-	time.Sleep(watchInitAndRetryDelay)
+	for i := 0; i < 10; i++ {
+		if atomic.LoadInt32(&updateCalled) == int32(2) {
+			break
+		}
+		time.Sleep(watchInitAndRetryDelay)
+		runtime.Gosched()
+	}
 
 	updates := atomic.LoadInt32(&updateCalled)
 	if updates < 2 {
