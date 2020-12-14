@@ -122,11 +122,11 @@ func (w *manager) Watch(key string) {
 		logger = w.logger.With(zap.String("watch_key", key))
 		rnd    = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 
-		revOverride      int64
-		watchInitialized bool
-		watchChan        clientv3.WatchChan
-		cancelFn         context.CancelFunc
-		err              error
+		revOverride          int64
+		firstUpdateSucceeded bool
+		watchChan            clientv3.WatchChan
+		cancelFn             context.CancelFunc
+		err                  error
 	)
 
 	defer ticker.Stop()
@@ -153,13 +153,13 @@ func (w *manager) Watch(key string) {
 
 				// NB(cw) when we failed to create a etcd watch channel
 				// we do a get for now and will try to recreate the watch chan later
-				if !watchInitialized {
+				if !firstUpdateSucceeded {
 					if err = w.updateFn(key, nil); err != nil {
 						logger.Error("failed to get value for key", zap.Error(err))
 					} else {
 						// NB(vytenis): only try initializing once, otherwise there's
 						// get request amplification, especially for non-existent keys.
-						watchInitialized = true
+						firstUpdateSucceeded = true
 					}
 				}
 				resetWatchWithSleep()
