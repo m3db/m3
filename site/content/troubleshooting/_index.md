@@ -20,7 +20,7 @@ If an m3db node hasn't been able to snapshot for awhile, or is stuck in the comm
 
 ## Nodes a crashing with memory allocation errors, but there's plenty of available memory
 
-Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Find out more in the [Clustering the Hard Way](/docs/how_to/cluster_hard_way#kernel) document.
+Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Find out more in the [Clustering the Hard Way](/docs/operational_guide/kernel_configuration) document.
 
 ## What to do if my M3DB node is OOM’ing?
 

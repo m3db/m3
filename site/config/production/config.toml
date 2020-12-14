@@ -65,7 +65,7 @@ pygmentsUseClassic = false
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
 
-enableGitInfo = true
+# enableGitInfo = true
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
