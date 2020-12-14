@@ -114,6 +114,11 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 	}
 }
 
+// GetErrorRewriteFn returns the error rewrite function
+func GetErrorRewriteFn() ErrorRewriteFn {
+	return _errorRewriteFn
+}
+
 // SetErrorRewriteFn sets error rewrite function
 func SetErrorRewriteFn(f ErrorRewriteFn) ErrorRewriteFn {
 	_errorRewriteFnLock.Lock()
