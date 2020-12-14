@@ -91,7 +91,8 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 		return watchChan, cancelFn, nil
 	case <-time.After(timeout):
 		cancelFn()
-		return nil, nil, fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
+		return nil, nil, fmt.Errorf("etcd watch create timed out after %s for key: %s",
+			timeout.String(), key)
 	}
 }
 

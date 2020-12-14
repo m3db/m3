@@ -27,18 +27,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/mocks"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/cluster/mocks"
 )
 
 func TestWatchChan(t *testing.T) {
-	wh, ec, _, _, _, closer := testSetup(t)
+	wh, ec, _, _, _, closer := testSetup(t) //nolint:dogsled
 	defer closer()
 
 	wc, _, err := wh.watchChanWithTimeout("foo", 0)
