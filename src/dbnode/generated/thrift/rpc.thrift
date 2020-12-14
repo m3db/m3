@@ -33,8 +33,8 @@ enum ErrorType {
 }
 
 enum ErrorCode {
-    NONE,
-    RESOURCE_EXHAUSTED
+    NONE               = 0x00,
+    RESOURCE_EXHAUSTED = 0x01
 }
 
 exception Error {

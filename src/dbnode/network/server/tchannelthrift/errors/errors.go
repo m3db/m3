@@ -46,7 +46,8 @@ func IsBadRequestError(err *rpc.Error) bool {
 
 // IsResourceExhaustedError returns whether the error is a resource exhausted error.
 func IsResourceExhaustedError(err *rpc.Error) bool {
-	return err != nil && err.Code == rpc.ErrorCode_RESOURCE_EXHAUSTED
+	lowestByteMask := rpc.ErrorCode(0xff)
+	return err != nil && err.Code&lowestByteMask == rpc.ErrorCode_RESOURCE_EXHAUSTED
 }
 
 // NewInternalError creates a new internal error
