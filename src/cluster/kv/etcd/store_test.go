@@ -30,14 +30,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
@@ -318,7 +317,6 @@ func TestWatchLastVersion(t *testing.T) {
 	w, err := store.Watch("foo")
 	require.NoError(t, err)
 	require.Nil(t, w.Get())
-	defer w.Close()
 
 	var (
 		doneCh      = make(chan struct{})
@@ -810,7 +808,6 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
-	defer closeFn()
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -888,13 +885,11 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	// in this test we ensure clients who did not receive a delete for a key in
 	// their caches, evict the value in their cache the next time they communicate
 	// with an etcd which is unaware of the key (e.g. it's been compacted).
-
 	// first, we find the bytes required to be created in the cache file
 	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
 	ec, opts, closeFn := testStore(t)
-	defer closeFn()
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
