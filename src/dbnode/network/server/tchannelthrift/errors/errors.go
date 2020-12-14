@@ -46,11 +46,7 @@ func IsBadRequestError(err *rpc.Error) bool {
 
 // IsResourceExhaustedError returns whether the error is a resource exhausted error.
 func IsResourceExhaustedError(err *rpc.Error) bool {
-	// NB: To maintain better backwards compatibility, Resource Exhausted errors might also be
-	// defined by BAD_REQUEST error type coupled with RESOURCE_EXHAUSTED error code
-	return err != nil &&
-		(err.Type == rpc.ErrorType_RESOURCE_EXHAUSTED ||
-			(err.Type == rpc.ErrorType_BAD_REQUEST && err.Code == rpc.ErrorCode_RESOURCE_EXHAUSTED))
+	return err != nil && err.Code == rpc.ErrorCode_RESOURCE_EXHAUSTED
 }
 
 // NewInternalError creates a new internal error
@@ -66,8 +62,7 @@ func NewBadRequestError(err error) *rpc.Error {
 // NewResourceExhaustedError creates a new resource exhausted error.
 func NewResourceExhaustedError(err error) *rpc.Error {
 	// NB: To maintain better backwards compatibility, using BAD_REQUEST error type coupled with
-	// RESOURCE_EXHAUSTED error code. After a reasonable amount of time this should be switched to
-	// RESOURCE_EXHAUSTED error code (added after M3 release v1.0.0)
+	// RESOURCE_EXHAUSTED error code
 	return newError(rpc.ErrorType_BAD_REQUEST, rpc.ErrorCode_RESOURCE_EXHAUSTED, err)
 }
 

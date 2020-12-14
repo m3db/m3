@@ -107,9 +107,8 @@ func (p *TimeType) Value() (driver.Value, error) {
 type ErrorType int64
 
 const (
-	ErrorType_INTERNAL_ERROR     ErrorType = 0
-	ErrorType_BAD_REQUEST        ErrorType = 1
-	ErrorType_RESOURCE_EXHAUSTED ErrorType = 2
+	ErrorType_INTERNAL_ERROR ErrorType = 0
+	ErrorType_BAD_REQUEST    ErrorType = 1
 )
 
 func (p ErrorType) String() string {
@@ -118,8 +117,6 @@ func (p ErrorType) String() string {
 		return "INTERNAL_ERROR"
 	case ErrorType_BAD_REQUEST:
 		return "BAD_REQUEST"
-	case ErrorType_RESOURCE_EXHAUSTED:
-		return "RESOURCE_EXHAUSTED"
 	}
 	return "<UNSET>"
 }
@@ -130,8 +127,6 @@ func ErrorTypeFromString(s string) (ErrorType, error) {
 		return ErrorType_INTERNAL_ERROR, nil
 	case "BAD_REQUEST":
 		return ErrorType_BAD_REQUEST, nil
-	case "RESOURCE_EXHAUSTED":
-		return ErrorType_RESOURCE_EXHAUSTED, nil
 	}
 	return ErrorType(0), fmt.Errorf("not a valid ErrorType string")
 }

@@ -29,8 +29,7 @@ enum TimeType {
 
 enum ErrorType {
 	INTERNAL_ERROR,
-	BAD_REQUEST,
-	RESOURCE_EXHAUSTED
+	BAD_REQUEST
 }
 
 enum ErrorCode {
