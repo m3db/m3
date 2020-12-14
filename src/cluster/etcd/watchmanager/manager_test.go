@@ -224,7 +224,7 @@ func TestWatchNoLeader(t *testing.T) {
 	require.True(t, leaderIdx >= 0 && leaderIdx < len(ecluster.Members), "got invalid leader")
 
 	for i := 0; i < 10; i++ {
-		if atomic.LoadInt32(&updateCalled) == int32(3) {
+		if atomic.LoadInt32(&updateCalled) == int32(1) {
 			break
 		}
 		time.Sleep(watchInitAndRetryDelay)
@@ -236,23 +236,6 @@ func TestWatchNoLeader(t *testing.T) {
 
 	// wait for election timeout, then member[0] will not have a leader.
 	time.Sleep(electionTimeout)
-
-	for i := 0; i < 100; i++ {
-		// test that leader loss is retried - even on error, we should attempt update.
-		// 5 is an arbitraty number greater than amount of actual updates
-		if atomic.LoadInt32(&updateCalled) >= 10 {
-			break
-		}
-		time.Sleep(watchInitAndRetryDelay)
-	}
-
-	updates := atomic.LoadInt32(&updateCalled)
-	if updates < 10 {
-		require.Fail(t,
-			"insufficient update calls",
-			"expected at least 10 update attempts, got %d during a partition",
-			updates)
-	}
 
 	require.NoError(t, ecluster.Members[1].Restart(t))
 	require.NoError(t, ecluster.Members[2].Restart(t))
@@ -268,6 +251,14 @@ func TestWatchNoLeader(t *testing.T) {
 	// give some time for watch to be updated
 	runtime.Gosched()
 	time.Sleep(watchInitAndRetryDelay)
+
+	updates := atomic.LoadInt32(&updateCalled)
+	if updates < 2 {
+		require.Fail(t,
+			"insufficient update calls",
+			"expected at least 2 update attempts, got %d during a partition",
+			updates)
+	}
 
 	atomic.AddInt32(&shouldStop, 1)
 	<-doneCh
@@ -308,7 +299,7 @@ func TestWatchCompactedRevision(t *testing.T) {
 	go wh.Watch("foo")
 	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
 
-	assert.Equal(t, int32(4), atomic.LoadInt32(updateCalled))
+	assert.Equal(t, int32(3), atomic.LoadInt32(updateCalled))
 
 	lastRead := atomic.LoadInt32(updateCalled)
 	ec.Put(context.Background(), "foo", "bar-11")
