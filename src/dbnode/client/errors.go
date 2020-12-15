@@ -54,6 +54,17 @@ func IsBadRequestError(err error) bool {
 	return false
 }
 
+// IsResourceExhaustedError determines if the error is a resource exhausted error.
+func IsResourceExhaustedError(err error) bool {
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedErrorFlag(e) { //nolint:errorlint
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
+}
+
 // IsConsistencyResultError determines if the error is a consistency result error.
 func IsConsistencyResultError(err error) bool {
 	_, ok := err.(consistencyResultErr)
