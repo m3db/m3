@@ -135,7 +135,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
-		augmentM3Tags:          agg.m3PrefixFilter,
+		augmentM3Tags:          agg.augmentM3Tags,
 	}
 }
 
