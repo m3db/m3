@@ -249,7 +249,7 @@ func TestEntryResetSetData(t *testing.T) {
 	e, lists, now := testEntry(ctrl, testEntryOptions{})
 
 	require.False(t, e.closed)
-	require.Nil(t, e.rateLimiter)
+	require.Equal(t, int64(0), e.rateLimiter.Limit())
 	require.False(t, e.hasDefaultMetadatas)
 	require.Equal(t, int64(uninitializedCutoverNanos), e.cutoverNanos)
 	require.Equal(t, lists, e.lists)

@@ -417,9 +417,9 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	go func() {
 		i := 0
 		for b := range collector {
-			batchStr := make([]string, 0, len(b.IDs))
-			for _, id := range b.IDs {
-				batchStr = append(batchStr, id.String())
+			batchStr := make([]string, 0, len(b.ShardIDs))
+			for _, shardIDs := range b.ShardIDs {
+				batchStr = append(batchStr, shardIDs.ID.String())
 			}
 
 			withinIndex := i < len(expectedBatchIDs)
@@ -465,8 +465,8 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	go func() {
 		i := 0
 		for b := range collector {
+			assert.Equal(t, 0, len(b.ShardIDs))
 			b.Processed()
-			fmt.Println(b.IDs)
 			i++
 		}
 		assert.Equal(t, 0, i)

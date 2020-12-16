@@ -13,6 +13,7 @@ genny-all: genny-aggregator-counter-elem genny-aggregator-timer-elem genny-aggre
 genny-aggregator-counter-elem:
 	cat $(m3db_package_path)/src/aggregator/aggregator/generic_elem.go                                    \
 		| awk '/^package/{i++}i'                                                                            \
+		| sed 's/metric.GaugeType/metric.CounterType/'														\
 		| genny -out=$(m3db_package_path)/src/aggregator/aggregator/counter_elem_gen.go -pkg=aggregator gen \
 		"timedAggregation=timedCounter lockedAggregation=lockedCounterAggregation typeSpecificAggregation=counterAggregation typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem"
 

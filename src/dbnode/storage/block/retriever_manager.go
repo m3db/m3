@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -116,10 +117,11 @@ func (r *shardBlockRetriever) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (StreamedWideEntry, error) {
 	return r.DatabaseBlockRetriever.StreamWideEntry(ctx, r.shard, id,
-		blockStart, nsCtx)
+		blockStart, filter, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

@@ -35,7 +35,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -78,7 +78,7 @@ func New(
 		return nil, err
 	}
 
-	uuid := uuid.NewV4().Bytes()
+	uuid := uuid.NewRandom()
 
 	var (
 		retNode = &svcNode{
@@ -88,7 +88,7 @@ func New(
 			status:   StatusUninitialized,
 		}
 		listeners      = newListenerGroup(retNode)
-		hbUUID         = string(uuid[:])
+		hbUUID         = uuid.String()
 		heartbeater    *opHeartbeatServer
 		routerEndpoint string
 	)

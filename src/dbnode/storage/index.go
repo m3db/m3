@@ -87,7 +87,9 @@ const (
 	defaultFlushDocsBatchSize = 8192
 )
 
-var allQuery = idx.NewAllQuery()
+var (
+	allQuery = idx.NewAllQuery()
+)
 
 // nolint: maligned
 type nsIndex struct {
@@ -107,7 +109,7 @@ type nsIndex struct {
 
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
 	indexFilesetsBeforeFn   indexFilesetsBeforeFn
-	deleteFilesFn           fs.DeleteFilesFn
+	deleteFilesFn           deleteFilesFn
 	readIndexInfoFilesFn    readIndexInfoFilesFn
 
 	newBlockFn            index.NewBlockFn
@@ -1384,7 +1386,7 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
-	// NB: result should be fina.ized here, regardless of outcome
+	// NB: result should be finalized here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
@@ -1994,10 +1996,6 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
-// CleanupDuplicateFileSets only considers an index fileset of the same index volume type
-// that covers a superset of shard time ranges as a dupe. We can have index filesets
-// of the default volume type that have non-overlapping shard time ranges in the node leave
-// case where we accept new shards and a index fileset is persisted to disk w/ the new shards.
 func (i *nsIndex) CleanupDuplicateFileSets() error {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(

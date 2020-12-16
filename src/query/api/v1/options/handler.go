@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
@@ -206,9 +208,13 @@ type HandlerOptions interface {
 
 	// SetStoreMetricsType enables/disables storing of metrics type.
 	SetStoreMetricsType(value bool) HandlerOptions
-
 	// StoreMetricsType returns true if storing of metrics type is enabled.
 	StoreMetricsType() bool
+
+	// SetNamespaceValidator sets the NamespaceValidator.
+	SetNamespaceValidator(NamespaceValidator) HandlerOptions
+	// NamespaceValidator returns the NamespaceValidator.
+	NamespaceValidator() NamespaceValidator
 }
 
 // HandlerOptions represents handler options.
@@ -235,6 +241,7 @@ type handlerOptions struct {
 	instantQueryRouter    QueryRouter
 	graphiteStorageOpts   graphite.M3WrappedStorageOptions
 	m3dbOpts              m3db.Options
+	namespaceValidator    NamespaceValidator
 	storeMetricsType      bool
 }
 
@@ -297,6 +304,7 @@ func NewHandlerOptions(
 		graphiteStorageOpts:   graphiteStorageOpts,
 		m3dbOpts:              m3dbOpts,
 		storeMetricsType:      storeMetricsType,
+		namespaceValidator:    validators.NamespaceValidator,
 	}, nil
 }
 
@@ -547,4 +555,20 @@ func (o *handlerOptions) SetStoreMetricsType(value bool) HandlerOptions {
 
 func (o *handlerOptions) StoreMetricsType() bool {
 	return o.storeMetricsType
+}
+
+func (o *handlerOptions) SetNamespaceValidator(value NamespaceValidator) HandlerOptions {
+	opts := *o
+	opts.namespaceValidator = value
+	return &opts
+}
+
+func (o *handlerOptions) NamespaceValidator() NamespaceValidator {
+	return o.namespaceValidator
+}
+
+// NamespaceValidator defines namespace validation logics.
+type NamespaceValidator interface {
+	// ValidateNewNamespace gets invoked when creating a new namespace.
+	ValidateNewNamespace(newNs dbnamespace.Metadata, existing []dbnamespace.Metadata) error
 }

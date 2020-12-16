@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/require"
@@ -305,7 +304,7 @@ func validateGoodTaggedSeries(
 	}
 }
 
-func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
+func TestBootstrapIndex(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -335,45 +334,8 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 		times.shardTimeRanges, opts.FilesystemOptions(), nsMD)
 	defer tester.Finish()
 
-	// Write out non default type index volume type index block and ensure
-	// that it gets deleted and is not loaded into the index results to test
-	// the unfulfilled shard time ranges case (missing default index volume type
-	// and/or index segments failed validation).
-	var (
-		notDefaultIndexVolumeType = idxpersist.IndexVolumeType("not-default")
-		shards                    = map[uint32]struct{}{testShard: struct{}{}}
-		filesToDelete             []string
-	)
-	idxWriter, err := fs.NewIndexWriter(src.fsopts)
-	require.NoError(t, err)
-	require.NoError(t, idxWriter.Open(fs.IndexWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			FileSetContentType: persist.FileSetIndexContentType,
-			Namespace:          nsMD.ID(),
-			BlockStart:         times.start,
-			VolumeIndex:        1,
-		},
-		BlockSize:       nsMD.Options().IndexOptions().BlockSize(),
-		FileSetType:     persist.FileSetFlushType,
-		Shards:          shards,
-		IndexVolumeType: notDefaultIndexVolumeType,
-	}))
-	// Don't need to write any actual data.
-	require.NoError(t, idxWriter.Close())
-	src.deleteFilesFn = func(files []string) error {
-		filesToDelete = append(filesToDelete, files...)
-		multiErr := xerrors.NewMultiError()
-		for _, f := range files {
-			multiErr = multiErr.Add(os.Remove(f))
-		}
-		return multiErr.FinalError()
-	}
-
 	tester.TestReadWith(src)
 	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
-
-	// Ensure we are attempting to delete a single index fileset (in this case w/ no data).
-	require.Len(t, filesToDelete, 3)
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
@@ -400,11 +362,6 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, segment.IsPersisted())
 
-	// Check that the non default index volume type (missing default index volume type)
-	// was not added to the index results.
-	_, ok = blockByVolumeType.GetBlock(notDefaultIndexVolumeType)
-	require.False(t, ok)
-
 	// Check that the second segment is mutable and was not written out
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
@@ -421,7 +378,7 @@ func TestBootstrapIndexAndUnfulfilledRanges(t *testing.T) {
 	// Validate that wrote the block out (and no index blocks
 	// were read as existing index blocks on disk)
 	counters := scope.Snapshot().Counters()
-	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 

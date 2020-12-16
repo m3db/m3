@@ -24,8 +24,11 @@ import (
 	"net/http"
 	"time"
 
+	promstorage "github.com/prometheus/prometheus/storage"
+
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 
 	"github.com/prometheus/prometheus/promql"
@@ -38,29 +41,65 @@ func init() {
 	promql.SetDefaultEvaluationInterval(time.Minute)
 }
 
-// Options defines options for PromQL handler.
-type Options struct {
-	PromQLEngine *promql.Engine
+// opts defines options for PromQL handler.
+type opts struct {
+	promQLEngine *promql.Engine
+	instant      bool
+	queryable    promstorage.Queryable
+	newQueryFn   NewQueryFn
+}
+
+// Option is a Prometheus handler option.
+type Option func(*opts) error
+
+// WithEngine sets the PromQL engine.
+func WithEngine(promQLEngine *promql.Engine) Option {
+	return withEngine(promQLEngine, false)
+}
+
+// WithInstantEngine sets the PromQL instant engine.
+func WithInstantEngine(promQLEngine *promql.Engine) Option {
+	return withEngine(promQLEngine, true)
+}
+
+func withEngine(promQLEngine *promql.Engine, instant bool) Option {
+	return func(o *opts) error {
+		if promQLEngine == nil {
+			return errors.New("invalid engine")
+		}
+		o.instant = instant
+		o.promQLEngine = promQLEngine
+		o.newQueryFn = newRangeQueryFn(promQLEngine, o.queryable)
+		if instant {
+			o.newQueryFn = newInstantQueryFn(promQLEngine, o.queryable)
+		}
+		return nil
+	}
+}
+
+func newDefaultOptions(hOpts options.HandlerOptions) opts {
+	queryable := prometheus.NewPrometheusQueryable(
+		prometheus.PrometheusOptions{
+			Storage:           hOpts.Storage(),
+			InstrumentOptions: hOpts.InstrumentOpts(),
+		})
+	return opts{
+		promQLEngine: hOpts.PrometheusEngine(),
+		queryable:    queryable,
+		instant:      false,
+		newQueryFn:   newRangeQueryFn(hOpts.PrometheusEngine(), queryable),
+	}
 }
 
 // NewReadHandler creates a handler to handle PromQL requests.
-func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
-	queryable := prometheus.NewPrometheusQueryable(
-		prometheus.PrometheusOptions{
-			Storage:           hOpts.Storage(),
-			InstrumentOptions: hOpts.InstrumentOpts(),
-		})
-	return newReadHandler(opts, hOpts, queryable)
-}
-
-// NewReadInstantHandler creates a handler to handle PromQL requests.
-func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
-	queryable := prometheus.NewPrometheusQueryable(
-		prometheus.PrometheusOptions{
-			Storage:           hOpts.Storage(),
-			InstrumentOptions: hOpts.InstrumentOpts(),
-		})
-	return newReadInstantHandler(opts, hOpts, queryable)
+func NewReadHandler(hOpts options.HandlerOptions, options ...Option) (http.Handler, error) {
+	opts := newDefaultOptions(hOpts)
+	for _, optionFn := range options {
+		if err := optionFn(&opts); err != nil {
+			return nil, err
+		}
+	}
+	return newReadHandler(hOpts, opts)
 }
 
 // ApplyRangeWarnings applies warnings encountered during execution.

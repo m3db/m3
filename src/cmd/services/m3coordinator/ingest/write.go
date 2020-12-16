@@ -22,6 +22,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -495,14 +496,26 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
-			switch value.Attributes.M3Type {
-			case ts.M3MetricTypeGauge:
-				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
-			case ts.M3MetricTypeCounter:
-				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
-			case ts.M3MetricTypeTimer:
-				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+			if value.Attributes.PromType != ts.PromMetricTypeUnknown {
+				switch value.Attributes.PromType {
+				case ts.PromMetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				default:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				}
+			} else {
+				switch value.Attributes.M3Type {
+				case ts.M3MetricTypeGauge:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				case ts.M3MetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				case ts.M3MetricTypeTimer:
+					err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+				default:
+					err = fmt.Errorf("unknown m3type '%v'", value.Attributes.M3Type)
+				}
 			}
+
 			if err != nil {
 				// If we see an error break out so we can try processing the
 				// next datapoint.

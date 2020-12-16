@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	xio "github.com/m3db/m3/src/x/io"
 	xserver "github.com/m3db/m3/src/x/server"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -95,11 +96,10 @@ type handler struct {
 
 // NewHandler creates a new raw TCP handler.
 func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
-	nowFn := opts.ClockOptions().NowFn()
 	iOpts := opts.InstrumentOptions()
 	var limiter *rate.Limiter
 	if rateLimit := opts.ErrorLogLimitPerSecond(); rateLimit != 0 {
-		limiter = rate.NewLimiter(rateLimit, nowFn)
+		limiter = rate.NewLimiter(rateLimit)
 	}
 	return &handler{
 		aggregator:        aggregator,
@@ -118,6 +118,7 @@ func (s *handler) Handle(conn net.Conn) {
 		remoteAddress = remoteAddr.String()
 	}
 
+	nowFn := s.opts.ClockOptions().NowFn()
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
 	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
 	reader := bufio.NewReaderSize(read, s.readBufferSize)
@@ -177,7 +178,7 @@ func (s *handler) Handle(conn net.Conn) {
 
 		// We rate limit the error log here because the error rate may scale with
 		// the metrics incoming rate and consume lots of cpu cycles.
-		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1) {
+		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1, xtime.ToUnixNano(nowFn())) {
 			s.metrics.errLogRateLimited.Inc(1)
 			continue
 		}
