@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -33,38 +34,21 @@ import (
 
 // IsInternalServerError determines if the error is an internal server error.
 func IsInternalServerError(err error) bool {
-	for err != nil {
-		if e, ok := err.(*rpc.Error); ok && tterrors.IsInternalError(e) {
-			return true
-		}
-		err = xerrors.InnerError(err)
-	}
-	return false
+	var rpcErr *rpc.Error
+	return errors.As(err, &rpcErr) && tterrors.IsInternalError(rpcErr)
 }
 
 // IsBadRequestError determines if the error is a bad request error.
 func IsBadRequestError(err error) bool {
-	for err != nil {
-		if e, ok := err.(*rpc.Error); ok && tterrors.IsBadRequestError(e) {
-			return true
-		}
-		if e := xerrors.GetInnerInvalidParamsError(err); e != nil {
-			return true
-		}
-		err = xerrors.InnerError(err)
-	}
-	return false
+	var rpcErr *rpc.Error
+	return (errors.As(err, &rpcErr) && tterrors.IsBadRequestError(rpcErr)) ||
+		xerrors.IsInvalidParams(err)
 }
 
 // IsResourceExhaustedError determines if the error is a resource exhausted error.
 func IsResourceExhaustedError(err error) bool {
-	for err != nil {
-		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedErrorFlag(e) { //nolint:errorlint
-			return true
-		}
-		err = xerrors.InnerError(err)
-	}
-	return false
+	var rpcErr *rpc.Error
+	return errors.As(err, &rpcErr) && tterrors.IsResourceExhaustedErrorFlag(rpcErr)
 }
 
 // IsTimeoutError determines if the error is a timeout.
@@ -90,45 +74,33 @@ func IsTimeoutError(err error) bool {
 
 // IsConsistencyResultError determines if the error is a consistency result error.
 func IsConsistencyResultError(err error) bool {
-	for err != nil {
-		if _, ok := err.(consistencyResultErr); ok { //nolint:errorlint
-			return true
-		}
-		err = xerrors.InnerError(err)
-	}
-	return false
+	var e consistencyResultError
+	return errors.As(err, &e)
 }
 
 // NumResponded returns how many nodes responded for a given error
 func NumResponded(err error) int {
-	for err != nil {
-		if e, ok := err.(consistencyResultError); ok {
-			return e.numResponded()
-		}
-		err = xerrors.InnerError(err)
+	var e consistencyResultError
+	if errors.As(err, &e) {
+		return e.numResponded()
 	}
 	return 0
 }
 
 // NumSuccess returns how many nodes responded with success for a given error
 func NumSuccess(err error) int {
-	for err != nil {
-		if e, ok := err.(consistencyResultError); ok {
-			return e.numSuccess()
-		}
-		err = xerrors.InnerError(err)
+	var e consistencyResultError
+	if errors.As(err, &e) {
+		return e.numSuccess()
 	}
 	return 0
 }
 
 // NumError returns how many nodes responded with error for a given error
 func NumError(err error) int {
-	for err != nil {
-		if e, ok := err.(consistencyResultError); ok {
-			return e.numResponded() -
-				e.numSuccess()
-		}
-		err = xerrors.InnerError(err)
+	var e consistencyResultError
+	if errors.As(err, &e) {
+		return e.numResponded() - e.numSuccess()
 	}
 	return 0
 }
@@ -146,12 +118,8 @@ func newHostNotAvailableError(err error) error {
 }
 
 func isHostNotAvailableError(err error) bool {
-	inner := xerrors.GetInnerNonRetryableError(err)
-	if inner == nil {
-		return false
-	}
-	_, ok := inner.(hostNotAvailableError)
-	return ok
+	var e hostNotAvailableError
+	return errors.As(err, &e)
 }
 
 type consistencyResultError interface {
@@ -194,7 +162,7 @@ func newConsistencyResultError(
 			continue
 		}
 	}
-	return consistencyResultErr{
+	return &consistencyResultErr{
 		level:       level,
 		success:     enqueued - len(errs),
 		enqueued:    enqueued,
@@ -204,22 +172,22 @@ func newConsistencyResultError(
 	}
 }
 
-func (e consistencyResultErr) InnerError() error {
+func (e *consistencyResultErr) Unwrap() error {
 	return e.topLevelErr
 }
 
-func (e consistencyResultErr) Error() string {
+func (e *consistencyResultErr) Error() string {
 	return fmt.Sprintf(
 		"failed to meet consistency level %s with %d/%d success, "+
 			"%d nodes responded, errors: %v",
 		e.level.String(), e.success, e.enqueued, e.responded, e.errs)
 }
 
-func (e consistencyResultErr) numResponded() int {
+func (e *consistencyResultErr) numResponded() int {
 	return e.responded
 }
 
-func (e consistencyResultErr) numSuccess() int {
+func (e *consistencyResultErr) numSuccess() int {
 	return e.success
 }
 

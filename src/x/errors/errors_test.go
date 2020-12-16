@@ -118,3 +118,80 @@ func TestErrorsIsAnErrorAndFormatsErrors(t *testing.T) {
 	assert.Equal(t, "[<some error: foo=2, bar=baz>, "+
 		"<some other error: foo=42, bar=qux>]", errs.Error())
 }
+
+func TestErrorUnwrap(t *testing.T) {
+	innerError := errors.New("inner_error")
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "invalid params",
+			err:  NewInvalidParamsError(innerError),
+		},
+		{
+			name: "retryable",
+			err:  NewRetryableError(innerError),
+		},
+		{
+			name: "non-retryable",
+			err:  NewNonRetryableError(innerError),
+		},
+		{
+			name: "renamed",
+			err:  Wrap(innerError, "renamed_error"),
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			assert.True(t, errors.Is(tt.err, innerError))
+		})
+	}
+}
+
+func TestIsErrorTypeFunctions(t *testing.T) {
+	someError := errors.New("some_error")
+	tests := []struct {
+		name string
+		err  error
+		isFn func(error) bool
+	}{
+		{
+			name: "invalid params",
+			err:  NewInvalidParamsError(someError),
+			isFn: IsInvalidParams,
+		},
+		{
+			name: "retryable",
+			err:  NewRetryableError(someError),
+			isFn: IsRetryableError,
+		},
+		{
+			name: "non-retryable",
+			err:  NewNonRetryableError(someError),
+			isFn: IsNonRetryableError,
+		},
+		{
+			name: "multi",
+			err:  NewMultiError().Add(someError).FinalError(),
+			isFn: IsMultiError,
+		},
+	}
+
+	for i, tt1 := range tests {
+		tt1 := tt1
+		for j, tt2 := range tests {
+			tt2 := tt2
+			matching := i == j
+			name := fmt.Sprintf("%v error is %v error", tt1.name, tt2.name)
+			if !matching {
+				name = fmt.Sprintf("%v error is not %v error", tt1.name, tt2.name)
+			}
+			t.Run(name, func(t *testing.T) {
+				assert.Equal(t, matching, tt1.isFn(tt2.err))
+			})
+		}
+	}
+}

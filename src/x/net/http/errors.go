@@ -70,7 +70,7 @@ func (e errorWithCode) Error() string {
 	return e.err.Error()
 }
 
-func (e errorWithCode) InnerError() error {
+func (e errorWithCode) Unwrap() error {
 	return e.err
 }
 

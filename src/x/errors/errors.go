@@ -25,6 +25,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	goxerrors "golang.org/x/xerrors"
 )
 
 // FirstError returns the first non nil error.
@@ -45,13 +47,13 @@ func (e containedError) Error() string {
 	return e.inner.Error()
 }
 
-func (e containedError) InnerError() error {
+func (e containedError) Unwrap() error {
 	return e.inner
 }
 
 // ContainedError is an error with a contained error.
 type ContainedError interface {
-	InnerError() error
+	goxerrors.Wrapper
 }
 
 // InnerError returns the packaged inner error if this is an error that
@@ -61,7 +63,7 @@ func InnerError(err error) error {
 	if !ok {
 		return nil
 	}
-	return contained.InnerError()
+	return contained.Unwrap()
 }
 
 type renamedError struct {
@@ -79,7 +81,7 @@ func (e renamedError) Error() string {
 	return e.renamed.Error()
 }
 
-func (e renamedError) InnerError() error {
+func (e renamedError) Unwrap() error {
 	return e.inner
 }
 
@@ -109,7 +111,7 @@ func (e invalidParamsError) Error() string {
 	return e.inner.Error()
 }
 
-func (e invalidParamsError) InnerError() error {
+func (e invalidParamsError) Unwrap() error {
 	return e.inner
 }
 
@@ -121,11 +123,9 @@ func IsInvalidParams(err error) bool {
 // GetInnerInvalidParamsError returns an inner invalid params error
 // if contained by this error, nil otherwise.
 func GetInnerInvalidParamsError(err error) error {
-	for err != nil {
-		if _, ok := err.(invalidParamsError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
+	var e invalidParamsError
+	if errors.As(err, &e) {
+		return InnerError(e)
 	}
 	return nil
 }
@@ -166,7 +166,7 @@ func (e retryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e retryableError) InnerError() error {
+func (e retryableError) Unwrap() error {
 	return e.inner
 }
 
@@ -178,11 +178,9 @@ func IsRetryableError(err error) bool {
 // GetInnerRetryableError returns an inner retryable error
 // if contained by this error, nil otherwise.
 func GetInnerRetryableError(err error) error {
-	for err != nil {
-		if _, ok := err.(retryableError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
+	var e retryableError
+	if errors.As(err, &e) {
+		return InnerError(e)
 	}
 	return nil
 }
@@ -200,7 +198,7 @@ func (e nonRetryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e nonRetryableError) InnerError() error {
+func (e nonRetryableError) Unwrap() error {
 	return e.inner
 }
 
@@ -212,11 +210,9 @@ func IsNonRetryableError(err error) bool {
 // GetInnerNonRetryableError returns an inner non-retryable error
 // if contained by this error, nil otherwise.
 func GetInnerNonRetryableError(err error) error {
-	for err != nil {
-		if _, ok := err.(nonRetryableError); ok {
-			return InnerError(err)
-		}
-		err = InnerError(err)
+	var e nonRetryableError
+	if errors.As(err, &e) {
+		return InnerError(e)
 	}
 	return nil
 }
@@ -230,13 +226,9 @@ func IsMultiError(err error) bool {
 // GetInnerMultiError returns an inner multi-error error
 // if contained by this error, nil otherwise.
 func GetInnerMultiError(err error) (MultiError, bool) {
-	for err != nil {
-		if v, ok := err.(MultiError); ok {
-			return v, true
-		}
-		err = InnerError(err)
-	}
-	return MultiError{}, false
+	var e MultiError
+	ok := errors.As(err, &e)
+	return e, ok
 }
 
 // MultiError is an immutable error that packages a list of errors.
