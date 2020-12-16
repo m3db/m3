@@ -647,7 +647,7 @@ func (s *session) BorrowConnections(
 		multiErr  = xerrors.NewMultiError()
 		breakLoop bool
 	)
-	err := topoMap.RouteShardForEach(shardID, func(
+	err = topoMap.RouteShardForEach(shardID, func(
 		_ int,
 		shard shard.Shard,
 		host topology.Host,
