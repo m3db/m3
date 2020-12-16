@@ -96,7 +96,8 @@ func TranslateQueryToMatchersWithTerminator(
 	query string,
 ) (models.Matchers, error) {
 	if strings.Contains(query, "**") {
-		// Need to regexp the entire ID.
+		// Need to regexp on the entire ID since ** matches over different
+		// graphite path dimensions.
 		value, _, err := graphite.GlobToRegexPattern(query)
 		if err != nil {
 			return nil, err
