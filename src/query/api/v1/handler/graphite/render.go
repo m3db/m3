@@ -73,7 +73,7 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 	return &renderHandler{
 		opts: opts,
 		engine: native.NewEngine(wrappedStore, native.CompileOptions{
-			EscapeOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeOnlyQuotes,
+			EscapeAllNotOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeAllNotOnlyQuotes,
 		}),
 		queryContextOpts: opts.QueryContextOptions(),
 		graphiteOpts:     opts.GraphiteStorageOptions(),

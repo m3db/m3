@@ -32,7 +32,7 @@ import (
 
 // CompileOptions allows for specifying compile options.
 type CompileOptions struct {
-	EscapeOnlyQuotes bool
+	EscapeAllNotOnlyQuotes bool
 }
 
 // Compile converts an input stream into the corresponding Expression.
@@ -42,7 +42,7 @@ func Compile(input string, opts CompileOptions) (Expression, error) {
 		"false": lexer.False,
 	}
 	lex, tokens := lexer.NewLexer(input, booleanLiterals, lexer.Options{
-		EscapeOnlyQuotes: opts.EscapeOnlyQuotes,
+		EscapeAllNotOnlyQuotes: opts.EscapeAllNotOnlyQuotes,
 	})
 	go lex.Run()
 

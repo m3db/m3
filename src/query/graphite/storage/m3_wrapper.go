@@ -66,7 +66,7 @@ type M3WrappedStorageOptions struct {
 	RenderPartialStart                         bool
 	RenderPartialEnd                           bool
 	RenderSeriesAllNaNs                        bool
-	CompileEscapeOnlyQuotes                    bool
+	CompileEscapeAllNotOnlyQuotes              bool
 }
 
 type seriesMetadata struct {

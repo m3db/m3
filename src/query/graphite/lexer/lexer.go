@@ -143,7 +143,7 @@ const (
 
 // Options allows for specifying lexer options.
 type Options struct {
-	EscapeOnlyQuotes bool
+	EscapeAllNotOnlyQuotes bool
 }
 
 // NewLexer returns a lexer and an output channel for tokens.
@@ -388,15 +388,15 @@ func (l *Lexer) quotedString(quoteMark rune) bool {
 			continue
 		}
 
-		// By default only restore backslash if using it for regex group
-		// replacement (i.e. "\1").
-		restoreBackslash := escaped && strings.ContainsRune(digits, r)
-		if l.opts.EscapeOnlyQuotes {
-			// If only want to only need escaping for quotes and treat
-			// backslashes as regular backslashes (i.e. for use in regexp
-			// with aliasSub, etc) then restore backslash as long not
-			// escaping a quote.
-			restoreBackslash = escaped && r != quoteMark
+		// By default we only need escaping for quotes and treat
+		// backslashes as regular backslashes (i.e. for use in regexp
+		// with aliasSub, etc) and as such restore backslash as long not
+		// escaping a quote.
+		restoreBackslash := escaped && r != quoteMark
+		if l.opts.EscapeAllNotOnlyQuotes {
+			// If escaping all characters not just quotes then only restore
+			// backslash if using it for regex group replacement (i.e. "\1").
+			restoreBackslash = escaped && strings.ContainsRune(digits, r)
 		}
 		if restoreBackslash {
 			// If backslash not being used to escape quote then keep it.

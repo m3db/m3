@@ -493,7 +493,7 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
 		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
-		graphiteStorageOpts.CompileEscapeOnlyQuotes = cfg.Carbon.CompileEscapeOnlyQuotes
+		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
 	}
 
 	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
