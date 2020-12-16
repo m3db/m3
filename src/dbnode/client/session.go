@@ -689,7 +689,9 @@ func (s *session) BorrowConnections(
 		// Route error.
 		return result, err
 	}
-	return result, nil
+	// Potentially a user error or borrow error, otherwise
+	// FinalError() will return nil.
+	return result, multiErr.FinalError()
 }
 
 func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
