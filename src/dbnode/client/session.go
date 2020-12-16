@@ -636,10 +636,13 @@ func (s *session) BorrowConnections(
 	opts BorrowConnectionOptions,
 ) (BorrowConnectionsResult, error) {
 	var result BorrowConnectionsResult
-
 	s.state.RLock()
+	status := s.state.status
 	topoMap := s.state.topoMap
 	s.state.RUnlock()
+	if status != statusOpen {
+		return result, errSessionStatusNotOpen
+	}
 
 	var (
 		multiErr  = xerrors.NewMultiError()
