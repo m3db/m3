@@ -674,6 +674,9 @@ func (s *session) BorrowConnections(
 			return
 		}
 
+		// Track successful borrow.
+		result.Borrowed++
+
 		// Track whether has broken loop.
 		breakLoop = userResult.Break
 
@@ -850,7 +853,7 @@ func (s *session) clusterAvailability(
 ) (bool, error) {
 	s.state.RLock()
 	queues := s.state.queues
-	topoMap, err := s.topologyMapWithStateRLock()
+	topoMap, err := s.topologyMapWithStateRLock()``
 	s.state.RUnlock()
 	if err != nil {
 		return false, err
