@@ -56,8 +56,13 @@ func IsBadRequestError(err error) bool {
 
 // IsConsistencyResultError determines if the error is a consistency result error.
 func IsConsistencyResultError(err error) bool {
-	_, ok := err.(consistencyResultErr)
-	return ok
+	for err != nil {
+		if _, ok := err.(consistencyResultErr); ok { //nolint:errorlint
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
 }
 
 // NumResponded returns how many nodes responded for a given error
@@ -117,8 +122,8 @@ func isHostNotAvailableError(err error) bool {
 
 type consistencyResultError interface {
 	error
+	xerrors.ContainedError
 
-	InnerError() error
 	numResponded() int
 	numSuccess() int
 }
