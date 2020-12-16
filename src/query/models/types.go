@@ -21,6 +21,7 @@
 package models
 
 import (
+	"bytes"
 	"regexp"
 )
 
@@ -128,6 +129,11 @@ type Tags struct {
 type Tag struct {
 	Name  []byte
 	Value []byte
+}
+
+// Equal determiens whether two tags are equal to each other.
+func (t Tag) Equal(other Tag) bool {
+	return bytes.Equal(t.Name, other.Name) && bytes.Equal(t.Value, other.Value)
 }
 
 // MatchType is an enum for label matching types.
