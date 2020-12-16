@@ -209,9 +209,10 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 		responded := enqueued
 		consistencyErr := newConsistencyResultError(accum.consistencyLevel, enqueued, responded,
 			accum.errors)
-		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
+		err := xerrors.Wrapf(
+			consistencyErr,
+			"unable to satisfy consistency requirements: shards=%d, err=%v",
 			accum.numShardsPending, consistencyErr)
-		err = xerrors.NewRenamedError(consistencyErr, err)
 		for i := range accum.errors {
 			if IsBadRequestError(accum.errors[i]) {
 				err = xerrors.NewInvalidParamsError(err)
