@@ -445,6 +445,9 @@ type CarbonConfiguration struct {
 	// RenderSeriesAllNaNs will render series that have only NaNs for entire
 	// output instead of returning an empty array of datapoints.
 	RenderSeriesAllNaNs bool `yaml:"renderSeriesAllNaNs"`
+	// CompileEscapeOnlyQuotes will only escape quotes when compiling quoted
+	// strings.
+	CompileEscapeOnlyQuotes bool `yaml:"compileEscapeOnlyQuotes"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
