@@ -637,11 +637,10 @@ func (s *session) BorrowConnections(
 ) (BorrowConnectionsResult, error) {
 	var result BorrowConnectionsResult
 	s.state.RLock()
-	status := s.state.status
-	topoMap := s.state.topoMap
+	topoMap, err := s.topologyMapWithStateRLock()
 	s.state.RUnlock()
-	if status != statusOpen {
-		return result, errSessionStatusNotOpen
+	if err != nil {
+		return result, err
 	}
 
 	var (
@@ -858,7 +857,7 @@ func (s *session) clusterAvailability(
 ) (bool, error) {
 	s.state.RLock()
 	queues := s.state.queues
-	topoMap, err := s.topologyMapWithStateRLock()``
+	topoMap, err := s.topologyMapWithStateRLock()
 	s.state.RUnlock()
 	if err != nil {
 		return false, err
