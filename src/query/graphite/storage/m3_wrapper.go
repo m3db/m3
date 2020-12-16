@@ -25,9 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -93,6 +95,21 @@ func NewM3WrappedStorage(
 func TranslateQueryToMatchersWithTerminator(
 	query string,
 ) (models.Matchers, error) {
+	if strings.Contains(query, "**") {
+		// Need to regexp the entire ID.
+		value, _, err := graphite.GlobToRegexPattern(query)
+		if err != nil {
+			return nil, err
+		}
+		return models.Matchers{
+			models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  doc.IDReservedFieldName,
+				Value: value,
+			},
+		}, nil
+	}
+
 	metricLength := graphite.CountMetricParts(query)
 	// Add space for a terminator character.
 	matchersLength := metricLength + 1
