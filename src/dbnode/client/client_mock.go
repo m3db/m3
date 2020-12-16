@@ -4932,7 +4932,7 @@ func (mr *MockhostQueueMockRecorder) ConnectionPool() *gomock.Call {
 }
 
 // BorrowConnection mocks base method
-func (m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
+func (m *MockhostQueue) BorrowConnection(fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", fn)
 	ret0, _ := ret[0].(error)
@@ -5007,12 +5007,13 @@ func (mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
 }
 
 // NextClient mocks base method
-func (m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
+func (m *MockconnectionPool) NextClient() (rpc.TChanNode, *tchannel.Channel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NextClient")
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(*tchannel.Channel)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // NextClient indicates an expected call of NextClient
@@ -5057,7 +5058,7 @@ func (m *MockpeerSource) EXPECT() *MockpeerSourceMockRecorder {
 }
 
 // BorrowConnection mocks base method
-func (m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
+func (m *MockpeerSource) BorrowConnection(hostID string, fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", hostID, fn)
 	ret0, _ := ret[0].(error)
@@ -5108,7 +5109,7 @@ func (mr *MockpeerMockRecorder) Host() *gomock.Call {
 }
 
 // BorrowConnection mocks base method
-func (m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
+func (m *Mockpeer) BorrowConnection(fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", fn)
 	ret0, _ := ret[0].(error)
