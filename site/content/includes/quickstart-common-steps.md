@@ -21,8 +21,6 @@ This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that crea
 
 You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
 
-The `namespaceName` argument must match the namespace in the `local` section of the `M3Coordinator` YAML configuration. If you [add any namespaces](/docs/operational_guide/namespace_configuration) you also need to add them to the `local` section of `M3Coordinator`'s YAML configuration.
-
 In another terminal, use the following command.
 
 {{< tabs name="create_placement_namespace" >}}
@@ -125,13 +123,13 @@ Placement initialization can take a minute or two. Once all the shards have the 
 {"level":"info","ts":1598367624.03023,"msg":"bootstrapped"}
 ```
 
-You can check on the status by calling the _{{% apiendpoint %}}placement_ endpoint:
+You can check on the status by calling the _{{% apiendpoint %}}services/m3db/placement_ endpoint:
 
 {{< tabs name="check_placement" >}}
 {{% tab name="Command" %}}
 
 ```shell
-curl {{% apiendpoint %}}placement | jq .
+curl {{% apiendpoint %}}services/m3db/placement | jq .
 ```
 
 {{% /tab %}}
@@ -190,15 +188,36 @@ curl {{% apiendpoint %}}placement | jq .
 [Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
+### Ready a Namespace
+<!-- TODO: Why?> -->
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{% codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+"ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
 ### View Details of a Namespace
 
-You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}namespace_ endpoint
+You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
 
 {{< tabs name="check_namespaces" >}}
 {{% tab name="Command" %}}
 
 ```shell
-curl {{% apiendpoint %}}namespace | jq .
+curl {{% apiendpoint %}}services/m3db/namespace | jq .
 ```
 
 {{% notice tip %}}
