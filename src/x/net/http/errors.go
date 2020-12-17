@@ -97,7 +97,7 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 	if o.response == nil {
 		w.Header().Set(HeaderContentType, ContentTypeJSON)
 		w.WriteHeader(statusCode)
-		json.NewEncoder(w).Encode(ErrorResponse{Status: "error", Error: err.Error()})
+		json.NewEncoder(w).Encode(ErrorResponse{Status: "error", Error: err.Error()}) //nolint:errcheck
 	} else {
 		w.WriteHeader(statusCode)
 		w.Write(o.response)
