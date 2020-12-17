@@ -12,6 +12,7 @@ This guide shows how to install and configure M3DB, create a single-node cluster
 Deploying a single-node M3DB cluster is a great way to experiment with M3DB and get an idea of what it has to offer, but is not designed for production use. To run M3DB in clustered mode with a separate M3Coordinator, [read the clustered mode guide](/docs/how_to/cluster_hard_way).
 {{% /notice %}}
 
+
 ## Prerequisites
 
 -   **Docker**: You don't need [Docker](https://www.docker.com/get-started) to run M3DB, but it is the simplest and quickest way.
