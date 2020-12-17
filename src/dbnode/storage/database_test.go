@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -45,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -309,56 +307,6 @@ func TestDatabaseWideQueryNamespaceNonExistent(t *testing.T) {
 	_, err := d.WideQuery(ctx, ident.StringID("nonexistent"),
 		index.Query{}, time.Now(), nil, index.IterationOptions{})
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
-}
-
-func TestDatabaseIndexChecksum(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-	defer func() {
-		close(mapCh)
-	}()
-
-	nsID := ident.StringID("testns1")
-	seriesID := ident.StringID("bar")
-	end := time.Now()
-	start := end.Add(-time.Hour)
-
-	indexChecksumWithID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithID.EXPECT().RetrieveIndexChecksum().
-		Return(
-			xio.IndexChecksum{
-				ID:               ident.StringID("foo"),
-				MetadataChecksum: 5,
-			}, nil)
-	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithID, nil)
-
-	indexChecksumWithoutID := block.NewMockStreamedChecksum(ctrl)
-	indexChecksumWithoutID.EXPECT().RetrieveIndexChecksum().
-		Return(xio.IndexChecksum{MetadataChecksum: 7}, nil)
-	mockNamespace.EXPECT().FetchIndexChecksum(ctx, seriesID, start).
-		Return(indexChecksumWithoutID, nil)
-	d.namespaces.Set(nsID, mockNamespace)
-
-	res, err := d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
-	require.NoError(t, err)
-	checksum, err := res.RetrieveIndexChecksum()
-	require.NoError(t, err)
-	assert.Equal(t, "foo", checksum.ID.String())
-	assert.Equal(t, 5, int(checksum.MetadataChecksum))
-
-	res, err = d.fetchIndexChecksum(ctx, mockNamespace, seriesID, start)
-	checksum, err = res.RetrieveIndexChecksum()
-	require.NoError(t, err)
-	require.NoError(t, err)
-	assert.Nil(t, checksum.ID)
-	assert.Equal(t, 7, int(checksum.MetadataChecksum))
 }
 
 func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
@@ -953,9 +901,9 @@ func TestWideQuery(t *testing.T) {
 		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
 		ns *MockdatabaseNamespace, d *db, q index.Query,
 		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		ns.EXPECT().FetchIndexChecksum(gomock.Any(),
-			ident.StringID("foo"), gomock.Any()).
-			Return(block.EmptyStreamedChecksum, nil)
+		ns.EXPECT().FetchWideEntry(gomock.Any(),
+			ident.StringID("foo"), gomock.Any(), nil).
+			Return(block.EmptyStreamedWideEntry, nil)
 
 		_, err := d.WideQuery(ctx, ident.StringID("testns"), q, now, shards, iterOpts)
 		require.NoError(t, err)
@@ -965,36 +913,8 @@ func TestWideQuery(t *testing.T) {
 	}
 
 	exSpans := []string{
-		tracepoint.DBIndexChecksum,
 		tracepoint.DBWideQuery,
 		tracepoint.DBWideQuery,
-		"root",
-	}
-
-	testWideFunction(t, readMismatchTest, exSpans)
-}
-
-func TestReadMismatches(t *testing.T) {
-	readMismatchTest := func(
-		ctx context.Context, t *testing.T, ctrl *gomock.Controller,
-		ns *MockdatabaseNamespace, d *db, q index.Query,
-		now time.Time, shards []uint32, iterOpts index.IterationOptions) {
-		checker := wide.NewMockEntryChecksumMismatchChecker(ctrl)
-		ns.EXPECT().FetchReadMismatch(gomock.Any(), checker,
-			ident.StringID("foo"), gomock.Any()).
-			Return(wide.EmptyStreamedMismatch, nil)
-
-		_, err := d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, shards, iterOpts)
-		require.NoError(t, err)
-
-		_, err = d.ReadMismatches(ctx, ident.StringID("testns"), q, checker, now, nil, iterOpts)
-		require.Error(t, err)
-	}
-
-	exSpans := []string{
-		tracepoint.DBFetchMismatch,
-		tracepoint.DBReadMismatches,
-		tracepoint.DBReadMismatches,
 		"root",
 	}
 
@@ -1002,7 +922,7 @@ func TestReadMismatches(t *testing.T) {
 }
 
 func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
-	ctrl := xtest.NewController(t)
+	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -1029,9 +949,10 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 		}
 
 		now      = time.Now()
+		start    = now.Truncate(2 * time.Hour)
 		iterOpts = index.IterationOptions{}
 		wideOpts = index.WideQueryOptions{
-			StartInclusive:   now.Truncate(2 * time.Hour),
+			StartInclusive:   start,
 			EndExclusive:     now.Truncate(2 * time.Hour).Add(2 * time.Hour),
 			IterationOptions: iterOpts,
 			BatchSize:        1024,
@@ -1053,7 +974,11 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 			assert.Equal(t, opts.BatchSize, wideOpts.BatchSize)
 			assert.Equal(t, opts.ShardsQueried, shards)
 			go func() {
-				batch := &ident.IDBatch{IDs: []ident.ID{ident.StringID("foo")}}
+				batch := &ident.IDBatch{
+					ShardIDs: []ident.ShardID{
+						{ID: ident.StringID("foo")},
+					},
+				}
 				batch.ReadyForProcessing()
 				collector <- batch
 				close(collector)
@@ -1064,7 +989,7 @@ func testWideFunction(t *testing.T, testFn wideQueryTestFn, exSpans []string) {
 	ns.EXPECT().WideQueryIDs(gomock.Any(), q, gomock.Any(), gomock.Any()).
 		Return(fmt.Errorf("random err"))
 
-	testFn(ctx, t, ctrl, ns, d, q, now, shards, iterOpts)
+	testFn(ctx, t, ctrl, ns, d, q, start, shards, iterOpts)
 	ns.EXPECT().Close().Return(nil)
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
 	d.commitLog = commitLog
@@ -1508,6 +1433,9 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
@@ -1516,7 +1444,6 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
 		start      = time.Now().Truncate(time.Hour)
 	)
 
@@ -1526,7 +1453,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(sourceNs, opts).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
 	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)

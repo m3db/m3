@@ -25,6 +25,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
@@ -129,6 +130,16 @@ type Cluster interface {
 	TLSOptions() TLSOptions
 	SetTLSOptions(TLSOptions) Cluster
 
-	SetAutoSyncInterval(value time.Duration) Cluster
 	AutoSyncInterval() time.Duration
+	SetAutoSyncInterval(value time.Duration) Cluster
+
+	DialTimeout() time.Duration
+	SetDialTimeout(value time.Duration) Cluster
+}
+
+// Client is an etcd-backed m3cluster client.
+type Client interface {
+	client.Client
+
+	Clients() []ZoneClient
 }

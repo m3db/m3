@@ -88,7 +88,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	}
 }
 
-func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
+func TestReaderUsingRetrieverWideEntrysBlockInvalid(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -102,20 +102,20 @@ func TestReaderUsingRetrieverIndexChecksumsBlockInvalid(t *testing.T) {
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).
 		Return(false, errors.New("err"))
-	_, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	_, err := reader.FetchWideEntry(ctx, time.Now(), nil, namespace.Context{})
 	assert.EqualError(t, err, "err")
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
-	c, err := reader.FetchIndexChecksum(ctx, time.Now(), namespace.Context{})
+	e, err := reader.FetchWideEntry(ctx, time.Now(), nil, namespace.Context{})
 	assert.NoError(t, err)
 
-	checksum, err := c.RetrieveIndexChecksum()
+	entry, err := e.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), checksum.MetadataChecksum)
-	assert.Nil(t, checksum.ID)
+	assert.Equal(t, int64(0), entry.MetadataChecksum)
+	assert.Nil(t, entry.ID)
 }
 
-func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
+func TestReaderUsingRetrieverWideEntrys(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -128,37 +128,36 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(alignedStart).Return(true, nil).Times(2)
 
-	checksum := xio.IndexChecksum{
-		MetadataChecksum: 5,
-		ID:               ident.StringID("foo"),
-	}
-
-	indexChecksum := block.NewMockStreamedChecksum(ctrl)
-
+	streamedEntry := block.NewMockStreamedWideEntry(ctrl)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	retriever.EXPECT().
-		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
-			alignedStart, gomock.Any()).
-		Return(indexChecksum, nil).Times(2)
+		StreamWideEntry(ctx, ident.NewIDMatcher("foo"),
+			alignedStart, nil, gomock.Any()).
+		Return(streamedEntry, nil).Times(2)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(xio.IndexChecksum{}, errors.New("err"))
-	streamed, err := reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
+	streamed, err := reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
-	_, err = streamed.RetrieveIndexChecksum()
+	_, err = streamed.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
 
 	// Check reads as expected
-	indexChecksum.EXPECT().RetrieveIndexChecksum().Return(checksum, nil)
-	streamed, err = reader.FetchIndexChecksum(ctx, alignedStart, namespace.Context{})
+	entry := xio.WideEntry{
+		MetadataChecksum: 5,
+		ID:               ident.StringID("foo"),
+	}
+
+	streamedEntry.EXPECT().RetrieveWideEntry().Return(entry, nil)
+	streamed, err = reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
-	actual, err := streamed.RetrieveIndexChecksum()
+	actual, err := streamed.RetrieveWideEntry()
 	require.NoError(t, err)
-	assert.Equal(t, checksum, actual)
+	assert.Equal(t, entry, actual)
 }
 
 type readTestCase struct {

@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -53,13 +52,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -117,8 +116,8 @@ type nsIndex struct {
 	logger                *zap.Logger
 	opts                  Options
 	nsMetadata            namespace.Metadata
-	runtimeOptsListener   xclose.SimpleCloser
-	runtimeNsOptsListener xclose.SimpleCloser
+	runtimeOptsListener   xresource.SimpleCloser
+	runtimeNsOptsListener xresource.SimpleCloser
 
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool
@@ -211,7 +210,7 @@ type newNamespaceIndexOpts struct {
 // execBlockQueryFn executes a query against the given block whilst tracking state.
 type execBlockQueryFn func(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1132,6 +1131,14 @@ func (i *nsIndex) flushBlock(
 		allShards[shard.ID()] = struct{}{}
 	}
 
+	volumeIndex, err := i.opts.IndexClaimsManager().ClaimNextIndexFileSetVolumeIndex(
+		i.nsMetadata,
+		indexBlock.StartTime(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim next index volume index: %w", err)
+	}
+
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
 		NamespaceMetadata: i.nsMetadata,
 		BlockStart:        indexBlock.StartTime(),
@@ -1139,6 +1146,7 @@ func (i *nsIndex) flushBlock(
 		Shards:            allShards,
 		// NB(bodu): By default, we always write to the "default" index volume type.
 		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+		VolumeIndex:     volumeIndex,
 	})
 	if err != nil {
 		return nil, err
@@ -1378,7 +1386,7 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
-	// NB: result should be fina.ized here, regardless of outcome
+	// NB: result should be finalized here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()
@@ -1555,7 +1563,7 @@ func (i *nsIndex) queryWithSpan(
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
 	// no child async task modifies the result after this method returns.
-	cancellable := resource.NewCancellableLifetime()
+	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
 	for _, block := range blocks {
@@ -1663,7 +1671,7 @@ func (i *nsIndex) queryWithSpan(
 
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1701,7 +1709,7 @@ func (i *nsIndex) execBlockQueryFn(
 
 func (i *nsIndex) execBlockWideQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,
@@ -1745,7 +1753,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 
 func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
+	cancellable *xresource.CancellableLifetime,
 	block index.Block,
 	query index.Query,
 	opts index.QueryOptions,

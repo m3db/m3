@@ -35,9 +35,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-var (
-	errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
-)
+var errReusableTagIteratorRequired = errors.New("reusable tags iterator is required")
 
 // Metadata is metadata for a time series, it can
 // have several underlying sources.
@@ -103,30 +101,30 @@ func (m Metadata) BytesID() []byte {
 
 // ResetOrReturnProvidedTagIterator returns a tag iterator
 // for the series, returning a direct ref to a provided tag
-// iterator or using the reuseable tag iterator provided by the
+// iterator or using the reusable tag iterator provided by the
 // callsite if it needs to iterate over tags or fields.
 func (m Metadata) ResetOrReturnProvidedTagIterator(
-	reuseableTagsIterator ident.TagsIterator,
+	reusableTagsIterator ident.TagsIterator,
 ) (ident.TagIterator, error) {
-	if reuseableTagsIterator == nil {
+	if reusableTagsIterator == nil {
 		// Always check to make sure callsites won't
 		// get a bad allocation pattern of having
 		// to create one here inline if the metadata
 		// they are passing in suddenly changes from
 		// tagsIter to tags or fields with metadata.
-		return nil, errReuseableTagIteratorRequired
+		return nil, errReusableTagIteratorRequired
 	}
 	if m.tagsIter != nil {
 		return m.tagsIter, nil
 	}
 
 	if len(m.tags.Values()) > 0 {
-		reuseableTagsIterator.Reset(m.tags)
-		return reuseableTagsIterator, reuseableTagsIterator.Err()
+		reusableTagsIterator.Reset(m.tags)
+		return reusableTagsIterator, reusableTagsIterator.Err()
 	}
 
-	reuseableTagsIterator.ResetFields(m.metadata.Fields)
-	return reuseableTagsIterator, reuseableTagsIterator.Err()
+	reusableTagsIterator.ResetFields(m.metadata.Fields)
+	return reusableTagsIterator, reusableTagsIterator.Err()
 }
 
 // Finalize will finalize any resources that requested
@@ -271,6 +269,7 @@ type IndexPrepareOptions struct {
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
 	IndexVolumeType   idxpersist.IndexVolumeType
+	VolumeIndex       int
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
@@ -321,12 +320,49 @@ const (
 	FileSetIndexContentType
 )
 
+// SeriesMetadataLifeTime describes the memory life time type.
+type SeriesMetadataLifeTime uint8
+
+const (
+	// SeriesLifeTimeLong means the underlying memory's life time is long lived and exceeds
+	// the execution duration of the series metadata receiver.
+	SeriesLifeTimeLong SeriesMetadataLifeTime = iota
+	// SeriesLifeTimeShort means that the underlying memory is only valid for the duration
+	// of the OnFlushNewSeries call. Must clone the underlying bytes in order to extend the life time.
+	SeriesLifeTimeShort
+)
+
+// SeriesMetadataType describes the type of series metadata.
+type SeriesMetadataType uint8
+
+const (
+	// SeriesDocumentType means the metadata is in doc.Document form.
+	SeriesDocumentType SeriesMetadataType = iota
+	// SeriesIDAndEncodedTagsType means the metadata is in IDAndEncodedTags form.
+	SeriesIDAndEncodedTagsType
+)
+
+// IDAndEncodedTags contains a series ID and encoded tags.
+type IDAndEncodedTags struct {
+	ID          ident.BytesID
+	EncodedTags ts.EncodedTags
+}
+
+// SeriesMetadata captures different representations of series metadata and
+// the ownership status of the underlying memory.
+type SeriesMetadata struct {
+	Document         doc.Document
+	IDAndEncodedTags IDAndEncodedTags
+	Type             SeriesMetadataType
+	LifeTime         SeriesMetadataLifeTime
+}
+
 // OnFlushNewSeriesEvent is the fields related to a flush of a new series.
 type OnFlushNewSeriesEvent struct {
 	Shard          uint32
 	BlockStart     time.Time
 	FirstWrite     time.Time
-	SeriesMetadata doc.Document
+	SeriesMetadata SeriesMetadata
 }
 
 // OnFlushSeries performs work on a per series level.

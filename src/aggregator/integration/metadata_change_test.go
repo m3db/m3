@@ -35,22 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMetadataChangeWithPoliciesList(t *testing.T) {
-	oldMetadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
-		}
-	}
-	newMetadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testUpdatedPoliciesList,
-		}
-	}
-	testMetadataChange(t, oldMetadataFn, newMetadataFn)
-}
-
 func TestMetadataChangeWithStagedMetadatas(t *testing.T) {
 	oldMetadataFn := func(int) metadataUnion {
 		return metadataUnion{
@@ -156,11 +140,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 		for _, data := range dataset {
 			setNowFn(data.timestamp)
 			for _, mm := range data.metricWithMetadatas {
-				if mm.metadata.mType == policiesListType {
-					require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-				} else {
-					require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-				}
+				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
 			require.NoError(t, client.flush())
 

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -72,7 +73,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	prometheuspromql "github.com/prometheus/prometheus/promql"
@@ -149,6 +150,9 @@ type RunOptions struct {
 	// CustomBuildTags are additional tags to be added to the instrument build
 	// reporter.
 	CustomBuildTags map[string]string
+
+	// ApplyCustomRuleStore provides an option to swap the backend used for the rule stores.
+	ApplyCustomRuleStore downsample.CustomRuleStoreFn
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -177,7 +181,7 @@ func Run(runOpts RunOptions) {
 		listenerOpts = xnet.NewListenerOptions()
 	)
 
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
 		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
@@ -209,7 +213,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
-	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
+	scope, closer, reporters, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			PrometheusExternalRegistries: []instrument.PrometheusExternalRegistry{
 				{
@@ -273,18 +277,30 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not parse query restrict tags config", zap.Error(err))
 	}
 
+	timeout := cfg.Query.TimeoutOrDefault()
+	if runOpts.DBConfig != nil &&
+		runOpts.DBConfig.Client.FetchTimeout != nil &&
+		*runOpts.DBConfig.Client.FetchTimeout > timeout {
+		timeout = *runOpts.DBConfig.Client.FetchTimeout
+	}
+
+	fetchOptsBuilderLimitsOpts := cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Limits:        fetchOptsBuilderLimitsOpts,
+			RestrictByTag: storageRestrictByTags,
+			Timeout:       timeout,
+		})
+	if err != nil {
+		logger.Fatal("could not set fetch options parser", zap.Error(err))
+	}
+
 	var (
-		clusterNamespacesWatcher   m3.ClusterNamespacesWatcher
-		backendStorage             storage.Storage
-		clusterClient              clusterclient.Client
-		downsampler                downsample.Downsampler
-		fetchOptsBuilderLimitsOpts = cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
-		fetchOptsBuilder           = handleroptions.NewFetchOptionsBuilder(
-			handleroptions.FetchOptionsBuilderOptions{
-				Limits:        fetchOptsBuilderLimitsOpts,
-				RestrictByTag: storageRestrictByTags,
-			})
-		queryCtxOpts = models.QueryContextOptions{
+		clusterNamespacesWatcher m3.ClusterNamespacesWatcher
+		backendStorage           storage.Storage
+		clusterClient            clusterclient.Client
+		downsampler              downsample.Downsampler
+		queryCtxOpts             = models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOptsBuilderLimitsOpts.SeriesLimit,
 			LimitMaxDocs:       fetchOptsBuilderLimitsOpts.DocsLimit,
 			RequireExhaustive:  fetchOptsBuilderLimitsOpts.RequireExhaustive,
@@ -436,7 +452,20 @@ func Run(runOpts RunOptions) {
 
 	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
-		cluster, err := dbCfg.EnvironmentConfig.Services.SyncCluster()
+		hostID, err := dbCfg.HostIDOrDefault().Resolve()
+		if err != nil {
+			logger.Fatal("could not resolve hostID",
+				zap.Error(err))
+		}
+
+		discoveryCfg := dbCfg.DiscoveryOrDefault()
+		envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+		if err != nil {
+			logger.Fatal("could not get env config from discovery config",
+				zap.Error(err))
+		}
+
+		cluster, err := envCfg.Services.SyncCluster()
 		if err != nil {
 			logger.Fatal("could not resolve embedded db cluster info",
 				zap.Error(err))
@@ -466,8 +495,12 @@ func Run(runOpts RunOptions) {
 		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
 	}
 
-	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
+	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
 		instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to create PromQL engine", zap.Error(err))
+	}
+
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, queryCtxOpts,
@@ -488,7 +521,8 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
-	srv := &http.Server{Addr: cfg.ListenAddress, Handler: handler.Router()}
+	listenAddress := cfg.ListenAddressOrDefault()
+	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -496,10 +530,10 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := listenerOpts.Listen("tcp", cfg.ListenAddress)
+	listener, err := listenerOpts.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
-			zap.String("address", cfg.ListenAddress),
+			zap.String("address", listenAddress),
 			zap.Error(err))
 	}
 	if runOpts.ListenerCh != nil {
@@ -509,16 +543,21 @@ func Run(runOpts RunOptions) {
 		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
-				zap.String("address", cfg.ListenAddress),
+				zap.String("address", listenAddress),
 				zap.Error(err))
 		}
 	}()
 
 	if cfg.Ingest != nil {
+		storeMetricsType := false
+		if cfg.StoreMetricsType != nil {
+			storeMetricsType = *cfg.StoreMetricsType
+		}
+
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
-			tagOptions, instrumentOptions)
+			tagOptions, instrumentOptions, storeMetricsType)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
@@ -627,45 +666,40 @@ func newM3DBStorage(
 		namespaces  = clusters.ClusterNamespaces()
 		downsampler downsample.Downsampler
 	)
-	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
-		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
-			zap.Int("numAggregatedClusterNamespaces", n))
+	logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+		zap.Int("numAggregatedClusterNamespaces", len(namespaces)))
+
+	newDownsamplerFn := func() (downsample.Downsampler, error) {
+		ds, err := newDownsampler(
+			cfg.Downsample, clusterClient,
+			fanoutStorage, clusterNamespacesWatcher,
+			tsdbOpts.TagOptions(), instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
+		if err != nil {
+			return nil, err
+		}
+
+		// Notify the downsampler ready channel that
+		// the downsampler has now been created and is ready.
+		if downsamplerReadyCh != nil {
+			downsamplerReadyCh <- struct{}{}
+		}
+
+		return ds, nil
+	}
+
+	if clusterClientWaitCh != nil {
+		// Need to wait before constructing and instead return an async downsampler
+		// since the cluster client will return errors until it's initialized itself
+		// and will fail constructing the downsampler consequently
+		downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+			<-clusterClientWaitCh
+			return newDownsamplerFn()
+		}, nil)
+	} else {
+		// Otherwise we already have a client and can immediately construct the downsampler
+		downsampler, err = newDownsamplerFn()
 		if err != nil {
 			return nil, nil, nil, nil, err
-		}
-
-		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			downsampler, err := newDownsampler(
-				cfg.Downsample, clusterClient,
-				fanoutStorage, clusterNamespacesWatcher,
-				tsdbOpts.TagOptions(), instrumentOptions, rwOpts)
-			if err != nil {
-				return nil, err
-			}
-
-			// Notify the downsampler ready channel that
-			// the downsampler has now been created and is ready.
-			if downsamplerReadyCh != nil {
-				downsamplerReadyCh <- struct{}{}
-			}
-
-			return downsampler, nil
-		}
-
-		if clusterClientWaitCh != nil {
-			// Need to wait before constructing and instead return an async downsampler
-			// since the cluster client will return errors until it's initialized itself
-			// and will fail constructing the downsampler consequently
-			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
-				<-clusterClientWaitCh
-				return newDownsamplerFn()
-			}, nil)
-		} else {
-			// Otherwise we already have a client and can immediately construct the downsampler
-			downsampler, err = newDownsamplerFn()
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
 		}
 	}
 
@@ -698,6 +732,7 @@ func newDownsampler(
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
+	applyCustomRuleStore downsample.CustomRuleStoreFn,
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -708,10 +743,20 @@ func newDownsampler(
 			"must set this config for downsampler")
 	}
 
-	kvStore, err := clusterManagementClient.KV()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create KV store from the "+
-			"cluster management config client")
+	var kvStore kv.Store
+	var err error
+
+	if applyCustomRuleStore == nil {
+		kvStore, err = clusterManagementClient.KV()
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to create KV store from the "+
+				"cluster management config client")
+		}
+	} else {
+		kvStore, err = applyCustomRuleStore(clusterManagementClient, instrumentOpts)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to apply custom rule store")
+		}
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
@@ -817,7 +862,21 @@ func initClusters(
 			if dbCfg == nil {
 				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
-			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &dbCfg.EnvironmentConfig}
+
+			hostID, err := dbCfg.HostIDOrDefault().Resolve()
+			if err != nil {
+				logger.Fatal("could not resolve hostID",
+					zap.Error(err))
+			}
+
+			discoveryCfg := dbCfg.DiscoveryOrDefault()
+			envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+			if err != nil {
+				logger.Fatal("could not get env config from discovery config",
+					zap.Error(err))
+			}
+
+			clusterStaticConfig.Client = client.Configuration{EnvironmentConfig: &envCfg}
 		}
 
 		clustersCfg := m3.ClustersStaticConfiguration{clusterStaticConfig}
@@ -1131,18 +1190,24 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
-	cfg config.QueryConfiguration,
+	cfg config.Configuration,
 	registry *extprom.Registry,
 	instrumentOpts instrument.Options,
-) *prometheuspromql.Engine {
+) (*prometheuspromql.Engine, error) {
+	lookbackDelta, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
-			Logger:     log.With(kitLogger, "component", "prometheus_engine"),
-			Reg:        registry,
-			MaxSamples: cfg.Prometheus.MaxSamplesPerQueryOrDefault(),
-			Timeout:    cfg.TimeoutOrDefault(),
+			Logger:        log.With(kitLogger, "component", "prometheus_engine"),
+			Reg:           registry,
+			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
+			Timeout:       cfg.Query.TimeoutOrDefault(),
+			LookbackDelta: lookbackDelta,
 		}
 	)
-	return prometheuspromql.NewEngine(opts)
+	return prometheuspromql.NewEngine(opts), nil
 }

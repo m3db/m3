@@ -22,6 +22,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -200,17 +201,16 @@ func (d *downsamplerAndWriter) shouldDownsample(
 	overrides WriteOptions,
 ) bool {
 	var (
-		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
 		_, downsampleOverride = d.downsampleOverrideRules(overrides)
 	)
-	// Only downsample if the downsampler exists, and they either want to use the default mapping
+	// Only downsample if the downsampler is enabled, and they either want to use the default mapping
 	// rules, or they're trying to override the mapping rules and they've provided at least one
 	// override to do so.
-	return downsamplerExists && (useDefaultMappingRules || downsampleOverride)
+	return d.downsampler.Enabled() && (useDefaultMappingRules || downsampleOverride)
 }
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(
@@ -496,14 +496,26 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
-			switch value.Attributes.M3Type {
-			case ts.M3MetricTypeGauge:
-				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
-			case ts.M3MetricTypeCounter:
-				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
-			case ts.M3MetricTypeTimer:
-				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+			if value.Attributes.PromType != ts.PromMetricTypeUnknown {
+				switch value.Attributes.PromType {
+				case ts.PromMetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				default:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				}
+			} else {
+				switch value.Attributes.M3Type {
+				case ts.M3MetricTypeGauge:
+					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+				case ts.M3MetricTypeCounter:
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+				case ts.M3MetricTypeTimer:
+					err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+				default:
+					err = fmt.Errorf("unknown m3type '%v'", value.Attributes.M3Type)
+				}
 			}
+
 			if err != nil {
 				// If we see an error break out so we can try processing the
 				// next datapoint.

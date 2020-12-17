@@ -21,6 +21,7 @@
 package node
 
 import (
+	goctx "context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -29,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -37,11 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -49,7 +51,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -251,12 +253,15 @@ type Service interface {
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
 
+	// Database returns the current database.
+	Database() (storage.Database, error)
+
 	// SetMetadata sets a metadata key to the given value.
 	SetMetadata(key, value string)
 
-	// GetMetadata returns the metadata for the given key and a bool indicating
+	// Metadata returns the metadata for the given key and a bool indicating
 	// if it is present.
-	GetMetadata(key string) (string, bool)
+	Metadata(key string) (string, bool)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -347,7 +352,7 @@ func (s *service) SetMetadata(key, value string) {
 	s.state.health = newHealth
 }
 
-func (s *service) GetMetadata(key string) (string, bool) {
+func (s *service) Metadata(key string) (string, bool) {
 	s.state.RLock()
 	md, found := s.state.health.Metadata[key]
 	s.state.RUnlock()
@@ -453,7 +458,8 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.Query)
+	ctx := addSourceToContext(tctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", req.Query.String()),
@@ -491,6 +497,9 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	}
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
 	if err != nil {
@@ -614,11 +623,12 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	var (
 		callStart = s.nowFn()
-		ctx       = tchannelthrift.Context(tctx)
+		ctx       = addSourceToContext(tctx, req.Source)
 
 		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
 		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
 	)
+
 	if rangeStartErr != nil || rangeEndErr != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
@@ -697,7 +707,8 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.FetchTagged)
+	ctx := addSourceToContext(tctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", string(req.Query)),
@@ -895,7 +906,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+	ctx := addSourceToContext(tctx, req.Source)
 
 	ns, query, opts, err := convert.FromRPCAggregateQueryRawRequest(req, s.pools)
 	if err != nil {
@@ -966,7 +977,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
+	ctx := addSourceToContext(tctx, req.Source)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeTimeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeTimeType)
@@ -1046,13 +1057,14 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 
 	var (
 		callStart          = s.nowFn()
-		ctx                = tchannelthrift.Context(tctx)
+		ctx                = addSourceToContext(tctx, req.Source)
 		nsIDs              = make([]ident.ID, 0, len(req.Elements))
 		result             = rpc.NewFetchBatchRawResult_()
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
 	for _, nsBytes := range req.NameSpaces {
 		nsIDs = append(nsIDs, s.newID(ctx, nsBytes))
 	}
@@ -2188,9 +2200,18 @@ func (s *service) SetDatabase(db storage.Database) error {
 	if s.state.db != nil {
 		return errDatabaseHasAlreadyBeenSet
 	}
-
 	s.state.db = db
 	return nil
+}
+
+func (s *service) Database() (storage.Database, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+
+	if s.state.db == nil {
+		return nil, errDatabaseIsNotInitializedYet
+	}
+	return s.state.db, nil
 }
 
 func (s *service) startWriteRPCWithDB() (storage.Database, error) {
@@ -2302,7 +2323,7 @@ func (s *service) readEncodedResult(
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		s.pools.segmentsArray.Put(segments)
 	}))
 
@@ -2618,4 +2639,17 @@ func finalizeEncodedTagsFn(b []byte) {
 // does not.
 func finalizeAnnotationFn(b []byte) {
 	apachethrift.BytesPoolPut(b)
+}
+
+func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
+	ctx := tchannelthrift.Context(tctx)
+	if len(source) > 0 {
+		if base, ok := ctx.GoContext(); ok {
+			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))
+		} else {
+			ctx.SetGoContext(goctx.WithValue(goctx.Background(), limits.SourceContextKey, source))
+		}
+	}
+
+	return ctx
 }

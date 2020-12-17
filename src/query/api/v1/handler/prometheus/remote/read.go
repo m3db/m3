@@ -101,6 +101,14 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	}
 }
 
+func (m *promReadMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.fetchErrorsClient.Inc(1)
+	} else {
+		m.fetchErrorsServer.Inc(1)
+	}
+}
+
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
@@ -109,7 +117,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
 	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		h.promReadMetrics.incError(rErr)
 		logger.Error("remote read query parse error",
 			zap.Error(rErr),
 			zap.Any("req", req),
@@ -121,7 +129,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 		logger.Error("remote read query error",
 			zap.Error(err),
 			zap.Any("req", req),
@@ -129,6 +137,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		xhttp.WriteError(w, err)
 		return
 	}
+
+	// Write headers before response.
+	handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts)
 
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
@@ -174,15 +185,13 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-		handleroptions.AddWarningHeaders(w, readResult.Meta)
-
 		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
 
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		h.promReadMetrics.incError(err)
 	} else {
 		h.promReadMetrics.fetchSuccess.Inc(1)
 	}
@@ -228,7 +237,6 @@ func WriteSnappyCompressed(
 
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	w.Header().Set("Content-Encoding", "snappy")
-	handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -404,18 +412,11 @@ func parseRequest(
 		return nil, nil, err
 	}
 
-	timeout := opts.TimeoutOpts().FetchTimeout
-	timeout, err = prometheus.ParseRequestTimeout(r, timeout)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		return nil, nil, rErr
 	}
 
-	fetchOpts.Timeout = timeout
 	return req, fetchOpts, nil
 }
 

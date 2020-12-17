@@ -125,7 +125,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
+	handleroptions.AddResponseHeaders(w, meta, opts)
 	result := resultBuilder.Build()
 	if err := prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))

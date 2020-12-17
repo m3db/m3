@@ -51,6 +51,9 @@ type instanceWriter interface {
 	// Flush flushes any buffered metrics.
 	Flush() error
 
+	// QueueSize returns the size of the instance queue.
+	QueueSize() int
+
 	// Close closes the writer.
 	Close() error
 }
@@ -152,6 +155,10 @@ func (w *writer) Close() error {
 		w.metrics.flushErrors.Inc(1)
 	}
 	return w.queue.Close()
+}
+
+func (w *writer) QueueSize() int {
+	return w.queue.Size()
 }
 
 func (w *writer) encodeWithLock(

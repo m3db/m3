@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -43,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/server"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -56,12 +56,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -80,12 +81,8 @@ var (
 
 	testSchemaHistory = prototest.NewSchemaHistory()
 	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
-	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
-	testProtoEqual    = func(expect, actual []byte) bool {
-		return prototest.ProtoEqual(testSchema, expect, actual)
-	}
-	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
+	testProtoIter     = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time
@@ -105,6 +102,7 @@ type testSetup struct {
 
 	db                cluster.Database
 	storageOpts       storage.Options
+	serverStorageOpts server.StorageOptions
 	fsOpts            fs.Options
 	blockLeaseManager block.LeaseManager
 	hostID            string
@@ -133,8 +131,10 @@ type testSetup struct {
 	namespaces     []namespace.Metadata
 
 	// signals
-	doneCh   chan struct{}
-	closedCh chan struct{}
+	doneCh chan struct {
+	}
+	closedCh chan struct {
+	}
 }
 
 // TestSetup is a test setup.
@@ -149,6 +149,7 @@ type TestSetup interface {
 	Scope() tally.TestScope
 	M3DBClient() client.Client
 	M3DBVerificationAdminClient() client.AdminClient
+	TChannelClient() *TestTChannelClient
 	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	SetTopologyInitializer(topology.Initializer)
@@ -156,6 +157,7 @@ type TestSetup interface {
 	FilePathPrefix() string
 	StorageOpts() storage.Options
 	SetStorageOpts(storage.Options)
+	SetServerStorageOpts(server.StorageOptions)
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
@@ -380,7 +382,8 @@ func NewTestSetup(
 
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
+			SetFilePathPrefix(filePathPrefix).
+			SetClockOptions(storageOpts.ClockOptions())
 	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
@@ -393,6 +396,13 @@ func NewTestSetup(
 		return nil, err
 	}
 	storageOpts = storageOpts.SetPersistManager(pm)
+
+	// Set up index claims manager
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	storageOpts = storageOpts.SetIndexClaimsManager(icm)
 
 	// Set up repair options
 	storageOpts = storageOpts.
@@ -531,6 +541,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// otherwise, we are guessing
 	return guess, true
 }
+
 func (ts *testSetup) ShouldBeEqual() bool {
 	return ts.assertEqual == nil
 }
@@ -593,6 +604,10 @@ func (ts *testSetup) StorageOpts() storage.Options {
 
 func (ts *testSetup) SetStorageOpts(opts storage.Options) {
 	ts.storageOpts = opts
+}
+
+func (ts *testSetup) SetServerStorageOpts(opts server.StorageOptions) {
+	ts.serverStorageOpts = opts
 }
 
 func (ts *testSetup) TopologyInitializer() topology.Initializer {
@@ -722,7 +737,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		if err := openAndServe(
 			ts.httpClusterAddr(), ts.tchannelClusterAddr(),
 			ts.httpNodeAddr(), ts.tchannelNodeAddr(), ts.httpDebugAddr(),
-			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
+			ts.db, ts.m3dbClient, ts.storageOpts, ts.serverStorageOpts, ts.doneCh,
 		); err != nil {
 			select {
 			case resultCh <- err:
@@ -756,6 +771,10 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 func (ts *testSetup) StopServer() error {
 	ts.doneCh <- struct{}{}
 
+	// NB(bodu): Need to reset the global counter of index claims managers after
+	// we've stopped the test server. This covers the restart server case.
+	fs.ResetIndexClaimsManagersUnsafe()
+
 	if ts.m3dbClient.DefaultSessionActive() {
 		session, err := ts.m3dbClient.DefaultSession()
 		if err != nil {
@@ -774,6 +793,10 @@ func (ts *testSetup) StopServer() error {
 	// Wait for graceful server close
 	<-ts.closedCh
 	return nil
+}
+
+func (ts *testSetup) TChannelClient() *TestTChannelClient {
+	return ts.tchannelClient
 }
 
 func (ts *testSetup) WriteBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
@@ -814,6 +837,10 @@ func (ts *testSetup) Close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+
+	// This could get called more than once in the multi node integration test case
+	// but this is fine since the reset always sets the counter to 0.
+	fs.ResetIndexClaimsManagersUnsafe()
 }
 
 func (ts *testSetup) MustSetTickMinimumInterval(tickMinInterval time.Duration) {
@@ -941,6 +968,7 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
+			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
 			SetCompactor(compactor)
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
@@ -981,22 +1009,19 @@ func newClients(
 	tchannelNodeAddr string,
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
-		clientOpts = defaultClientOptions(topoInit).
-				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-				SetFetchRequestTimeout(opts.FetchRequestTimeout()).
-				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit).
-				SetUseV2BatchAPIs(true)
+		clientOpts = defaultClientOptions(topoInit).SetClusterConnectTimeout(
+			opts.ClusterConnectionTimeout()).
+			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
+			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+			SetTopologyInitializer(topoInit).
+			SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts = clientOpts.(client.AdminOptions).
-				SetOrigin(origin).
-				SetSchemaRegistry(schemaReg)
-		verificationAdminOpts = adminOpts.
-					SetOrigin(verificationOrigin).
-					SetSchemaRegistry(schemaReg)
+		adminOpts = clientOpts.(client.AdminOptions).SetOrigin(origin).SetSchemaRegistry(schemaReg)
+
+		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin).SetSchemaRegistry(schemaReg)
 	)
 
 	if opts.ProtoEncoding() {

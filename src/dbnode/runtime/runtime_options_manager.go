@@ -23,7 +23,7 @@ package runtime
 import (
 	"fmt"
 
-	xclose "github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
@@ -52,7 +52,7 @@ func (w *optionsManager) Get() Options {
 
 func (w *optionsManager) RegisterListener(
 	listener OptionsListener,
-) xclose.SimpleCloser {
+) xresource.SimpleCloser {
 	_, watch, _ := w.watchable.Watch()
 
 	// We always initialize the watchable so always read
@@ -98,7 +98,7 @@ func (n noOpOptionsManager) Get() Options {
 
 func (n noOpOptionsManager) RegisterListener(
 	listener OptionsListener,
-) xclose.SimpleCloser {
+) xresource.SimpleCloser {
 	// noOpOptionsManager never changes its options, not worth
 	// registering listener
 	return noOpCloser{}

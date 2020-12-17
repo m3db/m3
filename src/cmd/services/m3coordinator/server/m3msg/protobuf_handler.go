@@ -122,7 +122,7 @@ func (h *pbHandler) Process(msg consumer.Message) {
 		}
 	}
 
-	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
+	h.writeFn(h.ctx, dec.ID(), dec.Type(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
 
 func (h *pbHandler) Close() { h.wg.Wait() }

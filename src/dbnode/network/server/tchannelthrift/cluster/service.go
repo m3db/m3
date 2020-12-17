@@ -120,8 +120,12 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		StartInclusive: start,
 		EndExclusive:   end,
 	}
+
 	if l := req.Limit; l != nil {
 		opts.SeriesLimit = int(*l)
+	}
+	if len(req.Source) > 0 {
+		opts.Source = req.Source
 	}
 
 	session, err := s.session()
@@ -237,10 +241,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	it, err := session.Fetch(nsID, tsID, start, end)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return nil, tterrors.NewBadRequestError(err)
-		}
-		return nil, tterrors.NewInternalError(err)
+		return nil, convert.ToRPCError(err)
 	}
 
 	defer it.Close()
@@ -336,10 +337,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	tsID := s.idPool.GetStringID(ctx, req.ID)
 	err = session.Write(nsID, tsID, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }
@@ -373,10 +371,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
 		ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
-		if client.IsBadRequestError(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }

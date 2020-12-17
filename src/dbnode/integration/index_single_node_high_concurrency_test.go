@@ -156,7 +156,7 @@ func testIndexSingleNodeHighConcurrency(
 	// Test setup
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().
-			SetRetentionOptions(defaultIntegrationTestRetentionOpts).
+			SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
 			SetCleanupEnabled(false).
 			SetSnapshotEnabled(false).
 			SetFlushEnabled(false).

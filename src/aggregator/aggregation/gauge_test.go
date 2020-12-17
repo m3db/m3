@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -42,6 +43,17 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.Equal(t, 100.0, g.ValueOf(aggregation.Count))
 	require.Equal(t, 50.5, g.ValueOf(aggregation.Mean))
 	require.Equal(t, 0.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 100.0, g.ValueOf(aggregation.Max))
+	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
+
+	g = NewGauge(NewOptions(instrument.NewOptions()))
+	require.Equal(t, 0.0, g.Last())
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 0.0, g.ValueOf(aggregation.SumSq))
+	require.True(t, math.IsNaN(g.ValueOf(aggregation.Max)))
+	require.True(t, math.IsNaN(g.ValueOf(aggregation.Min)))
 }
 
 func TestGaugeCustomAggregationType(t *testing.T) {
@@ -77,6 +89,33 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 			require.InDelta(t, 29.01149, v, 0.001)
 		default:
 			require.Equal(t, float64(0), v)
+			require.False(t, aggType.IsValidForGauge())
+		}
+	}
+
+	g = NewGauge(opts)
+	require.Equal(t, 0.0, g.Last())
+	for aggType := range aggregation.ValidTypes {
+		v := g.ValueOf(aggType)
+		switch aggType {
+		case aggregation.Last:
+			require.Equal(t, 0.0, v)
+		case aggregation.Min:
+			require.True(t, math.IsNaN(v))
+		case aggregation.Max:
+			require.True(t, math.IsNaN(v))
+		case aggregation.Mean:
+			require.Equal(t, 0.0, v)
+		case aggregation.Count:
+			require.Equal(t, 0.0, v)
+		case aggregation.Sum:
+			require.Equal(t, 0.0, v)
+		case aggregation.SumSq:
+			require.Equal(t, 0.0, v)
+		case aggregation.Stdev:
+			require.InDelta(t, 0.0, v, 0.0)
+		default:
+			require.Equal(t, 0.0, v)
 			require.False(t, aggType.IsValidForGauge())
 		}
 	}

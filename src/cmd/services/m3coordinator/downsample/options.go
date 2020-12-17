@@ -86,7 +86,8 @@ const (
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards           = runtime.NumCPU()
+	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -100,6 +101,9 @@ var (
 	errNoMetricsAppenderPoolOptions = errors.New("downsampling enabled with metrics appender pool options not set")
 	errRollupRuleNoTransforms       = errors.New("rollup rule has no transforms set")
 )
+
+// CustomRuleStoreFn is a function to swap the backend used for the rule stores.
+type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnStore, error)
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
@@ -221,10 +225,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts      clock.Options
-	matcher        matcher.Matcher
-	pools          aggPools
-	m3PrefixFilter bool
+	clockOpts     clock.Options
+	matcher       matcher.Matcher
+	pools         aggPools
+	augmentM3Tags bool
 }
 
 // Configuration configurates a downsampler.
@@ -261,12 +265,23 @@ type Configuration struct {
 
 	// DisableAutoMappingRules disables auto mapping rules.
 	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
+
+	// AugmentM3Tags will augment the metric type to aggregated metrics
+	// to be used within the filter for rules. If enabled, for example,
+	// your filter can specify '__m3_type__:gauge' to filter by gauges.
+	// This is particularly useful for Graphite metrics today.
+	// Furthermore, the option is automatically enabled if static rules are
+	// used and any filter contain an __m3_type__ tag.
+	AugmentM3Tags bool `yaml:"augmentM3Tags"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
 type MatcherConfiguration struct {
 	// Cache if non-zero will set the capacity of the rules matching cache.
 	Cache MatcherCacheConfiguration `yaml:"cache"`
+	// NamespaceTag defines the namespace tag to use to select rules
+	// namespace to evaluate against. Default is "__m3_namespace__".
+	NamespaceTag string `yaml:"namespaceTag"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
@@ -646,13 +661,17 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		scope                   = instrumentOpts.MetricsScope()
 		logger                  = instrumentOpts.Logger()
 		openTimeout             = defaultOpenTimeout
-		m3PrefixFilter          = false
+		augmentM3Tags           = cfg.AugmentM3Tags
+		namespaceTag            = defaultNamespaceTag
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
 	}
 	if o.OpenTimeout > 0 {
 		openTimeout = o.OpenTimeout
+	}
+	if cfg.Matcher.NamespaceTag != "" {
+		namespaceTag = cfg.Matcher.NamespaceTag
 	}
 
 	pools := o.newAggregatorPools()
@@ -662,7 +681,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(o.RulesKVStore)
+		SetKVStore(o.RulesKVStore).
+		SetNamespaceTag([]byte(namespaceTag))
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -701,7 +721,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
 			if strings.Contains(mappingRule.Filter, metric.M3MetricsPrefixString) {
-				m3PrefixFilter = true
+				augmentM3Tags = true
 			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
@@ -716,7 +736,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
 			if strings.Contains(rollupRule.Filter, metric.M3MetricsPrefixString) {
-				m3PrefixFilter = true
+				augmentM3Tags = true
 			}
 			rule, err := rollupRule.Rule()
 			if err != nil {
@@ -771,10 +791,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:   client,
-			matcher:        matcher,
-			pools:          pools,
-			m3PrefixFilter: m3PrefixFilter,
+			clientRemote:  client,
+			matcher:       matcher,
+			pools:         pools,
+			augmentM3Tags: augmentM3Tags,
 		}, nil
 	}
 
@@ -936,10 +956,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:     aggregatorInstance,
-		matcher:        matcher,
-		pools:          pools,
-		m3PrefixFilter: m3PrefixFilter,
+		aggregator:    aggregatorInstance,
+		matcher:       matcher,
+		pools:         pools,
+		augmentM3Tags: augmentM3Tags,
 	}, nil
 }
 
@@ -1052,7 +1072,7 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 
 	placementSvc := placementservice.NewPlacementService(
 		placementstorage.NewPlacementStorage(localKVStore, placementKVKey, placementOpts),
-		placementOpts)
+		placementservice.WithPlacementOptions(placementOpts))
 
 	_, err := placementSvc.BuildInitialPlacement([]placement.Instance{instance}, numShards,
 		replicationFactor)

@@ -21,11 +21,11 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -83,8 +84,9 @@ type fileSystemSource struct {
 }
 
 type fileSystemSourceMetrics struct {
-	persistedIndexBlocksRead  tally.Counter
-	persistedIndexBlocksWrite tally.Counter
+	persistedIndexBlocksRead           tally.Counter
+	persistedIndexBlocksWrite          tally.Counter
+	persistedIndexBlocksOutOfRetention tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -105,8 +107,9 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		metrics: fileSystemSourceMetrics{
-			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksRead:           scope.Counter("persist-index-blocks-read"),
+			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 		},
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
@@ -329,9 +332,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 ) {
-	var (
-		resultOpts = s.opts.ResultOptions()
-	)
+	resultOpts := s.opts.ResultOptions()
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
@@ -410,6 +411,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
+	defer func() {
+		// Return readers to pool.
+		for _, shardReaders := range shardReaders {
+			for _, r := range shardReaders.Readers {
+				if err := r.Close(); err == nil {
+					readerPool.Put(r)
+				}
+			}
+		}
+	}()
+
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.Readers
@@ -586,12 +598,20 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -636,15 +656,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		runResult.Lock()
 		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 		runResult.Unlock()
-	}
-
-	// Return readers to pool.
-	for _, shardReaders := range shardReaders {
-		for _, r := range shardReaders.Readers {
-			if err := r.Close(); err == nil {
-				readerPool.Put(r)
-			}
-		}
 	}
 
 	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
@@ -982,12 +993,22 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
+		fsOpts := s.fsopts
+		verify := s.opts.IndexSegmentsVerify()
+		if verify {
+			// Make sure for this call to read index segments
+			// to validate the index segment.
+			// If fails validation will rebuild since missing from
+			// fulfilled range.
+			fsOpts = fsOpts.SetIndexReaderAutovalidateIndexSegments(true)
+		}
+
 		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
 				Identifier:  infoFile.ID,
 				FileSetType: persist.FileSetFlushType,
 			},
-			FilesystemOptions: s.fsopts,
+			FilesystemOptions: fsOpts,
 		})
 		if err != nil {
 			s.log.Error("unable to read segments from index fileset",

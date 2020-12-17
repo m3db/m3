@@ -30,13 +30,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/resource"
-
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 func TestRefCountNegativeRefCount(t *testing.T) {
@@ -249,7 +249,7 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			elem.IncRef()
 			elem.DecRef()
 
-			delays := make([]resource.Closer, 0, test.numDelay)
+			delays := make([]xresource.SimpleCloser, 0, test.numDelay)
 			for i := 0; i < test.numDelay; i++ {
 				delays = append(delays, elem.DelayFinalizer())
 			}

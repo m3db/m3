@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -153,6 +153,36 @@ func NewMockSession(ctrl *gomock.Controller) *MockSession {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockSession) EXPECT() *MockSessionMockRecorder {
 	return m.recorder
+}
+
+// WriteClusterAvailability mocks base method
+func (m *MockSession) WriteClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteClusterAvailability indicates an expected call of WriteClusterAvailability
+func (mr *MockSessionMockRecorder) WriteClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteClusterAvailability", reflect.TypeOf((*MockSession)(nil).WriteClusterAvailability))
+}
+
+// ReadClusterAvailability mocks base method
+func (m *MockSession) ReadClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadClusterAvailability indicates an expected call of ReadClusterAvailability
+func (mr *MockSessionMockRecorder) ReadClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadClusterAvailability", reflect.TypeOf((*MockSession)(nil).ReadClusterAvailability))
 }
 
 // Write mocks base method
@@ -755,6 +785,36 @@ func NewMockAdminSession(ctrl *gomock.Controller) *MockAdminSession {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockAdminSession) EXPECT() *MockAdminSessionMockRecorder {
 	return m.recorder
+}
+
+// WriteClusterAvailability mocks base method
+func (m *MockAdminSession) WriteClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteClusterAvailability indicates an expected call of WriteClusterAvailability
+func (mr *MockAdminSessionMockRecorder) WriteClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteClusterAvailability", reflect.TypeOf((*MockAdminSession)(nil).WriteClusterAvailability))
+}
+
+// ReadClusterAvailability mocks base method
+func (m *MockAdminSession) ReadClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadClusterAvailability indicates an expected call of ReadClusterAvailability
+func (mr *MockAdminSessionMockRecorder) ReadClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadClusterAvailability", reflect.TypeOf((*MockAdminSession)(nil).ReadClusterAvailability))
 }
 
 // Write mocks base method
@@ -4452,6 +4512,36 @@ func NewMockclientSession(ctrl *gomock.Controller) *MockclientSession {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockclientSession) EXPECT() *MockclientSessionMockRecorder {
 	return m.recorder
+}
+
+// WriteClusterAvailability mocks base method
+func (m *MockclientSession) WriteClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteClusterAvailability indicates an expected call of WriteClusterAvailability
+func (mr *MockclientSessionMockRecorder) WriteClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteClusterAvailability", reflect.TypeOf((*MockclientSession)(nil).WriteClusterAvailability))
+}
+
+// ReadClusterAvailability mocks base method
+func (m *MockclientSession) ReadClusterAvailability() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadClusterAvailability")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadClusterAvailability indicates an expected call of ReadClusterAvailability
+func (mr *MockclientSessionMockRecorder) ReadClusterAvailability() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadClusterAvailability", reflect.TypeOf((*MockclientSession)(nil).ReadClusterAvailability))
 }
 
 // Write mocks base method

@@ -43,12 +43,20 @@ const (
 	// Valid values are "unaggregated" or "aggregated".
 	MetricsTypeHeader = M3HeaderPrefix + "Metrics-Type"
 
+	// PromTypeHeader sets the prometheus metric type. Valid values are
+	// "counter", "gauge", etc. (see src/query/api/v1/handler/prometheus/remote/write.go
+	// field `headerToMetricType`)
+	PromTypeHeader = M3HeaderPrefix + "Prom-Type"
+
 	// WriteTypeHeader is a header that controls if default
 	// writes should be written to both unaggregated and aggregated
 	// namespaces, or if unaggregated values are skipped and
 	// only aggregated values are written.
 	// Valid values are "default" or "aggregate".
 	WriteTypeHeader = M3HeaderPrefix + "Write-Type"
+
+	// SourceHeader tracks bytes and docs read for the given source, if provided.
+	SourceHeader = M3HeaderPrefix + "Source"
 
 	// DefaultWriteType is the default write type.
 	DefaultWriteType = "default"
@@ -106,6 +114,9 @@ const (
 
 	// LimitHeader is the header added when returned series are limited.
 	LimitHeader = M3HeaderPrefix + "Results-Limited"
+
+	// TimeoutHeader is the header added with the effective timeout.
+	TimeoutHeader = M3HeaderPrefix + "Timeout"
 
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results
 	// are maxed.

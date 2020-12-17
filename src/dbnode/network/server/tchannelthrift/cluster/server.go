@@ -25,8 +25,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber/tchannel-go"
 )
@@ -50,11 +50,6 @@ func NewServer(
 	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,
 ) ns.NetworkService {
-	// Make the opts immutable on the way in
-	if opts != nil {
-		immutableOpts := *opts
-		opts = &immutableOpts
-	}
 	return &server{
 		address:     address,
 		client:      client,
@@ -64,7 +59,14 @@ func NewServer(
 }
 
 func (s *server) ListenAndServe() (ns.Close, error) {
-	channel, err := tchannel.NewChannel(ChannelName, s.opts)
+	// NB(r): Keep ref to a local channel options since it's actually modified
+	// by TChannel itself to set defaults.
+	var opts *tchannel.ChannelOptions
+	if s.opts != nil {
+		immutableOpts := *s.opts
+		opts = &immutableOpts
+	}
+	channel, err := tchannel.NewChannel(ChannelName, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +78,6 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	return func() {
 		channel.Close()
-		xclose.TryClose(service)
+		xresource.TryClose(service) // nolint: errcheck
 	}, nil
 }

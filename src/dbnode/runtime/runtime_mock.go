@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/golang/mock/gomock"
 )
@@ -488,10 +488,10 @@ func (mr *MockOptionsManagerMockRecorder) Get() *gomock.Call {
 }
 
 // RegisterListener mocks base method
-func (m *MockOptionsManager) RegisterListener(l OptionsListener) close.SimpleCloser {
+func (m *MockOptionsManager) RegisterListener(l OptionsListener) resource.SimpleCloser {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", l)
-	ret0, _ := ret[0].(close.SimpleCloser)
+	ret0, _ := ret[0].(resource.SimpleCloser)
 	return ret0
 }
 

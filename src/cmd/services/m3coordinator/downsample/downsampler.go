@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 
 	"go.uber.org/zap"
@@ -35,6 +36,10 @@ import (
 // Downsampler is a downsampler.
 type Downsampler interface {
 	NewMetricsAppender() (MetricsAppender, error)
+	// Enabled indicates whether the downsampler is enabled or not. A
+	// downsampler is enabled if there are aggregated ClusterNamespaces
+	// that exist as downsampling only applies to aggregations.
+	Enabled() bool
 }
 
 // MetricsAppender is a metrics appender that can build a samples
@@ -88,6 +93,7 @@ type downsampler struct {
 
 	sync.RWMutex
 	metricsAppenderOpts metricsAppenderOptions
+	enabled             bool
 }
 
 type downsamplerOptions struct {
@@ -129,7 +135,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
-		augmentM3Tags:          agg.m3PrefixFilter,
+		augmentM3Tags:          agg.augmentM3Tags,
 	}
 }
 
@@ -145,12 +151,28 @@ func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return metricsAppender, nil
 }
 
+func (d *downsampler) Enabled() bool {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.enabled
+}
+
 func (d *downsampler) OnUpdate(namespaces m3.ClusterNamespaces) {
 	logger := d.opts.InstrumentOptions.Logger()
 
 	if len(namespaces) == 0 {
 		logger.Debug("received empty list of namespaces. not updating staged metadata")
 		return
+	}
+
+	var hasAggregatedNamespaces bool
+	for _, namespace := range namespaces {
+		attrs := namespace.Options().Attributes()
+		if attrs.MetricsType == storagemetadata.AggregatedMetricsType {
+			hasAggregatedNamespaces = true
+			break
+		}
 	}
 
 	autoMappingRules, err := NewAutoMappingRules(namespaces)
@@ -180,5 +202,7 @@ func (d *downsampler) OnUpdate(namespaces m3.ClusterNamespaces) {
 
 	d.Lock()
 	d.metricsAppenderOpts.defaultStagedMetadatasProtos = defaultStagedMetadatasProtos
+	// Can only downsample when aggregated namespaces are available.
+	d.enabled = hasAggregatedNamespaces
 	d.Unlock()
 }

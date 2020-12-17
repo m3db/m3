@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -268,21 +269,26 @@ type RetrievableBlockMetadata struct {
 	Checksum uint32
 }
 
-// StreamedChecksum yields a xio.IndexChecksum value asynchronously,
+// StreamedWideEntry yields a xio.WideEntry value asynchronously,
 // and any errors encountered during execution.
-type StreamedChecksum interface {
-	// RetrieveIndexChecksum retrieves the index checksum.
-	RetrieveIndexChecksum() (xio.IndexChecksum, error)
+type StreamedWideEntry interface {
+	resource.Finalizer
+
+	// RetrieveWideEntry retrieves the collected wide entry.
+	RetrieveWideEntry() (xio.WideEntry, error)
 }
 
-type emptyStreamedChecksum struct{}
+type emptyWideEntry struct{}
 
-func (emptyStreamedChecksum) RetrieveIndexChecksum() (xio.IndexChecksum, error) {
-	return xio.IndexChecksum{}, nil
+func (emptyWideEntry) RetrieveWideEntry() (xio.WideEntry, error) {
+	return xio.WideEntry{}, nil
 }
 
-// EmptyStreamedChecksum is an empty streamed checksum.
-var EmptyStreamedChecksum StreamedChecksum = emptyStreamedChecksum{}
+func (emptyWideEntry) Finalize() {
+}
+
+// EmptyStreamedWideEntry is an empty streamed wide entry.
+var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
@@ -300,27 +306,18 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream the index checksum for a given id within
-	// a block, yielding an index checksum if it is available in the shard.
-	StreamIndexChecksum(
+	// StreamWideEntry will stream the wide entry for a given ID within
+	// a block, yielding a wide entry if it is available in the shard.
+	StreamWideEntry(
 		ctx context.Context,
 		shard uint32,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
+	) (StreamedWideEntry, error)
 
-	// StreamReadMismatches will stream reader mismatches for a given id within
-	// a block, yielding any streamed checksums within the shard.
-	StreamReadMismatches(
-		ctx context.Context,
-		shard uint32,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
-
+	// AssignShardSet assigns the given shard set to this retriever.
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -335,24 +332,15 @@ type DatabaseShardBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexChecksum will stream the index checksum for a given id within
-	// a block, yielding an index checksum if available.
-	StreamIndexChecksum(
+	// StreamWideEntry will stream the wide entry for a given ID within
+	// a block, yielding a wide entry if available.
+	StreamWideEntry(
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		filter schema.WideEntryFilter,
 		nsCtx namespace.Context,
-	) (StreamedChecksum, error)
-
-	// StreamReadMismatches will stream read index mismatches for a given id
-	// within a block, yielding any read mismatches.
-	StreamReadMismatches(
-		ctx context.Context,
-		mismatchChecker wide.EntryChecksumMismatchChecker,
-		id ident.ID,
-		blockStart time.Time,
-		nsCtx namespace.Context,
-	) (wide.StreamedMismatch, error)
+	) (StreamedWideEntry, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

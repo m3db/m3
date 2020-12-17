@@ -29,15 +29,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/tile"
-	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -49,16 +45,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/ts/downsample"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -73,18 +69,16 @@ const (
 )
 
 var (
-	errShardEntryNotFound                  = errors.New("shard entry not found")
-	errShardNotOpen                        = errors.New("shard is not open")
-	errShardAlreadyTicking                 = errors.New("shard is already ticking")
-	errShardClosingTickTerminated          = errors.New("shard is closing, terminating tick")
-	errShardInvalidPageToken               = errors.New("shard could not unmarshal page token")
-	errNewShardEntryTagsTypeInvalid        = errors.New("new shard entry options error: tags type invalid")
-	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
-	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
-	errShardAlreadyBootstrapped            = errors.New("shard is already bootstrapped")
-	errFlushStateIsNotInitialized          = errors.New("shard flush state is not initialized")
-	errFlushStateAlreadyInitialized        = errors.New("shard flush state is already initialized")
-	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
+	errShardEntryNotFound           = errors.New("shard entry not found")
+	errShardNotOpen                 = errors.New("shard is not open")
+	errShardAlreadyTicking          = errors.New("shard is already ticking")
+	errShardClosingTickTerminated   = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken        = errors.New("shard could not unmarshal page token")
+	errNewShardEntryTagsTypeInvalid = errors.New("new shard entry options error: tags type invalid")
+	errShardIsNotBootstrapped       = errors.New("shard is not bootstrapped")
+	errShardAlreadyBootstrapped     = errors.New("shard is already bootstrapped")
+	errFlushStateIsNotInitialized   = errors.New("shard flush state is not initialized")
+	errTriedToLoadNilSeries         = errors.New("tried to load nil series into shard")
 
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
@@ -180,15 +174,17 @@ type dbShard struct {
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
+	newReaderFn              fs.NewReaderFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
 	tickWg                   *sync.WaitGroup
-	runtimeOptsListenClosers []xclose.SimpleCloser
+	runtimeOptsListenClosers []xresource.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   *zap.Logger
 	metrics                  dbShardMetrics
+	tileAggregator           TileAggregator
 	ticking                  bool
 	shard                    uint32
 	coldWritesEnabled        bool
@@ -322,6 +318,7 @@ func newDatabaseShard(
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,
+		newReaderFn:          fs.NewReader,
 		identifierPool:       opts.IdentifierPool(),
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
@@ -329,6 +326,7 @@ func newDatabaseShard(
 		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
+		tileAggregator:       opts.TileAggregator(),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope, opts.InstrumentOptions().Logger())
@@ -399,27 +397,16 @@ func (s *dbShard) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexChecksum implements series.QueryableBlockRetriever
-func (s *dbShard) StreamIndexChecksum(
+// StreamWideEntry implements series.QueryableBlockRetriever
+func (s *dbShard) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
-	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
-		blockStart, nsCtx)
-}
-
-// StreamIndexChecksum implements series.QueryableBlockRetriever
-func (s *dbShard) StreamReadMismatches(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	return s.DatabaseBlockRetriever.StreamReadMismatches(ctx, s.shard,
-		mismatchChecker, id, blockStart, nsCtx)
+) (block.StreamedWideEntry, error) {
+	return s.DatabaseBlockRetriever.StreamWideEntry(ctx, s.shard, id,
+		blockStart, filter, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -595,7 +582,7 @@ func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
 		return shardIterateBatchMinSize
 	}
-	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
+	t := math.Ceil(shardIterateBatchPercent * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
@@ -1155,29 +1142,18 @@ func (s *dbShard) ReadEncoded(
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
-func (s *dbShard) FetchIndexChecksum(
+func (s *dbShard) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchIndexChecksum(ctx, blockStart, nsCtx)
-}
 
-func (s *dbShard) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	id ident.ID,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	retriever := s.seriesBlockRetriever
-	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.FetchReadMismatch(ctx, mismatchChecker, blockStart, nsCtx)
+	return reader.FetchWideEntry(ctx, blockStart, filter, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -1967,7 +1943,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				return nil, nil, err
 			}
-			return result, PageToken(data), nil
+			return result, data, nil
 		}
 
 		// Otherwise we move on to the previous block.
@@ -2316,9 +2292,9 @@ func (s *dbShard) WarmFlush(
 
 func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
-	resources coldFlushReuseableResources,
+	resources coldFlushReusableResources,
 	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
@@ -2424,7 +2400,8 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
+		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx,
+			onFlushSeries)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2687,32 +2664,42 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	sourceNsID ident.ID,
-	sourceShardID uint32,
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
+	shardID uint32,
 	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
 	sourceBlockVolumes []shardBlockVolume,
+	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
-	targetSchemaDescr namespace.SchemaDescr,
 ) (int64, error) {
 	if len(blockReaders) != len(sourceBlockVolumes) {
-		return 0, fmt.Errorf("blockReaders and sourceBlockVolumes length mismatch (%d != %d)", len(blockReaders), len(sourceBlockVolumes))
+		return 0, fmt.Errorf(
+			"blockReaders and sourceBlockVolumes length mismatch (%d != %d)",
+			len(blockReaders),
+			len(sourceBlockVolumes))
 	}
 
 	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
 	defer func() {
 		for _, reader := range openBlockReaders {
-			reader.Close()
+			if err := reader.Close(); err != nil {
+				s.logger.Error("could not close DataFileSetReader", zap.Error(err))
+			}
 		}
 	}()
 
-	maxEntries := 0
+	var (
+		sourceNsID         = sourceNs.ID()
+		plannedSeriesCount = 1
+	)
+
 	for sourceBlockPos, blockReader := range blockReaders {
 		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:   sourceNsID,
-				Shard:       sourceShardID,
+				Shard:       shardID,
 				BlockStart:  sourceBlockVolume.blockStart,
 				VolumeIndex: sourceBlockVolume.latestVolume,
 			},
@@ -2731,45 +2718,14 @@ func (s *dbShard) AggregateTiles(
 				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
 			return 0, err
 		}
-		if blockReader.Entries() > maxEntries {
-			maxEntries = blockReader.Entries()
+
+		entries := blockReader.Entries()
+		if entries > plannedSeriesCount {
+			plannedSeriesCount = entries
 		}
 
 		openBlockReaders = append(openBlockReaders, blockReader)
 	}
-
-	crossBlockReader, err := fs.NewCrossBlockReader(openBlockReaders, s.opts.InstrumentOptions())
-	if err != nil {
-		s.logger.Error("NewCrossBlockReader", zap.Error(err))
-		return 0, err
-	}
-	defer crossBlockReader.Close()
-
-	tileOpts := tile.Options{
-		FrameSize:          opts.Step,
-		Start:              xtime.ToUnixNano(opts.Start),
-		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
-	}
-
-	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
-	if err != nil {
-		s.logger.Error("error when creating new series block iterator", zap.Error(err))
-		return 0, err
-	}
-
-	closed := false
-	defer func() {
-		if !closed {
-			if err := readerIter.Close(); err != nil {
-				// NB: log the error on ungraceful exit.
-				s.logger.Error("could not close read iterator on error", zap.Error(err))
-			}
-		}
-	}()
-
-	encoder := s.opts.EncoderPool().Get()
-	defer encoder.Close()
-	encoder.Reset(opts.Start, 0, targetSchemaDescr)
 
 	latestTargetVolume, err := s.LatestVolume(opts.Start)
 	if err != nil {
@@ -2783,60 +2739,18 @@ func (s *dbShard) AggregateTiles(
 		BlockStart:          opts.Start,
 		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
 		VolumeIndex:         nextVolume,
-		PlannedRecordsCount: uint(maxEntries),
+		PlannedRecordsCount: uint(plannedSeriesCount),
 	}
 	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err
 	}
 
-	var (
-		annotationPayload annotation.Payload
-		// NB: there is a maximum of 4 datapoints per frame for counters.
-		downsampledValues  = make([]downsample.Value, 0, 4)
-		processedTileCount int64
-		segmentCapacity    int
-		writerData         = make([][]byte, 2)
-		multiErr           xerrors.MultiError
-	)
+	var multiErr xerrors.MultiError
 
-	for readerIter.Next() {
-		seriesIter, id, encodedTags := readerIter.Current()
-
-		seriesTileCount, err := encodeAggregatedSeries(seriesIter, annotationPayload, downsampledValues, encoder)
-		if err != nil {
-			s.metrics.largeTilesWriteErrors.Inc(1)
-			multiErr = multiErr.Add(err)
-			break
-		}
-
-		if seriesTileCount == 0 {
-			break
-		}
-
-		processedTileCount += seriesTileCount
-		segment := encoder.DiscardReset(opts.Start, segmentCapacity, targetSchemaDescr)
-
-		segmentLen := segment.Len()
-		if segmentLen > segmentCapacity {
-			// Will use the same capacity for the next series.
-			segmentCapacity = segmentLen
-		}
-
-		writerData[0] = segment.Head.Bytes()
-		writerData[1] = segment.Tail.Bytes()
-		checksum := segment.CalculateChecksum()
-
-		if err := writer.WriteAll(id, encodedTags, writerData, checksum); err != nil {
-			s.metrics.largeTilesWriteErrors.Inc(1)
-			multiErr = multiErr.Add(err)
-		} else {
-			s.metrics.largeTilesWrites.Inc(1)
-		}
-
-		segment.Finalize()
-	}
-
-	if err := readerIter.Err(); err != nil {
+	processedTileCount, err := s.tileAggregator.AggregateTiles(
+		ctx, sourceNs, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries, opts)
+	if err != nil {
+		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
 	}
 
@@ -2850,14 +2764,12 @@ func (s *dbShard) AggregateTiles(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		if err = s.finishWriting(opts.Start, nextVolume); err != nil {
+		// NB: markWarmFlushStateSuccess=true because there are no flushes happening in this
+		// flow and we need to set WarmStatus to fileOpSuccess explicitly in order to make
+		// the new blocks readable.
+		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-	}
-
-	closed = true
-	if err := readerIter.Close(); err != nil {
-		multiErr = multiErr.Add(err)
 	}
 
 	if err := multiErr.FinalError(); err != nil {
@@ -2869,102 +2781,6 @@ func (s *dbShard) AggregateTiles(
 		zap.Int64("processedTiles", processedTileCount))
 
 	return processedTileCount, nil
-}
-
-func encodeAggregatedSeries(
-	seriesIter tile.SeriesFrameIterator,
-	annotationPayload annotation.Payload,
-	downsampledValues []downsample.Value,
-	encoder encoding.Encoder,
-) (int64, error) {
-	var (
-		prevFrameLastValue = math.NaN()
-		processedTileCount int64
-		handleValueResets  bool
-		firstUnit          xtime.Unit
-		firstAnnotation    ts.Annotation
-		err                error
-	)
-
-	for seriesIter.Next() {
-		frame := seriesIter.Current()
-
-		frameValues := frame.Values()
-		if len(frameValues) == 0 {
-			continue
-		}
-
-		if processedTileCount == 0 {
-			firstUnit, err = frame.Units().Value(0)
-			if err != nil {
-				return 0, err
-			}
-
-			firstAnnotation, err = frame.Annotations().Value(0)
-			if err != nil {
-				return 0, err
-			}
-
-			annotationPayload.Reset()
-			if annotationPayload.Unmarshal(firstAnnotation) == nil {
-				// NB: unmarshall error might be a result of some historical annotation data
-				// which is not compatible with protobuf payload struct. This would generally mean
-				// that metrics type is unknown, so we should ignore the error here.
-				handleValueResets = annotationPayload.HandleValueResets
-			}
-		}
-
-		downsampledValues = downsampledValues[:0]
-		lastIdx := len(frameValues) - 1
-
-		if handleValueResets {
-			// Last value plus possible few more datapoints to preserve counter semantics.
-			downsampledValues = downsample.DownsampleCounterResets(prevFrameLastValue, frameValues, downsampledValues)
-		} else {
-			// Plain last value per frame.
-			downsampledValue := downsample.Value{
-				FrameIndex: lastIdx,
-				Value:      frameValues[lastIdx],
-			}
-			downsampledValues = append(downsampledValues, downsampledValue)
-		}
-
-		if err = encodeDownsampledValues(downsampledValues, frame, firstUnit, firstAnnotation, encoder); err != nil {
-			return 0, err
-		}
-
-		prevFrameLastValue = frameValues[lastIdx]
-		processedTileCount++
-	}
-
-	if err := seriesIter.Err(); err != nil {
-		return 0, err
-	}
-
-	return processedTileCount, nil
-}
-
-func encodeDownsampledValues(
-	downsampledValues []downsample.Value,
-	frame tile.SeriesBlockFrame,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-	encoder encoding.Encoder,
-) error {
-	for _, downsampledValue := range downsampledValues {
-		timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
-		dp := ts.Datapoint{
-			Timestamp:      timestamp,
-			TimestampNanos: xtime.ToUnixNano(timestamp),
-			Value:          downsampledValue.Value,
-		}
-
-		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
@@ -2992,6 +2808,66 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
+func (s *dbShard) ScanData(
+	blockStart time.Time,
+	processor fs.DataEntryProcessor,
+) error {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return err
+	}
+
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		return err
+	}
+
+	readEntriesErr := s.scanDataWithReader(reader, processor)
+	// Always close the reader regardless of if failed, but
+	// make sure to propagate if an error occurred closing the reader too.
+	readCloseErr := reader.Close()
+	if err := readEntriesErr; err != nil {
+		return readEntriesErr
+	}
+	return readCloseErr
+}
+
+func (s *dbShard) scanDataWithReader(
+	reader fs.DataFileSetReader,
+	processor fs.DataEntryProcessor,
+) error {
+	processor.SetEntriesCount(reader.Entries())
+
+	for {
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+
+		if err := processor.ProcessEntry(entry); err != nil {
+			return err
+		}
+	}
+}
+
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	s.logger.Debug("shard flush outcome",
 		zap.Uint32("shard", s.ID()),
@@ -2999,14 +2875,22 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
-func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
+func (s *dbShard) finishWriting(
+	blockStart time.Time,
+	nextVersion int,
+	markWarmFlushStateSuccess bool,
+) error {
+	if markWarmFlushStateSuccess {
+		s.markWarmFlushStateSuccess(blockStart)
+	}
+
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
 	// allow the SeekerManager to open a lease on the latest version of the fileset files because
 	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
 	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
 	// evicted (which is the desired behavior because we haven't updated the open leases yet which
 	// means the newly written data is not available for querying via the SeekerManager yet.)
-	s.setFlushStateColdVersionFlushed(startTime, nextVersion)
+	s.setFlushStateColdVersionFlushed(blockStart, nextVersion)
 
 	// Notify all block leasers that a new volume for the namespace/shard/blockstart
 	// has been created. This will block until all leasers have relinquished their
@@ -3014,7 +2898,7 @@ func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
 	_, err := s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
 		Namespace:  s.namespace.ID(),
 		Shard:      s.ID(),
-		BlockStart: startTime,
+		BlockStart: blockStart,
 	}, block.LeaseState{Volume: nextVersion})
 	// After writing the full block successfully **and** propagating the new lease to the
 	// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
@@ -3026,13 +2910,13 @@ func (s *dbShard) finishWriting(startTime time.Time, nextVersion int) error {
 	// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
 	// which would increase the complexity of the code to address a situation that is probably not
 	// recoverable (failure to UpdateOpenLeases is an invariant violated error).
-	s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
+	s.setFlushStateColdVersionRetrievable(blockStart, nextVersion)
 	if err != nil {
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.With(
 				zap.String("namespace", s.namespace.ID().String()),
 				zap.Uint32("shard", s.ID()),
-				zap.Time("blockStart", startTime),
+				zap.Time("blockStart", blockStart),
 				zap.Int("nextVersion", nextVersion),
 			).Error("failed to update open leases after updating flush state cold version")
 		})
@@ -3063,7 +2947,7 @@ func (s shardColdFlush) Done() error {
 			continue
 		}
 
-		err := s.shard.finishWriting(startTime, nextVersion)
+		err := s.shard.finishWriting(startTime, nextVersion, false)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}

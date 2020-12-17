@@ -23,7 +23,6 @@ package client
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -62,6 +62,12 @@ type Client interface {
 
 // Session can write and read to a cluster.
 type Session interface {
+	// WriteClusterAvailability returns whether cluster is available for writes.
+	WriteClusterAvailability() (bool, error)
+
+	// ReadClusterAvailability returns whether cluster is available for reads.
+	ReadClusterAvailability() (bool, error)
+
 	// Write value to the database for an ID.
 	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 

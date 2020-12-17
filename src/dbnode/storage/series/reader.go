@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -72,7 +72,7 @@ func NewReaderUsingRetriever(
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
-func (r Reader) ReadEncoded(
+func (r *Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 	nsCtx namespace.Context,
@@ -80,24 +80,13 @@ func (r Reader) ReadEncoded(
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil, nsCtx)
 }
 
-func (r Reader) readersWithBlocksMapAndBuffer(
+func (r *Reader) readersWithBlocksMapAndBuffer(
 	ctx context.Context,
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
-	// Two-dimensional slice such that the first dimension is unique by blockstart
-	// and the second dimension is blocks of data for that blockstart (not necessarily
-	// in chronological order).
-	//
-	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
-	// [][]xio.BlockReader{
-	//   {block0, block1, block2}, // <- 2P.M
-	//   {block0, block1}, // <-4P.M
-	// }
-	var results [][]xio.BlockReader
-
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
 	}
@@ -105,7 +94,6 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	var (
 		nowFn        = r.opts.ClockOptions().NowFn()
 		now          = nowFn()
-		cachePolicy  = r.opts.CachePolicy()
 		ropts        = r.opts.RetentionOptions()
 		size         = ropts.BlockSize()
 		alignedStart = start.Truncate(size)
@@ -127,8 +115,41 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedEnd = latest
 	}
 
-	first, last := alignedStart, alignedEnd
-	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
+	return r.readersWithBlocksMapAndBufferAligned(ctx, alignedStart, alignedEnd,
+		seriesBlocks, seriesBuffer, nsCtx)
+}
+
+// nolint: gocyclo
+func (r *Reader) readersWithBlocksMapAndBufferAligned(
+	ctx context.Context,
+	start, end time.Time,
+	seriesBlocks block.DatabaseSeriesBlocks,
+	seriesBuffer databaseBuffer,
+	nsCtx namespace.Context,
+) ([][]xio.BlockReader, error) {
+	var (
+		nowFn       = r.opts.ClockOptions().NowFn()
+		now         = nowFn()
+		ropts       = r.opts.RetentionOptions()
+		blockSize   = ropts.BlockSize()
+		readerCount = end.Sub(start) / blockSize
+	)
+
+	if readerCount < 0 {
+		readerCount = 0
+	}
+
+	// Two-dimensional slice such that the first dimension is unique by blockstart
+	// and the second dimension is blocks of data for that blockstart (not necessarily
+	// in chronological order).
+	//
+	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
+	// [][]xio.BlockReader{
+	//   {block0, block1, block2}, // <- 2P.M
+	//   {block0, block1}, // <-4P.M
+	// }
+	results := make([][]xio.BlockReader, 0, readerCount)
+	for blockAt := start; !blockAt.After(end); blockAt = blockAt.Add(blockSize) {
 		// resultsBlock holds the results from one block. The flow is:
 		// 1) Look in the cache for metrics for a block.
 		// 2) If there is nothing in the cache, try getting metrics from disk.
@@ -140,52 +161,30 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		// in an out of order error in the MultiReaderIterator on query.
 		var resultsBlock []xio.BlockReader
 
-		retrievedFromDiskCache := false
-		if seriesBlocks != nil {
-			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
-				// Block served from in-memory or in-memory metadata
-				// will defer to disk read
-				streamedBlock, err := block.Stream(ctx)
-				if err != nil {
-					return nil, err
-				}
-				if streamedBlock.IsNotEmpty() {
-					resultsBlock = append(resultsBlock, streamedBlock)
-					// NB(r): Mark this block as read now
-					block.SetLastReadTime(now)
-					if r.onRead != nil {
-						r.onRead.OnReadBlock(block)
-					}
-				}
-				retrievedFromDiskCache = true
+		blockReader, block, found, err := retrieveCached(ctx, blockAt, seriesBlocks)
+		if err != nil {
+			return nil, err
+		}
+
+		if found {
+			// NB(r): Mark this block as read now
+			block.SetLastReadTime(now)
+			if r.onRead != nil {
+				r.onRead.OnReadBlock(block)
+			}
+		} else {
+			blockReader, found, err = r.streamBlock(ctx, blockAt, r.onRetrieve, nsCtx)
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		// Avoid going to disk if data was already in the cache.
-		if !retrievedFromDiskCache {
-			switch {
-			case cachePolicy == CacheAll:
-				// No-op, block metadata should have been in-memory
-			case r.retriever != nil:
-				// Try to stream from disk
-				isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
-				if err != nil {
-					return nil, err
-				}
-				if isRetrievable {
-					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve, nsCtx)
-					if err != nil {
-						return nil, err
-					}
-					if streamedBlock.IsNotEmpty() {
-						resultsBlock = append(resultsBlock, streamedBlock)
-					}
-				}
-			}
+		if found {
+			resultsBlock = append(resultsBlock, blockReader)
 		}
 
 		if seriesBuffer != nil {
-			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(size), nsCtx)
+			bufferResults, err := seriesBuffer.ReadEncoded(ctx, blockAt, blockAt.Add(blockSize), nsCtx)
 			if err != nil {
 				return nil, err
 			}
@@ -204,12 +203,13 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
-// FetchIndexChecksum reads index checksum blocks using just a block retriever.
-func (r Reader) FetchIndexChecksum(
+// FetchWideEntry reads wide entries using just a block retriever.
+func (r *Reader) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
-) (block.StreamedChecksum, error) {
+) (block.StreamedWideEntry, error) {
 	var (
 		nowFn = r.opts.ClockOptions().NowFn()
 		now   = nowFn()
@@ -220,71 +220,31 @@ func (r Reader) FetchIndexChecksum(
 	if blockStart.Before(earliest) {
 		// NB: this block is falling out of retention; return empty result rather
 		// than iterating over it.
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 
 	if r.retriever == nil {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
 	// Try to stream from disk
 	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	} else if !isRetrievable {
-		return block.EmptyStreamedChecksum, nil
+		return block.EmptyStreamedWideEntry, nil
 	}
-	streamedBlock, err := r.retriever.StreamIndexChecksum(ctx,
-		r.id, blockStart, nsCtx)
+	streamedEntry, err := r.retriever.StreamWideEntry(ctx,
+		r.id, blockStart, filter, nsCtx)
 	if err != nil {
-		return block.EmptyStreamedChecksum, err
+		return block.EmptyStreamedWideEntry, err
 	}
 
-	return streamedBlock, nil
-}
-
-// FetchReadMismatch compiles read mismatches using a block retriever and
-// an incoming batchReader.
-func (r Reader) FetchReadMismatch(
-	ctx context.Context,
-	mismatchChecker wide.EntryChecksumMismatchChecker,
-	blockStart time.Time,
-	nsCtx namespace.Context,
-) (wide.StreamedMismatch, error) {
-	var (
-		nowFn = r.opts.ClockOptions().NowFn()
-		now   = nowFn()
-		ropts = r.opts.RetentionOptions()
-	)
-
-	earliest := retention.FlushTimeStart(ropts, now)
-	if blockStart.Before(earliest) {
-		// NB: this block is falling out of retention; return empty result rather
-		// than iterating over it.
-		return wide.EmptyStreamedMismatch, nil
-	}
-
-	if r.retriever == nil {
-		return wide.EmptyStreamedMismatch, nil
-	}
-	// Try to stream from disk
-	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	} else if !isRetrievable {
-		return wide.EmptyStreamedMismatch, nil
-	}
-	streamedMismatches, err := r.retriever.StreamReadMismatches(ctx,
-		mismatchChecker, r.id, blockStart, nsCtx)
-	if err != nil {
-		return wide.EmptyStreamedMismatch, err
-	}
-
-	return streamedMismatches, nil
+	return streamedEntry, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using
 // just a block retriever.
-func (r Reader) FetchBlocks(
+func (r *Reader) FetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
 	nsCtx namespace.Context,
@@ -292,102 +252,14 @@ func (r Reader) FetchBlocks(
 	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil, nsCtx)
 }
 
-func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
+func (r *Reader) fetchBlocksWithBlocksMapAndBuffer(
 	ctx context.Context,
 	starts []time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
-	var (
-		// Two-dimensional slice (each block.FetchBlockResult has a []xio.BlockReader internally)
-		// such that the first dimension is unique by blockstart and the second dimension is blocks
-		// of data for that blockstart (not necessarily in chronological order).
-		//
-		// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
-		// []block.FetchBlockResult{
-		//   block.FetchBlockResult{
-		//     Start: 2P.M,
-		//     Blocks: []xio.BlockReader{block0, block1, block2},
-		//   },
-		//   block.FetchBlockResult{
-		//     Start: 4P.M,
-		//     Blocks: []xio.BlockReader{block0},
-		//   },
-		// }
-		res         = make([]block.FetchBlockResult, 0, len(starts))
-		cachePolicy = r.opts.CachePolicy()
-		// NB(r): Always use nil for OnRetrieveBlock so we don't cache the
-		// series after fetching it from disk, the fetch blocks API is called
-		// during streaming so to cache it in memory would mean we would
-		// eventually cache all series in memory when we stream results to a
-		// peer.
-		onRetrieve block.OnRetrieveBlock
-	)
-	for _, start := range starts {
-		// Slice of xio.BlockReader such that all data belong to the same blockstart.
-		var blockReaders []xio.BlockReader
-
-		retrievedFromDiskCache := false
-		if seriesBlocks != nil {
-			if b, exists := seriesBlocks.BlockAt(start); exists {
-				streamedBlock, err := b.Stream(ctx)
-				if err != nil {
-					// Short-circuit this entire blockstart if an error was encountered.
-					r := block.NewFetchBlockResult(start, nil,
-						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.id.String(), start, err))
-					res = append(res, r)
-					continue
-				}
-
-				if streamedBlock.IsNotEmpty() {
-					blockReaders = append(blockReaders, streamedBlock)
-				}
-				retrievedFromDiskCache = true
-			}
-		}
-
-		// Avoid going to disk if data was already in the cache.
-		if !retrievedFromDiskCache {
-			switch {
-			case cachePolicy == CacheAll:
-				// No-op, block metadata should have been in-memory
-			case r.retriever != nil:
-				// Try to stream from disk
-				isRetrievable, err := r.retriever.IsBlockRetrievable(start)
-				if err != nil {
-					// Short-circuit this entire blockstart if an error was encountered.
-					r := block.NewFetchBlockResult(start, nil,
-						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.id.String(), start, err))
-					res = append(res, r)
-					continue
-				}
-
-				if isRetrievable {
-					streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
-					if err != nil {
-						// Short-circuit this entire blockstart if an error was encountered.
-						r := block.NewFetchBlockResult(start, nil,
-							fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-								r.id.String(), start, err))
-						res = append(res, r)
-						continue
-					}
-
-					if streamedBlock.IsNotEmpty() {
-						blockReaders = append(blockReaders, streamedBlock)
-					}
-				}
-			}
-		}
-
-		if len(blockReaders) > 0 {
-			res = append(res, block.NewFetchBlockResult(start, blockReaders, nil))
-		}
-	}
-
+	res := r.resolveBlockResults(ctx, starts, seriesBlocks, nsCtx)
 	if seriesBuffer != nil && !seriesBuffer.IsEmpty() {
 		bufferResults := seriesBuffer.FetchBlocks(ctx, starts, nsCtx)
 
@@ -395,7 +267,8 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		block.SortFetchBlockResultByTimeAscending(res)
 		block.SortFetchBlockResultByTimeAscending(bufferResults)
 		bufferIdx := 0
-		for i, blockResult := range res {
+		for i := range res {
+			blockResult := res[i]
 			if !(bufferIdx < len(bufferResults)) {
 				break
 			}
@@ -422,4 +295,123 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	// Should still be sorted but do it again for sanity.
 	block.SortFetchBlockResultByTimeAscending(res)
 	return res, nil
+}
+
+func (r *Reader) resolveBlockResults(
+	ctx context.Context,
+	starts []time.Time,
+	seriesBlocks block.DatabaseSeriesBlocks,
+	nsCtx namespace.Context,
+) []block.FetchBlockResult {
+	// Two-dimensional slice (each block.FetchBlockResult has a []xio.BlockReader internally)
+	// such that the first dimension is unique by blockstart and the second dimension is blocks
+	// of data for that blockstart (not necessarily in chronological order).
+	//
+	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
+	// []block.FetchBlockResult{
+	//   block.FetchBlockResult{
+	//     Start: 2P.M,
+	//     Blocks: []xio.BlockReader{block0, block1, block2},
+	//   },
+	//   block.FetchBlockResult{
+	//     Start: 4P.M,
+	//     Blocks: []xio.BlockReader{block0},
+	//   },
+	// }
+	res := make([]block.FetchBlockResult, 0, len(starts))
+	for _, start := range starts {
+		// Slice of xio.BlockReader such that all data belong to the same blockstart.
+		var blockReaders []xio.BlockReader
+
+		blockReader, _, found, err := retrieveCached(ctx, start, seriesBlocks)
+		if err != nil {
+			// Short-circuit this entire blockstart if an error was encountered.
+			r := block.NewFetchBlockResult(start, nil,
+				fmt.Errorf("unable to retrieve block stream for series %s time %v: %w",
+					r.id.String(), start, err))
+			res = append(res, r)
+			continue
+		}
+
+		if !found {
+			// NB(r): Always use nil for OnRetrieveBlock so we don't cache the
+			// series after fetching it from disk, the fetch blocks API is called
+			// during streaming so to cache it in memory would mean we would
+			// eventually cache all series in memory when we stream results to a
+			// peer.
+			blockReader, found, err = r.streamBlock(ctx, start, nil, nsCtx)
+			if err != nil {
+				// Short-circuit this entire blockstart if an error was encountered.
+				r := block.NewFetchBlockResult(start, nil,
+					fmt.Errorf("unable to retrieve block stream for series %s time %v: %w",
+						r.id.String(), start, err))
+				res = append(res, r)
+				continue
+			}
+		}
+
+		if found {
+			blockReaders = append(blockReaders, blockReader)
+		}
+
+		if len(blockReaders) > 0 {
+			res = append(res, block.NewFetchBlockResult(start, blockReaders, nil))
+		}
+	}
+
+	return res
+}
+
+func retrieveCached(
+	ctx context.Context,
+	start time.Time,
+	seriesBlocks block.DatabaseSeriesBlocks,
+) (xio.BlockReader, block.DatabaseBlock, bool, error) {
+	if seriesBlocks != nil {
+		if b, exists := seriesBlocks.BlockAt(start); exists {
+			streamedBlock, err := b.Stream(ctx)
+			if err != nil {
+				return xio.BlockReader{}, b, false, err
+			}
+
+			if streamedBlock.IsNotEmpty() {
+				return streamedBlock, b, true, nil
+			}
+		}
+	}
+
+	return xio.BlockReader{}, nil, false, nil
+}
+
+func (r *Reader) streamBlock(
+	ctx context.Context,
+	start time.Time,
+	onRetrieve block.OnRetrieveBlock,
+	nsCtx namespace.Context,
+) (xio.BlockReader, bool, error) {
+	cachePolicy := r.opts.CachePolicy()
+	switch {
+	case cachePolicy == CacheAll:
+		// No-op, block metadata should have been in-memory
+	case r.retriever != nil:
+		// Try to stream from disk
+		isRetrievable, err := r.retriever.IsBlockRetrievable(start)
+		if err != nil {
+			return xio.BlockReader{}, false, err
+		}
+
+		if isRetrievable {
+			streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
+			if err != nil {
+				// Short-circuit this entire blockstart if an error was encountered.
+				return xio.BlockReader{}, false, err
+			}
+
+			if streamedBlock.IsNotEmpty() {
+				return streamedBlock, true, nil
+			}
+		}
+	}
+
+	return xio.BlockReader{}, false, nil
 }

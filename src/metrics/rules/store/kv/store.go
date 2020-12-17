@@ -99,6 +99,16 @@ func (s *store) WriteRuleSet(rs rules.MutableRuleSet) error {
 	return wrapWriteError(err)
 }
 
+func (s *store) WriteNamespaces(nss *rules.Namespaces) error {
+	namespacesCond, namespacesOp, err := s.namespacesTransaction(nss)
+	if err != nil {
+		return err
+	}
+	conditions, ops := []kv.Condition{namespacesCond}, []kv.Op{namespacesOp}
+	_, err = s.kvStore.Commit(conditions, ops)
+	return wrapWriteError(err)
+}
+
 func (s *store) WriteAll(nss *rules.Namespaces, rs rules.MutableRuleSet) error {
 	if s.opts.Validator != nil {
 		if err := s.opts.Validator.Validate(rs); err != nil {
