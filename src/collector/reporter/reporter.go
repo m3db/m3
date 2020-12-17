@@ -24,7 +24,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
-// Reporter reports aggregated metrics.
+// SReporter reports aggregated metrics.
 type Reporter interface {
 	// ReportCounter reports a counter metric.
 	ReportCounter(id id.ID, value int64) error
