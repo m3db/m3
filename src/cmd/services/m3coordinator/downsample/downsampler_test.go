@@ -601,7 +601,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAggregationType(t *tes
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Max",
+						"__g2__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{
@@ -668,7 +668,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Max",
+						"__g2__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{
@@ -681,7 +681,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Sum",
+						"__g2__": "sum",
 					},
 					values: []expectedValue{{value: 60}},
 					attributes: &storagemetadata.Attributes{
@@ -742,7 +742,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixAndAggre
 						"__g1__": "counter",
 						"__g2__": "nginx_edge",
 						"__g3__": "health",
-						"__g4__": "Max",
+						"__g4__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{

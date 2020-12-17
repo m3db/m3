@@ -116,3 +116,9 @@ func getStatusCode(err error) int {
 	}
 	return http.StatusInternalServerError
 }
+
+// IsClientError returns true if this error would result in 4xx status code
+func IsClientError(err error) bool {
+	code := getStatusCode(err)
+	return code >= 400 && code < 500
+}

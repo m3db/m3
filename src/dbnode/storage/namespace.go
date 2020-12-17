@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -922,6 +923,7 @@ func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 ) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -931,7 +933,7 @@ func (n *dbNamespace) FetchWideEntry(
 		return block.EmptyStreamedWideEntry, err
 	}
 
-	res, err := shard.FetchWideEntry(ctx, id, blockStart, nsCtx)
+	res, err := shard.FetchWideEntry(ctx, id, blockStart, filter, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return res, err
@@ -1698,17 +1700,19 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 }
 
 func (n *dbNamespace) AggregateTiles(
+	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedTileCount, err := n.aggregateTiles(sourceNs, opts)
+	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
 	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
 
 func (n *dbNamespace) aggregateTiles(
+	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
@@ -1776,7 +1780,7 @@ func (n *dbNamespace) aggregateTiles(
 		}
 
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
-			sourceNs.ID(), n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
+			ctx, sourceNs, n, sourceShard.ID(), blockReaders, writer, sourceBlockVolumes,
 			onColdFlushNs, opts)
 
 		processedTileCount += shardProcessedTileCount

@@ -207,6 +207,10 @@ type DBConfiguration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+
+	// ForceColdWritesEnabled will force enable cold writes for all namespaces
+	// if set.
+	ForceColdWritesEnabled *bool `yaml:"forceColdWritesEnabled"`
 }
 
 // LoggingOrDefault returns the logging configuration or defaults.

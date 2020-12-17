@@ -53,7 +53,6 @@ languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
 
-title = "M3DB Documentation"
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
 
@@ -66,7 +65,7 @@ pygmentsUseClassic = false
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
 
-enableGitInfo = true
+# enableGitInfo = true
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
@@ -105,10 +104,6 @@ offlineSearch = false
   # TODO: pattern to branch?
   # TODO: bring back
   # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
-  # Author of the site, will be used in meta information
-  author = "m3"
-  # Description of the site, will be used in meta information
-  description = "m3documentation"
   # Shows a checkmark for visited pages on the menu
   showVisitedLinks = false
   # Disable search function. It will hide search bar
