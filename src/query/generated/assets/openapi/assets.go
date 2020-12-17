@@ -210,18 +210,6 @@ func FSMustString(useLocal bool, name string) string {
 
 var _escData = map[string]*_escFile{
 
-	"/asset-gen": {
-		local:   "asset-gen",
-		size:    238,
-		modtime: 12345,
-		compressed: `
-H4sIAAAAAAAC/0zKz0rEMBDH8Xue4rfTnBbSsP45LR5EfAHrTUTWdpIO0hlJIgjiu0sr6M5l4PP9dbv4
-Khrr7NztMNw/vgwPdzf+4JIVCERB/s8p7o+YzAGAJOzwhDDBC56PaDPrFtYbTZvoB2+QxG2fx9lAmZXL
-qYlmpGILvNBvrSPCYlOThUGHi8ura0J4L5zkE+S/pOv28Tuu9pb/gRAkqxVGnw3BzqanWrnVPhuBenKT
-KbufAAAA//9BiTev7gAAAA==
-`,
-	},
-
 	"/asset-gen.sh": {
 		local:   "asset-gen.sh",
 		size:    238,
