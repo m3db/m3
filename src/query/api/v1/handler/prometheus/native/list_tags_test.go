@@ -178,7 +178,6 @@ func TestListErrorTags(t *testing.T) {
 		r, err := ioutil.ReadAll(body)
 		require.NoError(t, err)
 
-		ex := `{"status":"error","error":"err"}`
-		require.JSONEq(t, ex, string(r))
+		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
 }
