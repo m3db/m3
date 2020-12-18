@@ -39,7 +39,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func TestErrorMsg(t *testing.T) {
+func TestQueryLimitExceededError(t *testing.T) {
 	testOpts, ns := newTestOptionsWithIndexedNamespace(t)
 	testSetup := newTestSetupWithQueryLimits(t, testOpts)
 	defer testSetup.Close()
