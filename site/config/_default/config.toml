@@ -147,11 +147,13 @@ offlineSearch = false
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
-
+# TODO: Can all the below be consolidated?
   [[params.versions]]
     version = "1.0"
     url = ""
 
+  [params.releases]
+    docker = "v1.0.0"
 
 # TODO: Do not like doing this really
 [markup]
