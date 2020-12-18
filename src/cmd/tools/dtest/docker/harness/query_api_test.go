@@ -21,6 +21,7 @@
 package harness
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -143,6 +144,24 @@ func verifyResponse(expectedStatus int) resources.ResponseVerifier {
 			return fmt.Errorf("missing Content-Type header")
 		} else if len(contentType) != 1 || contentType[0] != "application/json" {
 			return fmt.Errorf("expected json content type, got %v", contentType)
+		}
+
+		errorResponse := struct {
+			Status string `json:"status,omitempty"`
+			Error  string `json:"error,omitempty"`
+		}{}
+
+		err = json.Unmarshal([]byte(resp), &errorResponse)
+		if err != nil {
+			return fmt.Errorf("failed unmarshalling response: %w", err)
+		}
+
+		if errorResponse.Status != "error" {
+			return fmt.Errorf("expected body to contain status 'error', got %v", errorResponse.Status)
+		}
+
+		if errorResponse.Error == "" {
+			return fmt.Errorf("expected body to contain error message")
 		}
 
 		return nil
