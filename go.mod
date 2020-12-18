@@ -39,7 +39,6 @@ require (
 	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
-	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
@@ -70,7 +69,6 @@ require (
 	github.com/onsi/gomega v1.10.2 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/ory/dockertest/v3 v3.6.2
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
@@ -121,9 +119,7 @@ require (
 	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
 	google.golang.org/grpc v1.29.1
-	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
-	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
