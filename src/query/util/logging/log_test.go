@@ -144,7 +144,7 @@ func TestPanicErrorResponder(t *testing.T) {
 
 	assert.Equal(t, 500, writer.status)
 	require.Equal(t, 1, len(writer.written))
-	assert.Equal(t, "{\"error\":\"caught panic: beef\"}\n", writer.written[0])
+	assert.JSONEq(t, `{"status":"error","error":"caught panic: beef"}`, writer.written[0])
 
 	assertNoErrorLogs(t, stderr)
 	b, err := ioutil.ReadAll(stdout)
@@ -323,7 +323,7 @@ func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
 
 	assert.Equal(t, 500, writer.status)
 	require.Equal(t, 1, len(writer.written))
-	assert.Equal(t, "{\"error\":\"caught panic: err\"}\n", writer.written[0])
+	assert.JSONEq(t, `{"status":"error","error":"caught panic: err"}`, writer.written[0])
 
 	assertNoErrorLogs(t, stderr)
 
