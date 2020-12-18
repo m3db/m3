@@ -128,3 +128,51 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 
 	return d, nil
 }
+
+type EncodedDocumentReader struct {
+	currFields []doc.Field
+}
+
+func NewEncodedDocumentReader() *EncodedDocumentReader {
+	return &EncodedDocumentReader{}
+}
+
+func (r *EncodedDocumentReader) Read(encoded doc.EncodedDocument) (doc.Document, error) {
+	r.currFields = r.currFields[:0]
+	id, buf, err := encoding.ReadBytes(encoded.Bytes)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	x, buf, err := encoding.ReadUvarint(buf)
+	if err != nil {
+		return doc.Document{}, err
+	}
+	n := int(x)
+
+	var name, val []byte
+	for i := 0; i < n; i++ {
+		name, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Document{}, err
+		}
+		val, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Document{}, err
+		}
+		r.currFields = append(r.currFields, doc.Field{
+			Name:  name,
+			Value: val,
+		})
+	}
+
+	return doc.Document{
+		ID:     id,
+		Fields: r.currFields,
+	}, nil
+}
+
+func ReadEncodedDocumentID(encoded doc.EncodedDocument) ([]byte, error) {
+	id, _, err := encoding.ReadBytes(encoded.Bytes)
+	return id, err
+}

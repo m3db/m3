@@ -24,7 +24,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -104,7 +105,7 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
-func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
+func (r *results) AddDocuments(batch []doc.EncodedDocument) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
@@ -114,7 +115,7 @@ func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
 	return size, docsCount, err
 }
 
-func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
+func (r *results) addDocumentsBatchWithLock(batch []doc.EncodedDocument) error {
 	for i := range batch {
 		_, size, err := r.addDocumentWithLock(batch[i])
 		if err != nil {
@@ -128,29 +129,29 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
-	if len(d.ID) == 0 {
+func (r *results) addDocumentWithLock(d doc.EncodedDocument) (bool, int, error) {
+	id, err := docs.ReadEncodedDocumentID(d)
+	if err != nil {
+		return false, r.resultsMap.Len(), err
+	}
+
+	if len(id) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	tsID := ident.BytesID(d.ID)
-
 	// Need to apply filter if set first.
-	if r.opts.FilterID != nil && !r.opts.FilterID(tsID) {
+	if r.opts.FilterID != nil && !r.opts.FilterID(id) {
 		return false, r.resultsMap.Len(), nil
 	}
 
 	// check if it already exists in the map.
-	if r.resultsMap.Contains(tsID) {
+	if r.resultsMap.Contains(id) {
 		return false, r.resultsMap.Len(), nil
 	}
 
-	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 	// It is assumed that the document is valid for the lifetime of the index
 	// results.
-	r.resultsMap.SetUnsafe(tsID, tags, resultMapNoFinalizeOpts)
+	r.resultsMap.SetUnsafe(id, d, resultMapNoFinalizeOpts)
 
 	return true, r.resultsMap.Len(), nil
 }

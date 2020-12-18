@@ -212,3 +212,8 @@ func (ds Documents) Less(i, j int) bool {
 func (ds Documents) Swap(i, j int) {
 	ds[i], ds[j] = ds[j], ds[i]
 }
+
+// EncodedDocument is a serialized document.
+type EncodedDocument struct {
+	Bytes []byte
+}
