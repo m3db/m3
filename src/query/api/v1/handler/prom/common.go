@@ -92,18 +92,5 @@ func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 
 // Responds with error status code and writes error JSON to response body.
 func RespondError(w http.ResponseWriter, err error) {
-	err = xhttp.GetErrorRewriteFn()(err)
-
-	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	b, marshalErr := json.Marshal(&response{
-		Status: statusError,
-		Error:  err.Error(),
-	})
-	if marshalErr != nil {
-		xhttp.WriteError(w, marshalErr)
-		return
-	}
-
-	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
-	xhttp.WriteError(w, err, xhttp.WithErrorResponse(b))
+	xhttp.WriteError(w, err)
 }
