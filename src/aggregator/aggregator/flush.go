@@ -23,6 +23,7 @@ package aggregator
 import (
 	"time"
 
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 )
@@ -83,6 +84,7 @@ const (
 type flushLocalMetricFn func(
 	idPrefix []byte,
 	id id.RawID,
+	metricType metric.Type,
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,

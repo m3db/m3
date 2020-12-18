@@ -596,6 +596,56 @@ func TestWriteRuleSetStaleDataError(t *testing.T) {
 	require.IsType(t, merrors.NewStaleDataError(""), err)
 }
 
+func TestWriteNamespace(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	nss, err := rules.NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	err = s.WriteNamespaces(&nss)
+	require.NoError(t, err)
+
+	existing, err := s.ReadNamespaces()
+	require.NoError(t, err)
+
+	revived, err := existing.AddNamespace(
+		"new",
+		rules.NewRuleSetUpdateHelper(0).NewUpdateMetadata(time.Now().UnixNano(), "test"),
+	)
+	require.NoError(t, err)
+	require.False(t, revived)
+
+	// Update should succeed
+	err = s.WriteNamespaces(existing)
+	require.NoError(t, err)
+}
+
+func TestWriteNamespaceError(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	err := s.WriteNamespaces(nil)
+	require.Error(t, err)
+}
+
+func TestWriteNamespacesStaleDataError(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	nss, err := rules.NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	// First write should succeed
+	err = s.WriteNamespaces(&nss)
+	require.NoError(t, err)
+
+	// writing again will encounter stale version
+	err = s.WriteNamespaces(&nss)
+	require.Error(t, err)
+	require.IsType(t, merrors.NewStaleDataError(""), err)
+}
+
 func TestWriteAllNoNamespace(t *testing.T) {
 	s := testStore()
 	defer s.Close()

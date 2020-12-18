@@ -56,6 +56,7 @@ type Options struct {
 	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
 	TagOptions        models.TagOptions
+	StoreMetricsType  bool
 }
 
 type ingestMetrics struct {
@@ -99,14 +100,15 @@ func NewIngester(
 			// pooled, but currently this is the only way to get tag decoder.
 			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
-				s:       opts.Appender,
-				r:       retrier,
-				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
-				tagOpts: tagOpts,
-				p:       p,
-				m:       m,
-				logger:  opts.InstrumentOptions.Logger(),
-				sampler: opts.Sampler,
+				storageAppender:  opts.Appender,
+				retrier:          retrier,
+				iter:             serialize.NewMetricTagsIterator(tagDecoder, nil),
+				tagOpts:          tagOpts,
+				pool:             p,
+				metrics:          m,
+				logger:           opts.InstrumentOptions.Logger(),
+				sampler:          opts.Sampler,
+				storeMetricsType: opts.StoreMetricsType,
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -123,14 +125,16 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
+	metricType ts.PromMetricType,
 	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
 	callback m3msg.Callbackable,
 ) {
 	op := i.p.Get().(*ingestOp)
-	op.c = ctx
+	op.ctx = ctx
 	op.id = id
+	op.metricType = metricType
 	op.metricNanos = metricNanos
 	op.value = value
 	op.sp = sp
@@ -139,26 +143,28 @@ func (i *Ingester) Ingest(
 }
 
 type ingestOp struct {
-	s         storage.Appender
-	r         retry.Retrier
-	it        id.SortedTagIterator
-	tagOpts   models.TagOptions
-	p         pool.ObjectPool
-	m         ingestMetrics
-	logger    *zap.Logger
-	sampler   *sampler.Sampler
-	attemptFn retry.Fn
-	ingestFn  func()
+	storageAppender  storage.Appender
+	retrier          retry.Retrier
+	iter             id.SortedTagIterator
+	tagOpts          models.TagOptions
+	pool             pool.ObjectPool
+	metrics          ingestMetrics
+	logger           *zap.Logger
+	sampler          *sampler.Sampler
+	attemptFn        retry.Fn
+	ingestFn         func()
+	storeMetricsType bool
 
-	c           context.Context
+	ctx         context.Context
 	id          []byte
+	metricType  ts.PromMetricType
 	metricNanos int64
 	value       float64
 	sp          policy.StoragePolicy
 	callback    m3msg.Callbackable
 	tags        models.Tags
 	datapoints  ts.Datapoints
-	q           storage.WriteQuery
+	writeQuery  storage.WriteQuery
 }
 
 func (op *ingestOp) sample() bool {
@@ -170,22 +176,22 @@ func (op *ingestOp) sample() bool {
 
 func (op *ingestOp) ingest() {
 	if err := op.resetWriteQuery(); err != nil {
-		op.m.ingestInternalError.Inc(1)
+		op.metrics.ingestInternalError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
-		op.p.Put(op)
+		op.pool.Put(op)
 		if op.sample() {
 			op.logger.Error("could not reset ingest op", zap.Error(err))
 		}
 		return
 	}
-	if err := op.r.Attempt(op.attemptFn); err != nil {
+	if err := op.retrier.Attempt(op.attemptFn); err != nil {
 		nonRetryableErr := xerrors.IsNonRetryableError(err)
 		if nonRetryableErr {
 			op.callback.Callback(m3msg.OnNonRetriableError)
-			op.m.ingestNonRetryableError.Inc(1)
+			op.metrics.ingestNonRetryableError.Inc(1)
 		} else {
 			op.callback.Callback(m3msg.OnRetriableError)
-			op.m.ingestInternalError.Inc(1)
+			op.metrics.ingestInternalError.Inc(1)
 		}
 
 		// NB(r): Always log non-retriable errors since they are usually
@@ -197,16 +203,16 @@ func (op *ingestOp) ingest() {
 				zap.Bool("retryableError", !nonRetryableErr))
 		}
 
-		op.p.Put(op)
+		op.pool.Put(op)
 		return
 	}
-	op.m.ingestSuccess.Inc(1)
+	op.metrics.ingestSuccess.Inc(1)
 	op.callback.Callback(m3msg.OnSuccess)
-	op.p.Put(op)
+	op.pool.Put(op)
 }
 
 func (op *ingestOp) attempt() error {
-	return op.s.Write(op.c, &op.q)
+	return op.storageAppender.Write(op.ctx, &op.writeQuery)
 }
 
 func (op *ingestOp) resetWriteQuery() error {
@@ -214,7 +220,8 @@ func (op *ingestOp) resetWriteQuery() error {
 		return err
 	}
 	op.resetDataPoints()
-	return op.q.Reset(storage.WriteQueryOptions{
+
+	wq := storage.WriteQueryOptions{
 		Tags:       op.tags,
 		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
@@ -223,15 +230,50 @@ func (op *ingestOp) resetWriteQuery() error {
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},
-	})
+	}
+
+	if op.storeMetricsType {
+		var err error
+		wq.Annotation, err = op.convertTypeToAnnotation(op.metricType)
+		if err != nil {
+			return err
+		}
+	}
+
+	return op.writeQuery.Reset(wq)
+}
+
+func (op *ingestOp) convertTypeToAnnotation(tp ts.PromMetricType) ([]byte, error) {
+	if tp == ts.PromMetricTypeUnknown {
+		return nil, nil
+	}
+
+	handleValueResets := false
+	if tp == ts.PromMetricTypeCounter {
+		handleValueResets = true
+	}
+
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(tp, handleValueResets)
+	if err != nil {
+		return nil, err
+	}
+	annot, err := annotationPayload.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(annot) == 0 {
+		annot = nil
+	}
+	return annot, nil
 }
 
 func (op *ingestOp) resetTags() error {
-	op.it.Reset(op.id)
+	op.iter.Reset(op.id)
 	op.tags.Tags = op.tags.Tags[:0]
 	op.tags.Opts = op.tagOpts
-	for op.it.Next() {
-		name, value := op.it.Current()
+	for op.iter.Next() {
+		name, value := op.iter.Current()
 
 		// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
 		// all places worth fixing this hack. There is at least one
@@ -241,7 +283,7 @@ func (op *ingestOp) resetTags() error {
 			if bytes.Equal(value, downsample.GraphiteIDSchemeTagValue) &&
 				op.tags.Opts.IDSchemeType() != models.TypeGraphite {
 				// Restart iteration with graphite tag options parsing
-				op.it.Reset(op.id)
+				op.iter.Reset(op.id)
 				op.tags.Tags = op.tags.Tags[:0]
 				op.tags.Opts = op.tags.Opts.SetIDSchemeType(models.TypeGraphite)
 			}
@@ -256,7 +298,7 @@ func (op *ingestOp) resetTags() error {
 		}.Clone())
 	}
 	op.tags.Normalize()
-	return op.it.Err()
+	return op.iter.Err()
 }
 
 func (op *ingestOp) resetDataPoints() {

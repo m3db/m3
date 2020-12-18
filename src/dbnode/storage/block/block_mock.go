@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -935,18 +936,18 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 }
 
 // StreamWideEntry mocks base method
-func (m *MockDatabaseBlockRetriever) StreamWideEntry(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
+func (m *MockDatabaseBlockRetriever) StreamWideEntry(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, shard, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, shard, id, blockStart, filter, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StreamWideEntry indicates an expected call of StreamWideEntry
-func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamWideEntry(ctx, shard, id, blockStart, nsCtx interface{}) *gomock.Call {
+func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamWideEntry(ctx, shard, id, blockStart, filter, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamWideEntry), ctx, shard, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamWideEntry), ctx, shard, id, blockStart, filter, nsCtx)
 }
 
 // AssignShardSet mocks base method
@@ -1000,18 +1001,18 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 }
 
 // StreamWideEntry mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (StreamedWideEntry, error) {
+func (m *MockDatabaseShardBlockRetriever) StreamWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, id, blockStart, nsCtx)
+	ret := m.ctrl.Call(m, "StreamWideEntry", ctx, id, blockStart, filter, nsCtx)
 	ret0, _ := ret[0].(StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StreamWideEntry indicates an expected call of StreamWideEntry
-func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamWideEntry(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
+func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamWideEntry(ctx, id, blockStart, filter, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamWideEntry), ctx, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamWideEntry), ctx, id, blockStart, filter, nsCtx)
 }
 
 // MockDatabaseBlockRetrieverManager is a mock of DatabaseBlockRetrieverManager interface
