@@ -27,10 +27,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
-	dc "github.com/ory/dockertest/docker"
-	"github.com/ory/dockertest/docker/types/mount"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
+	dc "github.com/ory/dockertest/v3/docker"
+	"github.com/ory/dockertest/v3/docker/types/mount"
 	"go.uber.org/zap"
 )
 

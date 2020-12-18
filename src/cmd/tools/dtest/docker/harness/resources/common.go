@@ -32,8 +32,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	dockertest "github.com/ory/dockertest"
-	dc "github.com/ory/dockertest/docker"
+	dockertest "github.com/ory/dockertest/v3"
+	dc "github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

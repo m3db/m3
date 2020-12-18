@@ -29,11 +29,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 )
 
@@ -86,6 +87,8 @@ type Admin interface {
 	GetPlacement() (admin.PlacementGetResponse, error)
 	// WaitForInstances blocks until the given instance is available.
 	WaitForInstances(ids []string) error
+	// WaitForShardsReady waits until all shards gets ready.
+	WaitForShardsReady() error
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -93,6 +96,27 @@ type Admin interface {
 
 type coordinator struct {
 	resource *dockerResource
+}
+
+func newDockerHTTPCoordinatorFromExistingContainer(
+	pool *dockertest.Pool,
+	opts dockerResourceOptions,
+	containerName string,
+) (Coordinator, error) {
+	container, ok := pool.ContainerByName(containerName)
+	if !ok {
+		return nil, fmt.Errorf("docker container '%s' was not found", containerName)
+	}
+
+	resource := &dockerResource{
+		logger:   opts.iOpts.Logger(),
+		resource: container,
+		pool:     pool,
+	}
+
+	return &coordinator{
+		resource: resource,
+	}, nil
 }
 
 func newDockerHTTPCoordinator(
@@ -232,6 +256,32 @@ func (c *coordinator) WaitForInstances(
 	})
 }
 
+func (c *coordinator) WaitForShardsReady() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("waitForShards"))
+	return c.resource.pool.Retry(func() error {
+		placement, err := c.GetPlacement()
+		if err != nil {
+			logger.Error("retrying get placement", zap.Error(err))
+			return err
+		}
+
+		for _, instance := range placement.Placement.Instances {
+			for _, shard := range instance.Shards {
+				if shard.State == placementpb.ShardState_INITIALIZING {
+					err = fmt.Errorf("at least shard %d of dbnode %s still initializing", shard.Id, instance.Id)
+					logger.Error("shards still are initializing", zap.Error(err))
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
 func (c *coordinator) CreateDatabase(
 	addRequest admin.DatabaseCreateRequest,
 ) (admin.DatabaseCreateResponse, error) {
@@ -254,6 +304,14 @@ func (c *coordinator) CreateDatabase(
 	if err := toResponse(resp, &response, logger); err != nil {
 		logger.Error("failed response", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
+	}
+
+	if err = c.setNamesaceReady(addRequest.NamespaceName); err != nil {
+		logger.Error("failed to set namespace to ready state",
+			zap.Error(err),
+			zap.String("namespace", addRequest.NamespaceName),
+		)
+		return response, err
 	}
 
 	logger.Info("created database")
@@ -283,7 +341,25 @@ func (c *coordinator) AddNamespace(
 		return admin.NamespaceGetResponse{}, err
 	}
 
+	if err = c.setNamesaceReady(addRequest.Name); err != nil {
+		logger.Error("failed to set namespace to ready state", zap.Error(err), zap.String("namespace", addRequest.Name))
+		return response, err
+	}
+
 	return response, nil
+}
+
+func (c *coordinator) setNamesaceReady(name string) error {
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/ready")
+	logger := c.resource.logger.With(
+		zapMethod("setNamesaceReady"), zap.String("url", url),
+		zap.String("namespace", name))
+
+	_, err := makePostRequest(logger, url, &admin.NamespaceReadyRequest{
+		Name:  name,
+		Force: true,
+	})
+	return err
 }
 
 func (c *coordinator) WriteCarbon(
