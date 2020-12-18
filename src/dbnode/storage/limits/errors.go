@@ -39,9 +39,17 @@ func (err *queryLimitExceededError) Error() string {
 
 // IsQueryLimitExceededError returns true if the error is a query limits exceeded error.
 func IsQueryLimitExceededError(err error) bool {
+	//nolint:errorlint
 	for err != nil {
-		if _, ok := err.(*queryLimitExceededError); ok { //nolint:errorlint
+		if _, ok := err.(*queryLimitExceededError); ok {
 			return true
+		}
+		if multiErr, ok := err.(xerrors.MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if IsQueryLimitExceededError(e) {
+					return true
+				}
+			}
 		}
 		err = xerrors.InnerError(err)
 	}
