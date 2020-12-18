@@ -30,7 +30,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// ErrorRewriteFn is a function for rewriting response error
+// ErrorRewriteFn is a function for rewriting response error.
 type ErrorRewriteFn func(error) error
 
 var (
@@ -115,7 +115,7 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 	}
 }
 
-// SetErrorRewriteFn sets error rewrite function
+// SetErrorRewriteFn sets error rewrite function.
 func SetErrorRewriteFn(f ErrorRewriteFn) ErrorRewriteFn {
 	_errorRewriteFnLock.Lock()
 	defer _errorRewriteFnLock.Unlock()
@@ -139,7 +139,7 @@ func getStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
-// IsClientError returns true if this error would result in 4xx status code
+// IsClientError returns true if this error would result in 4xx status code.
 func IsClientError(err error) bool {
 	code := getStatusCode(err)
 	return code >= 400 && code < 500
