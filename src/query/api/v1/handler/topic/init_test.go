@@ -98,5 +98,5 @@ func TestPlacementInitHandler(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	require.Equal(t, "{\"error\":\"init error\"}\n", string(body))
+	require.JSONEq(t, `{"status":"error","error":"init error"}`, string(body))
 }

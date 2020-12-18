@@ -38,8 +38,18 @@ metaDataFormat = "yaml"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = true
 # staticDir = ["static"]
-defaultContentLanguageInSubdir= true
+# defaultContentLanguageInSubdir= true
+
+[languages]
+[languages.en]
+title = "Kubernetes"
+description = "Production-Grade Container Orchestration"
+languageName ="English"
+# Weight used for sorting.
+weight = 1
+languagedirection = "ltr"
 
 # Highlighting config.
 pygmentsCodeFences = true
@@ -49,7 +59,7 @@ pygmentsUseClassic = false
 #pygmentsOptions = "linenos=table"
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
-enableGitInfo = true
+# enableGitInfo = true
 
 [permalinks]
   "/" = "/docs/:section/:filename/"
@@ -137,11 +147,13 @@ offlineSearch = false
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
-
+# TODO: Can all the below be consolidated?
   [[params.versions]]
     version = "1.0"
     url = ""
 
+  [params.releases]
+    docker = "v1.0.0"
 
 # TODO: Do not like doing this really
 [markup]
