@@ -518,6 +518,12 @@ func (e *GenericElem) processValueWithAggregationLock(
 				var res transformation.Datapoint
 				res, extraDp = unaryMultiOp.Evaluate(curr)
 				value = res.Value
+				if extraDp.TimeNanos != 0 {
+					extraDp = transformation.Datapoint{
+						TimeNanos: e.lastConsumedAtNanos + int64(time.Second),
+						Value:     0,
+					}
+				}
 			}
 		}
 
