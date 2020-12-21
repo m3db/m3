@@ -181,7 +181,7 @@ func AttachToExistingContainers(
 	}, err
 }
 
-func SetupCluster(cluster DockerResources, opts *ClusterOptions) error {
+func SetupCluster(cluster DockerResources, opts *ClusterOptions) error { // nolint: gocyclo
 	coordinator := cluster.Coordinator()
 	iOpts := instrument.NewOptions()
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
