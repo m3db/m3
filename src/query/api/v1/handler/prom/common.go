@@ -89,8 +89,3 @@ func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 	w.WriteHeader(http.StatusOK)
 	w.Write(b)
 }
-
-// Responds with error status code and writes error JSON to response body.
-func RespondError(w http.ResponseWriter, err error) {
-	xhttp.WriteError(w, err)
-}
