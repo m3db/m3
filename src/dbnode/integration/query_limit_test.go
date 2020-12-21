@@ -51,7 +51,7 @@ func TestQueryLimitExceededError(t *testing.T) {
 
 	var (
 		nowFn     = testSetup.StorageOpts().ClockOptions().NowFn()
-		end       = nowFn()
+		end       = nowFn().Truncate(time.Hour)
 		start     = end.Add(-time.Hour)
 		query     = index.Query{Query: idx.NewTermQuery([]byte("tag"), []byte("value"))}
 		queryOpts = index.QueryOptions{StartInclusive: start, EndExclusive: end}
@@ -61,9 +61,11 @@ func TestQueryLimitExceededError(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 2; i++ {
-		metricName := fmt.Sprintf("metric_%v", i)
-		tags := ident.StringTag("tag", "value")
-		timestamp := nowFn().Add(-time.Minute * time.Duration(i+1))
+		var (
+			metricName = fmt.Sprintf("metric_%v", i)
+			tags       = ident.StringTag("tag", "value")
+			timestamp  = nowFn().Add(-time.Minute * time.Duration(i+1))
+		)
 		session.WriteTagged(ns.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)
 	}

@@ -21,7 +21,7 @@
 package limits
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +30,7 @@ import (
 )
 
 func TestIsQueryLimitExceededError(t *testing.T) {
-	randomErr := xerrors.NewNonRetryableError(fmt.Errorf("random error"))
+	randomErr := xerrors.NewNonRetryableError(errors.New("random error"))
 	limitExceededErr := NewQueryLimitExceededError("query limit exceeded")
 
 	tests := []struct {
