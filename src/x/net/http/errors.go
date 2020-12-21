@@ -34,8 +34,8 @@ import (
 type ErrorRewriteFn func(error) error
 
 var (
-	_errorRewriteFn     ErrorRewriteFn = func(err error) error { return err }
-	_errorRewriteFnLock sync.Mutex
+	errorRewriteFn     ErrorRewriteFn = func(err error) error { return err }
+	errorRewriteFnLock sync.Mutex
 )
 
 // Error is an HTTP JSON error that also sets a return status code.
@@ -102,7 +102,7 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 		fn(&o)
 	}
 
-	err = _errorRewriteFn(err)
+	err = errorRewriteFn(err)
 
 	statusCode := getStatusCode(err)
 	if o.response == nil {
@@ -117,11 +117,11 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 
 // SetErrorRewriteFn sets error rewrite function.
 func SetErrorRewriteFn(f ErrorRewriteFn) ErrorRewriteFn {
-	_errorRewriteFnLock.Lock()
-	defer _errorRewriteFnLock.Unlock()
+	errorRewriteFnLock.Lock()
+	defer errorRewriteFnLock.Unlock()
 
-	res := _errorRewriteFn
-	_errorRewriteFn = f
+	res := errorRewriteFn
+	errorRewriteFn = f
 	return res
 }
 
