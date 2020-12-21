@@ -439,11 +439,17 @@ func Run(runOpts RunOptions) {
 			SetParseOptions(engineOpts.ParseOptions().SetParseFn(fn))
 	}
 
+	storeMetricsType := false
+	if cfg.StoreMetricsType != nil {
+		storeMetricsType = *cfg.StoreMetricsType
+	}
+
 	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
 		backendStorage,
 		downsampler,
 		cfg.WriteWorkerPoolOrDefault(),
+		storeMetricsType,
 		instrumentOptions,
 	)
 	if err != nil {
@@ -549,11 +555,6 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
-		storeMetricsType := false
-		if cfg.StoreMetricsType != nil {
-			storeMetricsType = *cfg.StoreMetricsType
-		}
-
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
@@ -1173,6 +1174,7 @@ func newDownsamplerAndWriter(
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPoolPolicy xconfig.WorkerPoolPolicy,
+	storeMetricType bool,
 	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
@@ -1186,7 +1188,7 @@ func newDownsamplerAndWriter(
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, iOpts), nil
+	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, storeMetricType, iOpts), nil
 }
 
 func newPromQLEngine(

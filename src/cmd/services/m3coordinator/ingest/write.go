@@ -111,9 +111,10 @@ type downsamplerAndWriterMetrics struct {
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
 // as well as in unaggregated form to storage.
 type downsamplerAndWriter struct {
-	store       storage.Storage
-	downsampler downsample.Downsampler
-	workerPool  xsync.PooledWorkerPool
+	store           storage.Storage
+	downsampler     downsample.Downsampler
+	workerPool      xsync.PooledWorkerPool
+	storeMetricType bool
 
 	metrics downsamplerAndWriterMetrics
 }
@@ -123,13 +124,15 @@ func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
+	storeMetricType bool,
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 	return &downsamplerAndWriter{
-		store:       store,
-		downsampler: downsampler,
-		workerPool:  workerPool,
+		store:           store,
+		downsampler:     downsampler,
+		workerPool:      workerPool,
+		storeMetricType: storeMetricType,
 		metrics: downsamplerAndWriterMetrics{
 			dropped: scope.Counter("metrics_dropped"),
 		},
@@ -496,7 +499,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
-			if value.Attributes.PromType != ts.PromMetricTypeUnknown {
+			if d.storeMetricType && value.Attributes.PromType != ts.PromMetricTypeUnknown {
 				switch value.Attributes.PromType {
 				case ts.PromMetricTypeCounter:
 					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
