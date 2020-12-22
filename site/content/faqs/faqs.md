@@ -11,7 +11,7 @@ Yes, you can definitely do that. It's all just about setting the etcd endpoints 
 Yes, you can use the [Prometheus remote write client](https://github.com/m3db/prometheus_remote_client_golang/).
 
 - **Why does my dbnode keep OOM’ing?**
-Refer to the [troubleshooting guide](/docs/troubleshooting).
+Refer to the [troubleshooting guide](/docs/faqs/troubleshooting).
 
 - **Do you support PromQL?**
 Yes, M3Query and M3Coordinator both support PromQL.
@@ -65,7 +65,7 @@ etcdClusters:
 ``` 
 
 - **How can I get a heap dump, cpu profile, etc.**
-See our docs on the [/debug/dump api](/docs/troubleshooting)
+See our docs on the [/debug/dump api](/docs/faqs/troubleshooting)
 
 - **How much memory utilization should I run M3DB at?**
 We recommend not going above 50%.
