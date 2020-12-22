@@ -40,13 +40,13 @@ func TestErrorRewrite(t *testing.T) {
 		expectedBody   string
 	}{
 		{
-			name:           "non rewritten error",
+			name:           "error that should not be rewritten",
 			err:            errors.New("random error"),
 			expectedStatus: 500,
 			expectedBody:   `{"status":"error","error":"random error"}`,
 		},
 		{
-			name:           "rewritten error",
+			name:           "error that should be rewritten",
 			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
 			expectedStatus: 500,
 			expectedBody:   `{"status":"error","error":"rewritten error"}`,
