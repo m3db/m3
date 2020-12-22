@@ -166,6 +166,36 @@ func TestStdDevSeries(t *testing.T) {
 	common.CompareOutputsAndExpected(t, 60000, start, expectedResults, result.Values)
 }
 
+func TestPowSeries(t *testing.T) {
+	var (
+		ctrl      = xgomock.NewController(t)
+		store     = storage.NewMockStorage(ctrl)
+		now       = time.Now().Truncate(time.Hour)
+		engine    = NewEngine(store)
+		startTime = now.Add(-3 * time.Minute)
+		endTime   = now.Add(-time.Minute)
+		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	)
+
+	fakeSeries1 := ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+		common.NewTestSeriesValues(ctx, 60000, []float64{0, 1, 2, 3, 4}))
+	fakeSeries2 := ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+		common.NewTestSeriesValues(ctx, 60000, []float64{2, 4, 1, 3, 3}))
+	fakeSeries3 := ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
+		common.NewTestSeriesValues(ctx, 60000, []float64{5, 4, 3, 2, 1}))
+
+	listOfFakeSeries := []*ts.Series{fakeSeries1, fakeSeries2, fakeSeries3}
+
+	expectedValues := []float64{0, 1, 8, 729, 64}
+	result, err := powSeries(ctx, multiplePathSpecs(singlePathSpec{Values: listOfFakeSeries}))
+	if err != nil {
+		fmt.Println(err)
+	}
+	for i := 0; i < result.Values[0].Len(); i++ {
+		require.Equal(t, result.Values[0].ValueAt(i), expectedValues[i])
+	}
+}
+
 func TestAggregate(t *testing.T) {
 	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
 		return aggregate(ctx, singlePathSpec(series), "sum")

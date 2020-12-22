@@ -61,6 +61,7 @@ const (
 	minSeriesFnName      = "minSeries"
 	multiplyFnName       = "multiply"
 	multiplySeriesFnName = "multiplySeries"
+	powSeriesFnName      = "pow"
 	rangeFnName          = "range"
 	rangeOfFnName        = "rangeOf"
 	rangeOfSeriesFnName  = "rangeOfSeries"
