@@ -29,10 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
-
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
@@ -46,11 +48,16 @@ var (
 )
 
 func TestCacheMatchNamespaceDoesNotExist(t *testing.T) {
-	opts := testCacheOptions()
+	testScope := tally.NewTestScope("", map[string]string{})
+	opts := testCacheOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(testScope))
 	c := NewCache(opts)
 
 	res := c.ForwardMatch([]byte("nonexistentNs"), []byte("foo"), 0, 0)
 	require.Equal(t, testEmptyMatchResult, res)
+
+	testScope.Snapshot().Counters()["misses+"].Value()
+	require.Equal(t, int64(1), testScope.Snapshot().Counters()["misses+"].Value())
 }
 
 func TestCacheMatchIDCachedValidNoPromotion(t *testing.T) {
@@ -309,7 +316,9 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 }
 
 func TestCacheMatchIDNotCachedAndDoesNotExistInSource(t *testing.T) {
-	opts := testCacheOptions()
+	testScope := tally.NewTestScope("", map[string]string{})
+	opts := testCacheOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(testScope))
 	c := NewCache(opts).(*cache)
 	now := time.Now()
 	c.nowFn = func() time.Time { return now }
@@ -318,6 +327,8 @@ func TestCacheMatchIDNotCachedAndDoesNotExistInSource(t *testing.T) {
 
 	res := c.ForwardMatch([]byte("nsfoo"), []byte("nonExistent"), now.UnixNano(), now.UnixNano())
 	require.Equal(t, testEmptyMatchResult, res)
+
+	require.Equal(t, int64(1), testScope.Snapshot().Counters()["misses+"].Value())
 }
 
 func TestCacheMatchIDNotCachedSourceValidNoEviction(t *testing.T) {
