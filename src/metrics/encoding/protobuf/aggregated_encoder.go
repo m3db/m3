@@ -68,5 +68,9 @@ func (enc *aggregatedEncoder) Encode(
 }
 
 func (enc *aggregatedEncoder) Buffer() Buffer {
-	return NewBuffer(enc.buf, enc.pool)
+	var fn PoolReleaseFn
+	if enc.pool != nil {
+		fn = enc.pool.Put
+	}
+	return NewBuffer(enc.buf, fn)
 }
