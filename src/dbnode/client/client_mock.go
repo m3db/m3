@@ -5037,11 +5037,11 @@ func (mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
 }
 
 // NextClient mocks base method
-func (m *MockconnectionPool) NextClient() (rpc.TChanNode, *tchannel.Channel, error) {
+func (m *MockconnectionPool) NextClient() (rpc.TChanNode, PooledChannel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NextClient")
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(*tchannel.Channel)
+	ret1, _ := ret[1].(PooledChannel)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }

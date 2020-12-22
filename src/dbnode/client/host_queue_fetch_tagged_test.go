@@ -72,7 +72,7 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 		assert.Equal(t, fetch.request.NameSpace, req.NameSpace)
 	}
 	mockClient.EXPECT().FetchTagged(gomock.Any(), gomock.Any()).Do(fetchTagged).Return(nil, nil)
-	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
 
 	// Close the queue should cause all writes to be flushed
@@ -202,7 +202,7 @@ func testHostQueueFetchTagged(
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
+		mockConnPool.EXPECT().NextClient().Return(nil, nil, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.fetchTaggedErr != nil {
 		fetchTaggedExec := func(ctx thrift.Context, req *rpc.FetchTaggedRequest) {
 			require.NotNil(t, req)
@@ -213,7 +213,7 @@ func testHostQueueFetchTagged(
 			Do(fetchTaggedExec).
 			Return(nil, testOpts.fetchTaggedErr)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	} else {
 		fetchTaggedExec := func(ctx thrift.Context, req *rpc.FetchTaggedRequest) {
 			require.NotNil(t, req)
@@ -224,7 +224,7 @@ func testHostQueueFetchTagged(
 			Do(fetchTaggedExec).
 			Return(result, nil)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	}
 
 	// Fetch

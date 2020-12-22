@@ -43,7 +43,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 )
 
 // Client can create sessions to write and read to a cluster.
@@ -272,7 +272,7 @@ type WithBorrowConnectionFn func(
 	shard shard.Shard,
 	host topology.Host,
 	client rpc.TChanNode,
-	channel *tchannel.Channel,
+	channel PooledChannel,
 ) (WithBorrowConnectionResult, error)
 
 // WithBorrowConnectionResult is returned from a borrow connection function.
@@ -735,7 +735,7 @@ type hostQueue interface {
 }
 
 // WithConnectionFn is a callback for a connection to a host.
-type WithConnectionFn func(client rpc.TChanNode, ch *tchannel.Channel)
+type WithConnectionFn func(client rpc.TChanNode, ch PooledChannel)
 
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking.
@@ -745,7 +745,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, *tchannel.Channel, error)
+	NextClient() (rpc.TChanNode, PooledChannel, error)
 
 	// Close the connection pool.
 	Close()

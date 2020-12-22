@@ -62,7 +62,6 @@ import (
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber-go/tally"
-	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -663,7 +662,7 @@ func (s *session) BorrowConnections(
 		)
 		borrowErr := s.BorrowConnection(host.ID(), func(
 			client rpc.TChanNode,
-			channel *tchannel.Channel,
+			channel PooledChannel,
 		) {
 			userResult, userErr = fn(shard, host, client, channel)
 		})
@@ -704,7 +703,7 @@ func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 		s.state.RUnlock()
 		return errSessionHasNoHostQueueForHost
 	}
-	err := queue.BorrowConnection(func(client rpc.TChanNode, ch *tchannel.Channel) {
+	err := queue.BorrowConnection(func(client rpc.TChanNode, ch PooledChannel) {
 		// Unlock early on success
 		s.state.RUnlock()
 		unlocked = true
@@ -2624,7 +2623,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	var attemptErr error
-	checkedAttemptFn := func(client rpc.TChanNode, _ *tchannel.Channel) {
+	checkedAttemptFn := func(client rpc.TChanNode, _ PooledChannel) {
 		attemptErr = attemptFn(client)
 	}
 
@@ -3141,7 +3140,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attemptErr error
-		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ *tchannel.Channel) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ PooledChannel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})

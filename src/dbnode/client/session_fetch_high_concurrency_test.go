@@ -31,7 +31,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/tchannel-go"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -98,7 +97,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	// to be able to mock the entire end to end pipeline
 	newConnFn := func(
 		_ string, addr string, _ Options,
-	) (*tchannel.Channel, rpc.TChanNode, error) {
+	) (PooledChannel, rpc.TChanNode, error) {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).
@@ -106,7 +105,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		mockClient.EXPECT().FetchBatchRaw(gomock.Any(), gomock.Any()).
 			Return(respResult, nil).
 			AnyTimes()
-		return channelNone, mockClient, nil
+		return &noopPooledChannel{}, mockClient, nil
 	}
 	shards := make([]shard.Shard, numShards)
 	for i := range shards {

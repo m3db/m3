@@ -2008,7 +2008,7 @@ func defaultHostAndClientWithExpect(
 ) (*MockhostQueue, *rpc.MockTChanNode) {
 	client := rpc.NewMockTChanNode(ctrl)
 	connectionPool := NewMockconnectionPool(ctrl)
-	connectionPool.EXPECT().NextClient().Return(client, channelNone, nil).AnyTimes()
+	connectionPool.EXPECT().NextClient().Return(client, &noopPooledChannel{}, nil).AnyTimes()
 
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
@@ -2016,7 +2016,7 @@ func defaultHostAndClientWithExpect(
 	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
 	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
 	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn WithConnectionFn) {
-		fn(client, channelNone)
+		fn(client, &noopPooledChannel{})
 	}).Return(nil).AnyTimes()
 	hostQueue.EXPECT().Close()
 
