@@ -267,7 +267,7 @@ func (c *cache) tryGetWithLock(
 	res := rules.EmptyMatchResult
 	results, exists := c.namespaces.Get(namespace)
 	if !exists {
-		c.metrics.hits.Inc(1)
+		c.metrics.misses.Inc(1)
 		return res, true
 	}
 	entry, exists := results.elems.Get(id)
