@@ -3542,6 +3542,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"offset",
 		"offsetToZero",
 		"perSecond",
+		"powSeries",
 		"randomWalk",
 		"randomWalkFunction",
 		"rangeOfSeries",
