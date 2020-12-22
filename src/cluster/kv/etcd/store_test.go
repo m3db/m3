@@ -1141,7 +1141,33 @@ func TestWatchWithStartRevision(t *testing.T) {
 			verifyValue(t, w1.Get(), "bar-50", 50)
 		})
 	}
+}
 
+func TestSerializedGets(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetEnableFastGets(true)
+	require.NoError(t, opts.Validate())
+
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+
+	v, err := store.Set("foo", genProto("bar"))
+	require.EqualValues(t, 1, v)
+	require.NoError(t, err)
+
+	val, err := store.Get("foo")
+	verifyValue(t, val, "bar", 1)
+	require.NoError(t, err)
+
+	v, err = store.Set("foo", genProto("42"))
+	require.EqualValues(t, 2, v)
+	require.NoError(t, err)
+
+	val, err = store.Get("foo")
+	verifyValue(t, val, "42", 2)
+	require.NoError(t, err)
 }
 
 func verifyValue(t *testing.T, v kv.Value, value string, version int) {
