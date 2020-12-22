@@ -103,7 +103,7 @@ var (
 )
 
 // CustomRuleStoreFn is a function to swap the backend used for the rule stores.
-type CustomRuleStoreFn func(clusterclient.Client) (kv.TxnStore, error)
+type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnStore, error)
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
@@ -262,9 +262,6 @@ type Configuration struct {
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
-
-	// DisableAutoMappingRules disables auto mapping rules.
-	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
 
 	// AugmentM3Tags will augment the metric type to aggregated metrics
 	// to be used within the filter for rules. If enabled, for example,

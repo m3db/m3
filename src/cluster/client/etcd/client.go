@@ -182,12 +182,18 @@ func (c *csclient) newkvOptions(
 	cacheFileFn cacheFileForZoneFn,
 ) etcdkv.Options {
 	kvOpts := etcdkv.NewOptions().
-		SetInstrumentsOptions(instrument.NewOptions().
+		SetInstrumentsOptions(c.opts.InstrumentOptions().
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(opts.Zone())).
 		SetWatchWithRevision(c.opts.WatchWithRevision()).
-		SetNewDirectoryMode(c.opts.NewDirectoryMode())
+		SetNewDirectoryMode(c.opts.NewDirectoryMode()).
+		SetEnableFastGets(c.opts.EnableFastGets()).
+		SetRetryOptions(c.opts.RetryOptions()).
+		SetRequestTimeout(c.opts.RequestTimeout()).
+		SetWatchChanInitTimeout(c.opts.WatchChanInitTimeout()).
+		SetWatchChanCheckInterval(c.opts.WatchChanCheckInterval()).
+		SetWatchChanResetInterval(c.opts.WatchChanResetInterval())
 
 	if ns := opts.Namespace(); ns != "" {
 		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))

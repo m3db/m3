@@ -153,7 +153,11 @@ func (c *client) get(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
-	r, err := c.kv.Get(ctx, key)
+	var opts []clientv3.OpOption
+	if c.opts.EnableFastGets() {
+		opts = append(opts, clientv3.WithSerializable())
+	}
+	r, err := c.kv.Get(ctx, key, opts...)
 	if err != nil {
 		c.m.etcdGetError.Inc(1)
 		cachedV, ok := c.getCache(key)

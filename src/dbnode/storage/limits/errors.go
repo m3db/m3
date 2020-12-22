@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package limits
 
-import "sync/atomic"
+import xerrors "github.com/m3db/m3/src/x/errors"
 
-type destructorFn func()
-
-type refCount struct {
-	destructorFn destructorFn
-	n            int32
+type queryLimitExceededError struct {
+	msg string
 }
 
-func (rc *refCount) SetRefCount(n int)             { atomic.StoreInt32(&rc.n, int32(n)) }
-func (rc *refCount) SetDestructor(fn destructorFn) { rc.destructorFn = fn }
-
-func (rc *refCount) IncRef() int {
-	if n := int(atomic.AddInt32(&rc.n, 1)); n > 0 {
-		return n
+// NewQueryLimitExceededError creates a query limit exceeded error.
+func NewQueryLimitExceededError(msg string) error {
+	return &queryLimitExceededError{
+		msg: msg,
 	}
-	panic("invalid ref count")
 }
 
-func (rc *refCount) DecRef() int {
-	if n := int(atomic.AddInt32(&rc.n, -1)); n == 0 {
-		if rc.destructorFn != nil {
-			rc.destructorFn()
+func (err *queryLimitExceededError) Error() string {
+	return err.msg
+}
+
+// IsQueryLimitExceededError returns true if the error is a query limits exceeded error.
+func IsQueryLimitExceededError(err error) bool {
+	//nolint:errorlint
+	for err != nil {
+		if _, ok := err.(*queryLimitExceededError); ok {
+			return true
 		}
-		return n
-	} else if n > 0 {
-		return n
+		if multiErr, ok := err.(xerrors.MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if IsQueryLimitExceededError(e) {
+					return true
+				}
+			}
+		}
+		err = xerrors.InnerError(err)
 	}
-	panic("invalid ref count")
+	return false
 }

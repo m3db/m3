@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package etcd
 
-import "sync/atomic"
+import (
+	"math"
+	"testing"
+	"time"
 
-type destructorFn func()
+	"github.com/stretchr/testify/assert"
+)
 
-type refCount struct {
-	destructorFn destructorFn
-	n            int32
-}
-
-func (rc *refCount) SetRefCount(n int)             { atomic.StoreInt32(&rc.n, int32(n)) }
-func (rc *refCount) SetDestructor(fn destructorFn) { rc.destructorFn = fn }
-
-func (rc *refCount) IncRef() int {
-	if n := int(atomic.AddInt32(&rc.n, 1)); n > 0 {
-		return n
-	}
-	panic("invalid ref count")
-}
-
-func (rc *refCount) DecRef() int {
-	if n := int(atomic.AddInt32(&rc.n, -1)); n == 0 {
-		if rc.destructorFn != nil {
-			rc.destructorFn()
-		}
-		return n
-	} else if n > 0 {
-		return n
-	}
-	panic("invalid ref count")
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	assert.NoError(t, opts.Validate())
+	assert.Equal(t, defaultRequestTimeout, opts.RequestTimeout())
+	assert.Equal(t, defaultWatchChanCheckInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanResetInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanInitTimeout, opts.WatchChanInitTimeout())
+	assert.False(t, opts.EnableFastGets())
+	ropts := opts.RetryOptions()
+	assert.Equal(t, true, ropts.Jitter())
+	assert.Equal(t, time.Second, ropts.InitialBackoff())
+	assert.EqualValues(t, 2, ropts.BackoffFactor())
+	assert.EqualValues(t, 5, ropts.MaxRetries())
+	assert.Equal(t, time.Duration(math.MaxInt64), ropts.MaxBackoff())
 }

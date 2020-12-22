@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package errors
 
-import "sync/atomic"
+import (
+	"errors"
+	"testing"
 
-type destructorFn func()
+	"github.com/stretchr/testify/assert"
+)
 
-type refCount struct {
-	destructorFn destructorFn
-	n            int32
-}
+func TestErrorsAreRecognized(t *testing.T) {
+	someError := errors.New("some inner error")
 
-func (rc *refCount) SetRefCount(n int)             { atomic.StoreInt32(&rc.n, int32(n)) }
-func (rc *refCount) SetDestructor(fn destructorFn) { rc.destructorFn = fn }
-
-func (rc *refCount) IncRef() int {
-	if n := int(atomic.AddInt32(&rc.n, 1)); n > 0 {
-		return n
+	tests := []struct {
+		name  string
+		value bool
+	}{
+		{
+			name:  "internal error",
+			value: IsInternalError(NewInternalError(someError)),
+		},
+		{
+			name:  "bad request error",
+			value: IsBadRequestError(NewBadRequestError(someError)),
+		},
+		{
+			name:  "resource exhausted error",
+			value: IsBadRequestError(NewResourceExhaustedError(someError)),
+		},
+		{
+			name:  "resource exhausted flag",
+			value: IsResourceExhaustedErrorFlag(NewResourceExhaustedError(someError)),
+		},
 	}
-	panic("invalid ref count")
-}
-
-func (rc *refCount) DecRef() int {
-	if n := int(atomic.AddInt32(&rc.n, -1)); n == 0 {
-		if rc.destructorFn != nil {
-			rc.destructorFn()
-		}
-		return n
-	} else if n > 0 {
-		return n
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.True(t, tt.value)
+		})
 	}
-	panic("invalid ref count")
 }
