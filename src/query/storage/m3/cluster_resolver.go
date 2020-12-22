@@ -89,8 +89,12 @@ func resolveClusterNamespacesForQuery(
 	// First check if the unaggregated cluster can fully satisfy the query range.
 	// If so, return it and shortcircuit, as unaggregated will necessarily have
 	// every metric.
-	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
-		clusters.UnaggregatedClusterNamespace(), opts)
+	ns, initialized := clusters.UnaggregatedClusterNamespace()
+	if !initialized {
+		return consolidators.NamespaceInvalid, nil, errUnaggregatedNamespaceUninitialized
+	}
+
+	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start, ns, opts)
 	if unaggregated.satisfies == fullySatisfiesRange {
 		return consolidators.NamespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
@@ -329,7 +333,13 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 
 	switch restrict.MetricsType {
 	case storagemetadata.UnaggregatedMetricsType:
-		return result(clusters.UnaggregatedClusterNamespace(), nil)
+		ns, ok := clusters.UnaggregatedClusterNamespace()
+		if !ok {
+			return result(nil,
+				fmt.Errorf("could not find unaggregated namespace for storage policy: %v",
+					restrict.StoragePolicy.String()))
+		}
+		return result(ns, nil)
 	case storagemetadata.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),

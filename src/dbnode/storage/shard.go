@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -173,6 +174,7 @@ type dbShard struct {
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
+	newReaderFn              fs.NewReaderFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
@@ -316,6 +318,7 @@ func newDatabaseShard(
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,
+		newReaderFn:          fs.NewReader,
 		identifierPool:       opts.IdentifierPool(),
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
@@ -399,10 +402,11 @@ func (s *dbShard) StreamWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	return s.DatabaseBlockRetriever.StreamWideEntry(ctx, s.shard, id,
-		blockStart, nsCtx)
+		blockStart, filter, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -578,7 +582,7 @@ func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
 		return shardIterateBatchMinSize
 	}
-	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
+	t := math.Ceil(shardIterateBatchPercent * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
@@ -1142,13 +1146,14 @@ func (s *dbShard) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
 
-	return reader.FetchWideEntry(ctx, blockStart, nsCtx)
+	return reader.FetchWideEntry(ctx, blockStart, filter, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -1938,7 +1943,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				return nil, nil, err
 			}
-			return result, PageToken(data), nil
+			return result, data, nil
 		}
 
 		// Otherwise we move on to the previous block.
@@ -2287,9 +2292,9 @@ func (s *dbShard) WarmFlush(
 
 func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
-	resources coldFlushReuseableResources,
+	resources coldFlushReusableResources,
 	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
@@ -2395,7 +2400,8 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
+		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx,
+			onFlushSeries)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2658,12 +2664,13 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) AggregateTiles(
-	sourceNsID ident.ID,
-	targetNs Namespace,
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
 	shardID uint32,
 	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
 	sourceBlockVolumes []shardBlockVolume,
+	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
 ) (int64, error) {
 	if len(blockReaders) != len(sourceBlockVolumes) {
@@ -2682,7 +2689,11 @@ func (s *dbShard) AggregateTiles(
 		}
 	}()
 
-	maxEntries := 0
+	var (
+		sourceNsID         = sourceNs.ID()
+		plannedSeriesCount = 1
+	)
+
 	for sourceBlockPos, blockReader := range blockReaders {
 		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 		openOpts := fs.DataReaderOpenOptions{
@@ -2709,8 +2720,8 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		entries := blockReader.Entries()
-		if entries > maxEntries {
-			maxEntries = entries
+		if entries > plannedSeriesCount {
+			plannedSeriesCount = entries
 		}
 
 		openBlockReaders = append(openBlockReaders, blockReader)
@@ -2728,7 +2739,7 @@ func (s *dbShard) AggregateTiles(
 		BlockStart:          opts.Start,
 		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
 		VolumeIndex:         nextVolume,
-		PlannedRecordsCount: uint(maxEntries),
+		PlannedRecordsCount: uint(plannedSeriesCount),
 	}
 	if err = writer.Open(writerOpenOpts); err != nil {
 		return 0, err
@@ -2737,7 +2748,7 @@ func (s *dbShard) AggregateTiles(
 	var multiErr xerrors.MultiError
 
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
-		opts, targetNs, s.ID(), openBlockReaders, writer)
+		ctx, sourceNs, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries, opts)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
@@ -2795,6 +2806,66 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 
 func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
+}
+
+func (s *dbShard) ScanData(
+	blockStart time.Time,
+	processor fs.DataEntryProcessor,
+) error {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return err
+	}
+
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		return err
+	}
+
+	readEntriesErr := s.scanDataWithReader(reader, processor)
+	// Always close the reader regardless of if failed, but
+	// make sure to propagate if an error occurred closing the reader too.
+	readCloseErr := reader.Close()
+	if err := readEntriesErr; err != nil {
+		return readEntriesErr
+	}
+	return readCloseErr
+}
+
+func (s *dbShard) scanDataWithReader(
+	reader fs.DataFileSetReader,
+	processor fs.DataEntryProcessor,
+) error {
+	processor.SetEntriesCount(reader.Entries())
+
+	for {
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+
+		if err := processor.ProcessEntry(entry); err != nil {
+			return err
+		}
+	}
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {

@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -56,6 +57,14 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+	}
+}
+
+func (m *promReadMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.fetchErrorsClient.Inc(1)
+	} else {
+		m.fetchErrorsServer.Inc(1)
 	}
 }
 

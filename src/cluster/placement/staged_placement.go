@@ -24,7 +24,8 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/x/clock"
@@ -39,24 +40,27 @@ type activeStagedPlacement struct {
 	sync.RWMutex
 
 	placements            Placements
+	version               int
 	nowFn                 clock.NowFn
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
 
-	expiring int32
+	expiring atomic.Int32
 	closed   bool
 	doneFn   DoneFn
 }
 
 func newActiveStagedPlacement(
 	placements []Placement,
+	version int,
 	opts ActiveStagedPlacementOptions,
-) ActiveStagedPlacement {
+) *activeStagedPlacement {
 	if opts == nil {
 		opts = NewActiveStagedPlacementOptions()
 	}
 	p := &activeStagedPlacement{
 		placements:            placements,
+		version:               version,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		onPlacementsAddedFn:   opts.OnPlacementsAddedFn(),
 		onPlacementsRemovedFn: opts.OnPlacementsRemovedFn(),
@@ -94,6 +98,10 @@ func (p *activeStagedPlacement) Close() error {
 	return nil
 }
 
+func (p *activeStagedPlacement) Version() int {
+	return p.version
+}
+
 func (p *activeStagedPlacement) onPlacementDone() { p.RUnlock() }
 
 func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placement, error) {
@@ -106,7 +114,7 @@ func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placem
 	}
 	placement := p.placements[idx]
 	// If the placement that's in effect is not the first placment, expire the stale ones.
-	if idx > 0 && atomic.CompareAndSwapInt32(&p.expiring, 0, 1) {
+	if idx > 0 && p.expiring.CAS(0, 1) {
 		go p.expire()
 	}
 	return placement, nil
@@ -117,7 +125,7 @@ func (p *activeStagedPlacement) expire() {
 	// because this code path is triggered very infrequently.
 	cleanup := func() {
 		p.Unlock()
-		atomic.StoreInt32(&p.expiring, 0)
+		p.expiring.Store(0)
 	}
 	p.Lock()
 	defer cleanup()
@@ -174,9 +182,9 @@ func (sp *stagedPlacement) ActiveStagedPlacement(timeNanos int64) ActiveStagedPl
 		idx--
 	}
 	if idx < 0 {
-		return newActiveStagedPlacement(sp.placements, sp.opts)
+		return newActiveStagedPlacement(sp.placements, sp.version, sp.opts)
 	}
-	return newActiveStagedPlacement(sp.placements[idx:], sp.opts)
+	return newActiveStagedPlacement(sp.placements[idx:], sp.version, sp.opts)
 }
 
 func (sp *stagedPlacement) Version() int { return sp.version }

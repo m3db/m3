@@ -116,6 +116,8 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 100
   killProbability: 0.3
+
+storeMetricsType: true
 `
 
 func TestWrite(t *testing.T) {
@@ -253,7 +255,7 @@ func TestIngest(t *testing.T) {
 			gomock.Any(),
 			42.0,
 			gomock.Any(),
-			nil).
+			[]byte{8, 2}).
 		Do(func(_, _, _, _, _, _, _ interface{}) {
 			numWrites.Add(1)
 		})
