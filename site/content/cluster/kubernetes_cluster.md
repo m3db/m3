@@ -1,9 +1,8 @@
 ---
 linktitle: "Kubernetes"
+title: Creating an M3 Cluster with Kubernetes
 weight: 1
 ---
-
-# Creating an M3 Cluster with Kubernetes
 
 This guide shows you how to create an M3 cluster of 3 nodes, designed to run locally on the same machine. It is designed to show you how M3 and Kubernetes can work together, but not as a production example.
 

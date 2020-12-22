@@ -1,11 +1,8 @@
 ---
 linktitle: "Binaries"
+title: Creating a Single Node M3 Cluster with Binaries
 weight: 3
 ---
-
-<!-- TODO: Combine with other quickstart? -->
-
-# Creating a Single Node M3 Cluster with Binaries
 
 This guide shows how to install and configure M3, create a single-node cluster, and read and write metrics to it.
 
