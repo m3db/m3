@@ -44,6 +44,11 @@ const (
 	defaultKeepAlivePeriodMaxJitter = 10 * time.Second
 	defaultKeepAliveTimeout         = 10 * time.Second
 
+	defaultRequestTimeout         = 10 * time.Second
+	defaultWatchChanCheckInterval = 10 * time.Second
+	defaultWatchChanResetInterval = 10 * time.Second
+	defaultWatchChanInitTimeout   = 10 * time.Second
+
 	defaultRetryInitialBackoff = 2 * time.Second
 	defaultRetryBackoffFactor  = 2.0
 	defaultRetryMaxRetries     = 3
@@ -171,8 +176,12 @@ func (o tlsOptions) Config() (*tls.Config, error) {
 // NewOptions creates a set of Options.
 func NewOptions() Options {
 	return options{
-		sdOpts: services.NewOptions(),
-		iopts:  instrument.NewOptions(),
+		sdOpts:                 services.NewOptions(),
+		iopts:                  instrument.NewOptions(),
+		requestTimeout:         defaultRequestTimeout,
+		watchChanInitTimeout:   defaultWatchChanInitTimeout,
+		watchChanCheckInterval: defaultWatchChanCheckInterval,
+		watchChanResetInterval: defaultWatchChanResetInterval,
 		// NB(r): Set some default retry options so changes to retry
 		// option defaults don't change behavior of this client's retry options
 		retryOpts: retry.NewOptions().
@@ -186,16 +195,21 @@ func NewOptions() Options {
 }
 
 type options struct {
-	env               string
-	zone              string
-	service           string
-	cacheDir          string
-	watchWithRevision int64
-	sdOpts            services.Options
-	clusters          map[string]Cluster
-	iopts             instrument.Options
-	retryOpts         retry.Options
-	newDirectoryMode  os.FileMode
+	requestTimeout         time.Duration
+	env                    string
+	zone                   string
+	service                string
+	cacheDir               string
+	watchChanCheckInterval time.Duration
+	watchChanResetInterval time.Duration
+	watchChanInitTimeout   time.Duration
+	watchWithRevision      int64
+	enableFastGets         bool
+	sdOpts                 services.Options
+	clusters               map[string]Cluster
+	iopts                  instrument.Options
+	retryOpts              retry.Options
+	newDirectoryMode       os.FileMode
 }
 
 func (o options) Validate() error {
@@ -209,6 +223,22 @@ func (o options) Validate() error {
 
 	if o.iopts == nil {
 		return errors.New("invalid options, no instrument options set")
+	}
+
+	if o.watchChanCheckInterval <= 0 {
+		return errors.New("invalid watch channel check interval")
+	}
+
+	if o.watchChanResetInterval <= 0 {
+		return errors.New("invalid watch reset interval")
+	}
+
+	if o.watchChanInitTimeout <= 0 {
+		return errors.New("invalid watch init interval")
+	}
+
+	if o.requestTimeout <= 0 {
+		return errors.New("invalid request timeout")
 	}
 
 	return nil
@@ -289,12 +319,56 @@ func (o options) SetInstrumentOptions(iopts instrument.Options) Options {
 	return o
 }
 
+//nolint:gocritic
+func (o options) RequestTimeout() time.Duration {
+	return o.requestTimeout
+}
+
+//nolint:gocritic
+func (o options) SetRequestTimeout(t time.Duration) Options {
+	o.requestTimeout = t
+	return o
+}
+
 func (o options) RetryOptions() retry.Options {
 	return o.retryOpts
 }
 
 func (o options) SetRetryOptions(retryOpts retry.Options) Options {
 	o.retryOpts = retryOpts
+	return o
+}
+
+//nolint:gocritic
+func (o options) WatchChanCheckInterval() time.Duration {
+	return o.watchChanCheckInterval
+}
+
+//nolint:gocritic
+func (o options) SetWatchChanCheckInterval(t time.Duration) Options {
+	o.watchChanCheckInterval = t
+	return o
+}
+
+//nolint:gocritic
+func (o options) WatchChanResetInterval() time.Duration {
+	return o.watchChanResetInterval
+}
+
+//nolint:gocritic
+func (o options) SetWatchChanResetInterval(t time.Duration) Options {
+	o.watchChanResetInterval = t
+	return o
+}
+
+//nolint:gocritic
+func (o options) WatchChanInitTimeout() time.Duration {
+	return o.watchChanInitTimeout
+}
+
+//nolint:gocritic
+func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
+	o.watchChanInitTimeout = t
 	return o
 }
 
@@ -314,6 +388,17 @@ func (o options) SetNewDirectoryMode(fm os.FileMode) Options {
 
 func (o options) NewDirectoryMode() os.FileMode {
 	return o.newDirectoryMode
+}
+
+//nolint:gocritic
+func (o options) EnableFastGets() bool {
+	return o.enableFastGets
+}
+
+//nolint:gocritic
+func (o options) SetEnableFastGets(enabled bool) Options {
+	o.enableFastGets = enabled
+	return o
 }
 
 // NewCluster creates a Cluster.
