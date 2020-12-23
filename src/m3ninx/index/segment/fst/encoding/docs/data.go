@@ -128,3 +128,83 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 
 	return d, nil
 }
+
+// EncodedDataReader is a reader for the data file for encoded documents.
+type EncodedDataReader struct {
+	data []byte
+}
+
+// NewEncodedDataReader returns a new EncodedDataReader.
+func NewEncodedDataReader(data []byte) *EncodedDataReader {
+	return &EncodedDataReader{
+		data: data,
+	}
+}
+
+// Read reads a doc.EncodedDocument from a data stream starting at the specified offset.
+func (e *EncodedDataReader) Read(offset uint64) (doc.EncodedDocument, error) {
+	if offset >= uint64(len(e.data)) {
+		return doc.EncodedDocument{}, fmt.Errorf(
+			"invalid offset: %v is past the end of the data file", offset,
+		)
+	}
+
+	return doc.EncodedDocument{
+		Bytes: e.data[int(offset):],
+	}, nil
+}
+
+// EncodedDocumentReader is a reader for reading documents from encoded documents.
+type EncodedDocumentReader struct {
+	currFields []doc.Field
+}
+
+// NewEncodedDocumentReader returns a new EncodedDocumentReader.
+func NewEncodedDocumentReader() *EncodedDocumentReader {
+	return &EncodedDocumentReader{}
+}
+
+// Read reads a doc.Document from a doc.EncodedDocument. Returned doc.Document should be
+// processed before calling Read again as the underlying array pointed to by the Fields
+// slice will be updated. This approach avoids allocating a new slice with a new backing
+// array for every document processed, unlike (*DataReader).Read
+func (r *EncodedDocumentReader) Read(encoded doc.EncodedDocument) (doc.Document, error) {
+	r.currFields = r.currFields[:0]
+	id, buf, err := encoding.ReadBytes(encoded.Bytes)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	x, buf, err := encoding.ReadUvarint(buf)
+	if err != nil {
+		return doc.Document{}, err
+	}
+	n := int(x)
+
+	var name, val []byte
+	for i := 0; i < n; i++ {
+		name, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Document{}, err
+		}
+		val, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Document{}, err
+		}
+		r.currFields = append(r.currFields, doc.Field{
+			Name:  name,
+			Value: val,
+		})
+	}
+
+	return doc.Document{
+		ID:     id,
+		Fields: r.currFields,
+	}, nil
+}
+
+// ReadEncodedDocumentID reads the document ID from the encoded document.
+func ReadEncodedDocumentID(encoded doc.EncodedDocument) ([]byte, error) {
+	id, _, err := encoding.ReadBytes(encoded.Bytes)
+	return id, err
+}

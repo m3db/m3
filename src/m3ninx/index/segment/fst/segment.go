@@ -131,9 +131,10 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	}
 
 	var (
-		docsThirdPartyReader = data.DocsReader
-		docsDataReader       *docs.DataReader
-		docsIndexReader      *docs.IndexReader
+		docsThirdPartyReader  = data.DocsReader
+		docsDataReader        *docs.DataReader
+		docsEncodedDataReader *docs.EncodedDataReader
+		docsIndexReader       *docs.IndexReader
 	)
 	if docsThirdPartyReader == nil {
 		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
@@ -142,12 +143,15 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
 	}
+	// TODO(nate): should we enforce using this or the docsDataReader somehow?
+	docsEncodedDataReader = docs.NewEncodedDataReader(data.DocsData.Bytes)
 
 	s := &fsSegment{
-		fieldsFST:            fieldsFST,
-		docsDataReader:       docsDataReader,
-		docsIndexReader:      docsIndexReader,
-		docsThirdPartyReader: docsThirdPartyReader,
+		fieldsFST:             fieldsFST,
+		docsDataReader:        docsDataReader,
+		docsEncodedDataReader: docsEncodedDataReader,
+		docsIndexReader:       docsIndexReader,
+		docsThirdPartyReader:  docsThirdPartyReader,
 
 		data:    data,
 		opts:    opts,
@@ -169,15 +173,16 @@ var _ segment.ImmutableSegment = (*fsSegment)(nil)
 
 type fsSegment struct {
 	sync.RWMutex
-	ctx                  context.Context
-	closed               bool
-	finalized            bool
-	fieldsFST            *vellum.FST
-	docsDataReader       *docs.DataReader
-	docsIndexReader      *docs.IndexReader
-	docsThirdPartyReader docs.Reader
-	data                 SegmentData
-	opts                 Options
+	ctx                   context.Context
+	closed                bool
+	finalized             bool
+	fieldsFST             *vellum.FST
+	docsEncodedDataReader *docs.EncodedDataReader
+	docsDataReader        *docs.DataReader
+	docsIndexReader       *docs.IndexReader
+	docsThirdPartyReader  docs.Reader
+	data                  SegmentData
+	opts                  Options
 
 	numDocs int64
 }
@@ -612,6 +617,37 @@ func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
 	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
 }
 
+func (r *fsSegment) encodedDocNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.EncodedDocument, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return doc.EncodedDocument{}, errReaderFinalized
+	}
+
+	// TODO(nate): support for thirdPartyReader? seems to only to be used for compaction which
+	// is unnecessary for encoded docs use case of read queries.
+
+	offset, err := r.docsIndexReader.Read(id)
+	if err != nil {
+		return doc.EncodedDocument{}, err
+	}
+
+	return r.docsEncodedDataReader.Read(offset)
+}
+
+func (r *fsSegment) encodedDocsNotClosedMaybeFinalizedWithRLock(
+	retriever index.EncodedDocRetriever,
+	pl postings.List,
+) (doc.EncodedIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	return index.NewEncodedIterator(retriever, pl.Iterator()), nil
+}
+
 func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
 	retriever index.DocRetriever,
 ) (index.IDDocIterator, error) {
@@ -918,6 +954,32 @@ func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	// is closed check is not performed and only the is finalized check.
 	sr.fsSegment.RLock()
 	iter, err := sr.fsSegment.docsNotClosedMaybeFinalizedWithRLock(sr, pl)
+	sr.fsSegment.RUnlock()
+	return iter, err
+}
+
+func (sr *fsSegmentReader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
+	if sr.closed {
+		return doc.EncodedDocument{}, errReaderClosed
+	}
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.encodedDocNotClosedMaybeFinalizedWithRLock(id)
+	sr.fsSegment.RUnlock()
+	return pl, err
+}
+
+func (sr *fsSegmentReader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
+	sr.fsSegment.RLock()
+	iter, err := sr.fsSegment.encodedDocsNotClosedMaybeFinalizedWithRLock(sr, pl)
 	sr.fsSegment.RUnlock()
 	return iter, err
 }

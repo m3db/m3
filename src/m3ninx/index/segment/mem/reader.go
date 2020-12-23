@@ -45,6 +45,15 @@ type reader struct {
 	closed bool
 }
 
+// TODO(nate):
+func (r *reader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
+	panic("implement me")
+}
+
+func (r *reader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
+	panic("implement me")
+}
+
 type readerDocRange struct {
 	startInclusive postings.ID
 	endExclusive   postings.ID

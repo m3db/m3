@@ -39,3 +39,23 @@ type Iterator interface {
 	// Close releases any internal resources used by the iterator.
 	Close() error
 }
+
+// EncodedIterator provides an iterator over a collection of encoded documents. It is NOT
+// safe for multiple goroutines to invoke methods on an EncodedIterator simultaneously.
+type EncodedIterator interface {
+	// Next returns a bool indicating if the iterator has any more encoded documents
+	// to return.
+	Next() bool
+
+	// Current returns the current encoded document. It is only safe to call Current immediately
+	// after a call to Next confirms there are more elements remaining. The EncodedDocument
+	// returned from Current is only valid until the following call to Next(). Callers
+	// should copy the EncodedDocument if they need it live longer.
+	Current() EncodedDocument
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any internal resources used by the iterator.
+	Close() error
+}

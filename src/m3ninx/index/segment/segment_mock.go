@@ -196,6 +196,21 @@ func (mr *MockReaderMockRecorder) Doc(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockReader)(nil).Doc), id)
 }
 
+// EncodedDoc mocks base method
+func (m *MockReader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EncodedDoc", id)
+	ret0, _ := ret[0].(doc.EncodedDocument)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EncodedDoc indicates an expected call of EncodedDoc
+func (mr *MockReaderMockRecorder) EncodedDoc(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodedDoc", reflect.TypeOf((*MockReader)(nil).EncodedDoc), id)
+}
+
 // MatchField mocks base method
 func (m *MockReader) MatchField(field []byte) (postings.List, error) {
 	m.ctrl.T.Helper()
@@ -269,6 +284,21 @@ func (m *MockReader) Docs(pl postings.List) (doc.Iterator, error) {
 func (mr *MockReaderMockRecorder) Docs(pl interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockReader)(nil).Docs), pl)
+}
+
+// EncodedDocs mocks base method
+func (m *MockReader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EncodedDocs", pl)
+	ret0, _ := ret[0].(doc.EncodedIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EncodedDocs indicates an expected call of EncodedDocs
+func (mr *MockReaderMockRecorder) EncodedDocs(pl interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodedDocs", reflect.TypeOf((*MockReader)(nil).EncodedDocs), pl)
 }
 
 // AllDocs mocks base method

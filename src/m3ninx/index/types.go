@@ -62,6 +62,8 @@ type Writer interface {
 // Readable provides a point-in-time accessor to the documents in an index.
 type Readable interface {
 	DocRetriever
+	// TODO(nate): do we need this retriever?
+	EncodedDocRetriever
 
 	// MatchField returns a postings list over all documents which match the given field.
 	MatchField(field []byte) (postings.List, error)
@@ -79,6 +81,10 @@ type Readable interface {
 	// Docs returns an iterator over the documents whose IDs are in the provided
 	// postings list.
 	Docs(pl postings.List) (doc.Iterator, error)
+
+	// EncodedDocs returns an iterator over the encoded documents whose IDs are in the provided
+	// postings list.
+	EncodedDocs(pl postings.List) (doc.EncodedIterator, error)
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (IDDocIterator, error)
@@ -98,6 +104,12 @@ type CompiledRegex struct {
 // ErrDocNotFound if there is no document corresponding to the given postings ID.
 type DocRetriever interface {
 	Doc(id postings.ID) (doc.Document, error)
+}
+
+// EncodedDocRetriever returns the encoded document associated with a postings ID. It returns
+// ErrDocNotFound if there is no encoded document corresponding to the given postings ID.
+type EncodedDocRetriever interface {
+	EncodedDoc(id postings.ID) (doc.EncodedDocument, error)
 }
 
 // IDDocIterator is an extented documents Iterator which can also return the postings
