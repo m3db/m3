@@ -272,6 +272,16 @@ func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) 
 	return s.reader.Docs(pl)
 }
 
+// EncodedDoc is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
+	return s.reader.EncodedDoc(id)
+}
+
+// EncodedDocs is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
+	return s.reader.EncodedDocs(pl)
+}
+
 // Fields is a pass through call.
 func (s *readThroughSegmentReader) Fields() (segment.FieldsIterator, error) {
 	return s.reader.Fields()
