@@ -64,7 +64,6 @@ var (
 	errPersistManagerFileSetAlreadyExists            = errors.New("persist manager cannot prepare, fileset already exists")
 	errPersistManagerCannotDoneSnapshotNotSnapshot   = errors.New("persist manager cannot done snapshot, file set type is not snapshot")
 	errPersistManagerCannotDoneFlushNotFlush         = errors.New("persist manager cannot done flush, file set type is not flush")
-	errPersistManagerIndexWriterAlreadyExists        = errors.New("persist manager cannot create index writer, already exists")
 )
 
 type sleepFn func(time.Duration)
@@ -124,6 +123,10 @@ type singleUseIndexWriter struct {
 	manager *indexPersistManager
 	writer  IndexFileSetWriter
 
+	state singleUseIndexWriterState
+}
+
+type singleUseIndexWriterState struct {
 	// identifiers required to know which file to open
 	// after persistence is over
 	fileSetIdentifier FileSetFileIdentifier
@@ -139,9 +142,9 @@ func (s *singleUseIndexWriter) persistIndex(builder segment.Builder) error {
 	defer s.manager.Unlock()
 
 	markError := func(err error) {
-		s.writeErr = err
+		s.state.writeErr = err
 	}
-	if err := s.writeErr; err != nil {
+	if err := s.state.writeErr; err != nil {
 		return fmt.Errorf("encountered error: %v, skipping further attempts to persist data", err)
 	}
 
@@ -159,11 +162,12 @@ func (s *singleUseIndexWriter) persistIndex(builder segment.Builder) error {
 }
 
 func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
+	s.manager.Lock()
+	defer s.manager.Unlock()
+
 	// This writer will be thrown away after we're done persisting.
 	defer func() {
-		s.writeErr = nil
-		s.fileSetType = -1
-		s.fileSetIdentifier = FileSetFileIdentifier{}
+		s.state = singleUseIndexWriterState{fileSetType: -1}
 	}()
 
 	// s.e. we're done writing all segments for PreparedIndexPersist.
@@ -174,7 +178,7 @@ func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
 
 	// only attempt to retrieve data if we have not encountered errors during
 	// any writes.
-	if err := s.writeErr; err != nil {
+	if err := s.state.writeErr; err != nil {
 		return nil, err
 	}
 
@@ -182,8 +186,8 @@ func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
 	// can safely evict the segment's we have just persisted.
 	result, err := ReadIndexSegments(ReadIndexSegmentsOptions{
 		ReaderOptions: IndexReaderOpenOptions{
-			Identifier:  s.fileSetIdentifier,
-			FileSetType: s.fileSetType,
+			Identifier:  s.state.fileSetIdentifier,
+			FileSetType: s.state.fileSetType,
 		},
 		FilesystemOptions:      s.manager.opts,
 		newReaderFn:            s.manager.newReaderFn,
@@ -353,19 +357,24 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 		IndexVolumeType: opts.IndexVolumeType,
 	}
 
-	idxWriter, err := pm.ensureSingleIndexWriterForBlock(blockStart)
+	writer, err := pm.indexPM.newIndexWriterFn(pm.opts)
 	if err != nil {
 		return prepared, err
+	}
+	idxWriter := &singleUseIndexWriter{
+		manager: &pm.indexPM,
+		writer:  writer,
+		state: singleUseIndexWriterState{
+			// track which file we are writing in the persist manager, so we
+			// know which file to read back on `closeIndex` being called.
+			fileSetIdentifier: fileSetID,
+			fileSetType:       opts.FileSetType,
+		},
 	}
 	// create writer for required fileset file.
 	if err := idxWriter.writer.Open(idxWriterOpts); err != nil {
 		return prepared, err
 	}
-
-	// track which file we are writing in the persist manager, so we
-	// know which file to read back on `closeIndex` being called.
-	idxWriter.fileSetIdentifier = fileSetID
-	idxWriter.fileSetType = opts.FileSetType
 
 	// provide persistManager hooks into PreparedIndexPersist object
 	prepared.Persist = idxWriter.persistIndex
@@ -669,29 +678,4 @@ func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
 	pm.Lock()
 	pm.currRateLimitOpts = value.PersistRateLimitOptions()
 	pm.Unlock()
-}
-
-// Ensure only a single index writer is ever created for a block, returns an error if an index writer
-// already exists.
-func (pm *persistManager) ensureSingleIndexWriterForBlock(blockStart time.Time) (*singleUseIndexWriter, error) {
-	pm.Lock()
-	defer pm.Unlock()
-
-	idxWriter, ok := pm.indexPM.writersByBlockStart[xtime.ToUnixNano(blockStart)]
-	// Ensure that we have not already created an index writer for this block.
-	if ok {
-		return nil, errPersistManagerIndexWriterAlreadyExists
-	}
-
-	writer, err := pm.indexPM.newIndexWriterFn(pm.opts)
-	if err != nil {
-		return nil, err
-	}
-	idxWriter = &singleUseIndexWriter{
-		manager: &pm.indexPM,
-		writer:  writer,
-	}
-	pm.indexPM.writersByBlockStart[xtime.ToUnixNano(blockStart)] = idxWriter
-
-	return idxWriter, nil
 }
