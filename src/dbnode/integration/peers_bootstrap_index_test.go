@@ -71,8 +71,8 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		SetUseTChannelClientForReading(true)
 
 	setupOpts := []BootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: false},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

@@ -75,13 +75,13 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		// that, but we can accomplish it by using an individual nodes TChannel endpoints.
 		setupOpts = []BootstrappableTestSetupOptions{
 			{
-				disablePeersBootstrapper:    true,
-				useTChannelClientForWriting: true,
+				DisablePeersBootstrapper:    true,
+				UseTChannelClientForWriting: true,
 			},
 			{
-				disablePeersBootstrapper:    false,
-				useTChannelClientForWriting: true,
-				testStatsReporter:           reporter,
+				DisablePeersBootstrapper:    false,
+				UseTChannelClientForWriting: true,
+				TestStatsReporter:           reporter,
 			},
 		}
 	)

@@ -114,12 +114,12 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	setupOpts := []BootstrappableTestSetupOptions{
 		{
-			disablePeersBootstrapper: true,
-			topologyInitializer:      topoInit,
+			DisablePeersBootstrapper: true,
+			TopologyInitializer:      topoInit,
 		},
 		{
-			disablePeersBootstrapper: false,
-			topologyInitializer:      topoInit,
+			DisablePeersBootstrapper: false,
+			TopologyInitializer:      topoInit,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
