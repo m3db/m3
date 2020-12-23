@@ -89,14 +89,14 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 		SetShardSet(shardSet)
 	topoInit := topology.NewStaticInitializer(topoOpts)
 
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []BootstrappableTestSetupOptions{
 		{
-			disablePeersBootstrapper: false,
-			topologyInitializer:      topoInit,
+			DisablePeersBootstrapper: false,
+			TopologyInitializer:      topoInit,
 		},
 		{
-			disablePeersBootstrapper: false,
-			topologyInitializer:      topoInit,
+			DisablePeersBootstrapper: false,
+			TopologyInitializer:      topoInit,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
