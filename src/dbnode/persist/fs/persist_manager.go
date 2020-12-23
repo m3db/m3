@@ -115,16 +115,6 @@ type dataPersistManager struct {
 	snapshotID uuid.UUID
 }
 
-// Support writing to multiple index blocks/filesets during index persist.
-// This allows us to prepare an index fileset writer per block start.
-type singleUseIndexWriter struct {
-	// back-ref to the index persist manager so we can share resources there
-	manager *indexPersistManager
-	writer  IndexFileSetWriter
-
-	state singleUseIndexWriterState
-}
-
 type singleUseIndexWriterState struct {
 	// identifiers required to know which file to open
 	// after persistence is over
@@ -133,6 +123,16 @@ type singleUseIndexWriterState struct {
 
 	// track state of writer
 	writeErr error
+}
+
+// Support writing to multiple index blocks/filesets during index persist.
+// This allows us to prepare an index fileset writer per block start.
+type singleUseIndexWriter struct {
+	// back-ref to the index persist manager so we can share resources there
+	manager *indexPersistManager
+	writer  IndexFileSetWriter
+
+	state singleUseIndexWriterState
 }
 
 func (s *singleUseIndexWriter) persistIndex(builder segment.Builder) error {
@@ -167,6 +167,8 @@ func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
 	// This writer will be thrown away after we're done persisting.
 	defer func() {
 		s.state = singleUseIndexWriterState{fileSetType: -1}
+		s.manager = nil
+		s.writer = nil
 	}()
 
 	// s.e. we're done writing all segments for PreparedIndexPersist.
