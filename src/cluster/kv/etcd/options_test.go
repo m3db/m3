@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package etcd
 
-import "github.com/m3db/m3/src/dbnode/topology"
+import (
+	"math"
+	"testing"
+	"time"
 
-type sessionPeer struct {
-	source peerSource
-	host   topology.Host
-}
+	"github.com/stretchr/testify/assert"
+)
 
-func newPeer(source peerSource, host topology.Host) peer {
-	return &sessionPeer{
-		source: source,
-		host:   host,
-	}
-}
-
-func (p *sessionPeer) Host() topology.Host {
-	return p.host
-}
-
-func (p *sessionPeer) BorrowConnection(fn WithConnectionFn) error {
-	return p.source.BorrowConnection(p.host.ID(), fn)
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	assert.NoError(t, opts.Validate())
+	assert.Equal(t, defaultRequestTimeout, opts.RequestTimeout())
+	assert.Equal(t, defaultWatchChanCheckInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanResetInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanInitTimeout, opts.WatchChanInitTimeout())
+	assert.False(t, opts.EnableFastGets())
+	ropts := opts.RetryOptions()
+	assert.Equal(t, true, ropts.Jitter())
+	assert.Equal(t, time.Second, ropts.InitialBackoff())
+	assert.EqualValues(t, 2, ropts.BackoffFactor())
+	assert.EqualValues(t, 5, ropts.MaxRetries())
+	assert.Equal(t, time.Duration(math.MaxInt64), ropts.MaxBackoff())
 }

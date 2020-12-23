@@ -111,7 +111,7 @@ func (enc *unaggregatedEncoder) Truncate(n int) error {
 }
 
 func (enc *unaggregatedEncoder) Relinquish() Buffer {
-	res := NewBuffer(enc.buf[:enc.used], enc.pool)
+	res := NewBuffer(enc.buf[:enc.used], enc.pool.Put)
 	enc.buf = nil
 	enc.used = 0
 	return res
