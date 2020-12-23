@@ -111,16 +111,17 @@ func newMultiAddrAdminClient(
 	return adminClient
 }
 
-type bootstrappableTestSetupOptions struct {
-	finalBootstrapper           string
-	bootstrapBlocksBatchSize    int
-	bootstrapBlocksConcurrency  int
-	bootstrapConsistencyLevel   topology.ReadConsistencyLevel
-	topologyInitializer         topology.Initializer
-	testStatsReporter           xmetrics.TestStatsReporter
-	disablePeersBootstrapper    bool
-	useTChannelClientForWriting bool
-	enableRepairs               bool
+// BootstrappableTestSetupOptions defines options for test setups
+type BootstrappableTestSetupOptions struct {
+	FinalBootstrapper           string
+	BootstrapBlocksBatchSize    int
+	BootstrapBlocksConcurrency  int
+	BootstrapConsistencyLevel   topology.ReadConsistencyLevel
+	TopologyInitializer         topology.Initializer
+	TestStatsReporter           xmetrics.TestStatsReporter
+	DisablePeersBootstrapper    bool
+	UseTChannelClientForWriting bool
+	EnableRepairs               bool
 }
 
 type closeFn func()
@@ -135,10 +136,11 @@ func newDefaulTestResultOptions(
 		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
 }
 
-func newDefaultBootstrappableTestSetups(
+// NewDefaultBootstrappableTestSetups creates dbnode test setups
+func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	t *testing.T,
 	opts TestOptions,
-	setupOpts []bootstrappableTestSetupOptions,
+	setupOpts []BootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
@@ -158,15 +160,15 @@ func newDefaultBootstrappableTestSetups(
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                    = i
-			usingPeersBootstrapper      = !setupOpts[i].disablePeersBootstrapper
-			finalBootstrapperToUse      = setupOpts[i].finalBootstrapper
-			useTChannelClientForWriting = setupOpts[i].useTChannelClientForWriting
-			bootstrapBlocksBatchSize    = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency  = setupOpts[i].bootstrapBlocksConcurrency
-			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
-			topologyInitializer         = setupOpts[i].topologyInitializer
-			testStatsReporter           = setupOpts[i].testStatsReporter
-			enableRepairs               = setupOpts[i].enableRepairs
+			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
+			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
+			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
+			bootstrapBlocksBatchSize    = setupOpts[i].BootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency  = setupOpts[i].BootstrapBlocksConcurrency
+			bootstrapConsistencyLevel   = setupOpts[i].BootstrapConsistencyLevel
+			topologyInitializer         = setupOpts[i].TopologyInitializer
+			testStatsReporter           = setupOpts[i].TestStatsReporter
+			enableRepairs               = setupOpts[i].EnableRepairs
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 		)
@@ -223,7 +225,11 @@ func newDefaultBootstrappableTestSetups(
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
-		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
+		storageOpts := setup.StorageOpts().SetInstrumentOptions(instrumentOpts)
+		if opts.StorageOptsFn() != nil {
+			storageOpts = opts.StorageOptsFn()(storageOpts)
+		}
+		setup.SetStorageOpts(storageOpts)
 
 		var (
 			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())

@@ -1098,18 +1098,18 @@ func newNodes(
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	nodeOpt := bootstrappableTestSetupOptions{
-		disablePeersBootstrapper: true,
-		finalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
-		topologyInitializer:      topoInit,
+	nodeOpt := BootstrappableTestSetupOptions{
+		DisablePeersBootstrapper: true,
+		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		TopologyInitializer:      topoInit,
 	}
 
-	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	nodeOpts := make([]BootstrappableTestSetupOptions, len(instances))
 	for i := range instances {
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, nodeOpts)
+	nodes, closeFn := NewDefaultBootstrappableTestSetups(t, opts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")

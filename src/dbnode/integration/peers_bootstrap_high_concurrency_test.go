@@ -102,7 +102,7 @@ func testPeersBootstrapHighConcurrency(
 
 	batchSize := 16
 	concurrency := 64
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []BootstrappableTestSetupOptions{
 		{
 			disablePeersBootstrapper: true,
 		},
@@ -112,7 +112,7 @@ func testPeersBootstrapHighConcurrency(
 			bootstrapBlocksConcurrency: concurrency,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node

@@ -99,7 +99,7 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 			topologyInitializer:      topoInit,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	serversAreUp := &sync.WaitGroup{}

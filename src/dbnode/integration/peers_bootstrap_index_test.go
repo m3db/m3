@@ -70,11 +70,11 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		SetUseTChannelClientForWriting(true).
 		SetUseTChannelClientForReading(true)
 
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []BootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node

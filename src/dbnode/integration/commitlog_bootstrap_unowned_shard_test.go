@@ -89,12 +89,12 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1}).
 		SetNumShards(numShards)
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []BootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true, topologyInitializer: topoInit},
 		{disablePeersBootstrapper: true, topologyInitializer: topoInit},
 	}
 
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Only set this up for the first setup because we're only writing commit
