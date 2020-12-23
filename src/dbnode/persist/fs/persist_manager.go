@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
@@ -145,7 +144,7 @@ func (s *singleUseIndexWriter) persistIndex(builder segment.Builder) error {
 		s.state.writeErr = err
 	}
 	if err := s.state.writeErr; err != nil {
-		return fmt.Errorf("encountered error: %v, skipping further attempts to persist data", err)
+		return fmt.Errorf("encountered error: %w, skipping further attempts to persist data", err)
 	}
 
 	if err := s.manager.segmentWriter.Reset(builder); err != nil {
@@ -203,7 +202,6 @@ func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
 type indexPersistManager struct {
 	sync.Mutex
 
-	writersByBlockStart map[xtime.UnixNano]*singleUseIndexWriter
 	// segmentWriter holds the bulk of the re-usable in-mem resources so
 	// we want to share this across writers.
 	segmentWriter m3ninxpersist.MutableSegmentFileSetWriter
@@ -267,8 +265,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 			snapshotMetadataWriter:        NewSnapshotMetadataWriter(opts),
 		},
 		indexPM: indexPersistManager{
-			writersByBlockStart: make(map[xtime.UnixNano]*singleUseIndexWriter),
-			segmentWriter:       segmentWriter,
+			segmentWriter: segmentWriter,
 			// fs opts are used by underlying index writers
 			opts: opts,
 		},
@@ -283,7 +280,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	return pm, nil
 }
 
-func (pm *persistManager) resetWithLock() {
+func (pm *persistManager) resetWithLock() error {
 	pm.status = persistManagerIdle
 	pm.start = timeZero
 	pm.count = 0
@@ -292,10 +289,7 @@ func (pm *persistManager) resetWithLock() {
 	pm.slept = 0
 	pm.dataPM.snapshotID = nil
 
-	pm.indexPM.segmentWriter.Reset(nil)
-	for blockStart := range pm.indexPM.writersByBlockStart {
-		delete(pm.indexPM.writersByBlockStart, blockStart)
-	}
+	return pm.indexPM.segmentWriter.Reset(nil)
 }
 
 // StartIndexPersist is called by the databaseFlushManager to begin the persist process for
@@ -397,9 +391,7 @@ func (pm *persistManager) DoneIndex() error {
 	pm.metrics.throttleDurationMs.Update(float64(pm.slept / time.Millisecond))
 
 	// Reset state
-	pm.resetWithLock()
-
-	return nil
+	return pm.resetWithLock()
 }
 
 // StartFlushPersist is called by the databaseFlushManager to begin the persist process.
@@ -643,9 +635,7 @@ func (pm *persistManager) doneSharedWithLock() error {
 	pm.metrics.throttleDurationMs.Update(float64(pm.slept / time.Millisecond))
 
 	// Reset state
-	pm.resetWithLock()
-
-	return nil
+	return pm.resetWithLock()
 }
 
 func (pm *persistManager) dataFilesetExists(prepareOpts persist.DataPrepareOptions) (bool, error) {
