@@ -124,6 +124,86 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationDownsamplesRawMetricWithRollupRule(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetrics, _ := testGaugeMetrics(testGaugeMetricsOptions{})
+	require.Equal(t, 1, len(gaugeMetrics))
+
+	gaugeMetric := gaugeMetrics[0]
+	numSamples := len(gaugeMetric.samples)
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:gauge0",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Increase,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "rolled_up_metric",
+								GroupBy:      []string{"app"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.Add,
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 2 * time.Second,
+							Retention:  24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// Raw aggregated metric
+				{
+					tags: gaugeMetric.tags,
+					// NB(nate): Automapping rules generated from cluster namespaces currently
+					// hardcode 'Last' as the aggregation type. As such, expect value to be the last value
+					// in the sample.
+					values: []expectedValue{{value: gaugeMetric.samples[numSamples-1]}},
+				},
+			},
+		},
+	})
+
+	// Setup auto-mapping rules.
+	require.False(t, testDownsampler.downsampler.Enabled())
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -1007,6 +1087,21 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 			},
 		},
 	})
+
+	// Setup auto-mapping rules.
+	require.False(t, testDownsampler.downsampler.Enabled())
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
+	require.True(t, testDownsampler.downsampler.Enabled())
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
