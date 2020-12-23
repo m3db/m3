@@ -102,7 +102,7 @@ func (it *unaggregatedIterator) Next() bool {
 		it.err = fmt.Errorf("decoded message size %d is larger than supported max message size %d", size, it.maxMessageSize)
 		return false
 	}
-	if size < 0 {
+	if size <= 0 {
 		it.err = fmt.Errorf("decoded message size %d is zero or negative", size)
 		return false
 	}
