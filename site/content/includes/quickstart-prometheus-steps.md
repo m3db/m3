@@ -2,8 +2,6 @@ This quickstart uses [the textfile collector feature](https://github.com/prometh
 
 #### Configure and Start Prometheus
 
-
-
 With M3 running and ready to receive metrics, change your Prometheus configuration to add M3 as `remote_read` and `remote_write` URLs, and as a job. With the configuration below, Prometheus scrapes metrics from two local nodes `localhost:8080` and `localhost:8081` in the `production` group, and one local node `localhost:8082` in the `canary` group:
 
 {{< codeinclude file="docs/includes/prometheus.yml" language="yaml" >}}
@@ -59,3 +57,7 @@ Run node_exporter from it's install location, passing the directory that contain
 
 {{< /tab >}}
 {{< /tabs >}}
+
+{{% notice tip %}}
+You can now confirm that the node_exporter exported metrics to Prometheus by sreaching for `third_avenue` in the Prometheus dashboard.
+{{% /notice %}}

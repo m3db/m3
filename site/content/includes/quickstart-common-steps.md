@@ -276,7 +276,7 @@ You can write metrics using one of two endpoints:
 -   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
-{{< tabs name="prom_http" >}}
+{{< tabs name="prom_http_write" >}}
 {{< tab name="Prometheus" >}}
 
 {{< fileinclude file="quickstart-prometheus-steps.md" >}}
@@ -424,6 +424,95 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 {{% /tab %}}
 {{< /tabs >}}
 
+#### Values collected from Prometheus
+
+If you followed the steps above for collecting metrics from Prometheus, the examples above work, but don't return any results. To query those results, use the followind commands.
+
+{{< tabs name="example_promql_sum" >}}
+{{% tab name="Linux" %}}
+
+<!-- TODO: Check Linux command -->
+
+```shell
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue_sum" \
+  -d "start=$(date "+%s" -d "45 seconds ago")" \
+  -d "end=$( date +%s )" \
+  -d "step=500s" | jq .
+```
+
+{{% /tab %}}
+{{% tab name="macOS/BSD" %}}
+
+```shell
+curl -X "POST" -G "{{% apiendpoint %}}query_range" \
+  -d "query=third_avenue_sum" \
+  -d "start=$( date -v -45S +%s )" \
+  -d "end=$( date +%s )" \
+  -d "step=500s" | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "canary",
+          "instance": "localhost:8082",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "5801.45"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "production",
+          "instance": "localhost:8080",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "5501.45"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "third_avenue_sum",
+          "group": "production",
+          "instance": "localhost:8081",
+          "job": "node",
+          "monitor": "codelab-monitor"
+        },
+        "values": [
+          [
+            1608737991,
+            "13480.27"
+          ]
+        ]
+      }
+    ]
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
 <!-- ## Next Steps
 
 This quickstart covered getting a single-node M3DB cluster running, and writing and querying metrics to the cluster. Some next steps are:
