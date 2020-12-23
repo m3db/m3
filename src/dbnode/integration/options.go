@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/topology"
 
@@ -91,9 +90,6 @@ var (
 	// DefaultIntegrationTestRetentionOpts are default integration test retention options.
 	DefaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
 )
-
-// StorageOptsFunc is a storageOptions modifier for tests
-type StorageOptsFunc func(opts storage.Options) storage.Options
 
 // TestOptions contains integration test options.
 type TestOptions interface {
@@ -299,10 +295,10 @@ type TestOptions interface {
 	ReportInterval() time.Duration
 
 	// SetStorageOptsFn sets the StorageOpts modifier
-	SetStorageOptsFn(StorageOptsFunc)
+	SetStorageOptsFn(StorageOption)
 
 	// StorageOptsFn returns the StorageOpts modifier
-	StorageOptsFn() StorageOptsFunc
+	StorageOptsFn() StorageOption
 }
 
 type options struct {
@@ -337,7 +333,7 @@ type options struct {
 	assertEqual                        assertTestDataEqual
 	nowFn                              func() time.Time
 	reportInterval                     time.Duration
-	storageOptsFn                      StorageOptsFunc
+	storageOptsFn                      StorageOption
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -688,10 +684,10 @@ func (o *options) ReportInterval() time.Duration {
 	return o.reportInterval
 }
 
-func (o *options) SetStorageOptsFn(storageOptsFn StorageOptsFunc) {
+func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) {
 	o.storageOptsFn = storageOptsFn
 }
 
-func (o *options) StorageOptsFn() StorageOptsFunc {
+func (o *options) StorageOptsFn() StorageOption {
 	return o.storageOptsFn
 }

@@ -213,7 +213,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			// claim manager instances after the initial node.
 			persistfs.ResetIndexClaimsManagersUnsafe()
 		}
-		setup, err := NewTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil, opts.StorageOptsFn())
 		require.NoError(t, err)
 		topologyInitializer = setup.TopologyInitializer()
 
@@ -225,11 +225,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
-		storageOpts := setup.StorageOpts().SetInstrumentOptions(instrumentOpts)
-		if opts.StorageOptsFn() != nil {
-			storageOpts = opts.StorageOptsFn()(storageOpts)
-		}
-		setup.SetStorageOpts(storageOpts)
 
 		var (
 			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())

@@ -186,14 +186,14 @@ type TestSetup interface {
 	InitializeBootstrappers(opts InitializeBootstrappersOptions) error
 }
 
-type storageOption func(storage.Options) storage.Options
+type StorageOption func(storage.Options) storage.Options
 
 // NewTestSetup returns a new test setup for non-dockerized integration tests.
 func NewTestSetup(
 	t *testing.T,
 	opts TestOptions,
 	fsOpts fs.Options,
-	storageOptFns ...storageOption,
+	storageOptFns ...StorageOption,
 ) (TestSetup, error) {
 	if opts == nil {
 		opts = NewTestOptions(t)
@@ -465,7 +465,9 @@ func NewTestSetup(
 	}
 
 	for _, fn := range storageOptFns {
-		storageOpts = fn(storageOpts)
+		if fn != nil {
+			storageOpts = fn(storageOpts)
+		}
 	}
 
 	return &testSetup{
