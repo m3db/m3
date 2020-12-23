@@ -366,12 +366,20 @@ type OnFlushNewSeriesEvent struct {
 }
 
 // OnFlushSeries performs work on a per series level.
+// Also exposes a checkpoint fn for maybe compacting multiple index segments based on size.
 type OnFlushSeries interface {
 	OnFlushNewSeries(OnFlushNewSeriesEvent) error
+
+	// CheckpointAndMaybeCompact checks to see if we're at maximum cardinality
+	// for any index segments we're currently building and compact if we are.
+	CheckpointAndMaybeCompact() error
 }
 
 // NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
 type NoOpColdFlushNamespace struct{}
+
+// CheckpointAndMaybeCompact is a no-op.
+func (n *NoOpColdFlushNamespace) CheckpointAndMaybeCompact() error { return nil }
 
 // OnFlushNewSeries is a no-op.
 func (n *NoOpColdFlushNamespace) OnFlushNewSeries(event OnFlushNewSeriesEvent) error {
