@@ -246,7 +246,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 					// as we still want to apply default mapping rules to
 					// metrics that are rolled up to ensure the underlying metric
 					// gets written to aggregated namespaces.
-					if a.includeRollupsOnDefaultRuleFiltering || !pipe.IsRollupRule() {
+					if a.includeRollupsOnDefaultRuleFiltering || pipe.IsMappingRule() {
 						for _, sp := range pipe.StoragePolicies {
 							a.mappingRuleStoragePolicies =
 								append(a.mappingRuleStoragePolicies, sp)
