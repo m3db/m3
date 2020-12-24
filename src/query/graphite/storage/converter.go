@@ -37,7 +37,9 @@ func convertMetricPartToMatcher(
 	if metric == wildcard {
 		if count == 0 {
 			// Match field does not actually match all values
-			// for the first metric selector.
+			// for the first metric selector in practice.
+			// Need to special case this and just use a regexp match all
+			// on this first value.
 			return models.Matcher{
 				Type:  models.MatchRegexp,
 				Name:  graphite.TagName(count),
