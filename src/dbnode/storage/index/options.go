@@ -49,6 +49,15 @@ const (
 	DocumentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 
+	// encodedDocumentArrayPool size in general: 256*256*sizeof(doc.EncodedDocument)
+	// = 256 * 256 * 8
+	// = 512kb (but with Go's heap probably 1mb)
+	// TODO(nate): Make this configurable in a followup change.
+	encodedDocumentArrayPoolSize = 256
+	// EncodedDocumentArrayPoolCapacity is the capacity of the encoded document array pool.
+	EncodedDocumentArrayPoolCapacity    = 256
+	encodedDocumentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
+
 	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
 	// = 256 * 256 * 16
 	// = 1mb (but with Go's heap probably 2mb)
@@ -65,6 +74,7 @@ var (
 	errOptionsAggResultsPoolUnspecified      = errors.New("aggregate results pool is unset")
 	errOptionsAggValuesPoolUnspecified       = errors.New("aggregate values pool is unset")
 	errOptionsDocPoolUnspecified             = errors.New("docs array pool is unset")
+	errOptionsEncodedDocPoolUnspecified      = errors.New("encoded docs array pool is unset")
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
@@ -118,6 +128,7 @@ type opts struct {
 	aggResultsPool                  AggregateResultsPool
 	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
+	encodedDocArrayPool             doc.EncodedDocumentArrayPool
 	aggResultsEntryArrayPool        AggregateResultsEntryArrayPool
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
@@ -150,6 +161,14 @@ func NewOptions() Options {
 	})
 	docArrayPool.Init()
 
+	encodedDocArrayPool := doc.NewEncodedDocumentArrayPool(doc.EncodedDocumentArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(encodedDocumentArrayPoolSize),
+		Capacity:    EncodedDocumentArrayPoolCapacity,
+		MaxCapacity: encodedDocumentArrayPoolMaxCapacity,
+	})
+	encodedDocArrayPool.Init()
+
 	aggResultsEntryArrayPool := NewAggregateResultsEntryArrayPool(AggregateResultsEntryArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
 			SetSize(aggregateResultsEntryArrayPoolSize),
@@ -172,6 +191,7 @@ func NewOptions() Options {
 		aggResultsPool:                  aggResultsPool,
 		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
+		encodedDocArrayPool:             encodedDocArrayPool,
 		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
@@ -205,6 +225,9 @@ func (o *opts) Validate() error {
 	}
 	if o.docArrayPool == nil {
 		return errOptionsDocPoolUnspecified
+	}
+	if o.encodedDocArrayPool == nil {
+		return errOptionsEncodedDocPoolUnspecified
 	}
 	if o.aggResultsEntryArrayPool == nil {
 		return errOptionsAggResultsEntryPoolUnspecified
@@ -337,6 +360,16 @@ func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *opts) SetEncodedDocumentArrayPool(value doc.EncodedDocumentArrayPool) Options {
+	opts := *o
+	opts.encodedDocArrayPool = value
+	return &opts
+}
+
+func (o *opts) EncodedDocumentArrayPool() doc.EncodedDocumentArrayPool {
+	return o.encodedDocArrayPool
 }
 
 func (o *opts) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {
