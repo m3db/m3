@@ -40,6 +40,8 @@ func convertMetricPartToMatcher(
 			// for the first metric selector in practice.
 			// Need to special case this and just use a regexp match all
 			// on this first value.
+			// This is ok since there usually a very small amount of distinct
+			// values in the first dot separator.
 			return models.Matcher{
 				Type:  models.MatchRegexp,
 				Name:  graphite.TagName(count),
