@@ -103,7 +103,9 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to validate update request: update options cannot be empty\"}\n", string(body))
+	assert.JSONEq(t,
+		`{"status":"error","error":"unable to validate update request: update options cannot be empty"}`,
+		string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.

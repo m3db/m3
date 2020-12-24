@@ -123,7 +123,7 @@ func TestHostQueueFetchBatchesV2MultiNS(t *testing.T) {
 		Do(verifyFetchBatchRawV2).
 		Return(result, nil)
 
-	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 
 	for _, fetchBatch := range fetchBatches {
 		assert.NoError(t, queue.Enqueue(fetchBatch))
@@ -310,7 +310,7 @@ func testHostQueueFetchBatches(
 				}
 			}
 			if testOpts != nil && testOpts.nextClientErr != nil {
-				mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
+				mockConnPool.EXPECT().NextClient().Return(nil, nil, testOpts.nextClientErr)
 			} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
 				if opts.UseV2BatchAPIs() {
 					mockClient.EXPECT().
@@ -326,7 +326,7 @@ func testHostQueueFetchBatches(
 						Do(fetchBatchRaw).
 						Return(nil, testOpts.fetchRawBatchErr)
 				}
-				mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 			} else {
 				if opts.UseV2BatchAPIs() {
 					mockClient.EXPECT().
@@ -343,7 +343,7 @@ func testHostQueueFetchBatches(
 						Return(result, nil)
 				}
 
-				mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 			}
 
 			// Fetch

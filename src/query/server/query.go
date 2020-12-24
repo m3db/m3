@@ -754,7 +754,7 @@ func newDownsampler(
 				"cluster management config client")
 		}
 	} else {
-		kvStore, err = applyCustomRuleStore(clusterManagementClient)
+		kvStore, err = applyCustomRuleStore(clusterManagementClient, instrumentOpts)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to apply custom rule store")
 		}

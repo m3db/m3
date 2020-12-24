@@ -1,9 +1,8 @@
 ---
 linktitle: "Binaries"
+title: Creating an M3 Cluster with Binaries
 weight: 2
 ---
-
-# Creating an M3 Cluster with Binaries
 
 This guide shows you the steps involved in creating an M3 cluster using M3 binaries, typically you would automate this with infrastructure as code tools such as Terraform or [Kubernetes](/docs/operator).
 
