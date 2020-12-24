@@ -140,7 +140,7 @@ func TestStdDevSeries(t *testing.T) {
 	var (
 		ctrl          = xgomock.NewController(t)
 		store         = storage.NewMockStorage(ctrl)
-		engine        = NewEngine(store)
+		engine        = NewEngine(store, CompileOptions{})
 		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
 		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
 		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
@@ -180,7 +180,7 @@ func TestAggregateSeriesMedian(t *testing.T) {
 	var (
 		ctrl          = xgomock.NewController(t)
 		store         = storage.NewMockStorage(ctrl)
-		engine        = NewEngine(store)
+		engine        = NewEngine(store, CompileOptions{})
 		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
 		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
 		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
@@ -231,7 +231,7 @@ func (e mockEngine) Storage() storage.Storage {
 }
 
 func TestVariadicSumSeries(t *testing.T) {
-	expr, err := Compile("sumSeries(foo.bar.*, foo.baz.*)")
+	expr, err := Compile("sumSeries(foo.bar.*, foo.baz.*)", CompileOptions{})
 	require.NoError(t, err)
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(
@@ -489,7 +489,7 @@ func TestApplyByNode(t *testing.T) {
 	var (
 		ctrl          = xgomock.NewController(t)
 		store         = storage.NewMockStorage(ctrl)
-		engine        = NewEngine(store)
+		engine        = NewEngine(store, CompileOptions{})
 		start, _      = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
 		end, _        = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
 		ctx           = common.NewContext(common.ContextOptions{Start: start, End: end, Engine: engine})
