@@ -937,6 +937,12 @@ type Options interface {
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
 
+	// SetEncodedDocumentArrayPool sets the encoded document array pool.
+	SetEncodedDocumentArrayPool(value doc.EncodedDocumentArrayPool) Options
+
+	// EncodedDocumentArrayPool returns the encoded document array pool.
+	EncodedDocumentArrayPool() doc.EncodedDocumentArrayPool
+
 	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
 	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options
 
