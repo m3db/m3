@@ -211,8 +211,8 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 			accum.errors)
 		err := xerrors.Wrapf(
 			consistencyErr,
-			"unable to satisfy consistency requirements: shards=%d, err=%v",
-			accum.numShardsPending, consistencyErr)
+			"unable to satisfy consistency requirements, shards=%d",
+			accum.numShardsPending)
 		for i := range accum.errors {
 			if IsBadRequestError(accum.errors[i]) {
 				err = xerrors.NewInvalidParamsError(err)

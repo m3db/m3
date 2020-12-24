@@ -339,7 +339,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	connectionPool := NewMockconnectionPool(ctrl)
 	connectionPool.EXPECT().
 		NextClient().
-		Return(nil, errConnectionPoolHasNoConnections).
+		Return(nil, nil, errConnectionPoolHasNoConnections).
 		AnyTimes()
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
@@ -2008,15 +2008,15 @@ func defaultHostAndClientWithExpect(
 ) (*MockhostQueue, *rpc.MockTChanNode) {
 	client := rpc.NewMockTChanNode(ctrl)
 	connectionPool := NewMockconnectionPool(ctrl)
-	connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
+	connectionPool.EXPECT().NextClient().Return(client, &noopPooledChannel{}, nil).AnyTimes()
 
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
 	hostQueue.EXPECT().Host().Return(host).AnyTimes()
 	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
 	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
-	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
-		fn(client)
+	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn WithConnectionFn) {
+		fn(client, &noopPooledChannel{})
 	}).Return(nil).AnyTimes()
 	hostQueue.EXPECT().Close()
 

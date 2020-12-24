@@ -239,7 +239,7 @@ d8dUBmQZxiF/+uI1I7E8TMF6pCyWxDpY7WPA8pmKZsl6ouawOaOS+Sj+BQAA//8by2IcfAIAAA==
 
 	"/spec.yml": {
 		local:   "openapi/spec.yml",
-		size:    22779,
+		size:    22816,
 		modtime: 12345,
 		compressed: `
 H4sIAAAAAAAC/+xcX2/bOBJ/96fgqvdw+5A4bXp7gN+cOJsaSNMgyS5wuzhgaXIkc1ciVXKYNF3cdz9Q
@@ -275,9 +275,9 @@ FK7RbZ4sol8Ss+4Ap7xuumWQuqSNN3CGMCpMVkXya0sNwl+VbOpjH0EEc2wKGkgeKyGxQZmpzirVmuY3
 ewhRM8KSEBcUN8bb/WU/7VRvaaw0tkld973D953B5wlf4fR5n7FsEZ6XdTxB7W4eriXOIEVoIJu0HGHu
 PMcoqxlMm+K3qJvXVCqzbeF0Onx/axUr2wthy9sJ0kbpzSPiTa+n99Px1fS36fWlt7w4/nU8vRqfXV1k
 V64uxr8uJCper9gLkW5V1tZWRraJVZpBq7Yl94WMb86L1sRe1eXk2gg3SbtWorZdKj7H7xCtEOiDkME0
-O2nvHrbq5UYlF5zitwimrWv0syMrfwzZZce6kq9MSOXJ8Tabo+tm2kguDhpO4FZlblHDQsVo6OWvsNAa
-3KKRftb1VjiUqWzBNxzFNLDa2VIuz9F7gtkHlWLrrGhLq8Rjs4vwJQaGwO+SH351SEt6EHMD+oOyehue
-/KD224ZSzjUYs2O/84oN7f5DXP0kZ5uS0PagpuJRaOcDhoKO/wcAAP//ae6OF/tYAAA=
+O2nvHrbq5UYlF5zitwimrWv0syMrfwzZwTBXOK1pYoeV0kqZyuPlbXZQ183cklwcNBzTrWrhotCFitHQ
+y19hoTW4Rbf9rIuycHJT2advOK9poL6zpVyeyPeExQ8qBeBZ0ZZWicdmF+FLDAyB3yW/DuuQljQq5gb0
+B2X1NmT6Qe23V6WcazBmx6boFbve/Ye4+nHPNiWh7WlOxfPSzqcQBR3/DwAA//8beZKQIFkAAA==
 `,
 	},
 

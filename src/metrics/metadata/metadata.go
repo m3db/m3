@@ -106,6 +106,12 @@ func (m PipelineMetadata) IsDefault() bool {
 		m.DropPolicy.IsDefault()
 }
 
+// IsMappingRule returns whether this is a rollup rule pipeline metadata.
+// nolint:gocritic
+func (m PipelineMetadata) IsMappingRule() bool {
+	return m.Pipeline.IsEmpty()
+}
+
 // IsDropPolicyApplied returns whether this is the default standard pipeline
 // but with the drop policy applied.
 func (m PipelineMetadata) IsDropPolicyApplied() bool {

@@ -629,7 +629,73 @@ func (s *session) Open() error {
 	return nil
 }
 
-func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
+func (s *session) BorrowConnections(
+	shardID uint32,
+	fn WithBorrowConnectionFn,
+	opts BorrowConnectionOptions,
+) (BorrowConnectionsResult, error) {
+	var result BorrowConnectionsResult
+	s.state.RLock()
+	topoMap, err := s.topologyMapWithStateRLock()
+	s.state.RUnlock()
+	if err != nil {
+		return result, err
+	}
+
+	var (
+		multiErr  = xerrors.NewMultiError()
+		breakLoop bool
+	)
+	err = topoMap.RouteShardForEach(shardID, func(
+		_ int,
+		shard shard.Shard,
+		host topology.Host,
+	) {
+		if multiErr.NumErrors() > 0 || breakLoop {
+			// Error or has broken
+			return
+		}
+
+		var (
+			userResult WithBorrowConnectionResult
+			userErr    error
+		)
+		borrowErr := s.BorrowConnection(host.ID(), func(
+			client rpc.TChanNode,
+			channel PooledChannel,
+		) {
+			userResult, userErr = fn(shard, host, client, channel)
+		})
+		if borrowErr != nil {
+			// Wasn't able to even borrow, skip if don't want to error
+			// on down hosts or return the borrow error.
+			if !opts.ContinueOnBorrowError {
+				multiErr = multiErr.Add(borrowErr)
+			}
+			return
+		}
+
+		// Track successful borrow.
+		result.Borrowed++
+
+		// Track whether has broken loop.
+		breakLoop = userResult.Break
+
+		// Return whether user error occurred to break or not.
+		if userErr != nil {
+			multiErr = multiErr.Add(userErr)
+		}
+	})
+	if err != nil {
+		// Route error.
+		return result, err
+	}
+	// Potentially a user error or borrow error, otherwise
+	// FinalError() will return nil.
+	return result, multiErr.FinalError()
+}
+
+func (s *session) BorrowConnection(hostID string, fn WithConnectionFn) error {
 	s.state.RLock()
 	unlocked := false
 	queue, ok := s.state.queuesByHostID[hostID]
@@ -637,13 +703,13 @@ func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
 		s.state.RUnlock()
 		return errSessionHasNoHostQueueForHost
 	}
-	err := queue.BorrowConnection(func(c rpc.TChanNode) {
+	err := queue.BorrowConnection(func(client rpc.TChanNode, ch PooledChannel) {
 		// Unlock early on success
 		s.state.RUnlock()
 		unlocked = true
 
 		// Execute function with borrowed connection
-		fn(c)
+		fn(client, ch)
 	})
 	if !unlocked {
 		s.state.RUnlock()
@@ -2557,7 +2623,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	var attemptErr error
-	checkedAttemptFn := func(client rpc.TChanNode) {
+	checkedAttemptFn := func(client rpc.TChanNode, _ PooledChannel) {
 		attemptErr = attemptFn(client)
 	}
 
@@ -3074,7 +3140,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attemptErr error
-		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ PooledChannel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})

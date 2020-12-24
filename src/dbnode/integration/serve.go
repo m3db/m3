@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
 	ttnode "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"github.com/m3db/m3/src/dbnode/server"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -95,6 +96,7 @@ func openAndServe(
 	db storage.Database,
 	client client.Client,
 	opts storage.Options,
+	serverStorageOpts server.StorageOptions,
 	doneCh <-chan struct{},
 ) error {
 	logger := opts.InstrumentOptions().Logger()
@@ -106,6 +108,12 @@ func openAndServe(
 	ttopts := tchannelthrift.NewOptions()
 	service := ttnode.NewService(db, ttopts)
 	nodeOpts := ttnode.NewOptions(nil)
+	if fn := serverStorageOpts.TChanChannelFn; fn != nil {
+		nodeOpts = nodeOpts.SetTChanChannelFn(fn)
+	}
+	if fn := serverStorageOpts.TChanNodeServerFn; fn != nil {
+		nodeOpts = nodeOpts.SetTChanNodeServerFn(fn)
+	}
 	nativeNodeClose, err := ttnode.NewServer(service, tchannelNodeAddr, contextPool, nodeOpts).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)

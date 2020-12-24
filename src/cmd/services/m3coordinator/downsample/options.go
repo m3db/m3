@@ -103,7 +103,7 @@ var (
 )
 
 // CustomRuleStoreFn is a function to swap the backend used for the rule stores.
-type CustomRuleStoreFn func(clusterclient.Client) (kv.TxnStore, error)
+type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnStore, error)
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
@@ -225,10 +225,11 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts     clock.Options
-	matcher       matcher.Matcher
-	pools         aggPools
-	augmentM3Tags bool
+	clockOpts                            clock.Options
+	matcher                              matcher.Matcher
+	pools                                aggPools
+	augmentM3Tags                        bool
+	includeRollupsOnDefaultRuleFiltering bool
 }
 
 // Configuration configurates a downsampler.
@@ -263,9 +264,6 @@ type Configuration struct {
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
 
-	// DisableAutoMappingRules disables auto mapping rules.
-	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
-
 	// AugmentM3Tags will augment the metric type to aggregated metrics
 	// to be used within the filter for rules. If enabled, for example,
 	// your filter can specify '__m3_type__:gauge' to filter by gauges.
@@ -273,6 +271,14 @@ type Configuration struct {
 	// Furthermore, the option is automatically enabled if static rules are
 	// used and any filter contain an __m3_type__ tag.
 	AugmentM3Tags bool `yaml:"augmentM3Tags"`
+
+	// IncludeRollupsOnDefaultRuleFiltering will include rollup rules
+	// when deciding if the downsampler should ignore the default auto mapping rules
+	// based on the storage policies applied on a given rule.
+	// This is usually not what you want to do, as it means the raw metric
+	// that is being rolled up by your rule will not be forward into aggregated namespaces,
+	// and will only be written to the unaggregated namespace.
+	IncludeRollupsOnDefaultRuleFiltering bool `yaml:"includeRollupsOnDefaultRuleFiltering"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
@@ -791,10 +797,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:  client,
-			matcher:       matcher,
-			pools:         pools,
-			augmentM3Tags: augmentM3Tags,
+			clientRemote:                         client,
+			matcher:                              matcher,
+			pools:                                pools,
+			augmentM3Tags:                        augmentM3Tags,
+			includeRollupsOnDefaultRuleFiltering: cfg.IncludeRollupsOnDefaultRuleFiltering,
 		}, nil
 	}
 
@@ -956,10 +963,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:    aggregatorInstance,
-		matcher:       matcher,
-		pools:         pools,
-		augmentM3Tags: augmentM3Tags,
+		aggregator:                           aggregatorInstance,
+		matcher:                              matcher,
+		pools:                                pools,
+		augmentM3Tags:                        augmentM3Tags,
+		includeRollupsOnDefaultRuleFiltering: cfg.IncludeRollupsOnDefaultRuleFiltering,
 	}, nil
 }
 
