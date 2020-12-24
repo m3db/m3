@@ -31,14 +31,14 @@ type iterator struct {
 	readers  index.Readers
 
 	idx      int
-	currDoc  doc.Document
-	currIter doc.Iterator
+	currDoc  doc.EncodedDocument
+	currIter doc.EncodedIterator
 
 	err    error
 	closed bool
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
+func newIterator(s search.Searcher, rs index.Readers) (doc.EncodedIterator, error) {
 	it := &iterator{
 		searcher: s,
 		readers:  rs,
@@ -91,7 +91,7 @@ func (it *iterator) Next() bool {
 	return true
 }
 
-func (it *iterator) Current() doc.Document {
+func (it *iterator) Current() doc.EncodedDocument {
 	return it.currDoc
 }
 
@@ -108,9 +108,9 @@ func (it *iterator) Close() error {
 }
 
 // nextIter gets the next document iterator by getting the next postings list from
-// the it's searcher and then getting the documents for that postings list from the
-// corresponding reader associated with that postings list.
-func (it *iterator) nextIter() (doc.Iterator, bool, error) {
+// the it's searcher and then getting the encoded documents for that postings list from
+// the corresponding reader associated with that postings list.
+func (it *iterator) nextIter() (doc.EncodedIterator, bool, error) {
 	it.idx++
 	if it.idx >= len(it.readers) {
 		return nil, false, nil
@@ -122,7 +122,7 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 		return nil, false, err
 	}
 
-	iter, err := reader.Docs(pl)
+	iter, err := reader.EncodedDocs(pl)
 	if err != nil {
 		return nil, false, err
 	}

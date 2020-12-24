@@ -44,35 +44,14 @@ func TestIterator(t *testing.T) {
 	require.NoError(t, secondPL.Insert(67))
 
 	// Set up Readers.
-	docs := []doc.Document{
-		doc.Document{
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("apple"),
-					Value: []byte("red"),
-				},
-			},
-		},
-		doc.Document{
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("banana"),
-					Value: []byte("yellow"),
-				},
-			},
-		},
-		doc.Document{
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("carrot"),
-					Value: []byte("orange"),
-				},
-			},
-		},
+	docs := []doc.EncodedDocument{
+		{Bytes: []byte("encodedbytes1")},
+		{Bytes: []byte("encodedbytes2")},
+		{Bytes: []byte("encodedbytes3")},
 	}
 
-	firstDocIter := doc.NewMockIterator(mockCtrl)
-	secondDocIter := doc.NewMockIterator(mockCtrl)
+	firstDocIter := doc.NewMockEncodedIterator(mockCtrl)
+	secondDocIter := doc.NewMockEncodedIterator(mockCtrl)
 	gomock.InOrder(
 		firstDocIter.EXPECT().Next().Return(true),
 		firstDocIter.EXPECT().Current().Return(docs[0]),
@@ -92,8 +71,8 @@ func TestIterator(t *testing.T) {
 	firstReader := index.NewMockReader(mockCtrl)
 	secondReader := index.NewMockReader(mockCtrl)
 	gomock.InOrder(
-		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
-		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
+		firstReader.EXPECT().EncodedDocs(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().EncodedDocs(secondPL).Return(secondDocIter, nil),
 	)
 
 	searcher := search.NewMockSearcher(mockCtrl)
