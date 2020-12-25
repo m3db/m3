@@ -67,6 +67,7 @@ var (
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
 	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
+	errIngesterConfigMustBeSet         = errors.New("carbon ingester options: ingester config must be set")
 )
 
 // Options configures the ingester.
@@ -86,11 +87,12 @@ func (o *Options) Validate() error {
 	if o.InstrumentOptions == nil {
 		return errIOptsMustBeSet
 	}
-
 	if o.WorkerPool == nil {
 		return errWorkerPoolMustBeSet
 	}
-
+	if o.IngesterConfig != nil {
+		return errIngesterConfigMustBeSet
+	}
 	return nil
 }
 
@@ -289,8 +291,63 @@ func (i *ingester) Handle(conn net.Conn) {
 		name, timestamp, value := s.Metric()
 
 		resources := i.getLineResources()
-		// Copy name since scanner bytes are recycled.
-		resources.name = append(resources.name[:0], name...)
+		if i.opts.IngesterConfig.Rewrite.Cleanup {
+			// Copy name since scanner bytes are recycled, also cleanup
+			// along the way.
+			leadingDots := true
+			numDots := 0
+			resources.name = resources.name[:0]
+			for _, c := range name {
+				if c == '.' {
+					numDots++
+				} else {
+					numDots = 0
+					leadingDots = false
+				}
+
+				if leadingDots {
+					// Currently processing leading dots.
+					continue
+				}
+
+				if numDots > 1 {
+					// Do not keep multiple dots.
+					continue
+				}
+
+				if !(c >= 'a' && c <= 'z') &&
+					!(c >= 'A' && c <= 'Z') &&
+					!(c >= '0' && c <= '9') &&
+					c != '-' &&
+					c != '_' &&
+					c != ':' &&
+					c != '#' {
+					// Invalid character, replace with undescore.
+					if n := len(resources.name); n > 0 {
+						if resources.name[n-1] == '_' {
+							// Preceeding character already underscore.
+							continue
+						}
+					}
+					resources.name = append(resources.name, '_')
+					continue
+				}
+
+				// Valid character and not proceeding dot or multiple dots.
+				resources.name = append(resources.name, c)
+			}
+			for i := len(resources.name) - 1; i >= 0; i-- {
+				if resources.name[i] != '.' {
+					// Found non dot.
+					break
+				}
+				// Remove trailing dot.
+				resources.name = resources.name[:i]
+			}
+		} else {
+			// Copy name since scanner bytes are recycled.
+			resources.name = append(resources.name[:0], name...)
+		}
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
