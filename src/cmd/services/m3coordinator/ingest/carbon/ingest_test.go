@@ -370,7 +370,7 @@ func TestIngesterNoStaticRules(t *testing.T) {
 	require.True(t, ok)
 
 	// Wait until rules are updated and store them for later comparison.
-	var origRules []ruleAndRegex
+	var origRules []ruleAndMatcher
 	require.True(t, clock.WaitUntil(func() bool {
 		downcast.RLock()
 		origRules = downcast.rules
