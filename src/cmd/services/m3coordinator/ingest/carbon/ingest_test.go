@@ -157,7 +157,68 @@ var (
 		},
 	}
 
-	// Maps the patterns above to their expected write options.
+	testRulesWithContains = CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
+			{
+				Contains: "match-contains1",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+					},
+				},
+			},
+			// Should never match as the previous one takes precedence.
+			{
+				Contains: "match-contains1",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: time.Minute,
+						Retention:  24 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: "match-contains2",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateLastPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: "match-contains3",
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: falsePtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	}
+
+	// Maps the patterns rules above to their expected write options.
 	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
 		"match-regex1": {
 			DownsampleOverride: true,
@@ -183,6 +244,40 @@ var (
 			WriteOverride: true,
 		},
 		"match-regex3": {
+			DownsampleOverride: true,
+			WriteOverride:      true,
+			WriteStoragePolicies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
+			},
+		},
+	}
+
+	// Maps the contains rules above to their expected write options.
+	expectedWriteOptsByContains = map[string]ingest.WriteOptions{
+		"match-contains1": {
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.AutoMappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+						policy.NewStoragePolicy(1*time.Hour, xtime.Second, 7*24*time.Hour),
+					},
+				},
+			},
+			WriteOverride: true,
+		},
+		"match-contains2": {
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.AutoMappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Last},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+			},
+			WriteOverride: true,
+		},
+		"match-contains3": {
 			DownsampleOverride: true,
 			WriteOverride:      true,
 			WriteStoragePolicies: []policy.StoragePolicy{
@@ -328,6 +423,100 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		{
 			metric:    []byte("foo.match-regex3.bar.baz"),
 			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
+			timestamp: 3,
+			value:     3,
+		},
+	}, found)
+}
+
+func TestIngesterHonorsContains(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+
+	var (
+		lock  = sync.Mutex{}
+		found = []testMetric{}
+	)
+	mockDownsamplerAndWriter.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
+		_ context.Context,
+		tags models.Tags,
+		dp ts.Datapoints,
+		unit xtime.Unit,
+		annotation []byte,
+		writeOpts ingest.WriteOptions,
+	) interface{} {
+		lock.Lock()
+		// Clone tags because they (and their underlying bytes) are pooled.
+		found = append(found, testMetric{
+			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+		lock.Unlock()
+
+		// Use panic's instead of require/assert because those don't behave properly when the assertion
+		// is run in a background goroutine. Also we match on the second tag val just due to the nature
+		// of how the patterns were written.
+		secondTagVal := string(tags.Tags[1].Value)
+		expectedWriteOpts, ok := expectedWriteOptsByContains[secondTagVal]
+		if !ok {
+			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
+		}
+
+		if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
+			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
+				expectedWriteOpts, writeOpts, secondTagVal))
+		}
+
+		return nil
+	}).AnyTimes()
+
+	packet := []byte("" +
+		"foo.match-contains1.bar.baz 1 1\n" +
+		"foo.match-contains2.bar.baz 2 2\n" +
+		"foo.match-contains3.bar.baz 3 3\n" +
+		"foo.match-not-contains.bar.baz 4 4")
+	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
+
+	session := client.NewMockSession(ctrl)
+	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("10s:48h"),
+		Resolution:  10 * time.Second,
+		Retention:   48 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1m:24h"),
+		Resolution:  1 * time.Minute,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1h:168h"),
+		Resolution:  1 * time.Hour,
+		Retention:   168 * time.Hour,
+		Session:     session,
+	})
+
+	opts := newTestOpts(testRulesWithContains)
+	opts.InstrumentOptions = opts.InstrumentOptions.
+		SetLogger(instrument.NewTestDebugLogger(t))
+	ingester, err := NewIngester(mockDownsamplerAndWriter, watcher, opts)
+	require.NoError(t, err)
+	ingester.Handle(byteConn)
+
+	assertTestMetricsAreEqual(t, []testMetric{
+		{
+			metric:    []byte("foo.match-contains1.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains1.bar.baz")),
+			timestamp: 1,
+			value:     1,
+		},
+		{
+			metric:    []byte("foo.match-contains2.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains2.bar.baz")),
+			timestamp: 2,
+			value:     2,
+		},
+		{
+			metric:    []byte("foo.match-contains3.bar.baz"),
+			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains3.bar.baz")),
 			timestamp: 3,
 			value:     3,
 		},
