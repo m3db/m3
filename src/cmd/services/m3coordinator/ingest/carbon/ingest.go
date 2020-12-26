@@ -157,7 +157,7 @@ type ingester struct {
 	lineResourcesPool pool.ObjectPool
 
 	sync.RWMutex
-	rules []ruleAndRegex
+	rules []ruleAndMatcher
 }
 
 func (i *ingester) OnUpdate(clusterNamespaces m3.ClusterNamespaces) {
@@ -370,7 +370,17 @@ func (i *ingester) write(
 	i.RUnlock()
 
 	for _, rule := range rules {
-		if rule.rule.Pattern == graphite.MatchAllPattern || rule.regexp.Match(resources.name) {
+		var matches bool
+		switch {
+		case rule.rule.Pattern == graphite.MatchAllPattern:
+			matches = true
+		case rule.regexp != nil:
+			matches = rule.regexp.Match(resources.name)
+		case len(rule.contains) != 0:
+			matches = bytes.Contains(resources.name, rule.contains)
+		}
+
+		if matches {
 			// Each rule should only have either mapping rules or storage policies so
 			// one of these should be a no-op.
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
@@ -536,7 +546,7 @@ func generateTagsFromName(
 	return models.Tags{Opts: opts, Tags: tags}, nil
 }
 
-// Compile all the carbon ingestion rules into regexp so that we can
+// Compile all the carbon ingestion rules into matcher so that we can
 // perform matching. Also, generate all the mapping rules and storage
 // policies that we will need to pass to the DownsamplerAndWriter upfront
 // so that we don't need to create them each time.
@@ -544,12 +554,27 @@ func generateTagsFromName(
 // Note that only one rule will be applied per metric and rules are applied
 // such that the first one that matches takes precedence. As a result we need
 // to make sure to maintain the order of the rules when we generate the compiled ones.
-func (i *ingester) compileRulesWithLock(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
-	var compiledRules []ruleAndRegex
+func (i *ingester) compileRulesWithLock(rules CarbonIngesterRules) ([]ruleAndMatcher, error) {
+	compiledRules := make([]ruleAndMatcher, 0, len(rules.Rules))
 	for _, rule := range rules.Rules {
-		compiled, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return nil, err
+		if rule.Pattern != "" && rule.Contains != "" {
+			return nil, fmt.Errorf(
+				"rule contains both pattern and contains: pattern=%s, contains=%s",
+				rule.Pattern, rule.Contains)
+		}
+
+		var (
+			contains []byte
+			compiled *regexp.Regexp
+		)
+		if rule.Contains != "" {
+			contains = []byte(rule.Contains)
+		} else {
+			var err error
+			compiled, err = regexp.Compile(rule.Pattern)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		storagePolicies := make([]policy.StoragePolicy, 0, len(rule.Policies))
@@ -559,9 +584,10 @@ func (i *ingester) compileRulesWithLock(rules CarbonIngesterRules) ([]ruleAndReg
 			storagePolicies = append(storagePolicies, storagePolicy)
 		}
 
-		compiledRule := ruleAndRegex{
-			rule:   rule,
-			regexp: compiled,
+		compiledRule := ruleAndMatcher{
+			rule:     rule,
+			contains: contains,
+			regexp:   compiled,
 		}
 
 		if rule.Aggregation.EnabledOrDefault() {
@@ -612,9 +638,10 @@ type lineResources struct {
 	tags       []models.Tag
 }
 
-type ruleAndRegex struct {
+type ruleAndMatcher struct {
 	rule            config.CarbonIngesterRuleConfiguration
 	regexp          *regexp.Regexp
+	contains        []byte
 	mappingRules    []downsample.AutoMappingRule
 	storagePolicies []policy.StoragePolicy
 }
