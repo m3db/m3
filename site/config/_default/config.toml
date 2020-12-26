@@ -32,14 +32,23 @@
     target = "archetypes"
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
-enableRobotsTXT = true
 metaDataFormat = "yaml"
 # theme = "docs-theme"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = true
 # staticDir = ["static"]
-defaultContentLanguageInSubdir= true
+# defaultContentLanguageInSubdir= true
+
+[languages]
+[languages.en]
+title = "M3 Documentation"
+description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
+languageName ="English"
+# Weight used for sorting.
+weight = 1
+languagedirection = "ltr"
 
 # Highlighting config.
 pygmentsCodeFences = true
@@ -49,7 +58,7 @@ pygmentsUseClassic = false
 #pygmentsOptions = "linenos=table"
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
-enableGitInfo = true
+# enableGitInfo = true
 
 [permalinks]
   "/" = "/docs/:section/:filename/"
@@ -100,9 +109,10 @@ offlineSearch = false
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
-  # TODO: pattern to branch?
-  # TODO: bring back
-  # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+
+  helpBlock = true
+  editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+
   # Author of the site, will be used in meta information
   author = "The M3 team and community"
   # Description of the site, will be used in meta information
@@ -137,11 +147,13 @@ offlineSearch = false
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
-
+# TODO: Can all the below be consolidated?
   [[params.versions]]
     version = "1.0"
     url = ""
 
+  [params.releases]
+    docker = "v1.0.0"
 
 # TODO: Do not like doing this really
 [markup]

@@ -111,7 +111,7 @@ func TestExecute(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := storage.NewMockStorage(ctrl)
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 
 	tests := []queryTest{
 		{"foo.bar.q.zed", true, []queryTestResult{{"foo.bar.q.zed", "foo.bar.q.zed", 0}}},
@@ -171,7 +171,7 @@ func TestTracing(t *testing.T) {
 
 	store := storage.NewMockStorage(ctrl)
 
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 	var traces []common.Trace
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
@@ -229,7 +229,7 @@ func TestNilBinaryContextShifter(t *testing.T) {
 
 	store := storage.NewMockStorage(ctrl)
 
-	engine := NewEngine(store)
+	engine := NewEngine(store, CompileOptions{})
 
 	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
 

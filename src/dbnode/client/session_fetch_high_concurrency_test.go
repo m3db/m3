@@ -28,6 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -35,17 +39,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
-	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-type noopCloser struct{}
-
-func (noopCloser) Close() {}
 
 func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -102,7 +97,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	// to be able to mock the entire end to end pipeline
 	newConnFn := func(
 		_ string, addr string, _ Options,
-	) (xresource.SimpleCloser, rpc.TChanNode, error) {
+	) (PooledChannel, rpc.TChanNode, error) {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).
@@ -110,7 +105,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		mockClient.EXPECT().FetchBatchRaw(gomock.Any(), gomock.Any()).
 			Return(respResult, nil).
 			AnyTimes()
-		return noopCloser{}, mockClient, nil
+		return &noopPooledChannel{}, mockClient, nil
 	}
 	shards := make([]shard.Shard, numShards)
 	for i := range shards {

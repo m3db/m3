@@ -23,6 +23,7 @@ package watchmanager
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -80,6 +81,7 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 		if rev > 0 {
 			wOpts = append(wOpts, clientv3.WithRev(rev))
 		}
+
 		watchChan = watcher.Watch(
 			ctx,
 			key,
@@ -91,8 +93,14 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 	var (
 		timeout       = w.opts.WatchChanInitTimeout()
 		cancelWatchFn = func() {
+			// we *must* both cancel the context and call .Close() on watch to
+			// properly free resources, and not end up with weird issues due to stale
+			// grpc streams or bad internal etcd watch state.
 			cancelFn()
 			if err := watcher.Close(); err != nil {
+				// however, there's nothing we can do about an error on watch close,
+				// and it shouldn't happen in practice - unless we end up
+				// closing an already closed grpc stream or smth.
 				w.logger.Info("error closing watcher", zap.Error(err))
 			}
 		}
@@ -102,6 +110,7 @@ func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchCha
 	case <-doneCh:
 		return watchChan, cancelWatchFn, nil
 	case <-time.After(timeout):
+		cancelWatchFn()
 		err := fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
 		return nil, cancelWatchFn, err
 	}
@@ -111,11 +120,13 @@ func (w *manager) Watch(key string) {
 	var (
 		ticker = time.NewTicker(w.opts.WatchChanCheckInterval())
 		logger = w.logger.With(zap.String("watch_key", key))
+		rnd    = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 
-		revOverride int64
-		watchChan   clientv3.WatchChan
-		cancelFn    context.CancelFunc
-		err         error
+		revOverride          int64
+		firstUpdateSucceeded bool
+		watchChan            clientv3.WatchChan
+		cancelFn             context.CancelFunc
+		err                  error
 	)
 
 	defer ticker.Stop()
@@ -127,7 +138,9 @@ func (w *manager) Watch(key string) {
 		// set it to nil so it will be recreated
 		watchChan = nil
 		// avoid recreating watch channel too frequently
-		time.Sleep(w.opts.WatchChanResetInterval())
+		dur := w.opts.WatchChanResetInterval()
+		dur += time.Duration(rnd.Int63n(int64(dur)))
+		time.Sleep(dur)
 	}
 
 	for {
@@ -140,8 +153,14 @@ func (w *manager) Watch(key string) {
 
 				// NB(cw) when we failed to create a etcd watch channel
 				// we do a get for now and will try to recreate the watch chan later
-				if err = w.updateFn(key, nil); err != nil {
-					logger.Error("failed to get value for key", zap.Error(err))
+				if !firstUpdateSucceeded {
+					if err = w.updateFn(key, nil); err != nil {
+						logger.Error("failed to get value for key", zap.Error(err))
+					} else {
+						// NB(vytenis): only try initializing once, otherwise there's
+						// get request amplification, especially for non-existent keys.
+						firstUpdateSucceeded = true
+					}
 				}
 				resetWatchWithSleep()
 				continue
@@ -166,20 +185,26 @@ func (w *manager) Watch(key string) {
 					zap.Error(err),
 				)
 				w.m.etcdWatchError.Inc(1)
-				// do not stop here, even though the update contains an error
-				// we still take this chance to attempt a Get() for the latest value
-
-				// If the current revision has been compacted, set watchChan to
-				// nil so the watch is recreated with a valid start revision
 				if err == rpctypes.ErrCompacted {
-					logger.Warn("recreating watch at revision", zap.Int64("revision", r.CompactRevision))
 					revOverride = r.CompactRevision
+					logger.Warn("compacted; recreating watch at revision",
+						zap.Int64("revision", revOverride))
 				} else {
-					logger.Warn("recreating watch due to an error")
+					logger.Warn("recreating watch due to an error", zap.Error(err))
 				}
 
 				resetWatchWithSleep()
+				continue
 			} else if r.IsProgressNotify() {
+				if r.CompactRevision > revOverride {
+					// we only care about last event as this watchmanager implementation does not support
+					// watching key ranges, only single keys.
+					// set revOverride to minimum non-compacted revision if watch was
+					// initialized with an older rev., since we really don't care about history.
+					// this may help recover faster (one less retry) on connection loss/leader change
+					// around compaction, if we were watching on a revision that's already compacted.
+					revOverride = r.CompactRevision
+				}
 				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
 				continue
 			}

@@ -134,16 +134,27 @@ type Lexer struct {
 	pos                 int
 	width               int
 	reservedIdentifiers map[string]TokenType
+	opts                Options
 }
 
 const (
 	eof rune = 0
 )
 
+// Options allows for specifying lexer options.
+type Options struct {
+	EscapeAllNotOnlyQuotes bool
+}
+
 // NewLexer returns a lexer and an output channel for tokens.
-func NewLexer(s string, reservedIdentifiers map[string]TokenType) (*Lexer, chan *Token) {
+func NewLexer(s string, reservedIdentifiers map[string]TokenType, opts Options) (*Lexer, chan *Token) {
 	tokens := make(chan *Token)
-	return &Lexer{s: s, tokens: tokens, reservedIdentifiers: reservedIdentifiers}, tokens
+	return &Lexer{
+		s:                   s,
+		tokens:              tokens,
+		reservedIdentifiers: reservedIdentifiers,
+		opts:                opts,
+	}, tokens
 }
 
 // Run consumes the input to produce a token stream.
@@ -377,8 +388,18 @@ func (l *Lexer) quotedString(quoteMark rune) bool {
 			continue
 		}
 
-		if escaped && strings.ContainsRune(digits, r) {
-			// if backslash is followed by a digit, we add the backslash back
+		// By default we only need escaping for quotes and treat
+		// backslashes as regular backslashes (i.e. for use in regexp
+		// with aliasSub, etc) and as such restore backslash as long not
+		// escaping a quote.
+		restoreBackslash := escaped && r != quoteMark
+		if l.opts.EscapeAllNotOnlyQuotes {
+			// If escaping all characters not just quotes then only restore
+			// backslash if using it for regex group replacement (i.e. "\1").
+			restoreBackslash = escaped && strings.ContainsRune(digits, r)
+		}
+		if restoreBackslash {
+			// If backslash not being used to escape quote then keep it.
 			s = append(s, '\\')
 		}
 
