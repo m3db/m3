@@ -133,6 +133,7 @@ func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (
 	w.m.ID = append(w.m.ID, mp.Suffix...)
 	w.m.Metric.TimeNanos = mp.TimeNanos
 	w.m.Metric.Value = mp.Value
+	w.m.Metric.Type = mp.Type
 	w.m.StoragePolicy = mp.StoragePolicy
 	shard := w.shardFn(w.m.ID, w.numShards)
 	return w.m, shard

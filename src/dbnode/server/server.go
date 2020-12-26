@@ -651,6 +651,11 @@ func Run(runOpts RunOptions) {
 	}()
 	opts = opts.SetIndexClaimsManager(icm)
 
+	if value := cfg.ForceColdWritesEnabled; value != nil {
+		// Allow forcing cold writes to be enabled by config.
+		opts = opts.SetForceColdWritesEnabled(*value)
+	}
+
 	forceColdWrites := opts.ForceColdWritesEnabled()
 	var envCfgResults environment.ConfigureResults
 	if len(envConfig.Statics) == 0 {
@@ -715,6 +720,9 @@ func Run(runOpts RunOptions) {
 	}
 	tchanOpts := ttnode.NewOptions(tchannelOpts).
 		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := runOpts.StorageOptions.TChanChannelFn; fn != nil {
+		tchanOpts = tchanOpts.SetTChanChannelFn(fn)
+	}
 	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
 		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
 	}

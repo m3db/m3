@@ -114,7 +114,7 @@ For more details on the compression scheme and its limitations, review [the docu
 
 #### M3DB setup
 
-For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/docs/how_to/cluster_hard_way) or [using Kubernetes](/docs/operator). However, this tutorial will walk you through configuring a single node setup locally for development.
+For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster [manually](/docs/cluster/binaries_cluster) or [using Kubernetes](/docs/cluster/kubernetes_cluster). However, this tutorial will walk you through configuring a single node setup locally for development.
 
 First, run the following command to pull the latest M3DB image:
 
@@ -143,13 +143,25 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 Note that the `retentionTime` is set artificially low to conserve resources.
 
-After a few moments, the M3DB container should finish bootstrapping. Once bootstrapping is finished, mark the namespace as ready to receive traffic:
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
 
-```shell
-curl -X POST http://localhost:7201/api/v1/services/m3db/namespace/ready -d '{
-  "name": "default"
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{< codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" >}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
 }
 ```
+
+{{% /tab %}}
+{{< /tabs >}}
+
 
 At this point it should be ready to serve write and read queries.
 
