@@ -244,13 +244,9 @@ func TestWatchNoLeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// give some time for watch to be updated
-	for i := 0; i < 10; i++ {
-		if atomic.LoadInt32(&updateCalled) == int32(2) {
-			break
-		}
-		time.Sleep(watchInitAndRetryDelay)
-		runtime.Gosched()
-	}
+	require.True(t, clock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&updateCalled) >= 2
+	}, 30*time.Second))
 
 	updates := atomic.LoadInt32(&updateCalled)
 	if updates < 2 {
