@@ -64,11 +64,9 @@ func copyAndRewrite(
 			c != ':' &&
 			c != '#' {
 			// Invalid character, replace with undescore.
-			if n := len(dst); n > 0 {
-				if dst[n-1] == '_' {
-					// Preceeding character already underscore.
-					continue
-				}
+			if n := len(dst); n > 0 && dst[n-1] == '_' {
+				// Preceeding character already underscore.
+				continue
 			}
 			dst = append(dst, '_')
 			continue
