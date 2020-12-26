@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 )
 
+// nolint: gocyclo
 func copyAndRewrite(
 	dst, src []byte,
 	cfg *config.CarbonIngesterRewriteConfiguration,
@@ -63,9 +64,9 @@ func copyAndRewrite(
 			c != '_' &&
 			c != ':' &&
 			c != '#' {
-			// Invalid character, replace with undescore.
+			// Invalid character, replace with underscore.
 			if n := len(dst); n > 0 && dst[n-1] == '_' {
-				// Preceeding character already underscore.
+				// Preceding character already underscore.
 				continue
 			}
 			dst = append(dst, '_')
