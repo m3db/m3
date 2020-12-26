@@ -92,200 +92,116 @@ var (
 			},
 		},
 	}
-
-	// Match match-regex1 twice with two patterns, and in one case with two policies
-	// and in the second with one policy. In addition, also match match-regex2 with
-	// a single pattern and policy.
-	testRulesWithPatterns = CarbonIngesterRules{
-		Rules: []config.CarbonIngesterRuleConfiguration{
-			{
-				Pattern: ".*match-regex1.*",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateMeanPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 10 * time.Second,
-						Retention:  48 * time.Hour,
-					},
-					{
-						Resolution: 1 * time.Hour,
-						Retention:  7 * 24 * time.Hour,
-					},
-				},
-			},
-			// Should never match as the previous one takes precedence.
-			{
-				Pattern: ".*match-regex1.*",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateMeanPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: time.Minute,
-						Retention:  24 * time.Hour,
-					},
-				},
-			},
-			{
-				Pattern: ".*match-regex2.*",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateLastPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 10 * time.Second,
-						Retention:  48 * time.Hour,
-					},
-				},
-			},
-			{
-				Pattern: ".*match-regex3.*",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: falsePtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 1 * time.Hour,
-						Retention:  7 * 24 * time.Hour,
-					},
-				},
-			},
-		},
-	}
-
-	testRulesWithContains = CarbonIngesterRules{
-		Rules: []config.CarbonIngesterRuleConfiguration{
-			{
-				Contains: "match-contains1",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateMeanPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 10 * time.Second,
-						Retention:  48 * time.Hour,
-					},
-					{
-						Resolution: 1 * time.Hour,
-						Retention:  7 * 24 * time.Hour,
-					},
-				},
-			},
-			// Should never match as the previous one takes precedence.
-			{
-				Contains: "match-contains1",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateMeanPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: time.Minute,
-						Retention:  24 * time.Hour,
-					},
-				},
-			},
-			{
-				Pattern: "match-contains2",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: truePtr,
-					Type:    aggregateLastPtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 10 * time.Second,
-						Retention:  48 * time.Hour,
-					},
-				},
-			},
-			{
-				Pattern: "match-contains3",
-				Aggregation: config.CarbonIngesterAggregationConfiguration{
-					Enabled: falsePtr,
-				},
-				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
-					{
-						Resolution: 1 * time.Hour,
-						Retention:  7 * 24 * time.Hour,
-					},
-				},
-			},
-		},
-	}
-
-	// Maps the patterns rules above to their expected write options.
-	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
-		"match-regex1": {
-			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.AutoMappingRule{
-				{
-					Aggregations: []aggregation.Type{aggregation.Mean},
-					Policies: []policy.StoragePolicy{
-						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-						policy.NewStoragePolicy(1*time.Hour, xtime.Second, 7*24*time.Hour),
-					},
-				},
-			},
-			WriteOverride: true,
-		},
-		"match-regex2": {
-			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.AutoMappingRule{
-				{
-					Aggregations: []aggregation.Type{aggregation.Last},
-					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-				},
-			},
-			WriteOverride: true,
-		},
-		"match-regex3": {
-			DownsampleOverride: true,
-			WriteOverride:      true,
-			WriteStoragePolicies: []policy.StoragePolicy{
-				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
-			},
-		},
-	}
-
-	// Maps the contains rules above to their expected write options.
-	expectedWriteOptsByContains = map[string]ingest.WriteOptions{
-		"match-contains1": {
-			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.AutoMappingRule{
-				{
-					Aggregations: []aggregation.Type{aggregation.Mean},
-					Policies: []policy.StoragePolicy{
-						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-						policy.NewStoragePolicy(1*time.Hour, xtime.Second, 7*24*time.Hour),
-					},
-				},
-			},
-			WriteOverride: true,
-		},
-		"match-contains2": {
-			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.AutoMappingRule{
-				{
-					Aggregations: []aggregation.Type{aggregation.Last},
-					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
-				},
-			},
-			WriteOverride: true,
-		},
-		"match-contains3": {
-			DownsampleOverride: true,
-			WriteOverride:      true,
-			WriteStoragePolicies: []policy.StoragePolicy{
-				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
-			},
-		},
-	}
 )
+
+type testRulesOptions struct {
+	substring string
+	prefix    string
+	suffix    string
+}
+
+func testRules(opts testRulesOptions) CarbonIngesterRules {
+	// Match prefix + substring + "1" + suffix twice with two patterns, and
+	// in one case with two policies and in the second with one policy. In
+	// addition, also match prefix + substring + "2" + suffix wit a single
+	// pattern and policy.
+	return CarbonIngesterRules{
+		Rules: []config.CarbonIngesterRuleConfiguration{
+			{
+				Pattern: opts.prefix + opts.substring + "1" + opts.suffix,
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+					},
+				},
+			},
+			// Should never match as the previous one takes precedence.
+			{
+				Pattern: opts.prefix + opts.substring + "1" + opts.suffix,
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateMeanPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: time.Minute,
+						Retention:  24 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: opts.prefix + opts.substring + "2" + opts.suffix,
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: truePtr,
+					Type:    aggregateLastPtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 10 * time.Second,
+						Retention:  48 * time.Hour,
+					},
+				},
+			},
+			{
+				Pattern: opts.prefix + opts.substring + "3" + opts.suffix,
+				Aggregation: config.CarbonIngesterAggregationConfiguration{
+					Enabled: falsePtr,
+				},
+				Policies: []config.CarbonIngesterStoragePolicyConfiguration{
+					{
+						Resolution: 1 * time.Hour,
+						Retention:  7 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	}
+}
+
+func testExpectedWriteOptions(substring string) map[string]ingest.WriteOptions {
+	// Maps the rules above to their expected write options.
+	return map[string]ingest.WriteOptions{
+		substring + "1": {
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.AutoMappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Mean},
+					Policies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
+						policy.NewStoragePolicy(1*time.Hour, xtime.Second, 7*24*time.Hour),
+					},
+				},
+			},
+			WriteOverride: true,
+		},
+		substring + "2": {
+			DownsampleOverride: true,
+			DownsampleMappingRules: []downsample.AutoMappingRule{
+				{
+					Aggregations: []aggregation.Type{aggregation.Last},
+					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
+				},
+			},
+			WriteOverride: true,
+		},
+		substring + "3": {
+			DownsampleOverride: true,
+			WriteOverride:      true,
+			WriteStoragePolicies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(time.Hour, xtime.Second, 7*24*time.Hour),
+			},
+		},
+	}
+}
 
 func TestIngesterHandleConn(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -355,8 +271,12 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 				"foo.match-regex2.bar.baz 2 2\n" +
 				"foo.match-regex3.bar.baz 3 3\n" +
 				"foo.match-not-regex.bar.baz 4 4",
-			rules:                testRulesWithPatterns,
-			expectedWriteOptions: expectedWriteOptsByPattern,
+			rules: testRules(testRulesOptions{
+				substring: "match-regex",
+				prefix:    ".*",
+				suffix:    ".*",
+			}),
+			expectedWriteOptions: testExpectedWriteOptions("match-regex"),
 			expectedMetrics: []testMetric{
 				{
 					metric:    []byte("foo.match-regex1.bar.baz"),
@@ -384,8 +304,12 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 				"foo.match-contains2.bar.baz 2 2\n" +
 				"foo.match-contains3.bar.baz 3 3\n" +
 				"foo.match-not-contains.bar.baz 4 4",
-			rules:                testRulesWithContains,
-			expectedWriteOptions: expectedWriteOptsByContains,
+			rules: testRules(testRulesOptions{
+				substring: "match-contains",
+				prefix:    ".*",
+				suffix:    ".*",
+			}),
+			expectedWriteOptions: testExpectedWriteOptions("match-contains"),
 			expectedMetrics: []testMetric{
 				{
 					metric:    []byte("foo.match-contains1.bar.baz"),
