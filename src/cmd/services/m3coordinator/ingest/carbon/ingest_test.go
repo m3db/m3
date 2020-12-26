@@ -309,7 +309,10 @@ func TestIngesterHandleConn(t *testing.T) {
 		lock.Lock()
 		// Clone tags because they (and their underlying bytes) are pooled.
 		found = append(found, testMetric{
-			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+			tags:      tags.Clone(),
+			timestamp: int(dp[0].Timestamp.Unix()),
+			value:     dp[0].Value,
+		})
 
 		// Make 1 in 10 writes fail to test those paths.
 		returnErr := idx%10 == 0
@@ -338,189 +341,148 @@ func TestIngesterHandleConn(t *testing.T) {
 	assertTestMetricsAreEqual(t, testMetrics, found)
 }
 
-func TestIngesterHonorsPatterns(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
-
-	var (
-		lock  = sync.Mutex{}
-		found = []testMetric{}
-	)
-	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
-		_ context.Context,
-		tags models.Tags,
-		dp ts.Datapoints,
-		unit xtime.Unit,
-		annotation []byte,
-		writeOpts ingest.WriteOptions,
-	) interface{} {
-		lock.Lock()
-		// Clone tags because they (and their underlying bytes) are pooled.
-		found = append(found, testMetric{
-			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
-		lock.Unlock()
-
-		// Use panic's instead of require/assert because those don't behave properly when the assertion
-		// is run in a background goroutine. Also we match on the second tag val just due to the nature
-		// of how the patterns were written.
-		secondTagVal := string(tags.Tags[1].Value)
-		expectedWriteOpts, ok := expectedWriteOptsByPattern[secondTagVal]
-		if !ok {
-			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
-		}
-
-		if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
-			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
-				expectedWriteOpts, writeOpts, secondTagVal))
-		}
-
-		return nil
-	}).AnyTimes()
-
-	packet := []byte("" +
-		"foo.match-regex1.bar.baz 1 1\n" +
-		"foo.match-regex2.bar.baz 2 2\n" +
-		"foo.match-regex3.bar.baz 3 3\n" +
-		"foo.match-not-regex.bar.baz 4 4")
-	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
-
-	session := client.NewMockSession(ctrl)
-	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("10s:48h"),
-		Resolution:  10 * time.Second,
-		Retention:   48 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("1m:24h"),
-		Resolution:  1 * time.Minute,
-		Retention:   24 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("1h:168h"),
-		Resolution:  1 * time.Hour,
-		Retention:   168 * time.Hour,
-		Session:     session,
-	})
-
-	ingester, err := NewIngester(mockDownsamplerAndWriter, watcher, newTestOpts(testRulesWithPatterns))
-	require.NoError(t, err)
-	ingester.Handle(byteConn)
-
-	assertTestMetricsAreEqual(t, []testMetric{
+func TestIngesterHonorsMatchers(t *testing.T) {
+	tests := []struct {
+		name                 string
+		input                string
+		rules                CarbonIngesterRules
+		expectedWriteOptions map[string]ingest.WriteOptions
+		expectedMetrics      []testMetric
+	}{
 		{
-			metric:    []byte("foo.match-regex1.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
-			timestamp: 1,
-			value:     1,
+			name: "regexp matching",
+			input: "foo.match-regex1.bar.baz 1 1\n" +
+				"foo.match-regex2.bar.baz 2 2\n" +
+				"foo.match-regex3.bar.baz 3 3\n" +
+				"foo.match-not-regex.bar.baz 4 4",
+			rules:                testRulesWithPatterns,
+			expectedWriteOptions: expectedWriteOptsByPattern,
+			expectedMetrics: []testMetric{
+				{
+					metric:    []byte("foo.match-regex1.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex1.bar.baz")),
+					timestamp: 1,
+					value:     1,
+				},
+				{
+					metric:    []byte("foo.match-regex2.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
+					timestamp: 2,
+					value:     2,
+				},
+				{
+					metric:    []byte("foo.match-regex3.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
+					timestamp: 3,
+					value:     3,
+				},
+			},
 		},
 		{
-			metric:    []byte("foo.match-regex2.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex2.bar.baz")),
-			timestamp: 2,
-			value:     2,
+			name: "contains matching",
+			input: "foo.match-contains1.bar.baz 1 1\n" +
+				"foo.match-contains2.bar.baz 2 2\n" +
+				"foo.match-contains3.bar.baz 3 3\n" +
+				"foo.match-not-contains.bar.baz 4 4",
+			rules:                testRulesWithContains,
+			expectedWriteOptions: expectedWriteOptsByContains,
+			expectedMetrics: []testMetric{
+				{
+					metric:    []byte("foo.match-contains1.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains1.bar.baz")),
+					timestamp: 1,
+					value:     1,
+				},
+				{
+					metric:    []byte("foo.match-contains2.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains2.bar.baz")),
+					timestamp: 2,
+					value:     2,
+				},
+				{
+					metric:    []byte("foo.match-contains3.bar.baz"),
+					tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains3.bar.baz")),
+					timestamp: 3,
+					value:     3,
+				},
+			},
 		},
-		{
-			metric:    []byte("foo.match-regex3.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-regex3.bar.baz")),
-			timestamp: 3,
-			value:     3,
-		},
-	}, found)
-}
+	}
 
-func TestIngesterHonorsContains(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 
-	var (
-		lock  = sync.Mutex{}
-		found = []testMetric{}
-	)
-	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
-		_ context.Context,
-		tags models.Tags,
-		dp ts.Datapoints,
-		unit xtime.Unit,
-		annotation []byte,
-		writeOpts ingest.WriteOptions,
-	) interface{} {
-		lock.Lock()
-		// Clone tags because they (and their underlying bytes) are pooled.
-		found = append(found, testMetric{
-			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
-		lock.Unlock()
+			var (
+				lock  = sync.Mutex{}
+				found = []testMetric{}
+			)
+			mockDownsamplerAndWriter.EXPECT().
+				Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).
+				DoAndReturn(func(
+					_ context.Context,
+					tags models.Tags,
+					dp ts.Datapoints,
+					unit xtime.Unit,
+					annotation []byte,
+					writeOpts ingest.WriteOptions,
+				) interface{} {
+					lock.Lock()
+					// Clone tags because they (and their underlying bytes) are pooled.
+					found = append(found, testMetric{
+						tags:      tags.Clone(),
+						timestamp: int(dp[0].Timestamp.Unix()),
+						value:     dp[0].Value,
+					})
+					lock.Unlock()
 
-		// Use panic's instead of require/assert because those don't behave properly when the assertion
-		// is run in a background goroutine. Also we match on the second tag val just due to the nature
-		// of how the patterns were written.
-		secondTagVal := string(tags.Tags[1].Value)
-		expectedWriteOpts, ok := expectedWriteOptsByContains[secondTagVal]
-		if !ok {
-			panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
-		}
+					// Use panic's instead of require/assert because those don't behave properly when the assertion
+					// is run in a background goroutine. Also we match on the second tag val just due to the nature
+					// of how the patterns were written.
+					secondTagVal := string(tags.Tags[1].Value)
+					expectedWriteOpts, ok := test.expectedWriteOptions[secondTagVal]
+					if !ok {
+						panic(fmt.Sprintf("expected write options for: %s", secondTagVal))
+					}
 
-		if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
-			panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
-				expectedWriteOpts, writeOpts, secondTagVal))
-		}
+					if !reflect.DeepEqual(expectedWriteOpts, writeOpts) {
+						panic(fmt.Sprintf("expected %v to equal %v for metric: %s",
+							expectedWriteOpts, writeOpts, secondTagVal))
+					}
 
-		return nil
-	}).AnyTimes()
+					return nil
+				}).
+				AnyTimes()
 
-	packet := []byte("" +
-		"foo.match-contains1.bar.baz 1 1\n" +
-		"foo.match-contains2.bar.baz 2 2\n" +
-		"foo.match-contains3.bar.baz 3 3\n" +
-		"foo.match-not-contains.bar.baz 4 4")
-	byteConn := &byteConn{b: bytes.NewBuffer(packet)}
+			byteConn := &byteConn{b: bytes.NewBuffer([]byte(test.input))}
 
-	session := client.NewMockSession(ctrl)
-	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("10s:48h"),
-		Resolution:  10 * time.Second,
-		Retention:   48 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("1m:24h"),
-		Resolution:  1 * time.Minute,
-		Retention:   24 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("1h:168h"),
-		Resolution:  1 * time.Hour,
-		Retention:   168 * time.Hour,
-		Session:     session,
-	})
+			session := client.NewMockSession(ctrl)
+			watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("10s:48h"),
+				Resolution:  10 * time.Second,
+				Retention:   48 * time.Hour,
+				Session:     session,
+			}, m3.AggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("1m:24h"),
+				Resolution:  1 * time.Minute,
+				Retention:   24 * time.Hour,
+				Session:     session,
+			}, m3.AggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("1h:168h"),
+				Resolution:  1 * time.Hour,
+				Retention:   168 * time.Hour,
+				Session:     session,
+			})
 
-	opts := newTestOpts(testRulesWithContains)
-	opts.InstrumentOptions = opts.InstrumentOptions.
-		SetLogger(instrument.NewTestDebugLogger(t))
-	ingester, err := NewIngester(mockDownsamplerAndWriter, watcher, opts)
-	require.NoError(t, err)
-	ingester.Handle(byteConn)
+			ingester, err := NewIngester(mockDownsamplerAndWriter, watcher,
+				newTestOpts(test.rules))
+			require.NoError(t, err)
+			ingester.Handle(byteConn)
 
-	assertTestMetricsAreEqual(t, []testMetric{
-		{
-			metric:    []byte("foo.match-contains1.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains1.bar.baz")),
-			timestamp: 1,
-			value:     1,
-		},
-		{
-			metric:    []byte("foo.match-contains2.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains2.bar.baz")),
-			timestamp: 2,
-			value:     2,
-		},
-		{
-			metric:    []byte("foo.match-contains3.bar.baz"),
-			tags:      mustGenerateTagsFromName(t, []byte("foo.match-contains3.bar.baz")),
-			timestamp: 3,
-			value:     3,
-		},
-	}, found)
+			assertTestMetricsAreEqual(t, test.expectedMetrics, found)
+		})
+	}
 }
 
 func TestIngesterNoStaticRules(t *testing.T) {
@@ -655,7 +617,10 @@ func newMockDownsamplerAndWriter(
 		lock.Lock()
 		// Clone tags because they (and their underlying bytes) are pooled.
 		*found = append(*found, testMetric{
-			tags: tags.Clone(), timestamp: int(dp[0].Timestamp.Unix()), value: dp[0].Value})
+			tags:      tags.Clone(),
+			timestamp: int(dp[0].Timestamp.Unix()),
+			value:     dp[0].Value,
+		})
 
 		// Make 1 in 10 writes fail to test those paths.
 		returnErr := idx%10 == 0

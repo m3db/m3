@@ -555,7 +555,7 @@ func generateTagsFromName(
 // such that the first one that matches takes precedence. As a result we need
 // to make sure to maintain the order of the rules when we generate the compiled ones.
 func (i *ingester) compileRulesWithLock(rules CarbonIngesterRules) ([]ruleAndMatcher, error) {
-	var compiledRules []ruleAndMatcher
+	compiledRules := make([]ruleAndMatcher, 0, len(rules.Rules))
 	for _, rule := range rules.Rules {
 		if rule.Pattern != "" && rule.Contains != "" {
 			return nil, fmt.Errorf(
