@@ -462,9 +462,9 @@ type CarbonIngesterConfiguration struct {
 // metrics at ingestion.
 type CarbonIngesterRewriteConfiguration struct {
 	// Cleanup will perform:
-	// - trailing/leading dot elimination
-	// - double dot elimination
-	// - irregular char replacement with underscores (_), currently irregular
+	// - Trailing/leading dot elimination.
+	// - Double dot elimination.
+	// - Irregular char replacement with underscores (_), currently irregular
 	//   is defined as not being in [0-9a-zA-Z-_:#].
 	Cleanup bool `yaml:"cleanup"`
 }

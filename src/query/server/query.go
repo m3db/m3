@@ -590,12 +590,10 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
+		server := startCarbonIngestion(*cfg.Carbon.Ingester, listenerOpts,
 			instrumentOptions, logger, m3dbClusters, clusterNamespacesWatcher,
 			downsamplerAndWriter)
-		if ok {
-			defer server.Close()
-		}
+		defer server.Close()
 	}
 
 	// Wait for process interrupt.
@@ -1094,16 +1092,17 @@ func startGRPCServer(
 	return server, nil
 }
 
+// Only used on startup, no need to avoid huge structs.
+// nolint: hugeparam
 func startCarbonIngestion(
-	cfg *config.CarbonConfiguration,
+	ingesterCfg config.CarbonIngesterConfiguration,
 	listenerOpts xnet.ListenerOptions,
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
-) (xserver.Server, bool) {
-	ingesterCfg := cfg.Ingester
+) xserver.Server {
 	logger.Info("carbon ingestion enabled, configuring ingester")
 
 	// Setup worker pool.
@@ -1167,7 +1166,7 @@ func startCarbonIngestion(
 
 	logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
 
-	return carbonServer, true
+	return carbonServer
 }
 
 func newDownsamplerAndWriter(

@@ -67,14 +67,13 @@ var (
 	errCannotGenerateTagsFromEmptyName = errors.New("cannot generate tags from empty name")
 	errIOptsMustBeSet                  = errors.New("carbon ingester options: instrument options must be st")
 	errWorkerPoolMustBeSet             = errors.New("carbon ingester options: worker pool must be set")
-	errIngesterConfigMustBeSet         = errors.New("carbon ingester options: ingester config must be set")
 )
 
 // Options configures the ingester.
 type Options struct {
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
-	IngesterConfig    *config.CarbonIngesterConfiguration
+	IngesterConfig    config.CarbonIngesterConfiguration
 }
 
 // CarbonIngesterRules contains the carbon ingestion rules.
@@ -89,9 +88,6 @@ func (o *Options) Validate() error {
 	}
 	if o.WorkerPool == nil {
 		return errWorkerPoolMustBeSet
-	}
-	if o.IngesterConfig != nil {
-		return errIngesterConfigMustBeSet
 	}
 	return nil
 }
@@ -279,10 +275,11 @@ func (i *ingester) Handle(conn net.Conn) {
 		// Interfaces require a context be passed, but M3DB client already has timeouts
 		// built in and allocating a new context each time is expensive so we just pass
 		// the same context always and rely on M3DB client timeouts.
-		ctx    = context.Background()
-		wg     = sync.WaitGroup{}
-		s      = carbon.NewScanner(conn, i.opts.InstrumentOptions)
-		logger = i.opts.InstrumentOptions.Logger()
+		ctx     = context.Background()
+		wg      = sync.WaitGroup{}
+		s       = carbon.NewScanner(conn, i.opts.InstrumentOptions)
+		logger  = i.opts.InstrumentOptions.Logger()
+		rewrite = &i.opts.IngesterConfig.Rewrite
 	)
 
 	logger.Debug("handling new carbon ingestion connection")
@@ -291,63 +288,9 @@ func (i *ingester) Handle(conn net.Conn) {
 		name, timestamp, value := s.Metric()
 
 		resources := i.getLineResources()
-		if i.opts.IngesterConfig.Rewrite.Cleanup {
-			// Copy name since scanner bytes are recycled, also cleanup
-			// along the way.
-			leadingDots := true
-			numDots := 0
-			resources.name = resources.name[:0]
-			for _, c := range name {
-				if c == '.' {
-					numDots++
-				} else {
-					numDots = 0
-					leadingDots = false
-				}
 
-				if leadingDots {
-					// Currently processing leading dots.
-					continue
-				}
-
-				if numDots > 1 {
-					// Do not keep multiple dots.
-					continue
-				}
-
-				if !(c >= 'a' && c <= 'z') &&
-					!(c >= 'A' && c <= 'Z') &&
-					!(c >= '0' && c <= '9') &&
-					c != '-' &&
-					c != '_' &&
-					c != ':' &&
-					c != '#' {
-					// Invalid character, replace with undescore.
-					if n := len(resources.name); n > 0 {
-						if resources.name[n-1] == '_' {
-							// Preceeding character already underscore.
-							continue
-						}
-					}
-					resources.name = append(resources.name, '_')
-					continue
-				}
-
-				// Valid character and not proceeding dot or multiple dots.
-				resources.name = append(resources.name, c)
-			}
-			for i := len(resources.name) - 1; i >= 0; i-- {
-				if resources.name[i] != '.' {
-					// Found non dot.
-					break
-				}
-				// Remove trailing dot.
-				resources.name = resources.name[:i]
-			}
-		} else {
-			// Copy name since scanner bytes are recycled.
-			resources.name = append(resources.name[:0], name...)
-		}
+		// Copy name since scanner bytes are recycled.
+		resources.name = copyAndRewrite(resources.name, name, rewrite)
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
