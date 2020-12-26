@@ -1092,8 +1092,6 @@ func startGRPCServer(
 	return server, nil
 }
 
-// Only used on startup, no need to avoid huge structs.
-// nolint: hugeparam
 func startCarbonIngestion(
 	ingesterCfg config.CarbonIngesterConfiguration,
 	listenerOpts xnet.ListenerOptions,
