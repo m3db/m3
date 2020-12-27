@@ -1145,6 +1145,7 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 
 // pow takes one metric or a wildcard seriesList followed by a constant,
 // and raises the datapoint by the power of the constant provided at each point
+// nolint: hugeparam
 func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, len(input.Values))
 
