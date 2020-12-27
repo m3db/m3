@@ -622,8 +622,7 @@ func TestGenerateTagsFromName(t *testing.T) {
 func newTestOpts(rules CarbonIngesterRules) Options {
 	cfg := config.CarbonIngesterConfiguration{Rules: rules.Rules}
 	opts := testOptions
-	opts.IngesterConfig = &cfg
-
+	opts.IngesterConfig = cfg
 	return opts
 }
 

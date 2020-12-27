@@ -452,9 +452,21 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	ListenAddress  string                             `yaml:"listenAddress"`
+	MaxConcurrency int                                `yaml:"maxConcurrency"`
+	Rewrite        CarbonIngesterRewriteConfiguration `yaml:"rewrite"`
+	Rules          []CarbonIngesterRuleConfiguration  `yaml:"rules"`
+}
+
+// CarbonIngesterRewriteConfiguration is the configuration for rewriting
+// metrics at ingestion.
+type CarbonIngesterRewriteConfiguration struct {
+	// Cleanup will perform:
+	// - Trailing/leading dot elimination.
+	// - Double dot elimination.
+	// - Irregular char replacement with underscores (_), currently irregular
+	//   is defined as not being in [0-9a-zA-Z-_:#].
+	Cleanup bool `yaml:"cleanup"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration

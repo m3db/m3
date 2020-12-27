@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package ingestcarbon implements a carbon ingester.
 package ingestcarbon
 
 import (
@@ -73,7 +74,7 @@ var (
 type Options struct {
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
-	IngesterConfig    *config.CarbonIngesterConfiguration
+	IngesterConfig    config.CarbonIngesterConfiguration
 }
 
 // CarbonIngesterRules contains the carbon ingestion rules.
@@ -86,11 +87,9 @@ func (o *Options) Validate() error {
 	if o.InstrumentOptions == nil {
 		return errIOptsMustBeSet
 	}
-
 	if o.WorkerPool == nil {
 		return errWorkerPoolMustBeSet
 	}
-
 	return nil
 }
 
@@ -277,10 +276,11 @@ func (i *ingester) Handle(conn net.Conn) {
 		// Interfaces require a context be passed, but M3DB client already has timeouts
 		// built in and allocating a new context each time is expensive so we just pass
 		// the same context always and rely on M3DB client timeouts.
-		ctx    = context.Background()
-		wg     = sync.WaitGroup{}
-		s      = carbon.NewScanner(conn, i.opts.InstrumentOptions)
-		logger = i.opts.InstrumentOptions.Logger()
+		ctx     = context.Background()
+		wg      = sync.WaitGroup{}
+		s       = carbon.NewScanner(conn, i.opts.InstrumentOptions)
+		logger  = i.opts.InstrumentOptions.Logger()
+		rewrite = &i.opts.IngesterConfig.Rewrite
 	)
 
 	logger.Debug("handling new carbon ingestion connection")
@@ -289,8 +289,9 @@ func (i *ingester) Handle(conn net.Conn) {
 		name, timestamp, value := s.Metric()
 
 		resources := i.getLineResources()
+
 		// Copy name since scanner bytes are recycled.
-		resources.name = append(resources.name[:0], name...)
+		resources.name = copyAndRewrite(resources.name, name, rewrite)
 
 		wg.Add(1)
 		i.opts.WorkerPool.Go(func() {
