@@ -174,7 +174,11 @@ func TestPowSeries(t *testing.T) {
 		engine    = NewEngine(store)
 		startTime = now.Add(-3 * time.Minute)
 		endTime   = now.Add(-time.Minute)
-		ctx       = common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+		ctx       = common.NewContext(common.ContextOptions{
+                                Start: startTime, 
+                                End: endTime, 
+                                Engine: engine,
+                          })
 	)
 
 	fakeSeries1 := ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
