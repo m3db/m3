@@ -276,7 +276,7 @@ func TestCompile1(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		expr, err := Compile(test.input)
+		expr, err := Compile(test.input, CompileOptions{})
 		require.Nil(t, err, "error compiling: expression='%s', error='%v'", test.input, err)
 		require.NotNil(t, expr)
 		assertExprTree(t, test.result, expr, fmt.Sprintf("invalid result for %s: %v vs %v",
@@ -375,7 +375,7 @@ func TestCompileErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		expr, err := Compile(test.input)
+		expr, err := Compile(test.input, CompileOptions{})
 		require.NotNil(t, err, "no error for %s", test.input)
 		assert.Equal(t, test.err, err.Error(), "wrong error for %s", test.input)
 		assert.Nil(t, expr, "non-nil expression for %s", test.input)

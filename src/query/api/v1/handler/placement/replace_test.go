@@ -91,7 +91,7 @@ func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, `{"error":"test"}`+"\n", string(body))
+	assert.JSONEq(t, `{"status":"error","error":"test"}`, string(body))
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	w = httptest.NewRecorder()
@@ -136,7 +136,9 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	default:
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Equal(t, `{"error":"instances do not have all shards available: [A, B]"}`+"\n", string(body))
+		assert.JSONEq(t,
+			`{"status":"error","error":"instances do not have all shards available: [A, B]"}`,
+			string(body))
 	}
 }
 

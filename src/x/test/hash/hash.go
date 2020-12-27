@@ -26,6 +26,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,8 +46,12 @@ func NewParsedIndexHasher(t *testing.T) schema.IndexEntryHasher {
 	return &parsedIndexHasher{t: t, re: re}
 }
 
-func (h *parsedIndexHasher) HashIndexEntry(e schema.IndexEntry) int64 {
-	matched := h.re.FindAllString(string(e.ID), -1)
+func (h *parsedIndexHasher) HashIndexEntry(
+	id ident.BytesID,
+	encodedTags ts.EncodedTags,
+	dataChecksum int64,
+) int64 {
+	matched := h.re.FindAllString(string(id), -1)
 	if len(matched) == 0 {
 		return 0
 	}

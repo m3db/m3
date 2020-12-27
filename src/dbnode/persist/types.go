@@ -35,7 +35,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-var errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
+var errReusableTagIteratorRequired = errors.New("reusable tags iterator is required")
 
 // Metadata is metadata for a time series, it can
 // have several underlying sources.
@@ -101,30 +101,30 @@ func (m Metadata) BytesID() []byte {
 
 // ResetOrReturnProvidedTagIterator returns a tag iterator
 // for the series, returning a direct ref to a provided tag
-// iterator or using the reuseable tag iterator provided by the
+// iterator or using the reusable tag iterator provided by the
 // callsite if it needs to iterate over tags or fields.
 func (m Metadata) ResetOrReturnProvidedTagIterator(
-	reuseableTagsIterator ident.TagsIterator,
+	reusableTagsIterator ident.TagsIterator,
 ) (ident.TagIterator, error) {
-	if reuseableTagsIterator == nil {
+	if reusableTagsIterator == nil {
 		// Always check to make sure callsites won't
 		// get a bad allocation pattern of having
 		// to create one here inline if the metadata
 		// they are passing in suddenly changes from
 		// tagsIter to tags or fields with metadata.
-		return nil, errReuseableTagIteratorRequired
+		return nil, errReusableTagIteratorRequired
 	}
 	if m.tagsIter != nil {
 		return m.tagsIter, nil
 	}
 
 	if len(m.tags.Values()) > 0 {
-		reuseableTagsIterator.Reset(m.tags)
-		return reuseableTagsIterator, reuseableTagsIterator.Err()
+		reusableTagsIterator.Reset(m.tags)
+		return reusableTagsIterator, reusableTagsIterator.Err()
 	}
 
-	reuseableTagsIterator.ResetFields(m.metadata.Fields)
-	return reuseableTagsIterator, reuseableTagsIterator.Err()
+	reusableTagsIterator.ResetFields(m.metadata.Fields)
+	return reusableTagsIterator, reusableTagsIterator.Err()
 }
 
 // Finalize will finalize any resources that requested
@@ -366,12 +366,20 @@ type OnFlushNewSeriesEvent struct {
 }
 
 // OnFlushSeries performs work on a per series level.
+// Also exposes a checkpoint fn for maybe compacting multiple index segments based on size.
 type OnFlushSeries interface {
 	OnFlushNewSeries(OnFlushNewSeriesEvent) error
+
+	// CheckpointAndMaybeCompact checks to see if we're at maximum cardinality
+	// for any index segments we're currently building and compact if we are.
+	CheckpointAndMaybeCompact() error
 }
 
 // NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
 type NoOpColdFlushNamespace struct{}
+
+// CheckpointAndMaybeCompact is a no-op.
+func (n *NoOpColdFlushNamespace) CheckpointAndMaybeCompact() error { return nil }
 
 // OnFlushNewSeries is a no-op.
 func (n *NoOpColdFlushNamespace) OnFlushNewSeries(event OnFlushNewSeriesEvent) error {

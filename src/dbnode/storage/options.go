@@ -942,11 +942,13 @@ func (h *noopNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error
 type noopTileAggregator struct{}
 
 func (a *noopTileAggregator) AggregateTiles(
-	opts AggregateTilesOptions,
-	ns Namespace,
+	ctx context.Context,
+	sourceNs, targetNs Namespace,
 	shardID uint32,
-	readers []fs.DataFileSetReader,
+	blockReaders []fs.DataFileSetReader,
 	writer fs.StreamingWriter,
+	onFlushSeries persist.OnFlushSeries,
+	opts AggregateTilesOptions,
 ) (int64, error) {
 	return 0, nil
 }

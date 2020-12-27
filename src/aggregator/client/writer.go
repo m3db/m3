@@ -51,6 +51,9 @@ type instanceWriter interface {
 	// Flush flushes any buffered metrics.
 	Flush() error
 
+	// QueueSize returns the size of the instance queue.
+	QueueSize() int
+
 	// Close closes the writer.
 	Close() error
 }
@@ -62,14 +65,14 @@ type writer struct {
 
 	log               *zap.Logger
 	metrics           writerMetrics
-	flushSize         int
-	maxTimerBatchSize int
 	encoderOpts       protobuf.UnaggregatedOptions
 	queue             instanceQueue
+	flushSize         int
+	maxTimerBatchSize int
 
-	closed             bool
 	encodersByShard    map[uint32]*lockedEncoder
 	newLockedEncoderFn newLockedEncoderFn
+	closed             bool
 }
 
 func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter {
@@ -152,6 +155,10 @@ func (w *writer) Close() error {
 		w.metrics.flushErrors.Inc(1)
 	}
 	return w.queue.Close()
+}
+
+func (w *writer) QueueSize() int {
+	return w.queue.Size()
 }
 
 func (w *writer) encodeWithLock(
@@ -527,8 +534,8 @@ func newWriterMetrics(s tally.Scope) writerMetrics {
 }
 
 type lockedEncoder struct {
-	sync.Mutex
 	protobuf.UnaggregatedEncoder
+	sync.Mutex
 }
 
 func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
@@ -537,8 +544,8 @@ func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
 }
 
 type refCountedWriter struct {
-	refCount
 	instanceWriter
+	refCount
 }
 
 func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedWriter {

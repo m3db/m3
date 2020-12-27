@@ -32,9 +32,15 @@ enum ErrorType {
 	BAD_REQUEST
 }
 
+enum ErrorFlags {
+    NONE               = 0x00,
+    RESOURCE_EXHAUSTED = 0x01
+}
+
 exception Error {
 	1: required ErrorType type = ErrorType.INTERNAL_ERROR
 	2: required string message
+	3: optional i64 flags = 0
 }
 
 exception WriteBatchRawErrors {

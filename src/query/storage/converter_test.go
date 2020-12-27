@@ -385,19 +385,19 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 	}
 
 	for promType, expected := range mapping {
-		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: promType})
+		payload, err := SeriesAttributesToAnnotationPayload(promType, false)
 		require.NoError(t, err)
 		assert.Equal(t, expected, payload.MetricType)
 	}
 
-	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
+	_, err := SeriesAttributesToAnnotationPayload(math.MaxUint8, false)
 	require.Error(t, err)
 
-	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: true})
+	payload, err := SeriesAttributesToAnnotationPayload(0, true)
 	require.NoError(t, err)
 	assert.True(t, payload.HandleValueResets)
 
-	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: false})
+	payload, err = SeriesAttributesToAnnotationPayload(0, false)
 	require.NoError(t, err)
 	assert.False(t, payload.HandleValueResets)
 }

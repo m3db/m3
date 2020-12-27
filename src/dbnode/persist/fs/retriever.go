@@ -40,6 +40,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -200,7 +201,7 @@ func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
 		seekerResources    = NewReusableSeekerResources(r.fsOpts)
-		retrieverResources = newReuseableRetrieverResources()
+		retrieverResources = newReusableRetrieverResources()
 		inFlight           []*retrieveRequest
 		currBatchReqs      []*retrieveRequest
 	)
@@ -302,7 +303,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 	reqs []*retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) []*retrieveRequest {
 	retrieverResources.resetDataReqs()
 	retrieverResources.resetWideEntryReqs()
@@ -314,7 +315,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
 
 		case streamWideEntryReq:
-			entry, err := seeker.SeekWideEntry(req.id, seekerResources)
+			entry, err := seeker.SeekWideEntry(req.id, req.wideFilter, seekerResources)
 			if err != nil {
 				if errors.Is(err, errSeekIDNotFound) {
 					// Missing, return empty result, successful lookup.
@@ -329,7 +330,7 @@ func (r *blockRetriever) filterAndCompleteWideReqs(
 
 			// Enqueue for fetch in batch in offset ascending order.
 			req.wideEntry = entry
-			entry.Shard = req.shard
+			req.wideEntry.Shard = req.shard
 			retrieverResources.appendWideEntryReq(req)
 
 		default:
@@ -367,7 +368,7 @@ func (r *blockRetriever) fetchBatch(
 	blockStart time.Time,
 	allReqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
-	retrieverResources *reuseableRetrieverResources,
+	retrieverResources *reusableRetrieverResources,
 ) {
 	var (
 		seeker     ConcurrentDataFileSetSeeker
@@ -663,10 +664,12 @@ func (r *blockRetriever) StreamWideEntry(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	req := r.reqPool.Get()
 	req.streamReqType = streamWideEntryReq
+	req.wideFilter = filter
 
 	found, err := r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
@@ -788,6 +791,7 @@ type retrieveRequest struct {
 	streamReqType streamReqType
 	indexEntry    IndexEntry
 	wideEntry     xio.WideEntry
+	wideFilter    schema.WideEntryFilter
 	reader        xio.SegmentReader
 
 	err error
@@ -965,6 +969,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.wideEntry = xio.WideEntry{}
+	req.wideFilter = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
@@ -1045,35 +1050,35 @@ func (p *reqPool) Put(req *retrieveRequest) {
 	p.pool.Put(req)
 }
 
-type reuseableRetrieverResources struct {
+type reusableRetrieverResources struct {
 	dataReqs      []*retrieveRequest
 	wideEntryReqs []*retrieveRequest
 }
 
-func newReuseableRetrieverResources() *reuseableRetrieverResources {
-	return &reuseableRetrieverResources{}
+func newReusableRetrieverResources() *reusableRetrieverResources {
+	return &reusableRetrieverResources{}
 }
 
-func (r *reuseableRetrieverResources) resetAll() {
+func (r *reusableRetrieverResources) resetAll() {
 	r.resetDataReqs()
 	r.resetWideEntryReqs()
 }
 
-func (r *reuseableRetrieverResources) resetDataReqs() {
+func (r *reusableRetrieverResources) resetDataReqs() {
 	for i := range r.dataReqs {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) resetWideEntryReqs() {
+func (r *reusableRetrieverResources) resetWideEntryReqs() {
 	for i := range r.wideEntryReqs {
 		r.wideEntryReqs[i] = nil
 	}
 	r.wideEntryReqs = r.wideEntryReqs[:0]
 }
 
-func (r *reuseableRetrieverResources) appendWideEntryReq(
+func (r *reusableRetrieverResources) appendWideEntryReq(
 	req *retrieveRequest,
 ) {
 	r.wideEntryReqs = append(r.wideEntryReqs, req)

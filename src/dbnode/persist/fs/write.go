@@ -459,10 +459,10 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset        int64
-		prevID        []byte
-		tagsReuseable = w.tagsIterator
-		tagsEncoder   = w.tagEncoderPool.Get()
+		offset       int64
+		prevID       []byte
+		tagsReusable = w.tagsIterator
+		tagsEncoder  = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
 	for i, entry := range w.indexEntries {
@@ -474,7 +474,7 @@ func (w *writer) writeIndexFileContents(
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
-		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReusable)
 		if err != nil {
 			return err
 		}

@@ -113,7 +113,7 @@ linters-settings:
   lll:
     # max line length, lines longer will be reported. Default is 120.
     # '\t' is counted as 1 character by default, and can be changed with the tab-width option
-    line-length: 100
+    line-length: 120
     # tab width in spaces. Default to 1.
     tab-width: 1
   unused:
@@ -223,6 +223,8 @@ linters:
     # New line required before return would require a large fraction of the
     # code base to need updating, it's not worth the perceived benefit.
     - nlreturn 
+    # Opinionated and sometimes wrong.
+    - paralleltest
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck

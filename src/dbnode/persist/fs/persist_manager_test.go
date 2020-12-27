@@ -313,15 +313,6 @@ func TestPersistenceManagerCloseData(t *testing.T) {
 	pm.closeData()
 }
 
-func TestPersistenceManagerCloseIndex(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	pm, _, _, _ := testIndexPersistManager(t, ctrl)
-	defer os.RemoveAll(pm.filePathPrefix)
-	pm.closeIndex()
-}
-
 func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
@@ -421,17 +412,6 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
-	blockStart := time.Unix(1000, 0)
-	writerOpts := IndexWriterOpenOptions{
-		Identifier: FileSetFileIdentifier{
-			FileSetContentType: persist.FileSetIndexContentType,
-			Namespace:          testNs1ID,
-			BlockStart:         blockStart,
-		},
-		BlockSize: testBlockSize,
-	}
-	writer.EXPECT().Open(xtest.CmpMatcher(writerOpts, m3test.IdentTransformer)).Return(nil)
-
 	flush, err := pm.StartIndexPersist()
 	require.NoError(t, err)
 
@@ -440,46 +420,62 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 		assert.NoError(t, flush.DoneIndex())
 	}()
 
-	prepareOpts := persist.IndexPrepareOptions{
-		NamespaceMetadata: testNs1Metadata(t),
-		BlockStart:        blockStart,
+	// We support preparing multiple index block writers for an index persist.
+	numBlocks := 10
+	blockStart := time.Unix(1000, 0)
+	for i := 1; i < numBlocks; i++ {
+		blockStart = blockStart.Add(time.Duration(i) * testBlockSize)
+		writerOpts := IndexWriterOpenOptions{
+			Identifier: FileSetFileIdentifier{
+				FileSetContentType: persist.FileSetIndexContentType,
+				Namespace:          testNs1ID,
+				BlockStart:         blockStart,
+			},
+			BlockSize: testBlockSize,
+		}
+		writer.EXPECT().Open(xtest.CmpMatcher(writerOpts, m3test.IdentTransformer)).Return(nil)
+
+		prepareOpts := persist.IndexPrepareOptions{
+			NamespaceMetadata: testNs1Metadata(t),
+			BlockStart:        blockStart,
+		}
+		prepared, err := flush.PrepareIndex(prepareOpts)
+		require.NoError(t, err)
+
+		seg := segment.NewMockMutableSegment(ctrl)
+		segWriter.EXPECT().Reset(seg).Return(nil)
+		writer.EXPECT().WriteSegmentFileSet(segWriter).Return(nil)
+		require.NoError(t, prepared.Persist(seg))
+
+		reader := NewMockIndexFileSetReader(ctrl)
+		pm.indexPM.newReaderFn = func(Options) (IndexFileSetReader, error) {
+			return reader, nil
+		}
+
+		reader.EXPECT().Open(xtest.CmpMatcher(IndexReaderOpenOptions{
+			Identifier: writerOpts.Identifier,
+		}, m3test.IdentTransformer)).Return(IndexReaderOpenResult{}, nil)
+
+		file := NewMockIndexSegmentFile(ctrl)
+		gomock.InOrder(
+			reader.EXPECT().SegmentFileSets().Return(1),
+			reader.EXPECT().ReadSegmentFileSet().Return(file, nil),
+			reader.EXPECT().ReadSegmentFileSet().Return(nil, io.EOF),
+		)
+		fsSeg := m3ninxfs.NewMockSegment(ctrl)
+		pm.indexPM.newPersistentSegmentFn = func(
+			fset m3ninxpersist.IndexSegmentFileSet, opts m3ninxfs.Options,
+		) (m3ninxfs.Segment, error) {
+			require.Equal(t, file, fset)
+			return fsSeg, nil
+		}
+
+		writer.EXPECT().Close().Return(nil)
+		segs, err := prepared.Close()
+		require.NoError(t, err)
+		require.Len(t, segs, 1)
+		require.Equal(t, fsSeg, segs[0])
 	}
-	prepared, err := flush.PrepareIndex(prepareOpts)
-	require.NoError(t, err)
-
-	seg := segment.NewMockMutableSegment(ctrl)
-	segWriter.EXPECT().Reset(seg).Return(nil)
-	writer.EXPECT().WriteSegmentFileSet(segWriter).Return(nil)
-	require.NoError(t, prepared.Persist(seg))
-
-	reader := NewMockIndexFileSetReader(ctrl)
-	pm.indexPM.newReaderFn = func(Options) (IndexFileSetReader, error) {
-		return reader, nil
-	}
-
-	reader.EXPECT().Open(xtest.CmpMatcher(IndexReaderOpenOptions{
-		Identifier: writerOpts.Identifier,
-	}, m3test.IdentTransformer)).Return(IndexReaderOpenResult{}, nil)
-
-	file := NewMockIndexSegmentFile(ctrl)
-	gomock.InOrder(
-		reader.EXPECT().SegmentFileSets().Return(1),
-		reader.EXPECT().ReadSegmentFileSet().Return(file, nil),
-		reader.EXPECT().ReadSegmentFileSet().Return(nil, io.EOF),
-	)
-	fsSeg := m3ninxfs.NewMockSegment(ctrl)
-	pm.indexPM.newPersistentSegmentFn = func(
-		fset m3ninxpersist.IndexSegmentFileSet, opts m3ninxfs.Options,
-	) (m3ninxfs.Segment, error) {
-		require.Equal(t, file, fset)
-		return fsSeg, nil
-	}
-
-	writer.EXPECT().Close().Return(nil)
-	segs, err := prepared.Close()
-	require.NoError(t, err)
-	require.Len(t, segs, 1)
-	require.Equal(t, fsSeg, segs[0])
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
@@ -766,7 +762,9 @@ func testIndexPersistManager(t *testing.T, ctrl *gomock.Controller,
 	require.NoError(t, err)
 
 	manager := mgr.(*persistManager)
-	manager.indexPM.writer = writer
+	manager.indexPM.newIndexWriterFn = func(opts Options) (IndexFileSetWriter, error) {
+		return writer, nil
+	}
 	manager.indexPM.segmentWriter = segmentWriter
 	return manager, writer, segmentWriter, opts
 }
