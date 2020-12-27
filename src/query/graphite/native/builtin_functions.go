@@ -1143,6 +1143,24 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 	return r, nil
 }
 
+// pow takes one metric or a wildcard seriesList followed by a constant,
+// and raises the datapoint by the power of the constant provided at each point
+func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
+	results := make([]*ts.Series, 0, len(input.Values))
+
+	numSteps := input.Values[0].Len()
+	millisPerStep := input.Values[0].MillisPerStep()
+	vals := ts.NewValues(ctx, millisPerStep, numSteps)
+	for i := 0; i < numSteps; i++ {
+		vals.SetValueAt(i, math.Pow(input.Values[0].ValueAt(i), factor))
+	}
+	newName := fmt.Sprintf("pow(%s, %f)", input.Values[0].Name(), factor)
+	results = append(results, ts.NewSeries(ctx, newName, input.Values[0].StartTime(), vals))
+	r := ts.SeriesList(input)
+	r.Values = results
+	return r, nil
+}
+
 // logarithm takes one metric or a wildcard seriesList, and draws the y-axis in
 // logarithmic format.
 func logarithm(ctx *common.Context, input singlePathSpec, base int) (ts.SeriesList, error) {
@@ -2471,6 +2489,7 @@ func init() {
 	MustRegisterFunction(perSecond).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
 	})
+	MustRegisterFunction(pow)
 	MustRegisterFunction(rangeOfSeries)
 	MustRegisterFunction(randomWalkFunction).WithDefaultParams(map[uint8]interface{}{
 		2: 60, // step

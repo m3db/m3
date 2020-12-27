@@ -3205,6 +3205,32 @@ func TestConsolidateBy(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestPow(t *testing.T) {
+	var (
+		ctx           = common.NewTestContext()
+		millisPerStep = 10000
+		output        = []float64{1.0, 4.0, 9.0, 16.0, 25.0}
+	)
+
+	defer ctx.Close()
+
+	series := ts.NewSeries(
+		ctx,
+		"foo",
+		ctx.StartTime,
+		common.NewTestSeriesValues(ctx, millisPerStep, []float64{1.0, 2.0, 3.0, 4.0, 5.0}),
+	)
+	results, err := pow(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, 2)
+	require.Nil(t, err)
+
+	expected := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output}
+	require.Nil(t, err)
+	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+		[]common.TestSeries{expected}, results.Values)
+}
+
 func TestCumulative(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3542,6 +3568,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"offset",
 		"offsetToZero",
 		"perSecond",
+		"pow",
 		"randomWalk",
 		"randomWalkFunction",
 		"rangeOfSeries",
