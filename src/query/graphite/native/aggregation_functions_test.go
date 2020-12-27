@@ -171,14 +171,14 @@ func TestPowSeries(t *testing.T) {
 		ctrl      = xgomock.NewController(t)
 		store     = storage.NewMockStorage(ctrl)
 		now       = time.Now().Truncate(time.Hour)
-		engine    = NewEngine(store)
+		engine    = NewEngine(store, CompileOptions{})
 		startTime = now.Add(-3 * time.Minute)
 		endTime   = now.Add(-time.Minute)
 		ctx       = common.NewContext(common.ContextOptions{
-                                Start: startTime, 
-                                End: endTime, 
-                                Engine: engine,
-                          })
+			Start:  startTime,
+			End:    endTime,
+			Engine: engine,
+		})
 	)
 
 	fakeSeries1 := ts.NewSeries(ctx, "foo.bar.g.zed.g", startTime,
