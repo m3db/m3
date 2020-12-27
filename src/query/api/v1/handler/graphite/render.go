@@ -71,8 +71,10 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
 		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &renderHandler{
-		opts:             opts,
-		engine:           native.NewEngine(wrappedStore),
+		opts: opts,
+		engine: native.NewEngine(wrappedStore, native.CompileOptions{
+			EscapeAllNotOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeAllNotOnlyQuotes,
+		}),
 		queryContextOpts: opts.QueryContextOptions(),
 		graphiteOpts:     opts.GraphiteStorageOptions(),
 	}

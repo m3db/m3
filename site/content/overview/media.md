@@ -16,7 +16,7 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 
 - [June 2020 Meetup](https://vimeo.com/440390957).
 
-- [July 2020 Meetup and LinkedIn presentation](https://vimeo.com/440449118).
+- [July 2020 Meetup and LinkedIn presentation](https://vimeo.com/440390957).
 
 - [August 2020 Meetup and Walmart presentation](https://vimeo.com/449883279).
 

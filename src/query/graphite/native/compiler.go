@@ -30,13 +30,20 @@ import (
 	"github.com/m3db/m3/src/query/graphite/lexer"
 )
 
+// CompileOptions allows for specifying compile options.
+type CompileOptions struct {
+	EscapeAllNotOnlyQuotes bool
+}
+
 // Compile converts an input stream into the corresponding Expression.
-func Compile(input string) (Expression, error) {
+func Compile(input string, opts CompileOptions) (Expression, error) {
 	booleanLiterals := map[string]lexer.TokenType{
 		"true":  lexer.True,
 		"false": lexer.False,
 	}
-	lex, tokens := lexer.NewLexer(input, booleanLiterals)
+	lex, tokens := lexer.NewLexer(input, booleanLiterals, lexer.Options{
+		EscapeAllNotOnlyQuotes: opts.EscapeAllNotOnlyQuotes,
+	})
 	go lex.Run()
 
 	lookforward := newTokenLookforward(tokens)
@@ -327,7 +334,7 @@ func (c *compiler) errorf(msg string, args ...interface{}) error {
 
 // ExtractFetchExpressions extracts timeseries fetch expressions from the given query
 func ExtractFetchExpressions(s string) ([]string, error) {
-	expr, err := Compile(s)
+	expr, err := Compile(s, CompileOptions{})
 	if err != nil {
 		return nil, err
 	}

@@ -98,11 +98,12 @@ type metricsAppenderOptions struct {
 	agg          aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	matcher                      matcher.Matcher
-	tagEncoderPool               serialize.TagEncoderPool
-	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
-	augmentM3Tags                bool
+	defaultStagedMetadatasProtos         []metricpb.StagedMetadatas
+	matcher                              matcher.Matcher
+	tagEncoderPool                       serialize.TagEncoderPool
+	metricTagsIteratorPool               serialize.MetricTagsIteratorPool
+	augmentM3Tags                        bool
+	includeRollupsOnDefaultRuleFiltering bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -230,23 +231,37 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		// name and tags (i.e. overwriting each other).
 		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
 
-		mappingRuleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !mappingRuleStagedMetadatas.IsDefault() && len(mappingRuleStagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched mapping rule",
-				debugLogMatchOptions{Meta: mappingRuleStagedMetadatas})
+		ruleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
+		if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
+			a.debugLogMatch("downsampler applying matched rule",
+				debugLogMatchOptions{Meta: ruleStagedMetadatas})
 
-			// Collect all the current active mapping rules
-			for _, stagedMetadata := range mappingRuleStagedMetadatas {
+			// Collect storage policies for all the current active mapping rules.
+			// TODO: we should convert this to iterate over pointers
+			// nolint:gocritic
+			for _, stagedMetadata := range ruleStagedMetadatas {
 				for _, pipe := range stagedMetadata.Pipelines {
-					for _, sp := range pipe.StoragePolicies {
-						a.mappingRuleStoragePolicies =
-							append(a.mappingRuleStoragePolicies, sp)
+					// Skip rollup rules unless configured otherwise.
+					// We only want to consider mapping rules here,
+					// as we still want to apply default mapping rules to
+					// metrics that are rolled up to ensure the underlying metric
+					// gets written to aggregated namespaces.
+					if a.includeRollupsOnDefaultRuleFiltering || pipe.IsMappingRule() {
+						for _, sp := range pipe.StoragePolicies {
+							a.mappingRuleStoragePolicies =
+								append(a.mappingRuleStoragePolicies, sp)
+						}
+					} else {
+						a.debugLogMatch(
+							"skipping rollup rule in populating active mapping rule policies",
+							debugLogMatchOptions{},
+						)
 					}
 				}
 			}
 
 			// Only sample if going to actually aggregate
-			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
+			pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
 			a.curr.Pipelines =
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
@@ -595,7 +610,7 @@ func (a *metricsAppender) augmentTags(
 			var (
 				count = tags.countPrefix(graphite.Prefix)
 				name  = graphite.TagName(count)
-				value = types[0].Bytes()
+				value = types[0].Name()
 			)
 			tags.append(name, value)
 		}

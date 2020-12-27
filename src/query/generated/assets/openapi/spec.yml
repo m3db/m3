@@ -138,7 +138,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Get the M3DB placement"
-      operationId: "placementGet"
+      operationId: "m3dbPlacementGet"
       consumes:
       - "application/json"
       produces:
@@ -156,7 +156,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Add an instance to the placement"
-      operationId: "placementAdd"
+      operationId: "m3dbPlacementAdd"
       consumes:
       - "application/json"
       produces:
@@ -183,7 +183,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Delete the M3DB placement"
-      operationId: "placementDeleteAll"
+      operationId: "m3dbPlacementDeleteAll"
       consumes:
       - "application/json"
       produces:
@@ -203,7 +203,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Get the M3Coordinator placement"
-      operationId: "placementGet"
+      operationId: "m3coordPlacementGet"
       consumes:
       - "application/json"
       produces:
@@ -222,7 +222,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Add an instance to the placement"
-      operationId: "placementAdd"
+      operationId: "m3coordPlacementAdd"
       consumes:
       - "application/json"
       produces:
@@ -250,7 +250,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Delete the M3Coordinator placement"
-      operationId: "placementDeleteAll"
+      operationId: "m3coordPlacementDeleteAll"
       consumes:
       - "application/json"
       produces:
@@ -270,7 +270,7 @@ paths:
       - "M3Aggregator Placement"
       - "M3Aggregator"
       summary: "Get the M3Agg placement"
-      operationId: "m3AggplacementGet"
+      operationId: "m3AggPlacementGet"
       consumes:
       - "application/json"
       produces:
@@ -289,7 +289,7 @@ paths:
       - "M3Aggregator Placement"
       - "M3Aggregator"
       summary: "Add an M3Agg instance to the placement"
-      operationId: "m3AggplacementAdd"
+      operationId: "m3AggPlacementAdd"
       consumes:
       - "application/json"
       produces:
@@ -336,7 +336,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Initialize the M3DB placement"
-      operationId: "placementInit"
+      operationId: "m3dbPlacementInit"
       consumes:
       - "application/json"
       produces:
@@ -364,7 +364,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Replace an M3DB instance in the placement"
-      operationId: "placementReplace"
+      operationId: "m3dbPlacementReplace"
       consumes:
       - "application/json"
       produces:
@@ -393,7 +393,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Initialize the M3Coordinator placement"
-      operationId: "placementInit"
+      operationId: "m3coordPlacementInit"
       consumes:
       - "application/json"
       produces:
@@ -422,7 +422,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Replace an M3Coordinator"
-      operationId: "placementReplace"
+      operationId: "m3coordPlacementReplace"
       consumes:
       - "application/json"
       produces:
@@ -508,7 +508,7 @@ paths:
       tags:
       - "M3DB Placement"
       summary: "Delete an M3DB instance from the placement"
-      operationId: "placementDelete"
+      operationId: "m3dbPlacementDelete"
       consumes:
       - "application/json"
       produces:
@@ -537,7 +537,7 @@ paths:
       - "M3Coordinator Placement"
       - "M3Coordinator"
       summary: "Delete an M3Coordinator instance from the placement"
-      operationId: "placementDelete"
+      operationId: "m3coordPlacementDelete"
       consumes:
       - "application/json"
       produces:
@@ -856,6 +856,8 @@ definitions:
   GenericError:
     type: "object"
     properties:
+      status:
+        type: "string"
       error:
         type: "string"
   DatabaseCreateRequest:

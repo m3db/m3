@@ -22,23 +22,27 @@ package watchmanager
 
 import (
 	"fmt"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/mocks"
-
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 func TestWatchChan(t *testing.T) {
-	wh, ec, _, _, _, closer := testSetup(t)
+	t.Parallel()
+	wh, ecluster, _, _, _, closer := testCluster(t) //nolint:dogsled
 	defer closer()
+
+	ec := ecluster.RandClient()
 
 	wc, _, err := wh.watchChanWithTimeout("foo", 0)
 	require.NoError(t, err)
@@ -53,16 +57,17 @@ func TestWatchChan(t *testing.T) {
 		require.Fail(t, "could not get notification")
 	}
 
-	mw := mocks.NewBlackholeWatcher(ec, 3, func() { time.Sleep(time.Minute) })
-	wh.opts = wh.opts.SetWatcher(mw).SetWatchChanInitTimeout(100 * time.Millisecond)
+	ecluster.Members[0].Stop(t)
 
 	before := time.Now()
 	_, _, err = wh.watchChanWithTimeout("foo", 0)
 	require.WithinDuration(t, time.Now(), before, 150*time.Millisecond)
 	require.Error(t, err)
+	require.NoError(t, ecluster.Members[0].Restart(t))
 }
 
 func TestWatchSimple(t *testing.T) {
+	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 	require.Equal(t, int32(0), atomic.LoadInt32(updateCalled))
@@ -110,35 +115,45 @@ func TestWatchSimple(t *testing.T) {
 }
 
 func TestWatchRecreate(t *testing.T) {
-	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
+	t.Parallel()
+	wh, ecluster, updateCalled, shouldStop, doneCh, closer := testCluster(t)
 	defer closer()
 
-	failTotal := 2
-	mw := mocks.NewBlackholeWatcher(ec, failTotal, func() { time.Sleep(time.Minute) })
-	wh.opts = wh.opts.
-		SetWatcher(mw).
-		SetWatchChanInitTimeout(200 * time.Millisecond).
-		SetWatchChanResetInterval(100 * time.Millisecond)
+	ec := ecluster.RandClient()
 
-	go wh.Watch("foo")
+	failTotal := 1
+	wh.opts = wh.opts.
+		SetClient(ec).
+		SetWatchChanInitTimeout(50 * time.Millisecond).
+		SetWatchChanResetInterval(50 * time.Millisecond)
+
+	go func() {
+		ecluster.Members[0].DropConnections()
+		ecluster.Members[0].Blackhole()
+		wh.Watch("foo")
+	}()
+
+	time.Sleep(4 * wh.opts.WatchChanInitTimeout())
 
 	// watch will error out but updateFn will be tried
-	for {
-		if atomic.LoadInt32(updateCalled) == int32(failTotal) {
+	for i := 0; i < 100; i++ {
+		if atomic.LoadInt32(updateCalled) >= int32(failTotal) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	ecluster.Members[0].Unblackhole()
 	// now we have retried failTotal times, give enough time for reset to happen
 	time.Sleep(3 * (wh.opts.WatchChanResetInterval()))
 
+	updatesBefore := atomic.LoadInt32(updateCalled)
 	// there should be a valid watch now, trigger a notification
 	_, err := ec.Put(context.Background(), "foo", "v")
 	require.NoError(t, err)
 
-	for {
-		if atomic.LoadInt32(updateCalled) == int32(failTotal+1) {
+	for i := 0; i < 100; i++ {
+		if atomic.LoadInt32(updateCalled) > updatesBefore {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -150,21 +165,33 @@ func TestWatchRecreate(t *testing.T) {
 }
 
 func TestWatchNoLeader(t *testing.T) {
+	t.Parallel()
+	const (
+		watchInitAndRetryDelay = 200 * time.Millisecond
+		watchCheckInterval     = 50 * time.Millisecond
+	)
+
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer ecluster.Terminate(t)
 
-	ec := ecluster.Client(0)
-
 	var (
-		updateCalled int32
-		shouldStop   int32
+		ec              = ecluster.Client(0)
+		tickDuration    = 10 * time.Millisecond
+		electionTimeout = time.Duration(3*ecluster.Members[0].ElectionTicks) * tickDuration
+		doneCh          = make(chan struct{}, 1)
+		eventLog        = []*clientv3.Event{}
+		updateCalled    int32
+		shouldStop      int32
 	)
-	doneCh := make(chan struct{}, 1)
+
 	opts := NewOptions().
-		SetWatcher(ec.Watcher).
+		SetClient(ec).
 		SetUpdateFn(
-			func(string, []*clientv3.Event) error {
+			func(_ string, e []*clientv3.Event) error {
 				atomic.AddInt32(&updateCalled, 1)
+				if len(e) > 0 {
+					eventLog = append(eventLog, e...)
+				}
 				return nil
 			},
 		).
@@ -176,53 +203,73 @@ func TestWatchNoLeader(t *testing.T) {
 
 				close(doneCh)
 
-				// stopped = true
 				return true
 			},
 		).
-		SetWatchChanInitTimeout(200 * time.Millisecond)
+		SetWatchChanInitTimeout(watchInitAndRetryDelay).
+		SetWatchChanResetInterval(watchInitAndRetryDelay).
+		SetWatchChanCheckInterval(watchCheckInterval)
 
 	wh, err := NewWatchManager(opts)
 	require.NoError(t, err)
 
 	go wh.Watch("foo")
 
-	time.Sleep(2 * time.Second)
+	runtime.Gosched()
+	time.Sleep(10 * time.Millisecond)
+
 	// there should be a valid watch now, trigger a notification
-	_, err = ec.Put(context.Background(), "foo", "v")
+	_, err = ec.Put(context.Background(), "foo", "bar")
 	require.NoError(t, err)
 
-	for {
-		if atomic.LoadInt32(&updateCalled) == int32(1) {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	leaderIdx := ecluster.WaitLeader(t)
+	require.True(t, leaderIdx >= 0 && leaderIdx < len(ecluster.Members), "got invalid leader")
 
+	// simulate quorum loss
 	ecluster.Members[1].Stop(t)
 	ecluster.Members[2].Stop(t)
-	ecluster.Client(1).Close()
-	ecluster.Client(2).Close()
-	ecluster.TakeClient(1)
-	ecluster.TakeClient(2)
 
 	// wait for election timeout, then member[0] will not have a leader.
-	tickDuration := 10 * time.Millisecond
+	time.Sleep(electionTimeout)
+
+	require.NoError(t, ecluster.Members[1].Restart(t))
+	require.NoError(t, ecluster.Members[2].Restart(t))
+	// wait for leader + election delay just in case
 	time.Sleep(time.Duration(3*ecluster.Members[0].ElectionTicks) * tickDuration)
 
-	for {
-		if atomic.LoadInt32(&updateCalled) == 2 {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
+	leaderIdx = ecluster.WaitLeader(t)
+	require.True(t, leaderIdx >= 0 && leaderIdx < len(ecluster.Members), "got invalid leader")
+
+	_, err = ec.Put(context.Background(), "foo", "baz")
+	require.NoError(t, err)
+
+	// give some time for watch to be updated
+	require.True(t, clock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&updateCalled) >= 2
+	}, 30*time.Second))
+
+	updates := atomic.LoadInt32(&updateCalled)
+	if updates < 2 {
+		require.Fail(t,
+			"insufficient update calls",
+			"expected at least 2 update attempts, got %d during a partition",
+			updates)
 	}
 
-	// clean up the background go routine
 	atomic.AddInt32(&shouldStop, 1)
 	<-doneCh
+
+	require.Len(t, eventLog, 2)
+	require.NotNil(t, eventLog[0])
+	require.Equal(t, eventLog[0].Kv.Key, []byte("foo"))
+	require.Equal(t, eventLog[0].Kv.Value, []byte("bar"))
+	require.NotNil(t, eventLog[1])
+	require.Equal(t, eventLog[1].Kv.Key, []byte("foo"))
+	require.Equal(t, eventLog[1].Kv.Value, []byte("baz"))
 }
 
 func TestWatchCompactedRevision(t *testing.T) {
+	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 
@@ -246,9 +293,10 @@ func TestWatchCompactedRevision(t *testing.T) {
 	})
 
 	go wh.Watch("foo")
-	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
 
-	assert.Equal(t, int32(4), atomic.LoadInt32(updateCalled))
+	require.True(t, clock.WaitUntil(func() bool {
+		return atomic.LoadInt32(updateCalled) == 3
+	}, 30*time.Second))
 
 	lastRead := atomic.LoadInt32(updateCalled)
 	ec.Put(context.Background(), "foo", "bar-11")
@@ -264,9 +312,15 @@ func TestWatchCompactedRevision(t *testing.T) {
 	<-doneCh
 }
 
-func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan struct{}, func()) {
+func testCluster(t *testing.T) (
+	*manager,
+	*integration.ClusterV3,
+	*int32,
+	*int32,
+	chan struct{},
+	func(),
+) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
-	ec := ecluster.RandClient()
 
 	closer := func() {
 		ecluster.Terminate(t)
@@ -278,7 +332,7 @@ func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan s
 	)
 	doneCh := make(chan struct{}, 1)
 	opts := NewOptions().
-		SetWatcher(ec.Watcher).
+		SetClient(ecluster.RandClient()).
 		SetUpdateFn(func(string, []*clientv3.Event) error {
 			atomic.AddInt32(&updateCalled, 1)
 			return nil
@@ -293,10 +347,16 @@ func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan s
 			return true
 		}).
 		SetWatchChanCheckInterval(100 * time.Millisecond).
-		SetWatchChanInitTimeout(100 * time.Millisecond)
+		SetWatchChanInitTimeout(100 * time.Millisecond).
+		SetWatchChanResetInterval(100 * time.Millisecond)
 
 	wh, err := NewWatchManager(opts)
 	require.NoError(t, err)
 
-	return wh.(*manager), ec, &updateCalled, &shouldStop, doneCh, closer
+	return wh.(*manager), ecluster, &updateCalled, &shouldStop, doneCh, closer
+}
+
+func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan struct{}, func()) {
+	wh, ecluster, updateCalled, shouldStop, donech, closer := testCluster(t)
+	return wh, ecluster.RandClient(), updateCalled, shouldStop, donech, closer
 }

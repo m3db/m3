@@ -32,30 +32,23 @@
     target = "archetypes"
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
-
-[permalinks]
-  "/" = "/docs/:section/:title/"
-  "faqs" = "/docs/:section/:title/"
-  "glossaries" = "/docs/:section/:title/"
-  "how_tos" = "/docs/:section/:title/"
-  "integrations" = "/docs/:section/:title/"
-  "m3coordinators" = "/docs/:section/:title/"
-  "m3dbs" = "/docs/:section/:title/"
-  "m3querys" = "/docs/:section/:title/"
-  "operational_guides" = "/docs/:section/:title/"
-  "overviews" = "/docs/:section/:title/"
-  "quickstarts" = "/docs/:section/:title/"
-  "troubleshootings" = "/docs/:section/:title/"
-
+metaDataFormat = "yaml"
 # theme = "docs-theme"
 # baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = true
 # staticDir = ["static"]
+# defaultContentLanguageInSubdir= true
 
-title = "M3DB Documentation"
-metaDataFormat = "yaml"
-defaultContentLanguageInSubdir= true
+[languages]
+[languages.en]
+title = "M3 Documentation"
+description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
+languageName ="English"
+# Weight used for sorting.
+weight = 1
+languagedirection = "ltr"
 
 # Highlighting config.
 pygmentsCodeFences = true
@@ -65,8 +58,21 @@ pygmentsUseClassic = false
 #pygmentsOptions = "linenos=table"
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
+# enableGitInfo = true
 
-enableGitInfo = true
+[permalinks]
+  "/" = "/docs/:section/:filename/"
+  "faqs" = "/docs/:section/:filename/"
+  "glossaries" = "/docs/:section/:filename/"
+  "how_tos" = "/docs/:section/:filename/"
+  "integrations" = "/docs/:section/:filename/"
+  "m3coordinators" = "/docs/:section/:filename/"
+  "m3dbs" = "/docs/:section/:filename/"
+  "m3querys" = "/docs/:section/:filename/"
+  "operational_guides" = "/docs/:section/:filename/"
+  "overviews" = "/docs/:section/:filename/"
+  "quickstarts" = "/docs/:section/:filename/"
+  "troubleshootings" = "/docs/:section/:filename/"
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
@@ -99,16 +105,18 @@ githubWebsiteRaw = "raw.githubusercontent.com/m3db/m3"
 offlineSearch = false
 
 [params]
+  title = "M3 Documentation"
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
-  # TODO: pattern to branch?
-  # TODO: bring back
-  # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+
+  helpBlock = true
+  editURL = "https://github.com/m3db/m3/tree/master/site/content/"
+
   # Author of the site, will be used in meta information
-  author = "m3"
+  author = "The M3 team and community"
   # Description of the site, will be used in meta information
-  description = "m3documentation"
+  description = "M3 is a Prometheus compatible, easy to adopt metrics engine that provides visibility for some of the world’s largest brands."
   # Shows a checkmark for visited pages on the menu
   showVisitedLinks = false
   # Disable search function. It will hide search bar
@@ -134,22 +142,18 @@ offlineSearch = false
   twitter = "m3db_io"
   disableHomeIcon = true
   gettingStartedLink = "/docs/quickstart/docker"
+  version_menu = "Versions"
 
   [params.api]
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
+# TODO: Can all the below be consolidated?
+  [[params.versions]]
+    version = "1.0"
+    url = ""
 
-  # TODO: Might need to refactor some of the K8s shortcodes later
-# Add your release versions here
-# TODO: Enable when ready
-# [[params.versions]]
-#   version = "1.0"
-#   url = "https://master.kubeflow.org"
-#   [[params.versions]]
-#   version = "0.9"
-#   url = "https://master.kubeflow.org"
-
-# version_menu = "Versions"
+  [params.releases]
+    docker = "v1.0.0"
 
 # TODO: Do not like doing this really
 [markup]

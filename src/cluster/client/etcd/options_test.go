@@ -98,6 +98,7 @@ func TestTLSOptions(t *testing.T) {
 	assert.Equal(t, "key", aOpts.KeyPath())
 	assert.Equal(t, "ca", aOpts.CACrtPath())
 }
+
 func TestOptions(t *testing.T) {
 	opts := NewOptions()
 	assert.Equal(t, "", opts.Zone())
@@ -111,6 +112,17 @@ func TestOptions(t *testing.T) {
 	_, ok := opts.ClusterForZone("z")
 	assert.False(t, ok)
 	assert.NotNil(t, opts.InstrumentOptions())
+	assert.Equal(t, defaultRequestTimeout, opts.RequestTimeout())
+	assert.Equal(t, defaultWatchChanCheckInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanResetInterval, opts.WatchChanCheckInterval())
+	assert.Equal(t, defaultWatchChanInitTimeout, opts.WatchChanInitTimeout())
+	assert.False(t, opts.EnableFastGets())
+	ropts := opts.RetryOptions()
+	assert.Equal(t, defaultRetryJitter, ropts.Jitter())
+	assert.Equal(t, defaultRetryInitialBackoff, ropts.InitialBackoff())
+	assert.Equal(t, defaultRetryBackoffFactor, ropts.BackoffFactor())
+	assert.Equal(t, defaultRetryMaxRetries, ropts.MaxRetries())
+	assert.Equal(t, defaultRetryMaxBackoff, ropts.MaxBackoff())
 
 	c1 := NewCluster().SetZone("z1")
 	c2 := NewCluster().SetZone("z2")

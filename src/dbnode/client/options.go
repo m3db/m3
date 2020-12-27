@@ -42,13 +42,12 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	xresource "github.com/m3db/m3/src/x/resource"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -318,9 +317,16 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 }
 
 func defaultNewConnectionFn(
-	channelName string, address string, opts Options,
-) (xresource.SimpleCloser, rpc.TChanNode, error) {
-	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
+	channelName string, address string, clientOpts Options,
+) (PooledChannel, rpc.TChanNode, error) {
+	// NB(r): Keep ref to a local channel options since it's actually modified
+	// by TChannel itself to set defaults.
+	var opts *tchannel.ChannelOptions
+	if chanOpts := clientOpts.ChannelOptions(); chanOpts != nil {
+		immutableOpts := *chanOpts
+		opts = &immutableOpts
+	}
+	channel, err := tchannel.NewChannel(channelName, opts)
 	if err != nil {
 		return nil, nil, err
 	}

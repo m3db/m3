@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -150,18 +151,18 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // FetchWideEntry mocks base method
-func (m *MockDatabaseSeries) FetchWideEntry(arg0 context.Context, arg1 time.Time, arg2 namespace.Context) (block.StreamedWideEntry, error) {
+func (m *MockDatabaseSeries) FetchWideEntry(arg0 context.Context, arg1 time.Time, arg2 schema.WideEntryFilter, arg3 namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchWideEntry", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "FetchWideEntry", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchWideEntry indicates an expected call of FetchWideEntry
-func (mr *MockDatabaseSeriesMockRecorder) FetchWideEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) FetchWideEntry(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchWideEntry), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWideEntry", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchWideEntry), arg0, arg1, arg2, arg3)
 }
 
 // ID mocks base method
@@ -457,16 +458,16 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3
 }
 
 // StreamWideEntry mocks base method
-func (m *MockQueryableBlockRetriever) StreamWideEntry(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 namespace.Context) (block.StreamedWideEntry, error) {
+func (m *MockQueryableBlockRetriever) StreamWideEntry(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 schema.WideEntryFilter, arg4 namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamWideEntry", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "StreamWideEntry", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StreamWideEntry indicates an expected call of StreamWideEntry
-func (mr *MockQueryableBlockRetrieverMockRecorder) StreamWideEntry(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamWideEntry(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamWideEntry), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamWideEntry", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamWideEntry), arg0, arg1, arg2, arg3, arg4)
 }
