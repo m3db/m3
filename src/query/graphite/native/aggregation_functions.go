@@ -438,7 +438,10 @@ func chunkArrayHelper(slice []string, numChunks int) [][]string {
 }
 
 func evaluateTarget(ctx *common.Context, target string) (ts.SeriesList, error) {
-	eng := NewEngine(ctx.Engine.Storage())
+	eng, ok := ctx.Engine.(*Engine)
+	if !ok {
+		return ts.NewSeriesList(), fmt.Errorf("engine not native engine")
+	}
 	expression, err := eng.Compile(target)
 	if err != nil {
 		return ts.NewSeriesList(), err

@@ -1085,6 +1085,21 @@ func (mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(namespace, shard, c
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksFromPeers), namespace, shard, consistencyLevel, metadatas, opts)
 }
 
+// BorrowConnections mocks base method
+func (m *MockAdminSession) BorrowConnections(shardID uint32, fn WithBorrowConnectionFn, opts BorrowConnectionOptions) (BorrowConnectionsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BorrowConnections", shardID, fn, opts)
+	ret0, _ := ret[0].(BorrowConnectionsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BorrowConnections indicates an expected call of BorrowConnections
+func (mr *MockAdminSessionMockRecorder) BorrowConnections(shardID, fn, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BorrowConnections", reflect.TypeOf((*MockAdminSession)(nil).BorrowConnections), shardID, fn, opts)
+}
+
 // MockOptions is a mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller
@@ -4812,6 +4827,21 @@ func (mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(namespace, shard, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksFromPeers), namespace, shard, consistencyLevel, metadatas, opts)
 }
 
+// BorrowConnections mocks base method
+func (m *MockclientSession) BorrowConnections(shardID uint32, fn WithBorrowConnectionFn, opts BorrowConnectionOptions) (BorrowConnectionsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BorrowConnections", shardID, fn, opts)
+	ret0, _ := ret[0].(BorrowConnectionsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BorrowConnections indicates an expected call of BorrowConnections
+func (mr *MockclientSessionMockRecorder) BorrowConnections(shardID, fn, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BorrowConnections", reflect.TypeOf((*MockclientSession)(nil).BorrowConnections), shardID, fn, opts)
+}
+
 // Open mocks base method
 func (m *MockclientSession) Open() error {
 	m.ctrl.T.Helper()
@@ -4932,7 +4962,7 @@ func (mr *MockhostQueueMockRecorder) ConnectionPool() *gomock.Call {
 }
 
 // BorrowConnection mocks base method
-func (m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
+func (m *MockhostQueue) BorrowConnection(fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", fn)
 	ret0, _ := ret[0].(error)
@@ -5007,12 +5037,13 @@ func (mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
 }
 
 // NextClient mocks base method
-func (m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
+func (m *MockconnectionPool) NextClient() (rpc.TChanNode, PooledChannel, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NextClient")
 	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(PooledChannel)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // NextClient indicates an expected call of NextClient
@@ -5057,7 +5088,7 @@ func (m *MockpeerSource) EXPECT() *MockpeerSourceMockRecorder {
 }
 
 // BorrowConnection mocks base method
-func (m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
+func (m *MockpeerSource) BorrowConnection(hostID string, fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", hostID, fn)
 	ret0, _ := ret[0].(error)
@@ -5108,7 +5139,7 @@ func (mr *MockpeerMockRecorder) Host() *gomock.Call {
 }
 
 // BorrowConnection mocks base method
-func (m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
+func (m *Mockpeer) BorrowConnection(fn WithConnectionFn) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BorrowConnection", fn)
 	ret0, _ := ret[0].(error)
