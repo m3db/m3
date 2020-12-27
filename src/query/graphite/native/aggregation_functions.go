@@ -90,6 +90,7 @@ func minSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 
 // powSeries takes a list of series and returns a new series containing the
 // pow value across the series at each datapoint
+// nolint: hugeParam
 func powSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
 	return combineSeries(ctx, series, wrapPathExpr(powSeriesFnName, ts.SeriesList(series)), ts.Pow)
 }
