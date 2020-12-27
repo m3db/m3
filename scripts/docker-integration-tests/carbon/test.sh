@@ -85,6 +85,8 @@ echo "quail 42 $t" | nc 0.0.0.0 7204
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'quail' 42
 
 t=$(date +%s)
+
+# Test basic cases
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz 0 $t"         | nc 0.0.0.0 7204
@@ -92,6 +94,19 @@ echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
 echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
 echo "a.bag 0 $t"         | nc 0.0.0.0 7204
 echo "c:bar.c:baz 0 $t"   | nc 0.0.0.0 7204
+
+# Test rewrite multiple dots
+echo "d..bar.baz 0 $t"    | nc 0.0.0.0 7204
+echo "e.bar...baz 0 $t"   | nc 0.0.0.0 7204
+
+# Test rewrite leading or trailing dots
+echo "..f.bar.baz 0 $t"   | nc 0.0.0.0 7204
+echo "g.bar.baz.. 0 $t"   | nc 0.0.0.0 7204
+
+# Test rewrite bad chars
+echo "h.bar@@baz 0 $t"    | nc 0.0.0.0 7204
+echo "i.bar!!baz 0 $t"    | nc 0.0.0.0 7204
+
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
@@ -102,3 +117,9 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.d none.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon *.*.*.*.* none.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:* cbar.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:bar.* cbaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon d.bar.* dbaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon e.bar.* ebaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon f.bar.* fbaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon g.bar.* gbaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon h.bar* hbarbaz.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon i.bar* ibarbaz.json
