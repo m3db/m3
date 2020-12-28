@@ -38,6 +38,6 @@ func (p *sessionPeer) Host() topology.Host {
 	return p.host
 }
 
-func (p *sessionPeer) BorrowConnection(fn withConnectionFn) error {
+func (p *sessionPeer) BorrowConnection(fn WithConnectionFn) error {
 	return p.source.BorrowConnection(p.host.ID(), fn)
 }

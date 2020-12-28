@@ -22,7 +22,6 @@ package native
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -179,9 +178,6 @@ func TestListErrorTags(t *testing.T) {
 		r, err := ioutil.ReadAll(body)
 		require.NoError(t, err)
 
-		ex := `{"error":"err"}`
-		// NB: error handler adds a newline to the output.
-		ex = fmt.Sprintf("%s\n", ex)
-		require.Equal(t, ex, string(r))
+		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
 }

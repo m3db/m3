@@ -3697,6 +3697,20 @@ func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
 }
 
+// CheckpointAndMaybeCompact mocks base method
+func (m *MockOnColdFlushNamespace) CheckpointAndMaybeCompact() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckpointAndMaybeCompact")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckpointAndMaybeCompact indicates an expected call of CheckpointAndMaybeCompact
+func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
+}
+
 // Done mocks base method
 func (m *MockOnColdFlushNamespace) Done() error {
 	m.ctrl.T.Helper()

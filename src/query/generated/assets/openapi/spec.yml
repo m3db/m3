@@ -856,6 +856,8 @@ definitions:
   GenericError:
     type: "object"
     properties:
+      status:
+        type: "string"
       error:
         type: "string"
   DatabaseCreateRequest:

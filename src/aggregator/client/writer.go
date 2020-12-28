@@ -65,14 +65,14 @@ type writer struct {
 
 	log               *zap.Logger
 	metrics           writerMetrics
-	flushSize         int
-	maxTimerBatchSize int
 	encoderOpts       protobuf.UnaggregatedOptions
 	queue             instanceQueue
+	flushSize         int
+	maxTimerBatchSize int
 
-	closed             bool
 	encodersByShard    map[uint32]*lockedEncoder
 	newLockedEncoderFn newLockedEncoderFn
+	closed             bool
 }
 
 func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter {
@@ -534,8 +534,8 @@ func newWriterMetrics(s tally.Scope) writerMetrics {
 }
 
 type lockedEncoder struct {
-	sync.Mutex
 	protobuf.UnaggregatedEncoder
+	sync.Mutex
 }
 
 func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
@@ -544,8 +544,8 @@ func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
 }
 
 type refCountedWriter struct {
-	refCount
 	instanceWriter
+	refCount
 }
 
 func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedWriter {
