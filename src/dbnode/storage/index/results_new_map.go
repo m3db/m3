@@ -21,6 +21,8 @@
 package index
 
 import (
+	"bytes"
+
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/cespare/xxhash/v2"
@@ -32,17 +34,18 @@ const (
 
 func newResultsMap(idPool ident.Pool) *ResultsMap {
 	return _ResultsMapAlloc(_ResultsMapOptions{
-		hash: func(k ident.ID) ResultsMapHash {
-			return ResultsMapHash(xxhash.Sum64(k.Bytes()))
+		hash: func(k []byte) ResultsMapHash {
+			return ResultsMapHash(xxhash.Sum64(k))
 		},
-		equals: func(x, y ident.ID) bool {
-			return x.Equal(y)
+		equals: func(x, y []byte) bool {
+			return bytes.Equal(x, y)
 		},
-		copy: func(k ident.ID) ident.ID {
-			return idPool.Clone(k)
+		// TODO(nate); are these copy and finalize implementations right?
+		copy: func(k []byte) []byte {
+			return idPool.Clone(ident.BytesID(k)).Bytes()
 		},
-		finalize: func(k ident.ID) {
-			k.Finalize()
+		finalize: func(k []byte) {
+			// NB(nate): no-op for bytes IDs
 		},
 		initialSize: defaultInitialResultsMapSize,
 	})
