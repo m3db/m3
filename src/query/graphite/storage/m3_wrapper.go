@@ -102,15 +102,22 @@ func TranslateQueryToMatchersWithTerminator(
 		globOpts := graphite.GlobOptions{
 			AllowMatchAll: true,
 		}
-		value, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
+		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
+		if err != nil {
+			return nil, err
+		}
+		// Also make sure it's a graphite metric by making sure it has a
+		// __g0__ tag:
+		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
 		if err != nil {
 			return nil, err
 		}
 		return models.Matchers{
+			hasFirstPathMatcher,
 			models.Matcher{
 				Type:  models.MatchRegexp,
 				Name:  doc.IDReservedFieldName,
-				Value: value,
+				Value: idRegexp,
 			},
 		}, nil
 	}
