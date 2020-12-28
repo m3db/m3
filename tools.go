@@ -6,6 +6,7 @@ import (
 	_ "github.com/fossas/fossa-cli/cmd/fossa"
 	_ "github.com/garethr/kubeval"
 	_ "github.com/golang/mock/mockgen"
+	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/google/go-jsonnet/cmd/jsonnet"
 	_ "github.com/m3db/build-tools/utilities/genclean"
 	_ "github.com/m3db/tools/update-license"
