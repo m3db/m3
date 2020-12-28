@@ -15,7 +15,8 @@ docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
 # Think of this as a defer func() in golang
 function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  echo "no defer"
+  # docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 
@@ -35,8 +36,8 @@ function find_carbon {
   query=$1
   expected_file=$2
   RESPONSE=$(curl -sSg "http://localhost:7201/api/v1/graphite/metrics/find?query=$query")
-  ACTUAL=$(echo $RESPONSE | jq '. | sort')
-  EXPECTED=$(cat $EXPECTED_PATH/$expected_file | jq '. | sort')
+  ACTUAL=$(echo $RESPONSE | jq . | sort)
+  EXPECTED=$(cat $EXPECTED_PATH/$expected_file | jq . | sort)
   if [ "$ACTUAL" == "$EXPECTED" ]
   then
     return 0
@@ -57,7 +58,7 @@ ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.aggre
 
 echo "Writing out a carbon metric that should not be aggregated"
 t=$(date +%s)
-# 43 should win out here because of M3DB's upsert semantics. While M3DB's upsert
+# 43 should win out here because of M3DBs upsert semantics. While M3DBs upsert
 # semantics are not always guaranteed, it is guaranteed for a minimum time window
 # that is as large as bufferPast/bufferFuture which should be much more than enough
 # time for these two commands to complete.
@@ -77,12 +78,26 @@ ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch
 # Test writing and reading IDs with colons in them.
 t=$(date +%s)
 echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.bar:*.* 42
 
 # Test writing and reading IDs with a single element.
 t=$(date +%s)
 echo "quail 42 $t" | nc 0.0.0.0 7204
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'quail' 42
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon quail 42
+
+# Test using "**" in queries
+t=$(date +%s)
+echo "qux.pos1-a.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-a.pos2-1 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-b.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-b.pos2-1 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-c.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-c.pos2-1 1 $t" | nc 0.0.0.0 7204
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(qux**)' 6"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(qux.pos1-a**)' 2"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos1-a**)' 2"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1**)' 3"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1)' 3"
 
 t=$(date +%s)
 
@@ -107,19 +122,19 @@ echo "g.bar.baz.. 0 $t"   | nc 0.0.0.0 7204
 echo "h.bar@@baz 0 $t"    | nc 0.0.0.0 7204
 echo "i.bar!!baz 0 $t"    | nc 0.0.0.0 7204
 
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.c* a.b.c.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.caw.* a.b.c.d.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon x none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.d none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon *.*.*.*.* none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:* cbar.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:bar.* cbaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon d.bar.* dbaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon e.bar.* ebaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon f.bar.* fbaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon g.bar.* gbaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon h.bar* hbarbaz.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon i.bar* ibarbaz.json
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff "find_carbon 'a*' a.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*' ab.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.ba[rg]' aba.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*.c*' abc.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*.caw.*' abcd.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'x' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.d' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon '*.*.*.*.*' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'c:*' cbar.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'c:bar.*' cbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'd.bar.*' dbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'e.bar.*' ebaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'f.bar.*' fbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'g.bar.*' gbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'h.bar*' hbarbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"

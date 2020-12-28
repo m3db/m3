@@ -99,7 +99,10 @@ func TranslateQueryToMatchersWithTerminator(
 	if strings.Contains(query, "**") {
 		// Need to regexp on the entire ID since ** matches over different
 		// graphite path dimensions.
-		value, _, err := graphite.GlobToRegexPattern(query)
+		globOpts := graphite.GlobOptions{
+			AllowMatchAll: true,
+		}
+		value, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
 		if err != nil {
 			return nil, err
 		}
