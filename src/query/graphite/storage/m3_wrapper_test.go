@@ -102,7 +102,7 @@ func TestTranslateQueryStarStar(t *testing.T) {
 	assert.Equal(t, query, translated.Raw)
 	matchers := translated.TagMatchers
 	expected := models.Matchers{
-		{Type: models.MatchEqual, Name: graphite.TagName(0), Value: []byte(".*")},
+		{Type: models.MatchRegexp, Name: graphite.TagName(0), Value: []byte(".*")},
 		{Type: models.MatchRegexp, Name: doc.IDReservedFieldName, Value: []byte("foo.*bar")},
 	}
 
