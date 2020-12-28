@@ -129,7 +129,7 @@ func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockBaseResults) AddDocuments(batch []doc.EncodedDocument) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
@@ -236,7 +236,7 @@ func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockQueryResults) AddDocuments(batch []doc.EncodedDocument) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
@@ -430,7 +430,7 @@ func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockAggregateResults) AddDocuments(batch []doc.EncodedDocument) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
@@ -1483,6 +1483,34 @@ func (m *MockOptions) DocumentArrayPool() doc.DocumentArrayPool {
 func (mr *MockOptionsMockRecorder) DocumentArrayPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocumentArrayPool", reflect.TypeOf((*MockOptions)(nil).DocumentArrayPool))
+}
+
+// SetEncodedDocumentArrayPool mocks base method
+func (m *MockOptions) SetEncodedDocumentArrayPool(value doc.EncodedDocumentArrayPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodedDocumentArrayPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodedDocumentArrayPool indicates an expected call of SetEncodedDocumentArrayPool
+func (mr *MockOptionsMockRecorder) SetEncodedDocumentArrayPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodedDocumentArrayPool", reflect.TypeOf((*MockOptions)(nil).SetEncodedDocumentArrayPool), value)
+}
+
+// EncodedDocumentArrayPool mocks base method
+func (m *MockOptions) EncodedDocumentArrayPool() doc.EncodedDocumentArrayPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EncodedDocumentArrayPool")
+	ret0, _ := ret[0].(doc.EncodedDocumentArrayPool)
+	return ret0
+}
+
+// EncodedDocumentArrayPool indicates an expected call of EncodedDocumentArrayPool
+func (mr *MockOptionsMockRecorder) EncodedDocumentArrayPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncodedDocumentArrayPool", reflect.TypeOf((*MockOptions)(nil).EncodedDocumentArrayPool))
 }
 
 // SetAggregateResultsEntryArrayPool mocks base method

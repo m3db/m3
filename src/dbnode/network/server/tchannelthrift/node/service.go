@@ -37,11 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -514,10 +516,16 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	if req.NoData != nil && *req.NoData {
 		fetchData = false
 	}
+	reader := docs.NewEncodedDocumentReader()
 	for _, entry := range queryResult.Results.Map().Iter() {
-		tags := entry.Value()
+		encoded := entry.Value()
+		doc, err := reader.Read(encoded)
+		if err != nil {
+			return nil, err
+		}
+		tags := idxconvert.ToSeriesTags(doc, idxconvert.Opts{NoClone: true})
 		elem := &rpc.QueryResultElement{
-			ID:   entry.Key().String(),
+			ID:   string(entry.Key()),
 			Tags: make([]*rpc.Tag, 0, tags.Remaining()),
 		}
 		result.Results = append(result.Results, elem)
@@ -535,7 +543,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		if !fetchData {
 			continue
 		}
-		tsID := entry.Key()
+		tsID := ident.BytesID(entry.Key())
 		datapoints, err := s.readDatapoints(ctx, db, nsID, tsID, start, end,
 			req.ResultTimeType)
 		if err != nil {
@@ -794,12 +802,20 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
+	reader := docs.NewEncodedDocumentReader()
 	for _, entry := range results.Map().Iter() {
 		idx := i
 		i++
 
-		tsID := entry.Key()
-		tags := entry.Value()
+		tsID := ident.BytesID(entry.Key())
+
+		encodedDoc := entry.Value()
+		doc, err := reader.Read(encodedDoc)
+		if err != nil {
+			return err
+		}
+		tags := idxconvert.ToSeriesTags(doc, idxconvert.Opts{NoClone: true})
+
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
 		encodedTags, err := s.encodeTags(enc, tags)
