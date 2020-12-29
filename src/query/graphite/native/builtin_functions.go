@@ -2491,6 +2491,7 @@ func init() {
 		2: math.NaN(), // maxValue
 	})
 	MustRegisterFunction(pow)
+	MustRegisterFunction(powSeries)
 	MustRegisterFunction(rangeOfSeries)
 	MustRegisterFunction(randomWalkFunction).WithDefaultParams(map[uint8]interface{}{
 		2: 60, // step
