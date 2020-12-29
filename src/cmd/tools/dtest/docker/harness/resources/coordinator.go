@@ -33,7 +33,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 )
 
