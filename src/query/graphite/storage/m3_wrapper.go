@@ -97,18 +97,17 @@ func TranslateQueryToMatchersWithTerminator(
 	query string,
 ) (models.Matchers, error) {
 	if strings.Contains(query, "**") {
+		// First add matcher to ensure it's a graphite metric with __g0__ tag.
+		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
+		if err != nil {
+			return nil, err
+		}
 		// Need to regexp on the entire ID since ** matches over different
 		// graphite path dimensions.
 		globOpts := graphite.GlobOptions{
 			AllowMatchAll: true,
 		}
 		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
-		if err != nil {
-			return nil, err
-		}
-		// Also make sure it's a graphite metric by making sure it has a
-		// __g0__ tag:
-		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
 		if err != nil {
 			return nil, err
 		}
