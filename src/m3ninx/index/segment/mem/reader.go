@@ -45,15 +45,6 @@ type reader struct {
 	closed bool
 }
 
-// TODO(nate):
-func (r *reader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
-	panic("implement me")
-}
-
-func (r *reader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
-	panic("implement me")
-}
-
 type readerDocRange struct {
 	startInclusive postings.ID
 	endExclusive   postings.ID
@@ -155,6 +146,16 @@ func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
 	}
 	boundedIter := newBoundedPostingsIterator(pl.Iterator(), r.limits)
 	return r.getDocIterWithLock(boundedIter), nil
+}
+
+// TODO(nate): This reader is only used in tests but would still be useful to
+// add implementations for these.
+func (r *reader) EncodedDoc(id postings.ID) (doc.EncodedDocument, error) {
+	panic("implement me")
+}
+
+func (r *reader) EncodedDocs(pl postings.List) (doc.EncodedIterator, error) {
+	panic("implement me")
 }
 
 func (r *reader) AllDocs() (index.IDDocIterator, error) {

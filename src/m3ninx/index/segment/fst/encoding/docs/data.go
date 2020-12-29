@@ -169,6 +169,9 @@ func NewEncodedDocumentReader() *EncodedDocumentReader {
 // slice will be updated. This approach avoids allocating a new slice with a new backing
 // array for every document processed, unlike (*DataReader).Read
 func (r *EncodedDocumentReader) Read(encoded doc.EncodedDocument) (doc.Document, error) {
+	for i := range r.currFields {
+		r.currFields[i] = doc.Field{}
+	}
 	r.currFields = r.currFields[:0]
 	id, buf, err := encoding.ReadBytes(encoded.Bytes)
 	if err != nil {

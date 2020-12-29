@@ -62,7 +62,6 @@ type Writer interface {
 // Readable provides a point-in-time accessor to the documents in an index.
 type Readable interface {
 	DocRetriever
-	// TODO(nate): do we need this retriever?
 	EncodedDocRetriever
 
 	// MatchField returns a postings list over all documents which match the given field.

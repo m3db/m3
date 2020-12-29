@@ -143,7 +143,6 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
 	}
-	// TODO(nate): should we enforce using this or the docsDataReader somehow?
 	docsEncodedDataReader = docs.NewEncodedDataReader(data.DocsData.Bytes)
 
 	s := &fsSegment{
@@ -623,9 +622,6 @@ func (r *fsSegment) encodedDocNotClosedMaybeFinalizedWithRLock(id postings.ID) (
 	if r.finalized {
 		return doc.EncodedDocument{}, errReaderFinalized
 	}
-
-	// TODO(nate): support for thirdPartyReader? seems to only to be used for compaction which
-	// is unnecessary for encoded docs use case of read queries.
 
 	offset, err := r.docsIndexReader.Read(id)
 	if err != nil {
