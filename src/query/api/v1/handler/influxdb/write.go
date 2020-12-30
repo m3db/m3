@@ -316,7 +316,10 @@ func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	points, err := imodels.ParsePoints(bytes)
+	// InfluxDB line protocol v1.8 supports following precision values ns, u, ms, s, m and h
+	// If precision is not given, nanosecond precision is assumed
+	precision := r.URL.Query().Get("precision")
+	points, err := imodels.ParsePointsWithPrecision(bytes, time.Now().UTC(), precision)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
