@@ -3200,7 +3200,7 @@ func TestPow(t *testing.T) {
 		output        = []float64{1.0, 4.0, 9.0, 16.0, 25.0}
 	)
 
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	series := ts.NewSeries(
 		ctx,
