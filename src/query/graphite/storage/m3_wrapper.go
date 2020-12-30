@@ -25,9 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -66,6 +68,7 @@ type M3WrappedStorageOptions struct {
 	RenderPartialStart                         bool
 	RenderPartialEnd                           bool
 	RenderSeriesAllNaNs                        bool
+	CompileEscapeAllNotOnlyQuotes              bool
 }
 
 type seriesMetadata struct {
@@ -93,6 +96,31 @@ func NewM3WrappedStorage(
 func TranslateQueryToMatchersWithTerminator(
 	query string,
 ) (models.Matchers, error) {
+	if strings.Contains(query, "**") {
+		// First add matcher to ensure it's a graphite metric with __g0__ tag.
+		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
+		if err != nil {
+			return nil, err
+		}
+		// Need to regexp on the entire ID since ** matches over different
+		// graphite path dimensions.
+		globOpts := graphite.GlobOptions{
+			AllowMatchAll: true,
+		}
+		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
+		if err != nil {
+			return nil, err
+		}
+		return models.Matchers{
+			hasFirstPathMatcher,
+			models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  doc.IDReservedFieldName,
+				Value: idRegexp,
+			},
+		}, nil
+	}
+
 	metricLength := graphite.CountMetricParts(query)
 	// Add space for a terminator character.
 	matchersLength := metricLength + 1
