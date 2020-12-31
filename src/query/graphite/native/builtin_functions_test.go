@@ -3198,6 +3198,7 @@ func TestPow(t *testing.T) {
 		ctx           = common.NewTestContext()
 		millisPerStep = 10000
 		output        = []float64{1.0, 4.0, 9.0, 16.0, 25.0}
+		output2       = []float64{0.0, 4.0, 16.0, 36.0, 64.0}
 	)
 
 	defer func() { _ = ctx.Close() }()
@@ -3212,11 +3213,30 @@ func TestPow(t *testing.T) {
 		Values: []*ts.Series{series},
 	}, 2)
 	require.Nil(t, err)
-
 	expected := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output}
 	require.Nil(t, err)
 	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
 		[]common.TestSeries{expected}, results.Values)
+
+	series2 := ts.NewSeries(
+		ctx,
+		"foo",
+		ctx.StartTime,
+		common.NewTestSeriesValues(ctx, millisPerStep, []float64{0.0, 2.0, 4.0, 6.0, 8.0}),
+	)
+
+	results2, err := pow(ctx, singlePathSpec{
+		Values: []*ts.Series{series, series2},
+	}, 2)
+	require.Nil(t, err)
+	expected2 := common.TestSeries{Name: `pow(foo, 2.000000)`, Data: output2}
+	require.Nil(t, err)
+
+	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+		[]common.TestSeries{expected}, results.Values)
+	common.CompareOutputsAndExpected(t, millisPerStep, ctx.StartTime,
+		[]common.TestSeries{expected2}, results2.Values)
+
 }
 
 func TestCumulative(t *testing.T) {

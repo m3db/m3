@@ -1148,17 +1148,20 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 // nolint: gocritic
 func pow(ctx *common.Context, input singlePathSpec, factor float64) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, len(input.Values))
-
-	numSteps := input.Values[0].Len()
-	millisPerStep := input.Values[0].MillisPerStep()
-	vals := ts.NewValues(ctx, millisPerStep, numSteps)
-	for i := 0; i < numSteps; i++ {
-		vals.SetValueAt(i, math.Pow(input.Values[0].ValueAt(i), factor))
-	}
-	newName := fmt.Sprintf("pow(%s, %f)", input.Values[0].Name(), factor)
-	results = append(results, ts.NewSeries(ctx, newName, input.Values[0].StartTime(), vals))
 	r := ts.SeriesList(input)
-	r.Values = results
+	for _, series := range input.Values {
+		numSteps := series.Len()
+		millisPerStep := input.Values[0].MillisPerStep()
+		vals := ts.NewValues(ctx, millisPerStep, numSteps)
+		for i := 0; i < numSteps; i++ {
+			vals.SetValueAt(i, math.Pow(input.Values[0].ValueAt(i), factor))
+		}
+		newName := fmt.Sprintf("pow(%s, %f)", input.Values[0].Name(), factor)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), vals))
+		r := ts.SeriesList(input)
+		r.Values = results
+		return r, nil
+	}
 	return r, nil
 }
 
