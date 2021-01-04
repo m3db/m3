@@ -94,7 +94,7 @@ func (r *wideResults) EnforceLimits() bool {
 	return false
 }
 
-func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (r *wideResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	var size, totalDocsCount int
 	r.RLock()
 	size, totalDocsCount = r.size, r.totalDocsCount
@@ -124,7 +124,7 @@ func (r *wideResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	return size, totalDocsCount, err
 }
 
-func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
+func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Metadata) error {
 	for i := range batch {
 		if err := r.addDocumentWithLock(batch[i]); err != nil {
 			return err
@@ -134,7 +134,7 @@ func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *wideResults) addDocumentWithLock(d doc.Document) error {
+func (r *wideResults) addDocumentWithLock(d doc.Metadata) error {
 	if len(d.ID) == 0 {
 		return errUnableToAddResultMissingID
 	}

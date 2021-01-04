@@ -36,11 +36,11 @@ func TestIterator(t *testing.T) {
 
 	docWithIds := []struct {
 		id  postings.ID
-		doc doc.Document
+		doc doc.Metadata
 	}{
 		{
 			id: 42,
-			doc: doc.Document{
+			doc: doc.Metadata{
 				Fields: []doc.Field{
 					doc.Field{
 						Name:  []byte("apple"),
@@ -51,7 +51,7 @@ func TestIterator(t *testing.T) {
 		},
 		{
 			id: 53,
-			doc: doc.Document{
+			doc: doc.Metadata{
 				Fields: []doc.Field{
 					doc.Field{
 						Name:  []byte("banana"),
@@ -62,7 +62,7 @@ func TestIterator(t *testing.T) {
 		},
 		{
 			id: 81,
-			doc: doc.Document{
+			doc: doc.Metadata{
 				Fields: []doc.Field{
 					doc.Field{
 						Name:  []byte("carrot"),

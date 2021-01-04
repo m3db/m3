@@ -104,7 +104,7 @@ func (r *aggregatedResults) Reset(
 	r.Unlock()
 }
 
-func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (r *aggregatedResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
@@ -162,7 +162,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 }
 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
-	batch []doc.Document,
+	batch []doc.Metadata,
 ) error {
 	for _, doc := range batch {
 		switch r.aggregateOpts.Type {
@@ -193,7 +193,7 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 }
 
 func (r *aggregatedResults) addDocumentTermsWithLock(
-	document doc.Document,
+	document doc.Metadata,
 ) error {
 	for _, field := range document.Fields {
 		if err := r.addTermWithLock(field.Name); err != nil {
@@ -233,7 +233,7 @@ func (r *aggregatedResults) addTermWithLock(
 }
 
 func (r *aggregatedResults) addDocumentWithLock(
-	document doc.Document,
+	document doc.Metadata,
 ) error {
 	for _, field := range document.Fields {
 		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {

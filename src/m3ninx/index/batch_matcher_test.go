@@ -42,8 +42,8 @@ func TestBatchMatcherAllowPartialReflexive(t *testing.T) {
 
 func TestBatchMatcherLengthReflexive(t *testing.T) {
 	a := index.Batch{
-		Docs: []doc.Document{
-			doc.Document{},
+		Docs: []doc.Metadata{
+			{},
 		},
 	}
 	b := index.Batch{}
@@ -52,136 +52,136 @@ func TestBatchMatcherLengthReflexive(t *testing.T) {
 }
 
 func TestBatchMatcherSameDoc(t *testing.T) {
-	testDoc := doc.Document{
+	testDoc := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
 	a := index.Batch{
-		Docs: []doc.Document{testDoc, testDoc},
+		Docs: []doc.Metadata{testDoc, testDoc},
 	}
 	b := index.Batch{
-		Docs: []doc.Document{testDoc, testDoc},
+		Docs: []doc.Metadata{testDoc, testDoc},
 	}
 	require.True(t, index.NewBatchMatcher(a).Matches(b))
 	require.True(t, index.NewBatchMatcher(b).Matches(a))
 }
 
 func TestBatchMatcherOrderMatters(t *testing.T) {
-	testDocA := doc.Document{
+	testDocA := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
-	testDocB := doc.Document{
+	testDocB := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("bar"),
 				Value: []byte("foo"),
 			},
 		},
 	}
 	a := index.Batch{
-		Docs: []doc.Document{testDocA, testDocB},
+		Docs: []doc.Metadata{testDocA, testDocB},
 	}
 	b := index.Batch{
-		Docs: []doc.Document{testDocB, testDocA},
+		Docs: []doc.Metadata{testDocB, testDocA},
 	}
 	require.False(t, index.NewBatchMatcher(a).Matches(b))
 	require.False(t, index.NewBatchMatcher(b).Matches(a))
 }
 
 func TestBatchMatcherSameDocs(t *testing.T) {
-	testDocA := doc.Document{
+	testDocA := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
-	testDocB := doc.Document{
+	testDocB := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("bar"),
 				Value: []byte("foo"),
 			},
 		},
 	}
 	a := index.Batch{
-		Docs: []doc.Document{testDocA, testDocB},
+		Docs: []doc.Metadata{testDocA, testDocB},
 	}
 	b := index.Batch{
-		Docs: []doc.Document{testDocA, testDocB},
+		Docs: []doc.Metadata{testDocA, testDocB},
 	}
 	require.True(t, index.NewBatchMatcher(a).Matches(b))
 	require.True(t, index.NewBatchMatcher(b).Matches(a))
 }
 
 func TestBatchMatcherDocFieldsDiffer(t *testing.T) {
-	testDocA := doc.Document{
+	testDocA := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
-	testDocB := doc.Document{
+	testDocB := doc.Metadata{
 		ID: []byte("abc"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar1"),
 			},
 		},
 	}
 	a := index.Batch{
-		Docs: []doc.Document{testDocA},
+		Docs: []doc.Metadata{testDocA},
 	}
 	b := index.Batch{
-		Docs: []doc.Document{testDocB},
+		Docs: []doc.Metadata{testDocB},
 	}
 	require.False(t, index.NewBatchMatcher(a).Matches(b))
 	require.False(t, index.NewBatchMatcher(b).Matches(a))
 }
 
 func TestBatchMatcherDocIDsDiffer(t *testing.T) {
-	testDocA := doc.Document{
+	testDocA := doc.Metadata{
 		ID: []byte("abc1"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
-	testDocB := doc.Document{
+	testDocB := doc.Metadata{
 		ID: []byte("abc2"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("foo"),
 				Value: []byte("bar"),
 			},
 		},
 	}
 	a := index.Batch{
-		Docs: []doc.Document{testDocA},
+		Docs: []doc.Metadata{testDocA},
 	}
 	b := index.Batch{
-		Docs: []doc.Document{testDocB},
+		Docs: []doc.Metadata{testDocB},
 	}
 	require.False(t, index.NewBatchMatcher(a).Matches(b))
 	require.False(t, index.NewBatchMatcher(b).Matches(a))

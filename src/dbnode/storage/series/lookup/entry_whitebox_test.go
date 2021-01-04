@@ -69,7 +69,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart.ToTime()).Return(blockStart)
 
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
-	mockSeries.EXPECT().Metadata().Return(doc.Document{})
+	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})
 	mockSeries.EXPECT().Write(
 		context.NewContext(),
 		blockStart.ToTime(),
@@ -94,7 +94,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 				OnIndexSeries: e,
 				EnqueuedAt:    now,
 			},
-			Document: doc.Document{},
+			Document: doc.Metadata{},
 		},
 	}).Return(nil)
 
