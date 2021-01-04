@@ -937,6 +937,12 @@ type Options interface {
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
 
+	// SetMetadataArrayPool sets the document container array pool.
+	SetMetadataArrayPool(value doc.MetadataArrayPool) Options
+
+	// MetadataArrayPool returns the document container array pool.
+	MetadataArrayPool() doc.MetadataArrayPool
+
 	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
 	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options
 
