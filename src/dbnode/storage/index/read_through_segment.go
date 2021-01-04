@@ -262,13 +262,23 @@ func (s *readThroughSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	return s.reader.AllDocs()
 }
 
+// Metadata is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) Metadata(id postings.ID) (doc.Metadata, error) {
+	return s.reader.Metadata(id)
+}
+
+// MetadataIterator is a pass through call, since there's no postings list to cache.
+func (s *readThroughSegmentReader) MetadataIterator(pl postings.List) (doc.MetadataIterator, error) {
+	return s.reader.MetadataIterator(pl)
+}
+
 // Doc is a pass through call, since there's no postings list to cache.
-func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Metadata, error) {
+func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	return s.reader.Doc(id)
 }
 
 // Docs is a pass through call, since there's no postings list to cache.
-func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.MetadataIterator, error) {
+func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	return s.reader.Docs(pl)
 }
 

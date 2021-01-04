@@ -147,7 +147,7 @@ func TestReaderDocs(t *testing.T) {
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
-	iter, err := reader.Docs(postingsList)
+	iter, err := reader.MetadataIterator(postingsList)
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Metadata, 0, len(docs))

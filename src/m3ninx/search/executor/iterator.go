@@ -122,7 +122,7 @@ func (it *iterator) nextIter() (doc.MetadataIterator, bool, error) {
 		return nil, false, err
 	}
 
-	iter, err := reader.Docs(pl)
+	iter, err := reader.MetadataIterator(pl)
 	if err != nil {
 		return nil, false, err
 	}

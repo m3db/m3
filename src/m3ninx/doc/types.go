@@ -39,3 +39,23 @@ type MetadataIterator interface {
 	// Close releases any internal resources used by the iterator.
 	Close() error
 }
+
+// Iterator provides an iterator over a collection of documents. It is NOT
+// safe for multiple goroutines to invoke methods on an Iterator simultaneously.
+type Iterator interface {
+	// Next returns a bool indicating if the iterator has any more documents
+	// to return.
+	Next() bool
+
+	// Current returns the current document. It is only safe to call Current immediately
+	// after a call to Next confirms there are more elements remaining. The Document
+	// returned from Current is only valid until the following call to Next(). Callers
+	// should copy the Document if they need it live longer.
+	Current() Document
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any internal resources used by the iterator.
+	Close() error
+}
