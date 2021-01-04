@@ -144,10 +144,10 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 		storeSetup: func(t *testing.T, store kv.TxnStore) {
 			_, err := store.Set(testNamespacesKey, &rulepb.Namespaces{
 				Namespaces: []*rulepb.Namespace{
-					&rulepb.Namespace{
+					{
 						Name: ns,
 						Snapshots: []*rulepb.NamespaceSnapshot{
-							&rulepb.NamespaceSnapshot{
+							{
 								ForRulesetVersion: 1,
 								Tombstoned:        false,
 							},
@@ -160,15 +160,15 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 			_, err = store.Set("/ruleset/fooNs", &rulepb.RuleSet{
 				Namespace: ns,
 				MappingRules: []*rulepb.MappingRule{
-					&rulepb.MappingRule{
+					{
 						Snapshots: []*rulepb.MappingRuleSnapshot{
-							&rulepb.MappingRuleSnapshot{
+							{
 								Filter: "fooTag:fooValue",
 								AggregationTypes: []aggregationpb.AggregationType{
 									aggregationpb.AggregationType_LAST,
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
-									&policypb.StoragePolicy{
+									{
 										Resolution: policypb.Resolution{
 											WindowSize: int64(time.Minute),
 											Precision:  int64(time.Minute),
@@ -242,10 +242,10 @@ func testMatcher(t *testing.T, opts testMatcherOptions) Matcher {
 				SetMatchRangePast(0)
 		proto = &rulepb.Namespaces{
 			Namespaces: []*rulepb.Namespace{
-				&rulepb.Namespace{
+				{
 					Name: "fooNs",
 					Snapshots: []*rulepb.NamespaceSnapshot{
-						&rulepb.NamespaceSnapshot{
+						{
 							ForRulesetVersion: 1,
 							Tombstoned:        true,
 						},

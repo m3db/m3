@@ -37,7 +37,6 @@ type Matcher interface {
 }
 
 type matcher struct {
-	opts              Options
 	namespaceResolver namespaceResolver
 	namespaces        Namespaces
 	cache             cache.Cache
@@ -94,7 +93,6 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	}
 
 	return &matcher{
-		opts:              opts,
 		namespaceResolver: nsResolver,
 		namespaces:        namespaces,
 		cache:             cache,
@@ -115,7 +113,6 @@ func (m *matcher) Close() error {
 }
 
 type noCacheMatcher struct {
-	opts              Options
 	namespaces        Namespaces
 	namespaceResolver namespaceResolver
 }
