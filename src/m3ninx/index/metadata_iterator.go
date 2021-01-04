@@ -27,9 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	errIteratorClosed = errors.New("iterator has been closed")
-)
+var errIteratorClosed = errors.New("iterator has been closed")
 
 type idDocIterator struct {
 	retriever    DocRetriever

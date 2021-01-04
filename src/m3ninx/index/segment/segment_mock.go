@@ -257,10 +257,10 @@ func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockReader) Docs(pl postings.List) (doc.Iterator, error) {
+func (m *MockReader) Docs(pl postings.List) (doc.MetadataIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs", pl)
-	ret0, _ := ret[0].(doc.Iterator)
+	ret0, _ := ret[0].(doc.MetadataIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

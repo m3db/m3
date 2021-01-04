@@ -138,7 +138,7 @@ func (r *reader) Doc(id postings.ID) (doc.Metadata, error) {
 	return r.segment.getDoc(id)
 }
 
-func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
+func (r *reader) Docs(pl postings.List) (doc.MetadataIterator, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {

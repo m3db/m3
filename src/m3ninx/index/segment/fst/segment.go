@@ -602,7 +602,7 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Met
 func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
 	retriever index.DocRetriever,
 	pl postings.List,
-) (doc.Iterator, error) {
+) (doc.MetadataIterator, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
@@ -908,7 +908,7 @@ func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Metadata, error) {
 	return pl, err
 }
 
-func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
+func (sr *fsSegmentReader) Docs(pl postings.List) (doc.MetadataIterator, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}

@@ -40,7 +40,7 @@ var (
 	fstOptions = fst.NewOptions()
 )
 
-func collectDocs(iter doc.Iterator) ([]doc.Metadata, error) {
+func collectDocs(iter doc.MetadataIterator) ([]doc.Metadata, error) {
 	var docs []doc.Metadata
 	for iter.Next() {
 		docs = append(docs, iter.Current())

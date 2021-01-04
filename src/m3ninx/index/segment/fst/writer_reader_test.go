@@ -589,7 +589,7 @@ func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {
 	require.Equal(t, a, b)
 }
 
-func assertDocsEqual(t *testing.T, a, b doc.Iterator) {
+func assertDocsEqual(t *testing.T, a, b doc.MetadataIterator) {
 	aDocs, err := collectDocs(a)
 	require.NoError(t, err)
 	bDocs, err := collectDocs(b)
@@ -647,7 +647,7 @@ func assertPostingsList(t *testing.T, l postings.List, exp []postings.ID) {
 	require.Fail(t, msg)
 }
 
-func collectDocs(iter doc.Iterator) ([]doc.Metadata, error) {
+func collectDocs(iter doc.MetadataIterator) ([]doc.Metadata, error) {
 	var docs []doc.Metadata
 	for iter.Next() {
 		docs = append(docs, iter.Current())

@@ -268,7 +268,7 @@ func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Metadata, error) {
 }
 
 // Docs is a pass through call, since there's no postings list to cache.
-func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
+func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.MetadataIterator, error) {
 	return s.reader.Docs(pl)
 }
 

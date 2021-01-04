@@ -78,7 +78,7 @@ type Readable interface {
 
 	// Docs returns an iterator over the documents whose IDs are in the provided
 	// postings list.
-	Docs(pl postings.List) (doc.Iterator, error)
+	Docs(pl postings.List) (doc.MetadataIterator, error)
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (IDDocIterator, error)
@@ -103,7 +103,7 @@ type DocRetriever interface {
 // IDDocIterator is an extented documents Iterator which can also return the postings
 // ID of the current document.
 type IDDocIterator interface {
-	doc.Iterator
+	doc.MetadataIterator
 
 	// PostingsID returns the current document postings ID.
 	PostingsID() postings.ID

@@ -452,8 +452,8 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	b.shardRangesSegmentsByVolumeType = map[idxpersist.IndexVolumeType][]blockShardRangesSegments{
-		idxpersist.DefaultIndexVolumeType: []blockShardRangesSegments{
-			blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}},
+		idxpersist.DefaultIndexVolumeType: {
+			{segments: []segment.Segment{seg2, seg3}},
 		},
 	}
 
@@ -518,7 +518,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -559,7 +559,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -610,7 +610,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(false),
@@ -649,7 +649,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -699,7 +699,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -751,7 +751,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -801,7 +801,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -860,7 +860,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	_, _, err = results.AddDocuments([]doc.Metadata{testDoc1()})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -911,7 +911,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	_, _, err = results.AddDocuments([]doc.Metadata{testDoc1()})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockMetadataIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -1900,8 +1900,8 @@ func TestBlockAggregate(t *testing.T) {
 	require.True(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"f1": []string{"t1", "t2", "t3"},
-		"f2": []string{"t1"},
+		"f1": {"t1", "t2", "t3"},
+		"f2": {"t1"},
 	}, results)
 
 	sp.Finish()
@@ -1976,7 +1976,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"f1": []string{"t1"},
+		"f1": {"t1"},
 	}, results)
 
 	sp.Finish()
@@ -2067,8 +2067,8 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"bar":  []string{"baz", "qux"},
-		"some": []string{"more", "other"},
+		"bar":  {"baz", "qux"},
+		"some": {"more", "other"},
 	}, results)
 
 	results = NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
@@ -2085,7 +2085,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"bar": []string{"baz", "qux"},
+		"bar": {"baz", "qux"},
 	}, results)
 
 	results = NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
@@ -2162,7 +2162,7 @@ func testDoc1() doc.Metadata {
 	return doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("bar"),
 				Value: []byte("baz"),
 			},
@@ -2174,11 +2174,11 @@ func testDoc1DupeID() doc.Metadata {
 	return doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("why"),
 				Value: []byte("not"),
 			},
-			doc.Field{
+			{
 				Name:  []byte("some"),
 				Value: []byte("more"),
 			},
@@ -2190,11 +2190,11 @@ func testDoc2() doc.Metadata {
 	return doc.Metadata{
 		ID: []byte("something"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("bar"),
 				Value: []byte("baz"),
 			},
-			doc.Field{
+			{
 				Name:  []byte("some"),
 				Value: []byte("more"),
 			},
@@ -2206,11 +2206,11 @@ func testDoc3() doc.Metadata {
 	return doc.Metadata{
 		ID: []byte("bar"),
 		Fields: []doc.Field{
-			doc.Field{
+			{
 				Name:  []byte("bar"),
 				Value: []byte("qux"),
 			},
-			doc.Field{
+			{
 				Name:  []byte("some"),
 				Value: []byte("other"),
 			},
