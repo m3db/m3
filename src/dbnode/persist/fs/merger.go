@@ -240,7 +240,7 @@ func (m *merger) Merge(
 	ctx.Reset()
 	err = mergeWith.ForEachRemaining(
 		ctx, blockStart,
-		func(seriesMetadata doc.Document, mergeWithData block.FetchBlockResult) error {
+		func(seriesMetadata doc.Metadata, mergeWithData block.FetchBlockResult) error {
 			segmentReaders = segmentReaders[:0]
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData.Blocks)
 

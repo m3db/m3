@@ -224,7 +224,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++
@@ -244,7 +244,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry index.WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result index.WriteBatchEntryResult,
 	) {
 		verified++

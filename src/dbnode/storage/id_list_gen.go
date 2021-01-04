@@ -99,7 +99,7 @@ type idElement struct {
 	list *idList
 
 	// The value stored with this element.
-	Value doc.Document
+	Value doc.Metadata
 }
 
 // Next returns the next list element or nil.
@@ -198,7 +198,7 @@ func (l *idList) insert(e, at *idElement) *idElement {
 }
 
 // insertValue is a convenience wrapper for inserting using the list's pool.
-func (l *idList) insertValue(v doc.Document, at *idElement) *idElement {
+func (l *idList) insertValue(v doc.Metadata, at *idElement) *idElement {
 	e := l.Pool.get()
 	e.Value = v
 	return l.insert(e, at)
@@ -218,7 +218,7 @@ func (l *idList) remove(e *idElement) *idElement {
 // Remove removes e from l if e is an element of list l.
 // It returns the element value e.Value.
 // The element must not be nil.
-func (l *idList) Remove(e *idElement) doc.Document {
+func (l *idList) Remove(e *idElement) doc.Metadata {
 	if e.list == l {
 		// if e.list == l, l must have been initialized when e was inserted
 		// in l or l == nil (e is a zero Element) and l.remove will crash.
@@ -229,13 +229,13 @@ func (l *idList) Remove(e *idElement) doc.Document {
 }
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.
-func (l *idList) PushFront(v doc.Document) *idElement {
+func (l *idList) PushFront(v doc.Metadata) *idElement {
 	l.lazyInit()
 	return l.insertValue(v, &l.root)
 }
 
 // PushBack inserts a new element e with value v at the back of list l and returns e.
-func (l *idList) PushBack(v doc.Document) *idElement {
+func (l *idList) PushBack(v doc.Metadata) *idElement {
 	l.lazyInit()
 	return l.insertValue(v, l.root.prev)
 }
@@ -243,7 +243,7 @@ func (l *idList) PushBack(v doc.Document) *idElement {
 // InsertBefore inserts a new element e with value v immediately before mark and returns e.
 // If mark is not an element of l, the list is not modified.
 // The mark must not be nil.
-func (l *idList) InsertBefore(v doc.Document, mark *idElement) *idElement {
+func (l *idList) InsertBefore(v doc.Metadata, mark *idElement) *idElement {
 	if mark.list != l {
 		return nil
 	}
@@ -254,7 +254,7 @@ func (l *idList) InsertBefore(v doc.Document, mark *idElement) *idElement {
 // InsertAfter inserts a new element e with value v immediately after mark and returns e.
 // If mark is not an element of l, the list is not modified.
 // The mark must not be nil.
-func (l *idList) InsertAfter(v doc.Document, mark *idElement) *idElement {
+func (l *idList) InsertAfter(v doc.Metadata, mark *idElement) *idElement {
 	if mark.list != l {
 		return nil
 	}
