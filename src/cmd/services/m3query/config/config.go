@@ -445,13 +445,28 @@ type CarbonConfiguration struct {
 	// RenderSeriesAllNaNs will render series that have only NaNs for entire
 	// output instead of returning an empty array of datapoints.
 	RenderSeriesAllNaNs bool `yaml:"renderSeriesAllNaNs"`
+	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
+	// in a quoted string rather than just reserving for escaping quotes.
+	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	ListenAddress  string                             `yaml:"listenAddress"`
+	MaxConcurrency int                                `yaml:"maxConcurrency"`
+	Rewrite        CarbonIngesterRewriteConfiguration `yaml:"rewrite"`
+	Rules          []CarbonIngesterRuleConfiguration  `yaml:"rules"`
+}
+
+// CarbonIngesterRewriteConfiguration is the configuration for rewriting
+// metrics at ingestion.
+type CarbonIngesterRewriteConfiguration struct {
+	// Cleanup will perform:
+	// - Trailing/leading dot elimination.
+	// - Double dot elimination.
+	// - Irregular char replacement with underscores (_), currently irregular
+	//   is defined as not being in [0-9a-zA-Z-_:#].
+	Cleanup bool `yaml:"cleanup"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -523,6 +538,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 // ingestion rule.
 type CarbonIngesterRuleConfiguration struct {
 	Pattern     string                                     `yaml:"pattern"`
+	Contains    string                                     `yaml:"contains"`
 	Continue    bool                                       `yaml:"continue"`
 	Aggregation CarbonIngesterAggregationConfiguration     `yaml:"aggregation"`
 	Policies    []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
