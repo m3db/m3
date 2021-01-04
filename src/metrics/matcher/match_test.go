@@ -27,11 +27,20 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -73,7 +82,9 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 		tagValueFn: func(tagName []byte) ([]byte, bool) { return nil, false },
 	}
 	now := time.Now()
-	matcher := testMatcher(t, newMemCache())
+	matcher := testMatcher(t, testMatcherOptions{
+		cache: newMemCache(),
+	})
 	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
 }
 
@@ -89,31 +100,146 @@ func TestMatcherMatchExists(t *testing.T) {
 		memRes = memResults{results: map[string]rules.MatchResult{"foo": res}}
 	)
 	cache := newMemCache()
-	matcher := testMatcher(t, cache)
+	matcher := testMatcher(t, testMatcherOptions{
+		cache: cache,
+	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
 	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
 }
 
+func TestMatcherMatchExistsNoCache(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns     = "fooNs"
+		metric = &testMetricID{
+			id: []byte("foo"),
+			tagValueFn: func(tagName []byte) ([]byte, bool) {
+				if string(tagName) == "fooTag" {
+					return []byte("fooValue"), true
+				}
+				return []byte(ns), true
+			},
+		}
+		now = time.Now()
+	)
+	matcher := testMatcher(t, testMatcherOptions{
+		tagFilterOptions: filters.TagsFilterOptions{
+			NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
+				name = metric.id
+				return
+			},
+			SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+				iter := id.NewMockSortedTagIterator(ctrl)
+				iter.EXPECT().Next().Return(true)
+				iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
+				iter.EXPECT().Next().Return(false)
+				iter.EXPECT().Err().Return(nil)
+				iter.EXPECT().Close()
+				return iter
+			},
+		},
+		storeSetup: func(t *testing.T, store kv.TxnStore) {
+			_, err := store.Set(testNamespacesKey, &rulepb.Namespaces{
+				Namespaces: []*rulepb.Namespace{
+					&rulepb.Namespace{
+						Name: ns,
+						Snapshots: []*rulepb.NamespaceSnapshot{
+							&rulepb.NamespaceSnapshot{
+								ForRulesetVersion: 1,
+								Tombstoned:        false,
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = store.Set("/ruleset/fooNs", &rulepb.RuleSet{
+				Namespace: ns,
+				MappingRules: []*rulepb.MappingRule{
+					&rulepb.MappingRule{
+						Snapshots: []*rulepb.MappingRuleSnapshot{
+							&rulepb.MappingRuleSnapshot{
+								Filter: "fooTag:fooValue",
+								AggregationTypes: []aggregationpb.AggregationType{
+									aggregationpb.AggregationType_LAST,
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: policypb.Retention{
+											Period: 24 * int64(time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+		},
+	})
+
+	forExistingID := metadata.StagedMetadatas{
+		metadata.StagedMetadata{
+			Metadata: metadata.Metadata{
+				Pipelines: metadata.PipelineMetadatas{
+					metadata.PipelineMetadata{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("1m:1d"),
+						},
+						Tags: []models.Tag{},
+					},
+				},
+			},
+		},
+	}
+	forNewRollupIDs := []rules.IDWithMetadatas{}
+	keepOriginal := false
+	expected := rules.NewMatchResult(1, math.MaxInt64,
+		forExistingID, forNewRollupIDs, keepOriginal)
+
+	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
+
+	require.Equal(t, expected, result)
+}
+
 func TestMatcherClose(t *testing.T) {
-	matcher := testMatcher(t, newMemCache())
+	matcher := testMatcher(t, testMatcherOptions{
+		cache: newMemCache(),
+	})
 	require.NoError(t, matcher.Close())
 }
 
-func testMatcher(t *testing.T, cache cache.Cache) Matcher {
+type testMatcherOptions struct {
+	cache            cache.Cache
+	storeSetup       func(*testing.T, kv.TxnStore)
+	tagFilterOptions filters.TagsFilterOptions
+}
+
+func testMatcher(t *testing.T, opts testMatcherOptions) Matcher {
 	var (
-		store = mem.NewStore()
-		opts  = NewOptions().
-			SetClockOptions(clock.NewOptions()).
-			SetInstrumentOptions(instrument.NewOptions()).
-			SetInitWatchTimeout(100 * time.Millisecond).
-			SetKVStore(store).
-			SetNamespacesKey(testNamespacesKey).
-			SetNamespaceTag([]byte("namespace")).
-			SetDefaultNamespace([]byte("default")).
-			SetRuleSetKeyFn(defaultRuleSetKeyFn).
-			SetRuleSetOptions(rules.NewOptions()).
-			SetMatchRangePast(0)
+		store       = mem.NewStore()
+		matcherOpts = NewOptions().
+				SetClockOptions(clock.NewOptions()).
+				SetInstrumentOptions(instrument.NewOptions()).
+				SetInitWatchTimeout(100 * time.Millisecond).
+				SetKVStore(store).
+				SetNamespacesKey(testNamespacesKey).
+				SetNamespaceTag([]byte("namespace")).
+				SetDefaultNamespace([]byte("default")).
+				SetRuleSetKeyFn(defaultRuleSetKeyFn).
+				SetRuleSetOptions(rules.NewOptions().
+					SetTagsFilterOptions(opts.tagFilterOptions)).
+				SetMatchRangePast(0)
 		proto = &rulepb.Namespaces{
 			Namespaces: []*rulepb.Namespace{
 				&rulepb.Namespace{
@@ -128,10 +254,15 @@ func testMatcher(t *testing.T, cache cache.Cache) Matcher {
 			},
 		}
 	)
+
 	_, err := store.SetIfNotExists(testNamespacesKey, proto)
 	require.NoError(t, err)
 
-	m, err := NewMatcher(cache, opts)
+	if fn := opts.storeSetup; fn != nil {
+		fn(t, store)
+	}
+
+	m, err := NewMatcher(opts.cache, matcherOpts)
 	require.NoError(t, err)
 	return m
 }

@@ -37,53 +37,98 @@ type Matcher interface {
 }
 
 type matcher struct {
-	opts             Options
-	namespaceTag     []byte
-	defaultNamespace []byte
-
-	namespaces Namespaces
-	cache      cache.Cache
+	opts              Options
+	namespaceResolver namespaceResolver
+	namespaces        Namespaces
+	cache             cache.Cache
 }
 
-// NewMatcher creates a new rule matcher.
+type namespaceResolver struct {
+	namespaceTag     []byte
+	defaultNamespace []byte
+}
+
+func (r namespaceResolver) Resolve(id id.ID) []byte {
+	ns, found := id.TagValue(r.namespaceTag)
+	if !found {
+		ns = r.defaultNamespace
+	}
+	return ns
+}
+
+// NewMatcher creates a new rule matcher, optionally with a cache.
 func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
+	nsResolver := namespaceResolver{
+		namespaceTag:     opts.NamespaceTag(),
+		defaultNamespace: opts.DefaultNamespace(),
+	}
+
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
-	namespacesOpts := opts.SetInstrumentOptions(iOpts).
-		SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Register(namespace, ruleSet)
-		}).
-		SetOnNamespaceRemovedFn(func(namespace []byte) {
-			cache.Unregister(namespace)
-		}).
-		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Refresh(namespace, ruleSet)
-		})
-	key := opts.NamespacesKey()
-	namespaces := NewNamespaces(key, namespacesOpts)
+	namespacesOpts := opts.SetInstrumentOptions(iOpts)
+
+	if cache != nil {
+		namespacesOpts = namespacesOpts.
+			SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Register(namespace, ruleSet)
+			}).
+			SetOnNamespaceRemovedFn(func(namespace []byte) {
+				cache.Unregister(namespace)
+			}).
+			SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Refresh(namespace, ruleSet)
+			})
+	}
+
+	namespaces := NewNamespaces(opts.NamespacesKey(), namespacesOpts)
 	if err := namespaces.Open(); err != nil {
 		return nil, err
 	}
 
+	if cache == nil {
+		return &noCacheMatcher{
+			namespaceResolver: nsResolver,
+			namespaces:        namespaces,
+		}, nil
+	}
+
 	return &matcher{
-		opts:             opts,
-		namespaceTag:     opts.NamespaceTag(),
-		defaultNamespace: opts.DefaultNamespace(),
-		namespaces:       namespaces,
-		cache:            cache,
+		opts:              opts,
+		namespaceResolver: nsResolver,
+		namespaces:        namespaces,
+		cache:             cache,
 	}, nil
 }
 
-func (m *matcher) ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
-	ns, found := id.TagValue(m.namespaceTag)
-	if !found {
-		ns = m.defaultNamespace
-	}
-	return m.cache.ForwardMatch(ns, id.Bytes(), fromNanos, toNanos)
+func (m *matcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+) rules.MatchResult {
+	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id),
+		id.Bytes(), fromNanos, toNanos)
 }
 
 func (m *matcher) Close() error {
 	m.namespaces.Close()
 	return m.cache.Close()
+}
+
+type noCacheMatcher struct {
+	opts              Options
+	namespaces        Namespaces
+	namespaceResolver namespaceResolver
+}
+
+func (m *noCacheMatcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+) rules.MatchResult {
+	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id),
+		id.Bytes(), fromNanos, toNanos)
+}
+
+func (m *noCacheMatcher) Close() error {
+	m.namespaces.Close()
+	return nil
 }
