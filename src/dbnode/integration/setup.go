@@ -467,6 +467,9 @@ func NewTestSetup(
 	for _, fn := range storageOptFns {
 		if fn != nil {
 			storageOpts = fn(storageOpts)
+			if storageOpts != nil && storageOpts.AdminClient() == nil {
+				storageOpts = storageOpts.SetAdminClient(adminClient)
+			}
 		}
 	}
 

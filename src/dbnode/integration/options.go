@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/topology"
 
@@ -295,7 +296,7 @@ type TestOptions interface {
 	ReportInterval() time.Duration
 
 	// SetStorageOptsFn sets the StorageOpts modifier
-	SetStorageOptsFn(StorageOption)
+	SetStorageOptsFn(StorageOption) TestOptions
 
 	// StorageOptsFn returns the StorageOpts modifier
 	StorageOptsFn() StorageOption
@@ -684,8 +685,10 @@ func (o *options) ReportInterval() time.Duration {
 	return o.reportInterval
 }
 
-func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) {
-	o.storageOptsFn = storageOptsFn
+func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) TestOptions {
+	opts := *o
+	opts.storageOptsFn = storageOptsFn
+	return &opts
 }
 
 func (o *options) StorageOptsFn() StorageOption {
