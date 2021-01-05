@@ -164,7 +164,7 @@ type BaseResults interface {
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
-	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
+	AddDocuments(batch []doc.Metadata) (size, docsCount int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
@@ -512,7 +512,7 @@ type WriteBatch struct {
 	sortBy writeBatchSortBy
 
 	entries []WriteBatchEntry
-	docs    []doc.Document
+	docs    []doc.Metadata
 }
 
 type writeBatchSortBy uint
@@ -533,14 +533,14 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 	return &WriteBatch{
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
-		docs:    make([]doc.Document, 0, opts.InitialCapacity),
+		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
 	}
 }
 
 // Append appends an entry with accompanying document.
 func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 ) {
 	// Append just using the result from the current entry
 	b.appendWithResult(entry, doc, &entry.resultVal)
@@ -562,7 +562,7 @@ func (b *WriteBatch) AppendAll(from *WriteBatch) {
 
 func (b *WriteBatch) appendWithResult(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result *WriteBatchEntryResult,
 ) {
 	// Set private WriteBatchEntry fields
@@ -579,7 +579,7 @@ func (b *WriteBatch) appendWithResult(
 type ForEachWriteBatchEntryFn func(
 	idx int,
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result WriteBatchEntryResult,
 )
 
@@ -677,7 +677,7 @@ func (b *WriteBatch) numPending() int {
 }
 
 // PendingDocs returns all the docs in this batch that are unmarked.
-func (b *WriteBatch) PendingDocs() []doc.Document {
+func (b *WriteBatch) PendingDocs() []doc.Metadata {
 	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
 	return b.docs[:b.numPending()]
 }
@@ -707,7 +707,7 @@ func (b *WriteBatch) Reset() {
 		b.entries[i] = entryZeroed
 	}
 	b.entries = b.entries[:0]
-	var docZeroed doc.Document
+	var docZeroed doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = docZeroed
 	}

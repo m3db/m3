@@ -1180,10 +1180,10 @@ func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call
 }
 
 // DocRef mocks base method
-func (m *MockNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1401,10 +1401,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gom
 }
 
 // DocRef mocks base method
-func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2343,10 +2343,10 @@ func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags interface{}
 }
 
 // DocRef mocks base method
-func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

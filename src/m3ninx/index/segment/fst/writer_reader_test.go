@@ -40,39 +40,39 @@ import (
 var (
 	testOptions = NewOptions()
 
-	fewTestDocuments = []doc.Document{
-		doc.Document{
+	fewTestDocuments = []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("42"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("pineapple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
@@ -83,7 +83,7 @@ var (
 
 	testDocuments = []struct {
 		name string
-		docs []doc.Document
+		docs []doc.Metadata
 	}{
 		{
 			name: "few documents",
@@ -101,7 +101,7 @@ type testSegmentCase struct {
 	expected, observed sgmt.Segment
 }
 
-func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
+func newTestCases(t *testing.T, docs []doc.Metadata) []testSegmentCase {
 	memSeg, fstSeg := newTestSegments(t, docs)
 
 	fstWriter10Reader10 := newFSTSegmentWithVersion(t, memSeg, testOptions,
@@ -117,22 +117,22 @@ func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
 		Version{Major: 1, Minor: 1} /* reader version */)
 
 	return []testSegmentCase{
-		testSegmentCase{ // mem sgmt v latest fst
+		{ // mem sgmt v latest fst
 			name:     "mem v fst",
 			expected: memSeg,
 			observed: fstSeg,
 		},
-		testSegmentCase{ // mem sgmt v fst1.0
+		{ // mem sgmt v fst1.0
 			name:     "mem v fstWriter10Reader10",
 			expected: memSeg,
 			observed: fstWriter10Reader10,
 		},
-		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.0) -- i.e. ensure forward compatibility
+		{ // mem sgmt v fst (WriterV1.1; ReaderV1.0) -- i.e. ensure forward compatibility
 			name:     "mem v fstWriter11Reader10",
 			expected: memSeg,
 			observed: fstWriter11Reader10,
 		},
-		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.1)
+		{ // mem sgmt v fst (WriterV1.1; ReaderV1.1)
 			name:     "mem v fstWriter11Reader11",
 			expected: memSeg,
 			observed: fstWriter11Reader11,
@@ -568,7 +568,7 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.Error(t, err)
 }
 
-func newTestSegments(t *testing.T, docs []doc.Document) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
+func newTestSegments(t *testing.T, docs []doc.Metadata) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
 	s := newTestMemSegment(t)
 	for _, d := range docs {
 		_, err := s.Insert(d)
@@ -647,8 +647,8 @@ func assertPostingsList(t *testing.T, l postings.List, exp []postings.ID) {
 	require.Fail(t, msg)
 }
 
-func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
-	var docs []doc.Document
+func collectDocs(iter doc.Iterator) ([]doc.Metadata, error) {
+	var docs []doc.Metadata
 	for iter.Next() {
 		docs = append(docs, iter.Current())
 	}

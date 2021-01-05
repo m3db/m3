@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,20 +48,20 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// DocumentArrayPool provides a pool for document slices.
+// DocumentArrayPool provides a pool for metadata slices.
 type DocumentArrayPool interface {
 	// Init initializes the array pool, it needs to be called
 	// before Get/Put use.
 	Init()
 
 	// Get returns the a slice from the pool.
-	Get() []Document
+	Get() []Metadata
 
 	// Put returns the provided slice to the pool.
-	Put(elems []Document)
+	Put(elems []Metadata)
 }
 
-type DocumentFinalizeFn func([]Document) []Document
+type DocumentFinalizeFn func([]Metadata) []Metadata
 
 type DocumentArrayPoolOpts struct {
 	Options     pool.ObjectPoolOptions
@@ -85,15 +85,15 @@ func NewDocumentArrayPool(opts DocumentArrayPoolOpts) DocumentArrayPool {
 
 func (p *DocumentArrPool) Init() {
 	p.pool.Init(func() interface{} {
-		return make([]Document, 0, p.opts.Capacity)
+		return make([]Metadata, 0, p.opts.Capacity)
 	})
 }
 
-func (p *DocumentArrPool) Get() []Document {
-	return p.pool.Get().([]Document)
+func (p *DocumentArrPool) Get() []Metadata {
+	return p.pool.Get().([]Metadata)
 }
 
-func (p *DocumentArrPool) Put(arr []Document) {
+func (p *DocumentArrPool) Put(arr []Metadata) {
 	arr = p.opts.FinalizeFn(arr)
 	if max := p.opts.MaxCapacity; max > 0 && cap(arr) > max {
 		return
@@ -101,8 +101,8 @@ func (p *DocumentArrPool) Put(arr []Document) {
 	p.pool.Put(arr)
 }
 
-func defaultDocumentFinalizerFn(elems []Document) []Document {
-	var empty Document
+func defaultDocumentFinalizerFn(elems []Metadata) []Metadata {
+	var empty Metadata
 	for i := range elems {
 		elems[i] = empty
 	}
@@ -110,16 +110,16 @@ func defaultDocumentFinalizerFn(elems []Document) []Document {
 	return elems
 }
 
-type DocumentArr []Document
+type DocumentArr []Metadata
 
-func (elems DocumentArr) grow(n int) []Document {
+func (elems DocumentArr) grow(n int) []Metadata {
 	if cap(elems) < n {
-		elems = make([]Document, n)
+		elems = make([]Metadata, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl
 	// https://github.com/golang/go/wiki/CompilerOptimizations#optimized-memclr
-	var empty Document
+	var empty Metadata
 	for i := range elems {
 		elems[i] = empty
 	}

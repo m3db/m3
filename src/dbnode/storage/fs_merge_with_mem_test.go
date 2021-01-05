@@ -172,7 +172,7 @@ func TestForEachRemaining(t *testing.T) {
 
 	mergeWith := newFSMergeWithMem(shard, retriever, dirtySeries, dirtySeriesToWrite)
 
-	var forEachCalls []doc.Document
+	var forEachCalls []doc.Metadata
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id0"),
 			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
@@ -181,10 +181,11 @@ func TestForEachRemaining(t *testing.T) {
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id1"),
 			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	mergeWith.ForEachRemaining(ctx, 0, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
+	err := mergeWith.ForEachRemaining(ctx, 0, func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesMetadata)
 		return nil
 	}, nsCtx)
+	require.NoError(t, err)
 	require.Len(t, forEachCalls, 2)
 	assert.Equal(t, id0.Bytes(), forEachCalls[0].ID)
 	assert.Equal(t, id1.Bytes(), forEachCalls[1].ID)
@@ -209,7 +210,7 @@ func TestForEachRemaining(t *testing.T) {
 		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id4"),
 			xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
+	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesMetadata)
 		return nil
 	}, nsCtx)
@@ -224,7 +225,7 @@ func TestForEachRemaining(t *testing.T) {
 		Return(result, nil)
 
 	// Test call with bad function execution.
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Metadata, result block.FetchBlockResult) error {
 		return errors.New("bad")
 	}, nsCtx)
 	assert.Error(t, err)
@@ -241,7 +242,7 @@ func addDirtySeries(
 		seriesList = newIDList(nil)
 		dirtySeriesToWrite[start] = seriesList
 	}
-	element := seriesList.PushBack(doc.Document{ID: id.Bytes()})
+	element := seriesList.PushBack(doc.Metadata{ID: id.Bytes()})
 
 	dirtySeries.Set(idAndBlockStart{blockStart: start, id: id.Bytes()}, element)
 }
