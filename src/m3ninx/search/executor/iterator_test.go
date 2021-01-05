@@ -44,35 +44,14 @@ func TestIterator(t *testing.T) {
 	require.NoError(t, secondPL.Insert(67))
 
 	// Set up Readers.
-	docs := []doc.Metadata{
-		{
-			Fields: []doc.Field{
-				{
-					Name:  []byte("apple"),
-					Value: []byte("red"),
-				},
-			},
-		},
-		{
-			Fields: []doc.Field{
-				{
-					Name:  []byte("banana"),
-					Value: []byte("yellow"),
-				},
-			},
-		},
-		{
-			Fields: []doc.Field{
-				{
-					Name:  []byte("carrot"),
-					Value: []byte("orange"),
-				},
-			},
-		},
+	docs := []doc.Document{
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes1")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes2")}),
+		doc.NewDocumentFromEncoded(doc.Encoded{Bytes: []byte("encodedbytes3")}),
 	}
 
-	firstDocIter := doc.NewMockMetadataIterator(mockCtrl)
-	secondDocIter := doc.NewMockMetadataIterator(mockCtrl)
+	firstDocIter := doc.NewMockIterator(mockCtrl)
+	secondDocIter := doc.NewMockIterator(mockCtrl)
 	gomock.InOrder(
 		firstDocIter.EXPECT().Next().Return(true),
 		firstDocIter.EXPECT().Current().Return(docs[0]),
@@ -92,8 +71,8 @@ func TestIterator(t *testing.T) {
 	firstReader := index.NewMockReader(mockCtrl)
 	secondReader := index.NewMockReader(mockCtrl)
 	gomock.InOrder(
-		firstReader.EXPECT().MetadataIterator(firstPL).Return(firstDocIter, nil),
-		secondReader.EXPECT().MetadataIterator(secondPL).Return(secondDocIter, nil),
+		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
 	)
 
 	searcher := search.NewMockSearcher(mockCtrl)
