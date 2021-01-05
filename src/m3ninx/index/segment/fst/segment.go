@@ -579,11 +579,11 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.Mutable
 	return pl, nil
 }
 
-func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
+func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Metadata, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
-		return doc.Document{}, errReaderFinalized
+		return doc.Metadata{}, errReaderFinalized
 	}
 
 	// If using docs slice reader, return from the in memory slice reader
@@ -593,7 +593,7 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Doc
 
 	offset, err := r.docsIndexReader.Read(id)
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 
 	return r.docsDataReader.Read(offset)
@@ -896,9 +896,9 @@ func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	return pl, err
 }
 
-func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
+func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Metadata, error) {
 	if sr.closed {
-		return doc.Document{}, errReaderClosed
+		return doc.Metadata{}, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.

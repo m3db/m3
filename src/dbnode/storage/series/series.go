@@ -63,11 +63,11 @@ type dbSeries struct {
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
 	// Note: The bytes that back "id ident.ID" are the same bytes
-	// that are behind the ID in "metadata doc.Document", the whole
+	// that are behind the ID in "metadata doc.Metadata", the whole
 	// reason we keep an ident.ID on the series is since there's a lot
 	// of existing callsites that require the ID as an ident.ID.
 	id          ident.ID
-	metadata    doc.Document
+	metadata    doc.Metadata
 	uniqueIndex uint64
 
 	bootstrap dbSeriesBootstrap
@@ -124,7 +124,7 @@ func (s *dbSeries) ID() ident.ID {
 	return id
 }
 
-func (s *dbSeries) Metadata() doc.Document {
+func (s *dbSeries) Metadata() doc.Metadata {
 	s.RLock()
 	metadata := s.metadata
 	s.RUnlock()
@@ -689,7 +689,7 @@ func (s *dbSeries) Close() {
 
 	// See Reset() for why these aren't finalized.
 	s.id = nil
-	s.metadata = doc.Document{}
+	s.metadata = doc.Metadata{}
 	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {

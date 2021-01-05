@@ -42,7 +42,7 @@ import (
 // NB(prateek): this test simulates the issues described in issue: https://github.com/m3db/m3/issues/865
 
 var (
-	doc1 = doc.Document{
+	doc1 = doc.Metadata{
 		ID: []byte("__name__=node_cpu_seconds_total,cpu=1,instance=m3db-node01:9100,job=node-exporter,mode=system,"),
 		Fields: []doc.Field{
 			doc.Field{[]byte("cpu"), []byte("1")},
@@ -52,7 +52,7 @@ var (
 			doc.Field{[]byte("mode"), []byte("system")},
 		},
 	}
-	doc2 = doc.Document{
+	doc2 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=m3db-node01:9100,job=node-exporter,"),
 		Fields: []doc.Field{
 			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
@@ -60,7 +60,7 @@ var (
 			doc.Field{[]byte("job"), []byte("node-exporter")},
 		},
 	}
-	doc3 = doc.Document{
+	doc3 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=alertmanager03:9100,job=node-exporter,"),
 		Fields: []doc.Field{
 			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
@@ -68,7 +68,7 @@ var (
 			doc.Field{[]byte("job"), []byte("node-exporter")},
 		},
 	}
-	doc4 = doc.Document{
+	doc4 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=prometheus01:9100,job=node-exporter,"),
 		Fields: []doc.Field{
 			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
@@ -76,7 +76,7 @@ var (
 			doc.Field{[]byte("job"), []byte("node-exporter")},
 		},
 	}
-	simpleTestDocs = []doc.Document{doc1, doc2, doc3, doc4}
+	simpleTestDocs = []doc.Metadata{doc1, doc2, doc3, doc4}
 )
 
 func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {

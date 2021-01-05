@@ -53,7 +53,7 @@ t=$(date +%s)
 echo "foo.min.aggregate.baz 41 $t" | nc 0.0.0.0 7204
 echo "foo.min.aggregate.baz 42 $t" | nc 0.0.0.0 7204
 echo "Attempting to read min aggregated carbon metric"
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.aggregate.baz 41
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'foo.min.aggregate.baz' 41"
 
 echo "Writing out a carbon metric that should not be aggregated"
 t=$(date +%s)
@@ -64,7 +64,7 @@ t=$(date +%s)
 echo "foo.min.already-aggregated.baz 42 $t" | nc 0.0.0.0 7204
 echo "foo.min.already-aggregated.baz 43 $t" | nc 0.0.0.0 7204
 echo "Attempting to read unaggregated carbon metric"
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.already-aggregated.baz 43
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'foo.min.already-aggregated.baz' 43"
 
 echo "Writing out a carbon metric that should should use the default mean aggregation"
 t=$(date +%s)
@@ -72,19 +72,35 @@ t=$(date +%s)
 echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
 echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'foo.min.catch-all.baz' 15"
 
 # Test writing and reading IDs with colons in them.
 t=$(date +%s)
 echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'foo.bar:*.*' 42"
 
 # Test writing and reading IDs with a single element.
 t=$(date +%s)
 echo "quail 42 $t" | nc 0.0.0.0 7204
-ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'quail' 42
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'quail' 42"
+
+# Test using "**" in queries
+t=$(date +%s)
+echo "qux.pos1-a.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-a.pos2-1 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-b.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-b.pos2-1 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-c.pos2-0 1 $t" | nc 0.0.0.0 7204
+echo "qux.pos1-c.pos2-1 1 $t" | nc 0.0.0.0 7204
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(qux**)' 6"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(qux.pos1-a**)' 2"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos1-a**)' 2"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1**)' 3"
+ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'sum(**pos2-1)' 3"
 
 t=$(date +%s)
+
+# Test basic cases
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz 0 $t"         | nc 0.0.0.0 7204
@@ -92,13 +108,32 @@ echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
 echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
 echo "a.bag 0 $t"         | nc 0.0.0.0 7204
 echo "c:bar.c:baz 0 $t"   | nc 0.0.0.0 7204
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.c* a.b.c.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.caw.* a.b.c.d.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon x none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.d none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon *.*.*.*.* none.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:* cbar.json
-ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:bar.* cbaz.json
+
+# Test rewrite multiple dots
+echo "d..bar.baz 0 $t"    | nc 0.0.0.0 7204
+echo "e.bar...baz 0 $t"   | nc 0.0.0.0 7204
+
+# Test rewrite leading or trailing dots
+echo "..f.bar.baz 0 $t"   | nc 0.0.0.0 7204
+echo "g.bar.baz.. 0 $t"   | nc 0.0.0.0 7204
+
+# Test rewrite bad chars
+echo "h.bar@@baz 0 $t"    | nc 0.0.0.0 7204
+echo "i.bar!!baz 0 $t"    | nc 0.0.0.0 7204
+
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff "find_carbon 'a*' a.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*' ab.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.ba[rg]' aba.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*.c*' abc.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.b*.caw.*' abcd.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'x' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'a.d' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon '*.*.*.*.*' none.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'c:*' cbar.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'c:bar.*' cbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'd.bar.*' dbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'e.bar.*' ebaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'f.bar.*' fbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'g.bar.*' gbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'h.bar*' hbarbaz.json"
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff "find_carbon 'i.bar*' ibarbaz.json"

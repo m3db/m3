@@ -52,16 +52,16 @@ func init() {
 	bytesPool.Init()
 }
 
-func buildDocs(documentCount int, batchSize int) [][]doc.Document {
+func buildDocs(documentCount int, batchSize int) [][]doc.Metadata {
 	docBatches := int(math.Ceil(float64(documentCount) / float64(batchSize)))
-	docs := make([][]doc.Document, 0, docBatches)
+	docs := make([][]doc.Metadata, 0, docBatches)
 	for i := 0; i < docBatches; i++ {
-		batch := make([]doc.Document, 0, batchSize)
+		batch := make([]doc.Metadata, 0, batchSize)
 		for j := 0; j < batchSize; j++ {
 			val := i*batchSize + j
 			if val < documentCount {
 				val := fmt.Sprintf("foo%d", i*batchSize+j)
-				batch = append(batch, doc.Document{
+				batch = append(batch, doc.Metadata{
 					ID: []byte(val),
 				})
 			}
@@ -73,7 +73,7 @@ func buildDocs(documentCount int, batchSize int) [][]doc.Document {
 	return docs
 }
 
-func buildExpected(t *testing.T, docs [][]doc.Document) [][]string {
+func buildExpected(_ *testing.T, docs [][]doc.Metadata) [][]string {
 	expected := make([][]string, 0, len(docs))
 	for _, batch := range docs {
 		idBatch := make([]string, 0, len(batch))

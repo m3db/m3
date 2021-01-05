@@ -341,3 +341,17 @@ func (mr *MockOnFlushSeriesMockRecorder) OnFlushNewSeries(arg0 interface{}) *gom
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnFlushSeries)(nil).OnFlushNewSeries), arg0)
 }
+
+// CheckpointAndMaybeCompact mocks base method
+func (m *MockOnFlushSeries) CheckpointAndMaybeCompact() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckpointAndMaybeCompact")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckpointAndMaybeCompact indicates an expected call of CheckpointAndMaybeCompact
+func (mr *MockOnFlushSeriesMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnFlushSeries)(nil).CheckpointAndMaybeCompact))
+}

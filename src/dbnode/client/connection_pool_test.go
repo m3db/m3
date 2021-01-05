@@ -30,10 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
-	xresource "github.com/m3db/m3/src/x/resource"
-	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go"
 )
 
 const (
@@ -42,9 +42,18 @@ const (
 )
 
 var (
-	h           = topology.NewHost(testHostStr, testHostAddr)
-	channelNone = &nullChannel{}
+	h = topology.NewHost(testHostStr, testHostAddr)
 )
+
+type noopPooledChannel struct{}
+
+func (c *noopPooledChannel) Close() {}
+func (c *noopPooledChannel) GetSubChannel(
+	serviceName string,
+	opts ...tchannel.SubChannelOption,
+) *tchannel.SubChannel {
+	return nil
+}
 
 func newConnectionPoolTestOptions() Options {
 	return newSessionTestOptions().
@@ -85,12 +94,12 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xresource.SimpleCloser, rpc.TChanNode, error) {
+	) (PooledChannel, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
-		return channelNone, nil, nil
+		return &noopPooledChannel{}, nil, nil
 	}
 
 	opts = opts.SetNewConnectionFn(fn)
@@ -151,7 +160,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	conns.Close()
 	doneWg.Done()
 
-	nextClient, err := conns.NextClient()
+	nextClient, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
@@ -237,12 +246,12 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xresource.SimpleCloser, rpc.TChanNode, error) {
+	) (PooledChannel, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
-			return channelNone, client1, nil
+			return &noopPooledChannel{}, client1, nil
 		} else if attempt == 2 {
-			return channelNone, client2, nil
+			return &noopPooledChannel{}, client2, nil
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
@@ -307,7 +316,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return conns.ConnectionCount() == 1
 	}, 5*time.Second)
 	for i := 0; i < 2; i++ {
-		nextClient, err := conns.NextClient()
+		nextClient, _, err := conns.NextClient()
 		require.NoError(t, err)
 		require.Equal(t, client2, nextClient)
 	}
@@ -324,17 +333,13 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		// and the connection actually being removed.
 		return conns.ConnectionCount() == 0
 	}, 5*time.Second)
-	nextClient, err := conns.NextClient()
+	nextClient, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolHasNoConnections, err)
 
 	conns.Close()
 
-	nextClient, err = conns.NextClient()
+	nextClient, _, err = conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
-
-type nullChannel struct{}
-
-func (*nullChannel) Close() {}

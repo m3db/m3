@@ -40,7 +40,7 @@ const (
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
 
-	// documentArrayPool size in general: 256*256*sizeof(doc.Document)
+	// documentArrayPool size in general: 256*256*sizeof(doc.Metadata)
 	// = 256 * 256 * 16
 	// = 1mb (but with Go's heap probably 2mb)
 	// TODO(r): Make this configurable in a followup change.
