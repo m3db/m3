@@ -362,7 +362,7 @@ func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 }
 
 func (o *opts) SetMetadataArrayPool(value doc.MetadataArrayPool) Options {
-	opts := *o
+	opts := *o // nolint:govet
 	opts.metadataArrayPool = value
 	return &opts
 }

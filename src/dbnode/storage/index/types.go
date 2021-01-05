@@ -164,7 +164,7 @@ type BaseResults interface {
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
-	AddDocuments(batch []doc.Metadata) (size, docsCount int, err error)
+	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
