@@ -1,0 +1,221 @@
+# Include this field if you want to enable an embedded M3Coordinator instance.
+coordinator:
+  # Address for M3Coordinator to listen for traffic.
+  listenAddress: <url>
+
+  # All configured M3DB namespaces must be listed in this config if running an
+  # embedded M3Coordinator instance.
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+  # Configuration for logging.
+  logging:
+    # Log file location
+    file: <string>
+    # Error logging level
+    level: <string>
+    # TODO: ??
+    fields:
+
+  # Metrics configuration
+  # TODO: Which is what?
+  metrics:
+    # Scope of metrics root
+    # TODO: Again, which is?  
+    scope:
+      # Prefix prepended to metrics collected
+      prefix: <string>
+    # Configuration for a Prometheus reporter (if used)
+    prometheus:
+      # Metrics collection endpoint for application
+      # Default = "/metrics"
+      handlerPath: <string>
+      # Listen address for metrics
+      # Default = "0.0.0.0:7203"
+      listenAddress: <url>      
+      # Metric sanitization type, valid options: [none, m3, prometheus]
+      # Default = "none"
+      sanitization: <string>
+    # Sampling rate for metrics. min=0.0, max=1.0
+    # TODO: What does this mean exactly?
+    samplingRate: <float>
+    # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
+    # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
+    extended: <string>
+  # Additional configuration for metrics tags
+  # Read https://m3db.io/docs/how_to/query/#id-generation for more details
+  tagOptions:
+    # TODO: To do…
+    idScheme: <id_scheme>
+
+db:
+  # Minimum log level which will be emitted.
+  logging:
+    level: info
+
+  # Metrics configuration
+  # TODO: Which is what?
+  metrics:
+    # Scope of metrics root
+    # TODO: Again, which is?
+    scope:
+      # Prefix prepended to metrics collected
+      prefix: <string>
+      # Reporting frequendy of metrics collected
+      reportingInterval: <duration>
+      # Tags shared by metrics collected
+      tags: <map of strings>
+    # Configuration for a Prometheus reporter (if used)
+    prometheus:
+      # Metrics collection endpoint for application
+      # Default = "/metrics"
+      handlerPath: <string>
+      # Listen address for metrics
+      # Default = "0.0.0.0:7203"
+      listenAddress: <url>
+      # Metric sanitization type, valid options: [none, m3, prometheus]
+      # Default = "none"
+      sanitization: <string>
+    # Sampling rate for metrics. min=0.0, max=1.0
+    # TODO: What does this mean exactly?
+    samplingRate: <float>
+    # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
+    # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
+    extended: <string>
+
+  # Host and port to listen for the node service
+  listenAddress: <url>
+  # Host and port to listen for the cluster service
+  clusterListenAddress: <url>
+  # Host and port to listen for the node json/http APIs (Primarily used for debugging)
+  httpNodeListenAddress: <url>
+  # Host and port to listen for the cluster json/http APIs (Primarily used for debugging)
+  httpClusterListenAddress: <url>
+  # Address to listen on for debug APIs (pprof, etc).
+  debugListenAddress: <url>
+
+  # Configuration for resolving the instances host ID.
+  hostID:
+    # "Config" resolver states that the host ID will be resolved from this file.
+    resolver: config
+    value: m3db_local
+
+  client:
+    # The consistency level for writing to a cluster, valid options: [none, one, majority, all]
+    writeConsistencyLevel: <string>
+    # The consistency level for reading from a cluster, valid options: [none, one, unstrict_majority, majority, unstrict_all, all]
+    readConsistencyLevel: <string>
+    # The timeout for writing data
+    # TODO: Defaults?
+    writeTimeout: <duration>
+    # The fetch timeout for any given query
+    # Range =  30s to 5m
+    fetchTimeout: <duration>
+    # The cluster connect timeout    
+    connectTimeout: <duration>
+    # Configuration for retrying write operations
+    writeRetry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Add randomness to wait intervals
+      jitter: <bool>
+    # Configuration for retrying fetch operations
+    # TODO: Query?
+    fetchRetry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Add randomness to wait intervals
+      jitter: <bool>
+    # The amount of times a background check fails before a connection is taken out of consideration
+    backgroundHealthCheckFailLimit: <int>
+    # The factor of the host connect time when sleeping between a failed health check and the next check
+    backgroundHealthCheckFailThrottleFactor: <float>
+
+  # Initial garbage collection target percentage
+  # Range = 0 to 100
+  gcPercentage: <int>
+
+  # Write new series asynchronously for fast ingestion of new ID bursts
+  writeNewSeriesAsync: <bool>
+  # Write new series backoff between batches of new series insertions
+  writeNewSeriesBackoffDuration: <duration>
+
+  # Config for bootstrappers
+  # TODO: Which is?
+  bootstrap:
+    commitlog:
+      # Return unfulfilled when encountering corrupt ommit log files.
+      returnUnfulfilledForCorruptCommitLogFiles: <bool>
+
+  cache:
+    # Caching policy for database blocks.
+    series:
+      policy: lru
+
+  commitlog:
+    # Maximum number of bytes that will be buffered before flushing the commitlog.
+    flushMaxBytes: 524288
+    # Maximum amount of time data can remain buffered before flushing the commitlog.
+    flushEvery: 1s
+    # Configuration for the commitlog queue. High throughput setups may require higher
+    # values. Higher values will use more memory.
+    queue:
+      calculationType: fixed
+      size: 2097152
+
+  filesystem:
+    # Directory to store M3DB data in.
+    filePathPrefix: /var/lib/m3db
+    # Various fixed-sized buffers used for M3DB I/O.
+    writeBufferSize: 65536
+    dataReadBufferSize: 65536
+    infoReadBufferSize: 128
+    seekReadBufferSize: 4096
+    # Maximum Mib/s that can be written to disk by background operations like flushing
+    # and snapshotting to prevent them from interfering with the commitlog. Increasing
+    # this value can make node adds significantly faster if the underlyign disk can
+    # support the throughput.
+    throughputLimitMbps: 1000.0
+    throughputCheckEvery: 128
+
+  # This feature is currently not working, do not enable.
+  repair:
+    enabled: false
+    throttle: 2m
+    checkInterval: 1m
+
+  # etcd configuration.
+  discovery:
+    config:
+        service:
+            # KV environment, zone, and service from which to write/read KV data (placement
+            # and configuration). Leave these as the default values unless you know what
+            # you're doing.
+            env: default_env
+            zone: embedded
+            service: m3db
+            # Directory to store cached etcd data in.
+            cacheDir: /var/lib/m3kv
+            # Configuration to identify the etcd hosts this node should connect to.
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 127.0.0.1:2379
+        # Should only be present if running an M3DB cluster with embedded etcd.
+        seedNodes:
+            initialCluster:
+                - hostID: m3db_local
+                  endpoint: http://127.0.0.1:2380

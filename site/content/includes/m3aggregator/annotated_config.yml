@@ -1,0 +1,262 @@
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: m3aggregator
+  prometheus:
+    onError: none
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:6002
+    timerType: histogram
+  sanitization: prometheus
+  samplingRate: 1.0
+  # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
+  # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
+  extended: <string>
+  
+http:
+  listenAddress: 0.0.0.0:6001
+  readTimeout: 60s
+  writeTimeout: 60s
+
+rawtcp:
+  listenAddress: 0.0.0.0:6000
+  keepAliveEnabled: true
+  keepAlivePeriod: 1m
+  retry:
+    initialBackoff: 5ms
+    backoffFactor: 2.0
+    maxBackoff: 1s
+    forever: true
+    jitter: true
+  readBufferSize: 65536
+  protobufIterator:
+    initBufferSize: 1440
+    maxMessageSize: 50000000  # max message size is 50MB
+    bytesPool:
+      buckets:
+        - count: 1024
+          capacity: 2048
+        - count: 512
+          capacity: 4096
+        - count: 256
+          capacity: 8192
+        - count: 128
+          capacity: 16384
+        - count: 64
+          capacity: 32768
+        - count: 32
+          capacity: 65536
+      watermark:
+        low: 0.001
+        high: 0.002
+
+kvClient:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3aggregator
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+      - zone: embedded
+        endpoints:
+          - m3db_seed:2379
+
+runtimeOptions:
+  kvConfig:
+    environment: default_env
+    zone: embedded
+  writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
+  writeValuesPerMetricLimitPerSecond: 0
+  writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
+  writeNewMetricLimitClusterPerSecond: 0
+  writeNewMetricNoLimitWarmupDuration: 0
+
+aggregator:
+  hostID:
+    resolver: environment
+    envVarName: M3AGGREGATOR_HOST_ID
+  instanceID:
+    type: host_id
+  metricPrefix: ""
+  counterPrefix: ""
+  timerPrefix: ""
+  gaugePrefix: ""
+  aggregationTypes:
+    counterTransformFnType: empty
+    timerTransformFnType: suffix
+    gaugeTransformFnType: empty
+    aggregationTypesPool:
+      size: 1024
+    quantilesPool:
+      buckets:
+        - count: 256
+          capacity: 4
+        - count: 128
+          capacity: 8
+  stream:
+    eps: 0.001
+    capacity: 32
+    streamPool:
+      size: 4096
+    samplePool:
+      size: 4096
+    floatsPool:
+      buckets:
+        - count: 4096
+          capacity: 16
+        - count: 2048
+          capacity: 32
+        - count: 1024
+          capacity: 64
+  client:
+    placementKV:
+      namespace: /placement
+      zone: embedded
+      environment: default_env
+    placementWatcher:
+      key: m3aggregator
+      initWatchTimeout: 15s
+    hashType: murmur32
+    shardCutoffLingerDuration: 1m
+    encoder:
+      initBufferSize: 100
+      maxMessageSize: 50000000
+      bytesPool:
+        buckets:
+          - capacity: 16
+            count: 10
+          - capacity: 32
+            count: 20
+        watermark:
+          low: 0.001
+          high: 0.01
+    flushSize: 1440
+    maxTimerBatchSize: 140
+    queueSize: 1000
+    queueDropType: oldest
+    connection:
+      connectionTimeout: 1s
+      connectionKeepAlive: true
+      writeTimeout: 1s
+      initReconnectThreshold: 2
+      maxReconnectThreshold: 5000
+      reconnectThresholdMultiplier: 2
+      maxReconnectDuration: 1m
+  placementManager:
+    kvConfig:
+      namespace: /placement
+      environment: default_env
+      zone: embedded
+    placementWatcher:
+      key: m3aggregator
+      initWatchTimeout: 10s
+  hashType: murmur32
+  bufferDurationBeforeShardCutover: 10m
+  bufferDurationAfterShardCutoff: 10m
+  resignTimeout: 1m
+  flushTimesManager:
+    kvConfig:
+      environment: default_env
+      zone: embedded
+    flushTimesKeyFmt: shardset/%d/flush
+    flushTimesPersistRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      maxRetries: 3
+  electionManager:
+    election:
+      leaderTimeout: 10s
+      resignTimeout: 10s
+      ttlSeconds: 10
+    serviceID:
+      name: m3aggregator
+      environment: default_env
+      zone: embedded
+    electionKeyFmt: shardset/%d/lock
+    campaignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      forever: true
+      jitter: true
+    changeRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    resignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    campaignStateCheckInterval: 1s
+    shardCutoffCheckOffset: 30s
+  flushManager:
+    checkEvery: 1s
+    jitterEnabled: true
+    maxJitters:
+      - flushInterval: 5s
+        maxJitterPercent: 1.0
+      - flushInterval: 10s
+        maxJitterPercent: 0.5
+      - flushInterval: 1m
+        maxJitterPercent: 0.5
+      - flushInterval: 10m
+        maxJitterPercent: 0.5
+      - flushInterval: 1h
+        maxJitterPercent: 0.25
+    numWorkersPerCPU: 0.5
+    flushTimesPersistEvery: 10s
+    maxBufferSize: 5m
+    forcedFlushWindowSize: 10s
+  flush:
+    handlers:
+      - dynamicBackend:
+          name: m3msg
+          hashType: murmur32
+          producer:
+            buffer:
+              maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.
+            writer:
+              topicName: aggregated_metrics
+              topicServiceOverride:
+                zone: embedded
+                environment: default_env
+              messageRetry:
+                initialBackoff: 1m
+                maxBackoff: 2m
+              messageQueueNewWritesScanInterval: 1s
+              ackErrorRetry:
+                initialBackoff: 2s
+                maxBackoff: 10s
+              connection:
+                dialTimeout: 5s
+                writeTimeout: 5s
+                retry:
+                  initialBackoff: 1s
+                  maxBackoff: 10s
+                flushInterval: 1s
+                writeBufferSize: 16384
+                readBufferSize: 256
+  forwarding:
+    maxSingleDelay: 5s
+  entryTTL: 1h
+  entryCheckInterval: 10m
+  maxTimerBatchSizePerWrite: 140
+  defaultStoragePolicies:
+    - 10s:2d
+  maxNumCachedSourceSets: 2
+  discardNaNAggregatedValues: true
+  entryPool:
+    size: 4096
+  counterElemPool:
+    size: 4096
+  timerElemPool:
+    size: 4096
+  gaugeElemPool:
+    size: 4096
