@@ -87,7 +87,7 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
-	docMatcher, err := newDocumentIteratorMatcher(t, doc2)
+	docMatcher, err := newDocumentIteratorMatcher(t, doc.NewDocumentFromMetadata(doc2))
 	require.NoError(t, err)
 	properties.Property("Any distribution of simple documents does not affect query results", prop.ForAll(
 		func(i propTestInput) (bool, error) {

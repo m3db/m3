@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -584,7 +585,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	d, ok := results.Map().Get(testDoc1().ID)
 	require.True(t, ok)
 
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -676,7 +677,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	d, ok := results.Map().Get(testDoc1().ID)
 	require.True(t, ok)
 
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -729,7 +730,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	require.Equal(t, 1, rMap.Len())
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -780,7 +781,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 	require.Equal(t, 1, results.Map().Len())
 	d, ok := results.Map().Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -833,7 +834,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 	require.Equal(t, 1, rMap.Len())
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -890,7 +891,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.Equal(t, 1, rMap.Len())
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
@@ -948,14 +949,14 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.Equal(t, 2, rMap.Len())
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
 
 	d, ok = rMap.Get(testDoc2().ID)
 	require.True(t, ok)
-	t2 := documentToTagIter(t, d)
+	t2 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		t2))
@@ -1419,14 +1420,14 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	rMap := results.Map()
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
 
 	d, ok = rMap.Get(testDoc2().ID)
 	require.True(t, ok)
-	t2 := documentToTagIter(t, d)
+	t2 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		t2))
@@ -1499,7 +1500,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	d, ok := rMap.Get(testDoc1().ID)
 	if ok {
 		numFound++
-		t1 := documentToTagIter(t, d)
+		t1 := test.DocumentToTagIter(t, d)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 			t1))
@@ -1508,7 +1509,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	d, ok = rMap.Get(testDoc2().ID)
 	if ok {
 		numFound++
-		t2 := documentToTagIter(t, d)
+		t2 := test.DocumentToTagIter(t, d)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 			t2))
@@ -1588,14 +1589,14 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	rMap := results.Map()
 	d, ok := rMap.Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
 
 	d, ok = rMap.Get(testDoc2().ID)
 	require.True(t, ok)
-	t2 := documentToTagIter(t, d)
+	t2 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		t2))
@@ -1669,14 +1670,14 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	rMap := results.Map()
 	d, ok := results.Map().Get(testDoc1().ID)
 	require.True(t, ok)
-	t1 := documentToTagIter(t, d)
+	t1 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
 		t1))
 
 	d, ok = rMap.Get(testDoc2().ID)
 	require.True(t, ok)
-	t2 := documentToTagIter(t, d)
+	t2 := test.DocumentToTagIter(t, d)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		t2))

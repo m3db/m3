@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
@@ -128,7 +129,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	d, ok := res.Map().Get(d1.ID)
 	require.True(t, ok)
 
-	tags := documentToTagIter(t, d)
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	d2 := doc.Metadata{
@@ -152,7 +153,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	d, ok = res.Map().Get([]byte("abc"))
 	require.True(t, ok)
 
-	tags = documentToTagIter(t, d)
+	tags = test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 }
 
@@ -169,7 +170,7 @@ func TestResultsInsertContains(t *testing.T) {
 	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
 
-	tags := documentToTagIter(t, d)
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 }
 
@@ -240,7 +241,7 @@ func TestResultsReset(t *testing.T) {
 	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
 
-	tags := documentToTagIter(t, d)
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	res.Reset(nil, QueryResultsOptions{})
@@ -279,7 +280,7 @@ func TestFinalize(t *testing.T) {
 	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
 
-	tags := documentToTagIter(t, d)
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	// Call Finalize() to reset the Results.
@@ -290,12 +291,4 @@ func TestFinalize(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 0, res.TotalDocsCount())
-}
-
-func documentToTagIter(t *testing.T, doc doc.Document) ident.TagIterator {
-	reader := docs.NewEncodedDocumentReader()
-	m, err := docs.GetFromDocument(doc, reader)
-	require.NoError(t, err)
-
-	return idxconvert.ToSeriesTags(m, idxconvert.Opts{NoClone: true})
 }
