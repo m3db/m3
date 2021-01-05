@@ -122,9 +122,9 @@ func (i *instrumentation) bootstrapFailed(err error) {
 	i.log.Error("bootstrap failed", append(i.logFields, zap.Error(err))...)
 }
 
-func (i *instrumentation) bootstrapNamespaceFailed(err error, namespaceId string) {
+func (i *instrumentation) bootstrapNamespaceFailed(err error, namespaceID string) {
 	i.log.Info("bootstrap namespace error", append(i.logFields, []zapcore.Field{
-		zap.String("namespace", namespaceId),
+		zap.String("namespace", namespaceID),
 		zap.Error(err),
 	}...)...)
 }

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -84,38 +85,52 @@ type instrumentation struct {
 	persistedIndexBlocksOutOfRetention tally.Counter
 	start                              time.Time
 	startShards                        time.Time
-	logFields                          []zapcore.Field
+}
+
+func newInstrumentation(opts Options) *instrumentation {
+	instrumentOptions := opts.ResultOptions().InstrumentOptions()
+	scope := instrumentOptions.MetricsScope().SubScope("peers-bootstrapper")
+	instrumentOptions = instrumentOptions.SetMetricsScope(scope)
+	return &instrumentation{
+		opts:                               opts,
+		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
+		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
+		bootstrapDataDuration:              scope.Timer("peer-bootstrap-data-duration"),
+		bootstrapIndexDuration:             scope.Timer("peer-bootstrap-index-duration"),
+		bootstrapShardsDuration:            scope.Timer("peer-bootstrap-shards-duration"),
+		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+	}
 }
 
 func (i *instrumentation) bootstrapDataStarted(span opentracing.Span) {
 	i.start = i.nowFn()
 	i.log.Info("bootstrapping time series data start")
-	span.LogEvent("bootstrap_data_start")
+	span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
 }
 
 func (i *instrumentation) bootstrapDataCompleted(span opentracing.Span) {
 	duration := i.nowFn().Sub(i.start)
 	i.bootstrapDataDuration.Record(duration)
 	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
-	span.LogEvent("bootstrap_data_done")
+	span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
 }
 
 func (i *instrumentation) bootstrapIndexStarted(span opentracing.Span) {
 	i.start = i.nowFn()
 	i.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
+	span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 }
 
 func (i *instrumentation) bootstrapIndexCompleted(span opentracing.Span) {
 	duration := i.nowFn().Sub(i.start)
 	i.bootstrapIndexDuration.Record(duration)
 	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
-	span.LogEvent("bootstrap_index_done")
+	span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
 }
 
-func (i *instrumentation) bootstrapIndexSkipped(namespaceId ident.ID) {
+func (i *instrumentation) bootstrapIndexSkipped(namespaceID ident.ID) {
 	i.log.Info("skipping bootstrap for namespace based on options",
-		zap.Stringer("namespace", namespaceId))
+		zap.Stringer("namespace", namespaceID))
 }
 
 func (i *instrumentation) getDefaultAdminSessionFailed(err error) {
@@ -243,21 +258,6 @@ func (i *instrumentation) buildFsIndexBootstrapFailed(err error,
 	})
 }
 
-func newInstrumentation(opts Options) *instrumentation {
-	instrumentOptions := opts.ResultOptions().InstrumentOptions()
-	scope := instrumentOptions.MetricsScope().SubScope("peers-bootstrapper")
-	instrumentOptions = instrumentOptions.SetMetricsScope(scope)
-	return &instrumentation{
-		opts:                               opts,
-		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
-		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
-		bootstrapDataDuration:              scope.Timer("peer-bootstrap-data-duration"),
-		bootstrapIndexDuration:             scope.Timer("peer-bootstrap-index-duration"),
-		bootstrapShardsDuration:            scope.Timer("peer-bootstrap-shards-duration"),
-		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
-	}
-}
-
 func newPeersSource(opts Options) (bootstrap.Source, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -314,7 +314,7 @@ func (s *peersSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
+	_, span, _ := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
 	defer span.Finish()
 
 	timeRangesEmpty := true
@@ -659,7 +659,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	}
 
 	shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-	for _, entry := range shardResult.AllSeries().Iter() {
+	for _, entry := range shardResult.AllSeries().Iter() { 	// nolint
 		series := entry.Value()
 		for blockStart := range series.Blocks.AllBlocks() {
 			shardBlockSeriesCounter[blockStart]++
