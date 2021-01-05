@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func genDoc(strs ...string) doc.Document {
+func genDoc(strs ...string) doc.Metadata {
 	if len(strs)%2 != 0 {
 		panic("invalid test setup; need even str length")
 	}
@@ -45,15 +45,15 @@ func genDoc(strs ...string) doc.Document {
 		}
 	}
 
-	return doc.Document{Fields: fields}
+	return doc.Metadata{Fields: fields}
 }
 
 func TestAggResultsInsertInvalid(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	assert.True(t, res.EnforceLimits())
 
-	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
+	dInvalid := doc.Metadata{Fields: []doc.Field{{}}}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 1, docsCount)
@@ -62,7 +62,7 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	require.Equal(t, 1, res.TotalDocsCount())
 
 	dInvalid = genDoc("", "foo")
-	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 2, docsCount)
@@ -74,7 +74,7 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 func TestAggResultsInsertEmptyTermValue(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	dValidEmptyTerm := genDoc("foo", "")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValidEmptyTerm})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValidEmptyTerm})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -87,7 +87,7 @@ func TestAggResultsInsertBatchOfTwo(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("d1", "")
 	d2 := genDoc("d2", "")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1, d2})
 	require.NoError(t, err)
 	require.Equal(t, 2, size)
 	require.Equal(t, 2, docsCount)
@@ -100,8 +100,8 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
 		Type: AggregateTagNames,
 	}, testOpts)
-	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
+	dInvalid := doc.Metadata{Fields: []doc.Field{{}}}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 1, docsCount)
@@ -110,7 +110,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	require.Equal(t, 1, res.TotalDocsCount())
 
 	dInvalid = genDoc("", "foo")
-	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 2, docsCount)
@@ -119,7 +119,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	require.Equal(t, 2, res.TotalDocsCount())
 
 	valid := genDoc("foo", "")
-	size, docsCount, err = res.AddDocuments([]doc.Document{valid})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{valid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 3, docsCount)
@@ -130,7 +130,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 
 func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
 	dValid := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -138,7 +138,7 @@ func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
 
-	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -164,7 +164,7 @@ func TestInvalidAggregateType(t *testing.T) {
 		Type: 100,
 	}, testOpts)
 	dValid := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 1, docsCount)
@@ -173,7 +173,7 @@ func TestInvalidAggregateType(t *testing.T) {
 func TestAggResultsSameName(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -185,7 +185,7 @@ func TestAggResultsSameName(t *testing.T) {
 	assert.True(t, aggVals.Map().Contains(ident.StringID("bar")))
 
 	d2 := genDoc("foo", "biz")
-	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -212,7 +212,7 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 		Type: AggregateTagNames,
 	}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -223,7 +223,7 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 	assertNoValuesInNameOnlyAggregate(t, aggVals)
 
 	d2 := genDoc("foo", "biz")
-	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -235,20 +235,20 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 }
 
 func addMultipleDocuments(t *testing.T, res AggregateResults) (int, int) {
-	_, _, err := res.AddDocuments([]doc.Document{
+	_, _, err := res.AddDocuments([]doc.Metadata{
 		genDoc("foo", "bar"),
 		genDoc("fizz", "bar"),
 		genDoc("buzz", "bar"),
 	})
 	require.NoError(t, err)
 
-	_, _, err = res.AddDocuments([]doc.Document{
+	_, _, err = res.AddDocuments([]doc.Metadata{
 		genDoc("foo", "biz"),
 		genDoc("fizz", "bar"),
 	})
 	require.NoError(t, err)
 
-	size, docsCount, err := res.AddDocuments([]doc.Document{
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{
 		genDoc("foo", "baz", "buzz", "bag", "qux", "qaz"),
 	})
 
@@ -378,7 +378,7 @@ func TestAggResultsInsertCopies(t *testing.T) {
 	dValid := genDoc("foo", "bar")
 	name := dValid.Fields[0].Name
 	value := dValid.Fields[0].Value
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -420,7 +420,7 @@ func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
 	}, testOpts)
 	dValid := genDoc("foo", "bar")
 	name := dValid.Fields[0].Name
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -450,7 +450,7 @@ func TestAggResultsReset(t *testing.T) {
 	res := NewAggregateResults(ident.StringID("qux"),
 		AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -500,7 +500,7 @@ func TestAggResultFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)

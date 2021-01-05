@@ -33,40 +33,40 @@ import (
 func TestStoredFieldsData(t *testing.T) {
 	tests := []struct {
 		name string
-		docs []doc.Document
+		docs []doc.Metadata
 	}{
 		{
 			name: "empty document",
-			docs: []doc.Document{
-				doc.Document{
+			docs: []doc.Metadata{
+				{
 					Fields: doc.Fields{},
 				},
 			},
 		},
 		{
 			name: "standard documents",
-			docs: []doc.Document{
-				doc.Document{
+			docs: []doc.Metadata{
+				{
 					ID: []byte("831992"),
 					Fields: []doc.Field{
-						doc.Field{
+						{
 							Name:  []byte("fruit"),
 							Value: []byte("apple"),
 						},
-						doc.Field{
+						{
 							Name:  []byte("color"),
 							Value: []byte("red"),
 						},
 					},
 				},
-				doc.Document{
+				{
 					ID: []byte("080392"),
 					Fields: []doc.Field{
-						doc.Field{
+						{
 							Name:  []byte("fruit"),
 							Value: []byte("banana"),
 						},
-						doc.Field{
+						{
 							Name:  []byte("color"),
 							Value: []byte("yellow"),
 						},

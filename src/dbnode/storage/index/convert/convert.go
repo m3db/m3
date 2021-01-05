@@ -48,7 +48,7 @@ var (
 )
 
 // Validate returns a bool indicating whether the document is valid.
-func Validate(d doc.Document) error {
+func Validate(d doc.Metadata) error {
 	if !utf8.Valid(d.ID) {
 		return fmt.Errorf("document has invalid non-UTF8 ID: id=%v, id_hex=%x",
 			d.ID, d.ID)
@@ -107,7 +107,7 @@ func ValidateSeriesTag(tag ident.Tag) error {
 }
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
-func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
+func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
 	clonedID := clone(id)
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
@@ -131,18 +131,18 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 		})
 	}
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	return d, nil
 }
 
 // FromSeriesIDAndTagIter converts the provided series id+tags into a document.
-func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, error) {
 	clonedID := clone(id)
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {
@@ -167,15 +167,15 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, 
 		})
 	}
 	if err := tags.Err(); err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	return d, nil
 }
@@ -283,7 +283,7 @@ func (o Opts) wrapBytes(b []byte) ident.ID {
 }
 
 // ToSeries converts the provided doc to metric id+tags.
-func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
+func ToSeries(d doc.Metadata, opts Opts) (ident.ID, ident.TagIterator, error) {
 	if len(d.ID) == 0 {
 		return nil, nil, errInvalidResultMissingID
 	}
@@ -291,11 +291,11 @@ func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
 }
 
 // ToSeriesTags converts the provided doc to metric tags.
-func ToSeriesTags(d doc.Document, opts Opts) ident.TagIterator {
+func ToSeriesTags(d doc.Metadata, opts Opts) ident.TagIterator {
 	return newTagIter(d, opts)
 }
 
-// tagIter exposes an ident.TagIterator interface over a doc.Document.
+// tagIter exposes an ident.TagIterator interface over a doc.Metadata.
 type tagIter struct {
 	docFields doc.Fields
 
@@ -310,7 +310,7 @@ type tagIter struct {
 // NB: force tagIter to implement the ident.TagIterator interface.
 var _ ident.TagIterator = &tagIter{}
 
-func newTagIter(d doc.Document, opts Opts) ident.TagIterator {
+func newTagIter(d doc.Metadata, opts Opts) ident.TagIterator {
 	return &tagIter{
 		docFields:  d.Fields,
 		currentIdx: -1,

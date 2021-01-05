@@ -124,15 +124,15 @@ func (r *reader) MatchAll() (postings.MutableList, error) {
 	return pl, nil
 }
 
-func (r *reader) Doc(id postings.ID) (doc.Document, error) {
+func (r *reader) Doc(id postings.ID) (doc.Metadata, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
-		return doc.Document{}, errSegmentReaderClosed
+		return doc.Metadata{}, errSegmentReaderClosed
 	}
 
 	if id < r.limits.startInclusive || id >= r.limits.endExclusive {
-		return doc.Document{}, index.ErrDocNotFound
+		return doc.Metadata{}, index.ErrDocNotFound
 	}
 
 	return r.segment.getDoc(id)

@@ -451,7 +451,7 @@ func writeTestIndexDataToDisk(
 	indexVolumeType idxpersist.IndexVolumeType,
 	blockStart time.Time,
 	shards []uint32,
-	docs []doc.Document,
+	docs []doc.Metadata,
 ) error {
 	blockSize := md.Options().IndexOptions().BlockSize()
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()

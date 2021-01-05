@@ -179,7 +179,7 @@ func (c *Compactor) CompactUsingBuilder(
 		}
 
 		// Reset docs batch for reuse
-		var empty doc.Document
+		var empty doc.Metadata
 		for i := range batch {
 			batch[i] = empty
 		}
@@ -273,7 +273,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// If retaining references to the original docs, simply take ownership
 		// of the documents and then reference them directly from the FST segment
 		// rather than encoding them and mmap'ing the encoded documents.
-		allDocsCopy := make([]doc.Document, len(allDocs))
+		allDocsCopy := make([]doc.Metadata, len(allDocs))
 		copy(allDocsCopy, allDocs)
 		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {

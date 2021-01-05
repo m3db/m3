@@ -275,7 +275,7 @@ func setupMockBlock(
 		Do(func(batch *index.WriteBatch) {
 			docs := batch.PendingDocs()
 			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Document{
+			require.Equal(t, doc.Metadata{
 				ID:     id.Bytes(),
 				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
 			}, docs[0])
