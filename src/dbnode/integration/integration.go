@@ -93,6 +93,7 @@ func newMultiAddrAdminClient(
 	topologyInitializer topology.Initializer,
 	origin topology.Host,
 	instrumentOpts instrument.Options,
+	customOpts ...client.CustomAdminOption,
 ) client.AdminClient {
 	if adminOpts == nil {
 		adminOpts = client.NewAdminOptions()
@@ -104,6 +105,10 @@ func newMultiAddrAdminClient(
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
 		SetTopologyInitializer(topologyInitializer).
 		SetClusterConnectTimeout(time.Second).(client.AdminOptions)
+
+	for _, o := range customOpts {
+		adminOpts = o(adminOpts)
+	}
 
 	adminClient, err := client.NewAdminClient(adminOpts)
 	require.NoError(t, err)
@@ -122,6 +127,7 @@ type BootstrappableTestSetupOptions struct {
 	DisablePeersBootstrapper    bool
 	UseTChannelClientForWriting bool
 	EnableRepairs               bool
+	AdminClientCustomOpts       []client.CustomAdminOption
 }
 
 type closeFn func()
@@ -171,6 +177,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			enableRepairs               = setupOpts[i].EnableRepairs
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
+			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
 		)
 
 		if finalBootstrapperToUse == "" {
@@ -261,8 +268,11 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+
 		adminClient := newMultiAddrAdminClient(
-			t, adminOpts, topologyInitializer, origin, instrumentOpts)
+			t, adminOpts, topologyInitializer, origin, instrumentOpts, adminClientCustomOpts...)
+		setup.SetStorageOpts(setup.StorageOpts().SetAdminClient(adminClient))
+
 		storageIdxOpts := setup.StorageOpts().IndexOptions()
 		fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
