@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,5 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package idx
-
-import (
-	"github.com/m3db/m3/src/m3ninx/doc"
-)
-
-// Index is an inverted index.
-type Index interface {
-	// Insert inserts a document into the index.
-	Insert(d doc.Metadata) error
-
-	// Searcher returns a Searcher over a point-in-time view of the index.
-	Searcher() (Searcher, error)
-
-	// Close closes the index.
-	Close() error
-}
-
-// Searcher provides search over a point-in-time view of an index.
-type Searcher interface {
-	Search(q Query) (doc.Iterator, error)
-
-	Close() error
-}
+// Package harness contains tests that are run against docker containers
+package harness

@@ -86,10 +86,10 @@ func (mr *MockReaderMockRecorder) Close() *gomock.Call {
 }
 
 // Doc mocks base method
-func (m *MockReader) Doc(arg0 postings.ID) (doc.Document, error) {
+func (m *MockReader) Doc(arg0 postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -199,10 +199,10 @@ func (m *MockDocRetriever) EXPECT() *MockDocRetrieverMockRecorder {
 }
 
 // Doc mocks base method
-func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
+func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

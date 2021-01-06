@@ -721,9 +721,9 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
-	batch []doc.Document,
+	batch []doc.Metadata,
 	builder *result.IndexBuilder,
-) ([]doc.Document, error) {
+) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
 	if err != nil {

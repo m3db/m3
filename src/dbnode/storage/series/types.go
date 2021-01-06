@@ -44,7 +44,7 @@ import (
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
 	ID                     ident.ID
-	Metadata               doc.Document
+	Metadata               doc.Metadata
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever
 	OnRetrieveBlock        block.OnRetrieveBlock
@@ -61,7 +61,7 @@ type DatabaseSeries interface {
 	ID() ident.ID
 
 	// Metadata returns the metadata of the series.
-	Metadata() doc.Document
+	Metadata() doc.Metadata
 
 	// UniqueIndex is the unique index for the series (for this current
 	// process, unless the time series expires).

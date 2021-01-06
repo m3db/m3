@@ -629,7 +629,7 @@ func TestShardColdFlush(t *testing.T) {
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ds.id).AnyTimes()
-		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
+		curr.EXPECT().Metadata().Return(doc.Metadata{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
 		shard.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
@@ -1173,7 +1173,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	document, exists, err := shard.DocRef(ident.StringID("NOT_PRESENT_ID"))
 	require.NoError(t, err)
 	require.False(t, exists)
-	require.Equal(t, doc.Document{}, document)
+	require.Equal(t, doc.Metadata{}, document)
 }
 
 // This tests a race in shard ticking with an empty series pending expiration.

@@ -68,10 +68,10 @@ func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockIterator) Current() Document {
+func (m *MockIterator) Current() Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(Document)
+	ret0, _ := ret[0].(Metadata)
 	return ret0
 }
 

@@ -27,10 +27,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
-	dc "github.com/ory/dockertest/docker"
-	"github.com/ory/dockertest/docker/types/mount"
+	"github.com/ory/dockertest/v3"
+	dc "github.com/ory/dockertest/v3/docker"
+	"github.com/ory/dockertest/v3/docker/types/mount"
 	"go.uber.org/zap"
 )
 
@@ -127,7 +126,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
 	logger := c.logger.With(zapMethod("exec"))
 	client := c.pool.Client
-	exec, err := client.CreateExec(docker.CreateExecOptions{
+	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,
 		Container:    name,
@@ -143,7 +142,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 	logger.Info("starting exec",
 		zap.Strings("commands", commands),
 		zap.String("execID", exec.ID))
-	err = client.StartExec(exec.ID, docker.StartExecOptions{
+	err = client.StartExec(exec.ID, dc.StartExecOptions{
 		OutputStream: &outBuf,
 		ErrorStream:  &errBuf,
 	})

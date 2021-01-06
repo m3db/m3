@@ -533,9 +533,9 @@ func (b *block) closeAsync(closer io.Closer) {
 func (b *block) addQueryResults(
 	cancellable *xresource.CancellableLifetime,
 	results BaseResults,
-	batch []doc.Document,
+	batch []doc.Metadata,
 	source []byte,
-) ([]doc.Document, int, int, error) {
+) ([]doc.Metadata, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
 		if err := b.docsLimit.Inc(len(batch), source); err != nil {
@@ -557,7 +557,7 @@ func (b *block) addQueryResults(
 	cancellable.ReleaseCheckout()
 
 	// reset batch.
-	var emptyDoc doc.Document
+	var emptyDoc doc.Metadata
 	for i := range batch {
 		batch[i] = emptyDoc
 	}

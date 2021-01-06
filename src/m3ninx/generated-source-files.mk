@@ -119,7 +119,7 @@ genny-arraypool-bytes-slice-array-pool:
 genny-arraypool-document-array-pool:
 	cd $(m3x_package_path) && make genny-arraypool \
 	pkg=doc                                        \
-	elem_type=Document                             \
+	elem_type=Metadata                             \
 	target_package=$(m3ninx_package)/doc           \
 	out_file=doc_arraypool_gen.go                  \
 	rename_type_prefix=Document                    \

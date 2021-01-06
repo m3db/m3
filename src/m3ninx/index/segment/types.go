@@ -190,7 +190,7 @@ type Builder interface {
 
 	// Docs returns the current docs slice, this is not safe to modify
 	// and is invalidated on a call to reset.
-	Docs() []doc.Document
+	Docs() []doc.Metadata
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (index.IDDocIterator, error)
