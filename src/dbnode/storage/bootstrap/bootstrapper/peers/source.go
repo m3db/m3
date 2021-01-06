@@ -263,19 +263,11 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	// iopts := opts.ResultOptions().InstrumentOptions()
-	// scope := iopts.MetricsScope().SubScope("peers-bootstrapper")
-	// iopts = iopts.SetMetricsScope(scope)
 	return &peersSource{
 		opts: opts,
-		// log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		newPersistManager: func() (persist.Manager, error) {
 			return fs.NewPersistManager(opts.FilesystemOptions())
 		},
-		/*		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
-				metrics: peersSourceMetrics{
-					persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
-				},*/
 		instrumentation: newInstrumentation(opts),
 	}, nil
 }
