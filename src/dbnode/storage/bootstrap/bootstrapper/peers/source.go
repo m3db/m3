@@ -61,10 +61,7 @@ import (
 
 type peersSource struct {
 	opts Options
-	// log               *zap.Logger
 	newPersistManager func() (persist.Manager, error)
-	// nowFn             clock.NowFn
-	// metrics           peersSourceMetrics
 	instrumentation *instrumentation
 }
 
