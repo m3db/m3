@@ -14,6 +14,8 @@ This guide assumes you have read the [quickstart](/docs/quickstart/docker), and 
 We recommend you use [our Kubernetes operator](/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
 
+{{< fileinclude file="cluster-architecture.md" >}}
+
 ## Prerequisites
 
 -   A running Kubernetes cluster.
@@ -82,5 +84,7 @@ kubectl delete m3dbcluster simple-cluster
 ```
 
 By default, the operator uses [finalizers](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#finalizers) to delete the placement and namespaces associated with a cluster before the custom resources. If you do not want this behavior, set `keepEtcdDataOnDelete` to `true` in the cluster configuration.
+
+<!-- TODO: Placement, same as Binaries? -->
 
 {{< fileinclude file="cluster-common-steps.md" >}}

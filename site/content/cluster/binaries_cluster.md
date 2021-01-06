@@ -10,30 +10,7 @@ This guide shows you the steps involved in creating an M3 cluster using M3 binar
 This guide assumes you have read the [quickstart](/docs/quickstart/binaries), and builds upon the concepts in that guide.
 {{% /notice %}}
 
-## M3 Architecture
-
-Here's a typical M3 deployment:
-
-<!-- TODO: Update image -->
-
-![Typical Deployment](/cluster_architecture.png)
-
-An M3 deployment typically has two main node types:
-
--   **Coordinator node**: `m3coordinator` nodes coordinate reads and writes across all nodes in the cluster. It's a lightweight process, and does not store any data. This role typically runs alongside a Prometheus instance, or is part of a collector agent such as statsD.
--   **Storage node**: The `m3dbnode` processes are the workhorses of M3, they store data and serve reads and writes.
-
-A `m3coordinator` node exposes two ports:
-
--   `7201` to manage the cluster topology, you make most API calls to this endpoint
--   `7203` for Prometheus to scrape the metrics produced by M3DB and M3Coordinator
-
-## Prerequisites
-
-M3 uses [etcd](https://etcd.io/) as a distributed key-value storage for the following functions:
-
--   Update cluster configuration in realtime
--   Manage placements for distributed and sharded clusters
+{{< fileinclude file="cluster-architecture.md" >}}
 
 ## Download and Install a Binary
 
@@ -51,8 +28,6 @@ You can download the latest release as [pre-compiled binaries from the M3 GitHub
 [Clone the codebase](https://github.com/m3db/m3) and run `make m3dbnode` to generate a binary for a combination coordinator and storage node, or `make m3coordinator` to generate a binary for a standalone coordinator node.
 
 ## Provision a Host
-
-Enough background, let's create a real cluster!
 
 M3 in production can run on local or cloud-based VMs, or bare-metal servers. M3 supports all popular Linux distributions (Ubuntu, RHEL, CentOS), and [let us know](https://github.com/m3db/m3/issues/new/choose) if you have any issues with your preferred distribution.
 
