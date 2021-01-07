@@ -33,12 +33,12 @@ type DocumentMatcher interface {
 }
 
 // NewDocumentMatcher returns a new DocumentMatcher.
-func NewDocumentMatcher(d Document) DocumentMatcher {
+func NewDocumentMatcher(d Metadata) DocumentMatcher {
 	return docMatcher{d}
 }
 
 type docMatcher struct {
-	d Document
+	d Metadata
 }
 
 func (dm docMatcher) Matches(x interface{}) bool {

@@ -113,7 +113,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: lifecycle,
-	}, doc.Document{})
+	}, doc.Metadata{})
 
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
@@ -124,7 +124,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -162,7 +162,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: lifecycle,
-	}, doc.Document{})
+	}, doc.Metadata{})
 
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
@@ -173,7 +173,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -270,7 +270,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, doc.Document{})
+	}, doc.Metadata{})
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
@@ -280,7 +280,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		_ doc.Document,
+		_ doc.Metadata,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -331,7 +331,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, doc.Document{})
+	}, doc.Metadata{})
 
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
@@ -342,7 +342,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		doc doc.Document,
+		doc doc.Metadata,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -857,7 +857,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Metadata{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -908,7 +908,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	}
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Metadata{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -2146,7 +2146,7 @@ func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string,
 	}
 }
 
-func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {
+func testSegment(t *testing.T, docs ...doc.Metadata) segment.Segment {
 	seg, err := mem.NewSegment(testOpts.MemSegmentOptions())
 	require.NoError(t, err)
 
@@ -2158,8 +2158,8 @@ func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {
 	return seg
 }
 
-func testDoc1() doc.Document {
-	return doc.Document{
+func testDoc1() doc.Metadata {
+	return doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
 			doc.Field{
@@ -2170,8 +2170,8 @@ func testDoc1() doc.Document {
 	}
 }
 
-func testDoc1DupeID() doc.Document {
-	return doc.Document{
+func testDoc1DupeID() doc.Metadata {
+	return doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
 			doc.Field{
@@ -2186,8 +2186,8 @@ func testDoc1DupeID() doc.Document {
 	}
 }
 
-func testDoc2() doc.Document {
-	return doc.Document{
+func testDoc2() doc.Metadata {
+	return doc.Metadata{
 		ID: []byte("something"),
 		Fields: []doc.Field{
 			doc.Field{
@@ -2202,8 +2202,8 @@ func testDoc2() doc.Document {
 	}
 }
 
-func testDoc3() doc.Document {
-	return doc.Document{
+func testDoc3() doc.Metadata {
+	return doc.Metadata{
 		ID: []byte("bar"),
 		Fields: []doc.Field{
 			doc.Field{

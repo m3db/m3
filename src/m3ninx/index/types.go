@@ -50,7 +50,7 @@ type Index interface {
 type Writer interface {
 	// Insert inserts the given document into the index and returns its ID. The document
 	// is guaranteed to be searchable once the Insert method returns.
-	Insert(d doc.Document) ([]byte, error)
+	Insert(d doc.Metadata) ([]byte, error)
 
 	// InsertBatch inserts a batch of metrics into the index. The documents are guaranteed
 	// to be searchable all at once when the Batch method returns. If the batch supports
@@ -97,7 +97,7 @@ type CompiledRegex struct {
 // DocRetriever returns the document associated with a postings ID. It returns
 // ErrDocNotFound if there is no document corresponding to the given postings ID.
 type DocRetriever interface {
-	Doc(id postings.ID) (doc.Document, error)
+	Doc(id postings.ID) (doc.Metadata, error)
 }
 
 // IDDocIterator is an extented documents Iterator which can also return the postings

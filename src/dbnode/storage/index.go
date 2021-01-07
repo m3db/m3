@@ -685,7 +685,7 @@ func (i *nsIndex) writeBatches(
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
-			d doc.Document, _ index.WriteBatchEntryResult) {
+			d doc.Metadata, _ index.WriteBatchEntryResult) {
 			total++
 
 			if len(i.doNotIndexWithFields) != 0 {

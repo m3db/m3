@@ -104,7 +104,7 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
-func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
+func (r *results) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
@@ -114,7 +114,7 @@ func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
 	return size, docsCount, err
 }
 
-func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
+func (r *results) addDocumentsBatchWithLock(batch []doc.Metadata) error {
 	for i := range batch {
 		_, size, err := r.addDocumentWithLock(batch[i])
 		if err != nil {
@@ -128,7 +128,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
+func (r *results) addDocumentWithLock(d doc.Metadata) (bool, int, error) {
 	if len(d.ID) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}

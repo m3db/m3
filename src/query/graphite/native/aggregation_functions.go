@@ -88,6 +88,13 @@ func minSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 	return combineSeries(ctx, series, wrapPathExpr(minSeriesFnName, ts.SeriesList(series)), ts.Min)
 }
 
+// powSeries takes a list of series and returns a new series containing the
+// pow value across the series at each datapoint
+// nolint: gocritic
+func powSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+	return combineSeries(ctx, series, wrapPathExpr(powSeriesFnName, ts.SeriesList(series)), ts.Pow)
+}
+
 // maxSeries takes a list of series and returns a new series containing the
 // maximum value across the series at each datapoint
 func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {

@@ -182,10 +182,10 @@ func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 }
 
 // Doc mocks base method
-func (m *MockReader) Doc(id postings.ID) (doc.Document, error) {
+func (m *MockReader) Doc(id postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1009,10 +1009,10 @@ func (mr *MockMutableSegmentMockRecorder) Reset() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockMutableSegment) Docs() []doc.Document {
+func (m *MockMutableSegment) Docs() []doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs")
-	ret0, _ := ret[0].([]doc.Document)
+	ret0, _ := ret[0].([]doc.Metadata)
 	return ret0
 }
 
@@ -1038,7 +1038,7 @@ func (mr *MockMutableSegmentMockRecorder) AllDocs() *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MockMutableSegment) Insert(d doc.Document) ([]byte, error) {
+func (m *MockMutableSegment) Insert(d doc.Metadata) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Insert", d)
 	ret0, _ := ret[0].([]byte)
@@ -1339,10 +1339,10 @@ func (mr *MockBuilderMockRecorder) Reset() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockBuilder) Docs() []doc.Document {
+func (m *MockBuilder) Docs() []doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs")
-	ret0, _ := ret[0].([]doc.Document)
+	ret0, _ := ret[0].([]doc.Metadata)
 	return ret0
 }
 
@@ -1433,10 +1433,10 @@ func (mr *MockDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockDocumentsBuilder) Docs() []doc.Document {
+func (m *MockDocumentsBuilder) Docs() []doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs")
-	ret0, _ := ret[0].([]doc.Document)
+	ret0, _ := ret[0].([]doc.Metadata)
 	return ret0
 }
 
@@ -1462,7 +1462,7 @@ func (mr *MockDocumentsBuilderMockRecorder) AllDocs() *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MockDocumentsBuilder) Insert(d doc.Document) ([]byte, error) {
+func (m *MockDocumentsBuilder) Insert(d doc.Metadata) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Insert", d)
 	ret0, _ := ret[0].([]byte)
@@ -1582,10 +1582,10 @@ func (mr *MockCloseableDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockCloseableDocumentsBuilder) Docs() []doc.Document {
+func (m *MockCloseableDocumentsBuilder) Docs() []doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs")
-	ret0, _ := ret[0].([]doc.Document)
+	ret0, _ := ret[0].([]doc.Metadata)
 	return ret0
 }
 
@@ -1611,7 +1611,7 @@ func (mr *MockCloseableDocumentsBuilderMockRecorder) AllDocs() *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MockCloseableDocumentsBuilder) Insert(d doc.Document) ([]byte, error) {
+func (m *MockCloseableDocumentsBuilder) Insert(d doc.Metadata) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Insert", d)
 	ret0, _ := ret[0].([]byte)
@@ -1745,10 +1745,10 @@ func (mr *MockSegmentsBuilderMockRecorder) Reset() *gomock.Call {
 }
 
 // Docs mocks base method
-func (m *MockSegmentsBuilder) Docs() []doc.Document {
+func (m *MockSegmentsBuilder) Docs() []doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs")
-	ret0, _ := ret[0].([]doc.Document)
+	ret0, _ := ret[0].([]doc.Metadata)
 	return ret0
 }
 

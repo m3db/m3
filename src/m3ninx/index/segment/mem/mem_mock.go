@@ -104,10 +104,10 @@ func (mr *MockReadableSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call 
 }
 
 // getDoc mocks base method
-func (m *MockReadableSegment) getDoc(arg0 postings.ID) (doc.Document, error) {
+func (m *MockReadableSegment) getDoc(arg0 postings.ID) (doc.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getDoc", arg0)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

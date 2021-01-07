@@ -35,7 +35,7 @@ type idDocIterator struct {
 	retriever    DocRetriever
 	postingsIter postings.Iterator
 
-	currDoc doc.Document
+	currDoc doc.Metadata
 	currID  postings.ID
 	closed  bool
 	err     error
@@ -65,7 +65,7 @@ func (it *idDocIterator) Next() bool {
 	return true
 }
 
-func (it *idDocIterator) Current() doc.Document {
+func (it *idDocIterator) Current() doc.Metadata {
 	return it.currDoc
 }
 
@@ -82,7 +82,7 @@ func (it *idDocIterator) Close() error {
 		return errIteratorClosed
 	}
 	it.closed = true
-	it.currDoc = doc.Document{}
+	it.currDoc = doc.Metadata{}
 	it.currID = postings.ID(0)
 	err := it.postingsIter.Close()
 	return err

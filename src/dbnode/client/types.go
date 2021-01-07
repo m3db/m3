@@ -260,6 +260,9 @@ type BorrowConnectionOptions struct {
 	// ContinueOnBorrowError allows skipping hosts that cannot borrow
 	// a connection for.
 	ContinueOnBorrowError bool
+	// ExcludeOrigin will exclude attempting to borrow a connection for
+	// the origin host (i.e. the local host).
+	ExcludeOrigin bool
 }
 
 // BorrowConnectionsResult is a result used when borrowing connections.
