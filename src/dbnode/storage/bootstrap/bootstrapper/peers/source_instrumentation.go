@@ -71,9 +71,7 @@ func newInstrumentation(opts Options) *instrumentation {
 func (i *instrumentation) bootstrapDataStarted(span opentracing.Span) *instrumentationContext {
 	i.log.Info("bootstrapping time series data start")
 	span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
-	return &instrumentationContext{
-		start: i.nowFn(),
-	}
+	return &instrumentationContext{start: i.nowFn()}
 }
 
 func (i *instrumentation) bootstrapDataCompleted(ctx *instrumentationContext, span opentracing.Span) {

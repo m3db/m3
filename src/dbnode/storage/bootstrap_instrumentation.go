@@ -44,6 +44,7 @@ type bootstrapInstrumentation struct {
 	bootstrapDuration           tally.Timer
 	bootstrapNamespacesDuration tally.Timer
 	durableStatus               tally.Gauge
+	numRetries                  tally.Gauge
 }
 
 func newInstrumentation(opts Options) *bootstrapInstrumentation {
@@ -56,20 +57,20 @@ func newInstrumentation(opts Options) *bootstrapInstrumentation {
 		bootstrapDuration:           scope.Timer("bootstrap-duration"),
 		bootstrapNamespacesDuration: scope.Timer("bootstrap-namespaces-duration"),
 		durableStatus:               scope.Gauge("bootstrapped-durable"),
+		numRetries:                  scope.Gauge("bootstrap-retries"),
 	}
 }
 
 func (i *bootstrapInstrumentation) bootstrapFnFailed(retry int) {
+	i.numRetries.Update(float64(retry))
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),
-		zap.Int("numRetries", retry+1))
+		zap.Int("numRetries", retry))
 }
 
 func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext {
 	i.log.Info("bootstrap prepare")
-	return &instrumentationContext{
-		start: i.nowFn(),
-	}
+	return &instrumentationContext{start: i.nowFn()}
 }
 
 func (i *bootstrapInstrumentation) bootstrapPrepareFailed(err error) {
