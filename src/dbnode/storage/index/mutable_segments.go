@@ -214,11 +214,19 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 	return m.addReadersWithLock(readers)
 }
 
-func (m *mutableSegments) addReadersWithLock(readers []segment.Reader) ([]segment.Reader, error) {
+func (m *mutableSegments) AddReadersIfOpen(readers []segment.Reader) ([]segment.Reader, bool, error) {
+	m.RLock()
+	defer m.RUnlock()
+
 	if m.state != mutableSegmentsStateOpen {
-		return nil, errMutableSegmentsAlreadyClosed
+		return nil, false, nil
 	}
 
+	readers, err := m.addReadersWithLock(readers)
+	return readers, true, err
+}
+
+func (m *mutableSegments) addReadersWithLock(readers []segment.Reader) ([]segment.Reader, error) {
 	var err error
 	readers, err = m.addReadersFromSourceWithLock(m.foregroundSegments, readers)
 	if err != nil {
