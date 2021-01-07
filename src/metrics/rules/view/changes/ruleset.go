@@ -26,13 +26,15 @@ import (
 
 // RuleSetChanges is a ruleset diff.
 type RuleSetChanges struct {
-	Namespace          string              `json:"namespace"`
-	MappingRuleChanges []MappingRuleChange `json:"mappingRuleChanges"`
-	RollupRuleChanges  []RollupRuleChange  `json:"rollupRuleChanges"`
+	Namespace              string                  `json:"namespace"`
+	MappingRuleChanges     []MappingRuleChange     `json:"mappingRuleChanges"`
+	RollupRuleChanges      []RollupRuleChange      `json:"rollupRuleChanges"`
+	UtilizationRuleChanges []UtilizationRuleChange `json:"utilizationRuleChanges"`
 }
 
 // Sort sorts the ruleset diff by op and rule names.
 func (d *RuleSetChanges) Sort() {
 	sort.Sort(mappingRuleChangesByOpAscNameAscIDAsc(d.MappingRuleChanges))
 	sort.Sort(rollupRuleChangesByOpAscNameAscIDAsc(d.RollupRuleChanges))
+	sort.Sort(utilizationRuleChangesByOpAscNameAscIDAsc(d.UtilizationRuleChanges))
 }

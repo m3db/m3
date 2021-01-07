@@ -1,5 +1,6 @@
 package view
 
+// UtilizationRule is a utilization rule.
 type UtilizationRule struct {
 	ID                  string         `json:"id,omitempty`
 	Name                string         `json:"name" validate:"required"`
