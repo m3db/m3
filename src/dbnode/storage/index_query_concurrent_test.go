@@ -150,7 +150,7 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	var (
 		idsPerBlock     = 16
-		expectedResults = make(map[string]doc.Document)
+		expectedResults = make(map[string]doc.Metadata)
 		blockStarts     []time.Time
 		blockIdx        = -1
 	)
@@ -180,7 +180,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		})
 		for i := 0; i < idsPerBlock; i++ {
 			id := fmt.Sprintf("foo.block_%d.id_%d", blockIdx, i)
-			doc := doc.Document{
+			doc := doc.Metadata{
 				ID: []byte(id),
 				Fields: []doc.Field{
 					{

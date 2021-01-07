@@ -1805,10 +1805,10 @@ func (n *dbNamespace) aggregateTiles(
 	return processedTileCount, nil
 }
 
-func (n *dbNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	shard, _, err := n.readableShardFor(id)
 	if err != nil {
-		return doc.Document{}, false, err
+		return doc.Metadata{}, false, err
 	}
 	return shard.DocRef(id)
 }

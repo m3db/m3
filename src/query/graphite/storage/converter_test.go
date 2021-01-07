@@ -52,6 +52,13 @@ func TestConvertWildcardToMatcher(t *testing.T) {
 			Type: models.MatchField,
 			Name: graphite.TagName(i),
 		}
+		if i == 0 {
+			expected = models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  graphite.TagName(0),
+				Value: []byte(".*"),
+			}
+		}
 
 		actual, err := convertMetricPartToMatcher(i, metric)
 		require.NoError(t, err)

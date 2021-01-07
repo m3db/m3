@@ -27,7 +27,7 @@ import (
 // Index is an inverted index.
 type Index interface {
 	// Insert inserts a document into the index.
-	Insert(d doc.Document) error
+	Insert(d doc.Metadata) error
 
 	// Searcher returns a Searcher over a point-in-time view of the index.
 	Searcher() (Searcher, error)

@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
-	dockertest "github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 )
 

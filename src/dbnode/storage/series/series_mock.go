@@ -222,10 +222,10 @@ func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gom
 }
 
 // Metadata mocks base method
-func (m *MockDatabaseSeries) Metadata() doc.Document {
+func (m *MockDatabaseSeries) Metadata() doc.Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata")
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	return ret0
 }
 

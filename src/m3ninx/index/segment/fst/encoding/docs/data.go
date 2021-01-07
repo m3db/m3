@@ -44,7 +44,7 @@ func NewDataWriter(w io.Writer) *DataWriter {
 	}
 }
 
-func (w *DataWriter) Write(d doc.Document) (int, error) {
+func (w *DataWriter) Write(d doc.Metadata) (int, error) {
 	n := w.enc.PutBytes(d.ID)
 	n += w.enc.PutUvarint(uint64(len(d.Fields)))
 	for _, f := range d.Fields {
@@ -90,23 +90,23 @@ func NewDataReader(data []byte) *DataReader {
 	}
 }
 
-func (r *DataReader) Read(offset uint64) (doc.Document, error) {
+func (r *DataReader) Read(offset uint64) (doc.Metadata, error) {
 	if offset >= uint64(len(r.data)) {
-		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
+		return doc.Metadata{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
 	}
 	dec := encoding.NewDecoder(r.data[int(offset):])
 	id, err := dec.Bytes()
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 
 	x, err := dec.Uvarint()
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	n := int(x)
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     id,
 		Fields: make([]doc.Field, n),
 	}
@@ -114,11 +114,11 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	for i := 0; i < n; i++ {
 		name, err := dec.Bytes()
 		if err != nil {
-			return doc.Document{}, err
+			return doc.Metadata{}, err
 		}
 		val, err := dec.Bytes()
 		if err != nil {
-			return doc.Document{}, err
+			return doc.Metadata{}, err
 		}
 		d.Fields[i] = doc.Field{
 			Name:  name,

@@ -33,6 +33,8 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 func TestWatchChan(t *testing.T) {
@@ -242,13 +244,9 @@ func TestWatchNoLeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// give some time for watch to be updated
-	for i := 0; i < 10; i++ {
-		if atomic.LoadInt32(&updateCalled) == int32(2) {
-			break
-		}
-		time.Sleep(watchInitAndRetryDelay)
-		runtime.Gosched()
-	}
+	require.True(t, clock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&updateCalled) >= 2
+	}, 30*time.Second))
 
 	updates := atomic.LoadInt32(&updateCalled)
 	if updates < 2 {
@@ -295,9 +293,10 @@ func TestWatchCompactedRevision(t *testing.T) {
 	})
 
 	go wh.Watch("foo")
-	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
 
-	assert.Equal(t, int32(3), atomic.LoadInt32(updateCalled))
+	require.True(t, clock.WaitUntil(func() bool {
+		return atomic.LoadInt32(updateCalled) == 3
+	}, 30*time.Second))
 
 	lastRead := atomic.LoadInt32(updateCalled)
 	ec.Put(context.Background(), "foo", "bar-11")

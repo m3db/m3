@@ -44,26 +44,26 @@ func TestIterator(t *testing.T) {
 	require.NoError(t, secondPL.Insert(67))
 
 	// Set up Readers.
-	docs := []doc.Document{
-		doc.Document{
+	docs := []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("banana"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("carrot"),
 					Value: []byte("orange"),
 				},

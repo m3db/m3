@@ -40,28 +40,28 @@ var (
 	testMemSegmentOptions     = mem.NewOptions()
 	testBuilderSegmentOptions = builder.NewOptions()
 
-	testDocuments = []doc.Document{
-		doc.Document{
+	testDocuments = []doc.Metadata{
+		{
 			ID: []byte("one"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("two"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
@@ -189,7 +189,7 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	require.NoError(t, compactor.Close())
 }
 
-func assertContents(t *testing.T, seg segment.Segment, docs []doc.Document) {
+func assertContents(t *testing.T, seg segment.Segment, docs []doc.Metadata) {
 	// Ensure has contents
 	require.Equal(t, int64(len(docs)), seg.Size())
 	reader, err := seg.Reader()
