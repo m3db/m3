@@ -345,11 +345,18 @@ type OnIndexSeries interface {
 	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
 	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
+
+	// IndexedForBlockStart determines whether this series has been successfully
+	// indexed or not.
+	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
+	// SetPreviousBlock sets the previous block.
+	SetPreviousBlock(prevBlock Block) error
+
 	// StartTime returns the start time of the period this Block indexes.
 	StartTime() time.Time
 
@@ -766,6 +773,19 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 func (b *WriteBatch) MarkUnmarkedEntriesError(err error) {
 	for idx := range b.entries {
 		b.MarkUnmarkedEntryError(err, idx)
+	}
+}
+
+// MarkUnmarkedEntrySuccess marks an unmarked entry at index as success.
+func (b *WriteBatch) MarkUnmarkedEntrySuccess(
+	idx int,
+) {
+	if b.entries[idx].OnIndexSeries != nil {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = nil
 	}
 }
 

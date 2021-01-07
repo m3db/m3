@@ -1919,6 +1919,13 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (blockPresen
 		}
 	}
 
+	// Set the previous block.
+	if latestBlock := i.state.latestBlock; latestBlock != nil {
+		if err := block.SetPreviousBlock(i.state.latestBlock); err != nil {
+			return blockPresentResult{}, i.unableToAllocBlockInvariantError(err)
+		}
+	}
+
 	// add to tracked blocks map
 	i.state.blocksByTime[blockStartNanos] = block
 
@@ -1945,6 +1952,7 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 	blocks := make([]blockAndBlockStart, 0, len(i.state.blocksByTime))
 	for ts, block := range i.state.blocksByTime {
 		if ts >= latestBlockStart {
+			latestBlockStart = ts
 			latestBlock = block
 		}
 		blocks = append(blocks, blockAndBlockStart{

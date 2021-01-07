@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -141,28 +142,38 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
-func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
+func (m *mutableSegments) startCompactForeground() (segment.CloseableDocumentsBuilder, error) {
 	m.Lock()
+	defer m.Unlock()
+
 	if m.state == mutableSegmentsStateClosed {
-		return MutableSegmentsStats{}, errMutableSegmentsAlreadyClosed
+		return nil, errMutableSegmentsAlreadyClosed
 	}
 
 	if m.compact.compactingForeground {
-		m.Unlock()
-		return MutableSegmentsStats{}, errUnableToWriteBlockConcurrent
+		return nil, errUnableToWriteBlockConcurrent
 	}
 
 	// Lazily allocate the segment builder and compactors.
 	err := m.compact.allocLazyBuilderAndCompactorsWithLock(m.writeIndexingConcurrency,
 		m.blockOpts, m.opts)
 	if err != nil {
-		m.Unlock()
-		return MutableSegmentsStats{}, err
+		return nil, err
 	}
 
 	m.compact.compactingForeground = true
-	builder := m.compact.segmentBuilder
-	m.Unlock()
+	return m.compact.segmentBuilder, nil
+}
+
+func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
+	return m.WriteDocs(inserts.PendingDocs())
+}
+
+func (m *mutableSegments) WriteDocs(docs []doc.Document) (MutableSegmentsStats, error) {
+	builder, err := m.startCompactForeground()
+	if err != nil {
+		return MutableSegmentsStats{}, nil
+	}
 
 	defer func() {
 		m.Lock()
@@ -173,7 +184,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 	builder.Reset()
 	insertResultErr := builder.InsertBatch(m3ninxindex.Batch{
-		Docs:                inserts.PendingDocs(),
+		Docs:                docs,
 		AllowPartialUpdates: true,
 	})
 	if len(builder.Docs()) == 0 {
@@ -200,13 +211,21 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 	m.RLock()
 	defer m.RUnlock()
 
+	return m.addReadersWithLock(readers)
+}
+
+func (m *mutableSegments) addReadersWithLock(readers []segment.Reader) ([]segment.Reader, error) {
+	if m.state != mutableSegmentsStateOpen {
+		return nil, errMutableSegmentsAlreadyClosed
+	}
+
 	var err error
-	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
+	readers, err = m.addReadersFromSourceWithLock(m.foregroundSegments, readers)
 	if err != nil {
 		return nil, err
 	}
 
-	readers, err = m.addReadersWithLock(m.backgroundSegments, readers)
+	readers, err = m.addReadersFromSourceWithLock(m.backgroundSegments, readers)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +233,7 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 	return readers, nil
 }
 
-func (m *mutableSegments) addReadersWithLock(src []*readableSeg, dst []segment.Reader) ([]segment.Reader, error) {
+func (m *mutableSegments) addReadersFromSourceWithLock(src []*readableSeg, dst []segment.Reader) ([]segment.Reader, error) {
 	for _, seg := range src {
 		reader, err := seg.Segment().Reader()
 		if err != nil {
@@ -317,6 +336,17 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 	reporter.ReportIndexingStats(BlockIndexingStats{
 		IndexConcurrency: m.writeIndexingConcurrency,
 	})
+}
+
+func (m *mutableSegments) IsOpen() bool {
+	m.RLock()
+	open := m.isOpenWithRLock()
+	m.RUnlock()
+	return open
+}
+
+func (m *mutableSegments) isOpenWithRLock() bool {
+	return m.state == mutableSegmentsStateOpen
 }
 
 func (m *mutableSegments) Close() {
@@ -542,7 +572,9 @@ func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 	return append(result, newReadableSeg(compacted, m.opts))
 }
 
-func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) (compactResult, error) {
+func (m *mutableSegments) foregroundCompactWithBuilder(
+	builder segment.DocumentsBuilder,
+) (compactResult, error) {
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment.
 	m.Lock()

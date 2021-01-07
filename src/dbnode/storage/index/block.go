@@ -131,22 +131,33 @@ type block struct {
 
 	state blockState
 
-	mutableSegments                 *mutableSegments
-	coldMutableSegments             []*mutableSegments
-	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
-	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
-	newExecutorWithRLockFn          newExecutorFn
-	blockStart                      time.Time
-	blockEnd                        time.Time
-	blockSize                       time.Duration
-	opts                            Options
-	iopts                           instrument.Options
-	blockOpts                       BlockOptions
-	nsMD                            namespace.Metadata
-	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
-	docsLimit                       limits.LookbackLimit
-	querySegmentsWorkers            xsync.WorkerPool
+	mutableSegments                  *mutableSegments
+	newNotInPrevBlockMutableSegments *mutableSegments
+	coldMutableSegments              []*mutableSegments
+	shardRangesSegmentsByVolumeType  shardRangesSegmentsByVolumeType
+	newFieldsAndTermsIteratorFn      newFieldsAndTermsIteratorFn
+	newExecutorWithRLockFn           newExecutorFn
+	blockStart                       time.Time
+	blockEnd                         time.Time
+	blockSize                        time.Duration
+	opts                             Options
+	iopts                            instrument.Options
+	blockOpts                        BlockOptions
+	nsMD                             namespace.Metadata
+	namespaceRuntimeOptsMgr          namespace.RuntimeOptionsManager
+	queryLimits                      limits.QueryLimits
+	docsLimit                        limits.LookbackLimit
+	querySegmentsWorkers             xsync.WorkerPool
+
+	// prevBlockWithMutableSegs is a reference to the previous block preceeding
+	// this block start, for which it has mutable data written to it.
+	// This is an optimization which should be easy to remove later that
+	// uses the previous block to index any new metrics not seen by it
+	// until it is unloaded from memory.
+	// This allows queries to be executed against a much more mature
+	// index segment for reads until it's unloaded from memory, at which
+	// point reads start to execute against this segment.
+	prevBlockWithMutableSegs *block
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -159,6 +170,9 @@ type blockMetrics struct {
 	segmentFreeMmapSuccess          tally.Counter
 	segmentFreeMmapError            tally.Counter
 	segmentFreeMmapSkipNotImmutable tally.Counter
+	newNotInPrevBlockWriteSuccess   tally.Counter
+	newNotInPrevBlockWriteErrors    tally.Counter
+	newNotInPrevBlockQuery          tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
@@ -180,6 +194,13 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"result":    "skip",
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
+		newNotInPrevBlockWriteSuccess: s.Tagged(map[string]string{
+			"result": "success",
+		}).Counter("new-not-in-prev-block-write"),
+		newNotInPrevBlockWriteErrors: s.Tagged(map[string]string{
+			"result": "error",
+		}).Counter("new-not-in-prev-block-write"),
+		newNotInPrevBlockQuery: s.Counter("new-not-in-prev-block-query"),
 	}
 }
 
@@ -229,6 +250,13 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
+	newNotInPrevBlockSegs := newMutableSegments(
+		blockStart,
+		opts,
+		blockOpts,
+		namespaceRuntimeOptsMgr,
+		iopts,
+	)
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
@@ -241,27 +269,51 @@ func NewBlock(
 		),
 	}
 	b := &block{
-		state:                           blockStateOpen,
-		blockStart:                      blockStart,
-		blockEnd:                        blockStart.Add(blockSize),
-		blockSize:                       blockSize,
-		blockOpts:                       blockOpts,
-		mutableSegments:                 segs,
-		coldMutableSegments:             coldSegs,
-		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
-		opts:                            opts,
-		iopts:                           iopts,
-		nsMD:                            md,
-		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
-		metrics:                         newBlockMetrics(scope),
-		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
-		docsLimit:                       opts.QueryLimits().DocsLimit(),
-		querySegmentsWorkers:            opts.QueryBlockSegmentWorkerPool(),
+		state:                            blockStateOpen,
+		blockStart:                       blockStart,
+		blockEnd:                         blockStart.Add(blockSize),
+		blockSize:                        blockSize,
+		blockOpts:                        blockOpts,
+		mutableSegments:                  segs,
+		newNotInPrevBlockMutableSegments: newNotInPrevBlockSegs,
+		coldMutableSegments:              coldSegs,
+		shardRangesSegmentsByVolumeType:  make(shardRangesSegmentsByVolumeType),
+		opts:                             opts,
+		iopts:                            iopts,
+		nsMD:                             md,
+		namespaceRuntimeOptsMgr:          namespaceRuntimeOptsMgr,
+		metrics:                          newBlockMetrics(scope),
+		logger:                           iopts.Logger(),
+		queryLimits:                      opts.QueryLimits(),
+		docsLimit:                        opts.QueryLimits().DocsLimit(),
+		querySegmentsWorkers:             opts.QueryBlockSegmentWorkerPool(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 
 	return b, nil
+}
+
+func (b *block) SetPreviousBlock(prevBlock Block) error {
+	prev, ok := prevBlock.(*block)
+	if !ok {
+		return fmt.Errorf("prev block is not type block")
+	}
+	prev.RLock()
+	_, numDocs := prev.mutableSegments.NumSegmentsAndDocs()
+	prev.RUnlock()
+	if numDocs < 1 {
+		// We don't care about previous blocks that do not have
+		// any documents written to it since it won't help continuing
+		// to build that volume concurrently alongside the current volume.
+		return nil
+	}
+
+	b.Lock()
+	defer b.Unlock()
+
+	b.prevBlockWithMutableSegs = prev
+
+	return nil
 }
 
 func (b *block) StartTime() time.Time {
@@ -275,9 +327,9 @@ func (b *block) EndTime() time.Time {
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {
+		err := b.writeBatchErrorInvalidState(b.state)
 		b.RUnlock()
-		return b.writeBatchResult(inserts, MutableSegmentsStats{},
-			b.writeBatchErrorInvalidState(b.state))
+		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
 	if b.state == blockStateSealed {
 		coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
@@ -287,9 +339,56 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		// we only care about warm mutable segments stats.
 		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
+	prevBlockWithMutableSegs := b.prevBlockWithMutableSegs
 	b.RUnlock()
+
+	if prevBlockWithMutableSegs != nil {
+		// If prev block still has mutable data we write any data that's
+		// pending there since queries will be served from there until
+		// not in memory anymore.
+		err := b.writeNewNotInPrevBlock(prevBlockWithMutableSegs, inserts)
+		if err != nil {
+			b.logger.Debug("could not insert dual write prev block", zap.Error(err))
+			b.metrics.newNotInPrevBlockWriteErrors.Inc(1)
+		}
+	}
+
 	stats, err := b.mutableSegments.WriteBatch(inserts)
 	return b.writeBatchResult(inserts, stats, err)
+}
+
+func (b *block) writeNewNotInPrevBlock(prevBlock *block, inserts *WriteBatch) error {
+	if prevBlock == nil {
+		return nil
+	}
+
+	prevBlockStart := xtime.ToUnixNano(prevBlock.StartTime())
+
+	docsPool := b.opts.DocumentArrayPool()
+	batch := docsPool.Get()[:0]
+	defer docsPool.Put(batch)
+
+	entries := inserts.PendingEntries()
+	pending := inserts.PendingDocs()
+	for i := range pending {
+		if entries[i].OnIndexSeries.IndexedForBlockStart(prevBlockStart) {
+			continue // Already indexed for previous block.
+		}
+
+		// Always mark this as success. TODO: come back and mark as error
+		// if later when we write the docs they are correctly marked.
+		inserts.MarkUnmarkedEntrySuccess(i)
+
+		batch = append(batch, pending[i])
+	}
+	if len(batch) > 0 {
+		if _, err := b.newNotInPrevBlockMutableSegments.WriteDocs(batch); err != nil {
+			return err
+		}
+		b.metrics.newNotInPrevBlockWriteSuccess.Inc(int64(len(batch)))
+	}
+
+	return nil
 }
 
 func (b *block) writeBatchResult(
@@ -338,8 +437,43 @@ func (b *block) writesAcceptedWithRLock() bool {
 		b.nsMD.Options().ColdWritesEnabled()
 }
 
-func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
+type segmentReadersOptions struct {
+	readOnlyMutableSegments bool
+}
+
+func (b *block) segmentReadersWithRLock(
+	opts segmentReadersOptions,
+) ([]segment.Reader, error) {
 	expectedReaders := b.mutableSegments.Len()
+	expectedReaders += b.newNotInPrevBlockMutableSegments.Len()
+	if opts.readOnlyMutableSegments {
+		var (
+			readers = make([]segment.Reader, 0, expectedReaders)
+			success = false
+			err     error
+		)
+		defer func() {
+			// Cleanup in case any of the readers below fail.
+			if !success {
+				for _, reader := range readers {
+					reader.Close()
+				}
+			}
+		}()
+
+		readers, err = b.mutableSegments.AddReaders(readers)
+		if err != nil {
+			return nil, err
+		}
+		readers, err = b.newNotInPrevBlockMutableSegments.AddReaders(readers)
+		if err != nil {
+			return nil, err
+		}
+
+		success = true
+		return readers, nil
+	}
+
 	for _, coldSeg := range b.coldMutableSegments {
 		expectedReaders += coldSeg.Len()
 	}
@@ -362,8 +496,56 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 		}
 	}()
 
-	// Add mutable segments.
-	readers, err = b.mutableSegments.AddReaders(readers)
+	var (
+		prevBlock         = b.prevBlockWithMutableSegs
+		prevBlockReadable bool
+		prevBlockReaders  []segment.Reader
+	)
+	if prevBlock != nil {
+		// If previous block is set, check if it's still open or not
+		// and if so we can serve the query from it (since we keep it up
+		// to date while the mutable segments are still open).
+		prevBlock.RLock()
+		if prevBlock.mutableSegments != nil && prevBlock.mutableSegments.IsOpen() {
+			b.metrics.newNotInPrevBlockQuery.Inc(1)
+			// Mark the fact that we are going to search previous blocks
+			// mutable segments not and not the local block's mutable segments.
+			prevBlockReadable = true
+			// Use segments from the prev block.
+			prevBlockReaders, err = prevBlock.segmentReadersWithRLock(segmentReadersOptions{
+				// Ensure that the previous block reads directly from it's
+				// own in-memory block, we only look back a single block.
+				readOnlyMutableSegments: true,
+			})
+		}
+		prevBlock.RUnlock()
+		// Check error out of lock/unlock.
+		if err != nil {
+			// Not able to read from prev block anymore, need to read from all
+			// local mutable segments.
+			// Note: This is expected once the prev block mutable segments
+			// gets closed during it being evicted from memory.
+			prevBlockReadable = false
+		}
+	}
+	if !prevBlockReadable {
+		// Add mutable segments.
+		readers, err = b.mutableSegments.AddReaders(readers)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// The previous block is open, use those readers instead
+		// of the potentially volatile current mutable segments.
+		readers = append(readers, prevBlockReaders...)
+	}
+
+	// Always also add any new and not in the previous block.
+	// Note: Required for whether prev block readable or not
+	// since even if prev block no longer readable we may have
+	// indexed some metrics in newNotInPrevBlockMutableSegments when
+	// it was available.
+	readers, err = b.newNotInPrevBlockMutableSegments.AddReaders(readers)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +622,7 @@ func (b *block) segmentReadersNoLock() ([]segment.Reader, error) {
 		return nil, ErrUnableToQueryBlockClosed
 	}
 
-	return b.segmentReadersWithRLock()
+	return b.segmentReadersWithRLock(segmentReadersOptions{})
 }
 
 func (b *block) queryNoLock(
@@ -1039,6 +1221,10 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 
 	// Add foreground/background segments.
 	numSegments, numDocs := b.mutableSegments.NumSegmentsAndDocs()
+	newNotInPrevBlockNumSegments, newNotInPrevBlockNumDocs :=
+		b.newNotInPrevBlockMutableSegments.NumSegmentsAndDocs()
+	numSegments += newNotInPrevBlockNumSegments
+	numDocs += newNotInPrevBlockNumDocs
 	for _, coldSeg := range b.coldMutableSegments {
 		coldNumSegments, coldNumDocs := coldSeg.NumSegmentsAndDocs()
 		numSegments += coldNumSegments
@@ -1102,6 +1288,7 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	}
 
 	b.mutableSegments.Stats(reporter)
+	b.newNotInPrevBlockMutableSegments.Stats(reporter)
 	for _, coldSeg := range b.coldMutableSegments {
 		// TODO(bodu): Cold segment stats should prob be of a
 		// diff type or something.
@@ -1120,14 +1307,14 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	return nil
 }
 
-func (b *block) IsSealedWithRLock() bool {
+func (b *block) sealedWithRLock() bool {
 	return b.state == blockStateSealed
 }
 
 func (b *block) IsSealed() bool {
 	b.RLock()
 	defer b.RUnlock()
-	return b.IsSealedWithRLock()
+	return b.sealedWithRLock()
 }
 
 func (b *block) NeedsMutableSegmentsEvicted() bool {
@@ -1136,6 +1323,8 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 
 	// Check any mutable segments that can be evicted after a flush.
 	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
+	anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction ||
+		b.newNotInPrevBlockMutableSegments.NeedsEviction()
 
 	// Check boostrapped segments and to see if any of them need an eviction.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
@@ -1156,6 +1345,7 @@ func (b *block) EvictMutableSegments() error {
 	}
 
 	b.mutableSegments.Close()
+	b.newNotInPrevBlockMutableSegments.Close()
 
 	// Close any other mutable segments that was added.
 	multiErr := xerrors.NewMultiError()
@@ -1223,13 +1413,22 @@ func (b *block) RotateColdMutableSegments() {
 func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
 	b.RLock()
 	defer b.RUnlock()
+
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
+
 	data, err := b.mutableSegments.MemorySegmentsData(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	newNotInPrevBlockData, err := b.newNotInPrevBlockMutableSegments.MemorySegmentsData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, newNotInPrevBlockData...)
+
 	for _, coldSeg := range b.coldMutableSegments {
 		coldData, err := coldSeg.MemorySegmentsData(ctx)
 		if err != nil {
@@ -1237,6 +1436,7 @@ func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, erro
 		}
 		data = append(data, coldData...)
 	}
+
 	return data, nil
 }
 
@@ -1249,6 +1449,7 @@ func (b *block) Close() error {
 	b.state = blockStateClosed
 
 	b.mutableSegments.Close()
+	b.newNotInPrevBlockMutableSegments.Close()
 	for _, coldSeg := range b.coldMutableSegments {
 		coldSeg.Close()
 	}
