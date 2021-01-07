@@ -61,12 +61,6 @@ var (
 // ResponseVerifier is a function that checks if the query response is valid.
 type ResponseVerifier func(int, map[string][]string, string, error) error
 
-// Sample is a struct containing a metric value at a given timestamp.
-type Sample struct {
-	Timestamp int64
-	Value     float64
-}
-
 // Coordinator is a wrapper for a coordinator. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
 // endpoints for series data.
@@ -77,7 +71,7 @@ type Coordinator interface {
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric.
-	WriteProm(name string, tags map[string]string, samples []Sample) error
+	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string) error
 }
@@ -335,39 +329,27 @@ func (c *coordinator) WriteCarbon(
 	// return nil
 }
 
-func (c *coordinator) WriteProm(name string, tags map[string]string, samples []Sample) error {
+func (c *coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
 	var (
-		url = c.resource.getURL(7201, "api/v1/prom/remote/write")
-
-		reqLabels  = make([]prompb.Label, 0)
-		reqSamples = make([]prompb.Sample, 0)
+		url       = c.resource.getURL(7201, "api/v1/prom/remote/write")
+		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
 	)
 
-	reqLabels = append(reqLabels, prompb.Label{
-		Name:  []byte(model.MetricNameLabel),
-		Value: []byte(name),
-	})
 	for tag, value := range tags {
 		reqLabels = append(reqLabels, prompb.Label{
 			Name:  []byte(tag),
 			Value: []byte(value),
 		})
 	}
-	for _, s := range samples {
-		reqSamples = append(reqSamples, prompb.Sample{
-			Timestamp: s.Timestamp,
-			Value:     s.Value,
-		})
-	}
 	writeRequest := prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
 				Labels:  reqLabels,
-				Samples: reqSamples,
+				Samples: samples,
 			},
 		},
 	}
