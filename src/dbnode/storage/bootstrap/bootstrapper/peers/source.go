@@ -28,8 +28,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -46,11 +44,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -60,9 +56,9 @@ import (
 )
 
 type peersSource struct {
-	opts Options
+	opts              Options
 	newPersistManager func() (persist.Manager, error)
-	instrumentation *instrumentation
+	instrumentation   *instrumentation
 }
 
 type persistenceFlush struct {
@@ -70,189 +66,6 @@ type persistenceFlush struct {
 	shard       uint32
 	shardResult result.ShardResult
 	timeRange   xtime.Range
-}
-
-type instrumentation struct {
-	opts                               Options
-	log                                *zap.Logger
-	nowFn                              clock.NowFn
-	bootstrapDataDuration              tally.Timer
-	bootstrapIndexDuration             tally.Timer
-	bootstrapShardsDuration            tally.Timer
-	persistedIndexBlocksOutOfRetention tally.Counter
-	start                              time.Time
-	startShards                        time.Time
-}
-
-func newInstrumentation(opts Options) *instrumentation {
-	instrumentOptions := opts.ResultOptions().InstrumentOptions()
-	scope := instrumentOptions.MetricsScope().SubScope("peers-bootstrapper")
-	instrumentOptions = instrumentOptions.SetMetricsScope(scope)
-	return &instrumentation{
-		opts:                               opts,
-		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
-		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
-		bootstrapDataDuration:              scope.Timer("peer-bootstrap-data-duration"),
-		bootstrapIndexDuration:             scope.Timer("peer-bootstrap-index-duration"),
-		bootstrapShardsDuration:            scope.Timer("peer-bootstrap-shards-duration"),
-		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
-	}
-}
-
-func (i *instrumentation) bootstrapDataStarted(span opentracing.Span) {
-	i.start = i.nowFn()
-	i.log.Info("bootstrapping time series data start")
-	span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
-}
-
-func (i *instrumentation) bootstrapDataCompleted(span opentracing.Span) {
-	duration := i.nowFn().Sub(i.start)
-	i.bootstrapDataDuration.Record(duration)
-	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
-	span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
-}
-
-func (i *instrumentation) bootstrapIndexStarted(span opentracing.Span) {
-	i.start = i.nowFn()
-	i.log.Info("bootstrapping index metadata start")
-	span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
-}
-
-func (i *instrumentation) bootstrapIndexCompleted(span opentracing.Span) {
-	duration := i.nowFn().Sub(i.start)
-	i.bootstrapIndexDuration.Record(duration)
-	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
-	span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
-}
-
-func (i *instrumentation) bootstrapIndexSkipped(namespaceID ident.ID) {
-	i.log.Info("skipping bootstrap for namespace based on options",
-		zap.Stringer("namespace", namespaceID))
-}
-
-func (i *instrumentation) getDefaultAdminSessionFailed(err error) {
-	i.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
-}
-
-func (i *instrumentation) bootstrapShardsStarted(count int, concurrency int, shouldPersist bool) {
-	i.startShards = i.nowFn()
-	i.log.Info("peers bootstrapper bootstrapping shards for ranges",
-		zap.Int("shards", count),
-		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist))
-}
-
-func (i *instrumentation) bootstrapShardsCompleted() {
-	duration := i.nowFn().Sub(i.startShards)
-	i.bootstrapShardsDuration.Record(duration)
-	i.log.Info("bootstrapping shards success", zap.Duration("took", duration))
-}
-
-func (i *instrumentation) persistenceFlushFailed(err error) {
-	i.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
-		zap.Error(err))
-}
-
-func (i *instrumentation) seriesCheckoutFailed(err error) {
-	i.log.Error("could not checkout series", zap.Error(err))
-}
-
-func (i *instrumentation) seriesLoadFailed(err error) {
-	i.log.Error("could not load series block", zap.Error(err))
-}
-
-func (i *instrumentation) shardBootstrapped(shard uint32, numSeries int64, blockTime time.Time) {
-	i.log.Info("peer bootstrapped shard",
-		zap.Uint32("shard", shard),
-		zap.Int64("numSeries", numSeries),
-		zap.Time("blockStart", blockTime),
-	)
-}
-
-func (i *instrumentation) fetchBootstrapBlocksFailed(err error, shard uint32) {
-	i.log.Error("error fetching bootstrap blocks",
-		zap.Uint32("shard", shard),
-		zap.Error(err),
-	)
-}
-
-func (i *instrumentation) peersBootstrapperIndexForRanges(count int) {
-	i.log.Info("peers bootstrapper bootstrapping index for ranges",
-		zap.Int("shards", count),
-	)
-}
-
-func (i *instrumentation) processingReadersFailed(err error, start time.Time) {
-	i.log.Error("error processing readers", zap.Error(err),
-		zap.Time("timeRange.start", start))
-}
-
-func (i *instrumentation) buildingFileSetIndexSegmentStarted(fields []zapcore.Field) {
-	i.log.Debug("building file set index segment", fields...)
-}
-
-func (i *instrumentation) outOfRetentionIndexSegmentSkipped(fields []zapcore.Field) {
-	i.log.Debug("skipping out of retention index segment", fields...)
-	i.persistedIndexBlocksOutOfRetention.Inc(1)
-}
-
-func (i *instrumentation) buildingInMemoryIndexSegmentStarted(fields []zapcore.Field) {
-	i.log.Info("building in-memory index segment", fields...)
-}
-
-func (i *instrumentation) errorsForRangeEncountered(summaryString string, errorsString []string) {
-	i.log.Info("encountered errors for range",
-		zap.String("requestedRanges", summaryString),
-		zap.Strings("timesWithErrors", errorsString))
-}
-
-func (i *instrumentation) noPeersAvailable(total int, shardIDUint uint32) {
-	i.log.Debug(
-		"0 available peers, unable to peer bootstrap",
-		zap.Int("total", total), zap.Uint32("shard", shardIDUint))
-}
-
-func (i *instrumentation) readConsistencyNotAchieved(
-	bootstrapConsistencyLevel topology.ReadConsistencyLevel,
-	majorityReplicas int,
-	total int,
-	available int,
-) {
-	i.log.Debug(
-		"read consistency not achieved, unable to peer bootstrap",
-		zap.Any("level", bootstrapConsistencyLevel),
-		zap.Int("replicas", majorityReplicas),
-		zap.Int("total", total),
-		zap.Int("available", available))
-}
-
-func (i *instrumentation) peersBootstrapperSourceReadStarted(ctx context.Context) (
-	context.Context, opentracing.Span, bool) {
-	return ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
-}
-
-func (i *instrumentation) persistFsIndexBootstrapFailed(err error,
-	iopts instrument.Options,
-	id ident.ID,
-	ranges result.ShardTimeRanges) {
-	instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-		l.Error("persist fs index bootstrap failed",
-			zap.Stringer("namespace", id),
-			zap.Stringer("requestedRanges", ranges),
-			zap.Error(err))
-	})
-}
-
-func (i *instrumentation) buildFsIndexBootstrapFailed(err error,
-	iopts instrument.Options,
-	id ident.ID,
-	ranges result.ShardTimeRanges) {
-	instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-		l.Error("build fs index bootstrap failed",
-			zap.Stringer("namespace", id),
-			zap.Stringer("requestedRanges", ranges),
-			zap.Error(err))
-	})
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
@@ -303,7 +116,7 @@ func (s *peersSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	_, span, _ := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
+	span := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
 	defer span.Finish()
 
 	timeRangesEmpty := true
@@ -329,7 +142,7 @@ func (s *peersSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly delineate which process is slower than the other.
-	s.instrumentation.bootstrapDataStarted(span)
+	instrCtx := s.instrumentation.bootstrapDataStarted(span)
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -347,12 +160,12 @@ func (s *peersSource) Read(
 			DataResult: r,
 		})
 	}
-	s.instrumentation.bootstrapDataCompleted(span)
+	s.instrumentation.bootstrapDataCompleted(instrCtx, span)
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
 	// maybe fetched blocks from peers so the cached info file state is now stale.
 	cache.Evict()
 
-	s.instrumentation.bootstrapIndexStarted(span)
+	instrCtx = s.instrumentation.bootstrapIndexStarted(span)
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -382,7 +195,7 @@ func (s *peersSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.instrumentation.bootstrapIndexCompleted(span)
+	s.instrumentation.bootstrapIndexCompleted(instrCtx, span)
 
 	return results, nil
 }
@@ -437,7 +250,7 @@ func (s *peersSource) readData(
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
-	s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
+	instrCtx := s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
 	if shouldPersist {
 		// Spin up persist workers.
 		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
@@ -481,7 +294,7 @@ func (s *peersSource) readData(
 		}
 	}
 
-	s.instrumentation.bootstrapShardsCompleted()
+	s.instrumentation.bootstrapShardsCompleted(instrCtx)
 	return result, nil
 }
 
@@ -648,7 +461,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	}
 
 	shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-	for _, entry := range shardResult.AllSeries().Iter() { 	// nolint
+	for _, entry := range shardResult.AllSeries().Iter() { // nolint
 		series := entry.Value()
 		for blockStart := range series.Blocks.AllBlocks() {
 			shardBlockSeriesCounter[blockStart]++
@@ -1111,7 +924,12 @@ func (s *peersSource) processReaders(
 			s.instrumentation.outOfRetentionIndexSegmentSkipped(buildIndexLogFields)
 			return remainingRanges, timesWithErrors
 		} else if err != nil {
-			s.instrumentation.persistFsIndexBootstrapFailed(err, iopts, ns.ID(), requestedRanges)
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("persist fs index bootstrap failed",
+					zap.Stringer("namespace", ns.ID()),
+					zap.Stringer("requestedRanges", requestedRanges),
+					zap.Error(err))
+			})
 		}
 	} else {
 		s.instrumentation.buildingInMemoryIndexSegmentStarted(buildIndexLogFields)
@@ -1126,7 +944,12 @@ func (s *peersSource) processReaders(
 			blockEnd,
 		)
 		if err != nil {
-			s.instrumentation.buildFsIndexBootstrapFailed(err, iopts, ns.ID(), requestedRanges)
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("build fs index bootstrap failed",
+					zap.Stringer("namespace", ns.ID()),
+					zap.Stringer("requestedRanges", requestedRanges),
+					zap.Error(err))
+			})
 		}
 	}
 

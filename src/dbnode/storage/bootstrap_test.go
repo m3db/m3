@@ -63,7 +63,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
 	// Don't sleep.
-	bsm.instrumentation.sleepFn = func(time.Duration) {}
+	bsm.sleepFn = func(time.Duration) {}
 
 	gomock.InOrder(
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil),

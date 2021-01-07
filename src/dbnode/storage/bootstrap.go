@@ -33,9 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -70,142 +68,24 @@ const (
 
 type bootstrapFn func() error
 
-type instrumentation struct {
-	opts                        Options
-	log                         *zap.Logger
-	nowFn                       clock.NowFn
-	sleepFn                     sleepFn
-	status                      tally.Gauge
-	bootstrapDuration           tally.Timer
-	bootstrapNamespacesDuration tally.Timer
-	durableStatus               tally.Gauge
-	lastBootstrapCompletionTime xtime.UnixNano
-	start                       time.Time
-	startNamespaces             time.Time
-	logFields                   []zapcore.Field
-}
-
-func (i *instrumentation) bootstrapFnFailed(retry int) {
-	i.log.Warn("retrying bootstrap after backoff",
-		zap.Duration("backoff", bootstrapRetryInterval),
-		zap.Int("numRetries", retry+1))
-	i.sleepFn(bootstrapRetryInterval)
-}
-
-func (i *instrumentation) bootstrapPreparing() {
-	i.start = i.nowFn()
-	i.log.Info("bootstrap prepare")
-}
-
-func (i *instrumentation) bootstrapPrepareFailed(err error) {
-	i.log.Error("bootstrap prepare failed", zap.Error(err))
-}
-
-func (i *instrumentation) bootstrapStarted(shards int) {
-	i.logFields = []zapcore.Field{
-		zap.Int("numShards", shards),
-	}
-	i.log.Info("bootstrap started", i.logFields...)
-}
-
-func (i *instrumentation) bootstrapSucceeded() {
-	bootstrapDuration := i.nowFn().Sub(i.start)
-	i.bootstrapDuration.Record(bootstrapDuration)
-	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
-	i.log.Info("bootstrap succeeded, marking namespaces complete", i.logFields...)
-}
-
-func (i *instrumentation) bootstrapFailed(err error) {
-	bootstrapDuration := i.nowFn().Sub(i.start)
-	i.bootstrapDuration.Record(bootstrapDuration)
-	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
-	i.log.Error("bootstrap failed", append(i.logFields, zap.Error(err))...)
-}
-
-func (i *instrumentation) bootstrapNamespaceFailed(err error, namespaceID string) {
-	i.log.Info("bootstrap namespace error", append(i.logFields, []zapcore.Field{
-		zap.String("namespace", namespaceID),
-		zap.Error(err),
-	}...)...)
-}
-
-func (i *instrumentation) bootstrapNamespacesFailed(err error) {
-	duration := i.nowFn().Sub(i.startNamespaces)
-	i.bootstrapNamespacesDuration.Record(duration)
-	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
-	i.log.Info("bootstrap namespaces failed", append(i.logFields, zap.Error(err))...)
-}
-
-func (i *instrumentation) bootstrapNamespacesStarted() {
-	i.startNamespaces = i.nowFn()
-	i.log.Info("bootstrap namespaces start", i.logFields...)
-}
-
-func (i *instrumentation) bootstrapNamespacesSucceeded() {
-	duration := i.nowFn().Sub(i.startNamespaces)
-	i.bootstrapNamespacesDuration.Record(duration)
-	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
-	i.log.Info("bootstrap namespaces success", i.logFields...)
-}
-
-func (i *instrumentation) bootstrapCompletion() {
-	i.lastBootstrapCompletionTime = xtime.ToUnixNano(i.nowFn())
-}
-
-func (i *instrumentation) setIsBootstrapped(isBootstrapped bool) {
-	if isBootstrapped {
-		i.status.Update(1)
-	} else {
-		i.status.Update(0)
-	}
-}
-
-func (i *instrumentation) setIsBootstrappedAndDurable(isBootstrappedAndDurable bool) {
-	if isBootstrappedAndDurable {
-		i.durableStatus.Update(1)
-	} else {
-		i.durableStatus.Update(0)
-	}
-}
-
-func (i *instrumentation) missingNamespaceFromResult(err error) {
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
-		l.Error("bootstrap failed", append(i.logFields, zap.Error(err))...)
-	})
-}
-
-func (i *instrumentation) bootstrapDataAccumulatorCloseFailed(err error) {
-	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(),
-		func(l *zap.Logger) {
-			l.Error("could not close bootstrap data accumulator",
-				zap.Error(err))
-		})
-}
-
-func newInstrumentation(opts Options) *instrumentation {
-	scope := opts.InstrumentOptions().MetricsScope()
-	return &instrumentation{
-		opts:                        opts,
-		log:                         opts.InstrumentOptions().Logger(),
-		nowFn:                       opts.ClockOptions().NowFn(),
-		sleepFn:                     time.Sleep,
-		status:                      scope.Gauge("bootstrapped"),
-		bootstrapDuration:           scope.Timer("bootstrap-duration"),
-		bootstrapNamespacesDuration: scope.Timer("bootstrap-namespaces-duration"),
-		durableStatus:               scope.Gauge("bootstrapped-durable"),
-	}
+type bootstrapNamespace struct {
+	namespace databaseNamespace
+	shards    []databaseShard
 }
 
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database        database
-	mediator        databaseMediator
-	bootstrapFn     bootstrapFn
-	processProvider bootstrap.ProcessProvider
-	state           BootstrapState
-	hasPending      bool
-	instrumentation *instrumentation
+	database                    database
+	mediator                    databaseMediator
+	bootstrapFn                 bootstrapFn
+	processProvider             bootstrap.ProcessProvider
+	state                       BootstrapState
+	hasPending                  bool
+	sleepFn                     sleepFn
+	nowFn                       clock.NowFn
+	lastBootstrapCompletionTime xtime.UnixNano
+	instrumentation             *bootstrapInstrumentation
 }
 
 func newBootstrapManager(
@@ -217,6 +97,8 @@ func newBootstrapManager(
 		database:        database,
 		mediator:        mediator,
 		processProvider: opts.BootstrapProcessProvider(),
+		sleepFn:         time.Sleep,
+		nowFn:           opts.ClockOptions().NowFn(),
 		instrumentation: newInstrumentation(opts),
 	}
 	m.bootstrapFn = m.bootstrap
@@ -232,7 +114,7 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 
 func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) {
 	m.RLock()
-	bsTime := m.instrumentation.lastBootstrapCompletionTime
+	bsTime := m.lastBootstrapCompletionTime
 	m.RUnlock()
 	return bsTime, bsTime > 0
 }
@@ -289,6 +171,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 			// failure we retry the bootstrap again. This is to avoid operators
 			// needing to manually intervene for cases where failures are transient.
 			m.instrumentation.bootstrapFnFailed(i + 1)
+			m.sleepFn(bootstrapRetryInterval)
 			continue
 		}
 
@@ -305,7 +188,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 	m.Lock()
-	m.instrumentation.bootstrapCompletion()
+	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.Unlock()
 	return result, nil
 }
@@ -313,11 +196,6 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 func (m *bootstrapManager) Report() {
 	m.instrumentation.setIsBootstrapped(m.IsBootstrapped())
 	m.instrumentation.setIsBootstrappedAndDurable(m.database.IsBootstrappedAndDurable())
-}
-
-type bootstrapNamespace struct {
-	namespace databaseNamespace
-	shards    []databaseShard
 }
 
 func (m *bootstrapManager) bootstrap() error {
@@ -343,12 +221,16 @@ func (m *bootstrapManager) bootstrap() error {
 		// an error returned.
 		for _, accumulator := range accmulators {
 			if err := accumulator.Close(); err != nil {
-				m.instrumentation.bootstrapDataAccumulatorCloseFailed(err)
+				instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("could not close bootstrap data accumulator",
+							zap.Error(err))
+					})
 			}
 		}
 	}()
 
-	m.instrumentation.bootstrapPreparing()
+	instrCtx := m.instrumentation.bootstrapPreparing()
 	var (
 		bootstrapNamespaces = make([]bootstrapNamespace, len(namespaces))
 		prepareWg           sync.WaitGroup
@@ -423,19 +305,19 @@ func (m *bootstrapManager) bootstrap() error {
 		})
 	}
 
-	m.instrumentation.bootstrapStarted(len(uniqueShards))
+	m.instrumentation.bootstrapStarted(instrCtx, len(uniqueShards))
 	// Run the bootstrap.
-	bootstrapResult, err := process.Run(ctx, m.instrumentation.start, targets)
+	bootstrapResult, err := process.Run(ctx, instrCtx.start, targets)
 	if err != nil {
-		m.instrumentation.bootstrapFailed(err)
+		m.instrumentation.bootstrapFailed(instrCtx, err)
 		return err
 	}
 
-	m.instrumentation.bootstrapSucceeded()
+	m.instrumentation.bootstrapSucceeded(instrCtx)
+
+	instrCtx = m.instrumentation.bootstrapNamespacesStarted(instrCtx)
 	// Use a multi-error here because we want to at least bootstrap
 	// as many of the namespaces as possible.
-
-	m.instrumentation.bootstrapNamespacesStarted()
 	multiErr := xerrors.NewMultiError()
 	for _, namespace := range namespaces {
 		id := namespace.ID()
@@ -443,21 +325,25 @@ func (m *bootstrapManager) bootstrap() error {
 		if !ok {
 			err := fmt.Errorf("missing namespace from bootstrap result: %v",
 				id.String())
-			m.instrumentation.missingNamespaceFromResult(err)
+			instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("bootstrap failed",
+						append(instrCtx.logFields, zap.Error(err))...)
+				})
 			return err
 		}
 
 		if err := namespace.Bootstrap(ctx, result); err != nil {
-			m.instrumentation.bootstrapNamespaceFailed(err, id.String())
+			m.instrumentation.bootstrapNamespaceFailed(instrCtx, err, id)
 			multiErr = multiErr.Add(err)
 		}
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		m.instrumentation.bootstrapNamespacesFailed(err)
+		m.instrumentation.bootstrapNamespacesFailed(instrCtx, err)
 		return err
 	}
 
-	m.instrumentation.bootstrapNamespacesSucceeded()
+	m.instrumentation.bootstrapNamespacesSucceeded(instrCtx)
 	return nil
 }
