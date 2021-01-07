@@ -34,7 +34,9 @@ var singleDBNodeDockerResources resources.DockerResources
 
 func TestMain(m *testing.M) {
 	var err error
-	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode()
+	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode(
+		resources.WithExistingCluster("dbnode01", "coord01"),
+	)
 
 	if err != nil {
 		fmt.Println("could not set up db docker containers", err)
@@ -42,12 +44,10 @@ func TestMain(m *testing.M) {
 	}
 
 	if l := len(singleDBNodeDockerResources.Nodes()); l != 1 {
-		singleDBNodeDockerResources.Cleanup() //nolint:errcheck
 		fmt.Println("should only have a single node, have", l)
 		os.Exit(1)
 	}
 
 	code := m.Run()
-	singleDBNodeDockerResources.Cleanup() //nolint:errcheck
 	os.Exit(code)
 }
