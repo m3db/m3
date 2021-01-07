@@ -655,6 +655,10 @@ func (s *session) BorrowConnections(
 			// Error or has broken
 			return
 		}
+		if opts.ExcludeOrigin && s.origin != nil && s.origin.ID() == host.ID() {
+			// Skip origin host.
+			return
+		}
 
 		var (
 			userResult WithBorrowConnectionResult
@@ -937,7 +941,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 
 	if s.pools.multiReaderIteratorArray == nil {
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
-			pool.Bucket{
+			{
 				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
