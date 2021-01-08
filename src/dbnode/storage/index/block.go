@@ -149,15 +149,15 @@ type block struct {
 	docsLimit                        limits.LookbackLimit
 	querySegmentsWorkers             xsync.WorkerPool
 
-	// prevBlockWithMutableSegs is a reference to the previous block preceeding
-	// this block start, for which it has mutable data written to it.
+	// prevBlock is a reference to the previous block preceeding
+	// this block start.
 	// This is an optimization which should be easy to remove later that
 	// uses the previous block to index any new metrics not seen by it
 	// until it is unloaded from memory.
 	// This allows queries to be executed against a much more mature
 	// index segment for reads until it's unloaded from memory, at which
 	// point reads start to execute against this segment.
-	prevBlockWithMutableSegs *block
+	prevBlock *block
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -298,18 +298,11 @@ func (b *block) SetPreviousBlock(prevBlock Block) error {
 	if !ok {
 		return fmt.Errorf("prev block is not type block")
 	}
-	_, numDocs := prev.mutableSegments.NumSegmentsAndDocs()
-	if numDocs < 1 {
-		// We don't care about previous blocks that do not have
-		// any documents written to it since it won't help continuing
-		// to build that volume concurrently alongside the current volume.
-		return nil
-	}
 
 	b.Lock()
 	defer b.Unlock()
 
-	b.prevBlockWithMutableSegs = prev
+	b.prevBlock = prev
 
 	return nil
 }
@@ -337,14 +330,14 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		// we only care about warm mutable segments stats.
 		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
-	prevBlockWithMutableSegs := b.prevBlockWithMutableSegs
+	prevBlock := b.prevBlock
 	b.RUnlock()
 
-	if prevBlockWithMutableSegs != nil {
+	if prevBlock != nil {
 		// If prev block still has mutable data we write any data that's
 		// pending there since queries will be served from there until
 		// not in memory anymore.
-		err := b.writeNewNotInPrevBlock(prevBlockWithMutableSegs, inserts)
+		err := b.writeNewNotInPrevBlock(prevBlock, inserts)
 		if err != nil {
 			b.logger.Debug("could not insert dual write prev block", zap.Error(err))
 			b.metrics.newNotInPrevBlockWriteErrors.Inc(1)
@@ -461,7 +454,7 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	}()
 
 	var (
-		prevBlock         = b.prevBlockWithMutableSegs
+		prevBlock         = b.prevBlock
 		prevBlockReadable bool
 		prevBlockReaders  []segment.Reader
 	)
@@ -485,7 +478,8 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 		// Mark the fact that we are going to search previous blocks
 		// mutable segments not and not the local block's mutable segments
 		// if and only if the prev block mutable segments were open.
-		prevBlockReadable = isOpenMutable && isOpenNewNotInPrevBlockMutable
+		prevBlockReadable = isOpenMutable && isOpenNewNotInPrevBlockMutable &&
+			len(prevBlockReaders) > 0
 	}
 	if !prevBlockReadable {
 		// Add mutable segments.
