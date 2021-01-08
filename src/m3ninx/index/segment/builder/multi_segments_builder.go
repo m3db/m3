@@ -159,7 +159,7 @@ func (b *builderFromSegments) AllDocs() (index.IDDocIterator, error) {
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
-func (b *builderFromSegments) Doc(id postings.ID) (doc.Metadata, error) {
+func (b *builderFromSegments) Metadata(id postings.ID) (doc.Metadata, error) {
 	idx := int(id)
 	if idx < 0 || idx >= len(b.docs) {
 		return doc.Metadata{}, errDocNotFound
