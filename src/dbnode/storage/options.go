@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -181,6 +182,7 @@ type options struct {
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
+	profilerOptions                 profiler.Options
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -257,6 +259,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
+		profilerOptions:                 profiler.NewOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -925,6 +928,17 @@ func (o *options) SetTileAggregator(value TileAggregator) Options {
 
 func (o *options) TileAggregator() TileAggregator {
 	return o.tileAggregator
+}
+
+func (o *options) SetProfilerOptions(value profiler.Options) Options {
+	opts := *o
+	opts.profilerOptions = value
+
+	return &opts
+}
+
+func (o *options) ProfilerOptions() profiler.Options {
+	return o.profilerOptions
 }
 
 type noOpColdFlush struct{}

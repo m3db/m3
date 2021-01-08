@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -76,6 +77,7 @@ type bootstrapManager struct {
 	database                    database
 	mediator                    databaseMediator
 	opts                        Options
+	pOpts                       profiler.Options
 	log                         *zap.Logger
 	bootstrapFn                 bootstrapFn
 	nowFn                       clock.NowFn
@@ -99,6 +101,7 @@ func newBootstrapManager(
 		database:          database,
 		mediator:          mediator,
 		opts:              opts,
+		pOpts:             opts.ProfilerOptions(),
 		log:               opts.InstrumentOptions().Logger(),
 		nowFn:             opts.ClockOptions().NowFn(),
 		sleepFn:           time.Sleep,
@@ -143,10 +146,26 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	}
 	m.Unlock()
 
+	if m.pOpts.BootstrapProfileEnabled() {
+		if err := profiler.StartCPUProfile(m.pOpts.BootstrapProfilePath(),
+			profiler.BootstrapCPUProfileNamePrefix); err != nil {
+			m.log.Error("unable to start cpu profile", zap.Error(err))
+		}
+	}
+
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOpsAndWait()
-	defer m.mediator.EnableFileOps()
+	defer func() {
+		if m.pOpts.BootstrapProfileEnabled() {
+			profiler.StopCPUProfile()
+			if err := profiler.WriteHeapProfile(m.pOpts.BootstrapProfilePath(),
+				profiler.BootstrapHeapProfileNamePrefix); err != nil {
+				m.log.Error("unable to write heap profile", zap.Error(err))
+			}
+		}
+		m.mediator.EnableFileOps()
+	}()
 
 	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult
