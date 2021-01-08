@@ -495,6 +495,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
+				// By default it's Gauge.
 			switch value.Attributes.M3Type {
 			case ts.M3MetricTypeGauge:
 				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
