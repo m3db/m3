@@ -158,7 +158,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		require.Equal(t, "testns1", results.Namespace().String())
 
 		d, ok := results.Map().Get(ident.BytesID("foo"))
-		md, err := docs.GetFromDocument(d, reader)
+		md, err := docs.MetadataFromDocument(d, reader)
 		require.NoError(t, err)
 		tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
 

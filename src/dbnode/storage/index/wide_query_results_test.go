@@ -81,7 +81,7 @@ func buildExpected(t *testing.T, docs [][]doc.Document) [][]string {
 	for _, batch := range docs {
 		idBatch := make([]string, 0, len(batch))
 		for _, document := range batch { // nolint:gocritic
-			m, err := encoding.GetFromDocument(document, reader)
+			m, err := encoding.MetadataFromDocument(document, reader)
 			require.NoError(t, err)
 			idBatch = append(idBatch, string(m.ID))
 		}

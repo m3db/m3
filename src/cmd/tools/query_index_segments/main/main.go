@@ -194,7 +194,7 @@ func run(opts runOptions) {
 			fields := make(map[string]string)
 			for iter.Next() {
 				d := iter.Current()
-				m, err := docs.GetFromDocument(d, reader)
+				m, err := docs.MetadataFromDocument(d, reader)
 				if err != nil {
 					log.Fatal("error retrieve document metadata", zap.Error(err))
 				}

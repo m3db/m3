@@ -203,7 +203,7 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 		// Ensure the underlying []byte for ID/Fields is the same.
 		require.True(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
 		d := entry.Value()
-		m, err := docs.GetFromDocument(d, reader)
+		m, err := docs.MetadataFromDocument(d, reader)
 		require.NoError(t, err)
 
 		tags := idxconvert.ToSeriesTags(m, idxconvert.Opts{NoClone: true})

@@ -86,10 +86,10 @@ func (m *documentIteratorMatcher) Matches(i doc.Iterator) error {
 
 func (m *documentIteratorMatcher) compareDocs(d1 doc.Document, d2 doc.Document) bool {
 	docReader := idxdocs.NewEncodedDocumentReader()
-	d1Metadata, err := idxdocs.GetFromDocument(d1, docReader)
+	d1Metadata, err := idxdocs.MetadataFromDocument(d1, docReader)
 	require.NoError(m.t, err)
 
-	d2Metadata, err := idxdocs.GetFromDocument(d2, docReader)
+	d2Metadata, err := idxdocs.MetadataFromDocument(d2, docReader)
 	require.NoError(m.t, err)
 
 	return d1Metadata.Equal(d2Metadata)

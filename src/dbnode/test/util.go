@@ -36,7 +36,7 @@ import (
 // ident.TagIterator.
 func DocumentToTagIter(t *testing.T, doc doc.Document) ident.TagIterator {
 	reader := docs.NewEncodedDocumentReader()
-	m, err := docs.GetFromDocument(doc, reader)
+	m, err := docs.MetadataFromDocument(doc, reader)
 	require.NoError(t, err)
 
 	return convert.ToSeriesTags(m, convert.Opts{NoClone: true})

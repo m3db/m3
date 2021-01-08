@@ -520,7 +520,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	id := ident.NewReusableBytesID()
 	for _, entry := range queryResult.Results.Map().Iter() {
 		d := entry.Value()
-		metadata, err := docs.GetFromDocument(d, reader)
+		metadata, err := docs.MetadataFromDocument(d, reader)
 		if err != nil {
 			return nil, err
 		}
@@ -814,7 +814,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		tsID := id
 
 		d := entry.Value()
-		metadata, err := docs.GetFromDocument(d, reader)
+		metadata, err := docs.MetadataFromDocument(d, reader)
 		if err != nil {
 			return err
 		}

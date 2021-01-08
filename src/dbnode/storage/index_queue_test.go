@@ -351,7 +351,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 
 	reader := docs.NewEncodedDocumentReader()
 	d, ok := results.Map().Get(ident.BytesID("foo"))
-	md, err := docs.GetFromDocument(d, reader)
+	md, err := docs.MetadataFromDocument(d, reader)
 	require.NoError(t, err)
 	tags := idxconvert.ToSeriesTags(md, idxconvert.Opts{NoClone: true})
 

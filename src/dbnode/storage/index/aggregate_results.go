@@ -198,7 +198,7 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 func (r *aggregatedResults) addDocumentTermsWithLock(
 	container doc.Document,
 ) error {
-	document, err := docs.GetFromDocument(container, &r.encodedDocReader)
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
 	if err != nil {
 		return fmt.Errorf("unable to decode encoded document; %w", err)
 	}
@@ -242,7 +242,7 @@ func (r *aggregatedResults) addTermWithLock(
 func (r *aggregatedResults) addDocumentWithLock(
 	container doc.Document,
 ) error {
-	document, err := docs.GetFromDocument(container, &r.encodedDocReader)
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
 	if err != nil {
 		return fmt.Errorf("unable to decode encoded document; %w", err)
 	}
