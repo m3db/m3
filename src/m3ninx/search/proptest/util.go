@@ -43,7 +43,7 @@ func newDocumentIteratorMatcher(docs ...doc.Metadata) (*documentIteratorMatcher,
 }
 
 // Matches returns whether the provided iterator matches the collection of provided docs.
-func (m *documentIteratorMatcher) Matches(i doc.Iterator) error {
+func (m *documentIteratorMatcher) Matches(i doc.MetadataIterator) error {
 	pendingDocIDs := make(map[string]doc.Metadata, len(m.expectedDocs))
 	for id := range m.expectedDocs {
 		pendingDocIDs[id] = m.expectedDocs[id]

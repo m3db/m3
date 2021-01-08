@@ -32,13 +32,13 @@ type iterator struct {
 
 	idx      int
 	currDoc  doc.Metadata
-	currIter doc.Iterator
+	currIter doc.MetadataIterator
 
 	err    error
 	closed bool
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
+func newIterator(s search.Searcher, rs index.Readers) (doc.MetadataIterator, error) {
 	it := &iterator{
 		searcher: s,
 		readers:  rs,
@@ -110,7 +110,7 @@ func (it *iterator) Close() error {
 // nextIter gets the next document iterator by getting the next postings list from
 // the it's searcher and then getting the documents for that postings list from the
 // corresponding reader associated with that postings list.
-func (it *iterator) nextIter() (doc.Iterator, bool, error) {
+func (it *iterator) nextIter() (doc.MetadataIterator, bool, error) {
 	it.idx++
 	if it.idx >= len(it.readers) {
 		return nil, false, nil
@@ -122,7 +122,7 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 		return nil, false, err
 	}
 
-	iter, err := reader.Docs(pl)
+	iter, err := reader.MetadataIterator(pl)
 	if err != nil {
 		return nil, false, err
 	}

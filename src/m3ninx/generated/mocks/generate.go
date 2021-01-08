@@ -30,4 +30,4 @@ package mocks
 // mockgen rules for generating mocks (reflection mode)
 //go:generate sh -c "mockgen -package=mem -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/mem/mem_mock.go github.com/m3db/m3/src/m3ninx/index/segment/mem ReadableSegment"
 //go:generate sh -c "mockgen -package=fst -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/fst/fst_mock.go github.com/m3db/m3/src/m3ninx/index/segment/fst Writer,Segment"
-//go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/index_mock.go github.com/m3db/m3/src/m3ninx/index Reader,DocRetriever"
+//go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/index_mock.go github.com/m3db/m3/src/m3ninx/index Reader,DocRetriever,MetadataRetriever"

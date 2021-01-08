@@ -61,6 +61,7 @@ type Writer interface {
 
 // Readable provides a point-in-time accessor to the documents in an index.
 type Readable interface {
+	MetadataRetriever
 	DocRetriever
 
 	// MatchField returns a postings list over all documents which match the given field.
@@ -76,8 +77,12 @@ type Readable interface {
 	// MatchAll returns a postings list for all documents known to the Reader.
 	MatchAll() (postings.MutableList, error)
 
-	// Docs returns an iterator over the documents whose IDs are in the provided
+	// MetadataIterator returns an iterator over the metadata whose IDs are in the provided
 	// postings list.
+	MetadataIterator(pl postings.List) (doc.MetadataIterator, error)
+
+	// Docs returns an iterator over the document whose IDs
+	// are in the provided postings list.
 	Docs(pl postings.List) (doc.Iterator, error)
 
 	// AllDocs returns an iterator over the documents known to the Reader.
@@ -94,16 +99,22 @@ type CompiledRegex struct {
 	PrefixEnd   []byte
 }
 
+// MetadataRetriever returns the metadata associated with a postings ID. It returns
+// ErrDocNotFound if there is no metadata corresponding to the given postings ID.
+type MetadataRetriever interface {
+	Metadata(id postings.ID) (doc.Metadata, error)
+}
+
 // DocRetriever returns the document associated with a postings ID. It returns
 // ErrDocNotFound if there is no document corresponding to the given postings ID.
 type DocRetriever interface {
-	Doc(id postings.ID) (doc.Metadata, error)
+	Doc(id postings.ID) (doc.Document, error)
 }
 
 // IDDocIterator is an extented documents Iterator which can also return the postings
 // ID of the current document.
 type IDDocIterator interface {
-	doc.Iterator
+	doc.MetadataIterator
 
 	// PostingsID returns the current document postings ID.
 	PostingsID() postings.ID
