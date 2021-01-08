@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -132,7 +133,7 @@ func getStatusCode(err error) int {
 	case Error:
 		return v.Code()
 	case error:
-		if xerrors.IsInvalidParams(v) {
+		if xerrors.IsInvalidParams(v) || errors.Is(err, context.Canceled) {
 			return http.StatusBadRequest
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return http.StatusGatewayTimeout

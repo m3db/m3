@@ -21,6 +21,7 @@
 package xhttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http/httptest"
@@ -33,35 +34,64 @@ import (
 )
 
 func TestErrorRewrite(t *testing.T) {
+	invalidParamsRewriteFn := func(err error) error {
+		if xerrors.IsInvalidParams(err) {
+			return errors.New("rewritten error")
+		}
+		return err
+	}
+
+	noRewriteFn := func(err error) error {
+		return err
+	}
+
 	tests := []struct {
 		name           string
 		err            error
 		expectedStatus int
 		expectedBody   string
+		rewriteFn      ErrorRewriteFn
 	}{
 		{
 			name:           "error that should not be rewritten",
 			err:            errors.New("random error"),
 			expectedStatus: 500,
 			expectedBody:   `{"status":"error","error":"random error"}`,
+			rewriteFn: invalidParamsRewriteFn,
 		},
 		{
 			name:           "error that should be rewritten",
 			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
 			expectedStatus: 500,
 			expectedBody:   `{"status":"error","error":"rewritten error"}`,
+			rewriteFn: invalidParamsRewriteFn,
+		},
+		{
+			name:           "error should have correct status",
+			err:            xerrors.NewInvalidParamsError(errors.New("bad param")),
+			expectedStatus: 400,
+			expectedBody:   `{"status":"error","error":"bad param"}`,
+			rewriteFn: noRewriteFn,
+		},
+		{
+			name:           "deadline exceeded map to correct status",
+			err:            context.DeadlineExceeded,
+			expectedStatus: 504,
+			expectedBody:   `{"status":"error","error":"context deadline exceeded"}`,
+			rewriteFn: noRewriteFn,
+		},
+		{
+			name:           "canceled mapped to correct status",
+			err:            context.Canceled,
+			expectedStatus: 400,
+			expectedBody:   `{"status":"error","error":"context canceled"}`,
+			rewriteFn: noRewriteFn,
 		},
 	}
 
-	SetErrorRewriteFn(func(err error) error {
-		if xerrors.IsInvalidParams(err) {
-			return errors.New("rewritten error")
-		}
-		return err
-	})
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			SetErrorRewriteFn(tt.rewriteFn)
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.Equal(t, tt.expectedStatus, recorder.Code)
