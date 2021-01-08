@@ -1,6 +1,5 @@
 ---
-title: Setting up M3 Query
-menuTitle: M3Query
+title: Set up
 weight: 4
 ---
 

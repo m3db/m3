@@ -1,6 +1,5 @@
 ---
-title: Setting up M3 Aggregator
-menuTitle: M3Aggregator
+title: Set up
 weight: 5
 ---
 
