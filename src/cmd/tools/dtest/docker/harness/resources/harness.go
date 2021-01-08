@@ -79,13 +79,11 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nol
 	pool.MaxWait = timeout
 
 	if !options.existingCluster {
-		err = setupNetwork(pool)
-		if err != nil {
+		if err := setupNetwork(pool); err != nil {
 			return nil, err
 		}
 
-		err = setupVolume(pool)
-		if err != nil {
+		if err := setupVolume(pool); err != nil {
 			return nil, err
 		}
 	}
