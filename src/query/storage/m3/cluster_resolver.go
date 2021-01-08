@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 type unaggregatedNamespaceType uint8
@@ -346,15 +347,17 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 			Resolution: restrict.StoragePolicy.Resolution().Window,
 		})
 		if !ok {
-			return result(nil,
+			err := xerrors.NewInvalidParamsError(
 				fmt.Errorf("could not find namespace for storage policy: %v",
 					restrict.StoragePolicy.String()))
+			return result(nil, err)
 		}
 
 		return result(ns, nil)
 	default:
-		return result(nil,
+		err := xerrors.NewInvalidParamsError(
 			fmt.Errorf("unrecognized metrics type: %v", restrict.MetricsType))
+		return result(nil, err)
 	}
 }
 
