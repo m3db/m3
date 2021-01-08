@@ -71,7 +71,7 @@ func TestCounterCustomAggregationType(t *testing.T) {
 		case aggregation.Stdev:
 			require.InDelta(t, 29.01149, v, 0.001)
 		case aggregation.Last:
-			require.Equal(t, 0.0, v)
+			require.Equal(t, 100.0, v, 0.001)
 		default:
 			require.Equal(t, float64(0), v)
 			require.False(t, aggType.IsValidForCounter())

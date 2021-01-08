@@ -37,6 +37,7 @@ type Counter struct {
 	count  int64
 	max    int64
 	min    int64
+	last   int64
 }
 
 // NewCounter creates a new counter.
@@ -55,6 +56,7 @@ func (c *Counter) Update(timestamp time.Time, value int64) {
 		// after the wall clock timestamp of previous values, not
 		// the arrival time (i.e. order received).
 		c.lastAt = timestamp
+		c.last = value
 	} else {
 		c.Options.Metrics.Counter.IncValuesOutOfOrder()
 	}
@@ -122,6 +124,8 @@ func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
 		return float64(c.SumSq())
 	case aggregation.Stdev:
 		return c.Stdev()
+	case aggregation.Last:
+		return float64(c.last)
 	default:
 		return 0
 	}
