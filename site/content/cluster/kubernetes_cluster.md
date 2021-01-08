@@ -21,6 +21,10 @@ We recommend you use [our Kubernetes operator](/docs/operator/operator) to deplo
 -   A running Kubernetes cluster.
     -   For local testing, you can use [minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/), [Docker desktop](https://www.docker.com/products/docker-desktop), or [we have a script](https://raw.githubusercontent.com/m3db/m3db-operator/master/scripts/kind-create-cluster.sh) you can use to start a 3 node cluster with [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
+{{% notice note %}}
+The rest of this guide uses minikube, you may need to change some of the steps to suit your local cluster.
+{{% /notice %}}
+
 ## Create An etcd Cluster
 
 M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io) and needs a running cluster to communicate with.
