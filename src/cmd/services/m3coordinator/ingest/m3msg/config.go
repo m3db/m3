@@ -46,8 +46,9 @@ func (cfg Configuration) NewIngester(
 	appender storage.Appender,
 	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
+	storeMetricsType bool,
 ) (*Ingester, error) {
-	opts, err := cfg.newOptions(appender, tagOptions, instrumentOptions)
+	opts, err := cfg.newOptions(appender, tagOptions, instrumentOptions, storeMetricsType)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +59,7 @@ func (cfg Configuration) newOptions(
 	appender storage.Appender,
 	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
+	storeMetricsType bool,
 ) (Options, error) {
 	scope := instrumentOptions.MetricsScope().Tagged(
 		map[string]string{"component": "ingester"},
@@ -98,5 +100,6 @@ func (cfg Configuration) newOptions(
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		Sampler:           sampler,
 		InstrumentOptions: instrumentOptions,
+		StoreMetricsType:  storeMetricsType,
 	}, nil
 }

@@ -58,8 +58,8 @@ func TestResultsInsertInvalid(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	assert.True(t, res.EnforceLimits())
 
-	dInvalid := doc.Document{ID: nil}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
+	dInvalid := doc.Metadata{ID: nil}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 1, docsCount)
@@ -70,8 +70,8 @@ func TestResultsInsertInvalid(t *testing.T) {
 
 func TestResultsInsertIdempotency(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	dValid := doc.Document{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	dValid := doc.Metadata{ID: []byte("abc")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -79,7 +79,7 @@ func TestResultsInsertIdempotency(t *testing.T) {
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
 
-	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -90,9 +90,9 @@ func TestResultsInsertIdempotency(t *testing.T) {
 
 func TestResultsInsertBatchOfTwo(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	d1 := doc.Document{ID: []byte("d1")}
-	d2 := doc.Document{ID: []byte("d2")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
+	d1 := doc.Metadata{ID: []byte("d1")}
+	d2 := doc.Metadata{ID: []byte("d2")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1, d2})
 	require.NoError(t, err)
 	require.Equal(t, 2, size)
 	require.Equal(t, 2, docsCount)
@@ -103,8 +103,8 @@ func TestResultsInsertBatchOfTwo(t *testing.T) {
 
 func TestResultsFirstInsertWins(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	d1 := doc.Document{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	d1 := doc.Metadata{ID: []byte("abc")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -116,11 +116,15 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 0, tags.Remaining())
 
-	d2 := doc.Document{ID: []byte("abc"),
+	d2 := doc.Metadata{
+		ID: []byte("abc"),
 		Fields: doc.Fields{
-			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
+			doc.Field{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
 		}}
-	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Metadata{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -135,8 +139,8 @@ func TestResultsFirstInsertWins(t *testing.T) {
 
 func TestResultsInsertContains(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	dValid := doc.Document{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	dValid := doc.Metadata{ID: []byte("abc")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -148,10 +152,10 @@ func TestResultsInsertContains(t *testing.T) {
 
 func TestResultsInsertDoesNotCopy(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
+	dValid := doc.Metadata{ID: []byte("abc"), Fields: []doc.Field{
 		{Name: []byte("name"), Value: []byte("value")},
 	}}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -195,8 +199,8 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 
 func TestResultsReset(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	d1 := doc.Document{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	d1 := doc.Metadata{ID: []byte("abc")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -229,8 +233,8 @@ func TestResultsResetNamespaceClones(t *testing.T) {
 func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	d1 := doc.Document{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
+	d1 := doc.Metadata{ID: []byte("abc")}
+	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)

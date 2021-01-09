@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -628,7 +629,7 @@ func TestShardColdFlush(t *testing.T) {
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ds.id).AnyTimes()
-		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
+		curr.EXPECT().Metadata().Return(doc.Metadata{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
 		shard.list.PushBack(lookup.NewEntry(lookup.NewEntryOptions{
@@ -1172,7 +1173,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	document, exists, err := shard.DocRef(ident.StringID("NOT_PRESENT_ID"))
 	require.NoError(t, err)
 	require.False(t, exists)
-	require.Equal(t, doc.Document{}, document)
+	require.Equal(t, doc.Metadata{}, document)
 }
 
 // This tests a race in shard ticking with an empty series pending expiration.
@@ -1872,15 +1873,18 @@ func TestShardAggregateTiles(t *testing.T) {
 	sourceShard := testDatabaseShard(t, testOpts)
 	defer assert.NoError(t, sourceShard.Close())
 
-	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start, true)
+	reader0, volume0 := getMockReader(
+		ctrl, t, sourceShard, start, nil)
 	reader0.EXPECT().Entries().Return(firstSourceBlockEntries)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
-	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart, true)
+	reader1, volume1 := getMockReader(
+		ctrl, t, sourceShard, secondSourceBlockStart, nil)
 	reader1.EXPECT().Entries().Return(secondSourceBlockEntries)
 
 	thirdSourceBlockStart := secondSourceBlockStart.Add(sourceBlockSize)
-	reader2, volume2 := getMockReader(ctrl, t, sourceShard, thirdSourceBlockStart, false)
+	reader2, volume2 := getMockReader(
+		ctrl, t, sourceShard, thirdSourceBlockStart, fs.ErrCheckpointFileNotFound)
 
 	blockReaders := []fs.DataFileSetReader{reader0, reader1, reader2}
 	sourceBlockVolumes := []shardBlockVolume{
@@ -1950,12 +1954,58 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
+func TestShardScan(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		blockSize = time.Hour
+		start     = time.Now().Truncate(blockSize)
+		testOpts  = DefaultTestOptions()
+	)
+
+	shard := testDatabaseShard(t, testOpts)
+	defer assert.NoError(t, shard.Close())
+
+	shardEntries := []fs.StreamedDataEntry{
+		{
+			ID:           ident.BytesID("id1"),
+			EncodedTags:  ts.EncodedTags("tags1"),
+			Data:         []byte{1},
+			DataChecksum: 11,
+		},
+		{
+			ID:           ident.BytesID("id2"),
+			EncodedTags:  ts.EncodedTags("tags2"),
+			Data:         []byte{2},
+			DataChecksum: 22,
+		},
+	}
+
+	processor := fs.NewMockDataEntryProcessor(ctrl)
+	processor.EXPECT().SetEntriesCount(len(shardEntries))
+
+	reader, _ := getMockReader(ctrl, t, shard, start, nil)
+	reader.EXPECT().Entries().Return(len(shardEntries))
+	for _, entry := range shardEntries {
+		reader.EXPECT().StreamingRead().Return(entry, nil)
+		processor.EXPECT().ProcessEntry(entry)
+	}
+	reader.EXPECT().StreamingRead().Return(fs.StreamedDataEntry{}, io.EOF)
+
+	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
+		return reader, nil
+	}
+
+	require.NoError(t, shard.ScanData(start, processor))
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,
 	shard *dbShard,
 	blockStart time.Time,
-	dataFilesetFlushed bool,
+	openError error,
 ) (*fs.MockDataFileSetReader, int) {
 	latestSourceVolume, err := shard.LatestVolume(blockStart)
 	require.NoError(t, err)
@@ -1972,11 +2022,11 @@ func getMockReader(
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	if dataFilesetFlushed {
+	if openError == nil {
 		reader.EXPECT().Open(openOpts).Return(nil)
 		reader.EXPECT().Close()
 	} else {
-		reader.EXPECT().Open(openOpts).Return(fs.ErrCheckpointFileNotFound)
+		reader.EXPECT().Open(openOpts).Return(openError)
 	}
 
 	return reader, latestSourceVolume

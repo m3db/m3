@@ -1180,10 +1180,10 @@ func (mr *MockNamespaceMockRecorder) SetReadOnly(value interface{}) *gomock.Call
 }
 
 // DocRef mocks base method
-func (m *MockNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1401,10 +1401,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) SetReadOnly(value interface{}) *gom
 }
 
 // DocRef mocks base method
-func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockdatabaseNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1917,6 +1917,20 @@ func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
+// ScanData mocks base method
+func (m *MockShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ScanData indicates an expected call of ScanData
+func (mr *MockShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockShard)(nil).ScanData), blockStart, processor)
+}
+
 // MockdatabaseShard is a mock of databaseShard interface
 type MockdatabaseShard struct {
 	ctrl     *gomock.Controller
@@ -1994,6 +2008,20 @@ func (m *MockdatabaseShard) BootstrapState() BootstrapState {
 func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
+}
+
+// ScanData mocks base method
+func (m *MockdatabaseShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ScanData indicates an expected call of ScanData
+func (mr *MockdatabaseShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockdatabaseShard)(nil).ScanData), blockStart, processor)
 }
 
 // OnEvictedFromWiredList mocks base method
@@ -2315,10 +2343,10 @@ func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags interface{}
 }
 
 // DocRef mocks base method
-func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DocRef", id)
-	ret0, _ := ret[0].(doc.Document)
+	ret0, _ := ret[0].(doc.Metadata)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3667,6 +3695,20 @@ func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSerie
 func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
+}
+
+// CheckpointAndMaybeCompact mocks base method
+func (m *MockOnColdFlushNamespace) CheckpointAndMaybeCompact() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckpointAndMaybeCompact")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckpointAndMaybeCompact indicates an expected call of CheckpointAndMaybeCompact
+func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
 }
 
 // Done mocks base method

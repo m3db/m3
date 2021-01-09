@@ -52,6 +52,7 @@ ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 languageCode = "en-US"
 defaultContentLanguage = "en"
 # staticDir = ["static"]
+enableRobotsTXT = true
 
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
@@ -65,7 +66,7 @@ pygmentsUseClassic = false
 # See https://help.farbox.com/pygments.html
 # pygmentsStyle = "vs"
 
-enableGitInfo = true
+# enableGitInfo = true
 
 [frontmatter]
 # date = ["date", ":filename", "publishDate", "lastmod"]
@@ -101,11 +102,7 @@ offlineSearch = false
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
-  # TODO: pattern to branch?
-  # TODO: bring back
-  # editURL = "https://github.com/m3db/m3/tree/master/site/content/"
-  # Shows a checkmark for visited pages on the menu
-  showVisitedLinks = false
+
   # Disable search function. It will hide search bar
   disableSearch = false
   # Javascript and CSS cache are automatically busted when new version of site is generated. 
@@ -124,7 +121,7 @@ offlineSearch = false
   # Order sections in menu by "weight" or "title". Default to "weight"
   ordersectionsby = "weight"
   # Change default color scheme with a variant one. Can be "red", "blue", "green".
-  themeVariant = "blue"
+  # themeVariant = "blue"
   twitter = "m3db_io"
   disableHomeIcon = true
 

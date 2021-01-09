@@ -1154,7 +1154,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 		return nil
 	}
 
-	metadata := persist.NewMetadata(doc.Document{
+	metadata := persist.NewMetadata(doc.Metadata{
 		ID: []byte("some-id"),
 	})
 
@@ -1260,7 +1260,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	}
 
 	// Perform a snapshot.
-	metadata := persist.NewMetadata(doc.Document{
+	metadata := persist.NewMetadata(doc.Metadata{
 		ID: []byte("some-id"),
 	})
 
@@ -1407,7 +1407,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	}
 
 	// Perform a snapshot.
-	metadata := persist.NewMetadata(doc.Document{
+	metadata := persist.NewMetadata(doc.Metadata{
 		ID: []byte("some-id"),
 	})
 

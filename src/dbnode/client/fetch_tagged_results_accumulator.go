@@ -205,8 +205,14 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 		doneAccumulating := true
 		// NB(r): Use new renamed error to keep the underlying error
 		// (invalid/retryable) type.
-		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
-			accum.numShardsPending, accum.errors)
+		enqueued := accum.topoMap.HostsLen()
+		responded := enqueued
+		consistencyErr := newConsistencyResultError(accum.consistencyLevel, enqueued, responded,
+			accum.errors)
+		err := xerrors.Wrapf(
+			consistencyErr,
+			"unable to satisfy consistency requirements, shards=%d",
+			accum.numShardsPending)
 		for i := range accum.errors {
 			if IsBadRequestError(accum.errors[i]) {
 				err = xerrors.NewInvalidParamsError(err)

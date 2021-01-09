@@ -30,9 +30,17 @@
 
 [[redirects]]
   from = "/docs/how_to/single_node"
-  to = "docs/quickstart"
+  to = "/docs/quickstart"
+
+[[redirects]]
+  from="/docs/how_to/kubernetes"
+  to="/docs/cluster/kubernetes_cluster"
+
+[[redirects]]
+  from="/docs/quickstart/kubernetes"
+  to="/docs/cluster/kubernetes_cluster"
 
 # TODO: Fix this with new content type
 [[redirects]]
   from = "/talks"
-  to = "docs/overview/media"
+  to = "/docs/overview/media"

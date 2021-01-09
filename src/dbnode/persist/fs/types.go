@@ -153,9 +153,9 @@ type DataFileSetReader interface {
 
 	// StreamingRead returns the next unpooled id, encodedTags, data, checksum
 	// values ordered by id, or error, will return io.EOF at end of volume.
-	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
-	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
-	StreamingRead() (id ident.BytesID, encodedTags ts.EncodedTags, data []byte, checksum uint32, err error)
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is true.
+	// Note: the returned data gets invalidated on the next call to StreamingRead.
+	StreamingRead() (StreamedDataEntry, error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -216,7 +216,7 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
-	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
+	// made in order. The returned IndexEntry can also be passed to SeekByIndexEntry
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
@@ -597,7 +597,7 @@ type BlockRetrieverOptions interface {
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesMetadata doc.Document, data block.FetchBlockResult) error
+type ForEachRemainingFn func(seriesMetadata doc.Metadata, data block.FetchBlockResult) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {
@@ -676,4 +676,24 @@ type IndexClaimsManager interface {
 		md namespace.Metadata,
 		blockStart time.Time,
 	) (int, error)
+}
+
+// StreamedDataEntry contains the data of single entry returned by streaming method(s).
+// The underlying data slices are reused and invalidated on every read.
+type StreamedDataEntry struct {
+	ID           ident.BytesID
+	EncodedTags  ts.EncodedTags
+	Data         []byte
+	DataChecksum uint32
+}
+
+// NewReaderFn creates a new DataFileSetReader.
+type NewReaderFn func(bytesPool pool.CheckedBytesPool, opts Options) (DataFileSetReader, error)
+
+// DataEntryProcessor processes StreamedDataEntries.
+type DataEntryProcessor interface {
+	// SetEntriesCount sets the number of entries to be processed.
+	SetEntriesCount(int)
+	// ProcessEntry processes a single StreamedDataEntry.
+	ProcessEntry(StreamedDataEntry) error
 }

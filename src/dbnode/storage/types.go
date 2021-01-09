@@ -299,7 +299,7 @@ type Namespace interface {
 	SetReadOnly(value bool)
 
 	// DocRef returns the doc if already present in a namespace shard.
-	DocRef(id ident.ID) (doc.Document, bool, error)
+	DocRef(id ident.ID) (doc.Metadata, bool, error)
 
 	// WideQueryIDs resolves the given query into known IDs in s streaming
 	// fashion.
@@ -508,6 +508,13 @@ type Shard interface {
 
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
+
+	// ScanData performs a "full table scan" on the given block,
+	// calling processor function on every entry read.
+	ScanData(
+		blockStart time.Time,
+		processor fs.DataEntryProcessor,
+	) error
 }
 
 type databaseShard interface {
@@ -662,7 +669,7 @@ type databaseShard interface {
 	) (SeriesReadWriteRef, error)
 
 	// DocRef returns the doc if already present in a shard series.
-	DocRef(id ident.ID) (doc.Document, bool, error)
+	DocRef(id ident.ID) (doc.Metadata, bool, error)
 
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(

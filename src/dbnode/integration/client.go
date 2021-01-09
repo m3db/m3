@@ -67,6 +67,16 @@ func NewTChannelClient(name, address string) (*TestTChannelClient, error) {
 	}, nil
 }
 
+// Address returns the address.
+func (client *TestTChannelClient) Address() string {
+	return client.address
+}
+
+// Channel returns the TChannel channel.
+func (client *TestTChannelClient) Channel() *tchannel.Channel {
+	return client.channel
+}
+
 // TChannelClientWrite writes a datapoint using a tchannel client.
 func (client *TestTChannelClient) TChannelClientWrite(
 	timeout time.Duration, req *rpc.WriteRequest,

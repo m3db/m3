@@ -31,7 +31,7 @@ type iterator struct {
 	readers  index.Readers
 
 	idx      int
-	currDoc  doc.Document
+	currDoc  doc.Metadata
 	currIter doc.Iterator
 
 	err    error
@@ -91,7 +91,7 @@ func (it *iterator) Next() bool {
 	return true
 }
 
-func (it *iterator) Current() doc.Document {
+func (it *iterator) Current() doc.Metadata {
 	return it.currDoc
 }
 

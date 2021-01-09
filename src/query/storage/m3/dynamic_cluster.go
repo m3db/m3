@@ -210,6 +210,7 @@ func (d *dynamicCluster) updateNamespacesByEtcdClusterWithLock(
 		if err != nil {
 			existing.remove(nsID)
 			removed = append(removed, nsID)
+			continue
 		}
 
 		if nsMd.Equal(newNsMd) {

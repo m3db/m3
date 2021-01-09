@@ -28,10 +28,10 @@ type Iterator interface {
 	Next() bool
 
 	// Current returns the current document. It is only safe to call Current immediately
-	// after a call to Next confirms there are more elements remaining. The Document
+	// after a call to Next confirms there are more elements remaining. The Metadata
 	// returned from Current is only valid until the following call to Next(). Callers
-	// should copy the Document if they need it live longer.
-	Current() Document
+	// should copy the Metadata if they need it live longer.
+	Current() Metadata
 
 	// Err returns any errors encountered during iteration.
 	Err() error

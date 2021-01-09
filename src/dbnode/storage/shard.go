@@ -84,7 +84,7 @@ var (
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 
-	emptyDoc = doc.Document{}
+	emptyDoc = doc.Metadata{}
 )
 
 type filesetsFn func(
@@ -174,6 +174,7 @@ type dbShard struct {
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
+	newReaderFn              fs.NewReaderFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
@@ -317,6 +318,7 @@ func newDatabaseShard(
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,
+		newReaderFn:          fs.NewReader,
 		identifierPool:       opts.IdentifierPool(),
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
@@ -580,7 +582,7 @@ func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
 		return shardIterateBatchMinSize
 	}
-	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
+	t := math.Ceil(shardIterateBatchPercent * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
@@ -1230,7 +1232,7 @@ func (s *dbShard) newShardEntry(
 	// Hence this stays on the storage/series.DatabaseSeries for when it needs
 	// to be re-indexed.
 	var (
-		seriesMetadata doc.Document
+		seriesMetadata doc.Metadata
 		err            error
 	)
 	switch tagsArgOpts.arg {
@@ -1941,7 +1943,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				return nil, nil, err
 			}
-			return result, PageToken(data), nil
+			return result, data, nil
 		}
 
 		// Otherwise we move on to the previous block.
@@ -2788,7 +2790,7 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	return bs
 }
 
-func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (s *dbShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -2804,6 +2806,66 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 
 func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
+}
+
+func (s *dbShard) ScanData(
+	blockStart time.Time,
+	processor fs.DataEntryProcessor,
+) error {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return err
+	}
+
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		return err
+	}
+
+	readEntriesErr := s.scanDataWithReader(reader, processor)
+	// Always close the reader regardless of if failed, but
+	// make sure to propagate if an error occurred closing the reader too.
+	readCloseErr := reader.Close()
+	if err := readEntriesErr; err != nil {
+		return readEntriesErr
+	}
+	return readCloseErr
+}
+
+func (s *dbShard) scanDataWithReader(
+	reader fs.DataFileSetReader,
+	processor fs.DataEntryProcessor,
+) error {
+	processor.SetEntriesCount(reader.Entries())
+
+	for {
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+
+		if err := processor.ProcessEntry(entry); err != nil {
+			return err
+		}
+	}
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {

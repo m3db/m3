@@ -268,9 +268,10 @@ func (c *TCPClient) write(
 		return err
 	}
 	var (
-		shardID   = c.shardFn(metricID, uint32(placement.NumShards()))
-		instances = placement.InstancesForShard(shardID)
-		multiErr  = xerrors.NewMultiError()
+		shardID            = c.shardFn(metricID, uint32(placement.NumShards()))
+		instances          = placement.InstancesForShard(shardID)
+		multiErr           = xerrors.NewMultiError()
+		oneOrMoreSucceeded = false
 	)
 	for _, instance := range instances {
 		// NB(xichen): the shard should technically always be found because the instances
@@ -288,7 +289,15 @@ func (c *TCPClient) write(
 		}
 		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
 			multiErr = multiErr.Add(err)
+			continue
 		}
+
+		oneOrMoreSucceeded = true
+	}
+
+	if !oneOrMoreSucceeded {
+		// unrectifiable loss
+		c.metrics.dropped.Inc(1)
 	}
 
 	onPlacementDoneFn()
@@ -329,6 +338,7 @@ type tcpClientMetrics struct {
 	flush                  tally.Counter
 	shardNotOwned          tally.Counter
 	shardNotWriteable      tally.Counter
+	dropped                tally.Counter
 }
 
 func newTCPClientMetrics(
@@ -343,5 +353,6 @@ func newTCPClientMetrics(
 		flush:                  scope.Counter("flush"),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
+		dropped:                scope.Counter("dropped"),
 	}
 }

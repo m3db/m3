@@ -845,7 +845,7 @@ func testTCPClientOptions() Options {
 	plOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementStore(store).
 		SetStagedPlacementKey(placementKey).
-		SetInitWatchTimeout(time.Nanosecond)
+		SetInitWatchTimeout(time.Millisecond)
 	return NewOptions().
 		SetClockOptions(clock.NewOptions()).
 		SetConnectionOptions(testConnectionOptions()).

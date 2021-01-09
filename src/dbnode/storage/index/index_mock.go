@@ -129,7 +129,7 @@ func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockBaseResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
@@ -236,7 +236,7 @@ func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockQueryResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
@@ -430,7 +430,7 @@ func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
+func (m *MockAggregateResults) AddDocuments(batch []doc.Metadata) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)

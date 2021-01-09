@@ -43,6 +43,11 @@ const (
 	// Valid values are "unaggregated" or "aggregated".
 	MetricsTypeHeader = M3HeaderPrefix + "Metrics-Type"
 
+	// PromTypeHeader sets the prometheus metric type. Valid values are
+	// "counter", "gauge", etc. (see src/query/api/v1/handler/prometheus/remote/write.go
+	// field `headerToMetricType`)
+	PromTypeHeader = M3HeaderPrefix + "Prom-Type"
+
 	// WriteTypeHeader is a header that controls if default
 	// writes should be written to both unaggregated and aggregated
 	// namespaces, or if unaggregated values are skipped and
