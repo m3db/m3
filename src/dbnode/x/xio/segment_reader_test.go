@@ -49,11 +49,13 @@ var (
 		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
-
-	checkedNoPool = func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
 )
 
 type byteFunc func(d []byte) checked.Bytes
+
+func checkedNoPool(d []byte) checked.Bytes {
+	return checked.NewBytes(d, nil)
+}
 
 func testSegmentReader(
 	t *testing.T,
@@ -150,9 +152,8 @@ func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
 		peeked = append(peeked, buf[:n]...)
 
 		word, n, err = r.Read64()
-		if err != nil {
-			break
-		}
+		require.NoError(t, err)
+
 		binary.BigEndian.PutUint64(buf[:], word)
 		read = append(read, buf[:n]...)
 	}
@@ -160,4 +161,7 @@ func testSegmentReader64(t *testing.T, head []byte, tail []byte) {
 	require.Equal(t, io.EOF, err)
 	require.Equal(t, expected, peeked)
 	require.Equal(t, expected, read)
+
+	_, _, err = r.Read64()
+	require.Equal(t, io.EOF, err)
 }
