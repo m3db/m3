@@ -98,12 +98,11 @@ type metricsAppenderOptions struct {
 	agg          aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatasProtos         []metricpb.StagedMetadatas
-	matcher                              matcher.Matcher
-	tagEncoderPool                       serialize.TagEncoderPool
-	metricTagsIteratorPool               serialize.MetricTagsIteratorPool
-	augmentM3Tags                        bool
-	includeRollupsOnDefaultRuleFiltering bool
+	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+	matcher                      matcher.Matcher
+	tagEncoderPool               serialize.TagEncoderPool
+	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
+	augmentM3Tags                bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -246,7 +245,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 					// as we still want to apply default mapping rules to
 					// metrics that are rolled up to ensure the underlying metric
 					// gets written to aggregated namespaces.
-					if a.includeRollupsOnDefaultRuleFiltering || pipe.IsMappingRule() {
+					if pipe.IsMappingRule() {
 						for _, sp := range pipe.StoragePolicies {
 							a.mappingRuleStoragePolicies =
 								append(a.mappingRuleStoragePolicies, sp)
