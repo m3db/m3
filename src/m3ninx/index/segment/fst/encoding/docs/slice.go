@@ -33,7 +33,7 @@ var (
 )
 
 var _ Reader = (*SliceReader)(nil)
-var _ index.DocRetriever = (*SliceReader)(nil)
+var _ index.MetadataRetriever = (*SliceReader)(nil)
 
 // SliceReader is a docs slice reader for use with documents
 // stored in memory.
@@ -61,8 +61,8 @@ func (r *SliceReader) Read(id postings.ID) (doc.Metadata, error) {
 	return r.docs[idx], nil
 }
 
-// Doc implements DocRetriever and reads the document with postings ID.
-func (r *SliceReader) Doc(id postings.ID) (doc.Metadata, error) {
+// Metadata implements MetadataRetriever and reads the document with postings ID.
+func (r *SliceReader) Metadata(id postings.ID) (doc.Metadata, error) {
 	return r.Read(id)
 }
 

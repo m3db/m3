@@ -71,8 +71,8 @@ func TestIterator(t *testing.T) {
 		},
 	}
 
-	firstDocIter := doc.NewMockIterator(mockCtrl)
-	secondDocIter := doc.NewMockIterator(mockCtrl)
+	firstDocIter := doc.NewMockMetadataIterator(mockCtrl)
+	secondDocIter := doc.NewMockMetadataIterator(mockCtrl)
 	gomock.InOrder(
 		firstDocIter.EXPECT().Next().Return(true),
 		firstDocIter.EXPECT().Current().Return(docs[0]),
@@ -92,8 +92,8 @@ func TestIterator(t *testing.T) {
 	firstReader := index.NewMockReader(mockCtrl)
 	secondReader := index.NewMockReader(mockCtrl)
 	gomock.InOrder(
-		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
-		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
+		firstReader.EXPECT().MetadataIterator(firstPL).Return(firstDocIter, nil),
+		secondReader.EXPECT().MetadataIterator(secondPL).Return(secondDocIter, nil),
 	)
 
 	searcher := search.NewMockSearcher(mockCtrl)
