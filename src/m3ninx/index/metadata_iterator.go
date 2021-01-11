@@ -18,67 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package index
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	errExecutorClosed = errors.New("executor is closed")
-)
+var errIteratorClosed = errors.New("iterator has been closed")
 
-type newIteratorFn func(s search.Searcher, rs index.Readers) (doc.MetadataIterator, error)
+type idDocIterator struct {
+	retriever    MetadataRetriever
+	postingsIter postings.Iterator
 
-type executor struct {
-	sync.RWMutex
-
-	newIteratorFn newIteratorFn
-	readers       index.Readers
-
-	closed bool
+	currDoc doc.Metadata
+	currID  postings.ID
+	closed  bool
+	err     error
 }
 
-// NewExecutor returns a new Executor for executing queries.
-func NewExecutor(rs index.Readers) search.Executor {
-	return &executor{
-		newIteratorFn: newIterator,
-		readers:       rs,
+// NewIDDocIterator returns a new NewIDDocIterator.
+func NewIDDocIterator(r MetadataRetriever, pi postings.Iterator) IDDocIterator {
+	return &idDocIterator{
+		retriever:    r,
+		postingsIter: pi,
 	}
 }
 
-func (e *executor) Execute(q search.Query) (doc.MetadataIterator, error) {
-	e.RLock()
-	defer e.RUnlock()
-	if e.closed {
-		return nil, errExecutorClosed
+func (it *idDocIterator) Next() bool {
+	if it.closed || it.err != nil || !it.postingsIter.Next() {
+		return false
 	}
+	id := it.postingsIter.Current()
+	it.currID = id
 
-	s, err := q.Searcher()
+	d, err := it.retriever.Metadata(id)
 	if err != nil {
-		return nil, err
+		it.err = err
+		return false
 	}
-
-	iter, err := e.newIteratorFn(s, e.readers)
-	if err != nil {
-		return nil, err
-	}
-
-	return iter, nil
+	it.currDoc = d
+	return true
 }
 
-func (e *executor) Close() error {
-	e.Lock()
-	if e.closed {
-		e.Unlock()
-		return errExecutorClosed
+func (it *idDocIterator) Current() doc.Metadata {
+	return it.currDoc
+}
+
+func (it *idDocIterator) PostingsID() postings.ID {
+	return it.currID
+}
+
+func (it *idDocIterator) Err() error {
+	return it.err
+}
+
+func (it *idDocIterator) Close() error {
+	if it.closed {
+		return errIteratorClosed
 	}
-	e.closed = true
-	e.Unlock()
-	return e.readers.Close()
+	it.closed = true
+	it.currDoc = doc.Metadata{}
+	it.currID = postings.ID(0)
+	err := it.postingsIter.Close()
+	return err
 }
