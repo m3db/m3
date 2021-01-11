@@ -469,8 +469,8 @@ func handleUpstreamError(err error) error {
 	}
 
 	// If this is a contained error, extracts the inner error.
-	if containedErr, ok := err.(xerrors.ContainedError); ok {
-		err = containedErr.InnerError()
+	if e := xerrors.InnerError(err); e != nil {
+		err = e
 	}
 
 	switch err.(type) {

@@ -655,6 +655,10 @@ func (s *session) BorrowConnections(
 			// Error or has broken
 			return
 		}
+		if opts.ExcludeOrigin && s.origin != nil && s.origin.ID() == host.ID() {
+			// Skip origin host.
+			return
+		}
 
 		var (
 			userResult WithBorrowConnectionResult

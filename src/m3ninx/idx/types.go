@@ -38,7 +38,7 @@ type Index interface {
 
 // Searcher provides search over a point-in-time view of an index.
 type Searcher interface {
-	Search(q Query) (doc.Iterator, error)
+	Search(q Query) (doc.MetadataIterator, error)
 
 	Close() error
 }

@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	protobuftypes "github.com/gogo/protobuf/types"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 )
 
