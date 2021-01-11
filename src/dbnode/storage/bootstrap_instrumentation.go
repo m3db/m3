@@ -29,104 +29,115 @@ import (
 
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
-	start     time.Time
-	logFields []zapcore.Field
+	start                       time.Time
+	log                         *zap.Logger
+	logFields                   []zapcore.Field
+	bootstrapDuration           tally.Timer
+	bootstrapNamespacesDuration tally.Timer
+	nowFn                       clock.NowFn
+	instrumentOptions           instrument.Options
+}
+
+func (i *instrumentationContext) bootstrapStarted(shards int) {
+	i.logFields = append(i.logFields, zap.Int("numShards", shards))
+	i.log.Info("bootstrap started", i.logFields...)
+}
+
+func (i *instrumentationContext) bootstrapSucceeded() {
+	bootstrapDuration := i.nowFn().Sub(i.start)
+	i.bootstrapDuration.Record(bootstrapDuration)
+	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
+	i.log.Info("bootstrap succeeded, marking namespaces complete", i.logFields...)
+}
+
+func (i *instrumentationContext) bootstrapFailed(err error) {
+	bootstrapDuration := i.nowFn().Sub(i.start)
+	i.bootstrapDuration.Record(bootstrapDuration)
+	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
+	i.log.Error("bootstrap failed", append(i.logFields, zap.Error(err))...)
+}
+
+func (i *instrumentationContext) bootstrapNamespacesStarted() {
+	i.start = i.nowFn()
+	i.log.Info("bootstrap namespaces start", i.logFields...)
+}
+
+func (i *instrumentationContext) bootstrapNamespacesSucceeded() {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapNamespacesDuration.Record(duration)
+	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
+	i.log.Info("bootstrap namespaces success", i.logFields...)
+}
+
+func (i *instrumentationContext) bootstrapNamespaceFailed(
+	err error,
+	namespaceID ident.ID,
+) {
+	i.log.Info("bootstrap namespace error", append(i.logFields,
+		zap.String("namespace", namespaceID.String()),
+		zap.Error(err))...)
+}
+
+func (i *instrumentationContext) bootstrapNamespacesFailed(err error) {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapNamespacesDuration.Record(duration)
+	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
+	i.log.Info("bootstrap namespaces failed", append(i.logFields, zap.Error(err))...)
+}
+
+func (i *instrumentationContext) logFn(err error, msg string) func(l *zap.Logger) {
+	return func(l *zap.Logger) {
+		l.Error(msg, append(i.logFields, zap.Error(err))...)
+	}
 }
 
 type bootstrapInstrumentation struct {
-	opts                        Options
-	log                         *zap.Logger
-	nowFn                       clock.NowFn
-	status                      tally.Gauge
-	bootstrapDuration           tally.Timer
-	bootstrapNamespacesDuration tally.Timer
-	durableStatus               tally.Gauge
-	numRetries                  tally.Gauge
+	opts          Options
+	scope         tally.Scope
+	log           *zap.Logger
+	nowFn         clock.NowFn
+	status        tally.Gauge
+	durableStatus tally.Gauge
+	numRetries    tally.Counter
 }
 
 func newInstrumentation(opts Options) *bootstrapInstrumentation {
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapInstrumentation{
-		opts:                        opts,
-		log:                         opts.InstrumentOptions().Logger(),
-		nowFn:                       opts.ClockOptions().NowFn(),
-		status:                      scope.Gauge("bootstrapped"),
-		bootstrapDuration:           scope.Timer("bootstrap-duration"),
-		bootstrapNamespacesDuration: scope.Timer("bootstrap-namespaces-duration"),
-		durableStatus:               scope.Gauge("bootstrapped-durable"),
-		numRetries:                  scope.Gauge("bootstrap-retries"),
+		opts:          opts,
+		scope:         scope,
+		log:           opts.InstrumentOptions().Logger(),
+		status:        scope.Gauge("bootstrapped"),
+		durableStatus: scope.Gauge("bootstrapped-durable"),
+		numRetries:    scope.Counter("bootstrap-retries"),
+	}
+}
+
+func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext {
+	i.log.Info("bootstrap prepare")
+	return &instrumentationContext{
+		start:                       i.nowFn(),
+		log:                         i.log,
+		nowFn:                       i.nowFn,
+		bootstrapDuration:           i.scope.Timer("bootstrap-duration"),
+		bootstrapNamespacesDuration: i.scope.Timer("bootstrap-namespaces-duration"),
+		instrumentOptions:           i.opts.InstrumentOptions(),
 	}
 }
 
 func (i *bootstrapInstrumentation) bootstrapFnFailed(retry int) {
-	i.numRetries.Update(float64(retry))
+	i.numRetries.Inc(1)
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),
 		zap.Int("numRetries", retry))
 }
 
-func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext {
-	i.log.Info("bootstrap prepare")
-	return &instrumentationContext{start: i.nowFn()}
-}
-
 func (i *bootstrapInstrumentation) bootstrapPrepareFailed(err error) {
 	i.log.Error("bootstrap prepare failed", zap.Error(err))
-}
-
-func (i *bootstrapInstrumentation) bootstrapStarted(ctx *instrumentationContext, shards int) {
-	ctx.logFields = append(ctx.logFields, zap.Int("numShards", shards))
-	i.log.Info("bootstrap started", ctx.logFields...)
-}
-
-func (i *bootstrapInstrumentation) bootstrapSucceeded(ctx *instrumentationContext) {
-	bootstrapDuration := i.nowFn().Sub(ctx.start)
-	i.bootstrapDuration.Record(bootstrapDuration)
-	ctx.logFields = append(ctx.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
-	i.log.Info("bootstrap succeeded, marking namespaces complete", ctx.logFields...)
-}
-
-func (i *bootstrapInstrumentation) bootstrapFailed(ctx *instrumentationContext, err error) {
-	bootstrapDuration := i.nowFn().Sub(ctx.start)
-	i.bootstrapDuration.Record(bootstrapDuration)
-	ctx.logFields = append(ctx.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
-	i.log.Error("bootstrap failed", append(ctx.logFields, zap.Error(err))...)
-}
-
-func (i *bootstrapInstrumentation) bootstrapNamespaceFailed(
-	ctx *instrumentationContext,
-	err error,
-	namespaceID ident.ID,
-) {
-	i.log.Info("bootstrap namespace error", append(ctx.logFields, []zapcore.Field{
-		zap.String("namespace", namespaceID.String()),
-		zap.Error(err),
-	}...)...)
-}
-
-func (i *bootstrapInstrumentation) bootstrapNamespacesFailed(ctx *instrumentationContext, err error) {
-	duration := i.nowFn().Sub(ctx.start)
-	i.bootstrapNamespacesDuration.Record(duration)
-	ctx.logFields = append(ctx.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
-	i.log.Info("bootstrap namespaces failed", append(ctx.logFields, zap.Error(err))...)
-}
-
-func (i *bootstrapInstrumentation) bootstrapNamespacesStarted(ctx *instrumentationContext) *instrumentationContext {
-	i.log.Info("bootstrap namespaces start", ctx.logFields...)
-	return &instrumentationContext{
-		start:     i.nowFn(),
-		logFields: ctx.logFields,
-	}
-}
-
-func (i *bootstrapInstrumentation) bootstrapNamespacesSucceeded(ctx *instrumentationContext) {
-	duration := i.nowFn().Sub(ctx.start)
-	i.bootstrapNamespacesDuration.Record(duration)
-	ctx.logFields = append(ctx.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
-	i.log.Info("bootstrap namespaces success", ctx.logFields...)
 }
 
 func (i *bootstrapInstrumentation) setIsBootstrapped(isBootstrapped bool) {

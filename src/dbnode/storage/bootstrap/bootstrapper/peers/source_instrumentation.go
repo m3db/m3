@@ -37,16 +37,67 @@ import (
 )
 
 type instrumentationContext struct {
-	start time.Time
+	nowFn                  clock.NowFn
+	log                    *zap.Logger
+	start                  time.Time
+	span                   opentracing.Span
+	bootstrapDataDuration  tally.Timer
+	bootstrapIndexDuration tally.Timer
+}
+
+func (i *instrumentationContext) finish() {
+	i.span.Finish()
+}
+
+func (i *instrumentationContext) bootstrapDataStarted() {
+	i.log.Info("bootstrapping time series data start")
+	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
+	i.start = i.nowFn()
+}
+
+func (i *instrumentationContext) bootstrapDataCompleted() {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapDataDuration.Record(duration)
+	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
+	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
+}
+
+func (i *instrumentationContext) bootstrapIndexStarted() {
+	i.log.Info("bootstrapping index metadata start")
+	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
+	i.start = i.nowFn()
+}
+
+func (i *instrumentationContext) bootstrapIndexSkipped(namespaceID ident.ID) {
+	i.log.Info("skipping bootstrap for namespace based on options",
+		zap.Stringer("namespace", namespaceID))
+}
+
+func (i *instrumentationContext) bootstrapIndexCompleted() {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapIndexDuration.Record(duration)
+	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
+	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
+}
+
+type instrumentationReadShardsContext struct {
+	nowFn                   clock.NowFn
+	log                     *zap.Logger
+	start                   time.Time
+	bootstrapShardsDuration tally.Timer
+}
+
+func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
+	duration := i.nowFn().Sub(i.start)
+	i.bootstrapShardsDuration.Record(duration)
+	i.log.Info("bootstrapping shards success", zap.Duration("took", duration))
 }
 
 type instrumentation struct {
 	opts                               Options
+	scope                              tally.Scope
 	log                                *zap.Logger
 	nowFn                              clock.NowFn
-	bootstrapDataDuration              tally.Timer
-	bootstrapIndexDuration             tally.Timer
-	bootstrapShardsDuration            tally.Timer
 	persistedIndexBlocksOutOfRetention tally.Counter
 }
 
@@ -59,44 +110,24 @@ func newInstrumentation(opts Options) *instrumentation {
 
 	return &instrumentation{
 		opts:                               opts,
+		scope:                              scope,
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
-		bootstrapDataDuration:              scope.Timer("data-duration"),
-		bootstrapIndexDuration:             scope.Timer("index-duration"),
-		bootstrapShardsDuration:            scope.Timer("shards-duration"),
 		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 	}
 }
 
-func (i *instrumentation) bootstrapDataStarted(span opentracing.Span) *instrumentationContext {
-	i.log.Info("bootstrapping time series data start")
-	span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
-	return &instrumentationContext{start: i.nowFn()}
-}
-
-func (i *instrumentation) bootstrapDataCompleted(ctx *instrumentationContext, span opentracing.Span) {
-	duration := i.nowFn().Sub(ctx.start)
-	i.bootstrapDataDuration.Record(duration)
-	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
-	span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
-}
-
-func (i *instrumentation) bootstrapIndexStarted(span opentracing.Span) *instrumentationContext {
-	i.log.Info("bootstrapping index metadata start")
-	span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
-	return &instrumentationContext{start: i.nowFn()}
-}
-
-func (i *instrumentation) bootstrapIndexCompleted(ctx *instrumentationContext, span opentracing.Span) {
-	duration := i.nowFn().Sub(ctx.start)
-	i.bootstrapIndexDuration.Record(duration)
-	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
-	span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
-}
-
-func (i *instrumentation) bootstrapIndexSkipped(namespaceID ident.ID) {
-	i.log.Info("skipping bootstrap for namespace based on options",
-		zap.Stringer("namespace", namespaceID))
+func (i *instrumentation) peersBootstrapperSourceReadStarted(
+	ctx context.Context,
+) *instrumentationContext {
+	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
+	return &instrumentationContext{
+		nowFn:                  i.nowFn,
+		log:                    i.log,
+		span:                   span,
+		bootstrapDataDuration:  i.scope.Timer("data-duration"),
+		bootstrapIndexDuration: i.scope.Timer("index-duration"),
+	}
 }
 
 func (i *instrumentation) getDefaultAdminSessionFailed(err error) {
@@ -107,18 +138,17 @@ func (i *instrumentation) bootstrapShardsStarted(
 	count int,
 	concurrency int,
 	shouldPersist bool,
-) *instrumentationContext {
+) *instrumentationReadShardsContext {
 	i.log.Info("peers bootstrapper bootstrapping shards for ranges",
 		zap.Int("shards", count),
 		zap.Int("concurrency", concurrency),
 		zap.Bool("shouldPersist", shouldPersist))
-	return &instrumentationContext{start: i.nowFn()}
-}
-
-func (i *instrumentation) bootstrapShardsCompleted(ctx *instrumentationContext) {
-	duration := i.nowFn().Sub(ctx.start)
-	i.bootstrapShardsDuration.Record(duration)
-	i.log.Info("bootstrapping shards success", zap.Duration("took", duration))
+	return &instrumentationReadShardsContext{
+		nowFn:                   i.nowFn,
+		log:                     i.log,
+		start:                   i.nowFn(),
+		bootstrapShardsDuration: i.scope.Timer("shards-duration"),
+	}
 }
 
 func (i *instrumentation) persistenceFlushFailed(err error) {
@@ -196,11 +226,4 @@ func (i *instrumentation) readConsistencyNotAchieved(
 		zap.Int("replicas", majorityReplicas),
 		zap.Int("total", total),
 		zap.Int("available", available))
-}
-
-func (i *instrumentation) peersBootstrapperSourceReadStarted(
-	ctx context.Context,
-) opentracing.Span {
-	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
-	return span
 }

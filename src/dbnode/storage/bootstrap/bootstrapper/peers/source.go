@@ -116,8 +116,8 @@ func (s *peersSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	span := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
-	defer span.Finish()
+	instrCtx := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	timeRangesEmpty := true
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -142,7 +142,7 @@ func (s *peersSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly delineate which process is slower than the other.
-	instrCtx := s.instrumentation.bootstrapDataStarted(span)
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -160,23 +160,23 @@ func (s *peersSource) Read(
 			DataResult: r,
 		})
 	}
-	s.instrumentation.bootstrapDataCompleted(instrCtx, span)
+	instrCtx.bootstrapDataCompleted()
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
 	// maybe fetched blocks from peers so the cached info file state is now stale.
 	cache.Evict()
 
-	instrCtx = s.instrumentation.bootstrapIndexStarted(span)
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
-			s.instrumentation.bootstrapIndexSkipped(md.ID())
+			instrCtx.bootstrapIndexSkipped(md.ID())
 			continue
 		}
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			span,
+			instrCtx.span,
 			cache,
 			namespace.IndexRunOptions.RunOptions,
 		)
@@ -195,7 +195,7 @@ func (s *peersSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.instrumentation.bootstrapIndexCompleted(instrCtx, span)
+	instrCtx.bootstrapIndexCompleted()
 
 	return results, nil
 }
@@ -294,7 +294,7 @@ func (s *peersSource) readData(
 		}
 	}
 
-	s.instrumentation.bootstrapShardsCompleted(instrCtx)
+	instrCtx.bootstrapShardsCompleted()
 	return result, nil
 }
 

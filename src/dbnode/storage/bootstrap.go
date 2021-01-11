@@ -32,8 +32,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 var (
@@ -214,6 +212,8 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
+	instrCtx := m.instrumentation.bootstrapPreparing()
+
 	accmulators := make([]bootstrap.NamespaceDataAccumulator, 0, len(namespaces))
 	defer func() {
 		// Close all accumulators at bootstrap completion, only error
@@ -221,16 +221,12 @@ func (m *bootstrapManager) bootstrap() error {
 		// an error returned.
 		for _, accumulator := range accmulators {
 			if err := accumulator.Close(); err != nil {
-				instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
-					func(l *zap.Logger) {
-						l.Error("could not close bootstrap data accumulator",
-							zap.Error(err))
-					})
+				instrument.EmitAndLogInvariantViolation(instrCtx.instrumentOptions,
+					instrCtx.logFn(err, "could not close bootstrap data accumulator"))
 			}
 		}
 	}()
 
-	instrCtx := m.instrumentation.bootstrapPreparing()
 	var (
 		bootstrapNamespaces = make([]bootstrapNamespace, len(namespaces))
 		prepareWg           sync.WaitGroup
@@ -305,17 +301,17 @@ func (m *bootstrapManager) bootstrap() error {
 		})
 	}
 
-	m.instrumentation.bootstrapStarted(instrCtx, len(uniqueShards))
+	instrCtx.bootstrapStarted(len(uniqueShards))
 	// Run the bootstrap.
 	bootstrapResult, err := process.Run(ctx, instrCtx.start, targets)
 	if err != nil {
-		m.instrumentation.bootstrapFailed(instrCtx, err)
+		instrCtx.bootstrapFailed(err)
 		return err
 	}
 
-	m.instrumentation.bootstrapSucceeded(instrCtx)
+	instrCtx.bootstrapSucceeded()
 
-	instrCtx = m.instrumentation.bootstrapNamespacesStarted(instrCtx)
+	instrCtx.bootstrapNamespacesStarted()
 	// Use a multi-error here because we want to at least bootstrap
 	// as many of the namespaces as possible.
 	multiErr := xerrors.NewMultiError()
@@ -325,25 +321,22 @@ func (m *bootstrapManager) bootstrap() error {
 		if !ok {
 			err := fmt.Errorf("missing namespace from bootstrap result: %v",
 				id.String())
-			instrument.EmitAndLogInvariantViolation(m.instrumentation.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("bootstrap failed",
-						append(instrCtx.logFields, zap.Error(err))...)
-				})
+			instrument.EmitAndLogInvariantViolation(instrCtx.instrumentOptions,
+				instrCtx.logFn(err, "bootstrap failed"))
 			return err
 		}
 
 		if err := namespace.Bootstrap(ctx, result); err != nil {
-			m.instrumentation.bootstrapNamespaceFailed(instrCtx, err, id)
+			instrCtx.bootstrapNamespaceFailed(err, id)
 			multiErr = multiErr.Add(err)
 		}
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		m.instrumentation.bootstrapNamespacesFailed(instrCtx, err)
+		instrCtx.bootstrapNamespacesFailed(err)
 		return err
 	}
 
-	m.instrumentation.bootstrapNamespacesSucceeded(instrCtx)
+	instrCtx.bootstrapNamespacesSucceeded()
 	return nil
 }
