@@ -844,7 +844,7 @@ func (s *service) fetchReadResults(
 	defer sp.Finish()
 
 	for idx := range response.Elements {
-		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
+		segments, rpcErr := s.readEncodedResult(ctx, encodedDataResults[idx])
 		if rpcErr != nil {
 			return rpcErr
 		}
@@ -1024,7 +1024,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedResults[i].result)
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i].result)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -1101,7 +1101,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, nsIdx, encodedResult)
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResult)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -2308,18 +2308,8 @@ func (s *service) newPooledID(
 
 func (s *service) readEncodedResult(
 	ctx context.Context,
-	nsID ident.ID,
 	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSingleResult)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("id", nsID.String()),
-			opentracinglog.Int("segmentCount", len(encoded)),
-		)
-	}
-	defer sp.Finish()
-
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
@@ -2328,7 +2318,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		segment, err := s.readEncodedResultSegment(ctx, nsID, readers)
+		segment, err := s.readEncodedResultSegment(readers)
 		if err != nil {
 			return nil, err
 		}
@@ -2342,12 +2332,8 @@ func (s *service) readEncodedResult(
 }
 
 func (s *service) readEncodedResultSegment(
-	ctx context.Context,
-	nsID ident.ID,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSegment)
-	defer sp.Finish()
 	converted, err := convert.ToSegments(readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
@@ -2356,20 +2342,6 @@ func (s *service) readEncodedResultSegment(
 		return nil, nil
 	}
 
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("id", nsID.String()),
-			opentracinglog.Int("blockCount", len(readers)),
-			opentracinglog.Int("unmergedCount", len(converted.Segments.Unmerged)),
-		)
-
-		if converted.Segments.Merged != nil {
-			sp.LogFields(
-				opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
-				opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
-			)
-		}
-	}
 	return converted.Segments, nil
 }
 

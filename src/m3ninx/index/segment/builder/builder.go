@@ -485,7 +485,7 @@ func (b *builder) AllDocs() (index.IDDocIterator, error) {
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
-func (b *builder) Doc(id postings.ID) (doc.Metadata, error) {
+func (b *builder) Metadata(id postings.ID) (doc.Metadata, error) {
 	b.status.RLock()
 	defer b.status.RUnlock()
 
