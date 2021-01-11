@@ -68,37 +68,85 @@ func TestFromSeriesIDAndTagIteratorInvalid(t *testing.T) {
 }
 
 func TestFromSeriesIDAndTagsValid(t *testing.T) {
-	id := ident.StringID("foo")
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "no tags in ID",
+			id:   "foo",
+		},
+		{
+			name: "tags in ID",
+			id:   "bar=baz",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "bazillion_barometers",
+		},
+	}
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
 	)
-	d, err := convert.FromSeriesIDAndTags(id, tags)
-	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "bar", string(d.Fields[0].Name))
-	assert.Equal(t, "baz", string(d.Fields[0].Value))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := convert.FromSeriesIDAndTags(ident.StringID(tt.id), tags)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.id, string(d.ID))
+			assert.Len(t, d.Fields, 1)
+			assert.Equal(t, "bar", string(d.Fields[0].Name))
+			assert.Equal(t, "baz", string(d.Fields[0].Value))
+		})
+	}
 }
 
 func TestFromSeriesIDAndTagIterValid(t *testing.T) {
-	id := ident.StringID("foo")
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "no tags in ID",
+			id:   "foo",
+		},
+		{
+			name: "tags in ID",
+			id:   "bar=baz",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "bazillion_barometers",
+		},
+	}
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
 	)
-	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
-	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "bar", string(d.Fields[0].Name))
-	assert.Equal(t, "baz", string(d.Fields[0].Value))
+
+	for _, tt := range tests {
+		d, err := convert.FromSeriesIDAndTagIter(ident.StringID(tt.id), ident.NewTagsIterator(tags))
+		assert.NoError(t, err)
+		assert.Equal(t, tt.id, string(d.ID))
+		assert.Len(t, d.Fields, 1)
+		assert.Equal(t, "bar", string(d.Fields[0].Name))
+		assert.Equal(t, "baz", string(d.Fields[0].Value))
+	}
 }
 
 func TestToSeriesValid(t *testing.T) {
 	d := doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
-			doc.Field{Name: []byte("some"), Value: []byte("others")},
+			{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("some"), Value: []byte("others")},
 		},
 	}
 	id, tags, err := convert.ToSeries(d, testOpts)
