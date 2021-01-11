@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -83,6 +84,7 @@ type options struct {
 	fsOpts                           fs.Options
 	indexOpts                        index.Options
 	compactor                        *compaction.Compactor
+	profilerOptions                  profiler.Options
 }
 
 // NewOptions creates new bootstrap options.
@@ -94,7 +96,8 @@ func NewOptions() Options {
 		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
 		indexSegmentConcurrency:          defaultIndexSegmentConcurrency,
 		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
-		// Use a zero pool, this should be overriden at config time.
+		profilerOptions:                  profiler.NewOptions(),
+		// Use a zero pool, this should be overridden at config time.
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
@@ -267,4 +270,15 @@ func (o *options) SetIndexOptions(value index.Options) Options {
 
 func (o *options) IndexOptions() index.Options {
 	return o.indexOpts
+}
+
+func (o *options) SetProfilerOptions(value profiler.Options) Options {
+	opts := *o
+	opts.profilerOptions = value
+
+	return &opts
+}
+
+func (o *options) ProfilerOptions() profiler.Options {
+	return o.profilerOptions
 }

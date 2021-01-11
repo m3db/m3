@@ -145,21 +145,12 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		m.state = Bootstrapping
 	}
 	m.Unlock()
-
-	if m.pOpts.BootstrapProfileEnabled() {
-		if err := profiler.StartCPUProfile(m.pOpts.BootstrapProfilePath(),
-			profiler.BootstrapCPUProfileNamePrefix); err != nil {
-			m.log.Error("unable to start cpu profile", zap.Error(err))
-		}
-	}
-
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOpsAndWait()
 	defer func() {
 		if m.pOpts.BootstrapProfileEnabled() {
-			profiler.StopCPUProfile()
-			if err := profiler.WriteHeapProfile(m.pOpts.BootstrapProfilePath(),
+			if err := profiler.WriteHeapProfile(m.pOpts.ProfilePath(),
 				profiler.BootstrapHeapProfileNamePrefix); err != nil {
 				m.log.Error("unable to write heap profile", zap.Error(err))
 			}

@@ -40,11 +40,11 @@ func (o *options) SetBootstrapProfileEnabled(value bool) Options {
 	return &opts
 }
 
-func (o *options) BootstrapProfilePath() string {
+func (o *options) ProfilePath() string {
 	return o.bootstrapProfilePath
 }
 
-func (o *options) SetBootstrapProfilePath(value string) Options {
+func (o *options) SetProfilePath(value string) Options {
 	opts := *o
 	opts.bootstrapProfilePath = value
 	return &opts

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/x/context"
 )
 
@@ -140,4 +141,10 @@ type Options interface {
 
 	// IndexOptions returns the indexing options.
 	IndexOptions() index.Options
+
+	// SetProfilerOptions sets the profiler options.
+	SetProfilerOptions(value profiler.Options) Options
+
+	// ProfilerOptions returns the ProfilerOptions.
+	ProfilerOptions() profiler.Options
 }

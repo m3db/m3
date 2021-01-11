@@ -64,13 +64,13 @@ func TestCPUProfile(t *testing.T) {
 		name     string
 		fileName string
 	}{
-		{name: "0", fileName: fmt.Sprintf("%s%d%s", BootstrapCPUProfileNamePrefix, 0, ProfileFileExtension)},
-		{name: "1", fileName: fmt.Sprintf("%s%d%s", BootstrapCPUProfileNamePrefix, 1, ProfileFileExtension)},
-		{name: "2", fileName: fmt.Sprintf("%s%d%s", BootstrapCPUProfileNamePrefix, 2, ProfileFileExtension)},
+		{name: "0", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 0, ProfileFileExtension)},
+		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 1, ProfileFileExtension)},
+		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 2, ProfileFileExtension)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := StartCPUProfile(tmpDir, BootstrapCPUProfileNamePrefix)
+			err := StartCPUProfile(tmpDir, PeersBootstrapReadDataCPUProfileNamePrefix)
 			require.NoError(t, err)
 			StopCPUProfile()
 

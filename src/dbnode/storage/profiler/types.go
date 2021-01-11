@@ -49,11 +49,16 @@ const (
 	// ProfileFileExtension is the extension of profile files.
 	ProfileFileExtension = ".pb.gz"
 
-	// BootstrapCPUProfileNamePrefix is prefix for bootstrap cpu profile filepath.
-	BootstrapCPUProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.samples.cpu."
+	// PeersBootstrapReadDataCPUProfileNamePrefix is prefix for peers bootstrap read data cpu profile filepath.
+	PeersBootstrapReadDataCPUProfileNamePrefix ProfileNamePrefix =
+		"pprof.m3dbnode.peers-bootstrap.read-data.samples.cpu."
+
+	// PeersBootstrapReadIndexCPUProfileNamePrefix is prefix for peers bootstrap read index cpu profile filepath.
+	PeersBootstrapReadIndexCPUProfileNamePrefix ProfileNamePrefix =
+		"pprof.m3dbnode.peers-bootstrap.read-index.samples.cpu."
 
 	// BootstrapHeapProfileNamePrefix is prefix for bootstrap heap profile filepath.
-	BootstrapHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.samples.heap."
+	BootstrapHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.bootstrap.samples.heap."
 )
 
 // Options represents the profiler options.
@@ -64,9 +69,9 @@ type Options interface {
 	// SetBootstrapProfileEnabled enables bootstrap profiling.
 	SetBootstrapProfileEnabled(value bool) Options
 
-	// BootstrapProfilePath returns the bootstrapProfilePath.
-	BootstrapProfilePath() string
+	// ProfilePath returns the profile path.
+	ProfilePath() string
 
-	// SetBootstrapProfilePath sets the bootstrapProfilePath.
-	SetBootstrapProfilePath(value string) Options
+	// SetProfilePath sets the profile path.
+	SetProfilePath(value string) Options
 }

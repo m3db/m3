@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -135,6 +136,7 @@ func (s *peersSource) Read(
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
 
+	pOpts := s.opts.ProfilerOptions()
 	timeRangesEmpty := true
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
@@ -161,6 +163,12 @@ func (s *peersSource) Read(
 	start := s.nowFn()
 	s.log.Info("bootstrapping time series data start")
 	span.LogEvent("bootstrap_data_start")
+	if pOpts.BootstrapProfileEnabled() {
+		if err := profiler.StartCPUProfile(pOpts.ProfilePath(),
+			profiler.PeersBootstrapReadDataCPUProfileNamePrefix); err != nil {
+			s.log.Error("unable to start read data cpu profile", zap.Error(err))
+		}
+	}
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -181,6 +189,9 @@ func (s *peersSource) Read(
 	s.log.Info("bootstrapping time series data success",
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
+	if pOpts.BootstrapProfileEnabled() {
+		profiler.StopCPUProfile()
+	}
 
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
 	// maybe fetched blocks from peers so the cached info file state is now stale.
@@ -188,6 +199,12 @@ func (s *peersSource) Read(
 	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
+	if pOpts.BootstrapProfileEnabled() {
+		if err := profiler.StartCPUProfile(pOpts.ProfilePath(),
+			profiler.PeersBootstrapReadIndexCPUProfileNamePrefix); err != nil {
+			s.log.Error("unable to start read index cpu profile", zap.Error(err))
+		}
+	}
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -223,7 +240,9 @@ func (s *peersSource) Read(
 	s.log.Info("bootstrapping index metadata success",
 		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_index_done")
-
+	if pOpts.BootstrapProfileEnabled() {
+		profiler.StopCPUProfile()
+	}
 	return results, nil
 }
 
