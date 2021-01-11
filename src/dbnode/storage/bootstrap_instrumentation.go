@@ -111,6 +111,7 @@ func newInstrumentation(opts Options) *bootstrapInstrumentation {
 		opts:          opts,
 		scope:         scope,
 		log:           opts.InstrumentOptions().Logger(),
+		nowFn:         opts.ClockOptions().NowFn(),
 		status:        scope.Gauge("bootstrapped"),
 		durableStatus: scope.Gauge("bootstrapped-durable"),
 		numRetries:    scope.Counter("bootstrap-retries"),
