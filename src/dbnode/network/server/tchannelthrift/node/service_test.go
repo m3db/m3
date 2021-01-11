@@ -1651,15 +1651,12 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 8)
+
+	require.Len(t, spans, 4)
 	assert.Equal(t, tracepoint.FetchReadEncoded, spans[0].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[1].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[2].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[3].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[4].OperationName)
-	assert.Equal(t, tracepoint.FetchReadResults, spans[5].OperationName)
-	assert.Equal(t, tracepoint.FetchTagged, spans[6].OperationName)
-	assert.Equal(t, "root", spans[7].OperationName)
+	assert.Equal(t, tracepoint.FetchReadResults, spans[1].OperationName)
+	assert.Equal(t, tracepoint.FetchTagged, spans[2].OperationName)
+	assert.Equal(t, "root", spans[3].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {

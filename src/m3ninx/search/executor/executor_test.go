@@ -58,7 +58,7 @@ func TestExecutor(t *testing.T) {
 	e := NewExecutor(rs).(*executor)
 
 	// Override newIteratorFn to return test iterator.
-	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.Iterator, error) {
+	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.MetadataIterator, error) {
 		return newTestIterator(), nil
 	}
 
