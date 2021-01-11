@@ -45,6 +45,21 @@ type instrumentationContext struct {
 	bootstrapIndexDuration tally.Timer
 }
 
+func newInstrumentationContext(
+	nowFn clock.NowFn,
+	log *zap.Logger,
+	span opentracing.Span,
+	scope tally.Scope,
+) *instrumentationContext {
+	return &instrumentationContext{
+		nowFn:                  nowFn,
+		log:                    log,
+		span:                   span,
+		bootstrapDataDuration:  scope.Timer("data-duration"),
+		bootstrapIndexDuration: scope.Timer("index-duration"),
+	}
+}
+
 func (i *instrumentationContext) finish() {
 	i.span.Finish()
 }
@@ -87,6 +102,19 @@ type instrumentationReadShardsContext struct {
 	bootstrapShardsDuration tally.Timer
 }
 
+func newInstrumentationReadShardsContext(
+	nowFn clock.NowFn,
+	log *zap.Logger,
+	scope tally.Scope,
+) *instrumentationReadShardsContext {
+	return &instrumentationReadShardsContext{
+		nowFn:                   nowFn,
+		log:                     log,
+		start:                   nowFn(),
+		bootstrapShardsDuration: scope.Timer("shards-duration"),
+	}
+}
+
 func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
 	duration := i.nowFn().Sub(i.start)
 	i.bootstrapShardsDuration.Record(duration)
@@ -121,13 +149,12 @@ func (i *instrumentation) peersBootstrapperSourceReadStarted(
 	ctx context.Context,
 ) *instrumentationContext {
 	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
-	return &instrumentationContext{
-		nowFn:                  i.nowFn,
-		log:                    i.log,
-		span:                   span,
-		bootstrapDataDuration:  i.scope.Timer("data-duration"),
-		bootstrapIndexDuration: i.scope.Timer("index-duration"),
-	}
+	return newInstrumentationContext(
+		i.nowFn,
+		i.log,
+		span,
+		i.scope,
+	)
 }
 
 func (i *instrumentation) getDefaultAdminSessionFailed(err error) {
@@ -143,12 +170,11 @@ func (i *instrumentation) bootstrapShardsStarted(
 		zap.Int("shards", count),
 		zap.Int("concurrency", concurrency),
 		zap.Bool("shouldPersist", shouldPersist))
-	return &instrumentationReadShardsContext{
-		nowFn:                   i.nowFn,
-		log:                     i.log,
-		start:                   i.nowFn(),
-		bootstrapShardsDuration: i.scope.Timer("shards-duration"),
-	}
+	return newInstrumentationReadShardsContext(
+		i.nowFn,
+		i.log,
+		i.scope,
+	)
 }
 
 func (i *instrumentation) persistenceFlushFailed(err error) {

@@ -97,7 +97,7 @@ func newBootstrapManager(
 		processProvider: opts.BootstrapProcessProvider(),
 		sleepFn:         time.Sleep,
 		nowFn:           opts.ClockOptions().NowFn(),
-		instrumentation: newInstrumentation(opts),
+		instrumentation: newBootstrapInstrumentation(opts),
 	}
 	m.bootstrapFn = m.bootstrap
 	return m

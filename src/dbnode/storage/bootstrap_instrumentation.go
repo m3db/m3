@@ -42,6 +42,22 @@ type instrumentationContext struct {
 	instrumentOptions           instrument.Options
 }
 
+func newInstrumentationContext(
+	nowFn clock.NowFn,
+	log *zap.Logger,
+	scope tally.Scope,
+	opts Options,
+) *instrumentationContext {
+	return &instrumentationContext{
+		start:                       nowFn(),
+		log:                         log,
+		nowFn:                       nowFn,
+		bootstrapDuration:           scope.Timer("bootstrap-duration"),
+		bootstrapNamespacesDuration: scope.Timer("bootstrap-namespaces-duration"),
+		instrumentOptions:           opts.InstrumentOptions(),
+	}
+}
+
 func (i *instrumentationContext) bootstrapStarted(shards int) {
 	i.logFields = append(i.logFields, zap.Int("numShards", shards))
 	i.log.Info("bootstrap started", i.logFields...)
@@ -105,7 +121,7 @@ type bootstrapInstrumentation struct {
 	numRetries    tally.Counter
 }
 
-func newInstrumentation(opts Options) *bootstrapInstrumentation {
+func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapInstrumentation{
 		opts:          opts,
@@ -120,14 +136,7 @@ func newInstrumentation(opts Options) *bootstrapInstrumentation {
 
 func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext {
 	i.log.Info("bootstrap prepare")
-	return &instrumentationContext{
-		start:                       i.nowFn(),
-		log:                         i.log,
-		nowFn:                       i.nowFn,
-		bootstrapDuration:           i.scope.Timer("bootstrap-duration"),
-		bootstrapNamespacesDuration: i.scope.Timer("bootstrap-namespaces-duration"),
-		instrumentOptions:           i.opts.InstrumentOptions(),
-	}
+	return newInstrumentationContext(i.nowFn, i.log, i.scope, i.opts)
 }
 
 func (i *bootstrapInstrumentation) bootstrapFnFailed(retry int) {
