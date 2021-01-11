@@ -131,7 +131,7 @@ var samples = []struct {
 	},
 }
 
-// BenchmarkFromSeriesIDAndTagIter-12    	  189643	      6096 ns/op
+// BenchmarkFromSeriesIDAndTagIter-12    	  254090	      4689 ns/op
 func BenchmarkFromSeriesIDAndTagIter(b *testing.B) {
 	testData, err := prepareIDAndEncodedTags(b)
 	require.NoError(b, err)
@@ -153,7 +153,7 @@ func BenchmarkFromSeriesIDAndTagIter(b *testing.B) {
 	}
 }
 
-// BenchmarkFromSeriesIDAndTags-12       	  586689	      2584 ns/op
+// BenchmarkFromSeriesIDAndTags-12       	 1000000	      1311 ns/op
 func BenchmarkFromSeriesIDAndTags(b *testing.B) {
 	testData, err := prepareIDAndTags(b)
 	require.NoError(b, err)
