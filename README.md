@@ -6,7 +6,7 @@
 
 ## Table of Contents:
 - [Install](## Install)
-- [Dependencies](## Dependencies)
+- [Dependencies](#dependencies)
 - [Usage](## Usage)
 - [Contributing](## Contributing)
 - [Community meetings](## Community Meetings)
