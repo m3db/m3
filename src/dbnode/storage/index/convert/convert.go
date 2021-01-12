@@ -36,11 +36,14 @@ const (
 	// NB: this assumes that series ID has a format:
 	//   {tag1="value1",tag2="value2",...}
 	//
-	// Thus seriesIDFirstTagBytesIdx points to the 't' immediately after curly brace '{', and
-	// seriesIDDistanceBetweenTagBytes corresponds to either '="' or '",' that separate
-	// tag from it's value or value from the next tag.
-	seriesIDFirstTagBytesIdx        int = 1
-	seriesIDDistanceBetweenTagBytes int = 2
+	// Thus firstTagBytesPosition points to the 't' immediately after curly brace '{'
+	firstTagBytesPosition int = 1
+	// distanceBetweenTagNameAndValue corresponds to '="' in series ID that separates tag name from
+	// it's value
+	distanceBetweenTagNameAndValue int = 2
+	// distanceBetweenTagValueAndNextName corresponds to '",' in series ID that separates
+	// tag's value from the following tag name
+	distanceBetweenTagValueAndNextName int = 2
 )
 
 var (
@@ -119,15 +122,19 @@ func ValidateSeriesTag(tag ident.Tag) error {
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
 func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
-	clonedID := clone(id.Bytes())
-	fields := make([]doc.Field, 0, len(tags.Values()))
-	expectedIdx := seriesIDFirstTagBytesIdx
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, len(tags.Values()))
+		expectedStart = firstTagBytesPosition
+	)
 	for _, tag := range tags.Values() {
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		clonedName, expectedIdx = findSliceOrClone(clonedID, nameBytes, expectedIdx)
-		clonedValue, expectedIdx = findSliceOrClone(clonedID, valueBytes, expectedIdx)
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -147,17 +154,20 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
 
 // FromSeriesIDAndTagIter converts the provided series id+tags into a document.
 func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, error) {
-	clonedID := clone(id.Bytes())
-	fields := make([]doc.Field, 0, tags.Remaining())
-
-	expectedIdx := 1
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, tags.Remaining())
+		expectedStart = firstTagBytesPosition
+	)
 	for tags.Next() {
 		tag := tags.Current()
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		clonedName, expectedIdx = findSliceOrClone(clonedID, nameBytes, expectedIdx)
-		clonedValue, expectedIdx = findSliceOrClone(clonedID, valueBytes, expectedIdx)
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -178,13 +188,14 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 	return d, nil
 }
 
-func findSliceOrClone(id, tag []byte, expectedIdx int) ([]byte, int) {
+func findSliceOrClone(id, tag []byte, expectedStart, nextPositionDistance int) ([]byte, int) { //nolint:unparam
 	n := len(tag)
-	expectedEnd := expectedIdx + n
-	if expectedIdx != -1 && expectedEnd <= len(id) && bytes.Equal(id[expectedIdx:expectedEnd], tag) {
-		return id[expectedIdx:expectedEnd], expectedEnd + seriesIDDistanceBetweenTagBytes
+	expectedEnd := expectedStart + n
+	if expectedStart != -1 && expectedEnd <= len(id) &&
+		bytes.Equal(id[expectedStart:expectedEnd], tag) {
+		return id[expectedStart:expectedEnd], expectedEnd + nextPositionDistance
 	} else if idx := bytes.Index(id, tag); idx != -1 {
-		return id[idx : idx+n], expectedEnd + seriesIDDistanceBetweenTagBytes
+		return id[idx : idx+n], expectedEnd + nextPositionDistance
 	} else {
 		return clone(tag), -1
 	}
