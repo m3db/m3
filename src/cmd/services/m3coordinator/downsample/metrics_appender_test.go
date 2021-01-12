@@ -114,13 +114,15 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 
 		agg.EXPECT().AddUntimed(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(u unaggregated.MetricUnion, _ metadata.StagedMetadatas) error {
+				i := i
+
 				if u.CounterVal != int64(i) {
 					return errors.New("wrong counter value")
 				}
 
 				// NB: expected ID is generated into human-readable form
-				// from tags in ForwardMatch mock above.
-				expected := fmt.Sprintf("foo%d-bar%d", i, i)
+				// from tags in ForwardMatch mock above. Also include the m3 type, which is included when matching.
+				expected := fmt.Sprintf("__m3_type__-gauge,foo%d-bar%d", i, i)
 				if expected != u.ID.String() {
 					// NB: if this fails, appender is holding state after Finalize.
 					return fmt.Errorf("expected ID %s, got %s", expected, u.ID.String())
