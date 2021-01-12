@@ -79,7 +79,13 @@ curl -X "POST" -G "http://localhost:7201/api/v1/query_range" \
   -d "end=$( date +%s )" \
   -d "step=5s" | jq .  
 ```
-
+**macOS/BSD**
+```shell
+curl -X "POST" -G "http://localhost:7201/api/v1/query_range" \
+  -d "query=third_avenue > 6000" \
+  -d "start=$(date -v -45S "+%s")" \
+  -d "end=$( date +%s )" \
+  -d "step=5s" | jq .
 ## Contributing 
 
 You can ask questions and give feedback in the following ways:
