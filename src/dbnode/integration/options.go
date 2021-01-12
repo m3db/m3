@@ -297,7 +297,7 @@ type TestOptions interface {
 	// SetStorageOptsFn sets the StorageOpts modifier.
 	SetStorageOptsFn(StorageOption) TestOptions
 
-	// StorageOptsFn returns the StorageOpts modifier
+	// StorageOptsFn returns the StorageOpts modifier.
 	StorageOptsFn() StorageOption
 }
 
