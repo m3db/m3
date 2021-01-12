@@ -186,7 +186,7 @@ type TestSetup interface {
 	InitializeBootstrappers(opts InitializeBootstrappersOptions) error
 }
 
-// StorageOption is a reference to storage options function
+// StorageOption is a reference to storage options function.
 type StorageOption func(storage.Options) storage.Options
 
 // NewTestSetup returns a new test setup for non-dockerized integration tests.
