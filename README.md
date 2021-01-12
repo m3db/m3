@@ -34,7 +34,7 @@ The simplest and quickest way to try M3 is to use Docker, read [the M3 quickstar
 The below is a simplified version of the [M3 quickstart guide](https://m3db.io/docs/quickstart/docker/), and we suggest you read that for more details.
 
 1. Start a container
-```
+```shell
 docker run -p 7201:7201 -p 7203:7203 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3dbnode:v1.0.0
 ```
 
