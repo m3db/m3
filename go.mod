@@ -105,7 +105,7 @@ require (
 	github.com/prometheus/alertmanager v0.20.0 // indirect
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.9.1
-	github.com/prometheus/prometheus v1.8.1
+	github.com/prometheus/prometheus v2.5.0+incompatible
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
@@ -120,6 +120,7 @@ require (
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/tetafro/godot v1.3.0 // indirect
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/tally v3.3.13+incompatible
