@@ -5,7 +5,7 @@
 [Distributed TSDB](https://docs.m3db.io/m3db/) and [Query Engine](https://docs.m3db.io/how_to/query/), [Prometheus Sidecar](https://docs.m3db.io/integrations/prometheus/), [Metrics Aggregator](https://docs.m3db.io/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://docs.m3db.io/integrations/graphite/).
 
 ## Table of Contents:
-- [Install](## Install)
+- [Install](#install)
 - [Dependencies](#dependencies)
 - [Usage](## Usage)
 - [Contributing](#contributing)
