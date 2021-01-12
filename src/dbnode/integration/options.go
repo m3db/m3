@@ -294,7 +294,7 @@ type TestOptions interface {
 	// ReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
 
-	// SetStorageOptsFn sets the StorageOpts modifier
+	// SetStorageOptsFn sets the StorageOpts modifier.
 	SetStorageOptsFn(StorageOption) TestOptions
 
 	// StorageOptsFn returns the StorageOpts modifier
