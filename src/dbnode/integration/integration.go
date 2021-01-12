@@ -142,7 +142,7 @@ func newDefaulTestResultOptions(
 		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
 }
 
-// NewDefaultBootstrappableTestSetups creates dbnode test setups
+// NewDefaultBootstrappableTestSetups creates dbnode test setups.
 func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	t *testing.T,
 	opts TestOptions,
