@@ -111,7 +111,6 @@ func setupNetwork(pool *dockertest.Pool) error {
 
 	for _, n := range networks {
 		if n.Name == networkName {
-			return nil
 			if err := pool.Client.RemoveNetwork(networkName); err != nil {
 				return err
 			}
