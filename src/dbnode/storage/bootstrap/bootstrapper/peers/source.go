@@ -191,6 +191,11 @@ func (s *peersSource) Read(
 	span.LogEvent("bootstrap_data_done")
 	if pOpts.BootstrapProfileEnabled() {
 		profiler.StopCPUProfile()
+
+		if err := profiler.WriteHeapProfile(pOpts.ProfilePath(),
+			profiler.PeersBootstrapReadDataHeapProfileNamePrefix); err != nil {
+			s.log.Error("unable to write read data heap profile", zap.Error(err))
+		}
 	}
 
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
@@ -242,6 +247,11 @@ func (s *peersSource) Read(
 	span.LogEvent("bootstrap_index_done")
 	if pOpts.BootstrapProfileEnabled() {
 		profiler.StopCPUProfile()
+
+		if err := profiler.WriteHeapProfile(pOpts.ProfilePath(),
+			profiler.PeersBootstrapReadIndexHeapProfileNamePrefix); err != nil {
+			s.log.Error("unable to write read index heap profile", zap.Error(err))
+		}
 	}
 	return results, nil
 }

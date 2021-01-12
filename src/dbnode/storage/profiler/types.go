@@ -50,15 +50,16 @@ const (
 	ProfileFileExtension = ".pb.gz"
 
 	// PeersBootstrapReadDataCPUProfileNamePrefix is prefix for peers bootstrap read data cpu profile filepath.
-	PeersBootstrapReadDataCPUProfileNamePrefix ProfileNamePrefix =
-		"pprof.m3dbnode.peers-bootstrap.read-data.samples.cpu."
+	PeersBootstrapReadDataCPUProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.data.samples.cpu."
 
 	// PeersBootstrapReadIndexCPUProfileNamePrefix is prefix for peers bootstrap read index cpu profile filepath.
-	PeersBootstrapReadIndexCPUProfileNamePrefix ProfileNamePrefix =
-		"pprof.m3dbnode.peers-bootstrap.read-index.samples.cpu."
+	PeersBootstrapReadIndexCPUProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.index.samples.cpu."
 
-	// BootstrapHeapProfileNamePrefix is prefix for bootstrap heap profile filepath.
-	BootstrapHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.bootstrap.samples.heap."
+	// PeersBootstrapReadDataHeapProfileNamePrefix is prefix for peers bootstrap read data heap profile filepath.
+	PeersBootstrapReadDataHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.data.samples.heap."
+
+	// PeersBootstrapReadIndexHeapProfileNamePrefix is prefix for peers bootstrap read index heap profile filepath.
+	PeersBootstrapReadIndexHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.index.samples.heap."
 )
 
 // Options represents the profiler options.
