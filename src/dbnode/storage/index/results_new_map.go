@@ -38,7 +38,6 @@ func newResultsMap(idPool ident.Pool) *ResultsMap {
 			return ResultsMapHash(xxhash.Sum64(k))
 		},
 		equals: bytes.Equal,
-		// TODO(nate); are these copy and finalize implementations right?
 		copy: func(k []byte) []byte {
 			return idPool.Clone(ident.BytesID(k)).Bytes()
 		},

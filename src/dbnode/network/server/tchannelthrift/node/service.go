@@ -516,6 +516,8 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	if req.NoData != nil && *req.NoData {
 		fetchData = false
 	}
+	// Re-use reader and id for more memory-efficient processing of
+	// tags from doc.Metadata
 	reader := docs.NewEncodedDocumentReader()
 	id := ident.NewReusableBytesID()
 	for _, entry := range queryResult.Results.Map().Iter() {
@@ -545,8 +547,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 			continue
 		}
 		id.Reset(entry.Key())
-		tsID := id
-		datapoints, err := s.readDatapoints(ctx, db, nsID, tsID, start, end,
+		datapoints, err := s.readDatapoints(ctx, db, nsID, id, start, end,
 			req.ResultTimeType)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
@@ -804,6 +805,8 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
+	// Re-use reader and id for more memory-efficient processing of
+	// tags from doc.Metadata
 	reader := docs.NewEncodedDocumentReader()
 	id := ident.NewReusableBytesID()
 	for _, entry := range results.Map().Iter() {
@@ -811,7 +814,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		i++
 
 		id.Reset(entry.Key())
-		tsID := id
 
 		d := entry.Value()
 		metadata, err := docs.MetadataFromDocument(d, reader)
@@ -829,7 +831,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 
 		elem := &rpc.FetchTaggedIDResult_{
 			NameSpace:   nsIDBytes,
-			ID:          tsID.Bytes(),
+			ID:          id.Bytes(),
 			EncodedTags: encodedTags.Bytes(),
 		}
 		response.Elements = append(response.Elements, elem)
@@ -837,7 +839,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 			continue
 		}
 
-		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
+		encoded, err := db.ReadEncoded(ctx, nsID, id,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
 			return convert.ToRPCError(err)

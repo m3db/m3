@@ -29,10 +29,9 @@ import (
 	"testing"
 	"time"
 
-	testutil "github.com/m3db/m3/src/dbnode/test"
-
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	testutil "github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
