@@ -88,7 +88,7 @@ You can ask questions and give feedback in the following ways:
 - [In the M3 forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 
 M3 welcomes pull requests…
-Read the development guide to help you get setup for building and contributing to M3.
+Read [the development guide](DEVELOPMENT.md) to help you get setup for building and contributing to M3.
 
 ## Community Meetings
 
