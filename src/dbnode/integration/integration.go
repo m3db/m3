@@ -232,6 +232,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
+		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
 
 		var (
 			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())
