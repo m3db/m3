@@ -7,7 +7,7 @@
 ## Table of Contents:
 - [Install](#install)
 - [Dependencies](#dependencies)
-- [Usage](## Usage)
+- [Usage](#usage)
 - [Contributing](#contributing)
 - [Community meetings](## Community Meetings)
 - [Office Hours](## Office Hours)
