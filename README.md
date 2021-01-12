@@ -9,7 +9,7 @@
 - [Dependencies](#dependencies)
 - [Usage](#usage)
 - [Contributing](#contributing)
-- [Community meetings](## Community Meetings)
+- [Community meetings](#community-meetings)
 - [Office Hours](## Office Hours)
 
 More information: 
