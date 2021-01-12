@@ -131,24 +131,14 @@ var samples = []struct {
 	},
 }
 
-// BenchmarkFromSeriesIDAndTagIter-12    	  254090	      4689 ns/op
+// BenchmarkFromSeriesIDAndTagIter-12    	  772224	      1649 ns/op
 func BenchmarkFromSeriesIDAndTagIter(b *testing.B) {
-	testData, err := prepareIDAndEncodedTags(b)
+	testData, err := prepareIDAndTags(b)
 	require.NoError(b, err)
-
-	decoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		pool.NewObjectPoolOptions(),
-	)
-	decoderPool.Init()
-	tagDecoder := decoderPool.Get()
-	defer tagDecoder.Close()
 
 	b.ResetTimer()
 	for i := range testData {
-		tagDecoder.Reset(checked.NewBytes(testData[i].encodedTags, nil))
-
-		_, err := FromSeriesIDAndTagIter(testData[i].id, tagDecoder)
+		_, err := FromSeriesIDAndTagIter(testData[i].id, ident.NewTagsIterator(testData[i].tags))
 		require.NoError(b, err)
 	}
 }
