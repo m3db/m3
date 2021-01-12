@@ -32,7 +32,7 @@ import (
 // Executor is responsible for executing queries over a snapshot.
 type Executor interface {
 	// Execute executes a query over the Executor's snapshot.
-	Execute(q Query) (doc.Iterator, error)
+	Execute(q Query) (doc.MetadataIterator, error)
 
 	// Close closes the iterator.
 	Close() error

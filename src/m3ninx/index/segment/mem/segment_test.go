@@ -127,7 +127,7 @@ func TestSegmentInsert(t *testing.T) {
 			pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 			require.NoError(t, err)
 
-			iter, err := r.Docs(pl)
+			iter, err := r.MetadataIterator(pl)
 			require.NoError(t, err)
 
 			require.True(t, iter.Next())
@@ -186,7 +186,7 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 	pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -714,7 +714,7 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	pl, err := r.MatchTerm([]byte("fruit"), []byte("apple"))
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Metadata, 0)
@@ -845,7 +845,7 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	pl, err := r.MatchRegexp(field, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Metadata, 0)
@@ -872,7 +872,7 @@ func testDocument(t *testing.T, d doc.Metadata, r index.Reader) {
 		pl, err := r.MatchTerm(name, value)
 		require.NoError(t, err)
 
-		iter, err := r.Docs(pl)
+		iter, err := r.MetadataIterator(pl)
 		require.NoError(t, err)
 
 		require.True(t, iter.Next())

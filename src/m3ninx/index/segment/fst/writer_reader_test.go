@@ -420,9 +420,9 @@ func TestSegmentDocs(t *testing.T) {
 							obsPl, err := obsReader.MatchTerm(f, []byte(term))
 							require.NoError(t, err)
 
-							expDocs, err := expReader.Docs(expPl)
+							expDocs, err := expReader.MetadataIterator(expPl)
 							require.NoError(t, err)
-							obsDocs, err := obsReader.Docs(obsPl)
+							obsDocs, err := obsReader.MetadataIterator(obsPl)
 							require.NoError(t, err)
 
 							assertDocsEqual(t, expDocs, obsDocs)
@@ -529,10 +529,10 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.NoError(t, err)
 	assertPostingsList(t, list, []postings.ID{0, 1, 2})
 
-	_, err = reader.Doc(0)
+	_, err = reader.Metadata(0)
 	require.NoError(t, err)
 
-	_, err = reader.Docs(list)
+	_, err = reader.MetadataIterator(list)
 	require.NoError(t, err)
 
 	_, err = reader.AllDocs()
@@ -543,7 +543,7 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.NoError(t, err)
 	list, err = reader.MatchRegexp([]byte("fruit"), re)
 	require.NoError(t, err)
-	iter, err := reader.Docs(list)
+	iter, err := reader.MetadataIterator(list)
 	require.NoError(t, err)
 	var docs int
 	for iter.Next() {
@@ -589,7 +589,7 @@ func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {
 	require.Equal(t, a, b)
 }
 
-func assertDocsEqual(t *testing.T, a, b doc.Iterator) {
+func assertDocsEqual(t *testing.T, a, b doc.MetadataIterator) {
 	aDocs, err := collectDocs(a)
 	require.NoError(t, err)
 	bDocs, err := collectDocs(b)
@@ -647,7 +647,7 @@ func assertPostingsList(t *testing.T, l postings.List, exp []postings.ID) {
 	require.Fail(t, msg)
 }
 
-func collectDocs(iter doc.Iterator) ([]doc.Metadata, error) {
+func collectDocs(iter doc.MetadataIterator) ([]doc.Metadata, error) {
 	var docs []doc.Metadata
 	for iter.Next() {
 		docs = append(docs, iter.Current())
