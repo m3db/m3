@@ -12,7 +12,7 @@
 - [Community meetings](#community-meetings)
 - [Office Hours](#office-hours)
 
-More information: 
+## More information
 
 - [Documentation](https://docs.m3db.io/)
 - [Developer Guide: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPMENT.md)
