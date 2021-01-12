@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,28 +21,41 @@
 package test
 
 import (
-	"reflect"
-	"unsafe"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// ByteSlicesBackedBySameData returns a bool indicating if the raw backing bytes
-// under the []byte slice point to the same memory.
-func ByteSlicesBackedBySameData(a, b []byte) bool {
-	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&a))
-	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	return aHeader.Data == bHeader.Data
+func TestByteSliceDataContained(t *testing.T) {
+	outter := []byte("abcde")
+	for i := 0; i < len(outter); i++ {
+		for j := i; j <= len(outter); j++ {
+			inner := outter[i:j]
+			require.True(t, ByteSliceDataContained(outter, inner))
+		}
+	}
 }
 
-// ByteSliceDataContained checks data of 'inner' slice is fully contained inside data of
-// 'outter' slice.
-func ByteSliceDataContained(outter, inner []byte) bool {
-	var (
-		outterHeader = (*reflect.SliceHeader)(unsafe.Pointer(&outter)) //nolint:gosec
-		innerHeader  = (*reflect.SliceHeader)(unsafe.Pointer(&inner))  //nolint:gosec
-		outterStart  = uint(outterHeader.Data)
-		outterEnd    = outterStart + uint(outterHeader.Len)
-		innerStart   = uint(innerHeader.Data)
-		innerEnd     = innerStart + uint(innerHeader.Len)
-	)
-	return outterStart <= innerStart && innerEnd <= outterEnd
+func TestByteSliceDataContainedNot(t *testing.T) {
+	data := []byte("__abcde__")
+	outterStart := 2
+	outterEnd := 7
+	outter := data[outterStart:outterEnd]
+
+	tests := [][]byte{
+		data,
+		data[outterStart-1 : outterEnd+1],
+
+		data[outterStart : outterEnd+1],
+		data[outterStart : outterEnd+2],
+
+		data[outterStart-1 : outterEnd],
+		data[outterStart-2 : outterEnd],
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt), func(t *testing.T) {
+			require.False(t, ByteSliceDataContained(outter, tt))
+		})
+	}
 }

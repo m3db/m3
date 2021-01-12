@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,76 +69,96 @@ func TestFromSeriesIDAndTagIteratorInvalid(t *testing.T) {
 }
 
 func TestFromSeriesIDAndTagsValid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+	)
+	d, err := convert.FromSeriesIDAndTags(id, tags)
+	assert.NoError(t, err)
+	assertContentsMatch(t, id, tags.Values(), d)
+}
+
+func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
 	tests := []struct {
 		name string
 		id   string
 	}{
 		{
-			name: "no tags in ID",
-			id:   "foo",
-		},
-		{
 			name: "tags in ID",
-			id:   "bar=baz",
+			id:   "bar=baz,quip=quix",
 		},
 		{
 			name: "tags in ID with specific format",
-			id:   `{bar="baz"}`,
+			id:   `{bar="baz",quip="quix"}`,
 		},
 		{
 			name: "inexact tag occurrence in ID",
-			id:   "bazillion_barometers",
+			id:   "quixquip_bazillion_barometers",
 		},
 	}
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
+		ident.StringTag("quip", "quix"),
 	)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d, err := convert.FromSeriesIDAndTags(ident.StringID(tt.id), tags)
+			seriesID := ident.StringID(tt.id)
+			d, err := convert.FromSeriesIDAndTags(seriesID, tags)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.id, string(d.ID))
-			assert.Len(t, d.Fields, 1)
-			assert.Equal(t, "bar", string(d.Fields[0].Name))
-			assert.Equal(t, "baz", string(d.Fields[0].Value))
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Name))
+				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Value))
+			}
 		})
 	}
 }
 
 func TestFromSeriesIDAndTagIterValid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+	)
+	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
+	assert.NoError(t, err)
+	assertContentsMatch(t, id, tags.Values(), d)
+}
+
+func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 	tests := []struct {
 		name string
 		id   string
 	}{
 		{
-			name: "no tags in ID",
-			id:   "foo",
-		},
-		{
 			name: "tags in ID",
-			id:   "bar=baz",
+			id:   "bar=baz,quip=quix",
 		},
 		{
 			name: "tags in ID with specific format",
-			id:   `{bar="baz"}`,
+			id:   `{bar="baz",quip="quix"}`,
 		},
 		{
 			name: "inexact tag occurrence in ID",
-			id:   "bazillion_barometers",
+			id:   "quixquip_bazillion_barometers",
 		},
 	}
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
+		ident.StringTag("quip", "quix"),
 	)
 
 	for _, tt := range tests {
-		d, err := convert.FromSeriesIDAndTagIter(ident.StringID(tt.id), ident.NewTagsIterator(tags))
-		assert.NoError(t, err)
-		assert.Equal(t, tt.id, string(d.ID))
-		assert.Len(t, d.Fields, 1)
-		assert.Equal(t, "bar", string(d.Fields[0].Name))
-		assert.Equal(t, "baz", string(d.Fields[0].Value))
+		t.Run(tt.name, func(t *testing.T) {
+			seriesID := ident.StringID(tt.id)
+			d, err := convert.FromSeriesIDAndTagIter(seriesID, ident.NewTagsIterator(tags))
+			assert.NoError(t, err)
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Name))
+				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Value))
+			}
+		})
 	}
 }
 
@@ -263,3 +284,12 @@ func TestValidateSeries(t *testing.T) {
 }
 
 // TODO(prateek): add a test to ensure we're interacting with the Pools as expected
+
+func assertContentsMatch(t *testing.T, seriesID ident.ID, tags []ident.Tag, doc doc.Metadata) {
+	assert.Equal(t, seriesID.String(), string(doc.ID))
+	assert.Len(t, doc.Fields, len(tags))
+	for i, f := range doc.Fields { //nolint:gocritic
+		assert.Equal(t, tags[i].Name.String(), string(f.Name))
+		assert.Equal(t, tags[i].Value.String(), string(f.Value))
+	}
+}
