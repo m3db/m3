@@ -116,7 +116,7 @@ func newMultiAddrAdminClient(
 	return adminClient
 }
 
-// BootstrappableTestSetupOptions defines options for test setups
+// BootstrappableTestSetupOptions defines options for test setups.
 type BootstrappableTestSetupOptions struct {
 	FinalBootstrapper           string
 	BootstrapBlocksBatchSize    int
