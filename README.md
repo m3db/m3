@@ -8,7 +8,7 @@
 - [Install](## Install)
 - [Dependencies](#dependencies)
 - [Usage](## Usage)
-- [Contributing](## Contributing)
+- [Contributing](#contributing)
 - [Community meetings](## Community Meetings)
 - [Office Hours](## Office Hours)
 
