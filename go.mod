@@ -122,7 +122,7 @@ require (
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
-	google.golang.org/grpc v1.29.1
+	google.golang.org/grpc v1.28.1
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
