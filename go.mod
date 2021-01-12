@@ -18,29 +18,35 @@ require (
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/davecgh/go-spew v1.1.1
+	github.com/fatih/color v1.10.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
+	github.com/go-critic/go-critic v0.5.2 // indirect
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
+	github.com/gofrs/flock v0.8.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.4.2
+	github.com/golang/protobuf v1.3.5
 	github.com/golang/snappy v0.0.1
-	github.com/golangci/golangci-lint v1.33.0
+	github.com/golangci/golangci-lint v1.29.0
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-jsonnet v0.16.0
 	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/gostaticanalysis/analysisutil v0.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
+	github.com/kyoh86/exportloopref v0.1.8 // indirect
 	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
@@ -59,6 +65,9 @@ require (
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
+	github.com/nishanths/exhaustive v0.1.0 // indirect
+	github.com/onsi/ginkgo v1.12.1 // indirect
+	github.com/onsi/gomega v1.10.0 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest/v3 v3.6.3
@@ -80,17 +89,21 @@ require (
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
+	github.com/sirupsen/logrus v1.7.0 // indirect
+	github.com/sourcegraph/go-diff v0.6.1 // indirect
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/tetafro/godot v1.3.0 // indirect
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/tally v3.3.13+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
 	github.com/uber/tchannel-go v1.14.0
+	github.com/ultraware/funlen v0.0.3 // indirect
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0
@@ -119,6 +132,9 @@ require (
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible
+	honnef.co/go/tools v0.0.1-2020.1.6 // indirect
+	mvdan.cc/gofumpt v0.0.0-20200802201014-ab5a8192947d // indirect
+	mvdan.cc/unparam v0.0.0-20200501210554-b37ab49443f7 // indirect
 )
 
 // branch 0.9.3-pool-read-binary-3
