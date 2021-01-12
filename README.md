@@ -25,7 +25,7 @@
 
 ### Dependencies 
 
-The simplest and quickest way to try M3 is to use Docker, read the M3 getting started section for other options. 
+The simplest and quickest way to try M3 is to use Docker, read [the M3 quickstart section](https://m3db.io/docs/quickstart) for other options. 
 
 ```
 docker pull quay.io/m3db/m3dbnode:latest
