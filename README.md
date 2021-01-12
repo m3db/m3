@@ -10,7 +10,7 @@
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [Community meetings](#community-meetings)
-- [Office Hours](## Office Hours)
+- [Office Hours](#office-hours)
 
 More information: 
 
