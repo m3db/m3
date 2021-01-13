@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -42,9 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMatcherCreateWatchError(t *testing.T) {
@@ -82,10 +83,12 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 		tagValueFn: func(tagName []byte) ([]byte, bool) { return nil, false },
 	}
 	now := time.Now()
-	matcher := testMatcher(t, testMatcherOptions{
+	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
 	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+
+	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
 
 func TestMatcherMatchExists(t *testing.T) {
@@ -100,7 +103,7 @@ func TestMatcherMatchExists(t *testing.T) {
 		memRes = memResults{results: map[string]rules.MatchResult{"foo": res}}
 	)
 	cache := newMemCache()
-	matcher := testMatcher(t, testMatcherOptions{
+	matcher, _ := testMatcher(t, testMatcherOptions{
 		cache: cache,
 	})
 	c := cache.(*memCache)
@@ -125,7 +128,7 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 		}
 		now = time.Now()
 	)
-	matcher := testMatcher(t, testMatcherOptions{
+	matcher, testScope := testMatcher(t, testMatcherOptions{
 		tagFilterOptions: filters.TagsFilterOptions{
 			NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
 				name = metric.id
@@ -210,10 +213,13 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
 
 	require.Equal(t, expected, result)
+
+	// Check that latency was measured
+	requireLatencyMetrics(t, "matcher", testScope)
 }
 
 func TestMatcherClose(t *testing.T) {
-	matcher := testMatcher(t, testMatcherOptions{
+	matcher, _ := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
 	require.NoError(t, matcher.Close())
@@ -225,12 +231,13 @@ type testMatcherOptions struct {
 	tagFilterOptions filters.TagsFilterOptions
 }
 
-func testMatcher(t *testing.T, opts testMatcherOptions) Matcher {
+func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScope) {
+	scope := tally.NewTestScope("", nil)
 	var (
 		store       = mem.NewStore()
 		matcherOpts = NewOptions().
 				SetClockOptions(clock.NewOptions()).
-				SetInstrumentOptions(instrument.NewOptions()).
+				SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 				SetInitWatchTimeout(100 * time.Millisecond).
 				SetKVStore(store).
 				SetNamespacesKey(testNamespacesKey).
@@ -264,7 +271,21 @@ func testMatcher(t *testing.T, opts testMatcherOptions) Matcher {
 
 	m, err := NewMatcher(opts.cache, matcherOpts)
 	require.NoError(t, err)
-	return m
+	return m, scope
+}
+
+func requireLatencyMetrics(t *testing.T, metricScope string, testScope tally.TestScope) {
+	// Check that latency was measured
+	values, found := testScope.Snapshot().Histograms()[metricScope+".match-latency+"]
+	require.True(t, found)
+	latencyMeasured := false
+	for _, valuesInBucket := range values.Durations() {
+		if valuesInBucket > 0 {
+			latencyMeasured = true
+			break
+		}
+	}
+	require.True(t, latencyMeasured)
 }
 
 type tagValueFn func(tagName []byte) ([]byte, bool)
