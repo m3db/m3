@@ -50,83 +50,83 @@ var samples = []struct {
 	tags string
 }{
 	{
-		id:   "e19fbmFtZV9fPSJkaXNraW8iLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0idXMtd2VzdC0yYyIsaG9zdG5hbWU9Imhvc3RfNzgiLG1lYXN1cmVtZW50PSJyZWFkcyIsb3M9IlVidW50dTE1LjEwIixyYWNrPSI4NyIscmVnaW9uPSJ1cy13ZXN0LTIiLHNlcnZpY2U9IjExIixzZXJ2aWNlX2Vudmlyb25tZW50PSJwcm9kdWN0aW9uIixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09IlNGIn0=",
+		id:   `{__name__="diskio",arch="x64",datacenter="us-west-2c",hostname="host_78",measurement="reads",os="Ubuntu15.10",rack="87",region="us-west-2",service="11",service_environment="production",service_version="1",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18GAGRpc2tpbwQAYXJjaAMAeDY0CgBkYXRhY2VudGVyCgB1cy13ZXN0LTJjCABob3N0bmFtZQcAaG9zdF83OAsAbWVhc3VyZW1lbnQFAHJlYWRzAgBvcwsAVWJ1bnR1MTUuMTAEAHJhY2sCADg3BgByZWdpb24JAHVzLXdlc3QtMgcAc2VydmljZQIAMTETAHNlcnZpY2VfZW52aXJvbm1lbnQKAHByb2R1Y3Rpb24PAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQIAU0Y=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZ2lueCIsYXJjaD0ieDY0IixkYXRhY2VudGVyPSJ1cy13ZXN0LTFhIixob3N0bmFtZT0iaG9zdF8zNyIsbWVhc3VyZW1lbnQ9ImFjdGl2ZSIsb3M9IlVidW50dTE2LjEwIixyYWNrPSI3OCIscmVnaW9uPSJ1cy13ZXN0LTEiLHNlcnZpY2U9IjEwIixzZXJ2aWNlX2Vudmlyb25tZW50PSJ0ZXN0IixzZXJ2aWNlX3ZlcnNpb249IjAiLHRlYW09IkxPTiJ9",
+		id:   `{__name__="nginx",arch="x64",datacenter="us-west-1a",hostname="host_37",measurement="active",os="Ubuntu16.10",rack="78",region="us-west-1",service="10",service_environment="test",service_version="0",team="LON"}`,
 		tags: "dScMAAgAX19uYW1lX18FAG5naW54BABhcmNoAwB4NjQKAGRhdGFjZW50ZXIKAHVzLXdlc3QtMWEIAGhvc3RuYW1lBwBob3N0XzM3CwBtZWFzdXJlbWVudAYAYWN0aXZlAgBvcwsAVWJ1bnR1MTYuMTAEAHJhY2sCADc4BgByZWdpb24JAHVzLXdlc3QtMQcAc2VydmljZQIAMTATAHNlcnZpY2VfZW52aXJvbm1lbnQEAHRlc3QPAHNlcnZpY2VfdmVyc2lvbgEAMAQAdGVhbQMATE9O",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJkaXNrIixhcmNoPSJ4NjQiLGRhdGFjZW50ZXI9InNhLWVhc3QtMWIiLGhvc3RuYW1lPSJob3N0XzU0IixtZWFzdXJlbWVudD0iaW5vZGVzX3RvdGFsIixvcz0iVWJ1bnR1MTYuMTAiLHJhY2s9Ijg4IixyZWdpb249InNhLWVhc3QtMSIsc2VydmljZT0iMTUiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InByb2R1Y3Rpb24iLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iQ0hJIn0=",
+		id:   `{__name__="disk",arch="x64",datacenter="sa-east-1b",hostname="host_54",measurement="inodes_total",os="Ubuntu16.10",rack="88",region="sa-east-1",service="15",service_environment="production",service_version="0",team="CHI"}`,
 		tags: "dScMAAgAX19uYW1lX18EAGRpc2sEAGFyY2gDAHg2NAoAZGF0YWNlbnRlcgoAc2EtZWFzdC0xYggAaG9zdG5hbWUHAGhvc3RfNTQLAG1lYXN1cmVtZW50DABpbm9kZXNfdG90YWwCAG9zCwBVYnVudHUxNi4xMAQAcmFjawIAODgGAHJlZ2lvbgkAc2EtZWFzdC0xBwBzZXJ2aWNlAgAxNRMAc2VydmljZV9lbnZpcm9ubWVudAoAcHJvZHVjdGlvbg8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAwBDSEk=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZXQiLGFyY2g9Ing4NiIsZGF0YWNlbnRlcj0idXMtZWFzdC0xYiIsaG9zdG5hbWU9Imhvc3RfOTMiLG1lYXN1cmVtZW50PSJlcnJfaW4iLG9zPSJVYnVudHUxNS4xMCIscmFjaz0iMzciLHJlZ2lvbj0idXMtZWFzdC0xIixzZXJ2aWNlPSIxMiIsc2VydmljZV9lbnZpcm9ubWVudD0icHJvZHVjdGlvbiIsc2VydmljZV92ZXJzaW9uPSIxIix0ZWFtPSJDSEkifQ==",
+		id:   `{__name__="net",arch="x86",datacenter="us-east-1b",hostname="host_93",measurement="err_in",os="Ubuntu15.10",rack="37",region="us-east-1",service="12",service_environment="production",service_version="1",team="CHI"}`,
 		tags: "dScMAAgAX19uYW1lX18DAG5ldAQAYXJjaAMAeDg2CgBkYXRhY2VudGVyCgB1cy1lYXN0LTFiCABob3N0bmFtZQcAaG9zdF85MwsAbWVhc3VyZW1lbnQGAGVycl9pbgIAb3MLAFVidW50dTE1LjEwBAByYWNrAgAzNwYAcmVnaW9uCQB1cy1lYXN0LTEHAHNlcnZpY2UCADEyEwBzZXJ2aWNlX2Vudmlyb25tZW50CgBwcm9kdWN0aW9uDwBzZXJ2aWNlX3ZlcnNpb24BADEEAHRlYW0DAENISQ==",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJyZWRpcyIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJldS1jZW50cmFsLTFhIixob3N0bmFtZT0iaG9zdF83MCIsbWVhc3VyZW1lbnQ9ImtleXNwYWNlX21pc3NlcyIsb3M9IlVidW50dTE2LjA0TFRTIixyYWNrPSI0NyIscmVnaW9uPSJldS1jZW50cmFsLTEiLHNlcnZpY2U9IjEyIixzZXJ2aWNlX2Vudmlyb25tZW50PSJzdGFnaW5nIixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09IkxPTiJ9",
+		id:   `{__name__="redis",arch="x86",datacenter="eu-central-1a",hostname="host_70",measurement="keyspace_misses",os="Ubuntu16.04LTS",rack="47",region="eu-central-1",service="12",service_environment="staging",service_version="1",team="LON"}`,
 		tags: "dScMAAgAX19uYW1lX18FAHJlZGlzBABhcmNoAwB4ODYKAGRhdGFjZW50ZXINAGV1LWNlbnRyYWwtMWEIAGhvc3RuYW1lBwBob3N0XzcwCwBtZWFzdXJlbWVudA8Aa2V5c3BhY2VfbWlzc2VzAgBvcw4AVWJ1bnR1MTYuMDRMVFMEAHJhY2sCADQ3BgByZWdpb24MAGV1LWNlbnRyYWwtMQcAc2VydmljZQIAMTITAHNlcnZpY2VfZW52aXJvbm1lbnQHAHN0YWdpbmcPAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQMATE9O",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZ2lueCIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJ1cy1lYXN0LTFiIixob3N0bmFtZT0iaG9zdF84NCIsbWVhc3VyZW1lbnQ9InJlcXVlc3RzIixvcz0iVWJ1bnR1MTYuMDRMVFMiLHJhY2s9IjkwIixyZWdpb249InVzLWVhc3QtMSIsc2VydmljZT0iMTMiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InRlc3QiLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iTllDIn0=",
+		id:   `{__name__="nginx",arch="x86",datacenter="us-east-1b",hostname="host_84",measurement="requests",os="Ubuntu16.04LTS",rack="90",region="us-east-1",service="13",service_environment="test",service_version="0",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18FAG5naW54BABhcmNoAwB4ODYKAGRhdGFjZW50ZXIKAHVzLWVhc3QtMWIIAGhvc3RuYW1lBwBob3N0Xzg0CwBtZWFzdXJlbWVudAgAcmVxdWVzdHMCAG9zDgBVYnVudHUxNi4wNExUUwQAcmFjawIAOTAGAHJlZ2lvbgkAdXMtZWFzdC0xBwBzZXJ2aWNlAgAxMxMAc2VydmljZV9lbnZpcm9ubWVudAQAdGVzdA8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAwBOWUM=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJtZW0iLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0iZXUtY2VudHJhbC0xYiIsaG9zdG5hbWU9Imhvc3RfMjciLG1lYXN1cmVtZW50PSJidWZmZXJlZCIsb3M9IlVidW50dTE2LjA0TFRTIixyYWNrPSI1OCIscmVnaW9uPSJldS1jZW50cmFsLTEiLHNlcnZpY2U9IjAiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InRlc3QiLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iTllDIn0=",
+		id:   `{__name__="mem",arch="x64",datacenter="eu-central-1b",hostname="host_27",measurement="buffered",os="Ubuntu16.04LTS",rack="58",region="eu-central-1",service="0",service_environment="test",service_version="0",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18DAG1lbQQAYXJjaAMAeDY0CgBkYXRhY2VudGVyDQBldS1jZW50cmFsLTFiCABob3N0bmFtZQcAaG9zdF8yNwsAbWVhc3VyZW1lbnQIAGJ1ZmZlcmVkAgBvcw4AVWJ1bnR1MTYuMDRMVFMEAHJhY2sCADU4BgByZWdpb24MAGV1LWNlbnRyYWwtMQcAc2VydmljZQEAMBMAc2VydmljZV9lbnZpcm9ubWVudAQAdGVzdA8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAwBOWUM=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJrZXJuZWwiLGFyY2g9Ing4NiIsZGF0YWNlbnRlcj0idXMtd2VzdC0yYSIsaG9zdG5hbWU9Imhvc3RfODAiLG1lYXN1cmVtZW50PSJkaXNrX3BhZ2VzX2luIixvcz0iVWJ1bnR1MTYuMTAiLHJhY2s9IjQyIixyZWdpb249InVzLXdlc3QtMiIsc2VydmljZT0iMTMiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InRlc3QiLHNlcnZpY2VfdmVyc2lvbj0iMSIsdGVhbT0iU0YifQ==",
+		id:   `{__name__="kernel",arch="x86",datacenter="us-west-2a",hostname="host_80",measurement="disk_pages_in",os="Ubuntu16.10",rack="42",region="us-west-2",service="13",service_environment="test",service_version="1",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18GAGtlcm5lbAQAYXJjaAMAeDg2CgBkYXRhY2VudGVyCgB1cy13ZXN0LTJhCABob3N0bmFtZQcAaG9zdF84MAsAbWVhc3VyZW1lbnQNAGRpc2tfcGFnZXNfaW4CAG9zCwBVYnVudHUxNi4xMAQAcmFjawIANDIGAHJlZ2lvbgkAdXMtd2VzdC0yBwBzZXJ2aWNlAgAxMxMAc2VydmljZV9lbnZpcm9ubWVudAQAdGVzdA8Ac2VydmljZV92ZXJzaW9uAQAxBAB0ZWFtAgBTRg==",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJkaXNrIixhcmNoPSJ4NjQiLGRhdGFjZW50ZXI9ImFwLW5vcnRoZWFzdC0xYyIsaG9zdG5hbWU9Imhvc3RfNzciLG1lYXN1cmVtZW50PSJpbm9kZXNfdXNlZCIsb3M9IlVidW50dTE2LjA0TFRTIixyYWNrPSI4NCIscmVnaW9uPSJhcC1ub3J0aGVhc3QtMSIsc2VydmljZT0iNSIsc2VydmljZV9lbnZpcm9ubWVudD0icHJvZHVjdGlvbiIsc2VydmljZV92ZXJzaW9uPSIwIix0ZWFtPSJMT04ifQ==",
+		id:   `{__name__="disk",arch="x64",datacenter="ap-northeast-1c",hostname="host_77",measurement="inodes_used",os="Ubuntu16.04LTS",rack="84",region="ap-northeast-1",service="5",service_environment="production",service_version="0",team="LON"}`,
 		tags: "dScMAAgAX19uYW1lX18EAGRpc2sEAGFyY2gDAHg2NAoAZGF0YWNlbnRlcg8AYXAtbm9ydGhlYXN0LTFjCABob3N0bmFtZQcAaG9zdF83NwsAbWVhc3VyZW1lbnQLAGlub2Rlc191c2VkAgBvcw4AVWJ1bnR1MTYuMDRMVFMEAHJhY2sCADg0BgByZWdpb24OAGFwLW5vcnRoZWFzdC0xBwBzZXJ2aWNlAQA1EwBzZXJ2aWNlX2Vudmlyb25tZW50CgBwcm9kdWN0aW9uDwBzZXJ2aWNlX3ZlcnNpb24BADAEAHRlYW0DAExPTg==",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJwb3N0Z3Jlc2wiLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0iZXUtY2VudHJhbC0xYiIsaG9zdG5hbWU9Imhvc3RfMjciLG1lYXN1cmVtZW50PSJ4YWN0X3JvbGxiYWNrIixvcz0iVWJ1bnR1MTYuMDRMVFMiLHJhY2s9IjU4IixyZWdpb249ImV1LWNlbnRyYWwtMSIsc2VydmljZT0iMCIsc2VydmljZV9lbnZpcm9ubWVudD0idGVzdCIsc2VydmljZV92ZXJzaW9uPSIwIix0ZWFtPSJOWUMifQ==",
+		id:   `{__name__="postgresl",arch="x64",datacenter="eu-central-1b",hostname="host_27",measurement="xact_rollback",os="Ubuntu16.04LTS",rack="58",region="eu-central-1",service="0",service_environment="test",service_version="0",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18JAHBvc3RncmVzbAQAYXJjaAMAeDY0CgBkYXRhY2VudGVyDQBldS1jZW50cmFsLTFiCABob3N0bmFtZQcAaG9zdF8yNwsAbWVhc3VyZW1lbnQNAHhhY3Rfcm9sbGJhY2sCAG9zDgBVYnVudHUxNi4wNExUUwQAcmFjawIANTgGAHJlZ2lvbgwAZXUtY2VudHJhbC0xBwBzZXJ2aWNlAQAwEwBzZXJ2aWNlX2Vudmlyb25tZW50BAB0ZXN0DwBzZXJ2aWNlX3ZlcnNpb24BADAEAHRlYW0DAE5ZQw==",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJjcHUiLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0ic2EtZWFzdC0xYiIsaG9zdG5hbWU9Imhvc3RfNDMiLG1lYXN1cmVtZW50PSJ1c2FnZV9uaWNlIixvcz0iVWJ1bnR1MTYuMTAiLHJhY2s9Ijk1IixyZWdpb249InNhLWVhc3QtMSIsc2VydmljZT0iNCIsc2VydmljZV9lbnZpcm9ubWVudD0idGVzdCIsc2VydmljZV92ZXJzaW9uPSIwIix0ZWFtPSJTRiJ9",
+		id:   `{__name__="cpu",arch="x64",datacenter="sa-east-1b",hostname="host_43",measurement="usage_nice",os="Ubuntu16.10",rack="95",region="sa-east-1",service="4",service_environment="test",service_version="0",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18DAGNwdQQAYXJjaAMAeDY0CgBkYXRhY2VudGVyCgBzYS1lYXN0LTFiCABob3N0bmFtZQcAaG9zdF80MwsAbWVhc3VyZW1lbnQKAHVzYWdlX25pY2UCAG9zCwBVYnVudHUxNi4xMAQAcmFjawIAOTUGAHJlZ2lvbgkAc2EtZWFzdC0xBwBzZXJ2aWNlAQA0EwBzZXJ2aWNlX2Vudmlyb25tZW50BAB0ZXN0DwBzZXJ2aWNlX3ZlcnNpb24BADAEAHRlYW0CAFNG",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJkaXNrIixhcmNoPSJ4NjQiLGRhdGFjZW50ZXI9ImFwLW5vcnRoZWFzdC0xYyIsaG9zdG5hbWU9Imhvc3RfMTciLG1lYXN1cmVtZW50PSJpbm9kZXNfdG90YWwiLG9zPSJVYnVudHUxNi4xMCIscmFjaz0iOTQiLHJlZ2lvbj0iYXAtbm9ydGhlYXN0LTEiLHNlcnZpY2U9IjkiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InN0YWdpbmciLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iU0YifQ==",
+		id:   `{__name__="disk",arch="x64",datacenter="ap-northeast-1c",hostname="host_17",measurement="inodes_total",os="Ubuntu16.10",rack="94",region="ap-northeast-1",service="9",service_environment="staging",service_version="0",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18EAGRpc2sEAGFyY2gDAHg2NAoAZGF0YWNlbnRlcg8AYXAtbm9ydGhlYXN0LTFjCABob3N0bmFtZQcAaG9zdF8xNwsAbWVhc3VyZW1lbnQMAGlub2Rlc190b3RhbAIAb3MLAFVidW50dTE2LjEwBAByYWNrAgA5NAYAcmVnaW9uDgBhcC1ub3J0aGVhc3QtMQcAc2VydmljZQEAORMAc2VydmljZV9lbnZpcm9ubWVudAcAc3RhZ2luZw8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAgBTRg==",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJyZWRpcyIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJ1cy13ZXN0LTJhIixob3N0bmFtZT0iaG9zdF84MCIsbWVhc3VyZW1lbnQ9InN5bmNfcGFydGlhbF9lcnIiLG9zPSJVYnVudHUxNi4xMCIscmFjaz0iNDIiLHJlZ2lvbj0idXMtd2VzdC0yIixzZXJ2aWNlPSIxMyIsc2VydmljZV9lbnZpcm9ubWVudD0idGVzdCIsc2VydmljZV92ZXJzaW9uPSIxIix0ZWFtPSJTRiJ9",
+		id:   `{__name__="redis",arch="x86",datacenter="us-west-2a",hostname="host_80",measurement="sync_partial_err",os="Ubuntu16.10",rack="42",region="us-west-2",service="13",service_environment="test",service_version="1",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18FAHJlZGlzBABhcmNoAwB4ODYKAGRhdGFjZW50ZXIKAHVzLXdlc3QtMmEIAGhvc3RuYW1lBwBob3N0XzgwCwBtZWFzdXJlbWVudBAAc3luY19wYXJ0aWFsX2VycgIAb3MLAFVidW50dTE2LjEwBAByYWNrAgA0MgYAcmVnaW9uCQB1cy13ZXN0LTIHAHNlcnZpY2UCADEzEwBzZXJ2aWNlX2Vudmlyb25tZW50BAB0ZXN0DwBzZXJ2aWNlX3ZlcnNpb24BADEEAHRlYW0CAFNG",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZXQiLGFyY2g9Ing4NiIsZGF0YWNlbnRlcj0idXMtZWFzdC0xYSIsaG9zdG5hbWU9Imhvc3RfNzkiLG1lYXN1cmVtZW50PSJkcm9wX291dCIsb3M9IlVidW50dTE2LjA0TFRTIixyYWNrPSIxNyIscmVnaW9uPSJ1cy1lYXN0LTEiLHNlcnZpY2U9IjE3IixzZXJ2aWNlX2Vudmlyb25tZW50PSJzdGFnaW5nIixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09IlNGIn0=",
+		id:   `{__name__="net",arch="x86",datacenter="us-east-1a",hostname="host_79",measurement="drop_out",os="Ubuntu16.04LTS",rack="17",region="us-east-1",service="17",service_environment="staging",service_version="1",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18DAG5ldAQAYXJjaAMAeDg2CgBkYXRhY2VudGVyCgB1cy1lYXN0LTFhCABob3N0bmFtZQcAaG9zdF83OQsAbWVhc3VyZW1lbnQIAGRyb3Bfb3V0AgBvcw4AVWJ1bnR1MTYuMDRMVFMEAHJhY2sCADE3BgByZWdpb24JAHVzLWVhc3QtMQcAc2VydmljZQIAMTcTAHNlcnZpY2VfZW52aXJvbm1lbnQHAHN0YWdpbmcPAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQIAU0Y=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJyZWRpcyIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJhcC1zb3V0aGVhc3QtMmIiLGhvc3RuYW1lPSJob3N0XzEwMCIsbWVhc3VyZW1lbnQ9InVzZWRfY3B1X3VzZXJfY2hpbGRyZW4iLG9zPSJVYnVudHUxNi4wNExUUyIscmFjaz0iNDAiLHJlZ2lvbj0iYXAtc291dGhlYXN0LTIiLHNlcnZpY2U9IjE0IixzZXJ2aWNlX2Vudmlyb25tZW50PSJzdGFnaW5nIixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09Ik5ZQyJ9",
+		id:   `{__name__="redis",arch="x86",datacenter="ap-southeast-2b",hostname="host_100",measurement="used_cpu_user_children",os="Ubuntu16.04LTS",rack="40",region="ap-southeast-2",service="14",service_environment="staging",service_version="1",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18FAHJlZGlzBABhcmNoAwB4ODYKAGRhdGFjZW50ZXIPAGFwLXNvdXRoZWFzdC0yYggAaG9zdG5hbWUIAGhvc3RfMTAwCwBtZWFzdXJlbWVudBYAdXNlZF9jcHVfdXNlcl9jaGlsZHJlbgIAb3MOAFVidW50dTE2LjA0TFRTBAByYWNrAgA0MAYAcmVnaW9uDgBhcC1zb3V0aGVhc3QtMgcAc2VydmljZQIAMTQTAHNlcnZpY2VfZW52aXJvbm1lbnQHAHN0YWdpbmcPAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQMATllD",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJkaXNrIixhcmNoPSJ4NjQiLGRhdGFjZW50ZXI9ImFwLXNvdXRoZWFzdC0xYSIsaG9zdG5hbWU9Imhvc3RfODciLG1lYXN1cmVtZW50PSJpbm9kZXNfdG90YWwiLG9zPSJVYnVudHUxNS4xMCIscmFjaz0iMCIscmVnaW9uPSJhcC1zb3V0aGVhc3QtMSIsc2VydmljZT0iMTEiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InN0YWdpbmciLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iTE9OIn0=",
+		id:   `{__name__="disk",arch="x64",datacenter="ap-southeast-1a",hostname="host_87",measurement="inodes_total",os="Ubuntu15.10",rack="0",region="ap-southeast-1",service="11",service_environment="staging",service_version="0",team="LON"}`,
 		tags: "dScMAAgAX19uYW1lX18EAGRpc2sEAGFyY2gDAHg2NAoAZGF0YWNlbnRlcg8AYXAtc291dGhlYXN0LTFhCABob3N0bmFtZQcAaG9zdF84NwsAbWVhc3VyZW1lbnQMAGlub2Rlc190b3RhbAIAb3MLAFVidW50dTE1LjEwBAByYWNrAQAwBgByZWdpb24OAGFwLXNvdXRoZWFzdC0xBwBzZXJ2aWNlAgAxMRMAc2VydmljZV9lbnZpcm9ubWVudAcAc3RhZ2luZw8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAwBMT04=",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJjcHUiLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0idXMtd2VzdC0yYSIsaG9zdG5hbWU9Imhvc3RfNiIsbWVhc3VyZW1lbnQ9InVzYWdlX2lkbGUiLG9zPSJVYnVudHUxNi4xMCIscmFjaz0iMTAiLHJlZ2lvbj0idXMtd2VzdC0yIixzZXJ2aWNlPSI2IixzZXJ2aWNlX2Vudmlyb25tZW50PSJ0ZXN0IixzZXJ2aWNlX3ZlcnNpb249IjAiLHRlYW09IkNISSJ9",
+		id:   `{__name__="cpu",arch="x64",datacenter="us-west-2a",hostname="host_6",measurement="usage_idle",os="Ubuntu16.10",rack="10",region="us-west-2",service="6",service_environment="test",service_version="0",team="CHI"}`,
 		tags: "dScMAAgAX19uYW1lX18DAGNwdQQAYXJjaAMAeDY0CgBkYXRhY2VudGVyCgB1cy13ZXN0LTJhCABob3N0bmFtZQYAaG9zdF82CwBtZWFzdXJlbWVudAoAdXNhZ2VfaWRsZQIAb3MLAFVidW50dTE2LjEwBAByYWNrAgAxMAYAcmVnaW9uCQB1cy13ZXN0LTIHAHNlcnZpY2UBADYTAHNlcnZpY2VfZW52aXJvbm1lbnQEAHRlc3QPAHNlcnZpY2VfdmVyc2lvbgEAMAQAdGVhbQMAQ0hJ",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZ2lueCIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJ1cy1lYXN0LTFhIixob3N0bmFtZT0iaG9zdF80NCIsbWVhc3VyZW1lbnQ9ImhhbmRsZWQiLG9zPSJVYnVudHUxNi4wNExUUyIscmFjaz0iNjEiLHJlZ2lvbj0idXMtZWFzdC0xIixzZXJ2aWNlPSIyIixzZXJ2aWNlX2Vudmlyb25tZW50PSJzdGFnaW5nIixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09Ik5ZQyJ9",
+		id:   `{__name__="nginx",arch="x86",datacenter="us-east-1a",hostname="host_44",measurement="handled",os="Ubuntu16.04LTS",rack="61",region="us-east-1",service="2",service_environment="staging",service_version="1",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18FAG5naW54BABhcmNoAwB4ODYKAGRhdGFjZW50ZXIKAHVzLWVhc3QtMWEIAGhvc3RuYW1lBwBob3N0XzQ0CwBtZWFzdXJlbWVudAcAaGFuZGxlZAIAb3MOAFVidW50dTE2LjA0TFRTBAByYWNrAgA2MQYAcmVnaW9uCQB1cy1lYXN0LTEHAHNlcnZpY2UBADITAHNlcnZpY2VfZW52aXJvbm1lbnQHAHN0YWdpbmcPAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQMATllD",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJuZ2lueCIsYXJjaD0ieDg2IixkYXRhY2VudGVyPSJ1cy13ZXN0LTFhIixob3N0bmFtZT0iaG9zdF8yOSIsbWVhc3VyZW1lbnQ9IndhaXRpbmciLG9zPSJVYnVudHUxNS4xMCIscmFjaz0iMTUiLHJlZ2lvbj0idXMtd2VzdC0xIixzZXJ2aWNlPSI0IixzZXJ2aWNlX2Vudmlyb25tZW50PSJ0ZXN0IixzZXJ2aWNlX3ZlcnNpb249IjEiLHRlYW09Ik5ZQyJ9",
+		id:   `{__name__="nginx",arch="x86",datacenter="us-west-1a",hostname="host_29",measurement="waiting",os="Ubuntu15.10",rack="15",region="us-west-1",service="4",service_environment="test",service_version="1",team="NYC"}`,
 		tags: "dScMAAgAX19uYW1lX18FAG5naW54BABhcmNoAwB4ODYKAGRhdGFjZW50ZXIKAHVzLXdlc3QtMWEIAGhvc3RuYW1lBwBob3N0XzI5CwBtZWFzdXJlbWVudAcAd2FpdGluZwIAb3MLAFVidW50dTE1LjEwBAByYWNrAgAxNQYAcmVnaW9uCQB1cy13ZXN0LTEHAHNlcnZpY2UBADQTAHNlcnZpY2VfZW52aXJvbm1lbnQEAHRlc3QPAHNlcnZpY2VfdmVyc2lvbgEAMQQAdGVhbQMATllD",
 	},
 	{
-		id:   "e19fbmFtZV9fPSJkaXNraW8iLGFyY2g9Ing2NCIsZGF0YWNlbnRlcj0iYXAtbm9ydGhlYXN0LTFjIixob3N0bmFtZT0iaG9zdF8zOCIsbWVhc3VyZW1lbnQ9IndyaXRlX3RpbWUiLG9zPSJVYnVudHUxNS4xMCIscmFjaz0iMjAiLHJlZ2lvbj0iYXAtbm9ydGhlYXN0LTEiLHNlcnZpY2U9IjAiLHNlcnZpY2VfZW52aXJvbm1lbnQ9InN0YWdpbmciLHNlcnZpY2VfdmVyc2lvbj0iMCIsdGVhbT0iU0YifQ==",
+		id:   `{__name__="diskio",arch="x64",datacenter="ap-northeast-1c",hostname="host_38",measurement="write_time",os="Ubuntu15.10",rack="20",region="ap-northeast-1",service="0",service_environment="staging",service_version="0",team="SF"}`,
 		tags: "dScMAAgAX19uYW1lX18GAGRpc2tpbwQAYXJjaAMAeDY0CgBkYXRhY2VudGVyDwBhcC1ub3J0aGVhc3QtMWMIAGhvc3RuYW1lBwBob3N0XzM4CwBtZWFzdXJlbWVudAoAd3JpdGVfdGltZQIAb3MLAFVidW50dTE1LjEwBAByYWNrAgAyMAYAcmVnaW9uDgBhcC1ub3J0aGVhc3QtMQcAc2VydmljZQEAMBMAc2VydmljZV9lbnZpcm9ubWVudAcAc3RhZ2luZw8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAgBTRg==",
 	},
 }
@@ -164,10 +164,7 @@ func prepareIDAndEncodedTags(b *testing.B) ([]idWithEncodedTags, error) {
 
 	for i := 0; i < b.N; i++ {
 		k := rnd.Intn(len(samples))
-		id, err := b64.DecodeString(samples[k].id)
-		if err != nil {
-			return nil, err
-		}
+		id := clone([]byte(samples[k].id))
 		tags, err := b64.DecodeString(samples[k].tags)
 		if err != nil {
 			return nil, err
