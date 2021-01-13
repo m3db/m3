@@ -502,7 +502,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			if d.storeMetricType && value.Attributes.PromType != ts.PromMetricTypeUnknown {
 				switch value.Attributes.PromType {
 				case ts.PromMetricTypeCounter:
-					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, dp.Value)
 				default:
 					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 				}
@@ -512,7 +512,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				case ts.M3MetricTypeGauge:
 					err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 				case ts.M3MetricTypeCounter:
-					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+					err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, dp.Value)
 				case ts.M3MetricTypeTimer:
 					err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
 				default:

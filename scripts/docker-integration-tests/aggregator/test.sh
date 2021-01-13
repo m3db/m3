@@ -305,23 +305,32 @@ function test_aggregated_rollup_rule {
 }
 
 function test_metric_type_survives_aggregation {
-  now=$(date +"%s")
-
   echo "Test metric type should be kept after aggregation"
 
-  # Emit values for endpoint /foo/bar (to ensure right values aggregated)
-  write_at="$now_truncated"
+  # Emit counter values for to ensure right values aggregated and metric type persisted
+  now=$(date +"%s")
+  resolution_seconds="10"
+  now=$(date +"%s")
+  now_truncate_by=$(( $now % $resolution_seconds ))
+  now_truncated=$(( $now - $now_truncate_by ))
+
   value="42"
 
   metric_type="counter" \
   prometheus_remote_write \
-  metric_type_test $now $value \
+  metric_type_test $now_truncated $value \
+  true "Expected request to succeed" \
+  200 "Expected request to return status code 200"
+
+  value="45"
+  metric_type="counter" \
+  prometheus_remote_write \
+  metric_type_test $(( $now_truncated + 2 )) $value \
   true "Expected request to succeed" \
   200 "Expected request to return status code 200"
 
   start=$(( $now - 3600 ))
   end=$(( $now + 3600 ))
-  jq_path=".datapoints[0].annotation"
 
   echo "Test query metric type"
 
@@ -331,7 +340,16 @@ function test_metric_type_survives_aggregation {
     id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
     rangeStart=${start} \
     rangeEnd=${end} \
-    jq_path="$jq_path" expected_value="CAEQAQ==" \
+    jq_path=".datapoints[0].annotation" expected_value="CAEQAQ==" \
+    retry_with_backoff dbnode_fetch
+
+  # Test the correct value is stored
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    namespace="agg" \
+    id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
+    rangeStart=${start} \
+    rangeEnd=${end} \
+    jq_path=".datapoints[0].value" expected_value="45" \
     retry_with_backoff dbnode_fetch
 }
 
