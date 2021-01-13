@@ -20,6 +20,7 @@
 package convert_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
 	"unicode/utf8"
@@ -92,6 +93,10 @@ func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
 			id:   `{bar="baz",quip="quix"}`,
 		},
 		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
 			name: "inexact tag occurrence in ID",
 			id:   "quixquip_bazillion_barometers",
 		},
@@ -108,8 +113,8 @@ func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
 			for i := range d.Fields {
-				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Name))
-				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Value))
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
 			}
 		})
 	}
@@ -139,6 +144,10 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 			id:   `{bar="baz",quip="quix"}`,
 		},
 		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
 			name: "inexact tag occurrence in ID",
 			id:   "quixquip_bazillion_barometers",
 		},
@@ -155,8 +164,8 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
 			for i := range d.Fields {
-				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Name))
-				assert.True(t, test.ByteSliceDataContained(d.ID, d.Fields[i].Value))
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
 			}
 		})
 	}
@@ -291,5 +300,14 @@ func assertContentsMatch(t *testing.T, seriesID ident.ID, tags []ident.Tag, doc 
 	for i, f := range doc.Fields { //nolint:gocritic
 		assert.Equal(t, tags[i].Name.String(), string(f.Name))
 		assert.Equal(t, tags[i].Value.String(), string(f.Value))
+	}
+}
+
+func assertBackedBySameData(t *testing.T, outer, inner []byte) {
+	if idx := bytes.Index(outer, inner); idx != -1 {
+		subslice := outer[idx : idx+len(inner)]
+		assert.True(t, test.ByteSlicesBackedBySameData(subslice, inner))
+	} else {
+		assert.Fail(t, "inner byte sequence wasn't found")
 	}
 }

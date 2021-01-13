@@ -32,17 +32,3 @@ func ByteSlicesBackedBySameData(a, b []byte) bool {
 	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&b))
 	return aHeader.Data == bHeader.Data
 }
-
-// ByteSliceDataContained checks data of 'inner' slice is fully contained inside data of
-// 'outter' slice.
-func ByteSliceDataContained(outter, inner []byte) bool {
-	var (
-		outterHeader = (*reflect.SliceHeader)(unsafe.Pointer(&outter)) //nolint:gosec
-		innerHeader  = (*reflect.SliceHeader)(unsafe.Pointer(&inner))  //nolint:gosec
-		outterStart  = uint(outterHeader.Data)
-		outterEnd    = outterStart + uint(outterHeader.Len)
-		innerStart   = uint(innerHeader.Data)
-		innerEnd     = innerStart + uint(innerHeader.Len)
-	)
-	return outterStart <= innerStart && innerEnd <= outterEnd
-}
