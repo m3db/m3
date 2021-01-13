@@ -36,7 +36,7 @@ type testIterator struct{}
 func newTestIterator() testIterator { return testIterator{} }
 
 func (it testIterator) Next() bool            { return false }
-func (it testIterator) Current() doc.Metadata { return doc.Metadata{} }
+func (it testIterator) Current() doc.Document { return doc.Document{} }
 func (it testIterator) Err() error            { return nil }
 func (it testIterator) Close() error          { return nil }
 
@@ -58,7 +58,7 @@ func TestExecutor(t *testing.T) {
 	e := NewExecutor(rs).(*executor)
 
 	// Override newIteratorFn to return test iterator.
-	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.MetadataIterator, error) {
+	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.Iterator, error) {
 		return newTestIterator(), nil
 	}
 

@@ -24,7 +24,10 @@ import (
 	"bytes"
 	"testing"
 
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -59,7 +62,9 @@ func TestResultsInsertInvalid(t *testing.T) {
 	assert.True(t, res.EnforceLimits())
 
 	dInvalid := doc.Metadata{ID: nil}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{dInvalid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(dInvalid),
+	})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 	require.Equal(t, 1, docsCount)
@@ -71,7 +76,9 @@ func TestResultsInsertInvalid(t *testing.T) {
 func TestResultsInsertIdempotency(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Metadata{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(dValid),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -79,7 +86,9 @@ func TestResultsInsertIdempotency(t *testing.T) {
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
 
-	size, docsCount, err = res.AddDocuments([]doc.Metadata{dValid})
+	size, docsCount, err = res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(dValid),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -92,7 +101,10 @@ func TestResultsInsertBatchOfTwo(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Metadata{ID: []byte("d1")}
 	d2 := doc.Metadata{ID: []byte("d2")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1, d2})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(d1),
+		doc.NewDocumentFromMetadata(d2),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 2, size)
 	require.Equal(t, 2, docsCount)
@@ -104,7 +116,9 @@ func TestResultsInsertBatchOfTwo(t *testing.T) {
 func TestResultsFirstInsertWins(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Metadata{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(d1),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -112,8 +126,10 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
+	d, ok := res.Map().Get(d1.ID)
 	require.True(t, ok)
+
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	d2 := doc.Metadata{
@@ -124,7 +140,9 @@ func TestResultsFirstInsertWins(t *testing.T) {
 				Value: []byte("bar"),
 			},
 		}}
-	size, docsCount, err = res.AddDocuments([]doc.Metadata{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(d2),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 2, docsCount)
@@ -132,21 +150,27 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
 
-	tags, ok = res.Map().Get(ident.StringID("abc"))
+	d, ok = res.Map().Get([]byte("abc"))
 	require.True(t, ok)
+
+	tags = test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 }
 
 func TestResultsInsertContains(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Metadata{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(dValid),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
+	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
+
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 }
 
@@ -155,7 +179,9 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 	dValid := doc.Metadata{ID: []byte("abc"), Fields: []doc.Field{
 		{Name: []byte("name"), Value: []byte("value")},
 	}}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(dValid),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
@@ -165,9 +191,10 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 	// Our genny generated maps don't provide access to MapEntry directly,
 	// so we iterate over the map to find the added entry. Could avoid this
 	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`.
+	reader := docs.NewEncodedDocumentReader()
 	for _, entry := range res.Map().Iter() {
 		// see if this key has the same value as the added document's ID.
-		key := entry.Key().Bytes()
+		key := entry.Key()
 		if !bytes.Equal(dValid.ID, key) {
 			continue
 		}
@@ -175,7 +202,11 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 
 		// Ensure the underlying []byte for ID/Fields is the same.
 		require.True(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
-		tags := entry.Value()
+		d := entry.Value()
+		m, err := docs.MetadataFromDocument(d, reader)
+		require.NoError(t, err)
+
+		tags := idxconvert.ToSeriesTags(m, idxconvert.Opts{NoClone: true})
 		for _, f := range dValid.Fields {
 			fName := f.Name
 			fValue := f.Value
@@ -200,17 +231,21 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 func TestResultsReset(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Metadata{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(d1),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
 
-	tags, ok := res.Map().Get(ident.StringID("abc"))
+	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
+
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	res.Reset(nil, QueryResultsOptions{})
-	_, ok = res.Map().Get(ident.StringID("abc"))
+	_, ok = res.Map().Get([]byte("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, tags.Remaining())
 	require.Equal(t, 0, res.Size())
@@ -234,29 +269,26 @@ func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Metadata{ID: []byte("abc")}
-	size, docsCount, err := res.AddDocuments([]doc.Metadata{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(d1),
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 	require.Equal(t, 1, docsCount)
 
 	// Ensure the data is present.
-	tags, ok := res.Map().Get(ident.StringID("abc"))
+	d, ok := res.Map().Get([]byte("abc"))
 	require.True(t, ok)
+
+	tags := test.DocumentToTagIter(t, d)
 	require.Equal(t, 0, tags.Remaining())
 
 	// Call Finalize() to reset the Results.
 	res.Finalize()
 
 	// Ensure data was removed by call to Finalize().
-	tags, ok = res.Map().Get(ident.StringID("abc"))
+	_, ok = res.Map().Get([]byte("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 0, res.TotalDocsCount())
-
-	for _, entry := range res.Map().Iter() {
-		id, _ := entry.Key(), entry.Value()
-		require.False(t, id.IsNoFinalize())
-		// TODO(rartoul): Could verify tags are NoFinalize() as well if
-		// they had that method.
-	}
 }
