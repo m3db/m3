@@ -48,52 +48,52 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// DocumentArrayPool provides a pool for document slices.
-type DocumentArrayPool interface {
+// MetadataArrayPool provides a pool for metadata slices.
+type MetadataArrayPool interface {
 	// Init initializes the array pool, it needs to be called
 	// before Get/Put use.
 	Init()
 
 	// Get returns the a slice from the pool.
-	Get() []Document
+	Get() []Metadata
 
 	// Put returns the provided slice to the pool.
-	Put(elems []Document)
+	Put(elems []Metadata)
 }
 
-type DocumentFinalizeFn func([]Document) []Document
+type MetadataFinalizeFn func([]Metadata) []Metadata
 
-type DocumentArrayPoolOpts struct {
+type MetadataArrayPoolOpts struct {
 	Options     pool.ObjectPoolOptions
 	Capacity    int
 	MaxCapacity int
-	FinalizeFn  DocumentFinalizeFn
+	FinalizeFn  MetadataFinalizeFn
 }
 
-type DocumentArrPool struct {
-	opts DocumentArrayPoolOpts
+type MetadataArrPool struct {
+	opts MetadataArrayPoolOpts
 	pool pool.ObjectPool
 }
 
-func NewDocumentArrayPool(opts DocumentArrayPoolOpts) DocumentArrayPool {
+func NewMetadataArrayPool(opts MetadataArrayPoolOpts) MetadataArrayPool {
 	if opts.FinalizeFn == nil {
-		opts.FinalizeFn = defaultDocumentFinalizerFn
+		opts.FinalizeFn = defaultMetadataFinalizerFn
 	}
 	p := pool.NewObjectPool(opts.Options)
-	return &DocumentArrPool{opts, p}
+	return &MetadataArrPool{opts, p}
 }
 
-func (p *DocumentArrPool) Init() {
+func (p *MetadataArrPool) Init() {
 	p.pool.Init(func() interface{} {
-		return make([]Document, 0, p.opts.Capacity)
+		return make([]Metadata, 0, p.opts.Capacity)
 	})
 }
 
-func (p *DocumentArrPool) Get() []Document {
-	return p.pool.Get().([]Document)
+func (p *MetadataArrPool) Get() []Metadata {
+	return p.pool.Get().([]Metadata)
 }
 
-func (p *DocumentArrPool) Put(arr []Document) {
+func (p *MetadataArrPool) Put(arr []Metadata) {
 	arr = p.opts.FinalizeFn(arr)
 	if max := p.opts.MaxCapacity; max > 0 && cap(arr) > max {
 		return
@@ -101,8 +101,8 @@ func (p *DocumentArrPool) Put(arr []Document) {
 	p.pool.Put(arr)
 }
 
-func defaultDocumentFinalizerFn(elems []Document) []Document {
-	var empty Document
+func defaultMetadataFinalizerFn(elems []Metadata) []Metadata {
+	var empty Metadata
 	for i := range elems {
 		elems[i] = empty
 	}
@@ -110,16 +110,16 @@ func defaultDocumentFinalizerFn(elems []Document) []Document {
 	return elems
 }
 
-type DocumentArr []Document
+type MetadataArr []Metadata
 
-func (elems DocumentArr) grow(n int) []Document {
+func (elems MetadataArr) grow(n int) []Metadata {
 	if cap(elems) < n {
-		elems = make([]Document, n)
+		elems = make([]Metadata, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl
 	// https://github.com/golang/go/wiki/CompilerOptimizations#optimized-memclr
-	var empty Document
+	var empty Metadata
 	for i := range elems {
 		elems[i] = empty
 	}

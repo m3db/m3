@@ -77,20 +77,22 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nol
 	}
 
 	pool.MaxWait = timeout
-	err = setupNetwork(pool)
-	if err != nil {
-		return nil, err
-	}
 
-	err = setupVolume(pool)
-	if err != nil {
-		return nil, err
+	if !options.existingCluster {
+		if err := setupNetwork(pool); err != nil {
+			return nil, err
+		}
+
+		if err := setupVolume(pool); err != nil {
+			return nil, err
+		}
 	}
 
 	iOpts := instrument.NewOptions()
 	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-		image: options.dbNodeImage,
-		iOpts: iOpts,
+		image:         options.dbNodeImage,
+		containerName: options.dbNodeContainerName,
+		iOpts:         iOpts,
 	})
 
 	success := false
@@ -112,8 +114,9 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nol
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		image: options.coordinatorImage,
-		iOpts: iOpts,
+		image:         options.coordinatorImage,
+		containerName: options.coordinatorContainerName,
+		iOpts:         iOpts,
 	})
 
 	defer func() {

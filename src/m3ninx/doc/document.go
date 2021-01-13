@@ -212,3 +212,48 @@ func (ds Documents) Less(i, j int) bool {
 func (ds Documents) Swap(i, j int) {
 	ds[i], ds[j] = ds[j], ds[i]
 }
+
+// Encoded is a serialized document metadata.
+type Encoded struct {
+	Bytes []byte
+}
+
+// Document contains either metadata or an encoded metadata
+// but never both.
+type Document struct {
+	encoded  Encoded
+	metadata Metadata
+
+	hasEncoded  bool
+	hasMetadata bool
+}
+
+// NewDocumentFromMetadata creates a Document from a Metadata.
+func NewDocumentFromMetadata(m Metadata) Document {
+	return Document{metadata: m, hasMetadata: true}
+}
+
+// NewDocumentFromEncoded creates a Document from an Encoded.
+func NewDocumentFromEncoded(e Encoded) Document {
+	return Document{encoded: e, hasEncoded: true}
+}
+
+// Metadata returns the metadata it contains, if it has one. Otherwise returns an empty metadata
+// and false.
+func (d *Document) Metadata() (Metadata, bool) {
+	if d.hasMetadata {
+		return d.metadata, true
+	}
+
+	return Metadata{}, false
+}
+
+// Encoded returns the encoded metadata it contains, if it has one. Otherwise returns an
+// empty encoded metadata and false.
+func (d *Document) Encoded() (Encoded, bool) {
+	if d.hasEncoded {
+		return d.encoded, true
+	}
+
+	return Encoded{}, false
+}

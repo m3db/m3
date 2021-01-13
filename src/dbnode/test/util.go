@@ -1,6 +1,4 @@
-// +build dtest
-//
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,34 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+// Package test is a package for shared test helpers.
+package test
 
 import (
-	"fmt"
-	"os"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/tools/dtest/docker/harness/resources"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-var singleDBNodeDockerResources resources.DockerResources
+// DocumentToTagIter is a help for converting a doc.Document into an
+// ident.TagIterator.
+func DocumentToTagIter(t *testing.T, doc doc.Document) ident.TagIterator {
+	reader := docs.NewEncodedDocumentReader()
+	m, err := docs.MetadataFromDocument(doc, reader)
+	require.NoError(t, err)
 
-func TestMain(m *testing.M) {
-	var err error
-	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode(
-		resources.WithExistingCluster("dbnode01", "coord01"),
-	)
-
-	if err != nil {
-		fmt.Println("could not set up db docker containers", err)
-		os.Exit(1)
-	}
-
-	if l := len(singleDBNodeDockerResources.Nodes()); l != 1 {
-		fmt.Println("should only have a single node, have", l)
-		os.Exit(1)
-	}
-
-	code := m.Run()
-	os.Exit(code)
+	return convert.ToSeriesTags(m, convert.Opts{NoClone: true})
 }
