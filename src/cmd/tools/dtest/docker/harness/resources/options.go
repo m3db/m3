@@ -28,6 +28,10 @@ type dockerImage struct {
 type setupOptions struct {
 	dbNodeImage      dockerImage
 	coordinatorImage dockerImage
+
+	existingCluster          bool
+	dbNodeContainerName      string
+	coordinatorContainerName string
 }
 
 // SetupOptions is a setup option.
@@ -44,5 +48,15 @@ func WithDBNodeImage(name, tag string) SetupOptions {
 func WithCoordinatorImage(name, tag string) SetupOptions {
 	return func(o *setupOptions) {
 		o.coordinatorImage = dockerImage{name: name, tag: tag}
+	}
+}
+
+// WithExistingCluster sets the names of already running containers dbnode and coordinator
+// containers that should be used for tests.
+func WithExistingCluster(dbNodeContainerName, coordinatorContainerName string) SetupOptions {
+	return func(o *setupOptions) {
+		o.existingCluster = true
+		o.dbNodeContainerName = dbNodeContainerName
+		o.coordinatorContainerName = coordinatorContainerName
 	}
 }

@@ -42,9 +42,8 @@ import (
 )
 
 const (
-	defaultCoordinatorSource     = "coordinator"
-	defaultCoordinatorName       = "coord01"
-	defaultCoordinatorDockerfile = "resources/config/m3coordinator.Dockerfile"
+	defaultCoordinatorSource = "coordinator"
+	defaultCoordinatorName   = "coord01"
 )
 
 var (
@@ -53,7 +52,6 @@ var (
 	defaultCoordinatorOptions = dockerResourceOptions{
 		source:        defaultCoordinatorSource,
 		containerName: defaultCoordinatorName,
-		dockerFile:    defaultCoordinatorDockerfile,
 		portList:      defaultCoordinatorList,
 	}
 )
