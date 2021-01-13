@@ -44,6 +44,7 @@ type results struct {
 	nsID ident.ID
 	opts QueryResultsOptions
 
+	reusableID     *ident.ReusableBytesID
 	resultsMap     *ResultsMap
 	totalDocsCount int
 
@@ -63,10 +64,11 @@ func NewQueryResults(
 	return &results{
 		nsID:       namespaceID,
 		opts:       opts,
-		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
+		resultsMap: newResultsMap(),
 		idPool:     indexOpts.IdentifierPool(),
 		bytesPool:  indexOpts.CheckedBytesPool(),
 		pool:       indexOpts.QueryResultsPool(),
+		reusableID: ident.NewReusableBytesID(),
 	}
 }
 
@@ -131,7 +133,8 @@ func (r *results) addDocumentWithLock(w doc.Document) (bool, int, error) {
 	}
 
 	// Need to apply filter if set first.
-	if r.opts.FilterID != nil && !r.opts.FilterID(ident.BytesID(id)) {
+	r.reusableID.Reset(id)
+	if r.opts.FilterID != nil && !r.opts.FilterID(r.reusableID) {
 		return false, r.resultsMap.Len(), nil
 	}
 

@@ -24,22 +24,20 @@ import (
 	"bytes"
 
 	"github.com/cespare/xxhash/v2"
-
-	"github.com/m3db/m3/src/x/ident"
 )
 
 const (
 	defaultInitialResultsMapSize = 10
 )
 
-func newResultsMap(idPool ident.Pool) *ResultsMap {
+func newResultsMap() *ResultsMap {
 	return _ResultsMapAlloc(_ResultsMapOptions{
 		hash: func(k []byte) ResultsMapHash {
 			return ResultsMapHash(xxhash.Sum64(k))
 		},
 		equals: bytes.Equal,
 		copy: func(k []byte) []byte {
-			return idPool.Clone(ident.BytesID(k)).Bytes()
+			return append(make([]byte, 0, len(k)), k...)
 		},
 		finalize: func(k []byte) {
 			// NB(nate): no-op for bytes IDs
