@@ -25,23 +25,19 @@ We recommend you use [our Kubernetes operator](/docs/operator/operator) to deplo
 The rest of this guide uses minikube, you may need to change some of the steps to suit your local cluster.
 {{% /notice %}}
 
-## Create An etcd Cluster
+## Create an etcd Cluster
 
 M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io) and needs a running cluster to communicate with.
 
 We have example services and stateful sets you can use, but feel free to use your own configuration and change any later instructions accordingly.
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/etcd/etcd-minikube.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/etcd/etcd-basic.yaml
 ```
 
-If the etcd cluster is running on your local machine, update your _/etc/hosts_ file to match the domains specified in the `etcd` `--initial-cluster` argument. For example to match the `StatefulSet` declaration in the _etcd-minikube.yaml_ above, that is:
-
-```text
-$(minikube ip) etcd-0.etcd
-$(minikube ip) etcd-1.etcd
-$(minikube ip) etcd-2.etcd
-```
+{{% notice tip %}}
+Depending on what you use to run a cluster on your local machine, you may need to update your _/etc/hosts_ file to match the domains specified in the `etcd` `--initial-cluster` argument. For example to match the `StatefulSet` declaration in the _etcd-minikube.yaml_ above, these are `etcd-0.etcd`, `etcd-1.etcd`, and `etcd-2.etcd`.
+{{% /notice %}}
 
 Verify that the cluster is running with something like the Kubernetes dashboard, or the command below:
 
@@ -90,5 +86,271 @@ kubectl delete m3dbcluster simple-cluster
 By default, the operator uses [finalizers](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#finalizers) to delete the placement and namespaces associated with a cluster before the custom resources. If you do not want this behavior, set `keepEtcdDataOnDelete` to `true` in the cluster configuration.
 
 <!-- TODO: Placement, same as Binaries? -->
+
+
+## Organizing Data with Placements and Namespaces
+
+A time series database (TSDBs) typically consist of one node (or instance) to store metrics data. This setup is simple to use but has issues with scalability over time as the quantity of metrics data written and read increases.
+
+As a distributed TSDB, M3 helps solve this problem by spreading metrics data, and demand for that data, across multiple nodes in a cluster. M3 does this by splitting data into segments that match certain criteria (such as above a certain value) across nodes into shards.
+
+<!-- TODO: Find an image -->
+
+If you've worked with a distributed database before, then these concepts are probably familiar to you, but M3 uses different terminology to represent some concepts.
+
+-   Every cluster has **one** placement that maps shards to nodes in the cluster.
+-   A cluster can have **0 or more** namespaces that are similar conceptually to tables in other databases, and each node serves every namespace for the shards it owns.
+
+<!-- TODO: Image -->
+
+For example, if the cluster placement states that node A owns shards 1, 2, and 3, then node A owns shards 1, 2, 3 for all configured namespaces in the cluster. Each namespace has its own configuration options, including a name and retention time for the data.
+
+## Create a Placement and Namespace
+
+This quickstart uses the _{{% apiendpoint %}}database/create_ endpoint that creates a namespace, and the placement if it doesn't already exist based on the `type` argument.
+
+You can create [placements](/docs/operational_guide/placement_configuration/) and [namespaces](/docs/operational_guide/namespace_configuration/#advanced-hard-way) separately if you need more control over their settings.
+
+In another terminal, use the following command.
+
+{{< tabs name="create_placement_namespace" >}}
+{{< tab name="Command" >}}
+
+{{< codeinclude file="docs/includes/create-database.sh" language="shell" >}}
+
+{{< /tab >}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "namespace": {
+    "registry": {
+      "namespaces": {
+        "default": {
+          "bootstrapEnabled": true,
+          "flushEnabled": true,
+          "writesToCommitLog": true,
+          "cleanupEnabled": true,
+          "repairEnabled": false,
+          "retentionOptions": {
+            "retentionPeriodNanos": "43200000000000",
+            "blockSizeNanos": "1800000000000",
+            "bufferFutureNanos": "120000000000",
+            "bufferPastNanos": "600000000000",
+            "blockDataExpiry": true,
+            "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+            "futureRetentionPeriodNanos": "0"
+          },
+          "snapshotEnabled": true,
+          "indexOptions": {
+            "enabled": true,
+            "blockSizeNanos": "1800000000000"
+          },
+          "schemaOptions": null,
+          "coldWritesEnabled": false,
+          "runtimeOptions": null
+        }
+      }
+    }
+  },
+  "placement": {
+    "placement": {
+      "instances": {
+        "m3db_local": {
+          "id": "m3db_local",
+          "isolationGroup": "local",
+          "zone": "embedded",
+          "weight": 1,
+          "endpoint": "127.0.0.1:9000",
+          "shards": [
+            {
+              "id": 0,
+              "state": "INITIALIZING",
+              "sourceId": "",
+              "cutoverNanos": "0",
+              "cutoffNanos": "0"
+            },
+            …
+            {
+              "id": 63,
+              "state": "INITIALIZING",
+              "sourceId": "",
+              "cutoverNanos": "0",
+              "cutoffNanos": "0"
+            }
+          ],
+          "shardSetId": 0,
+          "hostname": "localhost",
+          "port": 9000,
+          "metadata": {
+            "debugPort": 0
+          }
+        }
+      },
+      "replicaFactor": 1,
+      "numShards": 64,
+      "isSharded": true,
+      "cutoverTime": "0",
+      "isMirrored": false,
+      "maxShardSetId": 0
+    },
+    "version": 0
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+Placement initialization can take a minute or two. Once all the shards have the `AVAILABLE` state, the node has finished bootstrapping, and you should see the following messages in the node console output.
+
+<!-- TODO: Fix these timestamps -->
+
+```shell
+{"level":"info","ts":1598367624.0117292,"msg":"bootstrap marking all shards as bootstrapped","namespace":"default","namespace":"default","numShards":64}
+{"level":"info","ts":1598367624.0301404,"msg":"bootstrap index with bootstrapped index segments","namespace":"default","numIndexBlocks":0}
+{"level":"info","ts":1598367624.0301914,"msg":"bootstrap success","numShards":64,"bootstrapDuration":0.049208827}
+{"level":"info","ts":1598367624.03023,"msg":"bootstrapped"}
+```
+
+You can check on the status by calling the _{{% apiendpoint %}}services/m3db/placement_ endpoint:
+
+{{< tabs name="check_placement" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl {{% apiendpoint %}}services/m3db/placement | jq .
+```
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "placement": {
+    "instances": {
+      "m3db_local": {
+        "id": "m3db_local",
+        "isolationGroup": "local",
+        "zone": "embedded",
+        "weight": 1,
+        "endpoint": "127.0.0.1:9000",
+        "shards": [
+          {
+            "id": 0,
+            "state": "AVAILABLE",
+            "sourceId": "",
+            "cutoverNanos": "0",
+            "cutoffNanos": "0"
+          },
+          …
+          {
+            "id": 63,
+            "state": "AVAILABLE",
+            "sourceId": "",
+            "cutoverNanos": "0",
+            "cutoffNanos": "0"
+          }
+        ],
+        "shardSetId": 0,
+        "hostname": "localhost",
+        "port": 9000,
+        "metadata": {
+          "debugPort": 0
+        }
+      }
+    },
+    "replicaFactor": 1,
+    "numShards": 64,
+    "isSharded": true,
+    "cutoverTime": "0",
+    "isMirrored": false,
+    "maxShardSetId": 0
+  },
+  "version": 2
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+{{% notice tip %}}
+[Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
+{{% /notice %}}
+
+### Ready a Namespace
+<!-- TODO: Why?> -->
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{% codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+"ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+### View Details of a Namespace
+
+You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
+
+{{< tabs name="check_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl {{% apiendpoint %}}services/m3db/namespace | jq .
+```
+
+{{% notice tip %}}
+Add `?debug=1` to the request to convert nano units in the output into standard units.
+{{% /notice %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "registry": {
+    "namespaces": {
+      "default": {
+        "bootstrapEnabled": true,
+        "flushEnabled": true,
+        "writesToCommitLog": true,
+        "cleanupEnabled": true,
+        "repairEnabled": false,
+        "retentionOptions": {
+          "retentionPeriodNanos": "43200000000000",
+          "blockSizeNanos": "1800000000000",
+          "bufferFutureNanos": "120000000000",
+          "bufferPastNanos": "600000000000",
+          "blockDataExpiry": true,
+          "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+          "futureRetentionPeriodNanos": "0"
+        },
+        "snapshotEnabled": true,
+        "indexOptions": {
+          "enabled": true,
+          "blockSizeNanos": "1800000000000"
+        },
+        "schemaOptions": null,
+        "coldWritesEnabled": false,
+        "runtimeOptions": null
+      }
+    }
+  }
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
 
 {{< fileinclude file="cluster-common-steps.md" >}}
