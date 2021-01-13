@@ -31,9 +31,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	testutil "github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -344,23 +346,24 @@ func testNamespaceIndexHighConcurrentQueries(
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
+				id := ident.NewReusableBytesID()
 				for _, entry := range results.Results.Map().Iter() {
-					id := entry.Key().String()
-
-					doc, err := convert.FromSeriesIDAndTagIter(entry.Key(), entry.Value())
+					id.Reset(entry.Key())
+					tags := testutil.DocumentToTagIter(t, entry.Value())
+					doc, err := convert.FromSeriesIDAndTagIter(id, tags)
 					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					expectedDoc, ok := expectedResults[id]
+					expectedDoc, ok := expectedResults[id.String()]
 					require.True(t, ok)
 					if !ok {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
 					require.Equal(t, expectedDoc, doc)
-					hits[id] = struct{}{}
+					hits[id.String()] = struct{}{}
 				}
 				expectedHits := idsPerBlock * (k + 1)
 				require.Equal(t, expectedHits, len(hits))
