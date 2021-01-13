@@ -45,35 +45,35 @@ var (
 	doc1 = doc.Metadata{
 		ID: []byte("__name__=node_cpu_seconds_total,cpu=1,instance=m3db-node01:9100,job=node-exporter,mode=system,"),
 		Fields: []doc.Field{
-			doc.Field{[]byte("cpu"), []byte("1")},
-			doc.Field{[]byte("__name__"), []byte("node_cpu_seconds_total")},
-			doc.Field{[]byte("instance"), []byte("m3db-node01:9100")},
-			doc.Field{[]byte("job"), []byte("node-exporter")},
-			doc.Field{[]byte("mode"), []byte("system")},
+			{[]byte("cpu"), []byte("1")},
+			{[]byte("__name__"), []byte("node_cpu_seconds_total")},
+			{[]byte("instance"), []byte("m3db-node01:9100")},
+			{[]byte("job"), []byte("node-exporter")},
+			{[]byte("mode"), []byte("system")},
 		},
 	}
 	doc2 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=m3db-node01:9100,job=node-exporter,"),
 		Fields: []doc.Field{
-			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
-			doc.Field{[]byte("instance"), []byte("m3db-node01:9100")},
-			doc.Field{[]byte("job"), []byte("node-exporter")},
+			{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
+			{[]byte("instance"), []byte("m3db-node01:9100")},
+			{[]byte("job"), []byte("node-exporter")},
 		},
 	}
 	doc3 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=alertmanager03:9100,job=node-exporter,"),
 		Fields: []doc.Field{
-			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
-			doc.Field{[]byte("instance"), []byte("alertmanager03:9100")},
-			doc.Field{[]byte("job"), []byte("node-exporter")},
+			{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
+			{[]byte("instance"), []byte("alertmanager03:9100")},
+			{[]byte("job"), []byte("node-exporter")},
 		},
 	}
 	doc4 = doc.Metadata{
 		ID: []byte("__name__=node_memory_SwapTotal_bytes,instance=prometheus01:9100,job=node-exporter,"),
 		Fields: []doc.Field{
-			doc.Field{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
-			doc.Field{[]byte("instance"), []byte("prometheus01:9100")},
-			doc.Field{[]byte("job"), []byte("node-exporter")},
+			{[]byte("__name__"), []byte("node_memory_SwapTotal_bytes")},
+			{[]byte("instance"), []byte("prometheus01:9100")},
+			{[]byte("job"), []byte("node-exporter")},
 		},
 	}
 	simpleTestDocs = []doc.Metadata{doc1, doc2, doc3, doc4}
@@ -87,7 +87,7 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
-	docMatcher, err := newDocumentIteratorMatcher(doc2)
+	docMatcher, err := newDocumentIteratorMatcher(t, doc.NewDocumentFromMetadata(doc2))
 	require.NoError(t, err)
 	properties.Property("Any distribution of simple documents does not affect query results", prop.ForAll(
 		func(i propTestInput) (bool, error) {

@@ -1,0 +1,24 @@
+version: "3.5"
+services:
+  dbnode01:
+    networks:
+      - dtest
+    image: m3dbnode:dev
+    container_name: dbnode01
+    ports:
+      - "0.0.0.0:2379:2379"
+      - "0.0.0.0:9000:9000"
+    volumes:
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+  coord01:
+    networks:
+      - dtest
+    image: m3coordinator:dev
+    container_name: coord01
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7204:7204"
+    volumes:
+      - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+networks:
+  dtest:

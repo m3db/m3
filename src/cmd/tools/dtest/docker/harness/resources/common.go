@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -52,7 +51,6 @@ type dockerResourceOptions struct {
 	source           string
 	containerName    string
 	image            dockerImage
-	dockerFile       string
 	portList         []int
 	mounts           []string
 	iOpts            instrument.Options
@@ -75,10 +73,6 @@ func (o dockerResourceOptions) withDefaults(
 
 	if o.image == (dockerImage{}) {
 		o.image = defaultOpts.image
-	}
-
-	if len(o.dockerFile) == 0 {
-		o.dockerFile = defaultOpts.dockerFile
 	}
 
 	if len(o.portList) == 0 {
@@ -174,11 +168,6 @@ func exposePorts(
 
 	opts.PortBindings = ports
 	return opts
-}
-
-func getDockerfile(file string) string {
-	src, _ := os.Getwd()
-	return fmt.Sprintf("%s/%s", src, file)
 }
 
 func toResponse(
