@@ -38,7 +38,7 @@ Below is the text file for the second node, copy and paste it into a new _.prom_
 
 {{< codeinclude file="docs/includes/quickstart/node-2/metrics-2.prom" language="text" >}}
 
-Run node_exporter from it's install location, passing the directory that contains the textfile, and the public facing address, which for this example serves as the identifier of the POS.
+Run node_exporter from its install location, passing the directory that contains the textfile, and the public facing address, which for this example serves as the identifier of the POS.
 
 {{< codeinclude file="docs/includes/quickstart/node-2/node_exporter-2.sh" language="shell" >}}
 
