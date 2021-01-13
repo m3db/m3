@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -13,37 +13,37 @@
         
     <url>
      <loc>/getting_started/requirements/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/installation/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/create_cluster/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/update_cluster/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/delete_cluster/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/monitoring/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -53,31 +53,31 @@
         
     <url>
      <loc>/configuration/configuring_m3db/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/pod_identity/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/namespaces/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/node_affinity/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/node_endpoint/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -86,7 +86,7 @@
     
     <url>
      <loc>/api/</loc>
-     <lastmod>2021-01-12</lastmod>
+     <lastmod>2021-01-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
