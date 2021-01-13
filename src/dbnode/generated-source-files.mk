@@ -149,10 +149,9 @@ genny-map-persist-fs:
 # Map generation rule for storage/index/ResultsMap
 .PHONY: genny-map-storage-index-results
 genny-map-storage-index-results:
-	cd $(m3x_package_path) && make hashmap-gen                \
+	cd $(m3x_package_path) && make byteshashmap-gen             \
 		pkg=index                                               \
-		key_type=ident.ID                                       \
-		value_type=ident.TagIterator                            \
+		value_type=doc.Document                        \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
 		rename_nogen_key=true                                   \
 		rename_nogen_value=true                                 \

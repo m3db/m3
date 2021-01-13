@@ -401,12 +401,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		seriesCachePolicy    = ropts.SeriesCachePolicy()
 		timesWithErrors      []time.Time
 		nsCtx                = namespace.NewContextFrom(ns)
-		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
-		batch                = docsPool.Get()
+		metadataPool         = s.opts.IndexOptions().MetadataArrayPool()
+		batch                = metadataPool.Get()
 		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
-	defer docsPool.Put(batch)
+	defer metadataPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -740,7 +740,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 
 	batch = append(batch, d)
 
-	if len(batch) >= index.DocumentArrayPoolCapacity {
+	if len(batch) >= index.MetadataArrayPoolCapacity {
 		return builder.FlushBatch(batch)
 	}
 
@@ -857,8 +857,8 @@ func (s *fileSystemSource) read(
 		builder := result.NewIndexBuilder(segBuilder)
 
 		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
+		compactor, err := compaction.NewCompactor(indexOpts.MetadataArrayPool(),
+			index.MetadataArrayPoolCapacity,
 			indexOpts.SegmentBuilderOptions(),
 			indexOpts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

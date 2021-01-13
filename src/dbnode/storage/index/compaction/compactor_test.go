@@ -69,15 +69,15 @@ var (
 		},
 	}
 
-	testDocsMaxBatch = 8
-	testDocsPool     = doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
+	testMetadataMaxBatch = 8
+	testMetadataPool     = doc.NewMetadataArrayPool(doc.MetadataArrayPoolOpts{
 		Options:  pool.NewObjectPoolOptions().SetSize(1),
-		Capacity: testDocsMaxBatch,
+		Capacity: testMetadataMaxBatch,
 	})
 )
 
 func init() {
-	testDocsPool.Init()
+	testMetadataPool.Init()
 }
 
 func TestCompactorSingleMutableSegment(t *testing.T) {
@@ -90,7 +90,7 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{
 			MmapDocsData: true,
 		})
@@ -143,7 +143,7 @@ func TestCompactorManySegments(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 

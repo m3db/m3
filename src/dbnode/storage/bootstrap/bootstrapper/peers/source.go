@@ -712,8 +712,8 @@ func (s *peersSource) readIndex(
 		builder := result.NewIndexBuilder(segBuilder)
 
 		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
+		compactor, err := compaction.NewCompactor(indexOpts.MetadataArrayPool(),
+			index.MetadataArrayPoolCapacity,
 			indexOpts.SegmentBuilderOptions(),
 			indexOpts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -793,13 +793,13 @@ func (s *peersSource) processReaders(
 	resultLock *sync.Mutex,
 ) (result.ShardTimeRanges, []time.Time) {
 	var (
-		docsPool        = s.opts.IndexOptions().DocumentArrayPool()
-		batch           = docsPool.Get()
+		metadataPool    = s.opts.IndexOptions().MetadataArrayPool()
+		batch           = metadataPool.Get()
 		timesWithErrors []time.Time
 		totalEntries    int
 	)
 	defer func() {
-		docsPool.Put(batch)
+		metadataPool.Put(batch)
 		// Return readers to pool.
 		for _, shardReaders := range timeWindowReaders.Readers {
 			for _, r := range shardReaders.Readers {
@@ -990,7 +990,7 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 
 	batch = append(batch, d)
 
-	if len(batch) >= index.DocumentArrayPoolCapacity {
+	if len(batch) >= index.MetadataArrayPoolCapacity {
 		return builder.FlushBatch(batch)
 	}
 
