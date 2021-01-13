@@ -40,7 +40,7 @@ var errReusableTagIteratorRequired = errors.New("reusable tags iterator is requi
 // Metadata is metadata for a time series, it can
 // have several underlying sources.
 type Metadata struct {
-	metadata doc.Document
+	metadata doc.Metadata
 	id       ident.ID
 	tags     ident.Tags
 	tagsIter ident.TagIterator
@@ -55,11 +55,11 @@ type MetadataOptions struct {
 }
 
 // NewMetadata returns a new metadata struct from series metadata.
-// Note: because doc.Document has no pools for finalization we do not
+// Note: because doc.Metadata has no pools for finalization we do not
 // take MetadataOptions here, in future if we have pools or
 // some other shared options that Metadata needs we will add it to this
 // constructor as well.
-func NewMetadata(metadata doc.Document) Metadata {
+func NewMetadata(metadata doc.Metadata) Metadata {
 	return Metadata{metadata: metadata}
 }
 
@@ -336,7 +336,7 @@ const (
 type SeriesMetadataType uint8
 
 const (
-	// SeriesDocumentType means the metadata is in doc.Document form.
+	// SeriesDocumentType means the metadata is in doc.Metadata form.
 	SeriesDocumentType SeriesMetadataType = iota
 	// SeriesIDAndEncodedTagsType means the metadata is in IDAndEncodedTags form.
 	SeriesIDAndEncodedTagsType
@@ -351,7 +351,7 @@ type IDAndEncodedTags struct {
 // SeriesMetadata captures different representations of series metadata and
 // the ownership status of the underlying memory.
 type SeriesMetadata struct {
-	Document         doc.Document
+	Document         doc.Metadata
 	IDAndEncodedTags IDAndEncodedTags
 	Type             SeriesMetadataType
 	LifeTime         SeriesMetadataLifeTime

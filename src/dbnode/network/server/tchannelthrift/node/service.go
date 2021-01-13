@@ -37,11 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -514,10 +516,19 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	if req.NoData != nil && *req.NoData {
 		fetchData = false
 	}
+	// Re-use reader and id for more memory-efficient processing of
+	// tags from doc.Metadata
+	reader := docs.NewEncodedDocumentReader()
+	id := ident.NewReusableBytesID()
 	for _, entry := range queryResult.Results.Map().Iter() {
-		tags := entry.Value()
+		d := entry.Value()
+		metadata, err := docs.MetadataFromDocument(d, reader)
+		if err != nil {
+			return nil, err
+		}
+		tags := idxconvert.ToSeriesTags(metadata, idxconvert.Opts{NoClone: true})
 		elem := &rpc.QueryResultElement{
-			ID:   entry.Key().String(),
+			ID:   string(entry.Key()),
 			Tags: make([]*rpc.Tag, 0, tags.Remaining()),
 		}
 		result.Results = append(result.Results, elem)
@@ -535,8 +546,8 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		if !fetchData {
 			continue
 		}
-		tsID := entry.Key()
-		datapoints, err := s.readDatapoints(ctx, db, nsID, tsID, start, end,
+		id.Reset(entry.Key())
+		datapoints, err := s.readDatapoints(ctx, db, nsID, id, start, end,
 			req.ResultTimeType)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
@@ -794,12 +805,23 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
+	// Re-use reader and id for more memory-efficient processing of
+	// tags from doc.Metadata
+	reader := docs.NewEncodedDocumentReader()
+	id := ident.NewReusableBytesID()
 	for _, entry := range results.Map().Iter() {
 		idx := i
 		i++
 
-		tsID := entry.Key()
-		tags := entry.Value()
+		id.Reset(entry.Key())
+
+		d := entry.Value()
+		metadata, err := docs.MetadataFromDocument(d, reader)
+		if err != nil {
+			return err
+		}
+		tags := idxconvert.ToSeriesTags(metadata, idxconvert.Opts{NoClone: true})
+
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
 		encodedTags, err := s.encodeTags(enc, tags)
@@ -809,7 +831,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 
 		elem := &rpc.FetchTaggedIDResult_{
 			NameSpace:   nsIDBytes,
-			ID:          tsID.Bytes(),
+			ID:          id.Bytes(),
 			EncodedTags: encodedTags.Bytes(),
 		}
 		response.Elements = append(response.Elements, elem)
@@ -817,7 +839,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 			continue
 		}
 
-		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
+		encoded, err := db.ReadEncoded(ctx, nsID, id,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
 			return convert.ToRPCError(err)
@@ -844,7 +866,7 @@ func (s *service) fetchReadResults(
 	defer sp.Finish()
 
 	for idx := range response.Elements {
-		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
+		segments, rpcErr := s.readEncodedResult(ctx, encodedDataResults[idx])
 		if rpcErr != nil {
 			return rpcErr
 		}
@@ -1024,7 +1046,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedResults[i].result)
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i].result)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -1101,7 +1123,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, nsIdx, encodedResult)
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResult)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -2308,18 +2330,8 @@ func (s *service) newPooledID(
 
 func (s *service) readEncodedResult(
 	ctx context.Context,
-	nsID ident.ID,
 	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSingleResult)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("id", nsID.String()),
-			opentracinglog.Int("segmentCount", len(encoded)),
-		)
-	}
-	defer sp.Finish()
-
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
@@ -2328,7 +2340,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		segment, err := s.readEncodedResultSegment(ctx, nsID, readers)
+		segment, err := s.readEncodedResultSegment(readers)
 		if err != nil {
 			return nil, err
 		}
@@ -2342,12 +2354,8 @@ func (s *service) readEncodedResult(
 }
 
 func (s *service) readEncodedResultSegment(
-	ctx context.Context,
-	nsID ident.ID,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSegment)
-	defer sp.Finish()
 	converted, err := convert.ToSegments(readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
@@ -2356,20 +2364,6 @@ func (s *service) readEncodedResultSegment(
 		return nil, nil
 	}
 
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("id", nsID.String()),
-			opentracinglog.Int("blockCount", len(readers)),
-			opentracinglog.Int("unmergedCount", len(converted.Segments.Unmerged)),
-		)
-
-		if converted.Segments.Merged != nil {
-			sp.LogFields(
-				opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
-				opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
-			)
-		}
-	}
 	return converted.Segments, nil
 }
 

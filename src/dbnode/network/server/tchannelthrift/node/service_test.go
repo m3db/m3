@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -286,16 +287,37 @@ func TestServiceQuery(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
-		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
-		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -1579,16 +1601,37 @@ func TestServiceFetchTagged(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
 
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),
@@ -1651,15 +1694,12 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 8)
+
+	require.Len(t, spans, 4)
 	assert.Equal(t, tracepoint.FetchReadEncoded, spans[0].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[1].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[2].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSegment, spans[3].OperationName)
-	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[4].OperationName)
-	assert.Equal(t, tracepoint.FetchReadResults, spans[5].OperationName)
-	assert.Equal(t, tracepoint.FetchTagged, spans[6].OperationName)
-	assert.Equal(t, "root", spans[7].OperationName)
+	assert.Equal(t, tracepoint.FetchReadResults, spans[1].OperationName)
+	assert.Equal(t, tracepoint.FetchTagged, spans[2].OperationName)
+	assert.Equal(t, "root", spans[3].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
@@ -1688,16 +1728,37 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+	md2 := doc.Metadata{
+		ID: ident.BytesID("bar"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("dzk"),
+				Value: []byte("baz"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("dzk", "baz"),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1782,10 +1843,20 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID:     ident.BytesID("foo"),
+		Fields: []doc.Field{},
+	}
+	md2 := doc.Metadata{
+		ID:     ident.BytesID("bar"),
+		Fields: []doc.Field{},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.Tags{}))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.Tags{}))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
+	resMap.Map().Set(md2.ID, doc.NewDocumentFromMetadata(md2))
+
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -1934,12 +2005,23 @@ func TestServiceFetchTaggedReturnOnFirstErr(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{Query: req}
 
+	md1 := doc.Metadata{
+		ID: ident.BytesID("foo"),
+		Fields: []doc.Field{
+			{
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
+			},
+			{
+				Name:  []byte("baz"),
+				Value: []byte("dxk"),
+			},
+		},
+	}
+
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
-		ident.StringTag("foo", "bar"),
-		ident.StringTag("baz", "dxk"),
-	)))
+	resMap.Map().Set(md1.ID, doc.NewDocumentFromMetadata(md1))
 
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),

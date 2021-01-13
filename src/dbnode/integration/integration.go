@@ -430,8 +430,8 @@ func newCompactor(
 }
 
 func newCompactorWithErr(opts index.Options) (*compaction.Compactor, error) {
-	return compaction.NewCompactor(opts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	return compaction.NewCompactor(opts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -450,7 +450,7 @@ func writeTestIndexDataToDisk(
 	indexVolumeType idxpersist.IndexVolumeType,
 	blockStart time.Time,
 	shards []uint32,
-	docs []doc.Document,
+	docs []doc.Metadata,
 ) error {
 	blockSize := md.Options().IndexOptions().BlockSize()
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()

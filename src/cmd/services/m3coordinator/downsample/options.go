@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -82,7 +81,13 @@ const (
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
-	defaultMatcherCacheCapacity    = 100000
+	// defaultMatcherCacheCapacity sets the default matcher cache
+	// capacity to zero so that the cache is turned off.
+	// This is due to discovering that there is a lot of contention
+	// used by the cache and the fact that most coordinators are used
+	// in a stateless manner with a central deployment which in turn
+	// leads to an extremely low cache hit ratio anyway.
+	defaultMatcherCacheCapacity = 0
 )
 
 var (
@@ -225,11 +230,9 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts                            clock.Options
-	matcher                              matcher.Matcher
-	pools                                aggPools
-	augmentM3Tags                        bool
-	includeRollupsOnDefaultRuleFiltering bool
+	clockOpts clock.Options
+	matcher   matcher.Matcher
+	pools     aggPools
 }
 
 // Configuration configurates a downsampler.
@@ -263,22 +266,6 @@ type Configuration struct {
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
-
-	// AugmentM3Tags will augment the metric type to aggregated metrics
-	// to be used within the filter for rules. If enabled, for example,
-	// your filter can specify '__m3_type__:gauge' to filter by gauges.
-	// This is particularly useful for Graphite metrics today.
-	// Furthermore, the option is automatically enabled if static rules are
-	// used and any filter contain an __m3_type__ tag.
-	AugmentM3Tags bool `yaml:"augmentM3Tags"`
-
-	// IncludeRollupsOnDefaultRuleFiltering will include rollup rules
-	// when deciding if the downsampler should ignore the default auto mapping rules
-	// based on the storage policies applied on a given rule.
-	// This is usually not what you want to do, as it means the raw metric
-	// that is being rolled up by your rule will not be forward into aggregated namespaces,
-	// and will only be written to the unaggregated namespace.
-	IncludeRollupsOnDefaultRuleFiltering bool `yaml:"includeRollupsOnDefaultRuleFiltering"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
@@ -292,8 +279,8 @@ type MatcherConfiguration struct {
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
 type MatcherCacheConfiguration struct {
-	// Capacity if non-zero will set the capacity of the rules matching cache.
-	Capacity int `yaml:"capacity"`
+	// Capacity if set the capacity of the rules matching cache.
+	Capacity *int `yaml:"capacity"`
 }
 
 // RulesConfiguration is a set of rules configuration to use for downsampling.
@@ -546,7 +533,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 	targetPipeline := pipeline.NewPipeline(ops)
 
 	targets := []view.RollupTarget{
-		view.RollupTarget{
+		{
 			Pipeline:        targetPipeline,
 			StoragePolicies: storagePolicies,
 		},
@@ -667,7 +654,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		scope                   = instrumentOpts.MetricsScope()
 		logger                  = instrumentOpts.Logger()
 		openTimeout             = defaultOpenTimeout
-		augmentM3Tags           = cfg.AugmentM3Tags
 		namespaceTag            = defaultNamespaceTag
 	)
 	if o.StorageFlushConcurrency > 0 {
@@ -726,9 +712,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
-			if strings.Contains(mappingRule.Filter, metric.M3MetricsPrefixString) {
-				augmentM3Tags = true
-			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -741,9 +724,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
-			if strings.Contains(rollupRule.Filter, metric.M3MetricsPrefixString) {
-				augmentM3Tags = true
-			}
 			rule, err := rollupRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -767,8 +747,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	matcherCacheCapacity := defaultMatcherCacheCapacity
-	if v := cfg.Matcher.Cache.Capacity; v > 0 {
-		matcherCacheCapacity = v
+	if v := cfg.Matcher.Cache.Capacity; v != nil {
+		matcherCacheCapacity = *v
 	}
 
 	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
@@ -797,11 +777,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:                         client,
-			matcher:                              matcher,
-			pools:                                pools,
-			augmentM3Tags:                        augmentM3Tags,
-			includeRollupsOnDefaultRuleFiltering: cfg.IncludeRollupsOnDefaultRuleFiltering,
+			clientRemote: client,
+			matcher:      matcher,
+			pools:        pools,
 		}, nil
 	}
 
@@ -963,11 +941,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:                           aggregatorInstance,
-		matcher:                              matcher,
-		pools:                                pools,
-		augmentM3Tags:                        augmentM3Tags,
-		includeRollupsOnDefaultRuleFiltering: cfg.IncludeRollupsOnDefaultRuleFiltering,
+		aggregator: aggregatorInstance,
+		matcher:    matcher,
+		pools:      pools,
 	}, nil
 }
 
@@ -1055,14 +1031,19 @@ func (o DownsamplerOptions) newAggregatorMatcher(
 	opts matcher.Options,
 	capacity int,
 ) (matcher.Matcher, error) {
-	cacheOpts := cache.NewOptions().
-		SetCapacity(capacity).
-		SetClockOptions(opts.ClockOptions()).
-		SetInstrumentOptions(opts.InstrumentOptions().
-			SetMetricsScope(opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")))
+	var matcherCache cache.Cache
+	if capacity > 0 {
+		scope := opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")
+		instrumentOpts := opts.InstrumentOptions().
+			SetMetricsScope(scope)
+		cacheOpts := cache.NewOptions().
+			SetCapacity(capacity).
+			SetClockOptions(opts.ClockOptions()).
+			SetInstrumentOptions(instrumentOpts)
+		matcherCache = cache.NewCache(cacheOpts)
+	}
 
-	cache := cache.NewCache(cacheOpts)
-	return matcher.NewMatcher(cache, opts)
+	return matcher.NewMatcher(matcherCache, opts)
 }
 
 func (o DownsamplerOptions) newAggregatorPlacementManager(

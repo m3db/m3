@@ -34,39 +34,39 @@ import (
 var (
 	testOptions = NewOptions()
 
-	testDocuments = []doc.Document{
-		doc.Document{
+	testDocuments = []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("42"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("pineapple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
@@ -78,13 +78,13 @@ var (
 func TestSegmentInsert(t *testing.T) {
 	tests := []struct {
 		name  string
-		input doc.Document
+		input doc.Metadata
 	}{
 		{
 			name: "document without an ID",
-			input: doc.Document{
+			input: doc.Metadata{
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("apple"),
 						Value: []byte("red"),
 					},
@@ -93,10 +93,10 @@ func TestSegmentInsert(t *testing.T) {
 		},
 		{
 			name: "document with an ID",
-			input: doc.Document{
+			input: doc.Metadata{
 				ID: []byte("123"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("apple"),
 						Value: []byte("red"),
 					},
@@ -127,7 +127,7 @@ func TestSegmentInsert(t *testing.T) {
 			pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 			require.NoError(t, err)
 
-			iter, err := r.Docs(pl)
+			iter, err := r.MetadataIterator(pl)
 			require.NoError(t, err)
 
 			require.True(t, iter.Next())
@@ -145,23 +145,23 @@ func TestSegmentInsert(t *testing.T) {
 func TestSegmentInsertDuplicateID(t *testing.T) {
 	var (
 		id    = []byte("123")
-		first = doc.Document{
+		first = doc.Metadata{
 			ID: id,
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
 			},
 		}
-		second = doc.Document{
+		second = doc.Metadata{
 			ID: id,
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("variety"),
 					Value: []byte("fuji"),
 				},
@@ -186,7 +186,7 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 	pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -212,27 +212,27 @@ func TestSegmentInsertBatch(t *testing.T) {
 		{
 			name: "valid batch",
 			input: index.NewBatch(
-				[]doc.Document{
-					doc.Document{
+				[]doc.Metadata{
+					{
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("apple"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("red"),
 							},
 						},
 					},
-					doc.Document{
+					{
 						ID: []byte("831992"),
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("banana"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("yellow"),
 							},
@@ -274,26 +274,26 @@ func TestSegmentInsertBatchError(t *testing.T) {
 		{
 			name: "invalid document",
 			input: index.NewBatch(
-				[]doc.Document{
-					doc.Document{
+				[]doc.Metadata{
+					{
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("apple"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color\xff"),
 								Value: []byte("red"),
 							},
 						},
 					},
-					doc.Document{
+					{
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("banana"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("yellow"),
 							},
@@ -326,27 +326,27 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 		{
 			name: "invalid document",
 			input: index.NewBatch(
-				[]doc.Document{
-					doc.Document{
+				[]doc.Metadata{
+					{
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("apple"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color\xff"),
 								Value: []byte("red"),
 							},
 						},
 					},
-					doc.Document{
+					{
 
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("banana"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("yellow"),
 							},
@@ -359,28 +359,28 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 		{
 			name: "duplicate ID",
 			input: index.NewBatch(
-				[]doc.Document{
-					doc.Document{
+				[]doc.Metadata{
+					{
 						ID: []byte("831992"),
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("apple"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("red"),
 							},
 						},
 					},
-					doc.Document{
+					{
 						ID: []byte("831992"),
 						Fields: []doc.Field{
-							doc.Field{
+							{
 								Name:  []byte("fruit"),
 								Value: []byte("banana"),
 							},
-							doc.Field{
+							{
 								Name:  []byte("color"),
 								Value: []byte("yellow"),
 							},
@@ -430,28 +430,28 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 
 func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
 	b1 := index.NewBatch(
-		[]doc.Document{
-			doc.Document{
+		[]doc.Metadata{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("apple"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color\xff"),
 						Value: []byte("red"),
 					},
 				},
 			},
-			doc.Document{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("banana"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("yellow"),
 					},
@@ -484,28 +484,28 @@ func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
 
 func TestSegmentContainsID(t *testing.T) {
 	b1 := index.NewBatch(
-		[]doc.Document{
-			doc.Document{
+		[]doc.Metadata{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("apple"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color\xff"),
 						Value: []byte("red"),
 					},
 				},
 			},
-			doc.Document{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("banana"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("yellow"),
 					},
@@ -544,28 +544,28 @@ func TestSegmentContainsID(t *testing.T) {
 }
 
 func TestSegmentContainsField(t *testing.T) {
-	docs := []doc.Document{
-		doc.Document{
+	docs := []doc.Metadata{
+		{
 			ID: []byte("abc"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("colour"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("cde"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
@@ -589,15 +589,15 @@ func TestSegmentContainsField(t *testing.T) {
 
 func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 	b1 := index.NewBatch(
-		[]doc.Document{
-			doc.Document{
+		[]doc.Metadata{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("apple"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("red"),
 					},
@@ -607,33 +607,33 @@ func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 		index.AllowPartialUpdates())
 
 	b2 := index.NewBatch(
-		[]doc.Document{
-			doc.Document{
+		[]doc.Metadata{
+			{
 				ID: []byte("abc"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("fruit"),
 						Value: []byte("apple"),
 					},
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("red"),
 					},
 				},
 			},
-			doc.Document{
+			{
 				ID: []byte("cdef"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("blue"),
 					},
 				},
 			},
-			doc.Document{
+			{
 				ID: []byte("cdef"),
 				Fields: []doc.Field{
-					doc.Field{
+					{
 						Name:  []byte("color"),
 						Value: []byte("blue"),
 					},
@@ -657,39 +657,39 @@ func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 }
 
 func TestSegmentReaderMatchExact(t *testing.T) {
-	docs := []doc.Document{
-		doc.Document{
+	docs := []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("83"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("green"),
 				},
@@ -714,10 +714,10 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	pl, err := r.MatchTerm([]byte("fruit"), []byte("apple"))
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
-	actualDocs := make([]doc.Document, 0)
+	actualDocs := make([]doc.Metadata, 0)
 	for iter.Next() {
 		actualDocs = append(actualDocs, iter.Current())
 	}
@@ -725,7 +725,7 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
 
-	expectedDocs := []doc.Document{docs[0], docs[2]}
+	expectedDocs := []doc.Metadata{docs[0], docs[2]}
 	require.Equal(t, len(expectedDocs), len(actualDocs))
 	for i := range actualDocs {
 		require.True(t, compareDocs(expectedDocs[i], actualDocs[i]))
@@ -845,10 +845,10 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	pl, err := r.MatchRegexp(field, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 
-	iter, err := r.Docs(pl)
+	iter, err := r.MetadataIterator(pl)
 	require.NoError(t, err)
 
-	actualDocs := make([]doc.Document, 0)
+	actualDocs := make([]doc.Metadata, 0)
 	for iter.Next() {
 		actualDocs = append(actualDocs, iter.Current())
 	}
@@ -856,7 +856,7 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
 
-	expectedDocs := []doc.Document{docs[1], docs[2]}
+	expectedDocs := []doc.Metadata{docs[1], docs[2]}
 	require.Equal(t, len(expectedDocs), len(actualDocs))
 	for i := range actualDocs {
 		require.True(t, compareDocs(expectedDocs[i], actualDocs[i]))
@@ -866,13 +866,13 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	require.NoError(t, segment.Close())
 }
 
-func testDocument(t *testing.T, d doc.Document, r index.Reader) {
+func testDocument(t *testing.T, d doc.Metadata, r index.Reader) {
 	for _, f := range d.Fields {
 		name, value := f.Name, f.Value
 		pl, err := r.MatchTerm(name, value)
 		require.NoError(t, err)
 
-		iter, err := r.Docs(pl)
+		iter, err := r.MetadataIterator(pl)
 		require.NoError(t, err)
 
 		require.True(t, iter.Next())
@@ -893,7 +893,7 @@ func testDocument(t *testing.T, d doc.Document, r index.Reader) {
 // compareDocs returns whether two documents are equal. If the actual doc contains
 // an ID but the expected doc does not then the ID is excluded from the comparison
 // since it was auto-generated.
-func compareDocs(expected, actual doc.Document) bool {
+func compareDocs(expected, actual doc.Metadata) bool {
 	if actual.HasID() && !expected.HasID() {
 		actual.ID = nil
 	}

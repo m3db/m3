@@ -40,39 +40,39 @@ import (
 var (
 	testOptions = NewOptions()
 
-	fewTestDocuments = []doc.Document{
-		doc.Document{
+	fewTestDocuments = []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("42"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("pineapple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
@@ -83,7 +83,7 @@ var (
 
 	testDocuments = []struct {
 		name string
-		docs []doc.Document
+		docs []doc.Metadata
 	}{
 		{
 			name: "few documents",
@@ -101,7 +101,7 @@ type testSegmentCase struct {
 	expected, observed sgmt.Segment
 }
 
-func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
+func newTestCases(t *testing.T, docs []doc.Metadata) []testSegmentCase {
 	memSeg, fstSeg := newTestSegments(t, docs)
 
 	fstWriter10Reader10 := newFSTSegmentWithVersion(t, memSeg, testOptions,
@@ -117,22 +117,22 @@ func newTestCases(t *testing.T, docs []doc.Document) []testSegmentCase {
 		Version{Major: 1, Minor: 1} /* reader version */)
 
 	return []testSegmentCase{
-		testSegmentCase{ // mem sgmt v latest fst
+		{ // mem sgmt v latest fst
 			name:     "mem v fst",
 			expected: memSeg,
 			observed: fstSeg,
 		},
-		testSegmentCase{ // mem sgmt v fst1.0
+		{ // mem sgmt v fst1.0
 			name:     "mem v fstWriter10Reader10",
 			expected: memSeg,
 			observed: fstWriter10Reader10,
 		},
-		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.0) -- i.e. ensure forward compatibility
+		{ // mem sgmt v fst (WriterV1.1; ReaderV1.0) -- i.e. ensure forward compatibility
 			name:     "mem v fstWriter11Reader10",
 			expected: memSeg,
 			observed: fstWriter11Reader10,
 		},
-		testSegmentCase{ // mem sgmt v fst (WriterV1.1; ReaderV1.1)
+		{ // mem sgmt v fst (WriterV1.1; ReaderV1.1)
 			name:     "mem v fstWriter11Reader11",
 			expected: memSeg,
 			observed: fstWriter11Reader11,
@@ -420,9 +420,9 @@ func TestSegmentDocs(t *testing.T) {
 							obsPl, err := obsReader.MatchTerm(f, []byte(term))
 							require.NoError(t, err)
 
-							expDocs, err := expReader.Docs(expPl)
+							expDocs, err := expReader.MetadataIterator(expPl)
 							require.NoError(t, err)
-							obsDocs, err := obsReader.Docs(obsPl)
+							obsDocs, err := obsReader.MetadataIterator(obsPl)
 							require.NoError(t, err)
 
 							assertDocsEqual(t, expDocs, obsDocs)
@@ -529,10 +529,10 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.NoError(t, err)
 	assertPostingsList(t, list, []postings.ID{0, 1, 2})
 
-	_, err = reader.Doc(0)
+	_, err = reader.Metadata(0)
 	require.NoError(t, err)
 
-	_, err = reader.Docs(list)
+	_, err = reader.MetadataIterator(list)
 	require.NoError(t, err)
 
 	_, err = reader.AllDocs()
@@ -543,7 +543,7 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.NoError(t, err)
 	list, err = reader.MatchRegexp([]byte("fruit"), re)
 	require.NoError(t, err)
-	iter, err := reader.Docs(list)
+	iter, err := reader.MetadataIterator(list)
 	require.NoError(t, err)
 	var docs int
 	for iter.Next() {
@@ -568,7 +568,7 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.Error(t, err)
 }
 
-func newTestSegments(t *testing.T, docs []doc.Document) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
+func newTestSegments(t *testing.T, docs []doc.Metadata) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
 	s := newTestMemSegment(t)
 	for _, d := range docs {
 		_, err := s.Insert(d)
@@ -589,7 +589,7 @@ func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {
 	require.Equal(t, a, b)
 }
 
-func assertDocsEqual(t *testing.T, a, b doc.Iterator) {
+func assertDocsEqual(t *testing.T, a, b doc.MetadataIterator) {
 	aDocs, err := collectDocs(a)
 	require.NoError(t, err)
 	bDocs, err := collectDocs(b)
@@ -647,8 +647,8 @@ func assertPostingsList(t *testing.T, l postings.List, exp []postings.ID) {
 	require.Fail(t, msg)
 }
 
-func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
-	var docs []doc.Document
+func collectDocs(iter doc.MetadataIterator) ([]doc.Metadata, error) {
+	var docs []doc.Metadata
 	for iter.Next() {
 		docs = append(docs, iter.Current())
 	}

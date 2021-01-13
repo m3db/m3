@@ -799,8 +799,8 @@ func TestTCPClientActivePlacement(t *testing.T) {
 	)
 
 	c.placementWatcher = watcher
-	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() { doneCalls++ }, nil)
-	stagedPlacement.EXPECT().Version().Return(42)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() { doneCalls++ }, nil).Times(2)
+	stagedPlacement.EXPECT().Version().Return(42).Times(2)
 	stagedPlacement.EXPECT().ActivePlacement().Return(mockPl, func() { doneCalls++ }, nil)
 	mockPl.EXPECT().Clone().Return(emptyPl)
 
@@ -809,6 +809,11 @@ func TestTCPClientActivePlacement(t *testing.T) {
 	assert.Equal(t, 42, v)
 	assert.Equal(t, 2, doneCalls)
 	assert.Equal(t, emptyPl, pl)
+
+	v, err = c.ActivePlacementVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, 42, v)
+	assert.Equal(t, 3, doneCalls)
 }
 
 func TestTCPClientInitAndClose(t *testing.T) {
