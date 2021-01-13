@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	encoding "github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
@@ -52,18 +53,19 @@ func init() {
 	bytesPool.Init()
 }
 
-func buildDocs(documentCount int, batchSize int) [][]doc.Metadata {
+func buildDocs(documentCount int, batchSize int) [][]doc.Document {
 	docBatches := int(math.Ceil(float64(documentCount) / float64(batchSize)))
-	docs := make([][]doc.Metadata, 0, docBatches)
+	docs := make([][]doc.Document, 0, docBatches)
 	for i := 0; i < docBatches; i++ {
-		batch := make([]doc.Metadata, 0, batchSize)
+		batch := make([]doc.Document, 0, batchSize)
 		for j := 0; j < batchSize; j++ {
 			val := i*batchSize + j
 			if val < documentCount {
 				val := fmt.Sprintf("foo%d", i*batchSize+j)
-				batch = append(batch, doc.Metadata{
-					ID: []byte(val),
-				})
+				batch = append(batch, doc.NewDocumentFromMetadata(
+					doc.Metadata{
+						ID: []byte(val),
+					}))
 			}
 		}
 
@@ -73,12 +75,15 @@ func buildDocs(documentCount int, batchSize int) [][]doc.Metadata {
 	return docs
 }
 
-func buildExpected(_ *testing.T, docs [][]doc.Metadata) [][]string {
+func buildExpected(t *testing.T, docs [][]doc.Document) [][]string {
 	expected := make([][]string, 0, len(docs))
+	reader := encoding.NewEncodedDocumentReader()
 	for _, batch := range docs {
 		idBatch := make([]string, 0, len(batch))
-		for _, doc := range batch {
-			idBatch = append(idBatch, string(doc.ID))
+		for _, document := range batch { // nolint:gocritic
+			m, err := encoding.MetadataFromDocument(document, reader)
+			require.NoError(t, err)
+			idBatch = append(idBatch, string(m.ID))
 		}
 
 		expected = append(expected, idBatch)

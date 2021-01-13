@@ -21,6 +21,10 @@
 package matcher
 
 import (
+	"time"
+
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
@@ -40,6 +44,7 @@ type matcher struct {
 	namespaceResolver namespaceResolver
 	namespaces        Namespaces
 	cache             cache.Cache
+	metrics           matcherMetrics
 }
 
 type namespaceResolver struct {
@@ -89,6 +94,7 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 		return &noCacheMatcher{
 			namespaceResolver: nsResolver,
 			namespaces:        namespaces,
+			metrics:           newMatcherMetrics(scope.SubScope("matcher")),
 		}, nil
 	}
 
@@ -96,6 +102,7 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 		namespaceResolver: nsResolver,
 		namespaces:        namespaces,
 		cache:             cache,
+		metrics:           newMatcherMetrics(scope.SubScope("cached-matcher")),
 	}, nil
 }
 
@@ -103,8 +110,9 @@ func (m *matcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
 ) rules.MatchResult {
-	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id),
-		id.Bytes(), fromNanos, toNanos)
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
 }
 
 func (m *matcher) Close() error {
@@ -115,14 +123,32 @@ func (m *matcher) Close() error {
 type noCacheMatcher struct {
 	namespaces        Namespaces
 	namespaceResolver namespaceResolver
+	metrics           matcherMetrics
+}
+
+type matcherMetrics struct {
+	matchLatency tally.Histogram
+}
+
+func newMatcherMetrics(scope tally.Scope) matcherMetrics {
+	return matcherMetrics{
+		matchLatency: scope.Histogram(
+			"match-latency",
+			append(
+				tally.DurationBuckets{0},
+				tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.5, 15)...,
+			),
+		),
+	}
 }
 
 func (m *noCacheMatcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
 ) rules.MatchResult {
-	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id),
-		id.Bytes(), fromNanos, toNanos)
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
 }
 
 func (m *noCacheMatcher) Close() error {

@@ -831,10 +831,13 @@ func TestLimits(t *testing.T) {
 					opts interface{},
 					results index.BaseResults,
 					logFields interface{}) (bool, error) {
-					_, _, err = results.AddDocuments([]doc.Metadata{
+					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
-						{ID: []byte("A")},
-						{ID: []byte("A")},
+						// Byte array represents ID encoded as bytes.
+						// 1 represents the ID length in bytes, 49 is the ID itself which is
+						// the ASCII value for A
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
 					})
 					require.NoError(t, err)
 					return false, nil

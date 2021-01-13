@@ -220,7 +220,7 @@ Namespace defines an M3DB namespace or points to a preset M3DB namespace.
 
 ## NamespaceOptions
 
-NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.
+NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.io/docs/operational_guide/namespace_configuration/ for more details.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |

@@ -36,7 +36,6 @@ import (
 const (
 	defaultDBNodeSource        = "dbnode"
 	defaultDBNodeContainerName = "dbnode01"
-	defaultDBNodeDockerfile    = "resources/config/m3dbnode.Dockerfile"
 )
 
 var (
@@ -45,7 +44,6 @@ var (
 	defaultDBNodeOptions = dockerResourceOptions{
 		source:        defaultDBNodeSource,
 		containerName: defaultDBNodeContainerName,
-		dockerFile:    getDockerfile(defaultDBNodeDockerfile),
 		portList:      defaultDBNodePortList,
 	}
 )

@@ -239,6 +239,18 @@ func (c *TCPClient) ActivePlacement() (placement.Placement, int, error) {
 	return placement.Clone(), stagedPlacement.Version(), nil
 }
 
+// ActivePlacementVersion returns a copy of the currently active placement version. It is a far less expensive call
+// than ActivePlacement, as it does not clone the placement.
+func (c *TCPClient) ActivePlacementVersion() (int, error) {
+	stagedPlacement, onStagedPlacementDoneFn, err := c.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return 0, err
+	}
+	defer onStagedPlacementDoneFn()
+
+	return stagedPlacement.Version(), nil
+}
+
 // Flush flushes any remaining data buffered by the client.
 func (c *TCPClient) Flush() error {
 	c.metrics.flush.Inc(1)
