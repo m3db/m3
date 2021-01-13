@@ -284,6 +284,27 @@ function test_aggregated_rollup_rule {
     retry_with_backoff prometheus_query_native
 }
 
+  resolution_seconds="10"
+  now=$(date +"%s")
+  now_truncate_by=$(( $now % $resolution_seconds ))
+  now_truncated=$(( $now - $now_truncate_by ))
+
+  true "Expected request to succeed" \
+  200 "Expected request to return status code 200"
+
+  value="45"
+  metric_type="counter" \
+  prometheus_remote_write \
+  metric_type_test $(( $now_truncated + 2 )) $value \
+    retry_with_backoff dbnode_fetch
+
+  # Test the correct value is stored
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    namespace="agg" \
+    id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
+    rangeStart=${start} \
+    rangeEnd=${end} \
+    jq_path=".datapoints[0].value" expected_value="45" \
 echo "Run tests"
 test_aggregated_graphite_metric
 test_aggregated_rollup_rule

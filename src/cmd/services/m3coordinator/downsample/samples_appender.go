@@ -80,12 +80,12 @@ func (a samplesAppender) AppendGaugeSample(value float64) error {
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
-func (a *samplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
+func (a *samplesAppender) AppendCounterTimedSample(t time.Time, value float64) error {
 	return a.appendTimedSample(aggregated.Metric{
 		Type:      metric.CounterType,
 		ID:        a.unownedID,
 		TimeNanos: t.UnixNano(),
-		Value:     float64(value),
+		Value:     value,
 	})
 }
 
@@ -153,7 +153,7 @@ func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
+func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value float64) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterTimedSample(t, value))
