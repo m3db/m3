@@ -133,12 +133,26 @@ clusterManagement:
     # Directory to store cached etcd data
     cacheDir: <string>
     # Identify the etcd hosts this node should connect to
+    # TODO: Fill this in
     etcdClusters:
+    # TODO: What is this?
     m3sd:
+      initTimeout: <duration>
     # The revision that watch requests start from
     watchWithRevision: <int>
-    newDirectoryNode:
+    # Changes permissions and mode of cache directory
+    newDirectoryMode: <string>
+    # Configuration for retrying connection operations
     retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Add randomness to wait intervals
+      jitter: <bool>
     # The timeout for etcd requests
     requestTimeout: <duration>
     # The timeout for a watchChan initialization
@@ -171,10 +185,34 @@ writeWorkerPoolPolicy:
   # Static pool size, or initial size for dynamically growing pools
   size: <int>
 
-# TODO:
+# Write forwarding options
+# TODO: Which is?
 writeForwarding:
+  # Forwarding options for prometheus write handler
+  promRemoteWrite:
+    maxConcurrency: <int>
+    timeout: <duration>
+    # Configuration for retrying connection operations
+    retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Add randomness to wait intervals
+      jitter: <bool>
+    # Prometheus write handler forwarder target
+    targets:
+      # URL of the target to send to
+      url: <string>
+      # Method defaults to POST if not set
+      method: <string>
+      # Headers to send with requests to the target
+      headers: <map of strings>
 
-# TODO:
+# How to downsample metrics
 downsample:
 
 # TODO:
