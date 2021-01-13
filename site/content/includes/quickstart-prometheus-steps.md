@@ -59,5 +59,5 @@ Run node_exporter from it's install location, passing the directory that contain
 {{< /tabs >}}
 
 {{% notice tip %}}
-You can now confirm that the node_exporter exported metrics to Prometheus by sreaching for `third_avenue` in the Prometheus dashboard.
+You can now confirm that the node_exporter exported metrics to Prometheus by searching for `third_avenue` in the Prometheus dashboard.
 {{% /notice %}}
