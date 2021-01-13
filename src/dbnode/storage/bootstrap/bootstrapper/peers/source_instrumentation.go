@@ -29,11 +29,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/ident"
 )
 
 type instrumentationContext struct {
@@ -81,11 +79,6 @@ func (i *instrumentationContext) bootstrapIndexStarted() {
 	i.log.Info("bootstrapping index metadata start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 	i.start = i.nowFn()
-}
-
-func (i *instrumentationContext) bootstrapIndexSkipped(namespaceID ident.ID) {
-	i.log.Info("skipping bootstrap for namespace based on options",
-		zap.Stringer("namespace", namespaceID))
 }
 
 func (i *instrumentationContext) bootstrapIndexCompleted() {
@@ -157,10 +150,6 @@ func (i *instrumentation) peersBootstrapperSourceReadStarted(
 	)
 }
 
-func (i *instrumentation) getDefaultAdminSessionFailed(err error) {
-	i.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
-}
-
 func (i *instrumentation) bootstrapShardsStarted(
 	count int,
 	concurrency int,
@@ -177,79 +166,7 @@ func (i *instrumentation) bootstrapShardsStarted(
 	)
 }
 
-func (i *instrumentation) persistenceFlushFailed(err error) {
-	i.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
-		zap.Error(err))
-}
-
-func (i *instrumentation) seriesCheckoutFailed(err error) {
-	i.log.Error("could not checkout series", zap.Error(err))
-}
-
-func (i *instrumentation) seriesLoadFailed(err error) {
-	i.log.Error("could not load series block", zap.Error(err))
-}
-
-func (i *instrumentation) shardBootstrapped(shard uint32, numSeries int64, blockTime time.Time) {
-	i.log.Info("peer bootstrapped shard",
-		zap.Uint32("shard", shard),
-		zap.Int64("numSeries", numSeries),
-		zap.Time("blockStart", blockTime),
-	)
-}
-
-func (i *instrumentation) fetchBootstrapBlocksFailed(err error, shard uint32) {
-	i.log.Error("error fetching bootstrap blocks",
-		zap.Uint32("shard", shard),
-		zap.Error(err),
-	)
-}
-
-func (i *instrumentation) peersBootstrapperIndexForRanges(count int) {
-	i.log.Info("peers bootstrapper bootstrapping index for ranges",
-		zap.Int("shards", count),
-	)
-}
-
-func (i *instrumentation) processingReadersFailed(err error, start time.Time) {
-	i.log.Error("error processing readers", zap.Error(err),
-		zap.Time("timeRange.start", start))
-}
-
-func (i *instrumentation) buildingFileSetIndexSegmentStarted(fields []zapcore.Field) {
-	i.log.Debug("building file set index segment", fields...)
-}
-
 func (i *instrumentation) outOfRetentionIndexSegmentSkipped(fields []zapcore.Field) {
 	i.log.Debug("skipping out of retention index segment", fields...)
 	i.persistedIndexBlocksOutOfRetention.Inc(1)
-}
-
-func (i *instrumentation) buildingInMemoryIndexSegmentStarted(fields []zapcore.Field) {
-	i.log.Info("building in-memory index segment", fields...)
-}
-
-func (i *instrumentation) errorsForRangeEncountered(summaryString string, errorsString []string) {
-	i.log.Info("encountered errors for range",
-		zap.String("requestedRanges", summaryString),
-		zap.Strings("timesWithErrors", errorsString))
-}
-
-func (i *instrumentation) noPeersAvailable(total int, shardIDUint uint32) {
-	i.log.Debug("0 available peers, unable to peer bootstrap",
-		zap.Int("total", total),
-		zap.Uint32("shard", shardIDUint))
-}
-
-func (i *instrumentation) readConsistencyNotAchieved(
-	bootstrapConsistencyLevel topology.ReadConsistencyLevel,
-	majorityReplicas int,
-	total int,
-	available int,
-) {
-	i.log.Debug("read consistency not achieved, unable to peer bootstrap",
-		zap.Any("level", bootstrapConsistencyLevel),
-		zap.Int("replicas", majorityReplicas),
-		zap.Int("total", total),
-		zap.Int("available", available))
 }

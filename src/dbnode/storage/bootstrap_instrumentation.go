@@ -105,10 +105,10 @@ func (i *instrumentationContext) bootstrapNamespacesFailed(err error) {
 	i.log.Info("bootstrap namespaces failed", append(i.logFields, zap.Error(err))...)
 }
 
-func (i *instrumentationContext) logFn(err error, msg string) func(l *zap.Logger) {
-	return func(l *zap.Logger) {
+func (i *instrumentationContext) emitAndLogInvariantViolation(err error, msg string) {
+	instrument.EmitAndLogInvariantViolation(i.instrumentOptions, func(l *zap.Logger) {
 		l.Error(msg, append(i.logFields, zap.Error(err))...)
-	}
+	})
 }
 
 type bootstrapInstrumentation struct {
@@ -139,7 +139,7 @@ func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext 
 	return newInstrumentationContext(i.nowFn, i.log, i.scope, i.opts)
 }
 
-func (i *bootstrapInstrumentation) bootstrapFnFailed(retry int) {
+func (i *bootstrapInstrumentation) bootstrapFailed(retry int) {
 	i.numRetries.Inc(1)
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),

@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -168,7 +167,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 			// NB(r): Last bootstrap failed, since this could be due to transient
 			// failure we retry the bootstrap again. This is to avoid operators
 			// needing to manually intervene for cases where failures are transient.
-			m.instrumentation.bootstrapFnFailed(i + 1)
+			m.instrumentation.bootstrapFailed(i + 1)
 			m.sleepFn(bootstrapRetryInterval)
 			continue
 		}
@@ -221,8 +220,7 @@ func (m *bootstrapManager) bootstrap() error {
 		// an error returned.
 		for _, accumulator := range accmulators {
 			if err := accumulator.Close(); err != nil {
-				instrument.EmitAndLogInvariantViolation(instrCtx.instrumentOptions,
-					instrCtx.logFn(err, "could not close bootstrap data accumulator"))
+				instrCtx.emitAndLogInvariantViolation(err, "could not close bootstrap data accumulator")
 			}
 		}
 	}()
@@ -321,8 +319,7 @@ func (m *bootstrapManager) bootstrap() error {
 		if !ok {
 			err := fmt.Errorf("missing namespace from bootstrap result: %v",
 				id.String())
-			instrument.EmitAndLogInvariantViolation(instrCtx.instrumentOptions,
-				instrCtx.logFn(err, "bootstrap failed"))
+			instrCtx.emitAndLogInvariantViolation(err, "bootstrap failed")
 			return err
 		}
 

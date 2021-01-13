@@ -58,6 +58,7 @@ import (
 type peersSource struct {
 	opts              Options
 	newPersistManager func() (persist.Manager, error)
+	log               *zap.Logger
 	instrumentation   *instrumentation
 }
 
@@ -73,12 +74,14 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
+	instrumentation := newInstrumentation(opts)
 	return &peersSource{
 		opts: opts,
 		newPersistManager: func() (persist.Manager, error) {
 			return fs.NewPersistManager(opts.FilesystemOptions())
 		},
-		instrumentation: newInstrumentation(opts),
+		log:             instrumentation.log,
+		instrumentation: instrumentation,
 	}, nil
 }
 
@@ -170,7 +173,8 @@ func (s *peersSource) Read(
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
-			instrCtx.bootstrapIndexSkipped(md.ID())
+			s.log.Info("skipping bootstrap for namespace based on options",
+				zap.Stringer("namespace", md.ID()))
 			continue
 		}
 
@@ -230,7 +234,7 @@ func (s *peersSource) readData(
 	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		s.instrumentation.getDefaultAdminSessionFailed(err)
+		s.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
 		result.SetUnfulfilled(shardTimeRanges)
 		return nil, err
 	}
@@ -251,6 +255,7 @@ func (s *peersSource) readData(
 	}
 
 	instrCtx := s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
+	defer instrCtx.bootstrapShardsCompleted()
 	if shouldPersist {
 		// Spin up persist workers.
 		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
@@ -294,7 +299,6 @@ func (s *peersSource) readData(
 		}
 	}
 
-	instrCtx.bootstrapShardsCompleted()
 	return result, nil
 }
 
@@ -353,7 +357,8 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 		}
 
 		// Remove results and make unfulfilled if an error occurred.
-		s.instrumentation.persistenceFlushFailed(err)
+		s.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
+			zap.Error(err))
 
 		// Make unfulfilled.
 		lock.Lock()
@@ -431,14 +436,14 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 						continue
 					}
 					unfulfill(currRange)
-					s.instrumentation.seriesCheckoutFailed(err)
+					s.log.Error("could not checkout series", zap.Error(err))
 					continue
 				}
 
 				for _, block := range entry.Blocks.AllBlocks() {
 					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
-						s.instrumentation.seriesLoadFailed(err)
+						s.log.Error("could not load series block", zap.Error(err))
 					}
 				}
 
@@ -456,7 +461,10 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	err error,
 ) {
 	if err != nil {
-		s.instrumentation.fetchBootstrapBlocksFailed(err, shard)
+		s.log.Error("error fetching bootstrap blocks",
+			zap.Uint32("shard", shard),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -469,7 +477,11 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	}
 
 	for block, numSeries := range shardBlockSeriesCounter {
-		s.instrumentation.shardBootstrapped(shard, numSeries, block.ToTime())
+		s.log.Info("peer bootstrapped shard",
+			zap.Uint32("shard", shard),
+			zap.Int64("numSeries", numSeries),
+			zap.Time("blockStart", block.ToTime()),
+		)
 	}
 }
 
@@ -681,7 +693,8 @@ func (s *peersSource) readIndex(
 		indexSegmentConcurrency = s.opts.IndexSegmentConcurrency()
 		readersCh               = make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
 	)
-	s.instrumentation.peersBootstrapperIndexForRanges(count)
+	s.log.Info("peers bootstrapper bootstrapping index for ranges",
+		zap.Int("shards", count))
 
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            ns,
@@ -861,7 +874,8 @@ func (s *peersSource) processReaders(
 					xtime.NewRanges(timeRange),
 				))
 			} else {
-				s.instrumentation.processingReadersFailed(err, start)
+				s.log.Error("error processing readers", zap.Error(err),
+					zap.Time("timeRange.start", start))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -905,7 +919,7 @@ func (s *peersSource) processReaders(
 		zap.String("remainingRanges", remainingRanges.SummaryString()),
 	}
 	if shouldPersist {
-		s.instrumentation.buildingFileSetIndexSegmentStarted(buildIndexLogFields)
+		s.log.Debug("building file set index segment", buildIndexLogFields...)
 		indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
@@ -932,7 +946,7 @@ func (s *peersSource) processReaders(
 			})
 		}
 	} else {
-		s.instrumentation.buildingInMemoryIndexSegmentStarted(buildIndexLogFields)
+		s.log.Info("building in-memory index segment", buildIndexLogFields...)
 		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
@@ -1019,9 +1033,9 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.instrumentation.errorsForRangeEncountered(
-			remainingRanges.SummaryString(),
-			timesWithErrorsString)
+		s.log.Info("encountered errors for range",
+			zap.String("requestedRanges", remainingRanges.SummaryString()),
+			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}
 
 	if !remainingRanges.IsEmpty() {
@@ -1099,17 +1113,19 @@ func (s *peersSource) peerAvailability(
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
-			s.instrumentation.noPeersAvailable(total, shardIDUint)
+			s.log.Debug("0 available peers, unable to peer bootstrap",
+				zap.Int("total", total),
+				zap.Uint32("shard", shardIDUint))
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
-			s.instrumentation.readConsistencyNotAchieved(
-				bootstrapConsistencyLevel,
-				majorityReplicas,
-				total,
-				available)
+			s.log.Debug("read consistency not achieved, unable to peer bootstrap",
+				zap.Any("level", bootstrapConsistencyLevel),
+				zap.Int("replicas", majorityReplicas),
+				zap.Int("total", total),
+				zap.Int("available", available))
 			continue
 		}
 
