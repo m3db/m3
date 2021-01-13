@@ -61,7 +61,7 @@ func TestConcurrentQueries(t *testing.T) {
 			require.NoError(t, err)
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
+			docMatcher, err := newDocumentIteratorMatcher(t, matchedDocs...)
 			require.NoError(t, err)
 
 			var (
