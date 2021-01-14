@@ -177,7 +177,7 @@ func (q *queryLimits) AnyExceeded() error {
 // Inc increments the current value and returns an error if above the limit.
 func (q *lookbackLimit) Override(limit *int64) error {
 	if limit != nil && *limit < 0 {
-		return fmt.Errorf("invalid negative query limit inc %d", *limit)
+		return fmt.Errorf("invalid negative query limit override %d", *limit)
 	}
 
 	q.overrideLock.Lock()
