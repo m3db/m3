@@ -512,7 +512,7 @@ type WriteBatch struct {
 	sortBy writeBatchSortBy
 
 	entries []WriteBatchEntry
-	docs    []doc.Document
+	docs    []doc.Metadata
 }
 
 type writeBatchSortBy uint
@@ -533,14 +533,14 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 	return &WriteBatch{
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
-		docs:    make([]doc.Document, 0, opts.InitialCapacity),
+		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
 	}
 }
 
 // Append appends an entry with accompanying document.
 func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 ) {
 	// Append just using the result from the current entry
 	b.appendWithResult(entry, doc, &entry.resultVal)
@@ -562,7 +562,7 @@ func (b *WriteBatch) AppendAll(from *WriteBatch) {
 
 func (b *WriteBatch) appendWithResult(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result *WriteBatchEntryResult,
 ) {
 	// Set private WriteBatchEntry fields
@@ -579,7 +579,7 @@ func (b *WriteBatch) appendWithResult(
 type ForEachWriteBatchEntryFn func(
 	idx int,
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result WriteBatchEntryResult,
 )
 
@@ -677,7 +677,7 @@ func (b *WriteBatch) numPending() int {
 }
 
 // PendingDocs returns all the docs in this batch that are unmarked.
-func (b *WriteBatch) PendingDocs() []doc.Document {
+func (b *WriteBatch) PendingDocs() []doc.Metadata {
 	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
 	return b.docs[:b.numPending()]
 }
@@ -707,7 +707,7 @@ func (b *WriteBatch) Reset() {
 		b.entries[i] = entryZeroed
 	}
 	b.entries = b.entries[:0]
-	var docZeroed doc.Document
+	var docZeroed doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = docZeroed
 	}
@@ -936,6 +936,12 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetMetadataArrayPool sets the document container array pool.
+	SetMetadataArrayPool(value doc.MetadataArrayPool) Options
+
+	// MetadataArrayPool returns the document container array pool.
+	MetadataArrayPool() doc.MetadataArrayPool
 
 	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
 	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options

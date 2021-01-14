@@ -93,6 +93,16 @@ var (
 		Attributes: ts.DefaultSeriesAttributes(),
 		Metadata:   ts.Metadata{},
 	}
+
+	headerToMetricType = map[string]prompb.MetricType{
+		"counter":         prompb.MetricType_COUNTER,
+		"gauge":           prompb.MetricType_GAUGE,
+		"gauge-histogram": prompb.MetricType_GAUGE_HISTOGRAM,
+		"histogram":       prompb.MetricType_HISTOGRAM,
+		"info":            prompb.MetricType_INFO,
+		"stateset":        prompb.MetricType_STATESET,
+		"summary":         prompb.MetricType_SUMMARY,
+	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -196,64 +206,31 @@ type promWriteMetrics struct {
 	forwardLatency           tally.Histogram
 }
 
+func (m *promWriteMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.writeErrorsClient.Inc(1)
+	} else {
+		m.writeErrorsServer.Inc(1)
+	}
+}
+
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
-	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
+	buckets, err := ingest.NewLatencyBuckets()
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
-
-	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
-
-	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
-
-	var writeLatencyBuckets tally.DurationBuckets
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo1sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo10sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo60sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo60mBuckets...)
-
-	var ingestLatencyBuckets tally.DurationBuckets
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
 	return promWriteMetrics{
 		writeSuccess:             scope.SubScope("write").Counter("success"),
 		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", writeLatencyBuckets),
-		writeBatchLatencyBuckets: writeLatencyBuckets,
-		ingestLatency:            scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
-		ingestLatencyBuckets:     ingestLatencyBuckets,
+		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", buckets.WriteLatencyBuckets),
+		writeBatchLatencyBuckets: buckets.WriteLatencyBuckets,
+		ingestLatency:            scope.SubScope("ingest").Histogram("latency", buckets.IngestLatencyBuckets),
+		ingestLatencyBuckets:     buckets.IngestLatencyBuckets,
 		forwardSuccess:           scope.SubScope("forward").Counter("success"),
 		forwardErrors:            scope.SubScope("forward").Counter("errors"),
 		forwardDropped:           scope.SubScope("forward").Counter("dropped"),
-		forwardLatency:           scope.SubScope("forward").Histogram("latency", writeLatencyBuckets),
+		forwardLatency:           scope.SubScope("forward").Histogram("latency", buckets.WriteLatencyBuckets),
 	}, nil
 }
 
@@ -263,7 +240,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	checkedReq, err := h.checkedParseRequest(r)
 	if err != nil {
-		h.metrics.writeErrorsClient.Inc(1)
+		h.metrics.incError(err)
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -359,10 +336,8 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case numBadRequest == len(errs):
 			status = http.StatusBadRequest
-			h.metrics.writeErrorsClient.Inc(1)
 		default:
 			status = http.StatusInternalServerError
-			h.metrics.writeErrorsServer.Inc(1)
 		}
 
 		logger := logging.WithContext(r.Context(), h.instrumentOpts)
@@ -374,9 +349,9 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.String("lastRegularError", lastRegularErr),
 			zap.String("lastBadRequestErr", lastBadRequestErr))
 
-		var resultErr string
+		var resultErrMessage string
 		if lastRegularErr != "" {
-			resultErr = fmt.Sprintf("retryable_errors: count=%d, last=%s",
+			resultErrMessage = fmt.Sprintf("retryable_errors: count=%d, last=%s",
 				numRegular, lastRegularErr)
 		}
 		if lastBadRequestErr != "" {
@@ -384,10 +359,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if lastRegularErr != "" {
 				sep = ", "
 			}
-			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
-				resultErr, sep, numBadRequest, lastBadRequestErr)
+			resultErrMessage = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
+				resultErrMessage, sep, numBadRequest, lastBadRequestErr)
 		}
-		xhttp.WriteError(w, xhttp.NewError(errors.New(resultErr), status))
+
+		resultError := xhttp.NewError(errors.New(resultErrMessage), status)
+		h.metrics.incError(resultError)
+		xhttp.WriteError(w, resultError)
 		return
 	}
 
@@ -490,6 +468,16 @@ func (h *PromWriteHandler) parseRequest(
 
 		if err := mapTags(&req, opts); err != nil {
 			return parseRequestResult{}, err
+		}
+	}
+
+	if promType := r.Header.Get(headers.PromTypeHeader); promType != "" {
+		tp, ok := headerToMetricType[strings.ToLower(promType)]
+		if !ok {
+			return parseRequestResult{}, fmt.Errorf("unknown prom metric type %s", promType)
+		}
+		for i := range req.Timeseries {
+			req.Timeseries[i].Type = tp
 		}
 	}
 
@@ -633,7 +621,9 @@ func (i *promTSIter) Next() bool {
 		return true
 	}
 
-	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(
+		i.attributes[i.idx].PromType,
+		i.attributes[i.idx].HandleValueResets)
 	if err != nil {
 		i.err = err
 		return false

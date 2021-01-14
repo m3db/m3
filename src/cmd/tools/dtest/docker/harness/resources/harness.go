@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package resources contains resources needed to setup docker containers for M3 tests.
 package resources
 
 import (
@@ -29,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	protobuftypes "github.com/gogo/protobuf/types"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 )
 
@@ -64,26 +65,34 @@ type dockerResources struct {
 
 // SetupSingleM3DBNode creates docker resources representing a setup with a
 // single DB node.
-func SetupSingleM3DBNode() (DockerResources, error) {
+func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nolint: gocyclo
+	options := setupOptions{}
+	for _, f := range opts {
+		f(&options)
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, err
 	}
 
 	pool.MaxWait = timeout
-	err = setupNetwork(pool)
-	if err != nil {
-		return nil, err
-	}
 
-	err = setupVolume(pool)
-	if err != nil {
-		return nil, err
+	if !options.existingCluster {
+		if err := setupNetwork(pool); err != nil {
+			return nil, err
+		}
+
+		if err := setupVolume(pool); err != nil {
+			return nil, err
+		}
 	}
 
 	iOpts := instrument.NewOptions()
 	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-		iOpts: iOpts,
+		image:         options.dbNodeImage,
+		containerName: options.dbNodeContainerName,
+		iOpts:         iOpts,
 	})
 
 	success := false
@@ -105,7 +114,9 @@ func SetupSingleM3DBNode() (DockerResources, error) {
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		iOpts: iOpts,
+		image:         options.coordinatorImage,
+		containerName: options.coordinatorContainerName,
+		iOpts:         iOpts,
 	})
 
 	defer func() {

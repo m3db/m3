@@ -100,7 +100,9 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"bad namespace metadata: retention options must be set\"}\n", string(body))
+	assert.JSONEq(t,
+		`{"status":"error","error":"bad namespace metadata: retention options must be set"}`,
+		string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.

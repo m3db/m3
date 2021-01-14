@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -206,6 +207,7 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 func (r *Reader) FetchWideEntry(
 	ctx context.Context,
 	blockStart time.Time,
+	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	var (
@@ -232,7 +234,7 @@ func (r *Reader) FetchWideEntry(
 		return block.EmptyStreamedWideEntry, nil
 	}
 	streamedEntry, err := r.retriever.StreamWideEntry(ctx,
-		r.id, blockStart, nsCtx)
+		r.id, blockStart, filter, nsCtx)
 	if err != nil {
 		return block.EmptyStreamedWideEntry, err
 	}

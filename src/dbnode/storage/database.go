@@ -927,26 +927,12 @@ func (d *db) ReadEncoded(
 		return nil, err
 	}
 
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
-		)
-	}
-
-	defer sp.Finish()
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-// batchProcessWideQuery runs the given query against the namespace index,
-// iterating in a batchwise fashion across all matching IDs, applying the given
-// IDBatchProcessor batch processing function to each ID discovered.
-func (d *db) batchProcessWideQuery(
+func (d *db) BatchProcessWideQuery(
 	ctx context.Context,
-	n databaseNamespace,
+	n Namespace,
 	query index.Query,
 	batchProcessor IDBatchProcessor,
 	opts index.WideQueryOptions,
@@ -1029,8 +1015,9 @@ func (d *db) WideQuery(
 	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
 	indexChecksumProcessor := func(batch *ident.IDBatch) error {
 		streamedWideEntries = streamedWideEntries[:0]
+
 		for _, shardID := range batch.ShardIDs {
-			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start)
+			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start, nil)
 			if err != nil {
 				return err
 			}
@@ -1050,7 +1037,7 @@ func (d *db) WideQuery(
 		return nil
 	}
 
-	err = d.batchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
+	err = d.BatchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1292,7 +1279,7 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	processedTileCount, err := targetNs.AggregateTiles(sourceNs, opts)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),

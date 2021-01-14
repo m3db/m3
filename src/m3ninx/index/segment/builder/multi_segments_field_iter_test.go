@@ -38,7 +38,7 @@ var (
 
 func TestFieldIterFromSegmentsDeduplicates(t *testing.T) {
 	segments := []segmentMetadata{
-		{segment: newTestSegmentWithDocs(t, []doc.Document{
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("foo"),
 				Fields: []doc.Field{
@@ -47,7 +47,7 @@ func TestFieldIterFromSegmentsDeduplicates(t *testing.T) {
 				},
 			},
 		})},
-		{segment: newTestSegmentWithDocs(t, []doc.Document{
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("bar"),
 				Fields: []doc.Field{
@@ -80,7 +80,7 @@ func TestFieldIterFromSegmentsDeduplicates(t *testing.T) {
 
 func TestFieldIterFromSegmentsSomeEmpty(t *testing.T) {
 	segments := []segmentMetadata{
-		{segment: newTestSegmentWithDocs(t, []doc.Document{
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("foo"),
 				Fields: []doc.Field{
@@ -89,7 +89,7 @@ func TestFieldIterFromSegmentsSomeEmpty(t *testing.T) {
 				},
 			},
 		})},
-		{segment: newTestSegmentWithDocs(t, []doc.Document{})},
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{})},
 	}
 
 	iter, err := newFieldIterFromSegments(segments)
@@ -104,7 +104,7 @@ func TestFieldIterFromSegmentsSomeEmpty(t *testing.T) {
 
 func TestFieldIterFromSegmentsIdentical(t *testing.T) {
 	segments := []segmentMetadata{
-		{segment: newTestSegmentWithDocs(t, []doc.Document{
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("foo"),
 				Fields: []doc.Field{
@@ -113,7 +113,7 @@ func TestFieldIterFromSegmentsIdentical(t *testing.T) {
 				},
 			},
 		})},
-		{segment: newTestSegmentWithDocs(t, []doc.Document{
+		{segment: newTestSegmentWithDocs(t, []doc.Metadata{
 			{
 				ID: []byte("bar"),
 				Fields: []doc.Field{
@@ -151,7 +151,7 @@ func assertIterValues(
 
 func newTestSegmentWithDocs(
 	t *testing.T,
-	docs []doc.Document,
+	docs []doc.Metadata,
 ) segment.Segment {
 	seg, err := mem.NewSegment(testMemOptions)
 	require.NoError(t, err)

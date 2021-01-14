@@ -162,6 +162,64 @@ func (p *ErrorType) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
+type ErrorFlags int64
+
+const (
+	ErrorFlags_NONE               ErrorFlags = 0
+	ErrorFlags_RESOURCE_EXHAUSTED ErrorFlags = 1
+)
+
+func (p ErrorFlags) String() string {
+	switch p {
+	case ErrorFlags_NONE:
+		return "NONE"
+	case ErrorFlags_RESOURCE_EXHAUSTED:
+		return "RESOURCE_EXHAUSTED"
+	}
+	return "<UNSET>"
+}
+
+func ErrorFlagsFromString(s string) (ErrorFlags, error) {
+	switch s {
+	case "NONE":
+		return ErrorFlags_NONE, nil
+	case "RESOURCE_EXHAUSTED":
+		return ErrorFlags_RESOURCE_EXHAUSTED, nil
+	}
+	return ErrorFlags(0), fmt.Errorf("not a valid ErrorFlags string")
+}
+
+func ErrorFlagsPtr(v ErrorFlags) *ErrorFlags { return &v }
+
+func (p ErrorFlags) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *ErrorFlags) UnmarshalText(text []byte) error {
+	q, err := ErrorFlagsFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *ErrorFlags) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = ErrorFlags(v)
+	return nil
+}
+
+func (p *ErrorFlags) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
 type AggregateQueryType int64
 
 const (
@@ -223,9 +281,11 @@ func (p *AggregateQueryType) Value() (driver.Value, error) {
 // Attributes:
 //  - Type
 //  - Message
+//  - Flags
 type Error struct {
 	Type    ErrorType `thrift:"type,1,required" db:"type" json:"type"`
 	Message string    `thrift:"message,2,required" db:"message" json:"message"`
+	Flags   int64     `thrift:"flags,3" db:"flags" json:"flags,omitempty"`
 }
 
 func NewError() *Error {
@@ -241,6 +301,16 @@ func (p *Error) GetType() ErrorType {
 func (p *Error) GetMessage() string {
 	return p.Message
 }
+
+var Error_Flags_DEFAULT int64 = 0
+
+func (p *Error) GetFlags() int64 {
+	return p.Flags
+}
+func (p *Error) IsSetFlags() bool {
+	return p.Flags != Error_Flags_DEFAULT
+}
+
 func (p *Error) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -268,6 +338,10 @@ func (p *Error) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetMessage = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -308,6 +382,15 @@ func (p *Error) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Error) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.Flags = v
+	}
+	return nil
+}
+
 func (p *Error) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Error"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -317,6 +400,9 @@ func (p *Error) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -351,6 +437,21 @@ func (p *Error) writeField2(oprot thrift.TProtocol) (err error) {
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:message: ", p), err)
+	}
+	return err
+}
+
+func (p *Error) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetFlags() {
+		if err := oprot.WriteFieldBegin("flags", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:flags: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(p.Flags)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.flags (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:flags: ", p), err)
+		}
 	}
 	return err
 }

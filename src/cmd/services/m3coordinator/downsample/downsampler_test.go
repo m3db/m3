@@ -124,6 +124,103 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationDownsamplesRawMetricWithRollupRule(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 1 * time.Second},
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.PerSecond,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// aggregated rollup metric
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 22}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+				// raw aggregated metric
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 42}, {value: 64}},
+				},
+			},
+		},
+	})
+
+	// Setup auto-mapping rules.
+	require.False(t, testDownsampler.downsampler.Enabled())
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("1s:30d"),
+		Resolution:  res,
+		Retention:   ret,
+		Session:     session,
+	})
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationToggleEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -601,7 +698,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAggregationType(t *tes
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Max",
+						"__g2__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{
@@ -668,7 +765,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Max",
+						"__g2__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{
@@ -681,7 +778,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 					tags: map[string]string{
 						"__g0__": "nginx_edge",
 						"__g1__": "health",
-						"__g2__": "Sum",
+						"__g2__": "sum",
 					},
 					values: []expectedValue{{value: 60}},
 					attributes: &storagemetadata.Attributes{
@@ -742,7 +839,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixAndAggre
 						"__g1__": "counter",
 						"__g2__": "nginx_edge",
 						"__g3__": "health",
-						"__g4__": "Max",
+						"__g4__": "upper",
 					},
 					values: []expectedValue{{value: 30}},
 					attributes: &storagemetadata.Attributes{

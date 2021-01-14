@@ -58,11 +58,11 @@ ClusterSpec defines the desired state for a M3 cluster to be converge to.
 | enableCarbonIngester | EnableCarbonIngester enables the listener port for the carbon ingester | bool | false |
 | configMapName | ConfigMapName specifies the ConfigMap to use for this cluster. If unset a default configmap with template variables for etcd endpoints will be used. See \"Configuring M3DB\" in the docs for more. | *string | false |
 | podIdentityConfig | PodIdentityConfig sets the configuration for pod identity. If unset only pod name and UID will be used. | *PodIdentityConfig | false |
-| containerResources | Resources defines memory / cpu constraints for each container in the cluster. | [corev1.ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#resourcerequirements-v1-core) | false |
-| dataDirVolumeClaimTemplate | DataDirVolumeClaimTemplate is the volume claim template for an M3DB instance's data. It claims PersistentVolumes for cluster storage, volumes are dynamically provisioned by when the StorageClass is defined. | *[corev1.PersistentVolumeClaim](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#persistentvolumeclaim-v1-core) | false |
+| containerResources | Resources defines memory / cpu constraints for each container in the cluster. | [corev1.ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#resourcerequirements-v1-core) | false |
+| dataDirVolumeClaimTemplate | DataDirVolumeClaimTemplate is the volume claim template for an M3DB instance's data. It claims PersistentVolumes for cluster storage, volumes are dynamically provisioned by when the StorageClass is defined. | *[corev1.PersistentVolumeClaim](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#persistentvolumeclaim-v1-core) | false |
 | podSecurityContext | PodSecurityContext allows the user to specify an optional security context for pods. | *corev1.PodSecurityContext | false |
 | securityContext | SecurityContext allows the user to specify a container-level security context. | *corev1.SecurityContext | false |
-| imagePullSecrets | ImagePullSecrets will be added to every pod. | [][corev1.LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#localobjectreference-v1-core) | false |
+| imagePullSecrets | ImagePullSecrets will be added to every pod. | [][corev1.LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#localobjectreference-v1-core) | false |
 | envVars | EnvVars defines custom environment variables to be passed to M3DB containers. | []corev1.EnvVar | false |
 | labels | Labels sets the base labels that will be applied to resources created by the cluster. // TODO(schallert): design doc on labeling scheme. | map[string]string | false |
 | annotations | Annotations sets the base annotations that will be applied to resources created by the cluster. | map[string]string | false |
@@ -74,7 +74,7 @@ ClusterSpec defines the desired state for a M3 cluster to be converge to.
 | externalCoordinator | Specify a \"controlling\" coordinator for the cluster. | *[ExternalCoordinatorConfig](#externalcoordinatorconfig) | false |
 | initContainers | Custom setup for db nodes can be done via initContainers Provide the complete spec for the initContainer here If any storage volumes are needed in the initContainer see InitVolumes below | []corev1.Container | false |
 | initVolumes | If the InitContainers require any storage volumes Provide the complete specification for the required Volumes here | []corev1.Volume | false |
-| podMetadata | PodMetadata is for any Metadata that is unique to the pods, and does not belong on any other objects, such as Prometheus scrape tags | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#objectmeta-v1-meta) | false |
+| podMetadata | PodMetadata is for any Metadata that is unique to the pods, and does not belong on any other objects, such as Prometheus scrape tags | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta) | false |
 | parallelPodManagement | ParallelPodManagement sets StatefulSets created by the operator to have Parallel pod management instead of OrderedReady. If nil, this will default to true. | *bool | true |
 | serviceAccountName | To use a non-default service account, specify the name here otherwise the service account \"default\" will be used. This is useful for advanced use-cases such as pod security policies. The service account must exist. This operator will not create it. | string | false |
 | frozen | Frozen is used to stop the operator from taking any further actions on a cluster. This is useful when troubleshooting as it guarantees the operator won't make any changes to the cluster. | bool | false |
@@ -111,7 +111,7 @@ M3DBCluster defines the cluster
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta) | false |
 | type |  | string | true |
 | spec |  | [ClusterSpec](#clusterspec) | true |
 | status |  | [M3DBStatus](#m3dbstatus) | false |
@@ -124,7 +124,7 @@ M3DBClusterList represents a list of M3DB Clusters
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#listmeta-v1-meta) | false |
 | items |  | [][M3DBCluster](#m3dbcluster) | true |
 
 [Back to TOC](#table-of-contents)
@@ -220,7 +220,7 @@ Namespace defines an M3DB namespace or points to a preset M3DB namespace.
 
 ## NamespaceOptions
 
-NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.
+NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.io/docs/operational_guide/namespace_configuration/ for more details.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |

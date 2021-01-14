@@ -27,10 +27,9 @@ import (
 	"strconv"
 	"strings"
 
-	dockertest "github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
-	dc "github.com/ory/dockertest/docker"
-	"github.com/ory/dockertest/docker/types/mount"
+	"github.com/ory/dockertest/v3"
+	dc "github.com/ory/dockertest/v3/docker"
+	"github.com/ory/dockertest/v3/docker/types/mount"
 	"go.uber.org/zap"
 )
 
@@ -49,8 +48,8 @@ func newDockerResource(
 ) (*dockerResource, error) {
 	var (
 		source        = resourceOpts.source
+		image         = resourceOpts.image
 		containerName = resourceOpts.containerName
-		dockerFile    = resourceOpts.dockerFile
 		iOpts         = resourceOpts.iOpts
 		portList      = resourceOpts.portList
 
@@ -60,30 +59,41 @@ func newDockerResource(
 		)
 	)
 
-	if err := pool.RemoveContainerByName(containerName); err != nil {
-		logger.Error("could not remove container from pool", zap.Error(err))
-		return nil, err
+	opts := exposePorts(newOptions(containerName), portList)
+
+	hostConfigOpts := func(c *dc.HostConfig) {
+		c.NetworkMode = networkName
+		mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
+		for _, m := range resourceOpts.mounts {
+			mounts = append(mounts, dc.HostMount{
+				Target: m,
+				Type:   string(mount.TypeTmpfs),
+			})
+		}
+
+		c.Mounts = mounts
 	}
 
-	opts := exposePorts(newOptions(containerName), portList)
-	logger.Info("building container with options",
-		zap.String("dockerFile", dockerFile), zap.Any("options", opts))
-	resource, err := pool.BuildAndRunWithOptions(dockerFile, opts,
-		func(c *dc.HostConfig) {
-			c.NetworkMode = networkName
-			mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
-			for _, m := range resourceOpts.mounts {
-				mounts = append(mounts, dc.HostMount{
-					Target: m,
-					Type:   string(mount.TypeTmpfs),
-				})
-			}
-
-			c.Mounts = mounts
-		})
+	var resource *dockertest.Resource
+	var err error
+	if image.name == "" {
+		logger.Info("connecting to existing container", zap.String("container", containerName))
+		var ok bool
+		resource, ok = pool.ContainerByName(containerName)
+		if !ok {
+			logger.Error("could not find container", zap.Error(err))
+			return nil, fmt.Errorf("could not find container %v", containerName)
+		}
+	} else {
+		opts = useImage(opts, image)
+		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
+		logger.Info("running container with options",
+			zap.String("image", imageWithTag), zap.Any("options", opts))
+		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
+	}
 
 	if err != nil {
-		logger.Error("could not build and run container", zap.Error(err))
+		logger.Error("could not run container", zap.Error(err))
 		return nil, err
 	}
 
@@ -114,7 +124,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
 	logger := c.logger.With(zapMethod("exec"))
 	client := c.pool.Client
-	exec, err := client.CreateExec(docker.CreateExecOptions{
+	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,
 		Container:    name,
@@ -130,7 +140,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 	logger.Info("starting exec",
 		zap.Strings("commands", commands),
 		zap.String("execID", exec.ID))
-	err = client.StartExec(exec.ID, docker.StartExecOptions{
+	err = client.StartExec(exec.ID, dc.StartExecOptions{
 		OutputStream: &outBuf,
 		ErrorStream:  &errBuf,
 	})

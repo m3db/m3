@@ -158,8 +158,10 @@ func TestCounterResetSetData(t *testing.T) {
 
 func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 	opts := NewOptions()
-	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
-	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.Types{maggregation.Last}, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
+	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes,
+		applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
+	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.Types{maggregation.P10},
+		applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.Error(t, err)
 }
 
@@ -1810,6 +1812,7 @@ func testFlushLocalMetricFn() (
 	return func(
 		idPrefix []byte,
 		id id.RawID,
+		metricType metric.Type,
 		idSuffix []byte,
 		timeNanos int64,
 		value float64,

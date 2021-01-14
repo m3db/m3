@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,7 @@ func TestMappingRuleEqual(t *testing.T) {
 		},
 		LastUpdatedAtMillis: 1234,
 		LastUpdatedBy:       "john",
+		Tags:                []models.Tag{{Name: []byte("name_1"), Value: []byte("val_1")}},
 	}
 	rule2 := MappingRule{
 		ID:            "mr_id",
@@ -55,6 +57,7 @@ func TestMappingRuleEqual(t *testing.T) {
 		},
 		LastUpdatedAtMillis: 1234,
 		LastUpdatedBy:       "john",
+		Tags:                []models.Tag{{Name: []byte("name_1"), Value: []byte("val_1")}},
 	}
 	require.True(t, rule1.Equal(&rule2))
 	require.True(t, rule2.Equal(&rule1))
@@ -126,6 +129,16 @@ func TestMappingRuleNotEqual(t *testing.T) {
 				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
 			},
 			DropPolicy: policy.DropIfOnlyMatch,
+		},
+		{
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+			Tags: []models.Tag{{Name: []byte("name_1"), Value: []byte("val_1")}},
 		},
 	}
 	for i := 0; i < len(rules); i++ {

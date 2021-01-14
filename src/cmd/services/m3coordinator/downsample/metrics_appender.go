@@ -102,7 +102,6 @@ type metricsAppenderOptions struct {
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
-	augmentM3Tags                bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -149,19 +148,16 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	}
 	tags := a.originalTags
 
-	// Augment tags if necessary.
-	if a.augmentM3Tags {
-		// NB (@shreyas): Add the metric type tag. The tag has the prefix
-		// __m3_. All tags with that prefix are only used for the purpose of
-		// filter match and then stripped off before we actually send to the aggregator.
-		switch opts.MetricType {
-		case ts.M3MetricTypeCounter:
-			tags.append(metric.M3TypeTag, metric.M3CounterValue)
-		case ts.M3MetricTypeGauge:
-			tags.append(metric.M3TypeTag, metric.M3GaugeValue)
-		case ts.M3MetricTypeTimer:
-			tags.append(metric.M3TypeTag, metric.M3TimerValue)
-		}
+	// NB (@shreyas): Add the metric type tag. The tag has the prefix
+	// __m3_. All tags with that prefix are only used for the purpose of
+	// filter match and then stripped off before we actually send to the aggregator.
+	switch opts.MetricType {
+	case ts.M3MetricTypeCounter:
+		tags.append(metric.M3TypeTag, metric.M3CounterValue)
+	case ts.M3MetricTypeGauge:
+		tags.append(metric.M3TypeTag, metric.M3GaugeValue)
+	case ts.M3MetricTypeTimer:
+		tags.append(metric.M3TypeTag, metric.M3TimerValue)
 	}
 
 	// Sort tags
@@ -190,11 +186,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// If we augmented metrics tags before running the forward match, then
-	// filter them out.
-	if a.augmentM3Tags {
-		tags.filterPrefix(metric.M3MetricsPrefix)
-	}
+	// filter out augmented metrics tags
+	tags.filterPrefix(metric.M3MetricsPrefix)
 
 	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
@@ -215,7 +208,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		if err := a.addSamplesAppenders(tags, a.curr, unownedID); err != nil {
+		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 			return SamplesAppenderResult{}, err
 		}
 	} else {
@@ -230,23 +223,37 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		// name and tags (i.e. overwriting each other).
 		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
 
-		mappingRuleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !mappingRuleStagedMetadatas.IsDefault() && len(mappingRuleStagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched mapping rule",
-				debugLogMatchOptions{Meta: mappingRuleStagedMetadatas})
+		ruleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
+		if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
+			a.debugLogMatch("downsampler applying matched rule",
+				debugLogMatchOptions{Meta: ruleStagedMetadatas})
 
-			// Collect all the current active mapping rules
-			for _, stagedMetadata := range mappingRuleStagedMetadatas {
+			// Collect storage policies for all the current active mapping rules.
+			// TODO: we should convert this to iterate over pointers
+			// nolint:gocritic
+			for _, stagedMetadata := range ruleStagedMetadatas {
 				for _, pipe := range stagedMetadata.Pipelines {
-					for _, sp := range pipe.StoragePolicies {
-						a.mappingRuleStoragePolicies =
-							append(a.mappingRuleStoragePolicies, sp)
+					// Skip rollup rules unless configured otherwise.
+					// We only want to consider mapping rules here,
+					// as we still want to apply default mapping rules to
+					// metrics that are rolled up to ensure the underlying metric
+					// gets written to aggregated namespaces.
+					if pipe.IsMappingRule() {
+						for _, sp := range pipe.StoragePolicies {
+							a.mappingRuleStoragePolicies =
+								append(a.mappingRuleStoragePolicies, sp)
+						}
+					} else {
+						a.debugLogMatch(
+							"skipping rollup rule in populating active mapping rule policies",
+							debugLogMatchOptions{},
+						)
 					}
 				}
 			}
 
 			// Only sample if going to actually aggregate
-			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
+			pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
 			a.curr.Pipelines =
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
@@ -344,7 +351,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
 				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
-			if err := a.addSamplesAppenders(tags, a.curr, unownedID); err != nil {
+			if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 				return SamplesAppenderResult{}, err
 			}
 		}
@@ -458,31 +465,7 @@ func (a *metricsAppender) resetTags() {
 	a.originalTags = nil
 }
 
-func (a *metricsAppender) addSamplesAppenders(
-	originalTags *tags,
-	stagedMetadata metadata.StagedMetadata,
-	unownedID []byte,
-) error {
-	// Check if any of the pipelines have tags or a graphite prefix to set.
-	var tagsExist bool
-	for _, pipeline := range stagedMetadata.Pipelines {
-		if len(pipeline.Tags) > 0 || len(pipeline.GraphitePrefix) > 0 {
-			tagsExist = true
-			break
-		}
-	}
-
-	// If we do not need to do any tag augmentation then just return.
-	if !a.augmentM3Tags && !tagsExist {
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			clientRemote:    a.clientRemote,
-			unownedID:       unownedID,
-			stagedMetadatas: []metadata.StagedMetadata{stagedMetadata},
-		})
-		return nil
-	}
-
+func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata metadata.StagedMetadata) error {
 	var (
 		pipelines []metadata.PipelineMetadata
 	)
@@ -595,7 +578,7 @@ func (a *metricsAppender) augmentTags(
 			var (
 				count = tags.countPrefix(graphite.Prefix)
 				name  = graphite.TagName(count)
-				value = types[0].Bytes()
+				value = types[0].Name()
 			)
 			tags.append(name, value)
 		}

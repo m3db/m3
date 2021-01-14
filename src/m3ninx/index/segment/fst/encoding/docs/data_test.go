@@ -30,56 +30,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoredFieldsData(t *testing.T) {
-	tests := []struct {
-		name string
-		docs []doc.Document
-	}{
-		{
-			name: "empty document",
-			docs: []doc.Document{
-				doc.Document{
-					Fields: doc.Fields{},
-				},
+var tests = []struct {
+	name string
+	docs []doc.Metadata
+}{
+	{
+		name: "empty document",
+		docs: []doc.Metadata{
+			{
+				Fields: doc.Fields{},
 			},
 		},
-		{
-			name: "standard documents",
-			docs: []doc.Document{
-				doc.Document{
-					ID: []byte("831992"),
-					Fields: []doc.Field{
-						doc.Field{
-							Name:  []byte("fruit"),
-							Value: []byte("apple"),
-						},
-						doc.Field{
-							Name:  []byte("color"),
-							Value: []byte("red"),
-						},
+	},
+	{
+		name: "standard documents",
+		docs: []doc.Metadata{
+			{
+				ID: []byte("831992"),
+				Fields: []doc.Field{
+					{
+						Name:  []byte("fruit"),
+						Value: []byte("apple"),
 					},
-				},
-				doc.Document{
-					ID: []byte("080392"),
-					Fields: []doc.Field{
-						doc.Field{
-							Name:  []byte("fruit"),
-							Value: []byte("banana"),
-						},
-						doc.Field{
-							Name:  []byte("color"),
-							Value: []byte("yellow"),
-						},
+					{
+						Name:  []byte("color"),
+						Value: []byte("red"),
 					},
 				},
 			},
+			{
+				ID: []byte("080392"),
+				Fields: []doc.Field{
+					{
+						Name:  []byte("fruit"),
+						Value: []byte("banana"),
+					},
+					{
+						Name:  []byte("color"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
 		},
-		{
-			name: "node exporter metrics",
-			docs: util.MustReadDocs("../../../../../util/testdata/node_exporter.json", 2000),
-		},
-	}
+	},
+	{
+		name: "node exporter metrics",
+		docs: util.MustReadDocs("../../../../../util/testdata/node_exporter.json", 2000),
+	},
+}
 
+func TestStoredFieldsData(t *testing.T) {
 	w := NewDataWriter(nil)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -100,6 +100,38 @@ func TestStoredFieldsData(t *testing.T) {
 			r := NewDataReader(buf.Bytes())
 			for i := range test.docs {
 				actual, err := r.Read(uint64(offsets[i]))
+				require.NoError(t, err)
+				require.True(t, actual.Equal(test.docs[i]))
+			}
+		})
+	}
+}
+
+func TestEncodedDataReader(t *testing.T) {
+	w := NewDataWriter(nil)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				buf     = new(bytes.Buffer)
+				offsets = make([]int, 0)
+				idx     int
+			)
+			w.Reset(buf)
+
+			for i := range test.docs {
+				n, err := w.Write(test.docs[i])
+				require.NoError(t, err)
+				offsets = append(offsets, idx)
+				idx += n
+			}
+
+			dataReader := NewEncodedDataReader(buf.Bytes())
+			docReader := NewEncodedDocumentReader()
+			for i := range test.docs {
+				encoded, err := dataReader.Read(uint64(offsets[i]))
+				require.NoError(t, err)
+
+				actual, err := docReader.Read(encoded)
 				require.NoError(t, err)
 				require.True(t, actual.Equal(test.docs[i]))
 			}

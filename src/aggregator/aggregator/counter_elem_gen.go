@@ -31,6 +31,7 @@ import (
 	"time"
 
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
@@ -480,10 +481,10 @@ func (e *CounterElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(nil, e.id, metric.CounterType, nil, point.TimeNanos, point.Value, e.sp)
 				case WithPrefixWithSuffix:
-					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(e.FullPrefix(e.opts), e.id, metric.CounterType,
+						e.TypeStringFor(e.aggTypesOpts, aggType), point.TimeNanos, point.Value, e.sp)
 				}
 			}
 		} else {

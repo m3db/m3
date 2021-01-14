@@ -413,8 +413,8 @@ func verifyFlushForShards(
 		numBlocks          int
 		persistClosedTimes int
 		persistCalledTimes int
-		actualDocs         = make([]doc.Document, 0)
-		expectedDocs       = make([]doc.Document, 0)
+		actualDocs         = make([]doc.Metadata, 0)
+		expectedDocs       = make([]doc.Metadata, 0)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
@@ -464,11 +464,11 @@ func verifyFlushForShards(
 
 		resultsID1 := ident.StringID("CACHED")
 		resultsID2 := ident.StringID("NEW")
-		doc1 := doc.Document{
+		doc1 := doc.Metadata{
 			ID:     resultsID1.Bytes(),
 			Fields: []doc.Field{},
 		}
-		doc2 := doc.Document{
+		doc2 := doc.Metadata{
 			ID:     resultsID2.Bytes(),
 			Fields: []doc.Field{},
 		}
@@ -495,7 +495,7 @@ func verifyFlushForShards(
 			results.EXPECT().Close()
 
 			mockShard.EXPECT().DocRef(resultsID1).Return(doc1, true, nil)
-			mockShard.EXPECT().DocRef(resultsID2).Return(doc.Document{}, false, nil)
+			mockShard.EXPECT().DocRef(resultsID2).Return(doc.Metadata{}, false, nil)
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)

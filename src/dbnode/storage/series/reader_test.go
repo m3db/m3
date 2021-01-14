@@ -102,11 +102,11 @@ func TestReaderUsingRetrieverWideEntrysBlockInvalid(t *testing.T) {
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).
 		Return(false, errors.New("err"))
-	_, err := reader.FetchWideEntry(ctx, time.Now(), namespace.Context{})
+	_, err := reader.FetchWideEntry(ctx, time.Now(), nil, namespace.Context{})
 	assert.EqualError(t, err, "err")
 
 	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil)
-	e, err := reader.FetchWideEntry(ctx, time.Now(), namespace.Context{})
+	e, err := reader.FetchWideEntry(ctx, time.Now(), nil, namespace.Context{})
 	assert.NoError(t, err)
 
 	entry, err := e.RetrieveWideEntry()
@@ -134,14 +134,14 @@ func TestReaderUsingRetrieverWideEntrys(t *testing.T) {
 
 	retriever.EXPECT().
 		StreamWideEntry(ctx, ident.NewIDMatcher("foo"),
-			alignedStart, gomock.Any()).
+			alignedStart, nil, gomock.Any()).
 		Return(streamedEntry, nil).Times(2)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
 	streamedEntry.EXPECT().RetrieveWideEntry().Return(xio.WideEntry{}, errors.New("err"))
-	streamed, err := reader.FetchWideEntry(ctx, alignedStart, namespace.Context{})
+	streamed, err := reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
 	_, err = streamed.RetrieveWideEntry()
 	assert.EqualError(t, err, "err")
@@ -153,7 +153,7 @@ func TestReaderUsingRetrieverWideEntrys(t *testing.T) {
 	}
 
 	streamedEntry.EXPECT().RetrieveWideEntry().Return(entry, nil)
-	streamed, err = reader.FetchWideEntry(ctx, alignedStart, namespace.Context{})
+	streamed, err = reader.FetchWideEntry(ctx, alignedStart, nil, namespace.Context{})
 	require.NoError(t, err)
 	actual, err := streamed.RetrieveWideEntry()
 	require.NoError(t, err)

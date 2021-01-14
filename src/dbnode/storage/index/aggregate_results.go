@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -49,6 +50,8 @@ type aggregatedResults struct {
 
 	pool       AggregateResultsPool
 	valuesPool AggregateValuesPool
+
+	encodedDocReader docs.EncodedDocumentReader
 }
 
 // NewAggregateResults returns a new AggregateResults object.
@@ -193,8 +196,12 @@ func (r *aggregatedResults) addDocumentsBatchWithLock(
 }
 
 func (r *aggregatedResults) addDocumentTermsWithLock(
-	document doc.Document,
+	container doc.Document,
 ) error {
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
+	if err != nil {
+		return fmt.Errorf("unable to decode encoded document; %w", err)
+	}
 	for _, field := range document.Fields {
 		if err := r.addTermWithLock(field.Name); err != nil {
 			return fmt.Errorf("unable to add document terms [%+v]: %v", document, err)
@@ -233,8 +240,12 @@ func (r *aggregatedResults) addTermWithLock(
 }
 
 func (r *aggregatedResults) addDocumentWithLock(
-	document doc.Document,
+	container doc.Document,
 ) error {
+	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
+	if err != nil {
+		return fmt.Errorf("unable to decode encoded document; %w", err)
+	}
 	for _, field := range document.Fields {
 		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {
 			return fmt.Errorf("unable to add document [%+v]: %v", document, err)

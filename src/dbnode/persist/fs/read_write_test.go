@@ -573,16 +573,19 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 
 func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
 	if reader.StreamingEnabled() {
-		id, encodedTags, data, checksum, err := reader.StreamingRead()
+		entry, err := reader.StreamingRead()
+		if err != nil {
+			return nil, nil, nil, 0, err
+		}
 		var tags = ident.EmptyTagIterator
-		if len(encodedTags) > 0 {
+		if len(entry.EncodedTags) > 0 {
 			tagsDecoder := testTagDecoderPool.Get()
-			tagsDecoder.Reset(checkedBytes(encodedTags))
+			tagsDecoder.Reset(checkedBytes(entry.EncodedTags))
 			require.NoError(t, tagsDecoder.Err())
 			tags = tagsDecoder
 		}
 
-		return id, tags, checked.NewBytes(data, nil), checksum, err
+		return entry.ID, tags, checked.NewBytes(entry.Data, nil), entry.DataChecksum, err
 	}
 
 	return reader.Read()

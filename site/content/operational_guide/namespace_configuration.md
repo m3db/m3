@@ -32,13 +32,24 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
 
 will create a namespace called `default_unaggregated` with a retention of `24 hours`. All of the other namespace options will either use reasonable default values or be calculated based on the provided `retentionTime`.
 
-Adding a namespace requires you mark the namespace as ready once M3DB has finished bootstrapping it. This is done so that M3Coordinator knows the namespace is ready to receive reads and writes. Use the `api/v1/services/m3db/namespace/ready` endpoint to accomplish this:
+Once a namespace has finished bootstrapping, you must mark it as ready so that M3Coordinator knows the namespace is ready to receive reads and writes by using the _{{% apiendpoint %}}namespace/ready_.
 
-```shell
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/ready -d '{
-  "name": "default_unaggregated"
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{< codeinclude file="docs/includes/operational_guide/ready-namespace.sh" language="shell" >}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
 }
 ```
+
+{{% /tab %}}
+{{< /tabs >}}
 
 If you feel the need to configure the namespace options yourself (for performance or other reasons), read the `Advanced` section below.
 
@@ -78,13 +89,24 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
 }'
 ```
 
-Adding a namespace requires you to mark the namespace as ready so M3Coordinator know it is ready to receive traffic:
+Once a namespace has finished bootstrapping, you must mark it as ready so that M3Coordinator knows the namespace is ready to receive reads and writes by using the _{{% apiendpoint %}}namespace/ready_.
 
-```shell
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/ready -d '{
-  "name": "default_unaggregated"
+{{< tabs name="ready_namespaces_adv" >}}
+{{% tab name="Command" %}}
+
+{{< codeinclude file="docs/includes/operational_guide/ready-namespace.sh" language="shell" >}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
 }
 ```
+
+{{% /tab %}}
+{{< /tabs >}}
 
 ### Deleting a Namespace
 

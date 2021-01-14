@@ -685,7 +685,7 @@ func (i *nsIndex) writeBatches(
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
-			d doc.Document, _ index.WriteBatchEntryResult) {
+			d doc.Metadata, _ index.WriteBatchEntryResult) {
 			total++
 
 			if len(i.doNotIndexWithFields) != 0 {
@@ -1386,7 +1386,7 @@ func (i *nsIndex) WideQuery(
 		opts,
 	)
 
-	// NB: result should be fina.ized here, regardless of outcome
+	// NB: result should be finalized here, regardless of outcome
 	// to prevent deadlocking while waiting on channel close.
 	defer results.Finalize()
 	queryOpts := opts.ToQueryOptions()

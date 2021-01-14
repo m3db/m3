@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -99,13 +100,13 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fetchOptions, err := h.hOpts.FetchOptionsBuilder().NewFetchOptions(r)
 	if err != nil {
-		RespondError(w, err)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	request, err := native.ParseRequest(ctx, r, h.opts.instant, h.hOpts)
 	if err != nil {
-		RespondError(w, err)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -129,7 +130,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("error creating query",
 			zap.Error(err), zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
-		RespondError(w, xerrors.NewInvalidParamsError(err))
+		xhttp.WriteError(w, xerrors.NewInvalidParamsError(err))
 		return
 	}
 	defer qry.Close()
@@ -139,7 +140,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("error executing query",
 			zap.Error(res.Err), zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
-		RespondError(w, res.Err)
+		xhttp.WriteError(w, res.Err)
 		return
 	}
 
