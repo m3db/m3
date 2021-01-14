@@ -139,6 +139,8 @@ type nsIndex struct {
 
 	doNotIndexWithFields []doc.Field
 	shardSet             sharding.ShardSet
+
+	inMemoryBlock index.Block
 }
 
 type nsIndexState struct {
@@ -407,6 +409,15 @@ func newNamespaceIndexWithOptions(
 	if err != nil {
 		return nil, err
 	}
+
+	futureBlock := nowFn().Add(10 * 365 * 24 * time.Hour)
+	inMemBlock, err := idx.newBlockFn(futureBlock, idx.nsMetadata,
+		index.BlockOptions{InMemoryBlock: true}, idx.namespaceRuntimeOptsMgr, idx.opts.IndexOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	idx.inMemoryBlock = inMemBlock
 
 	// Report stats
 	go idx.reportStatsUntilClosed()
@@ -796,12 +807,19 @@ func (i *nsIndex) writeBatchForBlockStart(
 		return
 	}
 
+	block := blockResult.block
+	latest := blockResult.latest
+	if block.IsOpen() {
+		// Write to in memory block if this block is open.
+		block = i.inMemoryBlock
+	}
+
 	// Track attempted write.
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
 	// i.e. we have the block and the inserts, perform the writes.
-	result, err := blockResult.block.WriteBatch(batch)
+	result, err := block.WriteBatch(batch)
 
 	// Record the end to end indexing latency.
 	now := i.nowFn()
@@ -817,7 +835,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 
 	// Record mutable segments count foreground/background if latest block.
-	if stats := result.MutableSegmentsStats; !stats.Empty() && blockResult.latest {
+	if stats := result.MutableSegmentsStats; !stats.Empty() && latest {
 		i.metrics.latestBlockNumSegmentsForeground.Update(float64(stats.NumForeground))
 		i.metrics.latestBlockNumSegmentsBackground.Update(float64(stats.NumBackground))
 	}
@@ -891,7 +909,10 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 
 	result.NumBlocks = int64(len(i.state.blocksByTime))
 
-	var multiErr xerrors.MultiError
+	var (
+		multiErr     xerrors.MultiError
+		sealedBlocks = make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	)
 	for blockStart, block := range i.state.blocksByTime {
 		if c.IsCancelled() {
 			multiErr = multiErr.Add(errDbIndexTerminatingTickCancellation)
@@ -921,7 +942,23 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 			multiErr = multiErr.Add(block.Seal())
 			result.NumBlocksSealed++
 		}
+
+		if block.IsSealed() {
+			sealedBlocks = append(sealedBlocks, blockStart)
+		}
 	}
+
+	block := i.inMemoryBlock
+	blockTickResult, tickErr := block.Tick(c)
+	multiErr = multiErr.Add(tickErr)
+	result.NumSegments += blockTickResult.NumSegments
+	result.NumSegmentsBootstrapped += blockTickResult.NumSegmentsBootstrapped
+	result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
+	result.NumTotalDocs += blockTickResult.NumDocs
+	result.FreeMmap += blockTickResult.FreeMmap
+
+	// Notify in memory block of sealed blocks.
+	multiErr = multiErr.Add(block.InMemoryBlockNotifySealedBlocks(sealedBlocks))
 
 	return result, multiErr.FinalError()
 }
@@ -1942,9 +1979,10 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 		latestBlock      index.Block
 	)
 
-	blocks := make([]blockAndBlockStart, 0, len(i.state.blocksByTime))
+	blocks := make([]blockAndBlockStart, 0, len(i.state.blocksByTime)+1)
 	for ts, block := range i.state.blocksByTime {
 		if ts >= latestBlockStart {
+			latestBlockStart = ts
 			latestBlock = block
 		}
 		blocks = append(blocks, blockAndBlockStart{
@@ -1953,10 +1991,16 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 		})
 	}
 
+	blocks = append(blocks, blockAndBlockStart{
+		block:      i.inMemoryBlock,
+		blockStart: xtime.ToUnixNano(i.inMemoryBlock.StartTime()),
+	})
+
 	// order in desc order (i.e. reverse chronological)
 	sort.Slice(blocks, func(i, j int) bool {
 		return blocks[i].blockStart > blocks[j].blockStart
 	})
+
 	// NB(r): Important not to modify this once set since we take reference
 	// to this slice with an RLock, release with RUnlock and then loop over it
 	// during query time so it must not be altered and stay immutable.
@@ -2069,7 +2113,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 
 func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	i.state.RLock()
-	defer i.state.RLock()
+	defer i.state.RUnlock()
 	if i.state.closed {
 		return errDbIndexAlreadyClosed
 	}
@@ -2173,6 +2217,8 @@ func (i *nsIndex) Close() error {
 	for _, block := range blocks {
 		multiErr = multiErr.Add(block.Close())
 	}
+
+	multiErr = multiErr.Add(i.inMemoryBlock.Close())
 
 	return multiErr.FinalError()
 }

@@ -24,6 +24,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -34,6 +35,7 @@ import (
 type builderFromSegments struct {
 	docs           []doc.Document
 	idSet          *IDsMap
+	filter         *bloom.ReadOnlyBloomFilter
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
 	segmentsOffset postings.ID
@@ -42,11 +44,12 @@ type builderFromSegments struct {
 type segmentMetadata struct {
 	segment segment.Segment
 	offset  postings.ID
-	// duplicatesAsc is a lookup of document IDs are duplicates
-	// in this segment, that is documents that are already
-	// contained by other segments and hence should not be
+	// skipAsc is a lookup of document IDs are duplicates or
+	// to filter out in this segment, that is documents that are already
+	// contained by other segments or should not be included
+	// in the output segment and hence should not be
 	// returned when looking up documents.
-	duplicatesAsc []postings.ID
+	skipAsc []postings.ID
 }
 
 // NewBuilderFromSegments returns a new builder from segments.
@@ -81,6 +84,10 @@ func (b *builderFromSegments) Reset() {
 	b.termsIter.clear()
 }
 
+func (b *builderFromSegments) SetFilter(filter *bloom.ReadOnlyBloomFilter) {
+	b.filter = filter
+}
+
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	// numMaxDocs can sometimes be larger than the actual number of documents
 	// since some are duplicates
@@ -103,13 +110,19 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		}
 
 		var (
-			added      int
-			duplicates []postings.ID
+			added int
+			skip  []postings.ID
 		)
 		for iter.Next() {
 			d := iter.Current()
 			if b.idSet.Contains(d.ID) {
-				duplicates = append(duplicates, iter.PostingsID())
+				// Skip duplicates.
+				skip = append(skip, iter.PostingsID())
+				continue
+			}
+			if b.filter != nil && !b.filter.Test(d.ID) {
+				// Actively filtering and ID is not contained.
+				skip = append(skip, iter.PostingsID())
 				continue
 			}
 			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
@@ -126,14 +139,14 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		}
 
 		// Sort duplicates in ascending order
-		sort.Slice(duplicates, func(i, j int) bool {
-			return duplicates[i] < duplicates[j]
+		sort.Slice(skip, func(i, j int) bool {
+			return skip[i] < skip[j]
 		})
 
 		b.segments = append(b.segments, segmentMetadata{
-			segment:       segment,
-			offset:        b.segmentsOffset,
-			duplicatesAsc: duplicates,
+			segment: segment,
+			offset:  b.segmentsOffset,
+			skipAsc: skip,
 		})
 		b.segmentsOffset += postings.ID(added)
 	}

@@ -136,7 +136,7 @@ func (i *termsIterFromSegments) Next() bool {
 		termsKeyIter := iter.(*termsKeyIter)
 		_, list := termsKeyIter.iter.Current()
 
-		if termsKeyIter.segment.offset == 0 {
+		if termsKeyIter.segment.offset == 0 && len(termsKeyIter.segment.skipAsc) == 0 {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
 			if index.MigrationReadOnlyPostings() {
@@ -156,17 +156,17 @@ func (i *termsIterFromSegments) Next() bool {
 		// We have to taken into account the offset and duplicates
 		var (
 			iter           = list.Iterator()
-			duplicates     = termsKeyIter.segment.duplicatesAsc
+			skip           = termsKeyIter.segment.skipAsc
 			negativeOffset postings.ID
 		)
 		for iter.Next() {
 			curr := iter.Current()
-			for len(duplicates) > 0 && curr > duplicates[0] {
-				duplicates = duplicates[1:]
+			for len(skip) > 0 && curr > skip[0] {
+				skip = skip[1:]
 				negativeOffset++
 			}
-			if len(duplicates) > 0 && curr == duplicates[0] {
-				duplicates = duplicates[1:]
+			if len(skip) > 0 && curr == skip[0] {
+				skip = skip[1:]
 				negativeOffset++
 				// Also skip this value, as itself is a duplicate
 				continue
@@ -185,6 +185,12 @@ func (i *termsIterFromSegments) Next() bool {
 			i.err = err
 			return false
 		}
+	}
+
+	if i.currPostingsList.IsEmpty() {
+		// Everything skipped or term is empty.
+		// TODO: make this non-stack based (i.e. not recursive).
+		return i.Next()
 	}
 
 	return true

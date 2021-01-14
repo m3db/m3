@@ -195,6 +195,7 @@ type blockShardRangesSegments struct {
 type BlockOptions struct {
 	ForegroundCompactorMmapDocsData bool
 	BackgroundCompactorMmapDocsData bool
+	InMemoryBlock                   bool
 }
 
 // NewBlockFn is a new block constructor.
@@ -223,6 +224,7 @@ func NewBlock(
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
 	segs := newMutableSegments(
+		md,
 		blockStart,
 		opts,
 		blockOpts,
@@ -233,6 +235,7 @@ func NewBlock(
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
+			md,
 			blockStart,
 			opts,
 			blockOpts,
@@ -262,6 +265,15 @@ func NewBlock(
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 
 	return b, nil
+}
+
+func (b *block) InMemoryBlockNotifySealedBlocks(
+	sealed []xtime.UnixNano,
+) error {
+	if !b.blockOpts.InMemoryBlock {
+		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
+	}
+	return b.mutableSegments.NotifySealedBlocks(sealed)
 }
 
 func (b *block) StartTime() time.Time {
@@ -1120,6 +1132,12 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	return nil
 }
 
+func (b *block) IsOpen() bool {
+	b.RLock()
+	defer b.RUnlock()
+	return b.state == blockStateOpen
+}
+
 func (b *block) IsSealedWithRLock() bool {
 	return b.state == blockStateSealed
 }
@@ -1212,6 +1230,7 @@ func (b *block) RotateColdMutableSegments() {
 	b.Lock()
 	defer b.Unlock()
 	b.coldMutableSegments = append(b.coldMutableSegments, newMutableSegments(
+		b.nsMD,
 		b.blockStart,
 		b.opts,
 		b.blockOpts,

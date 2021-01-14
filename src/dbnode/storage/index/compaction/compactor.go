@@ -23,6 +23,7 @@ package compaction
 import (
 	"bytes"
 	"errors"
+	"github.com/m3db/bloom/v4"
 	"io"
 	"sync"
 
@@ -105,6 +106,7 @@ func NewCompactor(
 // time.
 func (c *Compactor) Compact(
 	segs []segment.Segment,
+	filter *bloom.ReadOnlyBloomFilter,
 	reporterOptions mmap.ReporterOptions,
 ) (fst.Segment, error) {
 	c.Lock()
@@ -115,6 +117,7 @@ func (c *Compactor) Compact(
 	}
 
 	c.builder.Reset()
+	c.builder.SetFilter(filter)
 	if err := c.builder.AddSegments(segs); err != nil {
 		return nil, err
 	}

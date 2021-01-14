@@ -147,9 +147,10 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			return false
 		}
 
-		if fieldsKeyIter.segment.offset == 0 {
+		if fieldsKeyIter.segment.offset == 0 && len(fieldsKeyIter.segment.skipAsc) == 0 {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
+			// Make sure skipAsc is empty otherwise we need to do filtering.
 			if index.MigrationReadOnlyPostings() {
 				if err := i.currFieldPostingsList.AddIterator(pl.Iterator()); err != nil {
 					i.err = err
@@ -167,17 +168,17 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 		// We have to taken into account the offset and duplicates
 		var (
 			iter           = pl.Iterator()
-			duplicates     = fieldsKeyIter.segment.duplicatesAsc
+			skip           = fieldsKeyIter.segment.skipAsc
 			negativeOffset postings.ID
 		)
 		for iter.Next() {
 			curr := iter.Current()
-			for len(duplicates) > 0 && curr > duplicates[0] {
-				duplicates = duplicates[1:]
+			for len(skip) > 0 && curr > skip[0] {
+				skip = skip[1:]
 				negativeOffset++
 			}
-			if len(duplicates) > 0 && curr == duplicates[0] {
-				duplicates = duplicates[1:]
+			if len(skip) > 0 && curr == skip[0] {
+				skip = skip[1:]
 				negativeOffset++
 				// Also skip this value, as itself is a duplicate
 				continue
@@ -197,6 +198,13 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			return false
 		}
 	}
+
+	if i.currFieldPostingsList.IsEmpty() {
+		// Everything skipped or term is empty.
+		// TODO: make this non-stack based (i.e. not recursive).
+		return i.Next()
+	}
+
 	return true
 }
 

@@ -22,6 +22,7 @@ package segment
 
 import (
 	"errors"
+	"github.com/m3db/bloom/v4"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -219,6 +220,10 @@ type CloseableDocumentsBuilder interface {
 // SegmentsBuilder is a builder that is built from segments.
 type SegmentsBuilder interface {
 	Builder
+
+	// SetFilter sets a filter on which documents to retain
+	// when building the segment.
+	SetFilter(bloom *bloom.ReadOnlyBloomFilter)
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error

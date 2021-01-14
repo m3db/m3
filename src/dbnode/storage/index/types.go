@@ -350,6 +350,10 @@ type OnIndexSeries interface {
 // Block represents a collection of segments. Each `Block` is a complete reverse
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
+	// InMemoryBlockNotifySealedBlocks notifies an in memory block of
+	// sealed blocks.
+	InMemoryBlockNotifySealedBlocks(sealed []xtime.UnixNano) error
+
 	// StartTime returns the start time of the period this Block indexes.
 	StartTime() time.Time
 
@@ -388,6 +392,9 @@ type Block interface {
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error
+
+	// IsOpen returns true if open and not sealed yet.
+	IsOpen() bool
 
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
