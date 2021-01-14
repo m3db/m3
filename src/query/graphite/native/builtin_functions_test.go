@@ -261,7 +261,7 @@ func TestAbsolute(t *testing.T) {
 
 func TestInvert(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	tests := []struct {
 		inputs  []float64
