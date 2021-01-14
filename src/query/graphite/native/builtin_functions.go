@@ -1143,7 +1143,8 @@ func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.Series
 	return r, nil
 }
 
-//invert takes one metric or a wildcard seriesList, and inverts each datapoint
+// invert takes one metric or a wildcard seriesList, and inverts each datapoint
+// nolint: hugeParam
 func invert(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
