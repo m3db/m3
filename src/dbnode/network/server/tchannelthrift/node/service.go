@@ -2098,7 +2098,10 @@ func (s *service) SetQueryLimitOverrides(
 	queryLimits.BytesReadLimit().Override(req.BytesReadLimitOverride)
 	queryLimits.DocsLimit().Override(req.DocsLimitOverride)
 
-	return &rpc.NodeQueryLimitOverridesResult_{}, nil
+	return &rpc.NodeQueryLimitOverridesResult_{
+		BytesReadLimitOverride: req.BytesReadLimitOverride,
+		DocsLimitOverride:      req.DocsLimitOverride,
+	}, nil
 }
 
 func (s *service) DebugProfileStart(
