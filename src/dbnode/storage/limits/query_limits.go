@@ -201,7 +201,7 @@ func (q *lookbackLimit) exceeded() error {
 }
 
 func (q *lookbackLimit) checkLimit(recent int64) error {
-	if q.options.Limit > 0 && recent > q.options.Limit {
+	if q.options.Limit > 0 && recent >= q.options.Limit {
 		q.metrics.exceeded.Inc(1)
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
@@ -212,7 +212,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 	overrideLimit := q.overrideLimit
 	q.overrideLock.RUnlock()
 
-	if overrideLimit != nil && recent > *overrideLimit {
+	if overrideLimit != nil && recent >= *overrideLimit {
 		q.metrics.exceeded.Inc(1)
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit override: name=%s, limit=%d, current=%d, within=%s",
