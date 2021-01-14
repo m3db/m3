@@ -156,7 +156,6 @@ func TestLookbackLimit(t *testing.T) {
 }
 
 func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int64) int64 {
-	fmt.Println("A", limit, inc, expectedLimit)
 	var exceededCount int64
 	err := limit.Inc(inc, nil)
 	if limit.current() < expectedLimit || expectedLimit == 0 {
