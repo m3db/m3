@@ -174,7 +174,7 @@ func (q *queryLimits) AnyExceeded() error {
 	return q.bytesReadLimit.exceeded()
 }
 
-// Inc increments the current value and returns an error if above the limit.
+// Override overrides the limit set on construction.
 func (q *lookbackLimit) Override(limit *int64) error {
 	if limit != nil && *limit < 0 {
 		return fmt.Errorf("invalid negative query limit override %d", *limit)
