@@ -85,6 +85,7 @@ service Node {
 	NodeWriteNewSeriesBackoffDurationResult        setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
+	NodeQueryLimitOverridesResult setQueryLimitOverrides(1: NodeSetQueryLimitOverridesRequest req) throws (1: Error err)
 
 	// Debug endpoints
 	DebugProfileStartResult        debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
@@ -365,6 +366,16 @@ struct NodeWriteNewSeriesLimitPerShardPerSecondResult {
 
 struct NodeSetWriteNewSeriesLimitPerShardPerSecondRequest {
 	1: required i64 writeNewSeriesLimitPerShardPerSecond
+}
+
+struct NodeQueryLimitOverridesResult {
+	1: optional i64 docsLimitOverride
+	2: optional i64 bytesReadLimitOverride
+}
+
+struct NodeSetQueryLimitOverridesRequest {
+	1: optional i64 docsLimitOverride
+	2: optional i64 bytesReadLimitOverride
 }
 
 service Cluster {

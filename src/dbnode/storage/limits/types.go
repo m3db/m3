@@ -52,6 +52,8 @@ type QueryLimits interface {
 type LookbackLimit interface {
 	// Inc increments the recent value for the limit.
 	Inc(new int, source []byte) error
+	// Override overrides the lookback limit value.
+	Override(limit *int)
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.

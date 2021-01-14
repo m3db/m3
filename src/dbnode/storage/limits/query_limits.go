@@ -22,6 +22,7 @@ package limits
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -41,11 +42,13 @@ type queryLimits struct {
 }
 
 type lookbackLimit struct {
-	name    string
-	options LookbackLimitOptions
-	metrics lookbackLimitMetrics
-	recent  *atomic.Int64
-	stopCh  chan struct{}
+	name          string
+	options       LookbackLimitOptions
+	metrics       lookbackLimitMetrics
+	recent        *atomic.Int64
+	stopCh        chan struct{}
+	overrideLock  sync.RWMutex
+	overrideLimit *int64
 }
 
 type lookbackLimitMetrics struct {
@@ -72,12 +75,7 @@ func DefaultLookbackLimitOptions() LookbackLimitOptions {
 }
 
 // NewQueryLimits returns a new query limits manager.
-func NewQueryLimits(
-	options Options,
-	// docsLimitOpts LookbackLimitOptions,
-	// bytesReadLimitOpts LookbackLimitOptions,
-	// instrumentOpts instrument.Options,
-) (QueryLimits, error) {
+func NewQueryLimits(options Options) (QueryLimits, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
@@ -163,6 +161,19 @@ func (q *queryLimits) AnyExceeded() error {
 }
 
 // Inc increments the current value and returns an error if above the limit.
+func (q *lookbackLimit) Override(limit *int) {
+	q.overrideLock.Lock()
+	defer q.overrideLock.Unlock()
+
+	if limit == nil {
+		q.overrideLimit = nil
+	} else {
+		v := int64(*limit)
+		q.overrideLimit = &v
+	}
+}
+
+// Inc increments the current value and returns an error if above the limit.
 func (q *lookbackLimit) Inc(val int, source []byte) error {
 	if val < 0 {
 		return fmt.Errorf("invalid negative query limit inc %d", val)
@@ -196,6 +207,18 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
+
+	q.overrideLock.RLock()
+	overrideLimit := q.overrideLimit
+	q.overrideLock.RUnlock()
+
+	if overrideLimit != nil && recent > *overrideLimit {
+		q.metrics.exceeded.Inc(1)
+		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
+			"query aborted due to limit override: name=%s, limit=%d, current=%d, within=%s",
+			q.name, *overrideLimit, recent, q.options.Lookback)))
+	}
+
 	return nil
 }
 

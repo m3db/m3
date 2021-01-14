@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -9467,6 +9467,306 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) String() string {
 }
 
 // Attributes:
+//  - DocsLimitOverride
+//  - BytesReadLimitOverride
+type NodeQueryLimitOverridesResult_ struct {
+	DocsLimitOverride      *int64 `thrift:"docsLimitOverride,1" db:"docsLimitOverride" json:"docsLimitOverride,omitempty"`
+	BytesReadLimitOverride *int64 `thrift:"bytesReadLimitOverride,2" db:"bytesReadLimitOverride" json:"bytesReadLimitOverride,omitempty"`
+}
+
+func NewNodeQueryLimitOverridesResult_() *NodeQueryLimitOverridesResult_ {
+	return &NodeQueryLimitOverridesResult_{}
+}
+
+var NodeQueryLimitOverridesResult__DocsLimitOverride_DEFAULT int64
+
+func (p *NodeQueryLimitOverridesResult_) GetDocsLimitOverride() int64 {
+	if !p.IsSetDocsLimitOverride() {
+		return NodeQueryLimitOverridesResult__DocsLimitOverride_DEFAULT
+	}
+	return *p.DocsLimitOverride
+}
+
+var NodeQueryLimitOverridesResult__BytesReadLimitOverride_DEFAULT int64
+
+func (p *NodeQueryLimitOverridesResult_) GetBytesReadLimitOverride() int64 {
+	if !p.IsSetBytesReadLimitOverride() {
+		return NodeQueryLimitOverridesResult__BytesReadLimitOverride_DEFAULT
+	}
+	return *p.BytesReadLimitOverride
+}
+func (p *NodeQueryLimitOverridesResult_) IsSetDocsLimitOverride() bool {
+	return p.DocsLimitOverride != nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) IsSetBytesReadLimitOverride() bool {
+	return p.BytesReadLimitOverride != nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.DocsLimitOverride = &v
+	}
+	return nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		p.BytesReadLimitOverride = &v
+	}
+	return nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeQueryLimitOverridesResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeQueryLimitOverridesResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDocsLimitOverride() {
+		if err := oprot.WriteFieldBegin("docsLimitOverride", thrift.I64, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:docsLimitOverride: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.DocsLimitOverride)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.docsLimitOverride (1) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:docsLimitOverride: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeQueryLimitOverridesResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetBytesReadLimitOverride() {
+		if err := oprot.WriteFieldBegin("bytesReadLimitOverride", thrift.I64, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:bytesReadLimitOverride: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.BytesReadLimitOverride)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.bytesReadLimitOverride (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:bytesReadLimitOverride: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeQueryLimitOverridesResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeQueryLimitOverridesResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - DocsLimitOverride
+//  - BytesReadLimitOverride
+type NodeSetQueryLimitOverridesRequest struct {
+	DocsLimitOverride      *int64 `thrift:"docsLimitOverride,1" db:"docsLimitOverride" json:"docsLimitOverride,omitempty"`
+	BytesReadLimitOverride *int64 `thrift:"bytesReadLimitOverride,2" db:"bytesReadLimitOverride" json:"bytesReadLimitOverride,omitempty"`
+}
+
+func NewNodeSetQueryLimitOverridesRequest() *NodeSetQueryLimitOverridesRequest {
+	return &NodeSetQueryLimitOverridesRequest{}
+}
+
+var NodeSetQueryLimitOverridesRequest_DocsLimitOverride_DEFAULT int64
+
+func (p *NodeSetQueryLimitOverridesRequest) GetDocsLimitOverride() int64 {
+	if !p.IsSetDocsLimitOverride() {
+		return NodeSetQueryLimitOverridesRequest_DocsLimitOverride_DEFAULT
+	}
+	return *p.DocsLimitOverride
+}
+
+var NodeSetQueryLimitOverridesRequest_BytesReadLimitOverride_DEFAULT int64
+
+func (p *NodeSetQueryLimitOverridesRequest) GetBytesReadLimitOverride() int64 {
+	if !p.IsSetBytesReadLimitOverride() {
+		return NodeSetQueryLimitOverridesRequest_BytesReadLimitOverride_DEFAULT
+	}
+	return *p.BytesReadLimitOverride
+}
+func (p *NodeSetQueryLimitOverridesRequest) IsSetDocsLimitOverride() bool {
+	return p.DocsLimitOverride != nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) IsSetBytesReadLimitOverride() bool {
+	return p.BytesReadLimitOverride != nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.DocsLimitOverride = &v
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		p.BytesReadLimitOverride = &v
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeSetQueryLimitOverridesRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDocsLimitOverride() {
+		if err := oprot.WriteFieldBegin("docsLimitOverride", thrift.I64, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:docsLimitOverride: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.DocsLimitOverride)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.docsLimitOverride (1) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:docsLimitOverride: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetBytesReadLimitOverride() {
+		if err := oprot.WriteFieldBegin("bytesReadLimitOverride", thrift.I64, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:bytesReadLimitOverride: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.BytesReadLimitOverride)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.bytesReadLimitOverride (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:bytesReadLimitOverride: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetQueryLimitOverridesRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetQueryLimitOverridesRequest(%+v)", *p)
+}
+
+// Attributes:
 //  - Ok
 //  - Status
 type HealthResult_ struct {
@@ -14609,6 +14909,9 @@ type Node interface {
 	SetWriteNewSeriesLimitPerShardPerSecond(req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error)
 	// Parameters:
 	//  - Req
+	SetQueryLimitOverrides(req *NodeSetQueryLimitOverridesRequest) (r *NodeQueryLimitOverridesResult_, err error)
+	// Parameters:
+	//  - Req
 	DebugProfileStart(req *DebugProfileStartRequest) (r *DebugProfileStartResult_, err error)
 	// Parameters:
 	//  - Req
@@ -16956,6 +17259,87 @@ func (p *NodeClient) recvSetWriteNewSeriesLimitPerShardPerSecond() (value *NodeW
 
 // Parameters:
 //  - Req
+func (p *NodeClient) SetQueryLimitOverrides(req *NodeSetQueryLimitOverridesRequest) (r *NodeQueryLimitOverridesResult_, err error) {
+	if err = p.sendSetQueryLimitOverrides(req); err != nil {
+		return
+	}
+	return p.recvSetQueryLimitOverrides()
+}
+
+func (p *NodeClient) sendSetQueryLimitOverrides(req *NodeSetQueryLimitOverridesRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("setQueryLimitOverrides", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeSetQueryLimitOverridesArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvSetQueryLimitOverrides() (value *NodeQueryLimitOverridesResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "setQueryLimitOverrides" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setQueryLimitOverrides failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setQueryLimitOverrides failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error93 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error94 error
+		error94, err = error93.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error94
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setQueryLimitOverrides failed: invalid message type")
+		return
+	}
+	result := NodeSetQueryLimitOverridesResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
 func (p *NodeClient) DebugProfileStart(req *DebugProfileStartRequest) (r *DebugProfileStartResult_, err error) {
 	if err = p.sendDebugProfileStart(req); err != nil {
 		return
@@ -17004,16 +17388,16 @@ func (p *NodeClient) recvDebugProfileStart() (value *DebugProfileStartResult_, e
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error93 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error94 error
-		error94, err = error93.Read(iprot)
+		error95 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error96 error
+		error96, err = error95.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error94
+		err = error96
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -17085,16 +17469,16 @@ func (p *NodeClient) recvDebugProfileStop() (value *DebugProfileStopResult_, err
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error95 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error96 error
-		error96, err = error95.Read(iprot)
+		error97 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error98 error
+		error98, err = error97.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error96
+		err = error98
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -17166,16 +17550,16 @@ func (p *NodeClient) recvDebugIndexMemorySegments() (value *DebugIndexMemorySegm
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error97 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error98 error
-		error98, err = error97.Read(iprot)
+		error99 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error100 error
+		error100, err = error99.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error98
+		err = error100
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -17217,40 +17601,41 @@ func (p *NodeProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewNodeProcessor(handler Node) *NodeProcessor {
 
-	self99 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self99.processorMap["query"] = &nodeProcessorQuery{handler: handler}
-	self99.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
-	self99.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self99.processorMap["write"] = &nodeProcessorWrite{handler: handler}
-	self99.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
-	self99.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
-	self99.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
-	self99.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
-	self99.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
-	self99.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
-	self99.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
-	self99.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
-	self99.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
-	self99.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
-	self99.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
-	self99.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
-	self99.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
-	self99.processorMap["aggregateTiles"] = &nodeProcessorAggregateTiles{handler: handler}
-	self99.processorMap["health"] = &nodeProcessorHealth{handler: handler}
-	self99.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
-	self99.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
-	self99.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
-	self99.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self99.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
-	self99.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
-	self99.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
-	self99.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
-	self99.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self99.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
-	self99.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
-	self99.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
-	self99.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
-	return self99
+	self101 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self101.processorMap["query"] = &nodeProcessorQuery{handler: handler}
+	self101.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
+	self101.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
+	self101.processorMap["write"] = &nodeProcessorWrite{handler: handler}
+	self101.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
+	self101.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
+	self101.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
+	self101.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
+	self101.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self101.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
+	self101.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
+	self101.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
+	self101.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
+	self101.processorMap["writeTaggedBatchRaw"] = &nodeProcessorWriteTaggedBatchRaw{handler: handler}
+	self101.processorMap["writeTaggedBatchRawV2"] = &nodeProcessorWriteTaggedBatchRawV2{handler: handler}
+	self101.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
+	self101.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
+	self101.processorMap["aggregateTiles"] = &nodeProcessorAggregateTiles{handler: handler}
+	self101.processorMap["health"] = &nodeProcessorHealth{handler: handler}
+	self101.processorMap["bootstrapped"] = &nodeProcessorBootstrapped{handler: handler}
+	self101.processorMap["bootstrappedInPlacementOrNoPlacement"] = &nodeProcessorBootstrappedInPlacementOrNoPlacement{handler: handler}
+	self101.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
+	self101.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
+	self101.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self101.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
+	self101.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
+	self101.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
+	self101.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self101.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self101.processorMap["setQueryLimitOverrides"] = &nodeProcessorSetQueryLimitOverrides{handler: handler}
+	self101.processorMap["debugProfileStart"] = &nodeProcessorDebugProfileStart{handler: handler}
+	self101.processorMap["debugProfileStop"] = &nodeProcessorDebugProfileStop{handler: handler}
+	self101.processorMap["debugIndexMemorySegments"] = &nodeProcessorDebugIndexMemorySegments{handler: handler}
+	return self101
 }
 
 func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -17263,12 +17648,12 @@ func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, er
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x100 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x102 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x100.Write(oprot)
+	x102.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x100
+	return false, x102
 
 }
 
@@ -18771,6 +19156,59 @@ func (p *nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond) Process(seqId int
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesLimitPerShardPerSecond", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorSetQueryLimitOverrides struct {
+	handler Node
+}
+
+func (p *nodeProcessorSetQueryLimitOverrides) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetQueryLimitOverridesArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("setQueryLimitOverrides", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeSetQueryLimitOverridesResult{}
+	var retval *NodeQueryLimitOverridesResult_
+	var err2 error
+	if retval, err2 = p.handler.SetQueryLimitOverrides(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setQueryLimitOverrides: "+err2.Error())
+			oprot.WriteMessageBegin("setQueryLimitOverrides", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("setQueryLimitOverrides", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -25565,6 +26003,257 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) String() string {
 
 // Attributes:
 //  - Req
+type NodeSetQueryLimitOverridesArgs struct {
+	Req *NodeSetQueryLimitOverridesRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeSetQueryLimitOverridesArgs() *NodeSetQueryLimitOverridesArgs {
+	return &NodeSetQueryLimitOverridesArgs{}
+}
+
+var NodeSetQueryLimitOverridesArgs_Req_DEFAULT *NodeSetQueryLimitOverridesRequest
+
+func (p *NodeSetQueryLimitOverridesArgs) GetReq() *NodeSetQueryLimitOverridesRequest {
+	if !p.IsSetReq() {
+		return NodeSetQueryLimitOverridesArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeSetQueryLimitOverridesArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeSetQueryLimitOverridesArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &NodeSetQueryLimitOverridesRequest{}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setQueryLimitOverrides_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetQueryLimitOverridesArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetQueryLimitOverridesArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeSetQueryLimitOverridesResult struct {
+	Success *NodeQueryLimitOverridesResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                          `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeSetQueryLimitOverridesResult() *NodeSetQueryLimitOverridesResult {
+	return &NodeSetQueryLimitOverridesResult{}
+}
+
+var NodeSetQueryLimitOverridesResult_Success_DEFAULT *NodeQueryLimitOverridesResult_
+
+func (p *NodeSetQueryLimitOverridesResult) GetSuccess() *NodeQueryLimitOverridesResult_ {
+	if !p.IsSetSuccess() {
+		return NodeSetQueryLimitOverridesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeSetQueryLimitOverridesResult_Err_DEFAULT *Error
+
+func (p *NodeSetQueryLimitOverridesResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeSetQueryLimitOverridesResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeSetQueryLimitOverridesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeQueryLimitOverridesResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setQueryLimitOverrides_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetQueryLimitOverridesResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetQueryLimitOverridesResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetQueryLimitOverridesResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetQueryLimitOverridesResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
 type NodeDebugProfileStartArgs struct {
 	Req *DebugProfileStartRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -26410,16 +27099,16 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error245 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error246 error
-		error246, err = error245.Read(iprot)
+		error253 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error254 error
+		error254, err = error253.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error246
+		err = error254
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26491,16 +27180,16 @@ func (p *ClusterClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error247 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error248 error
-		error248, err = error247.Read(iprot)
+		error255 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error256 error
+		error256, err = error255.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error248
+		err = error256
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26571,16 +27260,16 @@ func (p *ClusterClient) recvWriteTagged() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error249 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error250 error
-		error250, err = error249.Read(iprot)
+		error257 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error258 error
+		error258, err = error257.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error250
+		err = error258
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26651,16 +27340,16 @@ func (p *ClusterClient) recvQuery() (value *QueryResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error251 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error252 error
-		error252, err = error251.Read(iprot)
+		error259 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error260 error
+		error260, err = error259.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error252
+		err = error260
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26732,16 +27421,16 @@ func (p *ClusterClient) recvAggregate() (value *AggregateQueryResult_, err error
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error253 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error254 error
-		error254, err = error253.Read(iprot)
+		error261 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error262 error
+		error262, err = error261.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error254
+		err = error262
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26813,16 +27502,16 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error255 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error256 error
-		error256, err = error255.Read(iprot)
+		error263 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error264 error
+		error264, err = error263.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error256
+		err = error264
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26894,16 +27583,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error257 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error258 error
-		error258, err = error257.Read(iprot)
+		error265 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error266 error
+		error266, err = error265.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error258
+		err = error266
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -26945,15 +27634,15 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self259 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self259.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self259.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self259.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
-	self259.processorMap["query"] = &clusterProcessorQuery{handler: handler}
-	self259.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
-	self259.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self259.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self259
+	self267 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self267.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self267.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self267.processorMap["writeTagged"] = &clusterProcessorWriteTagged{handler: handler}
+	self267.processorMap["query"] = &clusterProcessorQuery{handler: handler}
+	self267.processorMap["aggregate"] = &clusterProcessorAggregate{handler: handler}
+	self267.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self267.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self267
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -26966,12 +27655,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x260 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x268 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x260.Write(oprot)
+	x268.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x260
+	return false, x268
 
 }
 

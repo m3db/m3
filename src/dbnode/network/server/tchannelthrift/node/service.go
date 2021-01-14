@@ -2082,6 +2082,25 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
+func (s *service) SetQueryLimitOverrides(
+	ctx thrift.Context,
+	req *rpc.NodeSetQueryLimitOverridesRequest,
+) (
+	*rpc.NodeQueryLimitOverridesResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	queryLimits := db.Options().IndexOptions().QueryLimits()
+	queryLimits.BytesReadLimit().Override(req.BytesReadLimitOverride)
+	queryLimits.DocsLimit().Override(req.DocsLimitOverride)
+
+	return &rpc.NodeQueryLimitOverridesResult_{}, nil
+}
+
 func (s *service) DebugProfileStart(
 	ctx thrift.Context,
 	req *rpc.DebugProfileStartRequest,
