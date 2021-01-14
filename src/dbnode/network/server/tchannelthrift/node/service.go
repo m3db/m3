@@ -2095,8 +2095,17 @@ func (s *service) SetQueryLimitOverrides(
 	}
 
 	queryLimits := db.Options().IndexOptions().QueryLimits()
-	queryLimits.BytesReadLimit().Override(req.BytesReadLimitOverride)
-	queryLimits.DocsLimit().Override(req.DocsLimitOverride)
+	if err := queryLimits.BytesReadLimit().Override(req.BytesReadLimitOverride); err != nil {
+		return nil, err
+	}
+	if err := queryLimits.DocsLimit().Override(req.DocsLimitOverride); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("query limit overrides set",
+		zap.Int64p("bytes-read", req.BytesReadLimitOverride),
+		zap.Int64p("docs", req.DocsLimitOverride),
+	)
 
 	return &rpc.NodeQueryLimitOverridesResult_{
 		BytesReadLimitOverride: req.BytesReadLimitOverride,

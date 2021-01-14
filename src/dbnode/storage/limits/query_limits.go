@@ -42,13 +42,13 @@ type queryLimits struct {
 }
 
 type lookbackLimit struct {
-	name          string
-	options       LookbackLimitOptions
-	metrics       lookbackLimitMetrics
-	recent        *atomic.Int64
-	stopCh        chan struct{}
-	overrideLock  sync.RWMutex
-	overrideLimit *int64
+	name         string
+	limit        *int64
+	options      LookbackLimitOptions
+	metrics      lookbackLimitMetrics
+	recent       *atomic.Int64
+	stopCh       chan struct{}
+	overrideLock sync.RWMutex
 }
 
 type lookbackLimitMetrics struct {
@@ -106,11 +106,25 @@ func newLookbackLimit(
 ) *lookbackLimit {
 	return &lookbackLimit{
 		name:    name,
+		limit:   getLimit(opts, nil),
 		options: opts,
 		metrics: newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
 		recent:  atomic.NewInt64(0),
 		stopCh:  make(chan struct{}),
 	}
+}
+
+func getLimit(opts LookbackLimitOptions, override *int64) *int64 {
+	if override != nil {
+		return override
+	}
+
+	// Zero limit means no limit enforced.
+	var limit *int64
+	if opts.Limit != 0 {
+		limit = &opts.Limit
+	}
+	return limit
 }
 
 func newLookbackLimitMetrics(
@@ -161,16 +175,16 @@ func (q *queryLimits) AnyExceeded() error {
 }
 
 // Inc increments the current value and returns an error if above the limit.
-func (q *lookbackLimit) Override(limit *int) {
+func (q *lookbackLimit) Override(limit *int64) error {
+	if limit != nil && *limit < 0 {
+		return fmt.Errorf("invalid negative query limit inc %d", *limit)
+	}
+
 	q.overrideLock.Lock()
 	defer q.overrideLock.Unlock()
 
-	if limit == nil {
-		q.overrideLimit = nil
-	} else {
-		v := int64(*limit)
-		q.overrideLimit = &v
-	}
+	q.limit = getLimit(q.options, limit)
+	return nil
 }
 
 // Inc increments the current value and returns an error if above the limit.
@@ -202,24 +216,18 @@ func (q *lookbackLimit) exceeded() error {
 
 func (q *lookbackLimit) checkLimit(recent int64) error {
 	q.overrideLock.RLock()
-	overrideLimit := q.overrideLimit
+	limit := q.limit
 	q.overrideLock.RUnlock()
 
-	if overrideLimit == nil {
-		if q.options.Limit > 0 && recent >= q.options.Limit {
-			q.metrics.exceeded.Inc(1)
-			return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
-				"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
-				q.name, q.options.Limit, recent, q.options.Lookback)))
-		}
+	if limit == nil {
 		return nil
 	}
 
-	if recent >= *overrideLimit {
+	if recent >= *limit {
 		q.metrics.exceeded.Inc(1)
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
-			"query aborted due to limit override: name=%s, limit=%d, current=%d, within=%s",
-			q.name, *overrideLimit, recent, q.options.Lookback)))
+			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
+			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
 	return nil
 }
