@@ -32,9 +32,10 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
@@ -86,6 +87,45 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	result, err := bsm.Bootstrap()
 	require.NoError(t, err)
 
+	require.Equal(t, 1, len(result.ErrorsBootstrap))
+	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
+}
+
+func TestDatabaseInBootstrappingStateWhenBootstrapError(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	db := NewMockdatabase(ctrl)
+	m := NewMockdatabaseMediator(ctrl)
+	m.EXPECT().DisableFileOpsAndWait()
+	m.EXPECT().EnableFileOps().AnyTimes()
+
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
+	// Don't sleep.
+	bsm.sleepFn = func(time.Duration) {}
+	bootstrapRetries := 0
+
+	bsm.bootstrapFn = func() error {
+		defer func() {
+			bootstrapRetries++
+		}()
+
+		require.Equal(t, Bootstrapping, bsm.state)
+
+		if bootstrapRetries == 0 {
+			return fmt.Errorf("an error")
+		}
+
+		return nil
+	}
+
+	require.Equal(t, BootstrapNotStarted, bsm.state)
+
+	result, err := bsm.Bootstrap()
+
+	require.NoError(t, err)
+	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
 	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
 }
