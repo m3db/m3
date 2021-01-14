@@ -27,88 +27,78 @@ import (
 
 // TagValueFromEncodedTagsFast returns a tag from a set of encoded tags without
 // any pooling required.
-
-type TagVisitor interface {
-	Length(n int)
-	Visit(tag, value []byte) bool
-}
-
 func TagValueFromEncodedTagsFast(
 	encodedTags []byte,
 	tagName []byte,
 ) ([]byte, bool, error) {
-	visitor := findTagValueVisitor{
-		tagName:  tagName,
-		tagValue: nil,
+	var (
+		length int
+		err    error
+	)
+	encodedTags, length, err = DecodeHeader(encodedTags)
+	if err != nil {
+		return nil, false, err
 	}
-	err := VisitTags(encodedTags, &visitor)
-	return visitor.tagValue, visitor.tagValue != nil, err
-}
 
-type findTagValueVisitor struct {
-	tagName  []byte
-	tagValue []byte
-}
+	for i := 0; i < length; i++ {
+		var bytesName, bytesValue []byte
 
-func (v *findTagValueVisitor) Length(_ int) {
-}
+		encodedTags, bytesName, err = DecodeTagName(encodedTags)
+		if err != nil {
+			return nil, false, err
+		}
 
-func (v *findTagValueVisitor) Visit(tag, value []byte) bool {
-	if bytes.Equal(tag, v.tagName) {
-		v.tagValue = value
-		return false
+		encodedTags, bytesValue, err = DecodeTagValue(encodedTags)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if bytes.Equal(bytesName, tagName) {
+			return bytesValue, true, nil
+		}
 	}
-	return true
+
+	return nil, false, nil
 }
 
-func VisitTags(
-	encodedTags []byte,
-	visitor TagVisitor,
-) error {
+func DecodeHeader(encodedTags []byte) ([]byte, int, error) {
 	total := len(encodedTags)
 	if total < 4 {
-		return fmt.Errorf(
+		return nil, 0, fmt.Errorf(
 			"encoded tags too short: size=%d, need=%d", total, 4)
 	}
 
 	header := byteOrder.Uint16(encodedTags[:2])
 	encodedTags = encodedTags[2:]
 	if header != headerMagicNumber {
-		return errIncorrectHeader
+		return nil, 0, errIncorrectHeader
 	}
 
 	length := int(byteOrder.Uint16(encodedTags[:2]))
 	encodedTags = encodedTags[2:]
+	return encodedTags, length, nil
+}
 
-	visitor.Length(length)
-
-	for i := 0; i < length; i++ {
-		if len(encodedTags) < 2 {
-			return fmt.Errorf("missing size for tag name: index=%d", i)
-		}
-		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
-		if numBytesName <= 0 {
-			return errEmptyTagNameLiteral
-		}
-		encodedTags = encodedTags[2:]
-
-		bytesName := encodedTags[:numBytesName]
-		encodedTags = encodedTags[numBytesName:]
-
-		if len(encodedTags) < 2 {
-			return fmt.Errorf("missing size for tag value: index=%d", i)
-		}
-
-		numBytesValue := int(byteOrder.Uint16(encodedTags[:2]))
-		encodedTags = encodedTags[2:]
-
-		bytesValue := encodedTags[:numBytesValue]
-		encodedTags = encodedTags[numBytesValue:]
-
-		if !visitor.Visit(bytesName, bytesValue) {
-			return nil
-		}
+func DecodeTagName(encodedTags []byte) ([]byte, []byte, error) {
+	encodedTags, stringBytes, err := DecodeTagValue(encodedTags)
+	if err != nil {
+		return encodedTags, stringBytes, err
 	}
+	if len(stringBytes) == 0 {
+		return nil, nil, errEmptyTagNameLiteral
+	}
+	return encodedTags, stringBytes, nil
+}
 
-	return nil
+func DecodeTagValue(encodedTags []byte) ([]byte, []byte, error) {
+	if len(encodedTags) < 2 {
+		return nil, nil, fmt.Errorf("missing or incomplete size bytes")
+	}
+	numBytes := int(byteOrder.Uint16(encodedTags[:2]))
+	encodedTags = encodedTags[2:]
+
+	stringBytes := encodedTags[:numBytes]
+	encodedTags = encodedTags[numBytes:]
+
+	return encodedTags, stringBytes, nil
 }

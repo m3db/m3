@@ -263,43 +263,51 @@ func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Me
 	return d, nil
 }
 
-type mapTagsVisitor struct {
-	clonedID      []byte
-	fields        []doc.Field
-	expectedStart int
-}
-
-func (v *mapTagsVisitor) Length(n int) {
-	v.fields = make([]doc.Field, 0, n)
-}
-
-func (v *mapTagsVisitor) Visit(tag, value []byte) bool {
-	var clonedName, clonedValue []byte
-	clonedName, v.expectedStart = findSliceOrClone(v.clonedID, tag, v.expectedStart,
-		distanceBetweenTagNameAndValue)
-	clonedValue, v.expectedStart = findSliceOrClone(v.clonedID, value, v.expectedStart,
-		distanceBetweenTagValueAndNextName)
-	v.fields = append(v.fields, doc.Field{
-		Name:  clonedName,
-		Value: clonedValue,
-	})
-	return true
-}
-
 func FromSeriesIDAndEncodedTags2(id ident.ID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
-	visitor := mapTagsVisitor{
-		clonedID:      clone(id.Bytes()),
-		fields:        nil,
-		expectedStart: firstTagBytesPosition,
+	var (
+		length int
+		err    error
+	)
+	encodedTags, length, err = serialize.DecodeHeader(encodedTags)
+	if err != nil {
+		return doc.Metadata{}, err
 	}
 
-	err := serialize.VisitTags(encodedTags, &visitor)
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, length)
+		expectedStart = firstTagBytesPosition
+	)
+
+	for i := 0; i < length; i++ {
+		var nameBytes, valueBytes []byte
+		encodedTags, nameBytes, err = serialize.DecodeTagName(encodedTags)
+		if err != nil {
+			return doc.Metadata{}, err
+		}
+		encodedTags, valueBytes, err = serialize.DecodeTagValue(encodedTags)
+		if err != nil {
+			return doc.Metadata{}, err
+		}
+
+		var clonedName, clonedValue []byte
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
+
+		fields = append(fields, doc.Field{
+			Name:  clonedName,
+			Value: clonedValue,
+		})
+	}
+
 	if err != nil {
 		return doc.Metadata{}, err
 	}
 	d := doc.Metadata{
-		ID:     visitor.clonedID,
-		Fields: visitor.fields,
+		ID:     clonedID,
+		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
 		return doc.Metadata{}, err
