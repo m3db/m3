@@ -259,6 +259,45 @@ func TestAbsolute(t *testing.T) {
 	}
 }
 
+func TestInvert(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []struct {
+		inputs  []float64
+		outputs []float64
+	}{
+		{
+			[]float64{math.NaN(), 1.0, 2.0, math.NaN(), 4.0},
+			[]float64{math.NaN(), 1.0, 0.5, math.NaN(), 0.25},
+		},
+		{
+			[]float64{math.NaN(), 1.0, 2.0, math.NaN(), 4.0},
+			[]float64{math.NaN(), 1.0, 0.5, math.NaN(), 0.25},
+		},
+	}
+
+	start := time.Now()
+	for _, test := range tests {
+		input := ts.NewSeries(ctx, "foo", start, common.NewTestSeriesValues(ctx, 100, test.inputs))
+		r, err := invert(ctx, singlePathSpec{
+			Values: []*ts.Series{input},
+		})
+		require.NoError(t, err)
+
+		outputs := r.Values
+		require.Equal(t, 1, len(outputs))
+		require.Equal(t, 100, outputs[0].MillisPerStep())
+		require.Equal(t, len(test.inputs), outputs[0].Len())
+		require.Equal(t, start, outputs[0].StartTime())
+
+		for step := 0; step < outputs[0].Len(); step++ {
+			v := outputs[0].ValueAt(step)
+			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
+		}
+	}
+}
+
 func TestScale(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3515,6 +3554,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"integral",
 		"integralByInterval",
 		"interpolate",
+		"invert",
 		"isNonNull",
 		"keepLastValue",
 		"legendValue",
