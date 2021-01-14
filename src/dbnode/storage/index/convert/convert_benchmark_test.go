@@ -155,6 +155,49 @@ func BenchmarkFromSeriesIDAndTags(b *testing.B) {
 	}
 }
 
+func BenchmarkFromSeriesIDAndEncodedTags(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := range testData {
+		_, err := FromSeriesIDAndEncodedTags(testData[i].id, testData[i].encodedTags)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkFromSeriesIDAndEncodedTags2(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := range testData {
+		_, err := FromSeriesIDAndEncodedTags2(testData[i].id, testData[i].encodedTags)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkFromSeriesIDAndTagIter_TagDecoder(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+
+	decoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions(),
+	)
+	decoderPool.Init()
+
+	decoder := decoderPool.Get()
+	defer decoder.Close()
+
+	b.ResetTimer()
+	for i := range testData {
+		decoder.Reset(checked.NewBytes(testData[i].encodedTags, nil))
+		_, err := FromSeriesIDAndTagIter(testData[i].id, decoder)
+		require.NoError(b, err)
+	}
+}
+
 func prepareIDAndEncodedTags(b *testing.B) ([]idWithEncodedTags, error) {
 	var (
 		rnd    = rand.New(rand.NewSource(42)) //nolint:gosec

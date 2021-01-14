@@ -27,32 +27,68 @@ import (
 
 // TagValueFromEncodedTagsFast returns a tag from a set of encoded tags without
 // any pooling required.
+
+type TagVisitor interface {
+	Length(n int)
+	Visit(tag, value []byte) bool
+}
+
 func TagValueFromEncodedTagsFast(
 	encodedTags []byte,
 	tagName []byte,
 ) ([]byte, bool, error) {
+	visitor := findTagValueVisitor{
+		tagName:  tagName,
+		tagValue: nil,
+	}
+	err := VisitTags(encodedTags, &visitor)
+	return visitor.tagValue, visitor.tagValue != nil, err
+}
+
+type findTagValueVisitor struct {
+	tagName  []byte
+	tagValue []byte
+}
+
+func (v *findTagValueVisitor) Length(_ int) {
+}
+
+func (v *findTagValueVisitor) Visit(tag, value []byte) bool {
+	if bytes.Equal(tag, v.tagName) {
+		v.tagValue = value
+		return false
+	}
+	return true
+}
+
+func VisitTags(
+	encodedTags []byte,
+	visitor TagVisitor,
+) error {
 	total := len(encodedTags)
 	if total < 4 {
-		return nil, false, fmt.Errorf(
+		return fmt.Errorf(
 			"encoded tags too short: size=%d, need=%d", total, 4)
 	}
 
 	header := byteOrder.Uint16(encodedTags[:2])
 	encodedTags = encodedTags[2:]
 	if header != headerMagicNumber {
-		return nil, false, errIncorrectHeader
+		return errIncorrectHeader
 	}
 
 	length := int(byteOrder.Uint16(encodedTags[:2]))
 	encodedTags = encodedTags[2:]
 
+	visitor.Length(length)
+
 	for i := 0; i < length; i++ {
 		if len(encodedTags) < 2 {
-			return nil, false, fmt.Errorf("missing size for tag name: index=%d", i)
+			return fmt.Errorf("missing size for tag name: index=%d", i)
 		}
 		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
 		if numBytesName <= 0 {
-			return nil, false, errEmptyTagNameLiteral
+			return errEmptyTagNameLiteral
 		}
 		encodedTags = encodedTags[2:]
 
@@ -60,7 +96,7 @@ func TagValueFromEncodedTagsFast(
 		encodedTags = encodedTags[numBytesName:]
 
 		if len(encodedTags) < 2 {
-			return nil, false, fmt.Errorf("missing size for tag value: index=%d", i)
+			return fmt.Errorf("missing size for tag value: index=%d", i)
 		}
 
 		numBytesValue := int(byteOrder.Uint16(encodedTags[:2]))
@@ -69,10 +105,10 @@ func TagValueFromEncodedTagsFast(
 		bytesValue := encodedTags[:numBytesValue]
 		encodedTags = encodedTags[numBytesValue:]
 
-		if bytes.Compare(bytesName, tagName) == 0 {
-			return bytesValue, true, nil
+		if !visitor.Visit(bytesName, bytesValue) {
+			return nil
 		}
 	}
 
-	return nil, false, nil
+	return nil
 }
