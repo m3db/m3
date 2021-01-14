@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -126,18 +125,102 @@ func StartReportingExtendedMetrics(
 	return reporter, nil
 }
 
+// cumulativeCounter emits a cumulative memory stat counter as a metric counter.
+// the counter tracks the last value, so it can emit deltas to the underlying counter metric.
+type cumulativeCounter struct {
+	counter tally.Counter
+	last    uint64
+}
+
+func newCumulativeCounter(scope tally.Scope, name string) cumulativeCounter {
+	return cumulativeCounter{
+		counter: scope.Counter(name),
+	}
+}
+
+// update the cumulative counter and returns the previous last value.
+func (c *cumulativeCounter) update(new uint64) uint64 {
+	prevLast := c.last
+	c.counter.Inc(int64(new - c.last))
+	c.last = new
+	return prevLast
+}
+
 type runtimeMetrics struct {
-	NumGoRoutines   tally.Gauge
-	GoMaxProcs      tally.Gauge
-	MemoryAllocated tally.Gauge
-	MemoryHeap      tally.Gauge
-	MemoryHeapIdle  tally.Gauge
-	MemoryHeapInuse tally.Gauge
-	MemoryStack     tally.Gauge
-	GCCPUFraction   tally.Gauge
-	NumGC           tally.Counter
-	GcPauseMs       tally.Timer
-	lastNumGC       uint32
+	NumGoRoutines       tally.Gauge
+	GoMaxProcs          tally.Gauge
+	MemoryAllocated     tally.Gauge // Note: this is the same as MemoryHeapAlloc
+	MemoryTotalAlloc    cumulativeCounter
+	MemorySys           tally.Gauge
+	MemoryLookups       cumulativeCounter
+	MemoryMallocs       cumulativeCounter
+	MemoryFrees         cumulativeCounter
+	MemoryHeapAlloc     tally.Gauge
+	MemoryHeapSys       tally.Gauge
+	MemoryHeapIdle      tally.Gauge
+	MemoryHeapInuse     tally.Gauge
+	MemoryHeapReleased  tally.Gauge
+	MemoryStackInuse    tally.Gauge
+	MemoryStackSys      tally.Gauge
+	MemoryMSpanInuse    tally.Gauge
+	MemoryMSpanSys      tally.Gauge
+	MemoryMCacheInuse   tally.Gauge
+	MemoryMCacheSys     tally.Gauge
+	MemoryBucketHashSys tally.Gauge
+	MemoryGCSys         tally.Gauge
+	MemoryOtherSys      tally.Gauge
+	NextGC              tally.Gauge
+	LastGC              tally.Gauge
+	PauseTotalNs        cumulativeCounter
+	NumGC               cumulativeCounter
+	NumForcedGC         cumulativeCounter
+	GCCPUFraction       tally.Gauge
+	GcPauseMs           tally.Timer
+}
+
+func newRuntimeMetrics(metricsType ExtendedMetricsType, scope tally.Scope) runtimeMetrics {
+	m := runtimeMetrics{}
+	if metricsType == NoExtendedMetrics {
+		return m
+	}
+
+	runtimeScope := scope.SubScope("runtime")
+	m.NumGoRoutines = runtimeScope.Gauge("num-goroutines")
+	m.GoMaxProcs = runtimeScope.Gauge("gomaxprocs")
+	if metricsType < DetailedExtendedMetrics {
+		return m
+	}
+
+	memoryScope := runtimeScope.SubScope("memory")
+	m.MemoryAllocated = memoryScope.Gauge("allocated")
+	m.MemoryTotalAlloc = newCumulativeCounter(memoryScope, "total-allocated")
+	m.MemorySys = memoryScope.Gauge("sys")
+	m.MemoryLookups = newCumulativeCounter(memoryScope, "lookups")
+	m.MemoryMallocs = newCumulativeCounter(memoryScope, "mallocs")
+	m.MemoryFrees = newCumulativeCounter(memoryScope, "frees")
+	m.MemoryHeapAlloc = memoryScope.Gauge("heap")
+	m.MemoryHeapSys = memoryScope.Gauge("heap-sys")
+	m.MemoryHeapIdle = memoryScope.Gauge("heapidle")
+	m.MemoryHeapInuse = memoryScope.Gauge("heapinuse")
+	m.MemoryHeapReleased = memoryScope.Gauge("heap-released")
+	m.MemoryStackInuse = memoryScope.Gauge("stack")
+	m.MemoryStackSys = memoryScope.Gauge("stack-sys")
+	m.MemoryMSpanInuse = memoryScope.Gauge("mspan-inuse")
+	m.MemoryMSpanSys = memoryScope.Gauge("mspan-sys")
+	m.MemoryMCacheInuse = memoryScope.Gauge("mcache-inuse")
+	m.MemoryMCacheSys = memoryScope.Gauge("mcache-sys")
+	m.MemoryBucketHashSys = memoryScope.Gauge("bucket-hash-sys")
+	m.MemoryGCSys = memoryScope.Gauge("gc-sys")
+	m.MemoryOtherSys = memoryScope.Gauge("other-sys")
+	m.NextGC = memoryScope.Gauge("next-gc")
+	m.LastGC = memoryScope.Gauge("last-gc")
+	m.PauseTotalNs = newCumulativeCounter(memoryScope, "pause-total")
+	m.NumGC = newCumulativeCounter(memoryScope, "num-gc")
+	m.NumForcedGC = newCumulativeCounter(memoryScope, "num-forced-gc")
+	m.GCCPUFraction = memoryScope.Gauge("gc-cpu-fraction")
+	m.GcPauseMs = memoryScope.Timer("gc-pause-ms")
+
+	return m
 }
 
 func (r *runtimeMetrics) report(metricsType ExtendedMetricsType) {
@@ -154,17 +237,35 @@ func (r *runtimeMetrics) report(metricsType ExtendedMetricsType) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	r.MemoryAllocated.Update(float64(memStats.Alloc))
-	r.MemoryHeap.Update(float64(memStats.HeapAlloc))
+	r.MemoryTotalAlloc.update(memStats.TotalAlloc)
+	r.MemorySys.Update(float64(memStats.Sys))
+	r.MemoryLookups.update(memStats.Lookups)
+	r.MemoryMallocs.update(memStats.Mallocs)
+	r.MemoryFrees.update(memStats.Frees)
+	r.MemoryHeapAlloc.Update(float64(memStats.HeapAlloc))
+	r.MemoryHeapSys.Update(float64(memStats.HeapSys))
 	r.MemoryHeapIdle.Update(float64(memStats.HeapIdle))
 	r.MemoryHeapInuse.Update(float64(memStats.HeapInuse))
-	r.MemoryStack.Update(float64(memStats.StackInuse))
+	r.MemoryHeapReleased.Update(float64(memStats.HeapReleased))
+	r.MemoryStackInuse.Update(float64(memStats.StackInuse))
+	r.MemoryStackSys.Update(float64(memStats.StackSys))
+	r.MemoryMSpanInuse.Update(float64(memStats.MSpanInuse))
+	r.MemoryMSpanSys.Update(float64(memStats.MSpanSys))
+	r.MemoryMCacheInuse.Update(float64(memStats.MCacheInuse))
+	r.MemoryMCacheSys.Update(float64(memStats.MCacheSys))
+	r.MemoryBucketHashSys.Update(float64(memStats.BuckHashSys))
+	r.MemoryGCSys.Update(float64(memStats.GCSys))
+	r.MemoryOtherSys.Update(float64(memStats.OtherSys))
+	r.NextGC.Update(float64(memStats.NextGC))
+	r.LastGC.Update(float64(memStats.LastGC))
+	r.PauseTotalNs.update(memStats.PauseTotalNs)
+	lastNumGC := r.NumGC.update(uint64(memStats.NumGC))
+	r.NumForcedGC.update(uint64(memStats.NumForcedGC))
 	r.GCCPUFraction.Update(memStats.GCCPUFraction)
 
-	// memStats.NumGC is a perpetually incrementing counter (unless it wraps at 2^32).
 	num := memStats.NumGC
-	lastNum := atomic.SwapUint32(&r.lastNumGC, num)
+	lastNum := uint32(lastNumGC)
 	if delta := num - lastNum; delta > 0 {
-		r.NumGC.Inc(int64(delta))
 		if delta > 255 {
 			// too many GCs happened, the timestamps buffer got wrapped around. Report only the last 256.
 			lastNum = num - 256
@@ -196,36 +297,15 @@ func NewExtendedMetricsReporter(
 	r.init(reportInterval, func() {
 		r.runtime.report(r.metricsType)
 	})
+
 	if r.metricsType >= ModerateExtendedMetrics {
 		// ProcessReporter can be quite slow in some situations (specifically
 		// counting FDs for processes that have many of them) so it runs on
 		// its own report loop.
 		r.processReporter = NewProcessReporter(scope, reportInterval)
 	}
-	if r.metricsType == NoExtendedMetrics {
-		return r
-	}
 
-	runtimeScope := scope.SubScope("runtime")
-	r.runtime.NumGoRoutines = runtimeScope.Gauge("num-goroutines")
-	r.runtime.GoMaxProcs = runtimeScope.Gauge("gomaxprocs")
-	if r.metricsType < DetailedExtendedMetrics {
-		return r
-	}
-
-	var memstats runtime.MemStats
-	runtime.ReadMemStats(&memstats)
-	memoryScope := runtimeScope.SubScope("memory")
-	r.runtime.MemoryAllocated = memoryScope.Gauge("allocated")
-	r.runtime.MemoryHeap = memoryScope.Gauge("heap")
-	r.runtime.MemoryHeapIdle = memoryScope.Gauge("heapidle")
-	r.runtime.MemoryHeapInuse = memoryScope.Gauge("heapinuse")
-	r.runtime.MemoryStack = memoryScope.Gauge("stack")
-	r.runtime.GCCPUFraction = memoryScope.Gauge("gc-cpu-fraction")
-	r.runtime.NumGC = memoryScope.Counter("num-gc")
-	r.runtime.GcPauseMs = memoryScope.Timer("gc-pause-ms")
-	r.runtime.lastNumGC = memstats.NumGC
-
+	r.runtime = newRuntimeMetrics(metricsType, scope)
 	return r
 }
 
