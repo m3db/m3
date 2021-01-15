@@ -165,12 +165,15 @@ func TestLookbackLimit(t *testing.T) {
 
 			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
 			require.Equal(t, int64(1), limit.current())
+			verifyMetrics(t, scope, name, 1, 0, 18, exceededCount)
 
 			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
 			require.Equal(t, int64(2), limit.current())
+			verifyMetrics(t, scope, name, 2, 0, 19, exceededCount)
 
 			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
 			require.Equal(t, int64(3), limit.current())
+			verifyMetrics(t, scope, name, 3, 0, 20, exceededCount)
 		})
 	}
 }
