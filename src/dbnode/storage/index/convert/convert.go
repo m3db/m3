@@ -282,11 +282,7 @@ func FromSeriesIDAndEncodedTags2(id ident.ID, encodedTags ts.EncodedTags) (doc.M
 
 	for i := 0; i < length; i++ {
 		var nameBytes, valueBytes []byte
-		encodedTags, nameBytes, err = serialize.DecodeTagName(encodedTags)
-		if err != nil {
-			return doc.Metadata{}, err
-		}
-		encodedTags, valueBytes, err = serialize.DecodeTagValue(encodedTags)
+		encodedTags, nameBytes, valueBytes, err = serialize.DecodeTag(encodedTags)
 		if err != nil {
 			return doc.Metadata{}, err
 		}
