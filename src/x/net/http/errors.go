@@ -132,8 +132,12 @@ func getStatusCode(err error) int {
 	case Error:
 		return v.Code()
 	case error:
-		if xerrors.IsInvalidParams(v) || errors.Is(err, context.Canceled) {
+		if xerrors.IsInvalidParams(v) {
 			return http.StatusBadRequest
+		} else if errors.Is(err, context.Canceled) {
+			// This status code was coined by Nginx for exactly the same use case.
+			// https://httpstatuses.com/499
+			return 499
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return http.StatusGatewayTimeout
 		}

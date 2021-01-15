@@ -33,68 +33,75 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-func TestErrorRewrite(t *testing.T) {
-	invalidParamsRewriteFn := func(err error) error {
-		if xerrors.IsInvalidParams(err) {
-			return errors.New("rewritten error")
-		}
-		return err
-	}
-
-	noRewriteFn := func(err error) error {
-		return err
-	}
-
+func TestErrorStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		err            error
 		expectedStatus int
-		expectedBody   string
-		rewriteFn      ErrorRewriteFn
 	}{
 		{
-			name:           "error that should not be rewritten",
-			err:            errors.New("random error"),
+			name:           "generic error",
+			err:            errors.New("generic error"),
 			expectedStatus: 500,
-			expectedBody:   `{"status":"error","error":"random error"}`,
-			rewriteFn:      invalidParamsRewriteFn,
 		},
 		{
-			name:           "error that should be rewritten",
-			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
-			expectedStatus: 500,
-			expectedBody:   `{"status":"error","error":"rewritten error"}`,
-			rewriteFn:      invalidParamsRewriteFn,
-		},
-		{
-			name:           "error should have correct status",
+			name:           "invalid params",
 			err:            xerrors.NewInvalidParamsError(errors.New("bad param")),
 			expectedStatus: 400,
-			expectedBody:   `{"status":"error","error":"bad param"}`,
-			rewriteFn:      noRewriteFn,
 		},
 		{
-			name:           "deadline exceeded map to correct status",
+			name:           "deadline exceeded",
 			err:            context.DeadlineExceeded,
 			expectedStatus: 504,
-			expectedBody:   `{"status":"error","error":"context deadline exceeded"}`,
-			rewriteFn:      noRewriteFn,
 		},
 		{
-			name:           "canceled mapped to correct status",
+			name:           "canceled",
 			err:            context.Canceled,
-			expectedStatus: 400,
-			expectedBody:   `{"status":"error","error":"context canceled"}`,
-			rewriteFn:      noRewriteFn,
+			expectedStatus: 499,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetErrorRewriteFn(tt.rewriteFn)
+			SetErrorRewriteFn(func(err error) error {
+				return err
+			})
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.Equal(t, tt.expectedStatus, recorder.Code)
+		})
+	}
+}
+
+func TestErrorRewrite(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          error
+		expectedBody string
+	}{
+		{
+			name:         "error that should not be rewritten",
+			err:          errors.New("random error"),
+			expectedBody: `{"status":"error","error":"random error"}`,
+		},
+		{
+			name:         "error that should be rewritten",
+			err:          xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
+			expectedBody: `{"status":"error","error":"rewritten error"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			invalidParamsRewriteFn := func(err error) error {
+				if xerrors.IsInvalidParams(err) {
+					return errors.New("rewritten error")
+				}
+				return err
+			}
+			SetErrorRewriteFn(invalidParamsRewriteFn)
+			recorder := httptest.NewRecorder()
+			WriteError(recorder, tt.err)
 			assert.JSONEq(t, tt.expectedBody, recorder.Body.String())
 		})
 	}
