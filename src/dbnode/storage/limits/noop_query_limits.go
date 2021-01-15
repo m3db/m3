@@ -54,6 +54,10 @@ func (q *noOpQueryLimits) Stop() {
 func (q *noOpQueryLimits) Start() {
 }
 
+func (q *noOpLookbackLimit) Override(*int64) error {
+	return nil
+}
+
 func (q *noOpLookbackLimit) Inc(int, []byte) error {
 	return nil
 }

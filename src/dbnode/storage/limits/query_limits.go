@@ -22,6 +22,7 @@ package limits
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -41,11 +42,13 @@ type queryLimits struct {
 }
 
 type lookbackLimit struct {
-	name    string
-	options LookbackLimitOptions
-	metrics lookbackLimitMetrics
-	recent  *atomic.Int64
-	stopCh  chan struct{}
+	name         string
+	limit        *int64
+	options      LookbackLimitOptions
+	metrics      lookbackLimitMetrics
+	recent       *atomic.Int64
+	stopCh       chan struct{}
+	overrideLock sync.RWMutex
 }
 
 type lookbackLimitMetrics struct {
@@ -72,12 +75,7 @@ func DefaultLookbackLimitOptions() LookbackLimitOptions {
 }
 
 // NewQueryLimits returns a new query limits manager.
-func NewQueryLimits(
-	options Options,
-	// docsLimitOpts LookbackLimitOptions,
-	// bytesReadLimitOpts LookbackLimitOptions,
-	// instrumentOpts instrument.Options,
-) (QueryLimits, error) {
+func NewQueryLimits(options Options) (QueryLimits, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
@@ -108,11 +106,25 @@ func newLookbackLimit(
 ) *lookbackLimit {
 	return &lookbackLimit{
 		name:    name,
+		limit:   getLimit(opts, nil),
 		options: opts,
 		metrics: newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
 		recent:  atomic.NewInt64(0),
 		stopCh:  make(chan struct{}),
 	}
+}
+
+func getLimit(opts LookbackLimitOptions, override *int64) *int64 {
+	if override != nil {
+		return override
+	}
+
+	// Zero limit means no limit enforced.
+	var limit *int64
+	if opts.Limit != 0 {
+		limit = &opts.Limit
+	}
+	return limit
 }
 
 func newLookbackLimitMetrics(
@@ -162,6 +174,19 @@ func (q *queryLimits) AnyExceeded() error {
 	return q.bytesReadLimit.exceeded()
 }
 
+// Override overrides the limit set on construction.
+func (q *lookbackLimit) Override(limit *int64) error {
+	if limit != nil && *limit < 0 {
+		return fmt.Errorf("invalid negative query limit override %d", *limit)
+	}
+
+	q.overrideLock.Lock()
+	defer q.overrideLock.Unlock()
+
+	q.limit = getLimit(q.options, limit)
+	return nil
+}
+
 // Inc increments the current value and returns an error if above the limit.
 func (q *lookbackLimit) Inc(val int, source []byte) error {
 	if val < 0 {
@@ -190,7 +215,15 @@ func (q *lookbackLimit) exceeded() error {
 }
 
 func (q *lookbackLimit) checkLimit(recent int64) error {
-	if q.options.Limit > 0 && recent > q.options.Limit {
+	q.overrideLock.RLock()
+	limit := q.limit
+	q.overrideLock.RUnlock()
+
+	if limit == nil {
+		return nil
+	}
+
+	if recent >= *limit {
 		q.metrics.exceeded.Inc(1)
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",

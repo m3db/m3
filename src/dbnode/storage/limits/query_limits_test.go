@@ -110,19 +110,19 @@ func TestLookbackLimit(t *testing.T) {
 
 			// Validate ascending while checking limits.
 			var exceededCount int64
-			exceededCount += verifyLimit(t, limit, 3, test.limit)
+			exceededCount += verifyLimit(t, limit, 3, limit.limit)
 			require.Equal(t, int64(3), limit.current())
 			verifyMetrics(t, scope, name, 3, 0, 3, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 2, test.limit)
+			exceededCount += verifyLimit(t, limit, 2, limit.limit)
 			require.Equal(t, int64(5), limit.current())
 			verifyMetrics(t, scope, name, 5, 0, 5, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 1, test.limit)
+			exceededCount += verifyLimit(t, limit, 1, limit.limit)
 			require.Equal(t, int64(6), limit.current())
 			verifyMetrics(t, scope, name, 6, 0, 6, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 4, test.limit)
+			exceededCount += verifyLimit(t, limit, 4, limit.limit)
 			require.Equal(t, int64(10), limit.current())
 			verifyMetrics(t, scope, name, 10, 0, 10, exceededCount)
 
@@ -132,11 +132,11 @@ func TestLookbackLimit(t *testing.T) {
 			verifyMetrics(t, scope, name, 0, 10, 10, exceededCount)
 
 			// Validate ascending again post-reset.
-			exceededCount += verifyLimit(t, limit, 2, test.limit)
+			exceededCount += verifyLimit(t, limit, 2, limit.limit)
 			require.Equal(t, int64(2), limit.current())
 			verifyMetrics(t, scope, name, 2, 10, 12, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 5, test.limit)
+			exceededCount += verifyLimit(t, limit, 5, limit.limit)
 			require.Equal(t, int64(7), limit.current())
 			verifyMetrics(t, scope, name, 7, 10, 17, exceededCount)
 
@@ -151,14 +151,34 @@ func TestLookbackLimit(t *testing.T) {
 
 			require.Equal(t, int64(0), limit.current())
 			verifyMetrics(t, scope, name, 0, 0, 17, exceededCount)
+
+			limit.reset()
+
+			overrideZero := int64(0)
+			require.NoError(t, limit.Override(&overrideZero))
+
+			exceededCount += verifyLimit(t, limit, 0, &overrideZero)
+			require.Equal(t, int64(0), limit.current())
+
+			overrideNonZero := int64(2)
+			require.NoError(t, limit.Override(&overrideNonZero))
+
+			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			require.Equal(t, int64(1), limit.current())
+
+			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			require.Equal(t, int64(2), limit.current())
+
+			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			require.Equal(t, int64(3), limit.current())
 		})
 	}
 }
 
-func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int64) int64 {
+func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit *int64) int64 {
 	var exceededCount int64
 	err := limit.Inc(inc, nil)
-	if limit.current() <= expectedLimit || expectedLimit == 0 {
+	if expectedLimit == nil || limit.current() < *expectedLimit {
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
@@ -167,7 +187,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 		exceededCount++
 	}
 	err = limit.exceeded()
-	if limit.current() <= expectedLimit || expectedLimit == 0 {
+	if expectedLimit == nil || limit.current() < *expectedLimit {
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
