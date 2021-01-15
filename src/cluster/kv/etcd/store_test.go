@@ -84,8 +84,6 @@ func TestGetAndSet(t *testing.T) {
 }
 
 func TestNoCache(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 
 	store, err := NewStore(ec, opts)
@@ -152,8 +150,6 @@ func TestCacheDirCreation(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 
 	f, err := ioutil.TempFile("", "")
@@ -206,8 +202,6 @@ func TestCache(t *testing.T) {
 }
 
 func TestSetIfNotExist(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -227,8 +221,6 @@ func TestSetIfNotExist(t *testing.T) {
 }
 
 func TestCheckAndSet(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -255,8 +247,6 @@ func TestCheckAndSet(t *testing.T) {
 }
 
 func TestWatchClose(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -306,8 +296,6 @@ func TestWatchClose(t *testing.T) {
 }
 
 func TestWatchLastVersion(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -350,8 +338,6 @@ func TestWatchLastVersion(t *testing.T) {
 }
 
 func TestWatchFromExist(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -389,8 +375,6 @@ func TestWatchFromExist(t *testing.T) {
 }
 
 func TestWatchFromNotExist(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -434,8 +418,6 @@ func TestGetFromKvNotFound(t *testing.T) {
 }
 
 func TestMultipleWatchesFromExist(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -486,8 +468,6 @@ func TestMultipleWatchesFromExist(t *testing.T) {
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
-	t.Parallel()
-
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
@@ -530,8 +510,6 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 }
 
 func TestWatchNonBlocking(t *testing.T) {
-	t.Parallel()
-
 	ecluster, opts, closeFn := testCluster(t)
 	defer closeFn()
 
