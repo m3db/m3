@@ -38,7 +38,6 @@ import (
 )
 
 func TestWatchChan(t *testing.T) {
-	t.Parallel()
 	wh, ecluster, _, _, _, closer := testCluster(t) //nolint:dogsled
 	defer closer()
 
@@ -68,7 +67,6 @@ func TestWatchChan(t *testing.T) {
 }
 
 func TestWatchSimple(t *testing.T) {
-	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 	integration.WaitClientV3(t, ec)
@@ -117,7 +115,6 @@ func TestWatchSimple(t *testing.T) {
 }
 
 func TestWatchRecreate(t *testing.T) {
-	t.Parallel()
 	wh, ecluster, updateCalled, shouldStop, doneCh, closer := testCluster(t)
 	defer closer()
 
@@ -168,7 +165,6 @@ func TestWatchRecreate(t *testing.T) {
 }
 
 func TestWatchNoLeader(t *testing.T) {
-	t.Parallel()
 	const (
 		watchInitAndRetryDelay = 200 * time.Millisecond
 		watchCheckInterval     = 50 * time.Millisecond
@@ -239,9 +235,7 @@ func TestWatchNoLeader(t *testing.T) {
 
 	require.NoError(t, ecluster.Members[1].Restart(t))
 	require.NoError(t, ecluster.Members[2].Restart(t))
-	ecluster.WaitLeader(t)
-	// restart healthy member, too, to force client reconnect if it's not healthy
-	require.NoError(t, ecluster.Members[0].Restart(t))
+
 	// wait for leader + election delay just in case
 	time.Sleep(time.Duration(3*ecluster.Members[0].ElectionTicks) * tickDuration)
 
@@ -278,7 +272,6 @@ func TestWatchNoLeader(t *testing.T) {
 }
 
 func TestWatchCompactedRevision(t *testing.T) {
-	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 
