@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -43,14 +42,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -61,14 +57,9 @@ import (
 
 type peersSource struct {
 	opts              Options
-	log               *zap.Logger
 	newPersistManager func() (persist.Manager, error)
-	nowFn             clock.NowFn
-	metrics           peersSourceMetrics
-}
-
-type peersSourceMetrics struct {
-	persistedIndexBlocksOutOfRetention tally.Counter
+	log               *zap.Logger
+	instrumentation   *instrumentation
 }
 
 type persistenceFlush struct {
@@ -83,19 +74,14 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	iopts := opts.ResultOptions().InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("peers-bootstrapper")
-	iopts = iopts.SetMetricsScope(scope)
+	instrumentation := newInstrumentation(opts)
 	return &peersSource{
 		opts: opts,
-		log:  iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		newPersistManager: func() (persist.Manager, error) {
 			return fs.NewPersistManager(opts.FilesystemOptions())
 		},
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
-		metrics: peersSourceMetrics{
-			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
-		},
+		log:             instrumentation.log,
+		instrumentation: instrumentation,
 	}, nil
 }
 
@@ -133,10 +119,9 @@ func (s *peersSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.peersBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
-	pOpts := s.opts.ProfilerOptions()
 	timeRangesEmpty := true
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
@@ -159,16 +144,8 @@ func (s *peersSource) Read(
 	}
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
-	// to more clearly deliniate which process is slower than the other.
-	start := s.nowFn()
-	s.log.Info("bootstrapping time series data start")
-	span.LogEvent("bootstrap_data_start")
-	if pOpts.BootstrapProfileEnabled() {
-		if err := profiler.StartCPUProfile(pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadDataCPUProfileNamePrefix); err != nil {
-			s.log.Error("unable to start read data cpu profile", zap.Error(err))
-		}
-	}
+	// to more clearly delineate which process is slower than the other.
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -186,30 +163,12 @@ func (s *peersSource) Read(
 			DataResult: r,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_data_done")
-	if pOpts.BootstrapProfileEnabled() {
-		profiler.StopCPUProfile()
-
-		if err := profiler.WriteHeapProfile(pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadDataHeapProfileNamePrefix); err != nil {
-			s.log.Error("unable to write read data heap profile", zap.Error(err))
-		}
-	}
-
+	instrCtx.bootstrapDataCompleted()
 	// NB(bodu): We need to evict the info file cache before reading index data since we've
 	// maybe fetched blocks from peers so the cached info file state is now stale.
 	cache.Evict()
-	start = s.nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
-	if pOpts.BootstrapProfileEnabled() {
-		if err := profiler.StartCPUProfile(pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadIndexCPUProfileNamePrefix); err != nil {
-			s.log.Error("unable to start read index cpu profile", zap.Error(err))
-		}
-	}
+
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -223,7 +182,7 @@ func (s *peersSource) Read(
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			span,
+			instrCtx.span,
 			cache,
 			namespace.IndexRunOptions.RunOptions,
 		)
@@ -242,17 +201,8 @@ func (s *peersSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_index_done")
-	if pOpts.BootstrapProfileEnabled() {
-		profiler.StopCPUProfile()
+	instrCtx.bootstrapIndexCompleted()
 
-		if err := profiler.WriteHeapProfile(pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadIndexHeapProfileNamePrefix); err != nil {
-			s.log.Error("unable to write read index heap profile", zap.Error(err))
-		}
-	}
 	return results, nil
 }
 
@@ -306,10 +256,8 @@ func (s *peersSource) readData(
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
-	s.log.Info("peers bootstrapper bootstrapping shards for ranges",
-		zap.Int("shards", count),
-		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist))
+	instrCtx := s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
+	defer instrCtx.bootstrapShardsCompleted()
 	if shouldPersist {
 		// Spin up persist workers.
 		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
@@ -514,26 +462,27 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	shardResult result.ShardResult,
 	err error,
 ) {
-	if err == nil {
-		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-		for _, entry := range shardResult.AllSeries().Iter() {
-			series := entry.Value()
-			for blockStart := range series.Blocks.AllBlocks() {
-				shardBlockSeriesCounter[blockStart]++
-			}
-		}
-
-		for block, numSeries := range shardBlockSeriesCounter {
-			s.log.Info("peer bootstrapped shard",
-				zap.Uint32("shard", shard),
-				zap.Int64("numSeries", numSeries),
-				zap.Time("blockStart", block.ToTime()),
-			)
-		}
-	} else {
+	if err != nil {
 		s.log.Error("error fetching bootstrap blocks",
 			zap.Uint32("shard", shard),
 			zap.Error(err),
+		)
+		return
+	}
+
+	shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+	for _, entry := range shardResult.AllSeries().Iter() { // nolint
+		series := entry.Value()
+		for blockStart := range series.Blocks.AllBlocks() {
+			shardBlockSeriesCounter[blockStart]++
+		}
+	}
+
+	for block, numSeries := range shardBlockSeriesCounter {
+		s.log.Info("peer bootstrapped shard",
+			zap.Uint32("shard", shard),
+			zap.Int64("numSeries", numSeries),
+			zap.Time("blockStart", block.ToTime()),
 		)
 	}
 }
@@ -747,8 +696,7 @@ func (s *peersSource) readIndex(
 		readersCh               = make(chan bootstrapper.TimeWindowReaders, indexSegmentConcurrency)
 	)
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
-		zap.Int("shards", count),
-	)
+		zap.Int("shards", count))
 
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            ns,
@@ -762,9 +710,9 @@ func (s *peersSource) readIndex(
 		// NB(bodu): We only read metadata when performing a peers bootstrap
 		// so we do not need to sort the data fileset reader.
 		OptimizedReadMetadataOnly: true,
-		Logger:                    s.log,
+		Logger:                    s.instrumentation.log,
 		Span:                      span,
-		NowFn:                     s.nowFn,
+		NowFn:                     s.instrumentation.nowFn,
 		Cache:                     cache,
 	})
 
@@ -989,8 +937,7 @@ func (s *peersSource) processReaders(
 			// Bail early if the index segment is already out of retention.
 			// This can happen when the edge of requested ranges at time of data bootstrap
 			// is now out of retention.
-			s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
-			s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+			s.instrumentation.outOfRetentionIndexSegmentSkipped(buildIndexLogFields)
 			return remainingRanges, timesWithErrors
 		} else if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
@@ -1013,7 +960,6 @@ func (s *peersSource) processReaders(
 			blockEnd,
 		)
 		if err != nil {
-			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -1089,8 +1035,8 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.Info("encounted errors for range",
-			zap.String("requestedRanges", requestedRanges.SummaryString()),
+		s.log.Info("encountered errors for range",
+			zap.String("requestedRanges", remainingRanges.SummaryString()),
 			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}
 
@@ -1169,16 +1115,15 @@ func (s *peersSource) peerAvailability(
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
-			s.log.Debug(
-				"0 available peers, unable to peer bootstrap",
-				zap.Int("total", total), zap.Uint32("shard", shardIDUint))
+			s.log.Debug("0 available peers, unable to peer bootstrap",
+				zap.Int("total", total),
+				zap.Uint32("shard", shardIDUint))
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
-			s.log.Debug(
-				"read consistency not achieved, unable to peer bootstrap",
+			s.log.Debug("read consistency not achieved, unable to peer bootstrap",
 				zap.Any("level", bootstrapConsistencyLevel),
 				zap.Int("replicas", majorityReplicas),
 				zap.Int("total", total),
