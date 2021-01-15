@@ -239,6 +239,9 @@ func TestWatchNoLeader(t *testing.T) {
 
 	require.NoError(t, ecluster.Members[1].Restart(t))
 	require.NoError(t, ecluster.Members[2].Restart(t))
+	ecluster.WaitLeader(t)
+	// restart healthy member, too, to force client reconnect if it's not healthy
+	require.NoError(t, ecluster.Members[0].Restart(t))
 	// wait for leader + election delay just in case
 	time.Sleep(time.Duration(3*ecluster.Members[0].ElectionTicks) * tickDuration)
 
