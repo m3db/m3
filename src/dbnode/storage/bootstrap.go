@@ -155,8 +155,6 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		if currPending {
 			// New bootstrap calls should now enqueue another pending bootstrap
 			m.hasPending = false
-		} else {
-			m.state = Bootstrapped
 		}
 		m.Unlock()
 
@@ -188,6 +186,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// across the cluster.
 	m.Lock()
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
+	m.state = Bootstrapped
 	m.Unlock()
 	return result, nil
 }
