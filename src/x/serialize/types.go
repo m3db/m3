@@ -138,7 +138,6 @@ type TagSerializationLimits interface {
 type MetricTagsIterator interface {
 	id.ID
 	id.SortedTagIterator
-	NumTags() int
 }
 
 // MetricTagsIteratorPool pools MetricTagsIterator.

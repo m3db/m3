@@ -177,6 +177,19 @@ func BenchmarkFromSeriesIDAndEncodedTags2(b *testing.B) {
 	}
 }
 
+func BenchmarkFromSeriesIDAndFastTagIter(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+	decoder := serialize.NewFastTagDecoder()
+
+	b.ResetTimer()
+	for i := range testData {
+		decoder.Reset(testData[i].encodedTags)
+		_, err := FromSeriesIDAndFastTagIter(testData[i].id, decoder)
+		require.NoError(b, err)
+	}
+}
+
 func BenchmarkFromSeriesIDAndTagIter_TagDecoder(b *testing.B) {
 	testData, err := prepareIDAndEncodedTags(b)
 	require.NoError(b, err)

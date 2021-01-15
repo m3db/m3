@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -223,7 +224,7 @@ func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Me
 			return doc.Metadata{}, fmt.Errorf("missing size for tag name: index=%d", i)
 		}
 		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
-		if numBytesName <= 0 {
+		if numBytesName == 0 {
 			return doc.Metadata{}, errors.New("")
 		}
 		encodedTags = encodedTags[2:]
@@ -305,6 +306,40 @@ func FromSeriesIDAndEncodedTags2(id ident.ID, encodedTags ts.EncodedTags) (doc.M
 	if err != nil {
 		return doc.Metadata{}, err
 	}
+	d := doc.Metadata{
+		ID:     clonedID,
+		Fields: fields,
+	}
+	if err := Validate(d); err != nil {
+		return doc.Metadata{}, err
+	}
+	return d, nil
+}
+
+func FromSeriesIDAndFastTagIter(id ident.ID, tags id.SortedTagIterator) (doc.Metadata, error) {
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, tags.NumTags())
+		expectedStart = firstTagBytesPosition
+	)
+	for tags.Next() {
+		nameBytes, valueBytes := tags.Current()
+
+		var clonedName, clonedValue []byte
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
+
+		fields = append(fields, doc.Field{
+			Name:  clonedName,
+			Value: clonedValue,
+		})
+	}
+	if err := tags.Err(); err != nil {
+		return doc.Metadata{}, err
+	}
+
 	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,
