@@ -443,6 +443,11 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
+		if err := r.queryLimits.AnyExceeded(); err != nil {
+			r.logger.Info("Limits exceeded! Not fetching index block")
+			return
+		}
+
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && !errors.Is(err, errSeekIDNotFound) {
 			req.err = err
@@ -452,6 +457,7 @@ func (r *blockRetriever) fetchBatch(
 		if err := r.bytesReadLimit.Inc(int(entry.Size), req.source); err != nil {
 			req.err = err
 			limitErr = err
+			// TODO: why are we continuing with the next req?
 			continue
 		}
 
@@ -466,6 +472,8 @@ func (r *blockRetriever) fetchBatch(
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
 	blockCachingEnabled := r.opts.CacheBlocksOnRetrieve() && r.nsCacheBlocksOnRetrieve
+
+	// limits exhausted
 
 	// Seek and execute all requests
 	for _, req := range reqs {
@@ -488,6 +496,13 @@ func (r *blockRetriever) fetchBatch(
 			req.success = true
 			req.onCallerOrRetrieverDone()
 			continue
+
+		}
+
+		// check limits and bail
+		if err := r.queryLimits.AnyExceeded(); err != nil {
+			r.logger.Info("Limits exceeded! Not fetching data block")
+			return
 		}
 
 		data, err := seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
@@ -496,6 +511,11 @@ func (r *blockRetriever) fetchBatch(
 			// it's expected to be found if it was found in the index file.
 			req.err = err
 			continue
+		}
+
+		if err := r.queryLimits.AnyExceeded(); err != nil {
+			r.logger.Info("Limits exceeded after data block")
+			return
 		}
 
 		var (
@@ -564,6 +584,11 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (bool, error) {
+	req.resultWg.Add(1)
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		r.logger.Info("stream request aborted. limits exceeded")
+		return false, fmt.Errorf("limits exceed in streamRequest")
+	}
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
@@ -571,7 +596,7 @@ func (r *blockRetriever) streamRequest(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
-	req.resultWg.Add(1)
+
 
 	// Ensure to finalize at the end of request
 	ctx.RegisterFinalizer(req)

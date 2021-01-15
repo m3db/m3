@@ -874,6 +874,7 @@ func (d *db) QueryIDs(
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
 	if err := d.queryLimits.AnyExceeded(); err != nil {
+		d.log.Info("failing new request because limit exceeded")
 		return index.QueryResult{}, err
 	}
 
