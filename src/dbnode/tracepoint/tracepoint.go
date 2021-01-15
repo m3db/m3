@@ -37,14 +37,11 @@ const (
 	// FetchReadEncoded is the operation name for the tchannelthrift FetchReadEncoded path.
 	FetchReadEncoded = "tchannelthrift/node.service.FetchReadEncoded"
 
+	// FetchReadTaggedIDs is the operation name for the tchannelthrift FetchReadTaggedIDs path.
+	FetchReadTaggedIDs = "tchannelthrift/node.service.FetchReadTaggedIDs"
+
 	// FetchReadResults is the operation name for the tchannelthrift FetchReadResults path.
 	FetchReadResults = "tchannelthrift/node.service.FetchReadResults"
-
-	// FetchReadSingleResult is the operation name for the tchannelthrift FetchReadSingleResult path.
-	FetchReadSingleResult = "tchannelthrift/node.service.FetchReadSingleResult"
-
-	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
-	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
 	// AggregateTiles is the operation name for the tchannelthrift AggregateTiles path.
 	AggregateTiles = "tchannelthrift/node.service.AggregateTiles"
@@ -55,14 +52,8 @@ const (
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
 
-	// DBReadEncoded is the operation name for the db ReadEncoded path.
-	DBReadEncoded = "storage.db.ReadEncoded"
-
 	// DBWideQuery is the operation name for the db WideQuery path.
 	DBWideQuery = "storage.db.WideQuery"
-
-	// DBReadMismatches is the operation name for the db ReadMismatches path.
-	DBReadMismatches = "storage.db.ReadMismatches"
 
 	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
