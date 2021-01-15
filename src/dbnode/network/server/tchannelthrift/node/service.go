@@ -808,12 +808,14 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	// Re-use reader and id for more memory-efficient processing of
 	// tags from doc.Metadata
 	reader := docs.NewEncodedDocumentReader()
-	id := ident.NewReusableBytesID()
 	for _, entry := range results.Map().Iter() {
 		idx := i
 		i++
 
-		id.Reset(entry.Key())
+		// NB(r): Use a bytes ID here so that this ID doesn't need to be
+		// copied by the blockRetriever in the streamRequest method when
+		// it checks if the ID is finalizeable or not with IsNoFinalize.
+		id := ident.BytesID(entry.Key())
 
 		d := entry.Value()
 		metadata, err := docs.MetadataFromDocument(d, reader)
