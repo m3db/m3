@@ -75,7 +75,9 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 			Return(fmt.Errorf("an error")).
 			Do(func(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) {
 				// After returning an error, make sure we don't re-enqueue.
+				require.Equal(t, Bootstrapping, bsm.state)
 				bsm.bootstrapFn = func() error {
+					require.Equal(t, Bootstrapping, bsm.state)
 					return nil
 				}
 			}),
@@ -83,42 +85,6 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	ctx := context.NewContext()
 	defer ctx.Close()
-
-	result, err := bsm.Bootstrap()
-	require.NoError(t, err)
-
-	require.Equal(t, 1, len(result.ErrorsBootstrap))
-	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
-}
-
-func TestDatabaseInBootstrappingStateWhenBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	opts := DefaultTestOptions()
-	db := NewMockdatabase(ctrl)
-	m := NewMockdatabaseMediator(ctrl)
-	m.EXPECT().DisableFileOpsAndWait()
-	m.EXPECT().EnableFileOps().AnyTimes()
-
-	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-	// Don't sleep.
-	bsm.sleepFn = func(time.Duration) {}
-	bootstrapRetries := 0
-
-	bsm.bootstrapFn = func() error {
-		defer func() {
-			bootstrapRetries++
-		}()
-
-		require.Equal(t, Bootstrapping, bsm.state)
-
-		if bootstrapRetries == 0 {
-			return fmt.Errorf("an error")
-		}
-
-		return nil
-	}
 
 	require.Equal(t, BootstrapNotStarted, bsm.state)
 
