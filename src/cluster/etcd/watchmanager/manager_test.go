@@ -43,6 +43,7 @@ func TestWatchChan(t *testing.T) {
 	defer closer()
 
 	ec := ecluster.RandClient()
+	integration.WaitClientV3(t, ec)
 
 	wc, _, err := wh.watchChanWithTimeout("foo", 0)
 	require.NoError(t, err)
@@ -70,6 +71,7 @@ func TestWatchSimple(t *testing.T) {
 	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
+	integration.WaitClientV3(t, ec)
 	require.Equal(t, int32(0), atomic.LoadInt32(updateCalled))
 
 	go wh.Watch("foo")
@@ -120,6 +122,7 @@ func TestWatchRecreate(t *testing.T) {
 	defer closer()
 
 	ec := ecluster.RandClient()
+	integration.WaitClientV3(t, ec)
 
 	failTotal := 1
 	wh.opts = wh.opts.
@@ -210,6 +213,8 @@ func TestWatchNoLeader(t *testing.T) {
 		SetWatchChanResetInterval(watchInitAndRetryDelay).
 		SetWatchChanCheckInterval(watchCheckInterval)
 
+	integration.WaitClientV3(t, ec)
+
 	wh, err := NewWatchManager(opts)
 	require.NoError(t, err)
 
@@ -239,6 +244,7 @@ func TestWatchNoLeader(t *testing.T) {
 
 	leaderIdx = ecluster.WaitLeader(t)
 	require.True(t, leaderIdx >= 0 && leaderIdx < len(ecluster.Members), "got invalid leader")
+	integration.WaitClientV3(t, ec) // wait for client to be ready again
 
 	_, err = ec.Put(context.Background(), "foo", "baz")
 	require.NoError(t, err)
@@ -246,7 +252,7 @@ func TestWatchNoLeader(t *testing.T) {
 	// give some time for watch to be updated
 	require.True(t, clock.WaitUntil(func() bool {
 		return atomic.LoadInt32(&updateCalled) >= 2
-	}, 30*time.Second))
+	}, 10*time.Second))
 
 	updates := atomic.LoadInt32(&updateCalled)
 	if updates < 2 {
@@ -272,6 +278,8 @@ func TestWatchCompactedRevision(t *testing.T) {
 	t.Parallel()
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
+
+	integration.WaitClientV3(t, ec)
 
 	ts := tally.NewTestScope("", nil)
 	errC := ts.Counter("errors")
