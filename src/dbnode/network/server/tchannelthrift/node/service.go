@@ -2094,6 +2094,9 @@ func (s *service) SetQueryLimitOverrides(
 		return nil, err
 	}
 
+	// TODO(ra): what is the protocol for exposing way to update etcd values? does it make sense to keep this
+	// endpoint and call kvStore.Set(...) on these vals, which then trigger the queryLimits.Update(...)? Or
+	// should we just delete this endpoint now and rely on some other more generic way to update etcd?
 	queryLimits := db.Options().IndexOptions().QueryLimits()
 	if err := queryLimits.BytesReadLimit().Update(req.BytesReadLimitOverride); err != nil {
 		return nil, err
