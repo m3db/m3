@@ -1114,7 +1114,7 @@ func kvWatchEncodersPerBlockLimit(
 ) {
 	var initEncoderLimit int
 
-	value, err := store.Set.Get(kvconfig.EncodersPerBlockLimitKey)
+	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
 	if err == nil {
 		protoValue := &commonpb.Int64Proto{}
 		err = value.Unmarshal(protoValue)
