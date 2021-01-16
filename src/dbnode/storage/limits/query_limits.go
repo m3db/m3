@@ -42,13 +42,14 @@ type queryLimits struct {
 }
 
 type lookbackLimit struct {
-	name         string
-	limit        *int64
-	options      LookbackLimitOptions
-	metrics      lookbackLimitMetrics
-	recent       *atomic.Int64
-	stopCh       chan struct{}
-	overrideLock sync.RWMutex
+	name    string
+	limit   *int64
+	options LookbackLimitOptions
+	metrics lookbackLimitMetrics
+	recent  *atomic.Int64
+	ticker  *time.Ticker
+	stopCh  chan struct{}
+	lock    sync.RWMutex
 }
 
 type lookbackLimitMetrics struct {
@@ -69,7 +70,7 @@ var (
 func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	return LookbackLimitOptions{
 		// Default to no limit.
-		Limit:    0,
+		Limit:    nil,
 		Lookback: defaultLookback,
 	}
 }
@@ -106,25 +107,11 @@ func newLookbackLimit(
 ) *lookbackLimit {
 	return &lookbackLimit{
 		name:    name,
-		limit:   getLimit(opts, nil),
 		options: opts,
 		metrics: newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
 		recent:  atomic.NewInt64(0),
 		stopCh:  make(chan struct{}),
 	}
-}
-
-func getLimit(opts LookbackLimitOptions, override *int64) *int64 {
-	if override != nil {
-		return override
-	}
-
-	// Zero limit means no limit enforced.
-	var limit *int64
-	if opts.Limit != 0 {
-		limit = &opts.Limit
-	}
-	return limit
 }
 
 func newLookbackLimitMetrics(
@@ -174,16 +161,25 @@ func (q *queryLimits) AnyExceeded() error {
 	return q.bytesReadLimit.exceeded()
 }
 
+func (q *lookbackLimit) Options() LookbackLimitOptions {
+	return q.options
+}
+
 // Override overrides the limit set on construction.
-func (q *lookbackLimit) Override(limit *int64) error {
-	if limit != nil && *limit < 0 {
-		return fmt.Errorf("invalid negative query limit override %d", *limit)
+func (q *lookbackLimit) Update(opts LookbackLimitOptions) error {
+	if err := opts.validate(); err != nil {
+		return err
 	}
 
-	q.overrideLock.Lock()
-	defer q.overrideLock.Unlock()
+	q.lock.Lock()
+	defer q.lock.Unlock()
 
-	q.limit = getLimit(q.options, limit)
+	if q.options.Lookback != opts.Lookback {
+		q.ticker.Reset(opts.Lookback)
+	}
+
+	q.options = opts
+
 	return nil
 }
 
@@ -215,9 +211,9 @@ func (q *lookbackLimit) exceeded() error {
 }
 
 func (q *lookbackLimit) checkLimit(recent int64) error {
-	q.overrideLock.RLock()
-	limit := q.limit
-	q.overrideLock.RUnlock()
+	q.lock.RLock()
+	limit := q.options.Limit
+	q.lock.RUnlock()
 
 	if limit == nil {
 		return nil
@@ -233,14 +229,14 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 }
 
 func (q *lookbackLimit) start() {
-	ticker := time.NewTicker(q.options.Lookback)
+	q.ticker = time.NewTicker(q.options.Lookback)
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
+			case <-q.ticker.C:
 				q.reset()
 			case <-q.stopCh:
-				ticker.Stop()
+				q.ticker.Stop()
 				return
 			}
 		}
@@ -268,8 +264,8 @@ func (q *lookbackLimit) reset() {
 }
 
 func (opts LookbackLimitOptions) validate() error {
-	if opts.Limit < 0 {
-		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
+	if opts.Limit != nil && *opts.Limit < 0 {
+		return fmt.Errorf("query limit requires limit >= 0 or nil (%d)", *opts.Limit)
 	}
 	if opts.Lookback <= 0 {
 		return fmt.Errorf("query limit requires lookback > 0 (%d)", opts.Lookback)

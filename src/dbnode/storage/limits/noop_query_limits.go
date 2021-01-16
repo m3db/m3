@@ -54,7 +54,7 @@ func (q *noOpQueryLimits) Stop() {
 func (q *noOpQueryLimits) Start() {
 }
 
-func (q *noOpLookbackLimit) Override(*int64) error {
+func (q *noOpLookbackLimit) Update(LookbackLimitOptions) error {
 	return nil
 }
 

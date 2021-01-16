@@ -32,6 +32,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -987,6 +988,8 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits, kvconfig.DocsLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits, kvconfig.BytesReadLimit)
 	}()
 
 	// Wait for process interrupt.
@@ -1111,7 +1114,7 @@ func kvWatchEncodersPerBlockLimit(
 ) {
 	var initEncoderLimit int
 
-	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
+	value, err := store.Set.Get(kvconfig.EncodersPerBlockLimitKey)
 	if err == nil {
 		protoValue := &commonpb.Int64Proto{}
 		err = value.Unmarshal(protoValue)
@@ -1154,6 +1157,81 @@ func kvWatchEncodersPerBlockLimit(
 			if err != nil {
 				logger.Warn("unable to set encoder per block limit", zap.Error(err))
 				continue
+			}
+		}
+	}()
+}
+
+func kvWatchQueryLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	limit limits.LookbackLimit,
+	kvName string,
+) {
+	options := limit.Options()
+
+	parseOptionsFn := func(val string, defaultOpts LookbackLimitOptions) LookbackLimitOptions {
+		parts := strings.Split(val, ",")
+		if val == "" {
+			defaultOpts.Limit = nil
+		} else if len(parts) == 2 {
+			parsedLimit, err := strconv.ParseInt(parts[0], 10, 64)
+			if err != nil {
+				logger.Warn("error parsing query limit value", zap.Error(err), zap.String("name", kvName))
+			} else {
+				defaultOpts.Limit = &parsedLimit
+			}
+			parsedLookback, err := time.ParseDuration(parts[1])
+			if err != nil {
+				logger.Warn("error parsing query limit lookback", zap.Error(err), zap.String("name", kvName))
+			} else {
+				defaultOpts.Lookback = parsedLookback
+			}
+		}
+		return defaultOpts
+	}
+
+	value, err := store.Set.Get(kvName)
+	if err == nil {
+		protoValue := &commonpb.StringProto{}
+		err = value.Unmarshal(protoValue)
+		if err == nil {
+			options := parseOptionsFn(protoValue.Value, options)
+		}
+	}
+
+	if err != nil {
+		if err != kv.ErrNotFound {
+			logger.Warn("error resolving encoder per block limit", zap.Error(err))
+		}
+	}
+
+	err = limit.Update(options)
+	if err != nil {
+		logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
+	}
+
+	watch, err := store.Watch(kvName)
+	if err != nil {
+		logger.Error("could not watch query limit", zap.Error(err), zap.String("name", kvName))
+		return
+	}
+
+	go func() {
+		protoValue := &commonpb.StringProto{}
+		for range watch.C() {
+			value := options
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
+					continue
+				}
+				value = parseOptionsFn(protoValue.Value, value)
+			}
+
+			err = limit.Update(value)
+			if err != nil {
+				logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
 			}
 		}
 	}()
@@ -1316,21 +1394,6 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 	nodeLimit := int(math.Ceil(
 		float64(clusterLimit) / float64(numPlacedShards)))
 	return nodeLimit
-}
-
-func setEncodersPerBlockLimitOnChange(
-	runtimeOptsMgr m3dbruntime.OptionsManager,
-	encoderLimit int,
-) error {
-	runtimeOpts := runtimeOptsMgr.Get()
-	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {
-		// Not changed, no need to set the value and trigger a runtime options update
-		return nil
-	}
-
-	newRuntimeOpts := runtimeOpts.
-		SetEncodersPerBlockLimit(encoderLimit)
-	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func withEncodingAndPoolingOptions(

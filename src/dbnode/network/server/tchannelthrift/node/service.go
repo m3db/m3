@@ -2095,10 +2095,10 @@ func (s *service) SetQueryLimitOverrides(
 	}
 
 	queryLimits := db.Options().IndexOptions().QueryLimits()
-	if err := queryLimits.BytesReadLimit().Override(req.BytesReadLimitOverride); err != nil {
+	if err := queryLimits.BytesReadLimit().Update(req.BytesReadLimitOverride); err != nil {
 		return nil, err
 	}
-	if err := queryLimits.DocsLimit().Override(req.DocsLimitOverride); err != nil {
+	if err := queryLimits.DocsLimit().Update(req.DocsLimitOverride); err != nil {
 		return nil, err
 	}
 

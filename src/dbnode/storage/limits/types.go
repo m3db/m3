@@ -50,16 +50,18 @@ type QueryLimits interface {
 
 // LookbackLimit provides an interface for a specific query limit.
 type LookbackLimit interface {
+	// Options returns the current limit options.
+	Options() LookbackLimitOptions
 	// Inc increments the recent value for the limit.
 	Inc(new int, source []byte) error
-	// Override overrides the lookback limit value.
-	Override(limit *int64) error
+	// Update changes the lookback limit settings.
+	Update(opts LookbackLimitOptions) error
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.
 type LookbackLimitOptions struct {
 	// Limit past which errors will be returned.
-	Limit int64
+	Limit *int64
 	// Lookback is the period over which the limit is enforced.
 	Lookback time.Duration
 }

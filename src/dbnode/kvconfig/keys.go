@@ -49,4 +49,12 @@ const (
 	// ClientWriteConsistencyLevel is the KV config key for the runtime
 	// configuration specifying the client write consistency level
 	ClientWriteConsistencyLevel = "m3db.client.write-consistency-level"
+
+	// DocsLimit is the KV config key for the docs matched query limit.
+	// Settings in string form "{limit},{lookback}", e.g. "1000,15s".
+	DocsLimit = "m3db.limits.docs"
+
+	// BytesReadLimit is the KV config key for the bytes read query limit.
+	// Settings in string form "{limit},{lookback}", e.g. "1000,15s".
+	BytesReadLimit = "m3db.limits.bytes-read"
 )

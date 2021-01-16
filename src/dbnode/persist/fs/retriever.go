@@ -564,6 +564,10 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (bool, error) {
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		return false, err
+	}
+
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
