@@ -365,6 +365,15 @@ func newNamespaceIndexWithOptions(
 		shardSet:             shardSet,
 	}
 
+	futureBlock := nowFn().Add(10 * 365 * 24 * time.Hour)
+	inMemBlock, err := idx.newBlockFn(futureBlock, idx.nsMetadata,
+		index.BlockOptions{InMemoryBlock: true}, idx.namespaceRuntimeOptsMgr, idx.opts.IndexOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	idx.inMemoryBlock = inMemBlock
+
 	// Assign shard set upfront.
 	idx.AssignShardSet(shardSet)
 
@@ -409,15 +418,6 @@ func newNamespaceIndexWithOptions(
 	if err != nil {
 		return nil, err
 	}
-
-	futureBlock := nowFn().Add(10 * 365 * 24 * time.Hour)
-	inMemBlock, err := idx.newBlockFn(futureBlock, idx.nsMetadata,
-		index.BlockOptions{InMemoryBlock: true}, idx.namespaceRuntimeOptsMgr, idx.opts.IndexOptions())
-	if err != nil {
-		return nil, err
-	}
-
-	idx.inMemoryBlock = inMemBlock
 
 	// Report stats
 	go idx.reportStatsUntilClosed()
