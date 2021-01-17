@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
+	uatomic "go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -782,8 +783,6 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
-	finalized          bool
-	waitingForCallback bool
 	resultWg           sync.WaitGroup
 
 	pool *reqPool
@@ -809,6 +808,9 @@ type retrieveRequest struct {
 	// we free this request) so we track this with an atomic here.
 	finalizes uint32
 	shard     uint32
+
+	finalized          uatomic.Bool
+	waitingForCallback bool
 
 	notFound bool
 	success  bool
@@ -954,19 +956,18 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 func (req *retrieveRequest) Finalize() {
 	// May not actually finalize the request, depending on if
 	// retriever is done too
-	if req.finalized {
+	if req.finalized.Swap(true) {
 		return
 	}
 
 	req.resultWg.Wait()
-	req.finalized = true
 	req.onCallerOrRetrieverDone()
 }
 
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
-	req.finalized = false
-	req.finalizes = 0
+	req.finalized.Store(false)
+	atomic.StoreUint32(&req.finalizes, 0)
 	req.source = nil
 	req.shard = 0
 	req.id = nil
