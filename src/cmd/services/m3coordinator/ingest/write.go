@@ -150,7 +150,7 @@ func (d *downsamplerAndWriter) Write(
 
 	if d.shouldDownsample(overrides) {
 		var err error
-		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, overrides)
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -226,6 +226,7 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	annotation []byte,
 	overrides WriteOptions,
 ) (bool, error) {
 	if err := tags.Validate(); err != nil {
@@ -274,7 +275,7 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	}
 
 	for _, dp := range datapoints {
-		err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value, annotation)
 		if err != nil {
 			return result.IsDropPolicyApplied, err
 		}

@@ -287,8 +287,9 @@ func (agg *aggregator) AddPassthrough(
 			ChunkedID: id.ChunkedID{
 				Data: []byte(metric.ID),
 			},
-			TimeNanos: metric.TimeNanos,
-			Value:     metric.Value,
+			TimeNanos:  metric.TimeNanos,
+			Value:      metric.Value,
+			Annotation: metric.Annotation,
 		},
 		StoragePolicy: storagePolicy,
 	}

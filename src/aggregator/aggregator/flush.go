@@ -86,6 +86,7 @@ type flushLocalMetricFn func(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 )
 

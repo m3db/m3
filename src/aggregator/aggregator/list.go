@@ -437,6 +437,7 @@ func (l *baseMetricList) consumeLocalMetric(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 ) {
 	chunkedID := metricid.ChunkedID{
@@ -446,9 +447,10 @@ func (l *baseMetricList) consumeLocalMetric(
 	}
 	chunkedMetricWithPolicy := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
-			ChunkedID: chunkedID,
-			TimeNanos: timeNanos,
-			Value:     value,
+			ChunkedID:  chunkedID,
+			TimeNanos:  timeNanos,
+			Value:      value,
+			Annotation: annotation,
 		},
 		StoragePolicy: sp,
 	}
@@ -466,6 +468,7 @@ func (l *baseMetricList) discardLocalMetric(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 ) {
 	l.metrics.flushLocal.metricDiscarded.Inc(1)
