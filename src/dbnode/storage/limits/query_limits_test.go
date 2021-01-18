@@ -46,12 +46,13 @@ func testQueryLimitOptions(
 }
 
 func TestQueryLimits(t *testing.T) {
+	l := int64(1)
 	docOpts := LookbackLimitOptions{
-		Limit:    1,
+		Limit:    &l,
 		Lookback: time.Second,
 	}
 	bytesOpts := LookbackLimitOptions{
-		Limit:    1,
+		Limit:    &l,
 		Lookback: time.Second,
 	}
 	opts := testQueryLimitOptions(docOpts, bytesOpts, instrument.NewOptions())
@@ -89,10 +90,10 @@ func TestQueryLimits(t *testing.T) {
 func TestLookbackLimit(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		limit int64
+		limit *int64
 	}{
-		{name: "no limit", limit: 0},
-		{name: "limit", limit: 5},
+		{name: "no limit", limit: prt(0)},
+		{name: "limit", limit: prt(5)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
@@ -154,24 +155,24 @@ func TestLookbackLimit(t *testing.T) {
 
 			limit.reset()
 
-			overrideZero := int64(0)
-			require.NoError(t, limit.Override(&overrideZero))
+			opts.Limit = prt(0)
+			require.NoError(t, limit.Update(opts))
 
-			exceededCount += verifyLimit(t, limit, 0, &overrideZero)
+			exceededCount += verifyLimit(t, limit, 0, opts.Limit)
 			require.Equal(t, int64(0), limit.current())
 
-			overrideNonZero := int64(2)
-			require.NoError(t, limit.Override(&overrideNonZero))
+			opts.Limit = prt(2)
+			require.NoError(t, limit.Update(opts))
 
-			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			exceededCount += verifyLimit(t, limit, 1, opts.Limit)
 			require.Equal(t, int64(1), limit.current())
 			verifyMetrics(t, scope, name, 1, 0, 18, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			exceededCount += verifyLimit(t, limit, 1, opts.Limit)
 			require.Equal(t, int64(2), limit.current())
 			verifyMetrics(t, scope, name, 2, 0, 19, exceededCount)
 
-			exceededCount += verifyLimit(t, limit, 1, &overrideNonZero)
+			exceededCount += verifyLimit(t, limit, 1, opts.Limit)
 			require.Equal(t, int64(3), limit.current())
 			verifyMetrics(t, scope, name, 3, 0, 20, exceededCount)
 		})
@@ -205,7 +206,7 @@ func TestLookbackReset(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 	opts := LookbackLimitOptions{
-		Limit:    5,
+		Limit:    prt(5),
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
@@ -263,7 +264,7 @@ func TestValidateLookbackLimitOptions(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := LookbackLimitOptions{
-				Limit:    test.max,
+				Limit:    prt(test.max),
 				Lookback: test.lookback,
 			}.validate()
 			if test.expectError {
@@ -316,7 +317,7 @@ func TestSourceLogger(t *testing.T) {
 		scope   = tally.NewTestScope("test", nil)
 		iOpts   = instrument.NewOptions().SetMetricsScope(scope)
 		noLimit = LookbackLimitOptions{
-			Limit:    0,
+			Limit:    prt(0),
 			Lookback: time.Millisecond * 100,
 		}
 
@@ -338,6 +339,10 @@ func TestSourceLogger(t *testing.T) {
 		{name: "docs-matched", val: 100, source: []byte("docs")},
 		{name: "disk-bytes-read", val: 200, source: []byte("bytes")},
 	}, builder.records)
+}
+
+func prt(i int64) *int64 {
+	return &i
 }
 
 // NB: creates test logger records that share an underlying record set,
