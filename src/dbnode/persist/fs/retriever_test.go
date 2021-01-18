@@ -805,12 +805,13 @@ func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
 
 func TestLimitSeriesReadFromDisk(t *testing.T) {
 	scope := tally.NewTestScope("test", nil)
+	limit := int64(1)
 	limitOpts := limits.NewOptions().
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
 		SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
 		SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
-			Limit:    1,
+			Limit:    &limit,
 			Lookback: time.Second * 1,
 		})
 	queryLimits, err := limits.NewQueryLimits(limitOpts)
