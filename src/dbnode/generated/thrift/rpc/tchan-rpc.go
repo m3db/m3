@@ -67,7 +67,6 @@ type TChanNode interface {
 	Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
-	SetQueryLimitOverrides(ctx thrift.Context, req *NodeSetQueryLimitOverridesRequest) (*NodeQueryLimitOverridesResult_, error)
 	SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
 	SetWriteNewSeriesBackoffDuration(ctx thrift.Context, req *NodeSetWriteNewSeriesBackoffDurationRequest) (*NodeWriteNewSeriesBackoffDurationResult_, error)
 	SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
@@ -864,24 +863,6 @@ func (c *tchanNodeClient) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPe
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) SetQueryLimitOverrides(ctx thrift.Context, req *NodeSetQueryLimitOverridesRequest) (*NodeQueryLimitOverridesResult_, error) {
-	var resp NodeSetQueryLimitOverridesResult
-	args := NodeSetQueryLimitOverridesArgs{
-		Req: req,
-	}
-	success, err := c.client.Call(ctx, c.thriftService, "setQueryLimitOverrides", &args, &resp)
-	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for setQueryLimitOverrides")
-		}
-	}
-
-	return resp.GetSuccess(), err
-}
-
 func (c *tchanNodeClient) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {
 	var resp NodeSetWriteNewSeriesAsyncResult
 	args := NodeSetWriteNewSeriesAsyncArgs{
@@ -1102,7 +1083,6 @@ func (s *tchanNodeServer) Methods() []string {
 		"query",
 		"repair",
 		"setPersistRateLimit",
-		"setQueryLimitOverrides",
 		"setWriteNewSeriesAsync",
 		"setWriteNewSeriesBackoffDuration",
 		"setWriteNewSeriesLimitPerShardPerSecond",
@@ -1162,8 +1142,6 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleRepair(ctx, protocol)
 	case "setPersistRateLimit":
 		return s.handleSetPersistRateLimit(ctx, protocol)
-	case "setQueryLimitOverrides":
-		return s.handleSetQueryLimitOverrides(ctx, protocol)
 	case "setWriteNewSeriesAsync":
 		return s.handleSetWriteNewSeriesAsync(ctx, protocol)
 	case "setWriteNewSeriesBackoffDuration":
@@ -1787,34 +1765,6 @@ func (s *tchanNodeServer) handleSetPersistRateLimit(ctx thrift.Context, protocol
 
 	r, err :=
 		s.handler.SetPersistRateLimit(ctx, req.Req)
-
-	if err != nil {
-		switch v := err.(type) {
-		case *Error:
-			if v == nil {
-				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
-			}
-			res.Err = v
-		default:
-			return false, nil, err
-		}
-	} else {
-		res.Success = r
-	}
-
-	return err == nil, &res, nil
-}
-
-func (s *tchanNodeServer) handleSetQueryLimitOverrides(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeSetQueryLimitOverridesArgs
-	var res NodeSetQueryLimitOverridesResult
-
-	if err := req.Read(protocol); err != nil {
-		return false, nil, err
-	}
-
-	r, err :=
-		s.handler.SetQueryLimitOverrides(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
