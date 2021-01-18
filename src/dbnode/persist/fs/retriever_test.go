@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -197,7 +199,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		// NB(r): Try to make sure same req structs are reused frequently
 		// to surface any race issues that might occur with pooling.
 		poolOpts = pool.NewObjectPoolOptions().
-				SetSize(fetchConcurrency / 2)
+			SetSize(fetchConcurrency / 2)
 	)
 	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
 	segReaderPool.Init()
@@ -802,8 +804,9 @@ func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
 }
 
 func TestLimitSeriesReadFromDisk(t *testing.T) {
+	scope := tally.NewTestScope("test", nil)
 	limitOpts := limits.NewOptions().
-		SetInstrumentOptions(instrument.NewOptions()).
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
 		SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
 		SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
@@ -815,7 +818,8 @@ func TestLimitSeriesReadFromDisk(t *testing.T) {
 	opts := NewBlockRetrieverOptions().
 		SetBlockLeaseManager(&block.NoopLeaseManager{}).
 		SetQueryLimits(queryLimits)
-	publicRetriever, err := NewBlockRetriever(opts, NewOptions())
+	publicRetriever, err := NewBlockRetriever(opts, NewOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)))
 	require.NoError(t, err)
 	req := &retrieveRequest{}
 	retriever := publicRetriever.(*blockRetriever)
@@ -823,6 +827,12 @@ func TestLimitSeriesReadFromDisk(t *testing.T) {
 	_, err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "query aborted due to limit")
+
+	snapshot := scope.Snapshot()
+	seriesRead := snapshot.Counters()["test.retriever.series-read+"]
+	require.Equal(t, int64(2), seriesRead.Value())
+	seriesLimit := snapshot.Counters()["test.query-limit.exceeded+limit=disk-series-read"]
+	require.Equal(t, int64(1), seriesLimit.Value())
 }
 
 var errSeekErr = errors.New("some-error")
