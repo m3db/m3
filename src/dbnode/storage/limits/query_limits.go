@@ -174,11 +174,12 @@ func (q *lookbackLimit) Update(opts LookbackLimitOptions) error {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	if q.options.Lookback != opts.Lookback {
-		q.ticker.Reset(opts.Lookback)
-	}
-
+	loobackUpdated := q.options.Lookback != opts.Lookback
 	q.options = opts
+	if loobackUpdated {
+		q.stop()
+		q.start()
+	}
 
 	return nil
 }
