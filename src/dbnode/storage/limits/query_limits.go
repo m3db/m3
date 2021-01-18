@@ -37,8 +37,9 @@ const (
 )
 
 type queryLimits struct {
-	docsLimit      *lookbackLimit
-	bytesReadLimit *lookbackLimit
+	docsLimit           *lookbackLimit
+	bytesReadLimit      *lookbackLimit
+	seriesDiskReadLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
@@ -81,20 +82,24 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 	}
 
 	var (
-		iOpts               = options.InstrumentOptions()
-		docsLimitOpts       = options.DocsLimitOpts()
-		bytesReadLimitOpts  = options.BytesReadLimitOpts()
-		sourceLoggerBuilder = options.SourceLoggerBuilder()
+		iOpts                   = options.InstrumentOptions()
+		docsLimitOpts           = options.DocsLimitOpts()
+		bytesReadLimitOpts      = options.BytesReadLimitOpts()
+		diskSeriesReadLimitOpts = options.DiskSeriesReadLimitOpts()
+		sourceLoggerBuilder     = options.SourceLoggerBuilder()
 
 		docsLimit = newLookbackLimit(
 			iOpts, docsLimitOpts, "docs-matched", sourceLoggerBuilder)
 		bytesReadLimit = newLookbackLimit(
 			iOpts, bytesReadLimitOpts, "disk-bytes-read", sourceLoggerBuilder)
+		seriesDiskReadLimit = newLookbackLimit(
+			iOpts, diskSeriesReadLimitOpts, "disk-series-read", sourceLoggerBuilder)
 	)
 
 	return &queryLimits{
-		docsLimit:      docsLimit,
-		bytesReadLimit: bytesReadLimit,
+		docsLimit:           docsLimit,
+		bytesReadLimit:      bytesReadLimit,
+		seriesDiskReadLimit: seriesDiskReadLimit,
 	}, nil
 }
 
@@ -143,18 +148,27 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 	return q.bytesReadLimit
 }
 
+func (q *queryLimits) DiskSeriesReadLimit() LookbackLimit {
+	return q.seriesDiskReadLimit
+}
+
 func (q *queryLimits) Start() {
 	q.docsLimit.start()
+	q.seriesDiskReadLimit.start()
 	q.bytesReadLimit.start()
 }
 
 func (q *queryLimits) Stop() {
 	q.docsLimit.stop()
+	q.seriesDiskReadLimit.stop()
 	q.bytesReadLimit.stop()
 }
 
 func (q *queryLimits) AnyExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
+		return err
+	}
+	if err := q.seriesDiskReadLimit.exceeded(); err != nil {
 		return err
 	}
 	return q.bytesReadLimit.exceeded()

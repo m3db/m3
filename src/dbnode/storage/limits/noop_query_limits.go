@@ -44,6 +44,10 @@ func (q *noOpQueryLimits) BytesReadLimit() LookbackLimit {
 	return &noOpLookbackLimit{}
 }
 
+func (q *noOpQueryLimits) DiskSeriesReadLimit() LookbackLimit {
+	return &noOpLookbackLimit{}
+}
+
 func (q *noOpQueryLimits) AnyExceeded() error {
 	return nil
 }
