@@ -749,6 +749,7 @@ func (e *Entry) addTimed(
 		aggregationID:      metadata.AggregationID,
 		storagePolicy:      metadata.StoragePolicy,
 		idPrefixSuffixType: NoPrefixNoSuffix,
+		annotation:         metric.Annotation,
 	}
 	if idx := e.aggregations.index(key); idx >= 0 {
 		err := e.addTimedWithLock(e.aggregations[idx], metric)
@@ -864,7 +865,7 @@ func (e *Entry) addTimedWithLock(
 	metric aggregated.Metric,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value)
+	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
 }
 
 func (e *Entry) addTimedWithStagedMetadatasAndLock(
@@ -873,7 +874,7 @@ func (e *Entry) addTimedWithStagedMetadatasAndLock(
 	timestamp := time.Unix(0, metric.TimeNanos)
 	multiErr := xerrors.NewMultiError()
 	for _, val := range e.aggregations {
-		if err := val.elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
+		if err := val.elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -1027,7 +1028,7 @@ func (e *Entry) addForwardedWithLock(
 	sourceID uint32,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, sourceID)
+	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, metric.Annotation, sourceID)
 	if err == errDuplicateForwardingSource {
 		// Duplicate forwarding sources may occur during a leader re-election and is not
 		// considered an external facing error. Hence, we record it and move on.

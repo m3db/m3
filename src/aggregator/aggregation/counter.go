@@ -31,13 +31,14 @@ import (
 type Counter struct {
 	Options
 
-	lastAt time.Time
-	sum    int64
-	sumSq  int64
-	count  int64
-	max    int64
-	min    int64
-	last   int64
+	lastAt     time.Time
+	sum        int64
+	sumSq      int64
+	count      int64
+	max        int64
+	min        int64
+	last       int64
+	annotation []byte
 }
 
 // NewCounter creates a new counter.
@@ -50,7 +51,7 @@ func NewCounter(opts Options) Counter {
 }
 
 // Update updates the counter value.
-func (c *Counter) Update(timestamp time.Time, value int64) {
+func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 	if c.lastAt.IsZero() || timestamp.After(c.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -73,6 +74,10 @@ func (c *Counter) Update(timestamp time.Time, value int64) {
 
 	if c.HasExpensiveAggregations {
 		c.sumSq += value * value
+	}
+
+	if annotation != nil {
+		c.annotation = annotation
 	}
 }
 
@@ -129,6 +134,10 @@ func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
 	default:
 		return 0
 	}
+}
+
+func (c *Counter) Annotation() []byte {
+	return c.annotation
 }
 
 // Close closes the counter.

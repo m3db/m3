@@ -24,16 +24,15 @@ import (
 	"context"
 
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/ts"
 )
 
 // WriteFn is the function that writes a metric.
 type WriteFn func(
 	ctx context.Context,
 	id []byte,
-	metricType ts.PromMetricType,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callback Callbackable,
 )

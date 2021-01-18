@@ -125,18 +125,18 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
-	metricType ts.PromMetricType,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callback m3msg.Callbackable,
 ) {
 	op := i.p.Get().(*ingestOp)
 	op.ctx = ctx
 	op.id = id
-	op.metricType = metricType
 	op.metricNanos = metricNanos
 	op.value = value
+	op.annotation = annotation
 	op.sp = sp
 	op.callback = callback
 	i.workers.Go(op.ingestFn)
@@ -157,9 +157,9 @@ type ingestOp struct {
 
 	ctx         context.Context
 	id          []byte
-	metricType  ts.PromMetricType
 	metricNanos int64
 	value       float64
+	annotation  []byte
 	sp          policy.StoragePolicy
 	callback    m3msg.Callbackable
 	tags        models.Tags
@@ -232,40 +232,11 @@ func (op *ingestOp) resetWriteQuery() error {
 		},
 	}
 
-	if op.storeMetricsType {
-		var err error
-		wq.Annotation, err = op.convertTypeToAnnotation(op.metricType)
-		if err != nil {
-			return err
-		}
+	if op.storeMetricsType && op.annotation != nil {
+		wq.Annotation = op.annotation
 	}
 
 	return op.writeQuery.Reset(wq)
-}
-
-func (op *ingestOp) convertTypeToAnnotation(tp ts.PromMetricType) ([]byte, error) {
-	if tp == ts.PromMetricTypeUnknown {
-		return nil, nil
-	}
-
-	handleValueResets := false
-	if tp == ts.PromMetricTypeCounter {
-		handleValueResets = true
-	}
-
-	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(tp, handleValueResets)
-	if err != nil {
-		return nil, err
-	}
-	annot, err := annotationPayload.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(annot) == 0 {
-		annot = nil
-	}
-	return annot, nil
 }
 
 func (op *ingestOp) resetTags() error {

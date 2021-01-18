@@ -229,8 +229,9 @@ func (w *writer) encodeUntimedWithLock(
 				end = numTimerValues
 			}
 			singleBatchTimer := unaggregated.BatchTimer{
-				ID:     batchTimer.ID,
-				Values: timerValues[start:end],
+				ID:         batchTimer.ID,
+				Values:     timerValues[start:end],
+				Annotation: metricUnion.Annotation,
 			}
 			msg := encoding.UnaggregatedMessageUnion{
 				Type: encoding.BatchTimerWithMetadatasType,

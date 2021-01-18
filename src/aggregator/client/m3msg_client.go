@@ -337,6 +337,7 @@ func (m *message) Encode(
 			m.metric = metricpb.MetricWithMetadatas{
 				Type:                 metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
 				CounterWithMetadatas: &m.cm,
+				Annotation:           payload.untimed.metric.Annotation,
 			}
 		case metric.TimerType:
 			value := unaggregated.BatchTimerWithMetadatas{
@@ -350,6 +351,7 @@ func (m *message) Encode(
 			m.metric = metricpb.MetricWithMetadatas{
 				Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 				BatchTimerWithMetadatas: &m.bm,
+				Annotation:              payload.untimed.metric.Annotation,
 			}
 		case metric.GaugeType:
 			value := unaggregated.GaugeWithMetadatas{
@@ -363,6 +365,7 @@ func (m *message) Encode(
 			m.metric = metricpb.MetricWithMetadatas{
 				Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 				GaugeWithMetadatas: &m.gm,
+				Annotation:         payload.untimed.metric.Annotation,
 			}
 		default:
 			return fmt.Errorf("unrecognized metric type: %v",
@@ -380,6 +383,7 @@ func (m *message) Encode(
 		m.metric = metricpb.MetricWithMetadatas{
 			Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 			ForwardedMetricWithMetadata: &m.fm,
+			Annotation:                  payload.forwarded.metric.Annotation,
 		}
 	case timedType:
 		value := aggregated.TimedMetricWithMetadata{
@@ -393,6 +397,7 @@ func (m *message) Encode(
 		m.metric = metricpb.MetricWithMetadatas{
 			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 			TimedMetricWithMetadata: &m.tm,
+			Annotation:              payload.timed.metric.Annotation,
 		}
 	case timedWithStagedMetadatasType:
 		value := aggregated.TimedMetricWithMetadatas{
@@ -406,6 +411,7 @@ func (m *message) Encode(
 		m.metric = metricpb.MetricWithMetadatas{
 			Type:                     metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS,
 			TimedMetricWithMetadatas: &m.tms,
+			Annotation:               payload.timedWithStagedMetadatas.metric.Annotation,
 		}
 	default:
 		return fmt.Errorf("unrecognized payload type: %v",

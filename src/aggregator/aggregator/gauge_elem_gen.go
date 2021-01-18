@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -160,7 +160,7 @@ func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 }
 
 // AddValue adds a metric value at a given timestamp.
-func (e *GaugeElem) AddValue(timestamp time.Time, value float64) error {
+func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
@@ -171,7 +171,7 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64) error {
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(timestamp, value)
+	lockedAgg.aggregation.Add(timestamp, value, annotation)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -179,7 +179,7 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64) error {
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, sourceID uint32) error {
+func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
@@ -197,7 +197,7 @@ func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, sourceID ui
 	}
 	lockedAgg.sourcesSeen.Set(source)
 	for _, v := range values {
-		lockedAgg.aggregation.Add(timestamp, v)
+		lockedAgg.aggregation.Add(timestamp, v, annotation)
 	}
 	lockedAgg.Unlock()
 	return nil
@@ -481,10 +481,10 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, metric.GaugeType, nil, point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(nil, e.id, metric.GaugeType, nil, point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, metric.GaugeType,
-						e.TypeStringFor(e.aggTypesOpts, aggType), point.TimeNanos, point.Value, e.sp)
+						e.TypeStringFor(e.aggTypesOpts, aggType), point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				}
 			}
 		} else {

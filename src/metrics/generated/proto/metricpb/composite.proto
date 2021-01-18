@@ -94,4 +94,5 @@ message MetricWithMetadatas {
   TimedMetricWithMetadata timed_metric_with_metadata = 6;
   TimedMetricWithMetadatas timed_metric_with_metadatas = 7;
   TimedMetricWithStoragePolicy timed_metric_with_storage_policy = 8;
+  bytes annotation = 9;
 }

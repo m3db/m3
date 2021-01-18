@@ -454,10 +454,11 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				continue
 			}
 			metric := aggregated.ForwardedMetric{
-				Type:      agg.metricType,
-				ID:        agg.metricID,
-				TimeNanos: b.timeNanos,
-				Values:    b.values,
+				Type:       agg.metricType,
+				ID:         agg.metricID,
+				TimeNanos:  b.timeNanos,
+				Values:     b.values,
+				Annotation: key.annotation,
 			}
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)

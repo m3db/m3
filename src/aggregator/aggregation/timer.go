@@ -31,11 +31,12 @@ import (
 type Timer struct {
 	Options
 
-	lastAt time.Time
-	count  int64     // Number of values received.
-	sum    float64   // Sum of the values.
-	sumSq  float64   // Sum of squared values.
-	stream cm.Stream // Stream of values received.
+	lastAt     time.Time
+	count      int64     // Number of values received.
+	sum        float64   // Sum of the values.
+	sumSq      float64   // Sum of squared values.
+	stream     cm.Stream // Stream of values received.
+	annotation []byte
 }
 
 // NewTimer creates a new timer
@@ -49,7 +50,7 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 }
 
 // Add adds a timer value.
-func (t *Timer) Add(timestamp time.Time, value float64) {
+func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
 	t.recordLastAt(timestamp)
 	t.addValue(value)
 }
@@ -148,6 +149,10 @@ func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 		return t.Stdev()
 	}
 	return 0
+}
+
+func (t *Timer) Annotation() []byte {
+	return t.annotation
 }
 
 // Close closes the timer.
