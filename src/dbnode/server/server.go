@@ -1174,38 +1174,17 @@ func kvWatchQueryLimit(
 ) {
 	options := limit.Options()
 
-	parseOptionsFn := func(val string, defaultOpts limits.LookbackLimitOptions) limits.LookbackLimitOptions {
-		parts := strings.Split(val, ",")
-		if val == "" {
-			defaultOpts.Limit = nil
-		} else if len(parts) == 2 {
-			parsedLimit, err := strconv.ParseInt(parts[0], 10, 64)
-			if err != nil {
-				logger.Warn("error parsing query limit value", zap.Error(err), zap.String("name", kvName))
-			} else {
-				defaultOpts.Limit = &parsedLimit
-			}
-			parsedLookback, err := time.ParseDuration(parts[1])
-			if err != nil {
-				logger.Warn("error parsing query limit lookback", zap.Error(err), zap.String("name", kvName))
-			} else {
-				defaultOpts.Lookback = parsedLookback
-			}
-		}
-		return defaultOpts
-	}
-
 	value, err := store.Get(kvName)
 	if err == nil {
 		protoValue := &commonpb.StringProto{}
 		err = value.Unmarshal(protoValue)
 		if err == nil {
-			options = parseOptionsFn(protoValue.Value, options)
+			options = parseLookbackLimitOptions(logger, kvName, protoValue.Value, options)
 		}
 	}
 
 	if err != nil {
-		if err != kv.ErrNotFound {
+		if errors.Is(err, kv.ErrNotFound) {
 			logger.Warn("error resolving encoder per block limit", zap.Error(err))
 		}
 	}
@@ -1230,7 +1209,7 @@ func kvWatchQueryLimit(
 					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
 					continue
 				}
-				value = parseOptionsFn(protoValue.Value, value)
+				value = parseLookbackLimitOptions(logger, kvName, protoValue.Value, value)
 			}
 
 			err = limit.Update(value)
@@ -1239,6 +1218,30 @@ func kvWatchQueryLimit(
 			}
 		}
 	}()
+}
+
+func parseLookbackLimitOptions(logger *zap.Logger,
+	kvName string,
+	val string,
+	defaultOpts limits.LookbackLimitOptions) limits.LookbackLimitOptions {
+	parts := strings.Split(val, ",")
+	if val == "" {
+		defaultOpts.Limit = nil
+	} else if len(parts) == 2 {
+		parsedLimit, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			logger.Warn("error parsing query limit value", zap.Error(err), zap.String("name", kvName))
+		} else {
+			defaultOpts.Limit = &parsedLimit
+		}
+		parsedLookback, err := time.ParseDuration(parts[1])
+		if err != nil {
+			logger.Warn("error parsing query limit lookback", zap.Error(err), zap.String("name", kvName))
+		} else {
+			defaultOpts.Lookback = parsedLookback
+		}
+	}
+	return defaultOpts
 }
 
 func kvWatchClientConsistencyLevels(
