@@ -60,7 +60,7 @@ var samples = []string{
 	"dScMAAgAX19uYW1lX18GAGRpc2tpbwQAYXJjaAMAeDY0CgBkYXRhY2VudGVyDwBhcC1ub3J0aGVhc3QtMWMIAGhvc3RuYW1lBwBob3N0XzM4CwBtZWFzdXJlbWVudAoAd3JpdGVfdGltZQIAb3MLAFVidW50dTE1LjEwBAByYWNrAgAyMAYAcmVnaW9uDgBhcC1ub3J0aGVhc3QtMQcAc2VydmljZQEAMBMAc2VydmljZV9lbnZpcm9ubWVudAcAc3RhZ2luZw8Ac2VydmljZV92ZXJzaW9uAQAwBAB0ZWFtAgBTRg==",
 }
 
-// BenchmarkTagValueFromEncodedTagsFast-12    	 8657110	       140 ns/op
+// BenchmarkTagValueFromEncodedTagsFast-12    	11756650	       110 ns/op
 func BenchmarkTagValueFromEncodedTagsFast(b *testing.B) {
 	testData, err := prepareData(b)
 	require.NoError(b, err)
