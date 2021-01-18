@@ -54,7 +54,11 @@ const (
 	// Settings in string form "{limit},{lookback}", e.g. "1000,15s".
 	DocsLimit = "m3db.limits.docs"
 
-	// BytesReadLimit is the KV config key for the bytes read query limit.
+	// DiskBytesReadLimit is the KV config key for the disk bytes read query limit.
 	// Settings in string form "{limit},{lookback}", e.g. "1000,15s".
-	BytesReadLimit = "m3db.limits.bytes-read"
+	DiskBytesReadLimit = "m3db.limits.disk-bytes-read"
+
+	// DiskSeriesReadLimit is the KV config key for the disk series read query limit.
+	// Settings in string form "{limit},{lookback}", e.g. "1000,15s".
+	DiskSeriesReadLimit = "m3db.limits.disk-series-read"
 )

@@ -465,7 +465,9 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskRead; limitConfig != nil {
-		diskSeriesReadLimit.Limit = limitConfig.Value
+		if limitConfig.Value != 0 {
+			diskSeriesReadLimit.Limit = &limitConfig.Value
+		}
 		diskSeriesReadLimit.Lookback = limitConfig.Lookback
 	}
 	limitOpts := limits.NewOptions().
@@ -999,7 +1001,8 @@ func Run(runOpts RunOptions) {
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.DocsLimit(), kvconfig.DocsLimit)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.BytesReadLimit(), kvconfig.BytesReadLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.DiskSeriesReadLimit(), kvconfig.DiskBytesReadLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.BytesReadLimit(), kvconfig.DiskSeriesReadLimit)
 	}()
 
 	// Wait for process interrupt.
