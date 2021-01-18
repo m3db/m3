@@ -565,9 +565,17 @@ func (r *blockRetriever) streamRequest(
 	nsCtx namespace.Context,
 ) (bool, error) {
 	req.shard = shard
-	// NB(r): Clone the ID as we're not positive it will stay valid throughout
-	// the lifecycle of the async request.
-	req.id = r.idPool.Clone(id)
+
+	// NB(r): If the ID is a ident.BytesID then we can just hold
+	// onto this ID.
+	seriesID := id
+	if !seriesID.IsNoFinalize() {
+		// NB(r): Clone the ID as we're not positive it will stay valid throughout
+		// the lifecycle of the async request.
+		seriesID = r.idPool.Clone(id)
+	}
+
+	req.id = seriesID
 	req.start = startTime
 	req.blockSize = r.blockSize
 

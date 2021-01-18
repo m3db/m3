@@ -778,9 +778,6 @@ type NamespaceIndex interface {
 	// cold flushing completes to perform houskeeping.
 	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
 
-	// SetExtendedRetentionPeriod allows to extend index retention beyond the retention of the namespace it belongs to.
-	SetExtendedRetentionPeriod(period time.Duration)
-
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
 
