@@ -3857,7 +3857,7 @@ func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueD
 		return nil, nil, errEnqueueChIsClosed
 	}
 	c.sending++ // NB(r): This is decremented by calling the returned enqueue done function
-	c.enqueued += (numToEnqueue)
+	c.enqueued += numToEnqueue
 	c.Unlock()
 	return c.enqueueDelayedFn, c.enqueueDelayedDoneFn, nil
 }
