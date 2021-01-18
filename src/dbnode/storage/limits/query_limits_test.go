@@ -211,9 +211,7 @@ func TestLookbackLimit(t *testing.T) {
 func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit *int64) int64 {
 	var exceededCount int64
 	err := limit.Inc(inc, nil)
-	if expectedLimit == nil {
-		require.NoError(t, err)
-	} else if limit.current() < *expectedLimit && *expectedLimit != 0 {
+	if expectedLimit == nil || (limit.current() < *expectedLimit && *expectedLimit != 0) {
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
@@ -223,9 +221,7 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit *int
 	}
 
 	err = limit.exceeded()
-	if expectedLimit == nil {
-		require.NoError(t, err)
-	} else if limit.current() < *expectedLimit && *expectedLimit != 0 {
+	if expectedLimit == nil || (limit.current() < *expectedLimit && *expectedLimit != 0) {
 		require.NoError(t, err)
 	} else {
 		require.Error(t, err)
