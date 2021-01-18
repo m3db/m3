@@ -43,7 +43,6 @@ type queryLimits struct {
 
 type lookbackLimit struct {
 	name    string
-	limit   *int64
 	options LookbackLimitOptions
 	metrics lookbackLimitMetrics
 	recent  *atomic.Int64
