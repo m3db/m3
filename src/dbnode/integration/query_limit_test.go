@@ -87,7 +87,7 @@ func newTestOptionsWithIndexedNamespace(t *testing.T) (TestOptions, namespace.Me
 
 func newTestSetupWithQueryLimits(t *testing.T, opts TestOptions) TestSetup {
 	storageLimitsFn := func(storageOpts storage.Options) storage.Options {
-		limit := 1
+		limit := int64(1)
 		queryLookback := limits.DefaultLookbackLimitOptions()
 		queryLookback.Limit = &limit
 		queryLookback.Lookback = time.Hour
