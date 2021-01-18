@@ -564,10 +564,6 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (bool, error) {
-	if err := r.queryLimits.AnyExceeded(); err != nil {
-		return false, err
-	}
-
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold

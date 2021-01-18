@@ -2084,33 +2084,6 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
-func (s *service) SetQueryLimitOverrides(
-	ctx thrift.Context,
-	req *rpc.NodeSetQueryLimitOverridesRequest,
-) (
-	*rpc.NodeQueryLimitOverridesResult_,
-	error,
-) {
-	_, err := s.startRPCWithDB()
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO(ra): what is the protocol for exposing way to update etcd values? does it make sense to keep this
-	// endpoint and call kvStore.Set(...) on these vals, which then trigger the queryLimits.Update(...)? Or
-	// should we just delete this endpoint now and rely on some other more generic way to update etcd?
-
-	s.logger.Info("query limit overrides set",
-		zap.Int64p("bytes-read", req.BytesReadLimitOverride),
-		zap.Int64p("docs", req.DocsLimitOverride),
-	)
-
-	return &rpc.NodeQueryLimitOverridesResult_{
-		BytesReadLimitOverride: req.BytesReadLimitOverride,
-		DocsLimitOverride:      req.DocsLimitOverride,
-	}, nil
-}
-
 func (s *service) DebugProfileStart(
 	ctx thrift.Context,
 	req *rpc.DebugProfileStartRequest,
