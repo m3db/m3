@@ -214,6 +214,38 @@ writeForwarding:
 
 # How to downsample metrics
 downsample:
+  # The configuration for the downsampler matcher
+  matcher:
+  # Downsample rules which overrides any rules set in the KV store
+  # TODO: KV store? etcd?
+  rules:
+  # Downsample remotely by sending values to a remote m3aggregator cluster which forwards the aggregated values to stateless m3coordinator backends
+  remoteAggregator:
+  # Aggregation types
+  # TODO: Which are?
+  aggregationTypes:
+  # Pool of counter elements?
+  # TODO: ?
+  counterElemPool:
+  # Pool of timer elements?
+  # TODO: ?  
+  timerElemPool:
+  # Pool of gauge elements?
+  # TODO: ?  
+  gaugeElemPool:
+  # The buffer past limits
+  bufferPastLimits:
+  # How long an entry remains alive before it is expired due to inactivity
+  entryTTL:
+  # Augments the metric type used within the filter for rules
+  augmentM3Tags:
+  # Include rollup rules
+	// when deciding if the downsampler should ignore the default auto mapping rules
+	// based on the storage policies applied on a given rule.
+	// This is usually not what you want to do, as it means the raw metric
+	// that is being rolled up by your rule will not be forward into aggregated namespaces,
+	// and will only be written to the unaggregated namespace.  
+  includeRollupsOnDefaultRuleFiltering:
 
 # TODO:
 ingest:
