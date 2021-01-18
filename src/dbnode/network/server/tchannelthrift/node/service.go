@@ -785,16 +785,17 @@ func (s *service) fetchTagged(
 	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
 	// be issued at once before waiting for their results.
-	var encodedDataResults [][][]xio.BlockReader
-	encodedDataResults = make([][][]xio.BlockReader, results.Size())
-
-	if err := s.fetchReadEncoded(ctx, db, results, ns, callStart, opts, encodedDataResults); err != nil {
+	var (
+		encodedDataResults = make([][][]xio.BlockReader, results.Size())
+		encodedOrdering    = make(map[index.ResultsMapHash]int, results.Size())
+	)
+	if err := s.fetchReadEncoded(ctx, db, results, ns, callStart, opts, encodedDataResults, encodedOrdering); err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	// Step 2: If fetching data read the results of the asynchronous block readers.
-	if err := s.fetchReadResults(ctx, response, results, ns, nsIDBytes, encodedDataResults); err != nil {
+	if err := s.fetchReadResults(ctx, response, results, ns, nsIDBytes, encodedDataResults, encodedOrdering); err != nil {
 		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
@@ -844,6 +845,7 @@ func (s *service) fetchReadEncoded(
 	callStart time.Time,
 	opts index.QueryOptions,
 	encodedDataResults [][][]xio.BlockReader,
+	encodedOrdering map[index.ResultsMapHash]int,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadEncoded)
 	if sampled {
@@ -856,7 +858,7 @@ func (s *service) fetchReadEncoded(
 
 	idx := 0
 	id := ident.NewReusableBytesID()
-	for _, entry := range results.Map().Iter() {
+	for hash, entry := range results.Map().Iter() {
 		// TODO(nate); change from reusable
 		id.Reset(entry.Key())
 
@@ -866,6 +868,7 @@ func (s *service) fetchReadEncoded(
 			return convert.ToRPCError(err)
 		} else {
 			encodedDataResults[idx] = encoded
+			encodedOrdering[hash] = idx
 		}
 
 		idx++
@@ -880,6 +883,7 @@ func (s *service) fetchReadResults(
 	nsID ident.ID,
 	nsIDBytes []byte,
 	encodedDataResults [][][]xio.BlockReader,
+	encodedOrdering map[index.ResultsMapHash]int,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
 	if sampled {
@@ -890,16 +894,16 @@ func (s *service) fetchReadResults(
 	}
 	defer sp.Finish()
 
-	idx := 0
 	// Re-use reader and id for more memory-efficient processing of
 	// tags from doc.Metadata
 	reader := docs.NewEncodedDocumentReader()
 	id := ident.NewReusableBytesID()
-	for _, entry := range results.Map().Iter() {
+	for hash, entry := range results.Map().Iter() {
 		elem, err := s.resultToTaggedID(ctx, id, entry, reader, nsIDBytes)
 		if err != nil {
 			return err
 		}
+		idx := encodedOrdering[hash]
 
 		segments, rpcErr := s.readEncodedResult(ctx, encodedDataResults[idx])
 		if rpcErr != nil {
@@ -908,8 +912,6 @@ func (s *service) fetchReadResults(
 
 		elem.Segments = segments
 		response.Elements = append(response.Elements, elem)
-
-		idx++
 	}
 	return nil
 }
