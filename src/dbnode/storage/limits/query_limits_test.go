@@ -58,7 +58,7 @@ func TestQueryLimits(t *testing.T) {
 		Lookback: time.Second,
 	}
 	seriesOpts := LookbackLimitOptions{
-		Limit:    1,
+		Limit:    &l,
 		Lookback: time.Second,
 	}
 	opts := testQueryLimitOptions(docOpts, bytesOpts, seriesOpts, instrument.NewOptions())
