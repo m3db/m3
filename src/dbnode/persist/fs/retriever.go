@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -88,11 +89,12 @@ const (
 type blockRetriever struct {
 	sync.RWMutex
 
-	opts           BlockRetrieverOptions
-	fsOpts         Options
-	logger         *zap.Logger
-	queryLimits    limits.QueryLimits
-	bytesReadLimit limits.LookbackLimit
+	opts            BlockRetrieverOptions
+	fsOpts          Options
+	logger          *zap.Logger
+	queryLimits     limits.QueryLimits
+	bytesReadLimit  limits.LookbackLimit
+	seriesReadCount tally.Counter
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -121,18 +123,21 @@ func NewBlockRetriever(
 		return nil, err
 	}
 
+	scope := fsOpts.InstrumentOptions().MetricsScope().SubScope("retriever")
+
 	return &blockRetriever{
-		opts:           opts,
-		fsOpts:         fsOpts,
-		logger:         fsOpts.InstrumentOptions().Logger(),
-		queryLimits:    opts.QueryLimits(),
-		bytesReadLimit: opts.QueryLimits().BytesReadLimit(),
-		newSeekerMgrFn: NewSeekerManager,
-		reqPool:        opts.RetrieveRequestPool(),
-		bytesPool:      opts.BytesPool(),
-		idPool:         opts.IdentifierPool(),
-		status:         blockRetrieverNotOpen,
-		notifyFetch:    make(chan struct{}, 1),
+		opts:            opts,
+		fsOpts:          fsOpts,
+		logger:          fsOpts.InstrumentOptions().Logger(),
+		queryLimits:     opts.QueryLimits(),
+		bytesReadLimit:  opts.QueryLimits().BytesReadLimit(),
+		seriesReadCount: scope.Counter("series-read"),
+		newSeekerMgrFn:  NewSeekerManager,
+		reqPool:         opts.RetrieveRequestPool(),
+		bytesPool:       opts.BytesPool(),
+		idPool:          opts.IdentifierPool(),
+		status:          blockRetrieverNotOpen,
+		notifyFetch:     make(chan struct{}, 1),
 		// We just close this channel when the fetchLoops should shutdown, so no
 		// buffering is required
 		fetchLoopsShouldShutdownCh: make(chan struct{}),
@@ -564,6 +569,11 @@ func (r *blockRetriever) streamRequest(
 	startTime time.Time,
 	nsCtx namespace.Context,
 ) (bool, error) {
+	req.resultWg.Add(1)
+	r.seriesReadCount.Inc(1)
+	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
+		return false, err
+	}
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold
@@ -578,8 +588,6 @@ func (r *blockRetriever) streamRequest(
 	req.id = seriesID
 	req.start = startTime
 	req.blockSize = r.blockSize
-
-	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
 	ctx.RegisterFinalizer(req)
