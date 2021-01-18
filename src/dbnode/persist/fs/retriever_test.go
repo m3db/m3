@@ -199,7 +199,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		// NB(r): Try to make sure same req structs are reused frequently
 		// to surface any race issues that might occur with pooling.
 		poolOpts = pool.NewObjectPoolOptions().
-			SetSize(fetchConcurrency / 2)
+				SetSize(fetchConcurrency / 2)
 	)
 	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
 	segReaderPool.Init()
