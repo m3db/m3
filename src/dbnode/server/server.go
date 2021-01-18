@@ -1181,16 +1181,11 @@ func kvWatchQueryLimit(
 		if err == nil {
 			options = parseLookbackLimitOptions(logger, kvName, protoValue.Value, options)
 		}
+	} else if errors.Is(err, kv.ErrNotFound) {
+		logger.Warn("error resolving encoder per block limit", zap.Error(err))
 	}
 
-	if err != nil {
-		if errors.Is(err, kv.ErrNotFound) {
-			logger.Warn("error resolving encoder per block limit", zap.Error(err))
-		}
-	}
-
-	err = limit.Update(options)
-	if err != nil {
+	if err := limit.Update(options); err != nil {
 		logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
 	}
 
@@ -1212,8 +1207,7 @@ func kvWatchQueryLimit(
 				value = parseLookbackLimitOptions(logger, kvName, protoValue.Value, value)
 			}
 
-			err = limit.Update(value)
-			if err != nil {
+			if err := limit.Update(value); err != nil {
 				logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
 			}
 		}
@@ -1223,7 +1217,8 @@ func kvWatchQueryLimit(
 func parseLookbackLimitOptions(logger *zap.Logger,
 	kvName string,
 	val string,
-	defaultOpts limits.LookbackLimitOptions) limits.LookbackLimitOptions {
+	defaultOpts limits.LookbackLimitOptions,
+) limits.LookbackLimitOptions {
 	parts := strings.Split(val, ",")
 	if val == "" {
 		defaultOpts.Limit = nil
