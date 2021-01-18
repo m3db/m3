@@ -452,11 +452,15 @@ func Run(runOpts RunOptions) {
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
-		docsLimit.Limit = limitConfig.Value
+		if limitConfig.Value != 0 {
+			docsLimit.Limit = &limitConfig.Value
+		}
 		docsLimit.Lookback = limitConfig.Lookback
 	}
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskBytesRead; limitConfig != nil {
-		bytesReadLimit.Limit = limitConfig.Value
+		if limitConfig.Value != 0 {
+			bytesReadLimit.Limit = &limitConfig.Value
+		}
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
 	limitOpts := limits.NewOptions().
@@ -988,8 +992,8 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits, kvconfig.DocsLimit)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits, kvconfig.BytesReadLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.DocsLimit(), kvconfig.DocsLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.BytesReadLimit(), kvconfig.BytesReadLimit)
 	}()
 
 	// Wait for process interrupt.
@@ -1170,7 +1174,7 @@ func kvWatchQueryLimit(
 ) {
 	options := limit.Options()
 
-	parseOptionsFn := func(val string, defaultOpts LookbackLimitOptions) LookbackLimitOptions {
+	parseOptionsFn := func(val string, defaultOpts limits.LookbackLimitOptions) limits.LookbackLimitOptions {
 		parts := strings.Split(val, ",")
 		if val == "" {
 			defaultOpts.Limit = nil
@@ -1191,12 +1195,12 @@ func kvWatchQueryLimit(
 		return defaultOpts
 	}
 
-	value, err := store.Set.Get(kvName)
+	value, err := store.Get(kvName)
 	if err == nil {
 		protoValue := &commonpb.StringProto{}
 		err = value.Unmarshal(protoValue)
 		if err == nil {
-			options := parseOptionsFn(protoValue.Value, options)
+			options = parseOptionsFn(protoValue.Value, options)
 		}
 	}
 
@@ -1394,6 +1398,21 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 	nodeLimit := int(math.Ceil(
 		float64(clusterLimit) / float64(numPlacedShards)))
 	return nodeLimit
+}
+
+func setEncodersPerBlockLimitOnChange(
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	encoderLimit int,
+) error {
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetEncodersPerBlockLimit(encoderLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func withEncodingAndPoolingOptions(
