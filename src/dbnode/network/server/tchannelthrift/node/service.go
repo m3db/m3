@@ -2089,7 +2089,7 @@ func (s *service) SetQueryLimitOverrides(
 	*rpc.NodeQueryLimitOverridesResult_,
 	error,
 ) {
-	db, err := s.startRPCWithDB()
+	_, err := s.startRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
@@ -2097,13 +2097,6 @@ func (s *service) SetQueryLimitOverrides(
 	// TODO(ra): what is the protocol for exposing way to update etcd values? does it make sense to keep this
 	// endpoint and call kvStore.Set(...) on these vals, which then trigger the queryLimits.Update(...)? Or
 	// should we just delete this endpoint now and rely on some other more generic way to update etcd?
-	queryLimits := db.Options().IndexOptions().QueryLimits()
-	if err := queryLimits.BytesReadLimit().Update(req.BytesReadLimitOverride); err != nil {
-		return nil, err
-	}
-	if err := queryLimits.DocsLimit().Update(req.DocsLimitOverride); err != nil {
-		return nil, err
-	}
 
 	s.logger.Info("query limit overrides set",
 		zap.Int64p("bytes-read", req.BytesReadLimitOverride),
