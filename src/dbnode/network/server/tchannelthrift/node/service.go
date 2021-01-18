@@ -711,8 +711,8 @@ func (s *service) readDatapoints(
 	return datapoints, nil
 }
 
-func (s *service) FetchTagged(_ thrift.Context, _ *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	panic("method intentionally not implemented. should be calling FetchTaggedWithProtocol")
+func (s *service) FetchTagged(ctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	return s.FetchTaggedWithProtocol(ctx, req, nil)
 }
 
 func (s *service) FetchTaggedWithProtocol(

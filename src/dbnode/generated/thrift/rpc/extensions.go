@@ -39,10 +39,8 @@ func (s *tchanNodeServer) handleFetchTagged(ctx thrift.Context, protocol athrift
 		return false, nil, err
 	}
 
-	res.Write()
-
 	r, err :=
-		s.handler.FetchTagged(ctx, req.Req, protocol)
+		s.handler.FetchTagged(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
