@@ -182,7 +182,7 @@ func (q *lookbackLimit) Options() LookbackLimitOptions {
 	return q.options
 }
 
-// Override overrides the limit set on construction.
+// Update updates the limit.
 func (q *lookbackLimit) Update(opts LookbackLimitOptions) error {
 	if err := opts.validate(); err != nil {
 		return err
@@ -255,7 +255,6 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 
 func (q *lookbackLimit) start() {
 	ticker := time.NewTicker(q.options.Lookback)
-	ticker.Reset(q.options.Lookback)
 	go func() {
 		q.logger.Info("query limit interval started", zap.String("name", q.name))
 		for {
