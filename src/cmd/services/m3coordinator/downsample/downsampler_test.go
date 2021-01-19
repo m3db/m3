@@ -1891,7 +1891,7 @@ func testDownsamplerAggregationIngest(
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
 			}
-			err = samplesAppender.AppendCounterTimedSample(sample.time, float64(sample.value))
+			err = samplesAppender.AppendCounterTimedSample(sample.time, sample.value)
 			require.NoError(t, err)
 		}
 	}

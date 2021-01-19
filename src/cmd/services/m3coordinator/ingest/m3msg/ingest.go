@@ -226,8 +226,8 @@ func (op *ingestOp) resetWriteQuery() error {
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},
+		Annotation: op.annotation,
 	})
-	wq.Annotation = op.annotation
 }
 
 func (op *ingestOp) resetTags() error {

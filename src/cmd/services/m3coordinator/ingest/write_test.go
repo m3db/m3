@@ -574,7 +574,7 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendCounterTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)

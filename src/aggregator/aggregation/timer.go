@@ -53,6 +53,11 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
 	t.recordLastAt(timestamp)
 	t.addValue(value)
+
+	// Keep the last annotation which was set.
+	if annotation != nil {
+		t.annotation = annotation
+	}
 }
 
 // AddBatch adds a batch of timer values.

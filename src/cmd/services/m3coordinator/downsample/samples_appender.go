@@ -88,7 +88,7 @@ func (a *samplesAppender) AppendCounterTimedSample(t time.Time, value int64, ann
 		Type:       metric.CounterType,
 		ID:         a.unownedID,
 		TimeNanos:  t.UnixNano(),
-		Value:      value,
+		Value:      float64(value),
 		Annotation: annotation,
 	})
 }

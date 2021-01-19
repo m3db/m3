@@ -43,7 +43,7 @@ type Metric struct {
 	Type       metric.Type
 	ID         id.RawID
 	TimeNanos  int64
-	Value      int64
+	Value      float64
 	Annotation []byte
 }
 

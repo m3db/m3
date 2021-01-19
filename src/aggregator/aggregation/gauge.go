@@ -80,6 +80,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 		g.sumSq += value * value
 	}
 
+	// Keep the last annotation which was set.
 	if annotation != nil {
 		g.annotation = annotation
 	}

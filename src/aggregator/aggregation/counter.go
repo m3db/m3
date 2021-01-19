@@ -74,6 +74,7 @@ func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 		c.sumSq += value * value
 	}
 
+	// Keep the last annotation which was set.
 	if annotation != nil {
 		c.annotation = annotation
 	}

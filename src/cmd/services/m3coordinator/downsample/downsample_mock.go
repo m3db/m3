@@ -195,7 +195,7 @@ func (mr *MockSamplesAppenderMockRecorder) AppendCounterSample(arg0, arg1 interf
 }
 
 // AppendCounterTimedSample mocks base method
-func (m *MockSamplesAppender) AppendCounterTimedSample(arg0 time.Time, arg1 float64, arg2 []byte) error {
+func (m *MockSamplesAppender) AppendCounterTimedSample(arg0 time.Time, arg1 int64, arg2 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendCounterTimedSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
