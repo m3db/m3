@@ -63,7 +63,7 @@ func init() {
 var (
 	errTagEncoderInUse   = errors.New("encoder already in use")
 	errTagLiteralTooLong = errors.New("literal is too long")
-	// ErrEmptyTagNameLiteral is an error when encoded tag name is empty
+	// ErrEmptyTagNameLiteral is an error when encoded tag name is empty.
 	ErrEmptyTagNameLiteral = xerrors.NewInvalidParamsError(errors.New("tag name cannot be empty"))
 )
 

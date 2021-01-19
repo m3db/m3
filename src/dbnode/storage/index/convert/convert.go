@@ -190,7 +190,7 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 	return d, nil
 }
 
-// FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a document.
+// FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a doc.Metadata.
 func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
 	var (
 		byteOrder = serialize.ByteOrder
