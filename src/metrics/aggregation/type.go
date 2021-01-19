@@ -164,7 +164,7 @@ func (a Type) IsValidForGauge() bool {
 // IsValidForCounter if an Type is valid for Counter.
 func (a Type) IsValidForCounter() bool {
 	switch a {
-	case Min, Max, Mean, Count, Sum, SumSq, Stdev, Last:
+	case Min, Max, Mean, Count, Sum, SumSq, Stdev:
 		return true
 	default:
 		return false
