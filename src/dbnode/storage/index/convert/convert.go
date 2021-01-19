@@ -22,7 +22,6 @@ package convert
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"unicode/utf8"
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 const (
@@ -190,22 +190,20 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 	return d, nil
 }
 
+// FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a document.
 func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
-	total := len(encodedTags)
-	if total < 4 {
-		return doc.Metadata{}, fmt.Errorf(
-			"encoded tags too short: size=%d, need=%d", total, 4)
-	}
-
 	var (
-		byteOrder                = binary.LittleEndian
-		headerMagicNumber uint16 = 10101
+		byteOrder = serialize.ByteOrder
+		total     = len(encodedTags)
 	)
+	if total < 4 {
+		return doc.Metadata{}, fmt.Errorf("encoded tags too short: size=%d, need=%d", total, 4)
+	}
 
 	header := byteOrder.Uint16(encodedTags[:2])
 	encodedTags = encodedTags[2:]
-	if header != headerMagicNumber {
-		return doc.Metadata{}, errors.New("")
+	if header != serialize.HeaderMagicNumber {
+		return doc.Metadata{}, serialize.ErrIncorrectHeader
 	}
 
 	length := int(byteOrder.Uint16(encodedTags[:2]))
@@ -223,7 +221,7 @@ func FromSeriesIDAndEncodedTags(id ident.ID, encodedTags ts.EncodedTags) (doc.Me
 		}
 		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
 		if numBytesName == 0 {
-			return doc.Metadata{}, errors.New("")
+			return doc.Metadata{}, serialize.ErrEmptyTagNameLiteral
 		}
 		encodedTags = encodedTags[2:]
 
