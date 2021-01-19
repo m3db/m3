@@ -27,8 +27,9 @@ import (
 	"net/http"
 
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage"
@@ -180,8 +181,16 @@ func (h *KeyValueStoreHandler) update(
 
 func newKVProtoMessage(key string) protoiface.MessageV1 {
 	switch key {
-	case "abc":
+	case NamespacesKey:
+	case BootstrapperKey:
+	case ClusterNewSeriesInsertLimitKey:
+	case EncodersPerBlockLimitKey:
+	case ClientBootstrapConsistencyLevel:
+	case ClientReadConsistencyLevel:
+	case ClientWriteConsistencyLevel:
 		return &commonpb.StringProto{}
+	case kvconfig.QueryLimits:
+		return &kvpb.QueryLimits{}
 	}
 	return nil
 }
