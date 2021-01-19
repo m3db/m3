@@ -61,8 +61,6 @@ type SortedTagIterator interface {
 
 	// Close closes the iterator.
 	Close()
-
-	NumTags() int
 }
 
 // SortedTagIteratorAlloc allocates a new sorted tag iterator.
