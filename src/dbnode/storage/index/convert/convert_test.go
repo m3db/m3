@@ -172,36 +172,15 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 	}
 }
 
-func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
-	var (
-		id   = ident.StringID("foo")
-		tags = ident.NewTags(
-			ident.StringTag(string(convert.ReservedFieldNameID), "value"),
-		)
-		encodedTags = toEncodedTags(t, tags)
-	)
-	_, err := convert.FromSeriesIDAndEncodedTags(id, encodedTags)
-	assert.Error(t, err)
-}
-
-func TestFromSeriesIDAndEncodedTagsValid(t *testing.T) {
-	var (
-		id   = ident.StringID("foo")
-		tags = ident.NewTags(
-			ident.StringTag("bar", "baz"),
-		)
-		encodedTags = toEncodedTags(t, tags)
-	)
-	d, err := convert.FromSeriesIDAndEncodedTags(id, encodedTags)
-	assert.NoError(t, err)
-	assertContentsMatch(t, id, tags.Values(), d)
-}
-
-func TestFromSeriesIDAndEncodedTagsReuseBytesFromSeriesId(t *testing.T) {
+func TestFromSeriesIDAndEncodedTags(t *testing.T) {
 	tests := []struct {
 		name string
 		id   string
 	}{
+		{
+			name: "no tags in ID",
+			id:   "foo",
+		},
 		{
 			name: "tags in ID",
 			id:   "bar=baz,quip=quix",
@@ -241,13 +220,22 @@ func TestFromSeriesIDAndEncodedTagsReuseBytesFromSeriesId(t *testing.T) {
 	}
 }
 
-func TestFromSeriesIDAndEncodedTagsInvalidEncodedTags(t *testing.T) {
-	validEncodedTags := []byte{117, 39, 1, 0, 3, 0, 98, 97, 114, 3, 0, 98, 97, 122}
+func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
+	var (
+		validEncodedTags     = []byte{117, 39, 1, 0, 3, 0, 98, 97, 114, 3, 0, 98, 97, 122}
+		tagsWithReservedName = toEncodedTags(t, ident.NewTags(
+			ident.StringTag(string(convert.ReservedFieldNameID), "some_value"),
+		))
+	)
 
 	tests := []struct {
 		name        string
 		encodedTags []byte
 	}{
+		{
+			name:        "reserved tag name",
+			encodedTags: tagsWithReservedName,
+		},
 		{
 			name:        "incomplete header",
 			encodedTags: validEncodedTags[:3],
@@ -415,8 +403,6 @@ func assertBackedBySameData(t *testing.T, outer, inner []byte) {
 	if idx := bytes.Index(outer, inner); idx != -1 {
 		subslice := outer[idx : idx+len(inner)]
 		assert.True(t, test.ByteSlicesBackedBySameData(subslice, inner))
-	} else {
-		assert.Fail(t, "inner byte sequence wasn't found")
 	}
 }
 
