@@ -749,7 +749,6 @@ func (e *Entry) addTimed(
 		aggregationID:      metadata.AggregationID,
 		storagePolicy:      metadata.StoragePolicy,
 		idPrefixSuffixType: NoPrefixNoSuffix,
-		annotation:         metric.Annotation,
 	}
 	if idx := e.aggregations.index(key); idx >= 0 {
 		err := e.addTimedWithLock(e.aggregations[idx], metric)

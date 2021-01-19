@@ -489,7 +489,7 @@ func (e *TimerElem) processValueWithAggregationLock(
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value, lockedAgg.aggregation.Annotation())
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos
