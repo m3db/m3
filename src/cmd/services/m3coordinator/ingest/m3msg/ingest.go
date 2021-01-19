@@ -227,9 +227,7 @@ func (op *ingestOp) resetWriteQuery() error {
 			Retention:   op.sp.Retention().Duration(),
 		},
 	})
-	if op.storeMetricsType && op.annotation != nil {
-		wq.Annotation = op.annotation
-	}
+	wq.Annotation = op.annotation
 }
 
 func (op *ingestOp) resetTags() error {

@@ -82,7 +82,7 @@ type SamplesAppenderOverrideRules struct {
 type SamplesAppender interface {
 	AppendCounterSample(value int64, annotation []byte) error
 	AppendGaugeSample(value float64, annotation []byte) error
-	AppendCounterTimedSample(t time.Time, value float64, annotation []byte) error
+	AppendCounterTimedSample(t time.Time, value int64, annotation []byte) error
 	AppendGaugeTimedSample(t time.Time, value float64, annotation []byte) error
 	AppendTimerTimedSample(t time.Time, value float64, annotation []byte) error
 }

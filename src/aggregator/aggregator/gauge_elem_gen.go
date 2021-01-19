@@ -480,10 +480,10 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, e.sp)
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, e.sp)
+						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				}
 			}
 		} else {
