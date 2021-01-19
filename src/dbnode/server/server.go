@@ -453,21 +453,15 @@ func Run(runOpts RunOptions) {
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
 	diskSeriesReadLimit := limits.DefaultLookbackLimitOptions()
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
-		if limitConfig.Value != 0 {
-			docsLimit.Limit = &limitConfig.Value
-		}
+		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
 	}
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskBytesRead; limitConfig != nil {
-		if limitConfig.Value != 0 {
-			bytesReadLimit.Limit = &limitConfig.Value
-		}
+		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskRead; limitConfig != nil {
-		if limitConfig.Value != 0 {
-			diskSeriesReadLimit.Limit = &limitConfig.Value
-		}
+		diskSeriesReadLimit.Limit = limitConfig.Value
 		diskSeriesReadLimit.Lookback = limitConfig.Lookback
 	}
 	limitOpts := limits.NewOptions().
@@ -1233,12 +1227,14 @@ func updateQueryLimit(logger *zap.Logger,
 ) error {
 	limitOpts := limits.LookbackLimitOptions{
 		// If the settings are nil, then that means the limit is disabled.
-		Limit:    nil,
-		Lookback: limit.Options().Lookback,
+		Limit:         limits.DisabledLimitValue,
+		Lookback:      limit.Options().Lookback,
+		ForceExceeded: false,
 	}
 	if settings != nil {
-		limitOpts.Limit = &settings.Limit
+		limitOpts.Limit = settings.Limit
 		limitOpts.Lookback = time.Second * time.Duration(settings.LookbackSeconds)
+		limitOpts.ForceExceeded = settings.ForceExceeded
 	}
 	return limit.Update(limitOpts)
 }

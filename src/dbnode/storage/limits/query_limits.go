@@ -34,7 +34,9 @@ import (
 )
 
 const (
-	disabledLimitValue = 0
+	// DisabledLimitValue is the value, when set to
+	// a limit, disables the enforcement of that limit.
+	DisabledLimitValue = 0
 
 	defaultLookback = time.Second * 15
 )
@@ -75,7 +77,7 @@ var (
 func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	return LookbackLimitOptions{
 		// Default to no limit.
-		Limit:    disabledLimitValue,
+		Limit:    DisabledLimitValue,
 		Lookback: defaultLookback,
 	}
 }
@@ -250,7 +252,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			"query aborted due to forced limit: name=%s", q.name)))
 	}
 
-	if currentOpts.Limit == disabledLimitValue {
+	if currentOpts.Limit == DisabledLimitValue {
 		return nil
 	}
 
