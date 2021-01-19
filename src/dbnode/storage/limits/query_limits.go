@@ -49,7 +49,6 @@ type lookbackLimit struct {
 	metrics lookbackLimitMetrics
 	logger  *zap.Logger
 	recent  *atomic.Int64
-	ticker  *time.Ticker
 	stopCh  chan struct{}
 	lock    sync.RWMutex
 }
@@ -255,15 +254,16 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 }
 
 func (q *lookbackLimit) start() {
-	q.ticker = time.NewTicker(q.options.Lookback)
+	ticker := time.NewTicker(q.options.Lookback)
+	ticker.Reset(q.options.Lookback)
 	go func() {
 		q.logger.Info("query limit interval started", zap.String("name", q.name))
 		for {
 			select {
-			case <-q.ticker.C:
+			case <-ticker.C:
 				q.reset()
 			case <-q.stopCh:
-				q.ticker.Stop()
+				ticker.Stop()
 				return
 			}
 		}
