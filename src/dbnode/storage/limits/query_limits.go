@@ -34,6 +34,8 @@ import (
 )
 
 const (
+	disabledLimitValue = 0
+
 	defaultLookback = time.Second * 15
 )
 
@@ -54,7 +56,7 @@ type lookbackLimit struct {
 }
 
 type lookbackLimitMetrics struct {
-	optionsMax      tally.Gauge
+	optionsLimit    tally.Gauge
 	optionsLookback tally.Gauge
 	recentCount     tally.Gauge
 	recentMax       tally.Gauge
@@ -73,7 +75,7 @@ var (
 func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	return LookbackLimitOptions{
 		// Default to no limit.
-		Limit:    nil,
+		Limit:    disabledLimitValue,
 		Lookback: defaultLookback,
 	}
 }
@@ -135,10 +137,12 @@ func newLookbackLimitMetrics(
 		instrumentOpts.SetMetricsScope(scope))
 
 	return lookbackLimitMetrics{
-		recentCount: scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
-		recentMax:   scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
-		total:       scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:    scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
+		optionsLimit:    scope.Gauge(fmt.Sprintf("current-limit%s", name)),
+		optionsLookback: scope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
+		recentCount:     scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
+		recentMax:       scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
+		total:           scope.Counter(fmt.Sprintf("total-%s", name)),
+		exceeded:        scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
 
 		sourceLogger: sourceLogger,
 	}
@@ -237,14 +241,20 @@ func (q *lookbackLimit) exceeded() error {
 
 func (q *lookbackLimit) checkLimit(recent int64) error {
 	q.lock.RLock()
-	limit := q.options.Limit
+	currentOpts := q.options
 	q.lock.RUnlock()
 
-	if limit == nil {
+	if currentOpts.ForceExceeded {
+		q.metrics.exceeded.Inc(1)
+		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
+			"query aborted due to forced limit: name=%s", q.name)))
+	}
+
+	if currentOpts.Limit == disabledLimitValue {
 		return nil
 	}
 
-	if recent >= *limit {
+	if recent >= currentOpts.Limit {
 		q.metrics.exceeded.Inc(1)
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
@@ -268,7 +278,7 @@ func (q *lookbackLimit) start() {
 		}
 	}()
 
-	q.metrics.optionsMax.Update(float64(*q.options.Limit))
+	q.metrics.optionsLimit.Update(float64(q.options.Limit))
 	q.metrics.optionsLookback.Update(q.options.Lookback.Seconds())
 }
 
@@ -296,8 +306,8 @@ func (q *lookbackLimit) reset() {
 }
 
 func (opts LookbackLimitOptions) validate() error {
-	if opts.Limit != nil && *opts.Limit < 0 {
-		return fmt.Errorf("query limit requires limit >= 0 or nil (%d)", *opts.Limit)
+	if opts.Limit < 0 {
+		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
 	}
 	if opts.Lookback <= 0 {
 		return fmt.Errorf("query limit requires lookback > 0 (%d)", opts.Lookback)

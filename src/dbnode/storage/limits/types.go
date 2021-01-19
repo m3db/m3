@@ -63,9 +63,12 @@ type LookbackLimit interface {
 // LookbackLimitOptions holds options for a lookback limit to be enforced.
 type LookbackLimitOptions struct {
 	// Limit past which errors will be returned.
-	Limit *int64
+	// Zero disables the limit.
+	Limit int64
 	// Lookback is the period over which the limit is enforced.
 	Lookback time.Duration
+	// ForceExceeded, if true, makes all calls to the limit behave as though the limit is exceeded.
+	ForceExceeded bool
 }
 
 // SourceLoggerBuilder builds a SourceLogger given instrument options.
