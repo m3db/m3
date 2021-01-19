@@ -127,7 +127,7 @@ type streamResult struct {
 	shard      uint32
 	id         string
 	blockStart time.Time
-	stream     xio.SegmentReader
+	stream     xio.BlockReader
 }
 
 // TestBlockRetrieverHighConcurrentSeeks tests the retriever with high
@@ -395,6 +395,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 
 				for _, r := range results {
+					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
+
+					// If the stream is empty, assert that the expected result is also nil
+					if r.stream.IsEmpty() {
+						require.Nil(t, compare.Head)
+						continue
+					}
+
 					seg, err := r.stream.Segment()
 					if err != nil {
 						fmt.Printf("\nstream seg err: %v\n", err)
@@ -404,7 +412,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					}
 
 					require.NoError(t, err)
-					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
 					require.True(
 						t,
 						seg.Equal(&compare),
@@ -579,10 +586,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 		ident.StringID("not-exists"), blockStart, nil, nsCtx)
 	assert.NoError(t, err)
 
-	segment, err := segmentReader.Segment()
-	assert.NoError(t, err)
-	assert.Equal(t, nil, segment.Head)
-	assert.Equal(t, nil, segment.Tail)
+	assert.True(t, segmentReader.IsEmpty())
 }
 
 // TestBlockRetrieverOnlyCreatesTagItersIfTagsExists verifies that the block retriever
@@ -823,8 +827,8 @@ func TestLimitSeriesReadFromDisk(t *testing.T) {
 	require.NoError(t, err)
 	req := &retrieveRequest{}
 	retriever := publicRetriever.(*blockRetriever)
-	_, _ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
-	_, err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
+	_ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
+	err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "query aborted due to limit")
 
