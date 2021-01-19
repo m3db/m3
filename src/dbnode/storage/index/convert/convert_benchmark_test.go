@@ -34,12 +34,12 @@ import (
 )
 
 type idWithEncodedTags struct {
-	id          ident.ID
+	id          ident.BytesID
 	encodedTags []byte
 }
 
 type idWithTags struct {
-	id   ident.ID
+	id   ident.BytesID
 	tags ident.Tags
 }
 

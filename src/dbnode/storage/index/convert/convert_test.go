@@ -208,7 +208,7 @@ func TestFromSeriesIDAndEncodedTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			seriesID := ident.StringID(tt.id)
+			seriesID := ident.BytesID(tt.id)
 			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, encodedTags)
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
@@ -257,7 +257,7 @@ func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
 			encodedTags: []byte{117, 39, 1, 0, 0, 0, 3, 0, 98, 97, 122},
 		},
 	}
-	seriesID := ident.StringID("foo")
+	seriesID := ident.BytesID("foo")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
