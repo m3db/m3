@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 const (
@@ -46,6 +47,7 @@ type lookbackLimit struct {
 	name    string
 	options LookbackLimitOptions
 	metrics lookbackLimitMetrics
+	logger  *zap.Logger
 	recent  *atomic.Int64
 	ticker  *time.Ticker
 	stopCh  chan struct{}
@@ -53,10 +55,12 @@ type lookbackLimit struct {
 }
 
 type lookbackLimitMetrics struct {
-	recentCount tally.Gauge
-	recentMax   tally.Gauge
-	total       tally.Counter
-	exceeded    tally.Counter
+	optionsMax      tally.Gauge
+	optionsLookback tally.Gauge
+	recentCount     tally.Gauge
+	recentMax       tally.Gauge
+	total           tally.Counter
+	exceeded        tally.Counter
 
 	sourceLogger SourceLogger
 }
@@ -113,6 +117,7 @@ func newLookbackLimit(
 		name:    name,
 		options: opts,
 		metrics: newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
+		logger:  instrumentOpts.Logger(),
 		recent:  atomic.NewInt64(0),
 		stopCh:  make(chan struct{}),
 	}
@@ -187,12 +192,19 @@ func (q *lookbackLimit) Update(opts LookbackLimitOptions) error {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	loobackUpdated := q.options.Lookback != opts.Lookback
+	old := q.options
 	q.options = opts
-	if loobackUpdated {
+
+	// If the lookback changed, replace the background goroutine that manages the periodic resetting.
+	if q.options.Lookback != old.Lookback {
 		q.stop()
 		q.start()
 	}
+
+	q.logger.Info("query limit options updated",
+		zap.String("name", q.name),
+		zap.Any("new", opts),
+		zap.Any("old", old))
 
 	return nil
 }
@@ -245,6 +257,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 func (q *lookbackLimit) start() {
 	q.ticker = time.NewTicker(q.options.Lookback)
 	go func() {
+		q.logger.Info("query limit interval started", zap.String("name", q.name))
 		for {
 			select {
 			case <-q.ticker.C:
@@ -255,10 +268,16 @@ func (q *lookbackLimit) start() {
 			}
 		}
 	}()
+
+	q.metrics.optionsMax.Update(float64(*q.options.Limit))
+	q.metrics.optionsLookback.Update(q.options.Lookback.Seconds())
 }
 
 func (q *lookbackLimit) stop() {
 	close(q.stopCh)
+	q.stopCh = make(chan struct{})
+
+	q.logger.Info("query limit interval stopped", zap.String("name", q.name))
 }
 
 func (q *lookbackLimit) current() int64 {
