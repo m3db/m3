@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
 )
 
 const (
@@ -328,54 +327,6 @@ func FromSeriesIDAndEncodedTagsIndex(id ident.ID, encodedTags ts.EncodedTags) (d
 		})
 	}
 
-	d := doc.Metadata{
-		ID:     clonedID,
-		Fields: fields,
-	}
-	if err := Validate(d); err != nil {
-		return doc.Metadata{}, err
-	}
-	return d, nil
-}
-
-func FromSeriesIDAndEncodedTags2(id ident.ID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
-	var (
-		length int
-		err    error
-	)
-	encodedTags, length, err = serialize.DecodeHeader(encodedTags)
-	if err != nil {
-		return doc.Metadata{}, err
-	}
-
-	var (
-		clonedID      = clone(id.Bytes())
-		fields        = make([]doc.Field, 0, length)
-		expectedStart = firstTagBytesPosition
-	)
-
-	for i := 0; i < length; i++ {
-		var nameBytes, valueBytes []byte
-		encodedTags, nameBytes, valueBytes, err = serialize.DecodeTag(encodedTags)
-		if err != nil {
-			return doc.Metadata{}, err
-		}
-
-		var clonedName, clonedValue []byte
-		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
-			distanceBetweenTagNameAndValue)
-		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
-			distanceBetweenTagValueAndNextName)
-
-		fields = append(fields, doc.Field{
-			Name:  clonedName,
-			Value: clonedValue,
-		})
-	}
-
-	if err != nil {
-		return doc.Metadata{}, err
-	}
 	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,

@@ -177,17 +177,6 @@ func BenchmarkFromSeriesIDAndEncodedTagsIndex(b *testing.B) {
 	}
 }
 
-func BenchmarkFromSeriesIDAndEncodedTags2(b *testing.B) {
-	testData, err := prepareIDAndEncodedTags(b)
-	require.NoError(b, err)
-
-	b.ResetTimer()
-	for i := range testData {
-		_, err := FromSeriesIDAndEncodedTags2(testData[i].id, testData[i].encodedTags)
-		require.NoError(b, err)
-	}
-}
-
 func BenchmarkFromSeriesIDAndFastTagIter(b *testing.B) {
 	testData, err := prepareIDAndEncodedTags(b)
 	require.NoError(b, err)

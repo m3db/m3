@@ -51,7 +51,7 @@ func TagValueFromEncodedTagsFast(
 			return nil, false, fmt.Errorf("missing size for tag name: index=%d", i)
 		}
 		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
-		if numBytesName == 0 {
+		if numBytesName <= 0 {
 			return nil, false, errEmptyTagNameLiteral
 		}
 		encodedTags = encodedTags[2:]
@@ -69,83 +69,10 @@ func TagValueFromEncodedTagsFast(
 		bytesValue := encodedTags[:numBytesValue]
 		encodedTags = encodedTags[numBytesValue:]
 
-		if bytes.Equal(bytesName, tagName) {
+		if bytes.Compare(bytesName, tagName) == 0 {
 			return bytesValue, true, nil
 		}
 	}
 
 	return nil, false, nil
-}
-
-func TagValueFromEncodedTagsFast2(
-	encodedTags []byte,
-	tagName []byte,
-) ([]byte, bool, error) {
-	var (
-		length int
-		err    error
-	)
-	encodedTags, length, err = DecodeHeader(encodedTags)
-	if err != nil {
-		return nil, false, err
-	}
-
-	for i := 0; i < length; i++ {
-		var bytesName, bytesValue []byte
-
-		encodedTags, bytesName, bytesValue, err = DecodeTag(encodedTags)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if bytes.Equal(bytesName, tagName) {
-			return bytesValue, true, nil
-		}
-	}
-
-	return nil, false, nil
-}
-
-func DecodeHeader(encodedTags []byte) ([]byte, int, error) {
-	total := len(encodedTags)
-	if total < 4 {
-		return nil, 0, fmt.Errorf(
-			"encoded tags too short: size=%d, need=%d", total, 4)
-	}
-
-	header := byteOrder.Uint16(encodedTags[:2])
-	encodedTags = encodedTags[2:]
-	if header != headerMagicNumber {
-		return nil, 0, errIncorrectHeader
-	}
-
-	length := int(byteOrder.Uint16(encodedTags[:2]))
-	encodedTags = encodedTags[2:]
-	return encodedTags, length, nil
-}
-
-func DecodeTag(encodedTags []byte) ([]byte, []byte, []byte, error) {
-	if len(encodedTags) < 2 {
-		return nil, nil, nil, fmt.Errorf("missing size for tag name")
-	}
-	numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
-	if numBytesName == 0 {
-		return nil, nil, nil, errEmptyTagNameLiteral
-	}
-	encodedTags = encodedTags[2:]
-
-	bytesName := encodedTags[:numBytesName]
-	encodedTags = encodedTags[numBytesName:]
-
-	if len(encodedTags) < 2 {
-		return nil, nil, nil, fmt.Errorf("missing size for tag value")
-	}
-
-	numBytesValue := int(byteOrder.Uint16(encodedTags[:2]))
-	encodedTags = encodedTags[2:]
-
-	bytesValue := encodedTags[:numBytesValue]
-	encodedTags = encodedTags[numBytesValue:]
-
-	return encodedTags, bytesName, bytesValue, nil
 }
