@@ -55,6 +55,7 @@ func (m Metric) ToProto(pb *metricpb.TimedMetric) error {
 	pb.Id = m.ID
 	pb.TimeNanos = m.TimeNanos
 	pb.Value = m.Value
+	pb.Annotation = m.Annotation
 	return nil
 }
 

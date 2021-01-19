@@ -32,7 +32,6 @@ type aggregationKey struct {
 	pipeline           applied.Pipeline
 	numForwardedTimes  int
 	idPrefixSuffixType IDPrefixSuffixType
-	annotation         []byte
 }
 
 func (k aggregationKey) Equal(other aggregationKey) bool {
