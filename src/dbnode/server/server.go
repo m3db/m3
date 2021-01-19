@@ -1213,6 +1213,9 @@ func updateQueryLimits(logger *zap.Logger,
 	limits limits.QueryLimits,
 	settings *kvpb.QueryLimits,
 ) {
+	if settings == nil {
+		return
+	}
 	if err := updateQueryLimit(logger, limits.DocsLimit(), settings.DocsMatched); err != nil {
 		logger.Error("error updating docs limit", zap.Error(err))
 	}
