@@ -27,6 +27,7 @@ import (
 	"net/http"
 
 	"github.com/jhump/protoreflect/dynamic"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
