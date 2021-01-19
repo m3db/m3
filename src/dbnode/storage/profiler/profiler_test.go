@@ -64,9 +64,9 @@ func TestCPUProfile(t *testing.T) {
 		name     string
 		fileName string
 	}{
-		{name: "0", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 0, ProfileFileExtension)},
-		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 1, ProfileFileExtension)},
-		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix, 2, ProfileFileExtension)},
+		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 1, ProfileFileExtension)},
+		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 2, ProfileFileExtension)},
+		{name: "3", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 3, ProfileFileExtension)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -86,9 +86,9 @@ func TestWriteHeapProfile(t *testing.T) {
 		name     string
 		fileName string
 	}{
-		{name: "0", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix, 0, ProfileFileExtension)},
-		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix, 1, ProfileFileExtension)},
-		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix, 2, ProfileFileExtension)},
+		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 1, ProfileFileExtension)},
+		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 2, ProfileFileExtension)},
+		{name: "3", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 3, ProfileFileExtension)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

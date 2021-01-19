@@ -43,6 +43,7 @@ type instrumentationContext struct {
 	bootstrapDataDuration  tally.Timer
 	bootstrapIndexDuration tally.Timer
 	pOpts                  profiler.Options
+	profile                *profiler.GcpProfile
 }
 
 func newInstrumentationContext(
@@ -70,11 +71,9 @@ func (i *instrumentationContext) bootstrapDataStarted() {
 	i.log.Info("bootstrapping time series data start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
 	i.start = i.nowFn()
-	if i.pOpts.BootstrapProfileEnabled() {
-		if err := profiler.StartCPUProfile(i.pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadDataCPUProfileNamePrefix); err != nil {
-			i.log.Error("unable to start read data cpu profile", zap.Error(err))
-		}
+	if i.pOpts.Enabled() {
+		i.profile = profiler.NewGcpProfile(profiler.ServiceNamePeersBootstrapReadData)
+		i.profile.StartCPUProfile()
 	}
 }
 
@@ -83,11 +82,12 @@ func (i *instrumentationContext) bootstrapDataCompleted() {
 	i.bootstrapDataDuration.Record(duration)
 	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
-	if i.pOpts.BootstrapProfileEnabled() {
-		profiler.StopCPUProfile()
+	if i.pOpts.Enabled() {
+		if err := i.profile.StopCPUProfile(); err != nil {
+			i.log.Error("unable to write read data cpu profile", zap.Error(err))
+		}
 
-		if err := profiler.WriteHeapProfile(i.pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadDataHeapProfileNamePrefix); err != nil {
+		if err := i.profile.WriteHeapProfile(); err != nil {
 			i.log.Error("unable to write read data heap profile", zap.Error(err))
 		}
 	}
@@ -97,11 +97,9 @@ func (i *instrumentationContext) bootstrapIndexStarted() {
 	i.log.Info("bootstrapping index metadata start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 	i.start = i.nowFn()
-	if i.pOpts.BootstrapProfileEnabled() {
-		if err := profiler.StartCPUProfile(i.pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadIndexCPUProfileNamePrefix); err != nil {
-			i.log.Error("unable to start read index cpu profile", zap.Error(err))
-		}
+	if i.pOpts.Enabled() {
+		i.profile = profiler.NewGcpProfile(profiler.ServiceNamePeersBootstrapReadIndex)
+		i.profile.StartCPUProfile()
 	}
 }
 
@@ -110,11 +108,12 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 	i.bootstrapIndexDuration.Record(duration)
 	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
-	if i.pOpts.BootstrapProfileEnabled() {
-		profiler.StopCPUProfile()
+	if i.pOpts.Enabled() {
+		if err := i.profile.StopCPUProfile(); err != nil {
+			i.log.Error("unable to write read index cpu profile", zap.Error(err))
+		}
 
-		if err := profiler.WriteHeapProfile(i.pOpts.ProfilePath(),
-			profiler.PeersBootstrapReadIndexHeapProfileNamePrefix); err != nil {
+		if err := i.profile.WriteHeapProfile(); err != nil {
 			i.log.Error("unable to write read index heap profile", zap.Error(err))
 		}
 	}

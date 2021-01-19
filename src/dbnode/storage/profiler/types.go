@@ -42,33 +42,61 @@
 
 package profiler
 
+import "sync/atomic"
+
 // ProfileNamePrefix is the prefix of the profile name.
-type ProfileNamePrefix string
+type ProfileNamePrefix struct {
+	name  string
+	count int32
+}
+
+func (p *ProfileNamePrefix) inc() int32 {
+	return atomic.AddInt32(&p.count, 1)
+}
+
+// ServiceName is the gcp service name.
+type ServiceName string
+
+// String returns service name string.
+func (s ServiceName) String() string {
+	return string(s)
+}
+
+var (
+	// PeersBootstrapReadDataCPUProfileNamePrefix is prefix for peers bootstrap read data cpu profile filepath.
+	PeersBootstrapReadDataCPUProfileNamePrefix = &ProfileNamePrefix{
+		name: "pprof.m3dbnode.peers.data.samples.cpu.",
+	}
+
+	// PeersBootstrapReadIndexCPUProfileNamePrefix is prefix for peers bootstrap read index cpu profile filepath.
+	PeersBootstrapReadIndexCPUProfileNamePrefix = &ProfileNamePrefix{
+		name: "pprof.m3dbnode.peers.index.samples.cpu.",
+	}
+
+	// PeersBootstrapReadDataHeapProfileNamePrefix is prefix for peers bootstrap read data heap profile filepath.
+	PeersBootstrapReadDataHeapProfileNamePrefix = &ProfileNamePrefix{
+		name: "pprof.m3dbnode.peers.data.samples.heap.",
+	}
+)
 
 const (
 	// ProfileFileExtension is the extension of profile files.
 	ProfileFileExtension = ".pb.gz"
 
-	// PeersBootstrapReadDataCPUProfileNamePrefix is prefix for peers bootstrap read data cpu profile filepath.
-	PeersBootstrapReadDataCPUProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.data.samples.cpu."
+	// ServiceNamePeersBootstrapReadData is service name for gcp cloud profiler.
+	ServiceNamePeersBootstrapReadData ServiceName = "m3dbnode-peer-bootstrap-read-data"
 
-	// PeersBootstrapReadIndexCPUProfileNamePrefix is prefix for peers bootstrap read index cpu profile filepath.
-	PeersBootstrapReadIndexCPUProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.index.samples.cpu."
-
-	// PeersBootstrapReadDataHeapProfileNamePrefix is prefix for peers bootstrap read data heap profile filepath.
-	PeersBootstrapReadDataHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.data.samples.heap."
-
-	// PeersBootstrapReadIndexHeapProfileNamePrefix is prefix for peers bootstrap read index heap profile filepath.
-	PeersBootstrapReadIndexHeapProfileNamePrefix ProfileNamePrefix = "pprof.m3dbnode.peers.index.samples.heap."
+	// ServiceNamePeersBootstrapReadIndex is service name for gcp cloud profiler.
+	ServiceNamePeersBootstrapReadIndex ServiceName = "m3dbnode-peer-bootstrap-read-index"
 )
 
 // Options represents the profiler options.
 type Options interface {
-	// BootstrapProfileEnabled returns if bootstrap profile is enabled.
-	BootstrapProfileEnabled() bool
+	// Enabled returns if profile is enabled.
+	Enabled() bool
 
-	// SetBootstrapProfileEnabled enables bootstrap profiling.
-	SetBootstrapProfileEnabled(value bool) Options
+	// SetEnabled enables profiling.
+	SetEnabled(value bool) Options
 
 	// ProfilePath returns the profile path.
 	ProfilePath() string

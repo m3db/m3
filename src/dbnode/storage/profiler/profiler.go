@@ -30,7 +30,7 @@ import (
 )
 
 // StartCPUProfile starts cpu profile.
-func StartCPUProfile(path string, profileNamePrefix ProfileNamePrefix) error {
+func StartCPUProfile(path string, profileNamePrefix *ProfileNamePrefix) error {
 	file, err := newProfileFile(path, profileNamePrefix)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func StopCPUProfile() {
 }
 
 // WriteHeapProfile writes heap profile to file.
-func WriteHeapProfile(path string, profileNamePrefix ProfileNamePrefix) error {
+func WriteHeapProfile(path string, profileNamePrefix *ProfileNamePrefix) error {
 	file, err := newProfileFile(path, profileNamePrefix)
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func WriteHeapProfile(path string, profileNamePrefix ProfileNamePrefix) error {
 // newProfileFile creates new file for writing bootstrap profile.
 // path is a directory where profile files will be put.
 // If path is empty string, temp directory will be used instead.
-func newProfileFile(path string, profileNamePrefix ProfileNamePrefix) (*os.File, error) {
+func newProfileFile(path string, profileNamePrefix *ProfileNamePrefix) (*os.File, error) {
 	if path == "" {
 		tmpDir, err := ioutil.TempDir("", "profile-")
 		if err != nil {
@@ -70,12 +70,6 @@ func newProfileFile(path string, profileNamePrefix ProfileNamePrefix) (*os.File,
 		return nil, err
 	}
 
-	matches, err := filepath.Glob(filepath.Join(path,
-		fmt.Sprintf("%s*%s", profileNamePrefix, ProfileFileExtension)))
-	if err != nil {
-		return nil, err
-	}
-
 	return os.Create(filepath.Join(path, fmt.Sprintf("%s%d%s",
-		profileNamePrefix, len(matches), ProfileFileExtension)))
+		profileNamePrefix.name, profileNamePrefix.inc(), ProfileFileExtension)))
 }

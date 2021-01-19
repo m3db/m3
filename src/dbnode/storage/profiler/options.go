@@ -30,11 +30,11 @@ func NewOptions() Options {
 	return &options{}
 }
 
-func (o *options) BootstrapProfileEnabled() bool {
+func (o *options) Enabled() bool {
 	return o.bootstrapProfilerEnabled
 }
 
-func (o *options) SetBootstrapProfileEnabled(value bool) Options {
+func (o *options) SetEnabled(value bool) Options {
 	opts := *o
 	opts.bootstrapProfilerEnabled = value
 	return &opts
