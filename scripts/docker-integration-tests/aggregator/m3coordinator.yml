@@ -77,3 +77,5 @@ ingest:
       retry:
         maxBackoff: 10s
         jitter: true
+
+storeMetricsType: true

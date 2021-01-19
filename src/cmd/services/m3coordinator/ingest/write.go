@@ -110,9 +110,10 @@ type downsamplerAndWriterMetrics struct {
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
 // as well as in unaggregated form to storage.
 type downsamplerAndWriter struct {
-	store       storage.Storage
-	downsampler downsample.Downsampler
-	workerPool  xsync.PooledWorkerPool
+	store           storage.Storage
+	downsampler     downsample.Downsampler
+	workerPool      xsync.PooledWorkerPool
+	storeMetricType bool
 
 	metrics downsamplerAndWriterMetrics
 }
@@ -122,13 +123,15 @@ func NewDownsamplerAndWriter(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
+	storeMetricType bool,
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 	return &downsamplerAndWriter{
-		store:       store,
-		downsampler: downsampler,
-		workerPool:  workerPool,
+		store:           store,
+		downsampler:     downsampler,
+		workerPool:      workerPool,
+		storeMetricType: storeMetricType,
 		metrics: downsamplerAndWriterMetrics{
 			dropped: scope.Counter("metrics_dropped"),
 		},
@@ -150,6 +153,12 @@ func (d *downsamplerAndWriter) Write(
 
 	if d.shouldDownsample(overrides) {
 		var err error
+		// Do not send annotation to the aggregator if storage of metric types is disabled.
+		// In future when annotation will contain more information, most likely we will
+		// want to remove this check and handle it elsewhere.
+		if !d.storeMetricType {
+			annotation = nil
+		}
 		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
