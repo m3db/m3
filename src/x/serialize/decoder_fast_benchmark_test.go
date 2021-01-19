@@ -62,8 +62,7 @@ var samples = []string{
 
 // BenchmarkTagValueFromEncodedTagsFast-12    	11756650	       110 ns/op
 func BenchmarkTagValueFromEncodedTagsFast(b *testing.B) {
-	testData, err := prepareData(b)
-	require.NoError(b, err)
+	testData := prepareData(b)
 
 	b.ResetTimer()
 	for i := range testData {
@@ -72,16 +71,12 @@ func BenchmarkTagValueFromEncodedTagsFast(b *testing.B) {
 	}
 }
 
-func prepareData(b *testing.B) ([]encodedTagsWithTagName, error) {
+func prepareData(b *testing.B) []encodedTagsWithTagName {
 	encodedTags, err := base64.StdEncoding.DecodeString(samples[0])
-	if err != nil {
-		return nil, err
-	}
-
+	require.NoError(b, err)
+	// Extracting tag names. Each sample has the same set of tag names, so using any of them
 	tagNames, err := decodeTagNames(encodedTags)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(b, err)
 	tagNames = append(tagNames, []byte("not_exist"))
 
 	var (
@@ -91,9 +86,7 @@ func prepareData(b *testing.B) ([]encodedTagsWithTagName, error) {
 	for i := 0; i < b.N; i++ {
 		tagName := tagNames[rnd.Intn(len(tagNames))]
 		encodedTags, err = base64.StdEncoding.DecodeString(samples[rnd.Intn(len(samples))])
-		if err != nil {
-			return nil, err
-		}
+		require.NoError(b, err)
 
 		result = append(result, encodedTagsWithTagName{
 			encodedTags: encodedTags,
@@ -101,7 +94,7 @@ func prepareData(b *testing.B) ([]encodedTagsWithTagName, error) {
 		})
 	}
 
-	return result, nil
+	return result
 }
 
 func decodeTagNames(encodedTags []byte) ([][]byte, error) {
