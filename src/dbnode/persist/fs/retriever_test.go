@@ -839,8 +839,6 @@ func TestLimitSeriesReadFromDisk(t *testing.T) {
 	require.Contains(t, err.Error(), "query aborted due to limit")
 
 	snapshot := scope.Snapshot()
-	seriesRead := snapshot.Counters()["test.retriever.series-read+"]
-	require.Equal(t, int64(2), seriesRead.Value())
 	seriesLimit := snapshot.Counters()["test.query-limit.exceeded+limit=disk-series-read"]
 	require.Equal(t, int64(1), seriesLimit.Value())
 }

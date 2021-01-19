@@ -94,7 +94,6 @@ type blockRetriever struct {
 	logger                  *zap.Logger
 	queryLimits             limits.QueryLimits
 	bytesReadLimit          limits.LookbackLimit
-	seriesReadCount         tally.Counter
 	seriesBloomFilterMisses tally.Counter
 
 	newSeekerMgrFn newSeekerMgrFn
@@ -132,7 +131,6 @@ func NewBlockRetriever(
 		logger:                  fsOpts.InstrumentOptions().Logger(),
 		queryLimits:             opts.QueryLimits(),
 		bytesReadLimit:          opts.QueryLimits().BytesReadLimit(),
-		seriesReadCount:         scope.Counter("series-read"),
 		seriesBloomFilterMisses: scope.Counter("series-bloom-filter-misses"),
 		newSeekerMgrFn:          NewSeekerManager,
 		reqPool:                 opts.RetrieveRequestPool(),
@@ -599,7 +597,6 @@ func (r *blockRetriever) streamRequest(
 	nsCtx namespace.Context,
 ) error {
 	req.resultWg.Add(1)
-	r.seriesReadCount.Inc(1)
 	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
 		return err
 	}
