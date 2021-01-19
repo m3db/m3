@@ -2662,18 +2662,6 @@ func (mr *MockNamespaceIndexMockRecorder) ColdFlush(shards interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).ColdFlush), shards)
 }
 
-// SetExtendedRetentionPeriod mocks base method
-func (m *MockNamespaceIndex) SetExtendedRetentionPeriod(period time.Duration) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetExtendedRetentionPeriod", period)
-}
-
-// SetExtendedRetentionPeriod indicates an expected call of SetExtendedRetentionPeriod
-func (mr *MockNamespaceIndexMockRecorder) SetExtendedRetentionPeriod(period interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExtendedRetentionPeriod", reflect.TypeOf((*MockNamespaceIndex)(nil).SetExtendedRetentionPeriod), period)
-}
-
 // DebugMemorySegments mocks base method
 func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	m.ctrl.T.Helper()

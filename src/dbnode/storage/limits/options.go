@@ -28,10 +28,11 @@ import (
 )
 
 type limitOpts struct {
-	iOpts               instrument.Options
-	docsLimitOpts       LookbackLimitOptions
-	bytesReadLimitOpts  LookbackLimitOptions
-	sourceLoggerBuilder SourceLoggerBuilder
+	iOpts                   instrument.Options
+	docsLimitOpts           LookbackLimitOptions
+	bytesReadLimitOpts      LookbackLimitOptions
+	diskSeriesReadLimitOpts LookbackLimitOptions
+	sourceLoggerBuilder     SourceLoggerBuilder
 }
 
 // NewOptions creates limit options with default values.
@@ -92,6 +93,18 @@ func (o *limitOpts) SetBytesReadLimitOpts(value LookbackLimitOptions) Options {
 // BytesReadLimitOpts returns the byte read limit options.
 func (o *limitOpts) BytesReadLimitOpts() LookbackLimitOptions {
 	return o.bytesReadLimitOpts
+}
+
+// SetDiskSeriesReadLimitOpts sets the disk ts read limit options.
+func (o *limitOpts) SetDiskSeriesReadLimitOpts(value LookbackLimitOptions) Options {
+	opts := *o
+	opts.diskSeriesReadLimitOpts = value
+	return &opts
+}
+
+// DiskSeriesReadLimitOpts returns the disk ts read limit options.
+func (o *limitOpts) DiskSeriesReadLimitOpts() LookbackLimitOptions {
+	return o.diskSeriesReadLimitOpts
 }
 
 // SetSourceLoggerBuilder sets the source logger.

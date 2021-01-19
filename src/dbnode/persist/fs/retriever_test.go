@@ -32,25 +32,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -797,6 +801,38 @@ func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
 	mockSeeker.EXPECT().SeekByIndexEntry(gomock.Any(), gomock.Any()).Return(nil, errSeekErr)
 
 	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
+}
+
+func TestLimitSeriesReadFromDisk(t *testing.T) {
+	scope := tally.NewTestScope("test", nil)
+	limitOpts := limits.NewOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
+		SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
+		SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
+		SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
+			Limit:    1,
+			Lookback: time.Second * 1,
+		})
+	queryLimits, err := limits.NewQueryLimits(limitOpts)
+	require.NoError(t, err)
+	opts := NewBlockRetrieverOptions().
+		SetBlockLeaseManager(&block.NoopLeaseManager{}).
+		SetQueryLimits(queryLimits)
+	publicRetriever, err := NewBlockRetriever(opts, NewOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)))
+	require.NoError(t, err)
+	req := &retrieveRequest{}
+	retriever := publicRetriever.(*blockRetriever)
+	_, _ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
+	_, err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "query aborted due to limit")
+
+	snapshot := scope.Snapshot()
+	seriesRead := snapshot.Counters()["test.retriever.series-read+"]
+	require.Equal(t, int64(2), seriesRead.Value())
+	seriesLimit := snapshot.Counters()["test.query-limit.exceeded+limit=disk-series-read"]
+	require.Equal(t, int64(1), seriesLimit.Value())
 }
 
 var errSeekErr = errors.New("some-error")
