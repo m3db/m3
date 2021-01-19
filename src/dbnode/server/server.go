@@ -32,7 +32,6 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +39,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -1000,9 +1000,7 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.DocsLimit(), kvconfig.DocsLimit)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.DiskSeriesReadLimit(), kvconfig.DiskBytesReadLimit)
-		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits.BytesReadLimit(), kvconfig.DiskSeriesReadLimit)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits)
 	}()
 
 	// Wait for process interrupt.
@@ -1178,74 +1176,68 @@ func kvWatchEncodersPerBlockLimit(
 func kvWatchQueryLimit(
 	store kv.Store,
 	logger *zap.Logger,
-	limit limits.LookbackLimit,
-	kvName string,
+	limits limits.QueryLimits,
 ) {
-	options := limit.Options()
-
-	value, err := store.Get(kvName)
+	value, err := store.Get(kvconfig.QueryLimits)
 	if err == nil {
-		protoValue := &commonpb.StringProto{}
+		protoValue := &kvpb.QueryLimits{}
 		err = value.Unmarshal(protoValue)
-		if err == nil {
-			options = parseLookbackLimitOptions(logger, kvName, protoValue.Value, options)
+		if err == nil && protoValue != nil {
+			updateQueryLimits(logger, limits, protoValue)
 		}
-	} else if errors.Is(err, kv.ErrNotFound) {
-		logger.Warn("error resolving query limit", zap.Error(err), zap.String("name", kvName))
+	} else if !errors.Is(err, kv.ErrNotFound) {
+		logger.Warn("error resolving query limit", zap.Error(err))
 	}
 
-	if err := limit.Update(options); err != nil {
-		logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
-	}
-
-	watch, err := store.Watch(kvName)
+	watch, err := store.Watch(kvconfig.QueryLimits)
 	if err != nil {
-		logger.Error("could not watch query limit", zap.Error(err), zap.String("name", kvName))
+		logger.Error("could not watch query limit", zap.Error(err))
 		return
 	}
 
 	go func() {
-		protoValue := &commonpb.StringProto{}
+		protoValue := &kvpb.QueryLimits{}
 		for range watch.C() {
-			value := options
 			if newValue := watch.Get(); newValue != nil {
 				if err := newValue.Unmarshal(protoValue); err != nil {
-					logger.Warn("unable to parse new query limit", zap.Error(err), zap.String("name", kvName))
+					logger.Warn("unable to parse new query limits", zap.Error(err))
 					continue
 				}
-				value = parseLookbackLimitOptions(logger, kvName, protoValue.Value, value)
-			}
-
-			if err := limit.Update(value); err != nil {
-				logger.Warn("unable to set query limit", zap.Error(err), zap.String("name", kvName))
+				updateQueryLimits(logger, limits, protoValue)
 			}
 		}
 	}()
 }
 
-func parseLookbackLimitOptions(logger *zap.Logger,
-	kvName string,
-	val string,
-	defaultOpts limits.LookbackLimitOptions,
-) limits.LookbackLimitOptions {
-	parts := strings.Split(val, ",")
-	if val == "" {
-		defaultOpts.Limit = nil
-	} else if len(parts) == 2 {
-		parsedLimit, err := strconv.ParseInt(parts[0], 10, 64)
-		if err != nil {
-			logger.Warn("error parsing query limit value", zap.Error(err), zap.String("name", kvName))
-		} else {
-			defaultOpts.Limit = &parsedLimit
-		}
-		parsedLookback, err := time.ParseDuration(parts[1])
-		if err != nil {
-			logger.Warn("error parsing query limit lookback", zap.Error(err), zap.String("name", kvName))
-		} else {
-			defaultOpts.Lookback = parsedLookback
-		}
+func updateQueryLimits(logger *zap.Logger,
+	limits limits.QueryLimits,
+	settings *kvpb.QueryLimits,
+) {
+	if err := updateQueryLimit(logger, limits.DocsLimit(), settings.DocsMatched); err != nil {
+		logger.Error("error updating docs limit", zap.Error(err))
 	}
-	return defaultOpts
+	if err := updateQueryLimit(logger, limits.DiskSeriesReadLimit(), settings.SeriesReadFromDisk); err != nil {
+		logger.Error("error updating series read limit", zap.Error(err))
+	}
+	if err := updateQueryLimit(logger, limits.BytesReadLimit(), settings.BytesReadFromDisk); err != nil {
+		logger.Error("error updating bytes read limit", zap.Error(err))
+	}
+}
+
+func updateQueryLimit(logger *zap.Logger,
+	limit limits.LookbackLimit,
+	settings *kvpb.QueryLimit,
+) error {
+	limitOpts := limits.LookbackLimitOptions{
+		// If the settings are nil, then that means the limit is disabled.
+		Limit:    nil,
+		Lookback: limit.Options().Lookback,
+	}
+	if settings != nil {
+		limitOpts.Limit = &settings.Limit
+		limitOpts.Lookback = time.Second * time.Duration(settings.LookbackSeconds)
+	}
+	return limit.Update(limitOpts)
 }
 
 func kvWatchClientConsistencyLevels(

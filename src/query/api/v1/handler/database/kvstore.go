@@ -181,13 +181,13 @@ func (h *KeyValueStoreHandler) update(
 
 func newKVProtoMessage(key string) protoiface.MessageV1 {
 	switch key {
-	case NamespacesKey:
-	case BootstrapperKey:
-	case ClusterNewSeriesInsertLimitKey:
-	case EncodersPerBlockLimitKey:
-	case ClientBootstrapConsistencyLevel:
-	case ClientReadConsistencyLevel:
-	case ClientWriteConsistencyLevel:
+	case kvconfig.NamespacesKey:
+	case kvconfig.BootstrapperKey:
+	case kvconfig.ClusterNewSeriesInsertLimitKey:
+	case kvconfig.EncodersPerBlockLimitKey:
+	case kvconfig.ClientBootstrapConsistencyLevel:
+	case kvconfig.ClientReadConsistencyLevel:
+	case kvconfig.ClientWriteConsistencyLevel:
 		return &commonpb.StringProto{}
 	case kvconfig.QueryLimits:
 		return &kvpb.QueryLimits{}

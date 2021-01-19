@@ -21,8 +21,6 @@ syntax = "proto3";
 
 package kvpb;
 
-import "google/protobuf/duration.proto";
-
 message KeyValueUpdate {
 	string key = 1;
 	string value = 2;
@@ -43,7 +41,7 @@ message QueryLimits {
 
 message QueryLimit {
 	int64 limit = 1;
-	google.protobuf.Duration lookback = 2;
+	int64 lookbackSeconds = 2;
 }
 
 
