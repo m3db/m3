@@ -562,7 +562,7 @@ func (r *blockRetriever) fetchBatch(
 	}
 }
 
-func (r *blockRetriever) checkSeriesInBloomFilter(
+func (r *blockRetriever) seriesPresentInBloomFilter(
 	id ident.ID,
 	shard uint32,
 	startTime time.Time,
@@ -653,7 +653,7 @@ func (r *blockRetriever) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	found, err := r.checkSeriesInBloomFilter(id, shard, startTime)
+	found, err := r.seriesPresentInBloomFilter(id, shard, startTime)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
@@ -696,7 +696,7 @@ func (r *blockRetriever) StreamWideEntry(
 	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
-	found, err := r.checkSeriesInBloomFilter(id, shard, startTime)
+	found, err := r.seriesPresentInBloomFilter(id, shard, startTime)
 	if err != nil {
 		return block.EmptyStreamedWideEntry, err
 	}

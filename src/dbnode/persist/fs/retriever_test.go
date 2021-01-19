@@ -545,6 +545,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 // on the retriever in the case where the requested ID does not exist. In that
 // case, Stream() should return an empty segment.
 func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
+	scope := tally.NewTestScope("test", nil)
+
 	// Make sure reader/writer are looking at the same test directory
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
@@ -562,7 +564,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	// Setup the reader
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
-		fsOpts:        fsOpts,
+		fsOpts:        fsOpts.SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)),
 		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
@@ -579,7 +581,6 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	closer()
 
-	// Make sure we return the correct error if the ID does not exist
 	ctx := context.NewContext()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
@@ -587,6 +588,11 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.True(t, segmentReader.IsEmpty())
+
+	// Check that the bloom filter miss metric was incremented
+	snapshot := scope.Snapshot()
+	seriesRead := snapshot.Counters()["test.retriever.series-bloom-filter-misses+"]
+	require.Equal(t, int64(1), seriesRead.Value())
 }
 
 // TestBlockRetrieverOnlyCreatesTagItersIfTagsExists verifies that the block retriever
