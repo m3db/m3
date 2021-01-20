@@ -1223,20 +1223,25 @@ func updateQueryLimits(logger *zap.Logger,
 
 func updateQueryLimit(logger *zap.Logger,
 	limit limits.LookbackLimit,
-	settings *kvpb.QueryLimit,
+	limitOpts *kvpb.QueryLimit,
 ) error {
-	limitOpts := limits.LookbackLimitOptions{
+	if limitOpts == nil {
+		return nil
+	}
+
+	old := limit.Options()
+	new := limits.LookbackLimitOptions{
 		// If the settings are nil, then that means the limit is disabled.
-		Limit:         limits.DisabledLimitValue,
-		Lookback:      limit.Options().Lookback,
-		ForceExceeded: false,
+		Limit:         limitOpts.Limit,
+		Lookback:      time.Second * time.Duration(limitOpts.LookbackSeconds),
+		ForceExceeded: limitOpts.ForceExceeded,
 	}
-	if settings != nil {
-		limitOpts.Limit = settings.Limit
-		limitOpts.Lookback = time.Second * time.Duration(settings.LookbackSeconds)
-		limitOpts.ForceExceeded = settings.ForceExceeded
+
+	if old.Equals(new) {
+		return nil
 	}
-	return limit.Update(limitOpts)
+
+	return limit.Update(new)
 }
 
 func kvWatchClientConsistencyLevels(

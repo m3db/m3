@@ -307,6 +307,13 @@ func (q *lookbackLimit) reset() {
 	q.recent.Store(0)
 }
 
+// Equals returns true if the other options match the current.
+func (opts LookbackLimitOptions) Equals(other LookbackLimitOptions) bool {
+	return opts.Limit == other.Limit &&
+		opts.Lookback == other.Lookback &&
+		opts.ForceExceeded == other.ForceExceeded
+}
+
 func (opts LookbackLimitOptions) validate() error {
 	if opts.Limit < 0 {
 		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
