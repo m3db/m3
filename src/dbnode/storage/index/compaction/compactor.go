@@ -23,7 +23,6 @@ package compaction
 import (
 	"bytes"
 	"errors"
-	"github.com/m3db/bloom/v4"
 	"io"
 	"sync"
 
@@ -35,10 +34,15 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
+
+	"github.com/m3db/bloom/v4"
 )
 
 var (
-	errCompactorBuilderEmpty = errors.New("builder has no documents")
+	// ErrCompactorBuilderEmpty is returned when the compaction
+	// would result in an empty segment.
+	ErrCompactorBuilderEmpty = errors.New("builder has no documents")
+	errCompactorBuilderNil   = errors.New("builder is nil")
 	errCompactorClosed       = errors.New("compactor is closed")
 )
 
@@ -141,7 +145,7 @@ func (c *Compactor) CompactUsingBuilder(
 	}
 
 	if builder == nil {
-		return nil, errCompactorBuilderEmpty
+		return nil, errCompactorBuilderNil
 	}
 
 	if len(segs) == 0 {
@@ -151,9 +155,7 @@ func (c *Compactor) CompactUsingBuilder(
 
 	// Need to combine segments first
 	batch := c.docsPool.Get()
-	defer func() {
-		c.docsPool.Put(batch)
-	}()
+	defer c.docsPool.Put(batch)
 
 	// flushBatch is declared to reuse the same code from the
 	// inner loop and the completion of the loop
@@ -246,7 +248,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 	// runs, we need to copy the docs slice
 	allDocs := builder.Docs()
 	if len(allDocs) == 0 {
-		return nil, errCompactorBuilderEmpty
+		return nil, ErrCompactorBuilderEmpty
 	}
 
 	err := c.writer.Reset(builder)

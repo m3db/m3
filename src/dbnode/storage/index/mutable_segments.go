@@ -90,6 +90,7 @@ type mutableSegments struct {
 }
 
 type indexedBloomFilter struct {
+	doNotWrite    *builder.IDsMap
 	writes        *bloom.BloomFilter
 	snapshotDirty bool
 	snapshot      *bytes.Buffer
@@ -106,12 +107,23 @@ func newIndexedBloomFilter() *indexedBloomFilter {
 	snapshot := bytes.NewBuffer(nil)
 	_ = bf.BitSet().Write(snapshot)
 	return &indexedBloomFilter{
+		doNotWrite: builder.NewIDsMap(builder.IDsMapOptions{
+			InitialSize: 4096,
+		}),
 		writes:   bf,
 		snapshot: snapshot,
 	}
 }
 
+func (f *indexedBloomFilter) ContainsWithNoFalsePositive(id []byte) bool {
+	return f.doNotWrite.Contains(id)
+}
+
 func (f *indexedBloomFilter) Write(id []byte) {
+	f.doNotWrite.SetUnsafe(id, struct{}{}, builder.IDsMapSetUnsafeOptions{
+		NoCopyKey:     true,
+		NoFinalizeKey: true,
+	})
 	f.writes.Add(id)
 	f.snapshotDirty = true
 }
@@ -123,6 +135,23 @@ func (f *indexedBloomFilter) UpdateSnapshotIfRequired() {
 	f.snapshot.Truncate(0)
 	_ = f.writes.BitSet().Write(f.snapshot)
 	f.snapshotDirty = false
+}
+
+func (f *indexedBloomFilter) MergeSnapshot(
+	snap *indexedBloomFilterSnapshot,
+) {
+	data := f.snapshot.Bytes()
+	size := len(data)
+	if cap(snap.buffer) < size {
+		// Grow buffer if required.
+		snap.buffer = make([]byte, size)
+	} else {
+		snap.buffer = snap.buffer[:size]
+	}
+
+	for i := range snap.buffer {
+		snap.buffer[i] |= data[i]
+	}
 }
 
 type indexedBloomFilterSnapshot struct {
@@ -145,23 +174,6 @@ func (s *indexedBloomFilterSnapshot) ReadOnlyBloomFilter() *bloom.ReadOnlyBloomF
 	// of having to create a new one with the buffer (even though it's just
 	// a wrapper over the buffer.).
 	return bloom.NewReadOnlyBloomFilter(bloomM, bloomK, s.buffer)
-}
-
-func (f *indexedBloomFilter) MergeSnapshot(
-	snap *indexedBloomFilterSnapshot,
-) {
-	data := f.snapshot.Bytes()
-	size := len(data)
-	if cap(snap.buffer) < size {
-		// Grow buffer if required.
-		snap.buffer = make([]byte, size)
-	} else {
-		snap.buffer = snap.buffer[:size]
-	}
-
-	for i := range snap.buffer {
-		snap.buffer[i] |= data[i]
-	}
 }
 
 type mutableSegmentsMetrics struct {
@@ -277,35 +289,56 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	builder := m.compact.segmentBuilder
 	m.Unlock()
 
-	// Kick off updating indexedBloomFilterByTime if needed
-	var updateIndexedBloomFilters sync.WaitGroup
+	// Updsate indexedBloomFilterByTime if needed.
 	if m.blockOpts.InMemoryBlock {
-		updateIndexedBloomFilters.Add(1)
-		go func() {
-			m.indexedBloomFilterByTimeLock.Lock()
-			defer func() {
-				updateIndexedBloomFilters.Done()
-				m.indexedBloomFilterByTimeLock.Unlock()
-			}()
+		// Take references to the pending entries docs
+		// and make sure not to touch sort order until later.
+		entries := inserts.PendingEntries()
+		docs := inserts.PendingDocs()
 
-			// Update bloom filters.
-			entries := inserts.PendingEntries()
-			docs := inserts.PendingDocs()
-			for i := range entries {
-				blockStart := entries[i].indexBlockStart(m.blockSize)
-				bloomFilter, ok := m.indexedBloomFilterByTime[blockStart]
-				if !ok {
-					bloomFilter = newIndexedBloomFilter()
-					m.indexedBloomFilterByTime[blockStart] = bloomFilter
+		m.indexedBloomFilterByTimeLock.Lock()
+		// Remove for indexing anything already indexed and
+		// also update the tracking of what things have been indexed
+		// for what block starts.
+		for i := range entries {
+			blockStart := entries[i].indexBlockStart(m.blockSize)
+			needsIndex := true
+			needsBloomFilterWrite := true
+			for bloomFilterBlockStart, bloomFilter := range m.indexedBloomFilterByTime {
+				if bloomFilter.ContainsWithNoFalsePositive(docs[i].ID) {
+					// Already indexed, do not need to index.
+					needsIndex = false
+					if blockStart == bloomFilterBlockStart {
+						// Do not need to update the fact that this
+						// ID is contained by this block start.
+						needsBloomFilterWrite = false
+						break
+					}
 				}
-				bloomFilter.writes.Add(docs[i].ID)
 			}
 
-			// Update snapshots.
-			for _, bloomFilter := range m.indexedBloomFilterByTime {
-				bloomFilter.UpdateSnapshotIfRequired()
+			if !needsIndex {
+				// Mark the fact that it doesn't need indexing.
+				inserts.MarkEntrySuccess(i)
 			}
-		}()
+
+			if !needsBloomFilterWrite {
+				// No need to update the bloom filter.
+				continue
+			}
+
+			bloomFilter, ok := m.indexedBloomFilterByTime[blockStart]
+			if !ok {
+				bloomFilter = newIndexedBloomFilter()
+				m.indexedBloomFilterByTime[blockStart] = bloomFilter
+			}
+			bloomFilter.Write(docs[i].ID)
+		}
+		// Update bloom filter snapshots if required.
+		for _, bloomFilter := range m.indexedBloomFilterByTime {
+			bloomFilter.UpdateSnapshotIfRequired()
+		}
+		m.indexedBloomFilterByTimeLock.Unlock()
 	}
 
 	defer func() {
@@ -331,11 +364,6 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	result, err := m.foregroundCompactWithBuilder(builder)
 	if err != nil {
 		return MutableSegmentsStats{}, err
-	}
-
-	if m.blockOpts.InMemoryBlock {
-		// Wait for bloom filters to be updated.
-		updateIndexedBloomFilters.Wait()
 	}
 
 	// Return result from the original insertion since compaction was successful.
@@ -492,12 +520,15 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		})
 	}
 
+	// Prepare the bloom filter to merge into from the live time windows.
+	if m.backgroundCompactIndexedSnapshot == nil {
+		m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
+	}
+	m.backgroundCompactIndexedSnapshot.Reset()
+
+	// Merge with existing live time windows.
 	m.indexedBloomFilterByTimeLock.RLock()
 	for _, bloomFilter := range m.indexedBloomFilterByTime {
-		if m.backgroundCompactIndexedSnapshot == nil {
-			m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
-		}
-		m.backgroundCompactIndexedSnapshot.Reset()
 		bloomFilter.MergeSnapshot(m.backgroundCompactIndexedSnapshot)
 	}
 	m.indexedBloomFilterByTimeLock.RUnlock()
@@ -706,21 +737,31 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		logger.Debug("done compaction task", zap.Duration("took", took))
 	}
 
+	// Check if result would have resulted in an empty segment.
+	empty := err == compaction.ErrCompactorBuilderEmpty
+	if empty {
+		// Don't return the error since we need to remove the old segments
+		// by calling addCompactedSegmentFromSegmentsWithLock.
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
-
-	// Add a read through cache for repeated expensive queries against
-	// background compacted segments since they can live for quite some
-	// time and accrue a large set of documents.
-	segment := m.newReadThroughSegment(compacted)
 
 	// Rotate out the replaced frozen segments and add the compacted one.
 	m.Lock()
 	defer m.Unlock()
 
+	var replaceSegment segment.Segment
+	if !empty {
+		// Add a read through cache for repeated expensive queries against
+		// background compacted segments since they can live for quite some
+		// time and accrue a large set of documents.
+		replaceSegment = m.newReadThroughSegment(compacted)
+	}
+
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
-		segments, segment)
+		segments, replaceSegment)
 	m.backgroundSegments = result
 
 	return nil
@@ -754,6 +795,11 @@ func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 				l.Error("unable to close compacted block", zap.Error(err))
 			})
 		}
+	}
+
+	if compacted == nil {
+		// Compacted segment was empty.
+		return result
 	}
 
 	// Return all the ones we kept plus the new compacted segment

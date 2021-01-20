@@ -759,13 +759,18 @@ func (b *WriteBatch) SortByEnqueued() {
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 	for idx := range b.entries {
-		if !b.entries[idx].result.Done {
-			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
-			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].result.Done = true
-			b.entries[idx].result.Err = nil
-		}
+		b.MarkEntrySuccess(idx)
+	}
+}
+
+// MarkEntrySuccess marks an entry as success.
+func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	if !b.entries[idx].result.Done {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = nil
 	}
 }
 
