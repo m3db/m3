@@ -148,6 +148,7 @@ func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
 	}
 }
 
+// Annotation returns the associated annotation with the gauge.
 func (g *Gauge) Annotation() []byte {
 	return g.annotation
 }

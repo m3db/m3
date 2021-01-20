@@ -133,6 +133,7 @@ func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
 	}
 }
 
+// Annotation returns the associated annotation with the counter.
 func (c *Counter) Annotation() []byte {
 	return c.annotation
 }

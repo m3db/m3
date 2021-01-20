@@ -63,7 +63,7 @@ func (d AggregatedDecoder) Value() float64 {
 }
 
 // Annotation returns the decoded annotation.
-func (d AggregatedDecoder) Annotation() []byte {
+func (d *AggregatedDecoder) Annotation() []byte {
 	return d.pb.Metric.TimedMetric.Annotation
 }
 

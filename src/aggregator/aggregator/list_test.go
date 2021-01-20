@@ -831,7 +831,8 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Values, nil, sourceID))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Values, nil, sourceID))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).
+			Add(l.resolution), ep.metric.Values, nil, sourceID))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -1018,7 +1019,8 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Values, nil, sourceID))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Values, nil, sourceID))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).
+			Add(l.resolution), ep.metric.Values, nil, sourceID))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}

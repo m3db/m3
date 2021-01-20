@@ -44,7 +44,7 @@ type samplesAppender struct {
 // Ensure samplesAppender implements SamplesAppender.
 var _ SamplesAppender = (*samplesAppender)(nil)
 
-func (a samplesAppender) AppendCounterSample(value int64, annotation []byte) error {
+func (a *samplesAppender) AppendCounterSample(value int64, annotation []byte) error {
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Counter{
@@ -64,7 +64,7 @@ func (a samplesAppender) AppendCounterSample(value int64, annotation []byte) err
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
-func (a samplesAppender) AppendGaugeSample(value float64, annotation []byte) error {
+func (a *samplesAppender) AppendGaugeSample(value float64, annotation []byte) error {
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Gauge{

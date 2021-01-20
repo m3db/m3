@@ -178,6 +178,7 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
+//nolint: dupl
 func (e *GaugeElem) AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
@@ -488,7 +489,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value, lockedAgg.aggregation.Annotation())
+			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
+				timeNanos, value, lockedAgg.aggregation.Annotation())
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos
