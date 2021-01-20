@@ -23,10 +23,10 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/jhump/protoreflect/dynamic"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -50,8 +50,6 @@ const (
 
 	// KeyValueStoreHTTPMethod is the HTTP method used with this resource.
 	KeyValueStoreHTTPMethod = http.MethodPost
-
-	defaultLimit = 1000
 )
 
 // KeyValueUpdate defines an update to a key's value.
@@ -91,9 +89,6 @@ func NewKeyValueStoreHandler(opts options.HandlerOptions) (http.Handler, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	m := dynamic.Message{}
-	err = m.UnmarshalJSON([]byte(`{"key":"foo","value": { "bar" : "baz" }}`))
 
 	return &KeyValueStoreHandler{
 		storage:             opts.Storage(),
@@ -146,7 +141,7 @@ func (h *KeyValueStoreHandler) update(
 	update *KeyValueUpdate,
 ) (*KeyValueUpdateResult, error) {
 	old, err := h.kvStore.Get(update.Key)
-	if err != nil && err != kv.ErrNotFound {
+	if err != nil && errors.Is(err, kv.ErrNotFound) {
 		return nil, err
 	}
 

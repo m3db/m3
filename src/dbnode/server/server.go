@@ -1210,19 +1210,18 @@ func updateQueryLimits(logger *zap.Logger,
 	if settings == nil {
 		return
 	}
-	if err := updateQueryLimit(logger, limits.DocsLimit(), settings.DocsMatched); err != nil {
+	if err := updateQueryLimit(limits.DocsLimit(), settings.MaxRecentlyQueriedSeriesBlocks); err != nil {
 		logger.Error("error updating docs limit", zap.Error(err))
 	}
-	if err := updateQueryLimit(logger, limits.DiskSeriesReadLimit(), settings.SeriesReadFromDisk); err != nil {
+	if err := updateQueryLimit(limits.DiskSeriesReadLimit(), settings.MaxRecentlyQueriedSeriesDiskRead); err != nil {
 		logger.Error("error updating series read limit", zap.Error(err))
 	}
-	if err := updateQueryLimit(logger, limits.BytesReadLimit(), settings.BytesReadFromDisk); err != nil {
+	if err := updateQueryLimit(limits.BytesReadLimit(), settings.MaxRecentlyQueriedSeriesDiskBytesRead); err != nil {
 		logger.Error("error updating bytes read limit", zap.Error(err))
 	}
 }
 
-func updateQueryLimit(logger *zap.Logger,
-	limit limits.LookbackLimit,
+func updateQueryLimit(limit limits.LookbackLimit,
 	limitOpts *kvpb.QueryLimit,
 ) error {
 	if limitOpts == nil {

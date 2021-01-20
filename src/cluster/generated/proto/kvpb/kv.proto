@@ -34,9 +34,9 @@ message KeyValueUpdateResult {
 }
 
 message QueryLimits {
-	QueryLimit DocsMatched = 1;
-	QueryLimit SeriesReadFromDisk = 2;
-	QueryLimit BytesReadFromDisk = 3;
+	QueryLimit maxRecentlyQueriedSeriesBlocks = 1;
+	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
+	QueryLimit maxRecentlyQueriedSeriesDiskRead = 3;
 }
 
 message QueryLimit {
