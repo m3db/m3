@@ -236,7 +236,7 @@ type pools struct {
 	tagEncoder              serialize.TagEncoderPool
 	tagDecoder              serialize.TagDecoderPool
 	checkedBytesWrapper     xpool.CheckedBytesWrapperPool
-	segmentsArray           segmentsArrayPool
+	segmentsArray           SegmentsArrayPool
 	writeBatchPooledReqPool *writeBatchPooledReqPool
 	blockMetadataV2         tchannelthrift.BlockMetadataV2Pool
 	blockMetadataV2Slice    tchannelthrift.BlockMetadataV2SlicePool
@@ -283,7 +283,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	iopts = iopts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
-	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
+	segmentPool := newSegmentsArrayPool(SegmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
 		MaxCapacity: maxSegmentArrayPooledLength,
 		Options: pool.NewObjectPoolOptions().
@@ -2335,7 +2335,7 @@ func (s *service) readEncodedResult(
 	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
 	segments := s.pools.segmentsArray.Get()
-	segments = segmentsArr(segments).grow(len(encoded))
+	segments = SegmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 		s.pools.segmentsArray.Put(segments)

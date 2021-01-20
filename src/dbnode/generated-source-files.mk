@@ -207,7 +207,7 @@ genny-arraypool-all:                      \
 	genny-arraypool-node-segments           \
 	genny-arraypool-aggregate-results-entry \
 
-# arraypool generation rule for ./network/server/tchannelthrift/node/segmentsArrayPool
+# arraypool generation rule for ./network/server/tchannelthrift/node/SegmentsArrayPool
 .PHONY: genny-arraypool-node-segments
 genny-arraypool-node-segments:
 	cd $(m3x_package_path) && make genny-arraypool                               \
@@ -215,7 +215,7 @@ genny-arraypool-node-segments:
 	elem_type=*rpc.Segments                                                      \
 	target_package=$(m3db_package)/src/dbnode/network/server/tchannelthrift/node \
 	out_file=segments_arraypool_gen.go                                           \
-	rename_type_prefix=segments                                                  \
+	rename_type_prefix=Segments                                                  \
 	rename_type_middle=Segments                                                  \
 	rename_constructor=newSegmentsArrayPool
 

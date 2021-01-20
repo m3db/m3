@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,8 +49,8 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// segmentsArrayPool provides a pool for rpcSegments slices.
-type segmentsArrayPool interface {
+// SegmentsArrayPool provides a pool for rpcSegments slices.
+type SegmentsArrayPool interface {
 	// Init initializes the array pool, it needs to be called
 	// before Get/Put use.
 	Init()
@@ -62,39 +62,39 @@ type segmentsArrayPool interface {
 	Put(elems []*rpc.Segments)
 }
 
-type segmentsFinalizeFn func([]*rpc.Segments) []*rpc.Segments
+type SegmentsFinalizeFn func([]*rpc.Segments) []*rpc.Segments
 
-type segmentsArrayPoolOpts struct {
+type SegmentsArrayPoolOpts struct {
 	Options     pool.ObjectPoolOptions
 	Capacity    int
 	MaxCapacity int
-	FinalizeFn  segmentsFinalizeFn
+	FinalizeFn  SegmentsFinalizeFn
 }
 
-type segmentsArrPool struct {
-	opts segmentsArrayPoolOpts
+type SegmentsArrPool struct {
+	opts SegmentsArrayPoolOpts
 	pool pool.ObjectPool
 }
 
-func newSegmentsArrayPool(opts segmentsArrayPoolOpts) segmentsArrayPool {
+func newSegmentsArrayPool(opts SegmentsArrayPoolOpts) SegmentsArrayPool {
 	if opts.FinalizeFn == nil {
 		opts.FinalizeFn = defaultSegmentsFinalizerFn
 	}
 	p := pool.NewObjectPool(opts.Options)
-	return &segmentsArrPool{opts, p}
+	return &SegmentsArrPool{opts, p}
 }
 
-func (p *segmentsArrPool) Init() {
+func (p *SegmentsArrPool) Init() {
 	p.pool.Init(func() interface{} {
 		return make([]*rpc.Segments, 0, p.opts.Capacity)
 	})
 }
 
-func (p *segmentsArrPool) Get() []*rpc.Segments {
+func (p *SegmentsArrPool) Get() []*rpc.Segments {
 	return p.pool.Get().([]*rpc.Segments)
 }
 
-func (p *segmentsArrPool) Put(arr []*rpc.Segments) {
+func (p *SegmentsArrPool) Put(arr []*rpc.Segments) {
 	arr = p.opts.FinalizeFn(arr)
 	if max := p.opts.MaxCapacity; max > 0 && cap(arr) > max {
 		return
@@ -111,9 +111,9 @@ func defaultSegmentsFinalizerFn(elems []*rpc.Segments) []*rpc.Segments {
 	return elems
 }
 
-type segmentsArr []*rpc.Segments
+type SegmentsArr []*rpc.Segments
 
-func (elems segmentsArr) grow(n int) []*rpc.Segments {
+func (elems SegmentsArr) grow(n int) []*rpc.Segments {
 	if cap(elems) < n {
 		elems = make([]*rpc.Segments, n)
 	}
