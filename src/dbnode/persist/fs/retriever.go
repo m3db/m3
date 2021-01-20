@@ -568,14 +568,15 @@ func (r *blockRetriever) seriesPresentInBloomFilter(
 	// Capture variable and RLock() because this slice can be modified in the
 	// Open() method
 	r.RLock()
-	// This should never happen unless caller tries to use Stream() before Open()
-	if r.seekerMgr == nil {
-		r.RUnlock()
-		return false, errNoSeekerMgr
-	}
+	seekerMgr := r.seekerMgr
 	r.RUnlock()
 
-	idExists, err := r.seekerMgr.Test(id, shard, startTime)
+	// This should never happen unless caller tries to use Stream() before Open()
+	if seekerMgr == nil {
+		return false, errNoSeekerMgr
+	}
+
+	idExists, err := seekerMgr.Test(id, shard, startTime)
 	if err != nil {
 		return false, err
 	}
