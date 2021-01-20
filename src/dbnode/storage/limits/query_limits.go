@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

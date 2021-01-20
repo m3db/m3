@@ -1181,6 +1181,8 @@ func kvWatchQueryLimit(
 		}
 	} else if !errors.Is(err, kv.ErrNotFound) {
 		logger.Warn("error resolving query limit", zap.Error(err))
+	} else {
+		logger.Info("query limit key not set")
 	}
 
 	watch, err := store.Watch(kvconfig.QueryLimits)

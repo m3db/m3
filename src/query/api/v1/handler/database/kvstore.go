@@ -27,10 +27,6 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/runtime/protoiface"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
@@ -40,6 +36,10 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 const (

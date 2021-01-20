@@ -51,5 +51,5 @@ const (
 	ClientWriteConsistencyLevel = "m3db.client.write-consistency-level"
 
 	// QueryLimits is the KV config key for query limits enforced on each dbnode.
-	QueryLimits = "m3db.querylimits"
+	QueryLimits = "m3db.query.limits"
 )
