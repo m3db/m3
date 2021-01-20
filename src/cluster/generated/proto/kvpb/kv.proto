@@ -44,6 +44,3 @@ message QueryLimit {
 	int64 lookbackSeconds = 2;
 	bool forceExceeded = 3;
 }
-
-
-
