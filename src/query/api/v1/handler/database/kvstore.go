@@ -21,7 +21,6 @@
 package database
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -99,7 +98,14 @@ func (h *KeyValueStoreHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	results, err := h.update(r.Context(), logger, update)
+	kvStore, err := h.client.KV()
+	if err != nil {
+		logger.Error("unable to get kv store", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	results, err := h.update(logger, kvStore, update)
 	if err != nil {
 		logger.Error("kv store error",
 			zap.Error(err),
@@ -127,17 +133,12 @@ func (h *KeyValueStoreHandler) parseBody(r *http.Request) (*KeyValueUpdate, erro
 }
 
 func (h *KeyValueStoreHandler) update(
-	_ context.Context,
 	logger *zap.Logger,
+	kvStore kv.Store,
 	update *KeyValueUpdate,
 ) (*KeyValueUpdateResult, error) {
-	kvStore, err := h.client.KV()
-	if err != nil {
-		return nil, err
-	}
-
 	old, err := kvStore.Get(update.Key)
-	if err != nil && errors.Is(err, kv.ErrNotFound) {
+	if err != nil && !errors.Is(err, kv.ErrNotFound) {
 		return nil, err
 	}
 
