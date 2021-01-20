@@ -27,6 +27,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/runtime/protoiface"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -35,10 +39,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 const (
@@ -148,9 +148,12 @@ func (h *KeyValueStoreHandler) update(
 		return nil, err
 	}
 
-	version, err := h.kvStore.Set(update.Key, newProto)
-	if err != nil {
-		return nil, err
+	var version int
+	if update.Commit {
+		version, err = h.kvStore.Set(update.Key, newProto)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result := KeyValueUpdateResult{
