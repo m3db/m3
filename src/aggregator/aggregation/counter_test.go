@@ -42,6 +42,15 @@ func TestCounterDefaultAggregationType(t *testing.T) {
 	require.Equal(t, 50.5, c.ValueOf(aggregation.Mean))
 }
 
+func TestCounterReturnsLastNonEmptyAnnotation(t *testing.T) {
+	c := NewCounter(NewOptions(instrument.NewOptions()))
+	c.Update(time.Now(), int64(1), []byte("first"))
+	c.Update(time.Now(), int64(2), []byte("second"))
+	c.Update(time.Now(), int64(3), nil)
+
+	require.Equal(t, []byte("second"), c.Annotation())
+}
+
 func TestCounterCustomAggregationType(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true

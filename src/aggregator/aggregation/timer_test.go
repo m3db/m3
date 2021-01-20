@@ -173,3 +173,15 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	// Closing the timer a second time should be a no op.
 	timer.Close()
 }
+
+func TestTimerReturnsLastNonEmptyAnnotation(t *testing.T) {
+	opts := NewOptions(instrument.NewOptions())
+	opts.ResetSetData(testAggTypes)
+	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+
+	timer.Add(time.Now(), 1.1, []byte("first"))
+	timer.Add(time.Now(), 2.1, []byte("second"))
+	timer.Add(time.Now(), 3.1, nil)
+
+	require.Equal(t, []byte("second"), timer.Annotation())
+}

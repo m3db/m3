@@ -56,6 +56,15 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.True(t, math.IsNaN(g.ValueOf(aggregation.Min)))
 }
 
+func TestGaugeReturnsLastNonEmptyAnnotation(t *testing.T) {
+	g := NewGauge(NewOptions(instrument.NewOptions()))
+	g.Update(time.Now(), 1.1, []byte("first"))
+	g.Update(time.Now(), 2.1, []byte("second"))
+	g.Update(time.Now(), 3.1, nil)
+
+	require.Equal(t, []byte("second"), g.Annotation())
+}
+
 func TestGaugeCustomAggregationType(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true

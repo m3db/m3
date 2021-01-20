@@ -46,6 +46,7 @@ var (
 	testCounterID                 = id.RawID("testCounter")
 	testBatchTimerID              = id.RawID("testBatchTimer")
 	testGaugeID                   = id.RawID("testGauge")
+	testAnnot                     = []byte("first")
 	testStoragePolicy             = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
 	testAggregationTypes          = maggregation.Types{maggregation.Mean, maggregation.Sum}
 	testAggregationTypesExpensive = maggregation.Types{maggregation.SumSq}
@@ -263,17 +264,19 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(345), e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Nil(t, e.values[0].lockedAgg.aggregation.Annotation())
 	require.True(t, e.values[0].lockedAgg.sourcesSeen.Test(uint(source1)))
 
 	// Add another metric at slightly different time but still within the
 	// same aggregation interval with a different source.
 	source2 := uint32(5678)
-	require.NoError(t, e.AddUnique(testTimestamps[1], []float64{500}, nil, source2))
+	require.NoError(t, e.AddUnique(testTimestamps[1], []float64{500}, testAnnot, source2))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, int64(845), e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
 	require.True(t, e.values[0].lockedAgg.sourcesSeen.Test(uint(source2)))
 
 	// Add the counter metric in the next aggregation interval.
@@ -286,6 +289,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[1].lockedAgg.aggregation.SumSq())
 	require.True(t, e.values[1].lockedAgg.sourcesSeen.Test(uint(source1)))
+	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric in the same aggregation interval with the same
 	// source results in an error.
@@ -1296,21 +1300,24 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, 46.8, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[0].lockedAgg.aggregation.SumSq())
+	require.Nil(t, e.values[0].lockedAgg.aggregation.Annotation())
 	require.True(t, e.values[0].lockedAgg.sourcesSeen.Test(uint(source1)))
 
 	// Add another metric at slightly different time but still within the
 	// same aggregation interval with a different source.
 	source2 := uint32(5678)
-	require.NoError(t, e.AddUnique(testTimestamps[1], []float64{50}, nil, source2))
+	require.NoError(t, e.AddUnique(testTimestamps[1], []float64{50}, testAnnot, source2))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, 96.8, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(3), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
 	require.True(t, e.values[0].lockedAgg.sourcesSeen.Test(uint(source2)))
 
 	// Add the metric in the next aggregation interval.
 	require.NoError(t, e.AddUnique(testTimestamps[2], []float64{27.8}, nil, source1))
+	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, testAlignedStarts[i], e.values[i].startAtNanos)
