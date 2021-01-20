@@ -244,9 +244,12 @@ type pools struct {
 
 // ensure `pools` matches a required conversion interface
 var _ convert.FetchTaggedConversionPools = pools{}
+var _ FetchTaggedCustomPools = pools{}
 
 func (p pools) ID() ident.Pool                                     { return p.id }
 func (p pools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return p.checkedBytesWrapper }
+func (p pools) TagEncoder() serialize.TagEncoderPool               { return p.tagEncoder }
+func (p pools) SegmentsArray() SegmentsArrayPool                   { return p.segmentsArray }
 
 // Service is the interface for the node RPC service.
 type Service interface {
@@ -264,6 +267,14 @@ type Service interface {
 	// Metadata returns the metadata for the given key and a bool indicating
 	// if it is present.
 	Metadata(key string) (string, bool)
+
+	// FetchTaggedCustom is a hook to allow custom handling of the FetchTaggedRequest.
+	// TODO(nate): we should really create the service w/ this handler (i.e. add as an option somewhere)
+	FetchTaggedCustom(
+		ctx thrift.Context,
+		req *rpc.FetchTaggedRequest,
+		reqHandler FetchTaggedCustomRequestHandler,
+	) (apachethrift.TStruct, error)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -709,6 +720,37 @@ func (s *service) readDatapoints(
 	}
 
 	return datapoints, nil
+}
+
+func (s *service) FetchTaggedCustom(
+	tctx thrift.Context,
+	req *rpc.FetchTaggedRequest,
+	reqHandler FetchTaggedCustomRequestHandler,
+) (apachethrift.TStruct, error) {
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	ctx := addSourceToContext(tctx, req.Source)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTaggedCustom)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
+
+	result, err := reqHandler.Handle(ctx, db, req, s.pools)
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {

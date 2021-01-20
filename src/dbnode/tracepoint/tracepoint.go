@@ -31,6 +31,9 @@ const (
 	// FetchTagged is the operation name for the tchannelthrift FetchTagged path.
 	FetchTagged = "tchannelthrift/node.service.FetchTagged"
 
+	// FetchTaggedCustom is the operation name for the tchannelthrift FetchTagged path.
+	FetchTaggedCustom = "tchannelthrift/node.service.FetchTaggedCustom"
+
 	// Query is the operation name for the tchannelthrift Query path.
 	Query = "tchannelthrift/node.service.Query"
 
