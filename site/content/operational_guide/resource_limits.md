@@ -53,6 +53,8 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
+The third limit is `maxRecentlyQueriedSeriesDiskRead
+
 ### Annotated configuration
 
 ```yaml
@@ -75,6 +77,18 @@ limits:
     # settings to understand how many datapoints that may actually translate 
     # to (e.g. 2 hour blocks for unaggregated data with 30s scrape interval
     # will translate to 240 datapoints per single time series block matched).
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
+  # If set, will enforce a maximum cap on the bytes read from disk that make up time series objects themselves (not their data).
+  # This limit can be used to ensure queries that match an extremely high volume of series can be limited before even
+  # reading the underlying series data from disk.
+  maxRecentlyQueriedSeriesDiskRead:
+    # Value sets the maximum disk bytes read to make up the time series objects.
     value: 0
     # Lookback sets the time window that this limit is enforced over, every 
     # lookback period the global count is reset to zero and when the limit 
