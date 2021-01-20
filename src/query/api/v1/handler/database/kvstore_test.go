@@ -24,13 +24,13 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestUpdateQueryLimits(t *testing.T) {
@@ -66,7 +66,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit:       true,
-			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 		{
 			name: `only block - no commit`,
@@ -78,7 +78,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit:       false,
-			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 		{
 			name: `all - commit`,
@@ -100,7 +100,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit:       true,
-			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 		{
 			name: `all - no commit`,
@@ -122,7 +122,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit:       false,
-			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 	}
 
@@ -176,7 +176,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 		r, err = handler.update(zap.NewNop(), storeMock, update)
 		require.NoError(t, err)
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
-		require.Equal(t, "maxRecentlyQueriedSeriesBlocks:<limit:10 lookbackSeconds:30 > maxRecentlyQueriedSeriesDiskBytesRead:<limit:100 lookbackSeconds:300 > ", r.Old)
+		require.Equal(t, `maxRecentlyQueriedSeriesBlocks:<limit:10 lookbackSeconds:30 > maxRecentlyQueriedSeriesDiskBytesRead:<limit:100 lookbackSeconds:300 > `, r.Old)
 		require.Equal(t, test.expectedJSON, r.New)
 		require.Equal(t, 0, r.Version)
 	}
