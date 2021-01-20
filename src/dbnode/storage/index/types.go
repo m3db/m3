@@ -513,13 +513,21 @@ type WriteBatchResult struct {
 // MutableSegmentsStats contains metadata about
 // an insertion into mutable segments.
 type MutableSegmentsStats struct {
-	NumForeground int
-	NumBackground int
+	Foreground MutableSegmentsSegmentStats
+	Background MutableSegmentsSegmentStats
+}
+
+// MutableSegmentsSegmentStats contains metadata about
+// a set of mutable segments segment type.
+type MutableSegmentsSegmentStats struct {
+	NumSegments int64
+	NumDocs     int64
 }
 
 // Empty returns whether stats is empty or not.
 func (s MutableSegmentsStats) Empty() bool {
-	return s.NumForeground == 0 && s.NumBackground == 0
+	return s.Foreground == MutableSegmentsSegmentStats{} &&
+		s.Background == MutableSegmentsSegmentStats{}
 }
 
 // BlockTickResult returns statistics about tick.

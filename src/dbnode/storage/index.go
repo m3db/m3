@@ -836,8 +836,10 @@ func (i *nsIndex) writeBatchForBlockStart(
 
 	// Record mutable segments count foreground/background if latest block.
 	if stats := result.MutableSegmentsStats; !stats.Empty() && latest {
-		i.metrics.latestBlockNumSegmentsForeground.Update(float64(stats.NumForeground))
-		i.metrics.latestBlockNumSegmentsBackground.Update(float64(stats.NumBackground))
+		i.metrics.latestBlockNumSegmentsForeground.Update(float64(stats.Foreground.NumSegments))
+		i.metrics.latestBlockNumDocsForeground.Update(float64(stats.Foreground.NumDocs))
+		i.metrics.latestBlockNumSegmentsBackground.Update(float64(stats.Background.NumSegments))
+		i.metrics.latestBlockNumDocsBackground.Update(float64(stats.Background.NumDocs))
 	}
 
 	// Allow for duplicate write errors since due to re-indexing races
@@ -2275,7 +2277,9 @@ type nsIndexMetrics struct {
 	flushDocsNew                     tally.Counter
 	flushDocsCached                  tally.Counter
 	latestBlockNumSegmentsForeground tally.Gauge
+	latestBlockNumDocsForeground     tally.Gauge
 	latestBlockNumSegmentsBackground tally.Gauge
+	latestBlockNumDocsBackground     tally.Gauge
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -2351,9 +2355,15 @@ func newNamespaceIndexMetrics(
 		latestBlockNumSegmentsForeground: scope.Tagged(map[string]string{
 			"segment_type": "foreground",
 		}).Gauge("latest-block-num-segments"),
+		latestBlockNumDocsForeground: scope.Tagged(map[string]string{
+			"segment_type": "foreground",
+		}).Gauge("latest-block-num-docs"),
 		latestBlockNumSegmentsBackground: scope.Tagged(map[string]string{
 			"segment_type": "background",
 		}).Gauge("latest-block-num-segments"),
+		latestBlockNumDocsBackground: scope.Tagged(map[string]string{
+			"segment_type": "background",
+		}).Gauge("latest-block-num-docs"),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

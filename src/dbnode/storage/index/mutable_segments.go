@@ -181,16 +181,41 @@ type mutableSegmentsMetrics struct {
 	foregroundCompactionTaskRunLatency tally.Timer
 	backgroundCompactionPlanRunLatency tally.Timer
 	backgroundCompactionTaskRunLatency tally.Timer
+	activeBlockIndexNew                tally.Counter
+	activeBlockIndexExists             tally.Counter
+	activeBlockBloomNew                tally.Counter
+	activeBlockBloomExists             tally.Counter
+	activeBlockBloomUpdate             tally.Counter
+	activeBlockGarbageCollectSegment   tally.Counter
+	activeBlockGarbageCollectSeries    tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 	foregroundScope := s.Tagged(map[string]string{"compaction-type": "foreground"})
 	backgroundScope := s.Tagged(map[string]string{"compaction-type": "background"})
+	activeBlockScope := s.SubScope("active-block")
 	return mutableSegmentsMetrics{
 		foregroundCompactionPlanRunLatency: foregroundScope.Timer("compaction-plan-run-latency"),
 		foregroundCompactionTaskRunLatency: foregroundScope.Timer("compaction-task-run-latency"),
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
+		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
+			"result_type": "new",
+		}).Counter("index-result"),
+		activeBlockIndexExists: activeBlockScope.Tagged(map[string]string{
+			"result_type": "exists",
+		}).Counter("index-result"),
+		activeBlockBloomNew: activeBlockScope.Tagged(map[string]string{
+			"result_type": "new",
+		}).Counter("bloom-result"),
+		activeBlockBloomExists: activeBlockScope.Tagged(map[string]string{
+			"result_type": "exists",
+		}).Counter("bloom-result"),
+		activeBlockBloomUpdate: activeBlockScope.Tagged(map[string]string{
+			"result_type": "update",
+		}).Counter("bloom-result"),
+		activeBlockGarbageCollectSegment: activeBlockScope.Counter("gc-segment"),
+		activeBlockGarbageCollectSeries:  activeBlockScope.Counter("gc-series"),
 	}
 }
 
@@ -320,11 +345,21 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 			if !needsIndex {
 				// Mark the fact that it doesn't need indexing.
 				inserts.MarkEntrySuccess(i)
+				m.metrics.activeBlockIndexExists.Inc(1)
+			} else {
+				m.metrics.activeBlockIndexNew.Inc(1)
 			}
 
 			if !needsBloomFilterWrite {
 				// No need to update the bloom filter.
+				m.metrics.activeBlockBloomExists.Inc(1)
 				continue
+			}
+
+			if !needsIndex {
+				m.metrics.activeBlockBloomUpdate.Inc(1)
+			} else {
+				m.metrics.activeBlockBloomNew.Inc(1)
 			}
 
 			bloomFilter, ok := m.indexedBloomFilterByTime[blockStart]
@@ -367,10 +402,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	}
 
 	// Return result from the original insertion since compaction was successful.
-	return MutableSegmentsStats{
-		NumForeground: result.numForeground,
-		NumBackground: result.numBackground,
-	}, insertResultErr
+	return result, insertResultErr
 }
 
 func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
@@ -454,14 +486,18 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 	m.RLock()
 	defer m.RUnlock()
 
+	foregroundNumSegments, foregroundNumDocs := numSegmentsAndDocs(m.foregroundSegments)
+	backgroundNumSegments, backgroundNumDocs := numSegmentsAndDocs(m.backgroundSegments)
+	numSegments := foregroundNumSegments + backgroundNumSegments
+	numDocs := foregroundNumDocs + backgroundNumDocs
+	return numSegments, numDocs
+}
+
+func numSegmentsAndDocs(segs []*readableSeg) (int64, int64) {
 	var (
 		numSegments, numDocs int64
 	)
-	for _, seg := range m.foregroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	for _, seg := range m.backgroundSegments {
+	for _, seg := range segs {
 		numSegments++
 		numDocs += seg.Segment().Size()
 	}
@@ -520,21 +556,6 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		})
 	}
 
-	// Prepare the bloom filter to merge into from the live time windows.
-	if m.backgroundCompactIndexedSnapshot == nil {
-		m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
-	}
-	m.backgroundCompactIndexedSnapshot.Reset()
-
-	// Merge with existing live time windows.
-	m.indexedBloomFilterByTimeLock.RLock()
-	for _, bloomFilter := range m.indexedBloomFilterByTime {
-		bloomFilter.MergeSnapshot(m.backgroundCompactIndexedSnapshot)
-	}
-	m.indexedBloomFilterByTimeLock.RUnlock()
-
-	indexedAndActiveBloomFilter := m.backgroundCompactIndexedSnapshot.ReadOnlyBloomFilter()
-
 	plan, err := compaction.NewPlan(segs, m.opts.BackgroundCompactionPlannerOptions())
 	if err != nil {
 		instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
@@ -543,9 +564,40 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	if len(plan.Tasks) == 0 {
+	var indexedAndActiveBloomFilter *bloom.ReadOnlyBloomFilter
+	if m.blockOpts.InMemoryBlock {
 		// Check if any segments needs filtering.
+
+		// Prepare the bloom filter to merge into from the live time windows.
+		if m.backgroundCompactIndexedSnapshot == nil {
+			m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
+		}
+		m.backgroundCompactIndexedSnapshot.Reset()
+
+		// Merge with existing live time windows.
+		m.indexedBloomFilterByTimeLock.RLock()
+		for _, bloomFilter := range m.indexedBloomFilterByTime {
+			bloomFilter.MergeSnapshot(m.backgroundCompactIndexedSnapshot)
+		}
+		m.indexedBloomFilterByTimeLock.RUnlock()
+
+		// Now check which segments need filtering.
+		indexedAndActiveBloomFilter = m.backgroundCompactIndexedSnapshot.ReadOnlyBloomFilter()
 		for _, seg := range m.backgroundSegments {
+			alreadyHasTask := false
+			for _, task := range plan.Tasks {
+				for _, taskSegment := range task.Segments() {
+					if taskSegment == seg.Segment() {
+						alreadyHasTask = true
+						break
+					}
+				}
+			}
+			if alreadyHasTask {
+				// Skip needing to check if segment needs filtering.
+				continue
+			}
+
 			reader, err := seg.Segment().Reader()
 			if err != nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
@@ -566,7 +618,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			for iter.Next() {
 				d := iter.Current()
 				if !indexedAndActiveBloomFilter.Test(d.ID) {
-					// This metric is not active, likely part of a block
+					// This series is not active, likely part of a block
 					// time window that is now sealed.
 					// We need to purge it to remove memory.
 					plan.Tasks = append(plan.Tasks, compaction.Task{
@@ -579,6 +631,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 							},
 						},
 					})
+					m.metrics.activeBlockGarbageCollectSegment.Inc(1)
 					break
 				}
 			}
@@ -724,6 +777,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	start := time.Now()
 	compacted, err := m.compact.backgroundCompactor.Compact(segments,
 		activeBloomFilter,
+		m.metrics.activeBlockGarbageCollectSeries,
 		mmap.ReporterOptions{
 			Context: mmap.Context{
 				Name: mmapIndexBlockName,
@@ -808,7 +862,7 @@ func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 
 func (m *mutableSegments) foregroundCompactWithBuilder(
 	builder segment.DocumentsBuilder,
-) (compactResult, error) {
+) (MutableSegmentsStats, error) {
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment.
 	m.Lock()
@@ -833,18 +887,18 @@ func (m *mutableSegments) foregroundCompactWithBuilder(
 
 	plan, err := compaction.NewPlan(segs, m.opts.ForegroundCompactionPlannerOptions())
 	if err != nil {
-		return compactResult{}, err
+		return MutableSegmentsStats{}, err
 	}
 
 	// Check plan
 	if len(plan.Tasks) == 0 {
 		// Should always generate a task when a mutable builder is passed to planner
-		return compactResult{}, errForegroundCompactorNoPlan
+		return MutableSegmentsStats{}, errForegroundCompactorNoPlan
 	}
 	if taskNumBuilders(plan.Tasks[0]) != 1 {
 		// First task of plan must include the builder, so we can avoid resetting it
 		// for the first task, but then safely reset it in consequent tasks
-		return compactResult{}, errForegroundCompactorBadPlanFirstTask
+		return MutableSegmentsStats{}, errForegroundCompactorBadPlanFirstTask
 	}
 
 	// Move any unused segments to the background.
@@ -946,17 +1000,12 @@ func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	m.maybeBackgroundCompactWithLock()
 }
 
-type compactResult struct {
-	numForeground int
-	numBackground int
-}
-
 func (m *mutableSegments) foregroundCompactWithTask(
 	builder segment.DocumentsBuilder,
 	task compaction.Task,
 	log bool,
 	logger *zap.Logger,
-) (compactResult, error) {
+) (MutableSegmentsStats, error) {
 	if log {
 		logger.Debug("start compaction task")
 	}
@@ -984,7 +1033,7 @@ func (m *mutableSegments) foregroundCompactWithTask(
 	}
 
 	if err != nil {
-		return compactResult{}, err
+		return MutableSegmentsStats{}, err
 	}
 
 	// Add a read through cache for repeated expensive queries against
@@ -999,10 +1048,17 @@ func (m *mutableSegments) foregroundCompactWithTask(
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.foregroundSegments,
 		segments, segment)
 	m.foregroundSegments = result
-
-	return compactResult{
-		numForeground: len(m.foregroundSegments),
-		numBackground: len(m.backgroundSegments),
+	foregroundNumSegments, foregroundNumDocs := numSegmentsAndDocs(m.foregroundSegments)
+	backgroundNumSegments, backgroundNumDocs := numSegmentsAndDocs(m.backgroundSegments)
+	return MutableSegmentsStats{
+		Foreground: MutableSegmentsSegmentStats{
+			NumSegments: foregroundNumSegments,
+			NumDocs:     foregroundNumDocs,
+		},
+		Background: MutableSegmentsSegmentStats{
+			NumSegments: backgroundNumSegments,
+			NumDocs:     backgroundNumDocs,
+		},
 	}, nil
 }
 

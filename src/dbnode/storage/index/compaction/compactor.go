@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/m3db/bloom/v4"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -111,6 +112,7 @@ func NewCompactor(
 func (c *Compactor) Compact(
 	segs []segment.Segment,
 	filter *bloom.ReadOnlyBloomFilter,
+	filterCounter tally.Counter,
 	reporterOptions mmap.ReporterOptions,
 ) (fst.Segment, error) {
 	c.Lock()
@@ -121,7 +123,7 @@ func (c *Compactor) Compact(
 	}
 
 	c.builder.Reset()
-	c.builder.SetFilter(filter)
+	c.builder.SetFilter(filter, filterCounter)
 	if err := c.builder.AddSegments(segs); err != nil {
 		return nil, err
 	}

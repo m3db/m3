@@ -22,11 +22,13 @@ package segment
 
 import (
 	"errors"
-	"github.com/m3db/bloom/v4"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/m3db/bloom/v4"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -223,7 +225,7 @@ type SegmentsBuilder interface {
 
 	// SetFilter sets a filter on which documents to retain
 	// when building the segment.
-	SetFilter(bloom *bloom.ReadOnlyBloomFilter)
+	SetFilter(bloom *bloom.ReadOnlyBloomFilter, filterCount tally.Counter)
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
