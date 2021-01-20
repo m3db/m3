@@ -692,8 +692,8 @@ func (i *nsIndex) writeBatches(
 				for _, matchField := range i.doNotIndexWithFields {
 					matchedField := false
 					for _, actualField := range d.Fields {
-						if bytes.Compare(actualField.Name, matchField.Name) == 0 {
-							matchedField = bytes.Compare(actualField.Value, matchField.Value) == 0
+						if bytes.Equal(actualField.Name, matchField.Name) {
+							matchedField = bytes.Equal(actualField.Value, matchField.Value)
 							break
 						}
 					}
