@@ -586,8 +586,8 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		for _, seg := range m.backgroundSegments {
 			alreadyHasTask := false
 			for _, task := range plan.Tasks {
-				for _, taskSegment := range task.Segments() {
-					if taskSegment == seg.Segment() {
+				for _, taskSegment := range task.Segments {
+					if taskSegment.Segment == seg.Segment() {
 						alreadyHasTask = true
 						break
 					}
