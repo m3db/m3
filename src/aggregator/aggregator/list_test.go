@@ -604,7 +604,6 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 					ChunkedID: id.ChunkedID{
 						Data: ep.metric.ID,
 					},
-					Type:      ep.metric.Type,
 					TimeNanos: alignedStart,
 					Value:     ep.metric.Value,
 				},
@@ -1057,7 +1056,6 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 						Prefix: ep.expectedPrefix,
 						Data:   ep.metric.ID,
 					},
-					Type:      ep.metric.Type,
 					TimeNanos: alignedStart,
 					Value:     ep.metric.Values[0],
 				},

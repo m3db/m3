@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -435,7 +434,6 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 func (l *baseMetricList) consumeLocalMetric(
 	idPrefix []byte,
 	id metricid.RawID,
-	metricType metric.Type,
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
@@ -449,7 +447,6 @@ func (l *baseMetricList) consumeLocalMetric(
 	chunkedMetricWithPolicy := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: chunkedID,
-			Type:      metricType,
 			TimeNanos: timeNanos,
 			Value:     value,
 		},
@@ -466,7 +463,6 @@ func (l *baseMetricList) consumeLocalMetric(
 func (l *baseMetricList) discardLocalMetric(
 	idPrefix []byte,
 	id metricid.RawID,
-	metricType metric.Type,
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
