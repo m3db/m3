@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/runtime/protoiface"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -73,17 +74,17 @@ type KeyValueUpdateResult struct {
 
 // KeyValueStoreHandler represents a handler for the key/value store endpoint
 type KeyValueStoreHandler struct {
-	kvStore        kv.Store
+	client         clusterclient.Client
 	instrumentOpts instrument.Options
 }
 
 // NewKeyValueStoreHandler returns a new instance of handler
 func NewKeyValueStoreHandler(
-	kvStore kv.Store,
+	client clusterclient.Client,
 	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &KeyValueStoreHandler{
-		kvStore:        kvStore,
+		client:         client,
 		instrumentOpts: instrumentOpts,
 	}
 }
@@ -130,7 +131,12 @@ func (h *KeyValueStoreHandler) update(
 	logger *zap.Logger,
 	update *KeyValueUpdate,
 ) (*KeyValueUpdateResult, error) {
-	old, err := h.kvStore.Get(update.Key)
+	kvStore, err := h.client.KV()
+	if err != nil {
+		return nil, err
+	}
+
+	old, err := kvStore.Get(update.Key)
 	if err != nil && errors.Is(err, kv.ErrNotFound) {
 		return nil, err
 	}
@@ -150,7 +156,7 @@ func (h *KeyValueStoreHandler) update(
 
 	var version int
 	if update.Commit {
-		version, err = h.kvStore.Set(update.Key, newProto)
+		version, err = kvStore.Set(update.Key, newProto)
 		if err != nil {
 			return nil, err
 		}
