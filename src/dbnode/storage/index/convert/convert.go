@@ -35,6 +35,20 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 )
 
+const (
+	// NB: this assumes that series ID has a format:
+	//   {tag1="value1",tag2="value2",...}
+	//
+	// Thus firstTagBytesPosition points to the 't' immediately after curly brace '{'
+	firstTagBytesPosition int = 1
+	// distanceBetweenTagNameAndValue corresponds to '="' in series ID that separates tag name from
+	// it's value
+	distanceBetweenTagNameAndValue int = 2
+	// distanceBetweenTagValueAndNextName corresponds to '",' in series ID that separates
+	// tag's value from the following tag name
+	distanceBetweenTagValueAndNextName int = 2
+)
+
 var (
 	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
@@ -51,7 +65,7 @@ var (
 )
 
 // Validate returns a bool indicating whether the document is valid.
-func Validate(d doc.Document) error {
+func Validate(d doc.Metadata) error {
 	if !utf8.Valid(d.ID) {
 		return fmt.Errorf("document has invalid non-UTF8 ID: id=%v, id_hex=%x",
 			d.ID, d.ID)
@@ -110,23 +124,20 @@ func ValidateSeriesTag(tag ident.Tag) error {
 }
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
-func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	clonedID := clone(id.Bytes())
-	fields := make([]doc.Field, 0, len(tags.Values()))
+func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, len(tags.Values()))
+		expectedStart = firstTagBytesPosition
+	)
 	for _, tag := range tags.Values() {
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -134,77 +145,133 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 		})
 	}
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	return d, nil
 }
 
-// FromRawSeriesIDAndTags converts the provided raw series id+encoded tags into a document.
-// tagDecoder is meant to be reusable.
-func FromRawSeriesIDAndTags(
-	id ident.BytesID,
-	encodedTags ts.EncodedTags,
-	tagDecoder serialize.TagDecoder,
-) (doc.Document, error) {
-	tagsIter := ident.EmptyTagIterator
-	if len(encodedTags) > 0 {
-		encodedTagBytes := checked.NewBytes(encodedTags, nil)
-		tagDecoder.Reset(encodedTagBytes)
-		if err := tagDecoder.Err(); err != nil {
-			return doc.Document{}, err
-		}
-		tagsIter = tagDecoder
-	}
-
-	return fromSeriesIDAndTagIter(id, tagsIter)
-}
-
-// FromSeriesIDAndTagIter converts the provided series id+tags iterator into a document.
-func FromSeriesIDAndTagIter(id ident.ID, tagsIter ident.TagIterator) (doc.Document, error) {
-	return fromSeriesIDAndTagIter(id.Bytes(), tagsIter)
-}
-
-func fromSeriesIDAndTagIter(id ident.BytesID, tagsIter ident.TagIterator) (doc.Document, error) {
-	clonedID := clone(id)
-	fields := make([]doc.Field, 0, tagsIter.Remaining())
-	for tagsIter.Next() {
-		tag := tagsIter.Current()
+// FromSeriesIDAndTagIter converts the provided series id+tags into a document.
+func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, error) {
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, tags.Remaining())
+		expectedStart = firstTagBytesPosition
+	)
+	for tags.Next() {
+		tag := tags.Current()
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
 			Value: clonedValue,
 		})
 	}
-	if err := tagsIter.Err(); err != nil {
-		return doc.Document{}, err
+	if err := tags.Err(); err != nil {
+		return doc.Metadata{}, err
 	}
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	return d, nil
+}
+
+// FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a doc.Metadata.
+func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
+	var (
+		byteOrder = serialize.ByteOrder
+		total     = len(encodedTags)
+	)
+	if total < 4 {
+		return doc.Metadata{}, fmt.Errorf("encoded tags too short: size=%d, need=%d", total, 4)
+	}
+
+	header := byteOrder.Uint16(encodedTags[:2])
+	encodedTags = encodedTags[2:]
+	if header != serialize.HeaderMagicNumber {
+		return doc.Metadata{}, serialize.ErrIncorrectHeader
+	}
+
+	length := int(byteOrder.Uint16(encodedTags[:2]))
+	encodedTags = encodedTags[2:]
+
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, length)
+		expectedStart = firstTagBytesPosition
+	)
+
+	for i := 0; i < length; i++ {
+		if len(encodedTags) < 2 {
+			return doc.Metadata{}, fmt.Errorf("missing size for tag name: index=%d", i)
+		}
+		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
+		if numBytesName == 0 {
+			return doc.Metadata{}, serialize.ErrEmptyTagNameLiteral
+		}
+		encodedTags = encodedTags[2:]
+
+		bytesName := encodedTags[:numBytesName]
+		encodedTags = encodedTags[numBytesName:]
+
+		if len(encodedTags) < 2 {
+			return doc.Metadata{}, fmt.Errorf("missing size for tag value: index=%d", i)
+		}
+
+		numBytesValue := int(byteOrder.Uint16(encodedTags[:2]))
+		encodedTags = encodedTags[2:]
+
+		bytesValue := encodedTags[:numBytesValue]
+		encodedTags = encodedTags[numBytesValue:]
+
+		var clonedName, clonedValue []byte
+		clonedName, expectedStart = findSliceOrClone(clonedID, bytesName, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, bytesValue, expectedStart,
+			distanceBetweenTagValueAndNextName)
+
+		fields = append(fields, doc.Field{
+			Name:  clonedName,
+			Value: clonedValue,
+		})
+	}
+
+	d := doc.Metadata{
+		ID:     clonedID,
+		Fields: fields,
+	}
+	if err := Validate(d); err != nil {
+		return doc.Metadata{}, err
+	}
+	return d, nil
+}
+
+func findSliceOrClone(id, tag []byte, expectedStart, nextPositionDistance int) ([]byte, int) { //nolint:unparam
+	n := len(tag)
+	expectedEnd := expectedStart + n
+	if expectedStart != -1 && expectedEnd <= len(id) &&
+		bytes.Equal(id[expectedStart:expectedEnd], tag) {
+		return id[expectedStart:expectedEnd], expectedEnd + nextPositionDistance
+	} else if idx := bytes.Index(id, tag); idx != -1 {
+		return id[idx : idx+n], expectedEnd + nextPositionDistance
+	} else {
+		return clone(tag), -1
+	}
 }
 
 // TagsFromTagsIter returns an ident.Tags from a TagIterator. It also tries
@@ -309,7 +376,7 @@ func (o Opts) wrapBytes(b []byte) ident.ID {
 }
 
 // ToSeries converts the provided doc to metric id+tags.
-func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
+func ToSeries(d doc.Metadata, opts Opts) (ident.ID, ident.TagIterator, error) {
 	if len(d.ID) == 0 {
 		return nil, nil, errInvalidResultMissingID
 	}
@@ -317,11 +384,11 @@ func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
 }
 
 // ToSeriesTags converts the provided doc to metric tags.
-func ToSeriesTags(d doc.Document, opts Opts) ident.TagIterator {
+func ToSeriesTags(d doc.Metadata, opts Opts) ident.TagIterator {
 	return newTagIter(d, opts)
 }
 
-// tagIter exposes an ident.TagIterator interface over a doc.Document.
+// tagIter exposes an ident.TagIterator interface over a doc.Metadata.
 type tagIter struct {
 	docFields doc.Fields
 
@@ -336,7 +403,7 @@ type tagIter struct {
 // NB: force tagIter to implement the ident.TagIterator interface.
 var _ ident.TagIterator = &tagIter{}
 
-func newTagIter(d doc.Document, opts Opts) ident.TagIterator {
+func newTagIter(d doc.Metadata, opts Opts) ident.TagIterator {
 	return &tagIter{
 		docFields:  d.Fields,
 		currentIdx: -1,

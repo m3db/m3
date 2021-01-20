@@ -1,3 +1,5 @@
+// +build dtest
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -71,7 +73,9 @@ func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
 	coord := singleDBNodeDockerResources.Coordinator()
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.NoError(t, coord.RunQuery(verifyResponse(400), tt.url), "for query '%v'", tt.url)
 		})
 	}

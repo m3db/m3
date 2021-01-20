@@ -131,9 +131,10 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	}
 
 	var (
-		docsThirdPartyReader = data.DocsReader
-		docsDataReader       *docs.DataReader
-		docsIndexReader      *docs.IndexReader
+		docsThirdPartyReader  = data.DocsReader
+		docsDataReader        *docs.DataReader
+		docsEncodedDataReader *docs.EncodedDataReader
+		docsIndexReader       *docs.IndexReader
 	)
 	if docsThirdPartyReader == nil {
 		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
@@ -142,12 +143,14 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
 	}
+	docsEncodedDataReader = docs.NewEncodedDataReader(data.DocsData.Bytes)
 
 	s := &fsSegment{
-		fieldsFST:            fieldsFST,
-		docsDataReader:       docsDataReader,
-		docsIndexReader:      docsIndexReader,
-		docsThirdPartyReader: docsThirdPartyReader,
+		fieldsFST:             fieldsFST,
+		docsDataReader:        docsDataReader,
+		docsEncodedDataReader: docsEncodedDataReader,
+		docsIndexReader:       docsIndexReader,
+		docsThirdPartyReader:  docsThirdPartyReader,
 
 		data:    data,
 		opts:    opts,
@@ -169,15 +172,16 @@ var _ segment.ImmutableSegment = (*fsSegment)(nil)
 
 type fsSegment struct {
 	sync.RWMutex
-	ctx                  context.Context
-	closed               bool
-	finalized            bool
-	fieldsFST            *vellum.FST
-	docsDataReader       *docs.DataReader
-	docsIndexReader      *docs.IndexReader
-	docsThirdPartyReader docs.Reader
-	data                 SegmentData
-	opts                 Options
+	ctx                   context.Context
+	closed                bool
+	finalized             bool
+	fieldsFST             *vellum.FST
+	docsDataReader        *docs.DataReader
+	docsEncodedDataReader *docs.EncodedDataReader
+	docsIndexReader       *docs.IndexReader
+	docsThirdPartyReader  docs.Reader
+	data                  SegmentData
+	opts                  Options
 
 	numDocs int64
 }
@@ -579,11 +583,11 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.Mutable
 	return pl, nil
 }
 
-func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
+func (r *fsSegment) metadataNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Metadata, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
-		return doc.Document{}, errReaderFinalized
+		return doc.Metadata{}, errReaderFinalized
 	}
 
 	// If using docs slice reader, return from the in memory slice reader
@@ -593,10 +597,53 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Doc
 
 	offset, err := r.docsIndexReader.Read(id)
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 
 	return r.docsDataReader.Read(offset)
+}
+
+func (r *fsSegment) metadataIteratorNotClosedMaybeFinalizedWithRLock(
+	retriever index.MetadataRetriever,
+	pl postings.List,
+) (doc.MetadataIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
+}
+
+func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return doc.Document{}, errReaderFinalized
+	}
+
+	// If using docs slice reader, return from the in memory slice reader
+	if r.docsThirdPartyReader != nil {
+		m, err := r.docsThirdPartyReader.Read(id)
+		if err != nil {
+			return doc.Document{}, err
+		}
+
+		return doc.NewDocumentFromMetadata(m), nil
+	}
+
+	offset, err := r.docsIndexReader.Read(id)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	e, err := r.docsEncodedDataReader.Read(offset)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	return doc.NewDocumentFromEncoded(e), nil
 }
 
 func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
@@ -609,11 +656,11 @@ func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
+	return index.NewIterator(retriever, pl.Iterator()), nil
 }
 
 func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
-	retriever index.DocRetriever,
+	retriever index.MetadataRetriever,
 ) (index.IDDocIterator, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
@@ -894,6 +941,32 @@ func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	pl, err := sr.fsSegment.matchAllNotClosedMaybeFinalizedWithRLock()
 	sr.fsSegment.RUnlock()
 	return pl, err
+}
+
+func (sr *fsSegmentReader) Metadata(id postings.ID) (doc.Metadata, error) {
+	if sr.closed {
+		return doc.Metadata{}, errReaderClosed
+	}
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.metadataNotClosedMaybeFinalizedWithRLock(id)
+	sr.fsSegment.RUnlock()
+	return pl, err
+}
+
+func (sr *fsSegmentReader) MetadataIterator(pl postings.List) (doc.MetadataIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
+	sr.fsSegment.RLock()
+	iter, err := sr.fsSegment.metadataIteratorNotClosedMaybeFinalizedWithRLock(sr, pl)
+	sr.fsSegment.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {

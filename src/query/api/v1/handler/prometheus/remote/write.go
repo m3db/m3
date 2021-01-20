@@ -93,16 +93,6 @@ var (
 		Attributes: ts.DefaultSeriesAttributes(),
 		Metadata:   ts.Metadata{},
 	}
-
-	headerToMetricType = map[string]prompb.MetricType{
-		"counter":         prompb.MetricType_COUNTER,
-		"gauge":           prompb.MetricType_GAUGE,
-		"gauge-histogram": prompb.MetricType_GAUGE_HISTOGRAM,
-		"histogram":       prompb.MetricType_HISTOGRAM,
-		"info":            prompb.MetricType_INFO,
-		"stateset":        prompb.MetricType_STATESET,
-		"summary":         prompb.MetricType_SUMMARY,
-	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -471,16 +461,6 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
-	if promType := r.Header.Get(headers.PromTypeHeader); promType != "" {
-		tp, ok := headerToMetricType[strings.ToLower(promType)]
-		if !ok {
-			return parseRequestResult{}, fmt.Errorf("unknown prom metric type %s", promType)
-		}
-		for i := range req.Timeseries {
-			req.Timeseries[i].Type = tp
-		}
-	}
-
 	return parseRequestResult{
 		Request:        &req,
 		Options:        opts,
@@ -621,9 +601,7 @@ func (i *promTSIter) Next() bool {
 		return true
 	}
 
-	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(
-		i.attributes[i.idx].PromType,
-		i.attributes[i.idx].HandleValueResets)
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
 	if err != nil {
 		i.err = err
 		return false

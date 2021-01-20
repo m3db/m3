@@ -599,6 +599,9 @@ func Max(a, b float64, count int) float64 { return math.Max(a, b) }
 // Last finds the latter of two values.
 func Last(a, b float64, count int) float64 { return b }
 
+// Pow returns the first value to the power of the second value
+func Pow(a, b float64, count int) float64 { return math.Pow(a, b) }
+
 // Median finds the median of a slice of values.
 func Median(vals []float64, count int) float64 {
 	if count < 1 {

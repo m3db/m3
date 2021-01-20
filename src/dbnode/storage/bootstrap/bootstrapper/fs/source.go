@@ -395,13 +395,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		seriesCachePolicy    = ropts.SeriesCachePolicy()
 		timesWithErrors      []time.Time
 		nsCtx                = namespace.NewContextFrom(ns)
-		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
-		batch                = docsPool.Get()
+		metadataPool         = s.opts.IndexOptions().MetadataArrayPool()
+		batch                = metadataPool.Get()
 		tagDecoder           = s.opts.FilesystemOptions().TagDecoderPool().Get()
 		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
-	defer docsPool.Put(batch)
+	defer metadataPool.Put(batch)
 	defer tagDecoder.Close()
 
 	requestedRanges := timeWindowReaders.Ranges
@@ -717,10 +717,10 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
-	batch []doc.Document,
+	batch []doc.Metadata,
 	builder *result.IndexBuilder,
 	tagDecoder serialize.TagDecoder,
-) ([]doc.Document, error) {
+) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	entry, err := r.StreamingReadMetadata()
 	if err != nil {
@@ -734,7 +734,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 
 	batch = append(batch, d)
 
-	if len(batch) >= index.DocumentArrayPoolCapacity {
+	if len(batch) >= index.MetadataArrayPoolCapacity {
 		return builder.FlushBatch(batch)
 	}
 
@@ -850,8 +850,8 @@ func (s *fileSystemSource) read(
 		builder := result.NewIndexBuilder(segBuilder)
 
 		indexOpts := s.opts.IndexOptions()
-		compactor, err := compaction.NewCompactor(indexOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
+		compactor, err := compaction.NewCompactor(indexOpts.MetadataArrayPool(),
+			index.MetadataArrayPoolCapacity,
 			indexOpts.SegmentBuilderOptions(),
 			indexOpts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

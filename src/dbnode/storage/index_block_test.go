@@ -79,7 +79,7 @@ func testWriteBatchBlockSizeOption(blockSize time.Duration) testWriteBatchOption
 
 func testWriteBatch(
 	e index.WriteBatchEntry,
-	d doc.Document,
+	d doc.Metadata,
 	opts ...testWriteBatchOption,
 ) *index.WriteBatch {
 	var options index.WriteBatchOptions
@@ -96,8 +96,8 @@ func testWriteBatchEntry(
 	tags ident.Tags,
 	timestamp time.Time,
 	fns index.OnIndexSeries,
-) (index.WriteBatchEntry, doc.Document) {
-	d := doc.Document{ID: copyBytes(id.Bytes())}
+) (index.WriteBatchEntry, doc.Metadata) {
+	d := doc.Metadata{ID: copyBytes(id.Bytes())}
 	for _, tag := range tags.Values() {
 		d.Fields = append(d.Fields, doc.Field{
 			Name:  copyBytes(tag.Name.Bytes()),
@@ -245,7 +245,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 		Do(func(batch *index.WriteBatch) {
 			docs := batch.PendingDocs()
 			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Document{
+			require.Equal(t, doc.Metadata{
 				ID:     id.Bytes(),
 				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
 			}, docs[0])
@@ -321,7 +321,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		Do(func(batch *index.WriteBatch) {
 			docs := batch.PendingDocs()
 			require.Equal(t, 1, len(docs))
-			require.Equal(t, doc.Document{
+			require.Equal(t, doc.Metadata{
 				ID:     id.Bytes(),
 				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
 			}, docs[0])
@@ -831,11 +831,15 @@ func TestLimits(t *testing.T) {
 					opts interface{},
 					results index.BaseResults,
 					logFields interface{}) (bool, error) {
-					results.AddDocuments([]doc.Document{
+					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
-						doc.Document{ID: []byte("A")},
-						doc.Document{ID: []byte("A")},
+						// Byte array represents ID encoded as bytes.
+						// 1 represents the ID length in bytes, 49 is the ID itself which is
+						// the ASCII value for A
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
+						doc.NewDocumentFromMetadata(doc.Metadata{ID: []byte("A")}),
 					})
+					require.NoError(t, err)
 					return false, nil
 				})
 

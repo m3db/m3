@@ -22,9 +22,11 @@ package index
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -134,12 +136,16 @@ func (r *wideResults) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *wideResults) addDocumentWithLock(d doc.Document) error {
-	if len(d.ID) == 0 {
+func (r *wideResults) addDocumentWithLock(w doc.Document) error {
+	docID, err := docs.ReadIDFromDocument(w)
+	if err != nil {
+		return fmt.Errorf("unable to decode document ID: %w", err)
+	}
+	if len(docID) == 0 {
 		return errUnableToAddResultMissingID
 	}
 
-	var tsID ident.ID = ident.BytesID(d.ID)
+	var tsID ident.ID = ident.BytesID(docID)
 
 	documentShard, documentShardOwned := r.shardFilter(tsID)
 	if !documentShardOwned {

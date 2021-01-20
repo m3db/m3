@@ -81,7 +81,6 @@ func (m Metric) String() string {
 // ChunkedMetric is a metric with a chunked ID.
 type ChunkedMetric struct {
 	id.ChunkedID
-	Type      metric.Type
 	TimeNanos int64
 	Value     float64
 }
