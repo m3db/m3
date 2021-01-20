@@ -32,6 +32,20 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 )
 
+const (
+	// NB: this assumes that series ID has a format:
+	//   {tag1="value1",tag2="value2",...}
+	//
+	// Thus firstTagBytesPosition points to the 't' immediately after curly brace '{'
+	firstTagBytesPosition int = 1
+	// distanceBetweenTagNameAndValue corresponds to '="' in series ID that separates tag name from
+	// it's value
+	distanceBetweenTagNameAndValue int = 2
+	// distanceBetweenTagValueAndNextName corresponds to '",' in series ID that separates
+	// tag's value from the following tag name
+	distanceBetweenTagValueAndNextName int = 2
+)
+
 var (
 	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
@@ -108,22 +122,19 @@ func ValidateSeriesTag(tag ident.Tag) error {
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
 func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
-	clonedID := clone(id)
-	fields := make([]doc.Field, 0, len(tags.Values()))
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, len(tags.Values()))
+		expectedStart = firstTagBytesPosition
+	)
 	for _, tag := range tags.Values() {
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -143,23 +154,20 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Metadata, error) {
 
 // FromSeriesIDAndTagIter converts the provided series id+tags into a document.
 func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, error) {
-	clonedID := clone(id)
-	fields := make([]doc.Field, 0, tags.Remaining())
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, tags.Remaining())
+		expectedStart = firstTagBytesPosition
+	)
 	for tags.Next() {
 		tag := tags.Current()
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName, expectedStart = findSliceOrClone(clonedID, nameBytes, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, valueBytes, expectedStart,
+			distanceBetweenTagValueAndNextName)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -178,6 +186,19 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 		return doc.Metadata{}, err
 	}
 	return d, nil
+}
+
+func findSliceOrClone(id, tag []byte, expectedStart, nextPositionDistance int) ([]byte, int) { //nolint:unparam
+	n := len(tag)
+	expectedEnd := expectedStart + n
+	if expectedStart != -1 && expectedEnd <= len(id) &&
+		bytes.Equal(id[expectedStart:expectedEnd], tag) {
+		return id[expectedStart:expectedEnd], expectedEnd + nextPositionDistance
+	} else if idx := bytes.Index(id, tag); idx != -1 {
+		return id[idx : idx+n], expectedEnd + nextPositionDistance
+	} else {
+		return clone(tag), -1
+	}
 }
 
 // TagsFromTagsIter returns an ident.Tags from a TagIterator. It also tries
@@ -252,8 +273,7 @@ func TagsFromTagsIter(
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
-func clone(id ident.ID) []byte {
-	original := id.Bytes()
+func clone(original []byte) []byte {
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone
