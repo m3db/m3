@@ -82,29 +82,6 @@ func TestFromSeriesIDAndTagIteratorInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestFromRawSeriesIDAndTagsInvalid(t *testing.T) {
-	tagDecoder := testTagDecoderPool.Get()
-	defer tagDecoder.Close()
-
-	id := ident.BytesID("foo")
-	tags := []byte{42}
-	_, err := convert.FromRawSeriesIDAndTags(id, tags, tagDecoder)
-	assert.Error(t, err)
-}
-
-func TestFromRawSeriesIDAndTagsEmpty(t *testing.T) {
-	tagDecoder := testTagDecoderPool.Get()
-	defer tagDecoder.Close()
-
-	id := ident.BytesID("foo")
-
-	d, err := convert.FromRawSeriesIDAndTags(id, nil, tagDecoder)
-	require.NoError(t, err)
-
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 0)
-}
-
 func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(

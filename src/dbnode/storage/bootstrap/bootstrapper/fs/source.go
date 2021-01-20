@@ -51,7 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/opentracing/opentracing-go"
@@ -397,12 +396,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		nsCtx                = namespace.NewContextFrom(ns)
 		metadataPool         = s.opts.IndexOptions().MetadataArrayPool()
 		batch                = metadataPool.Get()
-		tagDecoder           = s.opts.FilesystemOptions().TagDecoderPool().Get()
 		totalEntries         int
 		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
 	defer metadataPool.Put(batch)
-	defer tagDecoder.Close()
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -447,7 +444,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
-					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder, tagDecoder)
+					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
 					if err != nil {
 						s.log.Error("readNextEntryAndMaybeIndex failed", zap.Error(err),
 							zap.Time("timeRangeStart", timeRange.Start))
@@ -719,7 +716,6 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Metadata,
 	builder *result.IndexBuilder,
-	tagDecoder serialize.TagDecoder,
 ) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	entry, err := r.StreamingReadMetadata()
@@ -727,7 +723,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 		return batch, err
 	}
 
-	d, err := convert.FromRawSeriesIDAndTags(entry.ID, entry.EncodedTags, tagDecoder)
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}
