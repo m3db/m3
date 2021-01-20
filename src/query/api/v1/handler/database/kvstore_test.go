@@ -99,7 +99,8 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 			},
-			commit:       true,
+			commit: true,
+			// nolint: lll
 			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 		{
@@ -121,7 +122,8 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 			},
-			commit:       false,
+			commit: false,
+			// nolint: lll
 			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 	}
@@ -176,6 +178,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 		r, err = handler.update(zap.NewNop(), storeMock, update)
 		require.NoError(t, err)
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
+		// nolint: lll
 		require.Equal(t, `maxRecentlyQueriedSeriesBlocks:<limit:10 lookbackSeconds:30 > maxRecentlyQueriedSeriesDiskBytesRead:<limit:100 lookbackSeconds:300 > `, r.Old)
 		require.Equal(t, test.expectedJSON, r.New)
 		require.Equal(t, 0, r.Version)

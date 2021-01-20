@@ -23,6 +23,7 @@ package database
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -142,7 +144,11 @@ func (h *KeyValueStoreHandler) update(
 		return nil, err
 	}
 
-	oldProto := newKVProtoMessage(update.Key)
+	oldProto, err := newKVProtoMessage(update.Key)
+	if err != nil {
+		return nil, err
+	}
+
 	if old != nil {
 		if err := old.Unmarshal(oldProto); err != nil {
 			// Only log so we can overwrite corrupt existing entries.
@@ -150,7 +156,11 @@ func (h *KeyValueStoreHandler) update(
 		}
 	}
 
-	newProto := newKVProtoMessage(update.Key)
+	newProto, err := newKVProtoMessage(update.Key)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := jsonpb.UnmarshalString(string([]byte(update.Value)), newProto); err != nil {
 		return nil, err
 	}
@@ -175,18 +185,19 @@ func (h *KeyValueStoreHandler) update(
 	return &result, nil
 }
 
-func newKVProtoMessage(key string) protoiface.MessageV1 {
+func newKVProtoMessage(key string) (protoiface.MessageV1, error) {
 	switch key {
 	case kvconfig.NamespacesKey:
-	case kvconfig.BootstrapperKey:
+		return &nsproto.Registry{}, nil
 	case kvconfig.ClusterNewSeriesInsertLimitKey:
 	case kvconfig.EncodersPerBlockLimitKey:
+		return &commonpb.Int64Proto{}, nil
 	case kvconfig.ClientBootstrapConsistencyLevel:
 	case kvconfig.ClientReadConsistencyLevel:
 	case kvconfig.ClientWriteConsistencyLevel:
-		return &commonpb.StringProto{}
+		return &commonpb.StringProto{}, nil
 	case kvconfig.QueryLimits:
-		return &kvpb.QueryLimits{}
+		return &kvpb.QueryLimits{}, nil
 	}
-	return nil
+	return nil, fmt.Errorf("unsupported kvstore key %s", key)
 }
