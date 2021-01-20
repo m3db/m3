@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	// DisabledLimitValue is the value, when set to
+	// DisabledLimitValue is the value which, when set to
 	// a limit, disables the enforcement of that limit.
 	DisabledLimitValue = 0
 

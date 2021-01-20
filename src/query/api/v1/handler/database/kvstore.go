@@ -66,7 +66,7 @@ type KeyValueUpdate struct {
 // KeyValueUpdateResult defines the result of an update to a key's value.
 type KeyValueUpdateResult struct {
 	// Key to update.
-	Key string `json:"new"`
+	Key string `json:"key"`
 	// Old is the value before the update.
 	Old string `json:"old"`
 	// New is the value after the update.
@@ -136,7 +136,7 @@ func (h *KeyValueStoreHandler) parseBody(r *http.Request) (*KeyValueUpdate, erro
 }
 
 func (h *KeyValueStoreHandler) update(
-	ctx context.Context,
+	_ context.Context,
 	logger *zap.Logger,
 	update *KeyValueUpdate,
 ) (*KeyValueUpdateResult, error) {
