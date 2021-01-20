@@ -1179,7 +1179,7 @@ func newDownsamplerAndWriter(
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, false, iOpts), nil
+	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, iOpts), nil
 }
 
 func newPromQLEngine(

@@ -89,7 +89,7 @@ func setupHandler(
 	customHandlers ...options.CustomHandler,
 ) (*Handler, error) {
 	instrumentOpts := instrument.NewOptions()
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, false, instrument.NewOptions())
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, instrumentOpts)
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{
@@ -394,7 +394,7 @@ func TestCustomRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, _ := m3.NewStorageAndSession(t, ctrl)
 	instrumentOpts := instrument.NewOptions()
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, false, instrument.NewOptions())
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, instrumentOpts)
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{

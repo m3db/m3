@@ -830,7 +830,7 @@ func newTestDownsamplerAndWriterWithEnabled(
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	downsampler.EXPECT().Enabled().Return(enabled)
-	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, false,
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool,
 		instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
@@ -844,7 +844,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	downsampler.EXPECT().Enabled().Return(true)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool,
-		false, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
+		instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
 func init() {
