@@ -38,12 +38,26 @@ func TestUpdateQueryLimits(t *testing.T) {
 	defer ctrl.Finish()
 
 	tests := []struct {
-		name         string
-		limits       *kvpb.QueryLimits
-		expectedJSON string
+		name          string
+		limits        *kvpb.QueryLimits
+		commit        bool
+		expectedJSON  string
+		expectedError string
 	}{
 		{
-			name: `only block`,
+			name:         `nil`,
+			limits:       nil,
+			commit:       true,
+			expectedJSON: "",
+		},
+		{
+			name:         `empty`,
+			limits:       &kvpb.QueryLimits{},
+			commit:       true,
+			expectedJSON: "",
+		},
+		{
+			name: `only block - commit`,
 			limits: &kvpb.QueryLimits{
 				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
 					Limit:           1,
@@ -51,7 +65,64 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 			},
+			commit:       true,
 			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+		},
+		{
+			name: `only block - no commit`,
+			limits: &kvpb.QueryLimits{
+				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+			},
+			commit:       false,
+			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+		},
+		{
+			name: `all - commit`,
+			limits: &kvpb.QueryLimits{
+				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskBytesRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+			},
+			commit:       true,
+			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
+		},
+		{
+			name: `all - no commit`,
+			limits: &kvpb.QueryLimits{
+				MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskBytesRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+				MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
+					Limit:           1,
+					LookbackSeconds: 15,
+					ForceExceeded:   true,
+				},
+			},
+			commit:       false,
+			expectedJSON: "maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > ",
 		},
 	}
 
@@ -62,13 +133,16 @@ func TestUpdateQueryLimits(t *testing.T) {
 		update := &KeyValueUpdate{
 			Key:    kvconfig.QueryLimits,
 			Value:  json.RawMessage(limitJSON),
-			Commit: false,
+			Commit: test.commit,
 		}
 
 		storeMock := kv.NewMockStore(ctrl)
 
 		// (A) test no old value.
 		storeMock.EXPECT().Get(kvconfig.QueryLimits).Return(nil, kv.ErrNotFound)
+		if test.commit {
+			storeMock.EXPECT().Set(kvconfig.QueryLimits, gomock.Any()).Return(0, nil)
+		}
 
 		handler := &KeyValueStoreHandler{}
 		r, err := handler.update(zap.NewNop(), storeMock, update)
@@ -94,6 +168,9 @@ func TestUpdateQueryLimits(t *testing.T) {
 			}
 			return nil
 		})
+		if test.commit {
+			storeMock.EXPECT().Set(kvconfig.QueryLimits, gomock.Any()).Return(0, nil)
+		}
 
 		handler = &KeyValueStoreHandler{}
 		r, err = handler.update(zap.NewNop(), storeMock, update)
