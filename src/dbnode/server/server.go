@@ -1231,7 +1231,6 @@ func updateQueryLimit(logger *zap.Logger,
 
 	old := limit.Options()
 	new := limits.LookbackLimitOptions{
-		// If the settings are nil, then that means the limit is disabled.
 		Limit:         limitOpts.Limit,
 		Lookback:      time.Second * time.Duration(limitOpts.LookbackSeconds),
 		ForceExceeded: limitOpts.ForceExceeded,
