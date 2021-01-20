@@ -542,6 +542,10 @@ func (i *nsIndex) reportStats() error {
 			return err
 		}
 	}
+	// In memory block should always be open.
+	if err := i.inMemoryBlock.Stats(reporter); err != nil {
+		return err
+	}
 
 	// Update level stats.
 	for _, elem := range []struct {
@@ -1604,7 +1608,7 @@ func (i *nsIndex) queryWithSpan(
 	})
 	// NB(r): Safe to take ref to i.state.blocksDescOrderImmutable since it's
 	// immutable and we only create an iterator over it.
-	iter := newBlocksIterStackAlloc(i.state.blocksDescOrderImmutable, qryRange)
+	iter := newBlocksIterStackAlloc(i.inMemoryBlock, i.state.blocksDescOrderImmutable, qryRange)
 
 	// Can now release the lock and execute the query without holding the lock.
 	i.state.RUnlock()
@@ -1993,11 +1997,6 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 		})
 	}
 
-	blocks = append(blocks, blockAndBlockStart{
-		block:      i.inMemoryBlock,
-		blockStart: xtime.ToUnixNano(i.inMemoryBlock.StartTime()),
-	})
-
 	// order in desc order (i.e. reverse chronological)
 	sort.Slice(blocks, func(i, j int) bool {
 		return blocks[i].blockStart > blocks[j].blockStart
@@ -2188,11 +2187,13 @@ func (i *nsIndex) Close() error {
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(i.state.insertQueue.Stop())
 
-	blocks := make([]index.Block, 0, len(i.state.blocksByTime))
+	blocks := make([]index.Block, 0, len(i.state.blocksByTime)+1)
 	for _, block := range i.state.blocksByTime {
 		blocks = append(blocks, block)
 	}
+	blocks = append(blocks, i.inMemoryBlock)
 
+	i.inMemoryBlock = nil
 	i.state.latestBlock = nil
 	i.state.blocksByTime = nil
 	i.state.blocksDescOrderImmutable = nil
@@ -2485,19 +2486,22 @@ func (shards dbShards) IDs() []uint32 {
 // blocksIterStackAlloc is a stack allocated block iterator, ensuring no
 // allocations per query.
 type blocksIterStackAlloc struct {
+	activeBlock index.Block
 	blocks      []blockAndBlockStart
 	queryRanges xtime.Ranges
 	idx         int
 }
 
 func newBlocksIterStackAlloc(
+	activeBlock index.Block,
 	blocks []blockAndBlockStart,
 	queryRanges xtime.Ranges,
 ) blocksIterStackAlloc {
 	return blocksIterStackAlloc{
+		activeBlock: activeBlock,
 		blocks:      blocks,
 		queryRanges: queryRanges,
-		idx:         -1,
+		idx:         -2,
 	}
 }
 
@@ -2509,6 +2513,11 @@ func (i blocksIterStackAlloc) Next() (blocksIterStackAlloc, bool) {
 
 	for {
 		iter.idx++
+		if iter.idx == -1 {
+			// This will return the active block.
+			return iter, true
+		}
+
 		if iter.idx >= len(i.blocks) {
 			return iter, false
 		}
@@ -2532,5 +2541,8 @@ func (i blocksIterStackAlloc) Next() (blocksIterStackAlloc, bool) {
 }
 
 func (i blocksIterStackAlloc) Current() index.Block {
+	if i.idx == -1 {
+		return i.activeBlock
+	}
 	return i.blocks[i.idx].block
 }
