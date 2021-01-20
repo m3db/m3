@@ -833,8 +833,8 @@ func TestLimitSeriesReadFromDisk(t *testing.T) {
 	require.NoError(t, err)
 	req := &retrieveRequest{}
 	retriever := publicRetriever.(*blockRetriever)
-	_ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
-	err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
+	_ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now())
+	err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "query aborted due to limit")
 
