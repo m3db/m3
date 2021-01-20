@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,11 +34,8 @@ import (
 )
 
 const (
-	// DisabledLimitValue is the value which, when set to
-	// a limit, disables the enforcement of that limit.
-	DisabledLimitValue = 0
-
-	defaultLookback = time.Second * 15
+	disabledLimitValue = 0
+	defaultLookback    = time.Second * 15
 )
 
 type queryLimits struct {
@@ -77,7 +74,7 @@ var (
 func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	return LookbackLimitOptions{
 		// Default to no limit.
-		Limit:    DisabledLimitValue,
+		Limit:    disabledLimitValue,
 		Lookback: defaultLookback,
 	}
 }
@@ -252,7 +249,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			"query aborted due to forced limit: name=%s", q.name)))
 	}
 
-	if currentOpts.Limit == DisabledLimitValue {
+	if currentOpts.Limit == disabledLimitValue {
 		return nil
 	}
 

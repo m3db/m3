@@ -31,9 +31,6 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,8 +43,7 @@ import (
 
 const (
 	// KeyValueStoreURL is the url to edit key/value configuration values.
-	KeyValueStoreURL = "/search"
-
+	KeyValueStoreURL = "/kvstore"
 	// KeyValueStoreHTTPMethod is the HTTP method used with this resource.
 	KeyValueStoreHTTPMethod = http.MethodPost
 )
@@ -75,27 +71,21 @@ type KeyValueUpdateResult struct {
 	Version int `json:"version"`
 }
 
-// KeyValueStoreHandler represents a handler for the search endpoint
+// KeyValueStoreHandler represents a handler for the key/value store endpoint
 type KeyValueStoreHandler struct {
-	storage             storage.Storage
-	kvStore             kv.Store
-	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	instrumentOpts      instrument.Options
+	kvStore        kv.Store
+	instrumentOpts instrument.Options
 }
 
 // NewKeyValueStoreHandler returns a new instance of handler
-func NewKeyValueStoreHandler(opts options.HandlerOptions) (http.Handler, error) {
-	kvStore, err := opts.ClusterClient().KV()
-	if err != nil {
-		return nil, err
-	}
-
+func NewKeyValueStoreHandler(
+	kvStore kv.Store,
+	instrumentOpts instrument.Options,
+) http.Handler {
 	return &KeyValueStoreHandler{
-		storage:             opts.Storage(),
-		kvStore:             kvStore,
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		instrumentOpts:      opts.InstrumentOpts(),
-	}, nil
+		kvStore:        kvStore,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *KeyValueStoreHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

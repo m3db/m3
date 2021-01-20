@@ -49,11 +49,18 @@ func RegisterRoutes(
 	instrumentOpts instrument.Options,
 	namespaceValidator options.NamespaceValidator,
 ) error {
+	kvStore, err := client.KV()
+	if err != nil {
+		return err
+	}
+
 	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
 		defaults, instrumentOpts, namespaceValidator)
 	if err != nil {
 		return err
 	}
+
+	kvStoreHandler := NewKeyValueStoreHandler(kvStore, instrumentOpts)
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
@@ -68,6 +75,13 @@ func RegisterRoutes(
 		Path:    CreateNamespaceURL,
 		Handler: createHandler,
 		Methods: []string{CreateNamespaceHTTPMethod},
+	}); err != nil {
+		return err
+	}
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    KeyValueStoreURL,
+		Handler: kvStoreHandler,
+		Methods: []string{KeyValueStoreHTTPMethod},
 	}); err != nil {
 		return err
 	}
