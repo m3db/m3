@@ -34,12 +34,12 @@ import (
 )
 
 type idWithEncodedTags struct {
-	id          ident.ID
+	id          ident.BytesID
 	encodedTags []byte
 }
 
 type idWithTags struct {
-	id   ident.ID
+	id   ident.BytesID
 	tags ident.Tags
 }
 
@@ -151,6 +151,38 @@ func BenchmarkFromSeriesIDAndTags(b *testing.B) {
 	b.ResetTimer()
 	for i := range testData {
 		_, err := FromSeriesIDAndTags(testData[i].id, testData[i].tags)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkFromSeriesIDAndEncodedTags(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := range testData {
+		_, err := FromSeriesIDAndEncodedTags(testData[i].id, testData[i].encodedTags)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkFromSeriesIDAndTagIter_TagDecoder(b *testing.B) {
+	testData, err := prepareIDAndEncodedTags(b)
+	require.NoError(b, err)
+
+	decoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions(),
+	)
+	decoderPool.Init()
+
+	decoder := decoderPool.Get()
+	defer decoder.Close()
+
+	b.ResetTimer()
+	for i := range testData {
+		decoder.Reset(checked.NewBytes(testData[i].encodedTags, nil))
+		_, err := FromSeriesIDAndTagIter(testData[i].id, decoder)
 		require.NoError(b, err)
 	}
 }

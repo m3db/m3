@@ -26,10 +26,12 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 const (
@@ -176,6 +178,76 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Metadata, 
 	}
 	if err := tags.Err(); err != nil {
 		return doc.Metadata{}, err
+	}
+
+	d := doc.Metadata{
+		ID:     clonedID,
+		Fields: fields,
+	}
+	if err := Validate(d); err != nil {
+		return doc.Metadata{}, err
+	}
+	return d, nil
+}
+
+// FromSeriesIDAndEncodedTags converts the provided series id and encoded tags into a doc.Metadata.
+func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (doc.Metadata, error) {
+	var (
+		byteOrder = serialize.ByteOrder
+		total     = len(encodedTags)
+	)
+	if total < 4 {
+		return doc.Metadata{}, fmt.Errorf("encoded tags too short: size=%d, need=%d", total, 4)
+	}
+
+	header := byteOrder.Uint16(encodedTags[:2])
+	encodedTags = encodedTags[2:]
+	if header != serialize.HeaderMagicNumber {
+		return doc.Metadata{}, serialize.ErrIncorrectHeader
+	}
+
+	length := int(byteOrder.Uint16(encodedTags[:2]))
+	encodedTags = encodedTags[2:]
+
+	var (
+		clonedID      = clone(id.Bytes())
+		fields        = make([]doc.Field, 0, length)
+		expectedStart = firstTagBytesPosition
+	)
+
+	for i := 0; i < length; i++ {
+		if len(encodedTags) < 2 {
+			return doc.Metadata{}, fmt.Errorf("missing size for tag name: index=%d", i)
+		}
+		numBytesName := int(byteOrder.Uint16(encodedTags[:2]))
+		if numBytesName == 0 {
+			return doc.Metadata{}, serialize.ErrEmptyTagNameLiteral
+		}
+		encodedTags = encodedTags[2:]
+
+		bytesName := encodedTags[:numBytesName]
+		encodedTags = encodedTags[numBytesName:]
+
+		if len(encodedTags) < 2 {
+			return doc.Metadata{}, fmt.Errorf("missing size for tag value: index=%d", i)
+		}
+
+		numBytesValue := int(byteOrder.Uint16(encodedTags[:2]))
+		encodedTags = encodedTags[2:]
+
+		bytesValue := encodedTags[:numBytesValue]
+		encodedTags = encodedTags[numBytesValue:]
+
+		var clonedName, clonedValue []byte
+		clonedName, expectedStart = findSliceOrClone(clonedID, bytesName, expectedStart,
+			distanceBetweenTagNameAndValue)
+		clonedValue, expectedStart = findSliceOrClone(clonedID, bytesValue, expectedStart,
+			distanceBetweenTagValueAndNextName)
+
+		fields = append(fields, doc.Field{
+			Name:  clonedName,
+			Value: clonedValue,
+		})
 	}
 
 	d := doc.Metadata{
