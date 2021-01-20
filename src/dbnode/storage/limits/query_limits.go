@@ -45,13 +45,14 @@ type queryLimits struct {
 }
 
 type lookbackLimit struct {
-	name    string
-	options LookbackLimitOptions
-	metrics lookbackLimitMetrics
-	logger  *zap.Logger
-	recent  *atomic.Int64
-	stopCh  chan struct{}
-	lock    sync.RWMutex
+	name      string
+	options   LookbackLimitOptions
+	metrics   lookbackLimitMetrics
+	logger    *zap.Logger
+	recent    *atomic.Int64
+	stopCh    chan struct{}
+	stoppedCh chan struct{}
+	lock      sync.RWMutex
 }
 
 type lookbackLimitMetrics struct {
@@ -114,12 +115,13 @@ func newLookbackLimit(
 	sourceLoggerBuilder SourceLoggerBuilder,
 ) *lookbackLimit {
 	return &lookbackLimit{
-		name:    name,
-		options: opts,
-		metrics: newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
-		logger:  instrumentOpts.Logger(),
-		recent:  atomic.NewInt64(0),
-		stopCh:  make(chan struct{}),
+		name:      name,
+		options:   opts,
+		metrics:   newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
+		logger:    instrumentOpts.Logger(),
+		recent:    atomic.NewInt64(0),
+		stopCh:    make(chan struct{}),
+		stoppedCh: make(chan struct{}),
 	}
 }
 
@@ -272,6 +274,7 @@ func (q *lookbackLimit) start() {
 				q.reset()
 			case <-q.stopCh:
 				ticker.Stop()
+				q.stoppedCh <- struct{}{}
 				return
 			}
 		}
@@ -283,7 +286,9 @@ func (q *lookbackLimit) start() {
 
 func (q *lookbackLimit) stop() {
 	close(q.stopCh)
+	<-q.stoppedCh
 	q.stopCh = make(chan struct{})
+	q.stoppedCh = make(chan struct{})
 
 	q.logger.Info("query limit interval stopped", zap.String("name", q.name))
 }
