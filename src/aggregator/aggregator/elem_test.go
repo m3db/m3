@@ -46,7 +46,7 @@ var (
 	testCounterID                 = id.RawID("testCounter")
 	testBatchTimerID              = id.RawID("testBatchTimer")
 	testGaugeID                   = id.RawID("testGauge")
-	testAnnot                     = []byte("first")
+	testAnnot                     = []byte("testAnnotation")
 	testStoragePolicy             = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
 	testAggregationTypes          = maggregation.Types{maggregation.Mean, maggregation.Sum}
 	testAggregationTypesExpensive = maggregation.Types{maggregation.SumSq}

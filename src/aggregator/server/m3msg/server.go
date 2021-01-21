@@ -104,7 +104,6 @@ func (s *server) handleMessage(
 			return err
 		}
 		u := union.CounterWithMetadatas.ToUnion()
-		u.Annotation = pb.Annotation
 		return s.aggregator.AddUntimed(u, union.CounterWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 		err := union.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas)
@@ -112,7 +111,6 @@ func (s *server) handleMessage(
 			return err
 		}
 		u := union.BatchTimerWithMetadatas.ToUnion()
-		u.Annotation = pb.Annotation
 		return s.aggregator.AddUntimed(u, union.BatchTimerWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 		err := union.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas)
@@ -120,14 +118,12 @@ func (s *server) handleMessage(
 			return err
 		}
 		u := union.GaugeWithMetadatas.ToUnion()
-		u.Annotation = pb.Annotation
 		return s.aggregator.AddUntimed(u, union.GaugeWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 		err := union.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata)
 		if err != nil {
 			return err
 		}
-		union.ForwardedMetricWithMetadata.ForwardedMetric.Annotation = pb.Annotation
 		return s.aggregator.AddForwarded(
 			union.ForwardedMetricWithMetadata.ForwardedMetric,
 			union.ForwardedMetricWithMetadata.ForwardMetadata)
@@ -136,7 +132,6 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		union.TimedMetricWithMetadata.Metric.Annotation = pb.Annotation
 		return s.aggregator.AddTimed(
 			union.TimedMetricWithMetadata.Metric,
 			union.TimedMetricWithMetadata.TimedMetadata)
@@ -145,7 +140,6 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		union.TimedMetricWithMetadatas.Metric.Annotation = pb.Annotation
 		return s.aggregator.AddTimedWithStagedMetadatas(
 			union.TimedMetricWithMetadatas.Metric,
 			union.TimedMetricWithMetadatas.StagedMetadatas)
