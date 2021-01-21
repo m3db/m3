@@ -1205,54 +1205,60 @@ func kvWatchQueryLimit(
 }
 
 func updateQueryLimits(logger *zap.Logger,
-	limits limits.QueryLimits,
+	queryLimits limits.QueryLimits,
 	dynamicLimits *kvpb.QueryLimits,
 	defaultOpts limits.Options,
 ) {
-	if dynamicLimits == nil {
-		return
+	var (
+		// Default to the config-based limits if unset in dynamic limits.
+		// Otherwise, use the dynamic limit.
+		docsLimitOpts           = defaultOpts.DocsLimitOpts()
+		diskSeriesReadLimitOpts = defaultOpts.DiskSeriesReadLimitOpts()
+		bytesReadLimitOpts      = defaultOpts.BytesReadLimitOpts()
+	)
+	if dynamicLimits != nil {
+		if dynamicLimits.MaxRecentlyQueriedSeriesBlocks != nil {
+			docsLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesBlocks)
+		}
+		if dynamicLimits.MaxRecentlyQueriedSeriesDiskRead != nil {
+			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesDiskRead)
+		}
+		if dynamicLimits.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
+			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesDiskBytesRead)
+		}
 	}
-	if err := updateQueryLimit(limits.DocsLimit(),
-		dynamicLimits.MaxRecentlyQueriedSeriesBlocks,
-		defaultOpts.DocsLimitOpts(),
-	); err != nil {
+
+	if err := updateQueryLimit(queryLimits.DocsLimit(), docsLimitOpts); err != nil {
 		logger.Error("error updating docs limit", zap.Error(err))
 	}
-	if err := updateQueryLimit(limits.DiskSeriesReadLimit(),
-		dynamicLimits.MaxRecentlyQueriedSeriesDiskRead,
-		defaultOpts.DiskSeriesReadLimitOpts(),
-	); err != nil {
+
+	if err := updateQueryLimit(queryLimits.DiskSeriesReadLimit(), diskSeriesReadLimitOpts); err != nil {
 		logger.Error("error updating series read limit", zap.Error(err))
 	}
-	if err := updateQueryLimit(limits.BytesReadLimit(),
-		dynamicLimits.MaxRecentlyQueriedSeriesDiskBytesRead,
-		defaultOpts.BytesReadLimitOpts(),
-	); err != nil {
+
+	if err := updateQueryLimit(queryLimits.BytesReadLimit(), bytesReadLimitOpts); err != nil {
 		logger.Error("error updating bytes read limit", zap.Error(err))
 	}
 }
 
-func updateQueryLimit(limit limits.LookbackLimit,
-	dynamicLimit *kvpb.QueryLimit,
-	defaultOpts limits.LookbackLimitOptions,
+func updateQueryLimit(
+	limit limits.LookbackLimit,
+	newOpts limits.LookbackLimitOptions,
 ) error {
-	// Default to the config-based limits if unset in dynamic limits.
-	// Otherwise, use the dynamic limit.
-	new := defaultOpts
-	if dynamicLimit != nil {
-		new = limits.LookbackLimitOptions{
-			Limit:         dynamicLimit.Limit,
-			Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
-			ForceExceeded: dynamicLimit.ForceExceeded,
-		}
-	}
-
 	old := limit.Options()
-	if old.Equals(new) {
+	if old.Equals(newOpts) {
 		return nil
 	}
 
-	return limit.Update(new)
+	return limit.Update(newOpts)
+}
+
+func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimitOptions {
+	return limits.LookbackLimitOptions{
+		Limit:         dynamicLimit.Limit,
+		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
+		ForceExceeded: dynamicLimit.ForceExceeded,
+	}
 }
 
 func kvWatchClientConsistencyLevels(
