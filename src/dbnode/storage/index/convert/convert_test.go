@@ -78,6 +78,7 @@ func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.NoError(t, err)
 	assertContentsMatch(t, id, tags.Values(), d)
+	assert.False(t, test.ByteSlicesBackedBySameData(id.Bytes(), d.ID))
 }
 
 func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
@@ -113,6 +114,7 @@ func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
 			d, err := convert.FromSeriesIDAndTags(seriesID, tags)
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
@@ -129,6 +131,7 @@ func TestFromSeriesIDAndTagIterValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
 	assertContentsMatch(t, id, tags.Values(), d)
+	assert.False(t, test.ByteSlicesBackedBySameData(id.Bytes(), d.ID))
 }
 
 func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
@@ -164,6 +167,7 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 			d, err := convert.FromSeriesIDAndTagIter(seriesID, ident.NewTagsIterator(tags))
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
@@ -212,6 +216,7 @@ func TestFromSeriesIDAndEncodedTags(t *testing.T) {
 			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, encodedTags)
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
@@ -248,6 +253,7 @@ func TestFromSeriesIDAndEncodedTags_EmptyEncodedTags(t *testing.T) {
 			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, tt.encodedTags)
 			assert.NoError(t, err)
 			assert.Equal(t, expected, d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 		})
 	}
 }
