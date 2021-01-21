@@ -220,6 +220,38 @@ func TestFromSeriesIDAndEncodedTags(t *testing.T) {
 	}
 }
 
+func TestFromSeriesIDAndEncodedTags_EmptyEncodedTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		encodedTags []byte
+	}{
+		{
+			name:        "nil slice",
+			encodedTags: nil,
+		},
+		{
+			name:        "empty slice",
+			encodedTags: make([]byte, 0),
+		},
+	}
+
+	var (
+		seriesID = ident.BytesID("foo")
+		expected = doc.Metadata{
+			ID:     seriesID,
+			Fields: nil,
+		}
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, tt.encodedTags)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, d)
+		})
+	}
+}
+
 func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
 	var (
 		validEncodedTags     = []byte{117, 39, 1, 0, 3, 0, 98, 97, 114, 3, 0, 98, 97, 122}
