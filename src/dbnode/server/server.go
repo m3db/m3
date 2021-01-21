@@ -1206,25 +1206,25 @@ func kvWatchQueryLimit(
 
 func updateQueryLimits(logger *zap.Logger,
 	queryLimits limits.QueryLimits,
-	dynamicLimits *kvpb.QueryLimits,
-	defaultOpts limits.Options,
+	dynamicOpts *kvpb.QueryLimits,
+	configOpts limits.Options,
 ) {
 	var (
 		// Default to the config-based limits if unset in dynamic limits.
 		// Otherwise, use the dynamic limit.
-		docsLimitOpts           = defaultOpts.DocsLimitOpts()
-		diskSeriesReadLimitOpts = defaultOpts.DiskSeriesReadLimitOpts()
-		bytesReadLimitOpts      = defaultOpts.BytesReadLimitOpts()
+		docsLimitOpts           = configOpts.DocsLimitOpts()
+		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
+		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
 	)
-	if dynamicLimits != nil {
-		if dynamicLimits.MaxRecentlyQueriedSeriesBlocks != nil {
-			docsLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesBlocks)
+	if dynamicOpts != nil {
+		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
+			docsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesBlocks)
 		}
-		if dynamicLimits.MaxRecentlyQueriedSeriesDiskRead != nil {
-			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesDiskRead)
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
 		}
-		if dynamicLimits.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
-			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicLimits.MaxRecentlyQueriedSeriesDiskBytesRead)
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
+			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead)
 		}
 	}
 
