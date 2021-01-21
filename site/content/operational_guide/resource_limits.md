@@ -53,7 +53,15 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
-The third limit is `maxRecentlyQueriedSeriesDiskRead
+The third limit is `maxRecentlyQueriedSeriesDiskRead` caps the bytes associated with 
+series IDs matched by a given query. This originally was distinct from 
+`maxRecentlyQueriedSeriesBlocks`, which also limits the memory cost of specific series 
+matched in-memory, because of an inefficiency in how allocations would occur even for series
+known to not be present on disk for a given shard. This inefficiency has been resolved
+https://github.com/m3db/m3/pull/3103 and therefore this limit should be tracking memory cost
+linearly compared to `maxRecentlyQueriedSeriesBlocks`. It is recommended to defer to using
+`maxRecentlyQueriedSeriesBlocks` over `maxRecentlyQueriedSeriesDiskRead` given both should
+be capping the resources in the same manner now.
 
 ### Annotated configuration
 
@@ -125,6 +133,11 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
       "limit":0,
       "lookbackSeconds":15,
       "forceExceeded":false
+    },
+    "maxRecentlyQueriedSeriesDiskRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
     }
   },
   "commit":true
@@ -132,7 +145,7 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
 ```
 
 Usage notes:
-- The `commit` flag allows for dry-run API calls to see the old and new limits that would be applied.
+- Setting the `commit` flag to false allows for dry-run API calls to see the old and new limits that would be applied.
 - Omitting a limit from the `value` results in that limit to be driven by the config-based settings.
 - The `forceExceeded` flag makes the limit behave as though it is permanently exceeded, thus failing all queries. This is useful for dynamically shutting down all queries in cases where load may be exceeding provisioned resources.
 
