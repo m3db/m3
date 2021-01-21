@@ -23,7 +23,6 @@ package remote
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -31,10 +30,10 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -58,7 +57,7 @@ const (
 type TagValuesHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	nowFn               clock.NowFn
+	parseOpts           promql.ParseOptions
 	instrumentOpts      instrument.Options
 }
 
@@ -72,7 +71,7 @@ func NewTagValuesHandler(options options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
 		storage:             options.Storage(),
 		fetchOptionsBuilder: options.FetchOptionsBuilder(),
-		nowFn:               options.NowFn(),
+		parseOpts:           promql.NewParseOptions().SetNowFn(options.NowFn()),
 		instrumentOpts:      options.InstrumentOpts(),
 	}
 }
@@ -85,7 +84,7 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
 		logger.Error("unable to parse tag values to query", zap.Error(err))
-		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -117,14 +116,18 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	vars := mux.Vars(r)
 	name, ok := vars[NameReplace]
 	if !ok || len(name) == 0 {
-		return nil, errors.ErrNoName
+		return nil, xhttp.NewError(errors.ErrNoName, http.StatusBadRequest)
+	}
+
+	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
+	if err != nil {
+		return nil, err
 	}
 
 	nameBytes := []byte(name)
 	return &storage.CompleteTagsQuery{
-		// NB: necessarily spans the entire timerange for the index.
-		Start:            time.Time{},
-		End:              h.nowFn(),
+		Start:            start,
+		End:              end,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers: models.Matchers{
