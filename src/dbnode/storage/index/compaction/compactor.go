@@ -47,7 +47,7 @@ type Compactor struct {
 
 	opts         CompactorOptions
 	writer       fst.Writer
-	docsPool     doc.DocumentArrayPool
+	metadataPool doc.MetadataArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
 	builder      segment.SegmentsBuilder
@@ -71,7 +71,7 @@ type CompactorOptions struct {
 // NewCompactor returns a new compactor which reuses buffers
 // to avoid allocating intermediate buffers when compacting.
 func NewCompactor(
-	docsPool doc.DocumentArrayPool,
+	metadataPool doc.MetadataArrayPool,
 	docsMaxBatch int,
 	builderOpts builder.Options,
 	fstOpts fst.Options,
@@ -88,7 +88,7 @@ func NewCompactor(
 	return &Compactor{
 		opts:         opts,
 		writer:       writer,
-		docsPool:     docsPool,
+		metadataPool: metadataPool,
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
@@ -147,9 +147,9 @@ func (c *Compactor) CompactUsingBuilder(
 	}
 
 	// Need to combine segments first
-	batch := c.docsPool.Get()
+	batch := c.metadataPool.Get()
 	defer func() {
-		c.docsPool.Put(batch)
+		c.metadataPool.Put(batch)
 	}()
 
 	// flushBatch is declared to reuse the same code from the
@@ -374,7 +374,7 @@ func (c *Compactor) Close() error {
 	c.closed = true
 
 	c.writer = nil
-	c.docsPool = nil
+	c.metadataPool = nil
 	c.fstOpts = nil
 	c.builder = nil
 	c.buff = nil

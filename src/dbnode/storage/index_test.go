@@ -378,24 +378,6 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNamespaceIndexSetExtendedRetentionPeriod(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	idx := newTestIndex(t, ctrl).index.(*nsIndex)
-	originalRetention := idx.retentionPeriod
-
-	assert.Equal(t, originalRetention, idx.effectiveRetentionPeriodWithLock())
-
-	longerRetention := originalRetention + time.Minute
-	idx.SetExtendedRetentionPeriod(longerRetention)
-	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
-
-	shorterRetention := longerRetention - time.Second
-	idx.SetExtendedRetentionPeriod(shorterRetention)
-	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
-}
-
 func verifyFlushForShards(
 	t *testing.T,
 	ctrl *gomock.Controller,

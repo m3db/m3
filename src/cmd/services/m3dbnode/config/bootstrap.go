@@ -279,8 +279,8 @@ func (bsc BootstrapConfiguration) New(
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
 	idxOpts := opts.IndexOptions()
-	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	compactor, err := compaction.NewCompactor(idxOpts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		idxOpts.SegmentBuilderOptions(),
 		idxOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{

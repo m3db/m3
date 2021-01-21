@@ -213,8 +213,8 @@ func ReadEncodedDocumentID(encoded doc.Encoded) ([]byte, error) {
 	return id, err
 }
 
-// GetFromDocument retrieves a doc.Metadata from a doc.Document.
-func GetFromDocument(document doc.Document, reader *EncodedDocumentReader) (doc.Metadata, error) {
+// MetadataFromDocument retrieves a doc.Metadata from a doc.Document.
+func MetadataFromDocument(document doc.Document, reader *EncodedDocumentReader) (doc.Metadata, error) {
 	if d, ok := document.Metadata(); ok {
 		return d, nil
 	}
