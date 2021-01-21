@@ -149,12 +149,11 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}, nil
 }
 
-// SeriesAttributesToAnnotationPayload converts passed arguments into an annotation.Payload.
-func SeriesAttributesToAnnotationPayload(
-	promType ts.PromMetricType,
-	handleValueResets bool) (annotation.Payload, error) {
+// SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
+func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
 	var metricType annotation.MetricType
-	switch promType {
+
+	switch seriesAttributes.PromType {
 	case ts.PromMetricTypeUnknown:
 		metricType = annotation.MetricType_UNKNOWN
 
@@ -180,12 +179,12 @@ func SeriesAttributesToAnnotationPayload(
 		metricType = annotation.MetricType_STATESET
 
 	default:
-		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", promType)
+		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
 	}
 
 	return annotation.Payload{
 		MetricType:        metricType,
-		HandleValueResets: handleValueResets,
+		HandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
 }
 
