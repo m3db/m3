@@ -162,15 +162,19 @@ func (q *queryLimits) DiskSeriesReadLimit() LookbackLimit {
 }
 
 func (q *queryLimits) Start() {
-	q.docsLimit.start()
-	q.seriesDiskReadLimit.start()
-	q.bytesReadLimit.start()
+	// Lock on explicit start to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
+	q.docsLimit.startWithLock()
+	q.seriesDiskReadLimit.startWithLock()
+	q.bytesReadLimit.startWithLock()
 }
 
 func (q *queryLimits) Stop() {
-	q.docsLimit.stop()
-	q.seriesDiskReadLimit.stop()
-	q.bytesReadLimit.stop()
+	// Lock on explicit start to avoid any collision with asynchronous updating
+	// which will call stop/start if the lookback has changed.
+	q.docsLimit.stopWithLock()
+	q.seriesDiskReadLimit.stopWithLock()
+	q.bytesReadLimit.stopWithLock()
 }
 
 func (q *queryLimits) AnyExceeded() error {
@@ -184,7 +188,10 @@ func (q *queryLimits) AnyExceeded() error {
 }
 
 func (q *lookbackLimit) Options() LookbackLimitOptions {
-	return q.options
+	q.lock.RLock()
+	o := q.options
+	q.lock.RUnlock()
+	return o
 }
 
 // Update updates the limit.
@@ -262,6 +269,18 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
 	return nil
+}
+
+func (q *lookbackLimit) startWithLock() {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	q.start()
+}
+
+func (q *lookbackLimit) stopWithLock() {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	q.stop()
 }
 
 func (q *lookbackLimit) start() {
