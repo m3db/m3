@@ -339,7 +339,7 @@ function test_metric_type_survives_aggregation {
     id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
     rangeStart=${start} \
     rangeEnd=${end} \
-    jq_path=".datapoints[0].value" expected_value="45" \
+    jq_path=".datapoints[0].value" expected_value="45"
 }
 
 echo "Run tests"
