@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -171,6 +172,101 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 	}
 }
 
+func TestFromSeriesIDAndEncodedTags(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "no tags in ID",
+			id:   "foo",
+		},
+		{
+			name: "tags in ID",
+			id:   "bar=baz,quip=quix",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz",quip="quix"}`,
+		},
+		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "quixquip_bazillion_barometers",
+		},
+	}
+	var (
+		tags = ident.NewTags(
+			ident.StringTag("bar", "baz"),
+			ident.StringTag("quip", "quix"),
+		)
+		encodedTags = toEncodedTags(t, tags)
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seriesID := ident.BytesID(tt.id)
+			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, encodedTags)
+			assert.NoError(t, err)
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
+			}
+		})
+	}
+}
+
+func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
+	var (
+		validEncodedTags     = []byte{117, 39, 1, 0, 3, 0, 98, 97, 114, 3, 0, 98, 97, 122}
+		tagsWithReservedName = toEncodedTags(t, ident.NewTags(
+			ident.StringTag(string(convert.ReservedFieldNameID), "some_value"),
+		))
+	)
+
+	tests := []struct {
+		name        string
+		encodedTags []byte
+	}{
+		{
+			name:        "reserved tag name",
+			encodedTags: tagsWithReservedName,
+		},
+		{
+			name:        "incomplete header",
+			encodedTags: validEncodedTags[:3],
+		},
+		{
+			name:        "incomplete tag name length",
+			encodedTags: validEncodedTags[:5],
+		},
+		{
+			name:        "incomplete tag value length",
+			encodedTags: validEncodedTags[:10],
+		},
+		{
+			name:        "invalid magic number",
+			encodedTags: []byte{42, 42, 0, 0},
+		},
+		{
+			name:        "empty tag name",
+			encodedTags: []byte{117, 39, 1, 0, 0, 0, 3, 0, 98, 97, 122},
+		},
+	}
+	seriesID := ident.BytesID("foo")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := convert.FromSeriesIDAndEncodedTags(seriesID, tt.encodedTags)
+			assert.Error(t, err)
+		})
+	}
+}
+
 func TestToSeriesValid(t *testing.T) {
 	d := doc.Metadata{
 		ID: []byte("foo"),
@@ -307,7 +403,17 @@ func assertBackedBySameData(t *testing.T, outer, inner []byte) {
 	if idx := bytes.Index(outer, inner); idx != -1 {
 		subslice := outer[idx : idx+len(inner)]
 		assert.True(t, test.ByteSlicesBackedBySameData(subslice, inner))
-	} else {
-		assert.Fail(t, "inner byte sequence wasn't found")
 	}
+}
+
+func toEncodedTags(t *testing.T, tags ident.Tags) []byte {
+	pool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), nil)
+	pool.Init()
+	encoder := pool.Get()
+	defer encoder.Finalize()
+
+	require.NoError(t, encoder.Encode(ident.NewTagsIterator(tags)))
+	data, ok := encoder.Data()
+	require.True(t, ok)
+	return append([]byte(nil), data.Bytes()...)
 }
