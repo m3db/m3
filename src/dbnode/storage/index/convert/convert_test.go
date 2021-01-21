@@ -38,9 +38,7 @@ import (
 )
 
 var (
-	testOpts           convert.Opts
-	testTagEncoderPool serialize.TagEncoderPool
-	testTagDecoderPool serialize.TagDecoderPool
+	testOpts convert.Opts
 )
 
 func init() {
@@ -52,16 +50,6 @@ func init() {
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	testOpts.CheckedBytesPool = bytesPool
 	testOpts.IdentPool = idPool
-
-	testTagEncoderPool = serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(),
-		pool.NewObjectPoolOptions())
-	testTagEncoderPool.Init()
-
-	testTagDecoderPool = serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		pool.NewObjectPoolOptions())
-	testTagDecoderPool.Init()
 }
 
 func TestFromSeriesIDAndTagsInvalid(t *testing.T) {
