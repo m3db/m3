@@ -53,15 +53,14 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
-The third limit `maxRecentlyQueriedSeriesDiskRead` caps the bytes associated with 
-series IDs matched by incoming queries. This originally was distinct from the limit
-`maxRecentlyQueriedSeriesBlocks`, which also limits the memory cost of specific series 
-matched in-memory, because of an inefficiency in how allocations would occur even for series
-known to not be present on disk for a given shard. This inefficiency has been resolved
-https://github.com/m3db/m3/pull/3103 and therefore this limit should be tracking memory cost
-linearly relative to `maxRecentlyQueriedSeriesBlocks`. It is recommended to defer to using
-`maxRecentlyQueriedSeriesBlocks` over `maxRecentlyQueriedSeriesDiskRead` given both should
-be capping the resources in the same manner now.
+The third limit `maxRecentlyQueriedSeriesDiskRead` caps the series IDs matched by incoming 
+queries. This originally was distinct from the limit `maxRecentlyQueriedSeriesBlocks`, which
+also limits the memory cost of specific series matched, because of an inefficiency
+in how allocations would occur even for series known to not be present on disk for a given
+shard. This inefficiency has been resolved https://github.com/m3db/m3/pull/3103 and therefore
+this limit should be tracking memory cost linearly relative to `maxRecentlyQueriedSeriesBlocks`.
+It is recommended to defer to using `maxRecentlyQueriedSeriesBlocks` over 
+`maxRecentlyQueriedSeriesDiskRead` given both should cap the resources similarly.
 
 ### Annotated configuration
 
@@ -92,9 +91,9 @@ limits:
     # and read until the lookback period resets.
     lookback: 15s
 
-  # If set, will enforce a maximum cap on the bytes read from disk that make up time series objects themselves (not their data).
-  # This limit can be used to ensure queries that match an extremely high volume of series can be limited before even
-  # reading the underlying series data from disk.
+  # If set, will enforce a maximum cap on the series read from disk.
+  # This limit can be used to ensure queries that match an extremely high 
+  # volume of series can be limited before even reading the underlying series data from disk.
   maxRecentlyQueriedSeriesDiskRead:
     # Value sets the maximum disk bytes read to make up the time series objects.
     value: 0
