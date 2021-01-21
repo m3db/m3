@@ -170,7 +170,7 @@ func (q *queryLimits) Start() {
 }
 
 func (q *queryLimits) Stop() {
-	// Lock on explicit start to avoid any collision with asynchronous updating
+	// Lock on explicit stop to avoid any collision with asynchronous updating
 	// which will call stop/start if the lookback has changed.
 	q.docsLimit.stopWithLock()
 	q.seriesDiskReadLimit.stopWithLock()
