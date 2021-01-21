@@ -156,7 +156,7 @@ func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 	return 0
 }
 
-// Annotation returns the associated annotation with the timer.
+// Annotation returns the annotation associated with the timer.
 func (t *Timer) Annotation() []byte {
 	return t.annotation
 }
