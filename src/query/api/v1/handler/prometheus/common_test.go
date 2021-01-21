@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -161,7 +162,8 @@ func TestParseStartAndEnd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/?%s", tt.querystring), nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
 			require.NoError(t, err)
 
 			start, end, err := ParseStartAndEnd(req, opts)
@@ -177,7 +179,7 @@ func TestParseStartAndEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("POST_%s", tt.querystring), func(t *testing.T) {
 			b := bytes.NewBuffer([]byte(tt.querystring))
-			req, err := http.NewRequest(http.MethodPost, "/", b)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", b)
 			require.NoError(t, err)
 			req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
 

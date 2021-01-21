@@ -181,7 +181,9 @@ func ParseStartAndEnd(
 	r *http.Request,
 	parseOpts xpromql.ParseOptions,
 ) (time.Time, time.Time, error) {
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
 
 	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
 		time.Unix(0, 0))
