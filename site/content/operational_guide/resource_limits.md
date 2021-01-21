@@ -53,13 +53,13 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
-The third limit is `maxRecentlyQueriedSeriesDiskRead` caps the bytes associated with 
-series IDs matched by a given query. This originally was distinct from 
+The third limit `maxRecentlyQueriedSeriesDiskRead` caps the bytes associated with 
+series IDs matched by incoming queries. This originally was distinct from the limit
 `maxRecentlyQueriedSeriesBlocks`, which also limits the memory cost of specific series 
 matched in-memory, because of an inefficiency in how allocations would occur even for series
 known to not be present on disk for a given shard. This inefficiency has been resolved
 https://github.com/m3db/m3/pull/3103 and therefore this limit should be tracking memory cost
-linearly compared to `maxRecentlyQueriedSeriesBlocks`. It is recommended to defer to using
+linearly relative to `maxRecentlyQueriedSeriesBlocks`. It is recommended to defer to using
 `maxRecentlyQueriedSeriesBlocks` over `maxRecentlyQueriedSeriesDiskRead` given both should
 be capping the resources in the same manner now.
 
