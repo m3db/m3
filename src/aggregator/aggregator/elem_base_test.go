@@ -203,9 +203,9 @@ func TestCounterElemBaseResetSetData(t *testing.T) {
 
 func TestCounterElemBaseResetSetDataInvalidTypes(t *testing.T) {
 	e := counterElemBase{}
-	err := e.ResetSetData(nil, maggregation.Types{maggregation.P10}, false)
+	err := e.ResetSetData(nil, maggregation.Types{maggregation.Last}, false)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid aggregation types P10 for counter"))
+	require.True(t, strings.Contains(err.Error(), "invalid aggregation types Last for counter"))
 }
 
 func TestTimerElemBase(t *testing.T) {

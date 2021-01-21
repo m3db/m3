@@ -39,6 +39,8 @@ type QueryLimits interface {
 	DocsLimit() LookbackLimit
 	// BytesReadLimit limits queries by a global concurrent count of bytes read from disk.
 	BytesReadLimit() LookbackLimit
+	// DiskSeriesReadLimit limits queries by a global concurrent count of time series read from disk.
+	DiskSeriesReadLimit() LookbackLimit
 
 	// AnyExceeded returns an error if any of the query limits are exceeded.
 	AnyExceeded() error
@@ -96,6 +98,12 @@ type Options interface {
 
 	// BytesReadLimitOpts returns the byte read limit options.
 	BytesReadLimitOpts() LookbackLimitOptions
+
+	// SetDiskSeriesReadLimitOpts sets the disk series read limit options.
+	SetDiskSeriesReadLimitOpts(value LookbackLimitOptions) Options
+
+	// DiskSeriesReadLimitOpts returns the disk series read limit options.
+	DiskSeriesReadLimitOpts() LookbackLimitOptions
 
 	// SetSourceLoggerBuilder sets the source logger.
 	SetSourceLoggerBuilder(value SourceLoggerBuilder) Options

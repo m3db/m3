@@ -186,14 +186,15 @@ type TestSetup interface {
 	InitializeBootstrappers(opts InitializeBootstrappersOptions) error
 }
 
-type storageOption func(storage.Options) storage.Options
+// StorageOption is a reference to storage options function.
+type StorageOption func(storage.Options) storage.Options
 
 // NewTestSetup returns a new test setup for non-dockerized integration tests.
 func NewTestSetup(
 	t *testing.T,
 	opts TestOptions,
 	fsOpts fs.Options,
-	storageOptFns ...storageOption,
+	storageOptFns ...StorageOption,
 ) (TestSetup, error) {
 	if opts == nil {
 		opts = NewTestOptions(t)
@@ -465,7 +466,12 @@ func NewTestSetup(
 	}
 
 	for _, fn := range storageOptFns {
-		storageOpts = fn(storageOpts)
+		if fn != nil {
+			storageOpts = fn(storageOpts)
+		}
+	}
+	if storageOpts != nil && storageOpts.AdminClient() == nil {
+		storageOpts = storageOpts.SetAdminClient(adminClient)
 	}
 
 	return &testSetup{
@@ -1098,18 +1104,18 @@ func newNodes(
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	nodeOpt := bootstrappableTestSetupOptions{
-		disablePeersBootstrapper: true,
-		finalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
-		topologyInitializer:      topoInit,
+	nodeOpt := BootstrappableTestSetupOptions{
+		DisablePeersBootstrapper: true,
+		FinalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
+		TopologyInitializer:      topoInit,
 	}
 
-	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	nodeOpts := make([]BootstrappableTestSetupOptions, len(instances))
 	for i := range instances {
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, nodeOpts)
+	nodes, closeFn := NewDefaultBootstrappableTestSetups(t, opts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")

@@ -27,10 +27,10 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-var (
-	// headerMagicNumber is an internal header used to denote the beginning of
+const (
+	// HeaderMagicNumber is an internal header used to denote the beginning of
 	// an encoded stream.
-	headerMagicNumber uint16 = 10101
+	HeaderMagicNumber uint16 = 10101
 )
 
 // TagEncoder encodes provided Tag iterators.
