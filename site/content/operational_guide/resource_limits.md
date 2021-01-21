@@ -122,7 +122,7 @@ Query limits can be dynamically driven by etcd to adjust limits without redeploy
 
 ```
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
-  "m3db.query.limits",
+  "key": "m3db.query.limits",
   "value":{
     "maxRecentlyQueriedSeriesDiskBytesRead": {
       "limit":0,
@@ -140,6 +140,15 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
       "forceExceeded":false
     }
   },
+  "commit":true
+}'
+```
+
+To remove all overrides, omit all limits from the `value`
+```
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+  "key": "m3db.query.limits",
+  "value":{},
   "commit":true
 }'
 ```
