@@ -91,11 +91,11 @@ limits:
     # and read until the lookback period resets.
     lookback: 15s
 
-  # If set, will enforce a maximum cap on the series read from disk.
+  # If set, will enforce a maximum on the series read from disk.
   # This limit can be used to ensure queries that match an extremely high 
   # volume of series can be limited before even reading the underlying series data from disk.
   maxRecentlyQueriedSeriesDiskRead:
-    # Value sets the maximum disk bytes read to make up the time series objects.
+    # Value sets the maximum number of series read from disk.
     value: 0
     # Lookback sets the time window that this limit is enforced over, every 
     # lookback period the global count is reset to zero and when the limit 

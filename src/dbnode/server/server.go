@@ -1177,7 +1177,7 @@ func kvWatchQueryLimit(
 	if err == nil {
 		dynamicLimits := &kvpb.QueryLimits{}
 		err = value.Unmarshal(dynamicLimits)
-		if err == nil && dynamicLimits != nil {
+		if err == nil {
 			updateQueryLimits(logger, limits, dynamicLimits, defaultOpts)
 		}
 	} else if !errors.Is(err, kv.ErrNotFound) {
