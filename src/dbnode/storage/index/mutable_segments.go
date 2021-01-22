@@ -68,9 +68,11 @@ type mutableSegments struct {
 
 	state mutableSegmentsState
 
-	foregroundSegments               []*readableSeg
-	backgroundSegments               []*readableSeg
-	backgroundCompactIndexedSnapshot *indexedBloomFilterSnapshot
+	foregroundSegments                 []*readableSeg
+	backgroundSegments                 []*readableSeg
+	indexedSnapshot                    *indexedBloomFilterSnapshot
+	backgroundCompactActiveBlockStarts []xtime.UnixNano
+	backgroundCompactIndexedSnapshot   *indexedBloomFilterSnapshot
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -311,6 +313,10 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 	m.compact.compactingForeground = true
 	builder := m.compact.segmentBuilder
+	if m.indexedSnapshot == nil {
+		m.indexedSnapshot = newIndexedBloomFilterSnapshot()
+	}
+	m.indexedSnapshot.Reset()
 	m.Unlock()
 
 	// Updsate indexedBloomFilterByTime if needed.
@@ -375,12 +381,22 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 		for blockStart, bloomFilter := range m.indexedBloomFilterByTime {
 			activeBlockStarts = append(activeBlockStarts, blockStart)
 			bloomFilter.UpdateSnapshotIfRequired()
+			bloomFilter.MergeSnapshot(m.indexedSnapshot)
 		}
 		m.indexedBloomFilterByTimeLock.Unlock()
 	}
 
 	defer func() {
 		m.Lock()
+		// Check if any segments needs filtering.
+		// Prepare the bloom filter to merge into from the live time windows.
+		m.backgroundCompactActiveBlockStarts = activeBlockStarts
+		if m.backgroundCompactIndexedSnapshot == nil {
+			m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
+		}
+		m.backgroundCompactIndexedSnapshot.buffer =
+			append(m.backgroundCompactIndexedSnapshot.buffer[:0], m.indexedSnapshot.buffer...)
+
 		m.compact.compactingForeground = false
 		m.cleanupForegroundCompactWithLock()
 		m.Unlock()
@@ -571,25 +587,14 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		activeBlockStarts []xtime.UnixNano
 		activeBloomFilter *bloom.ReadOnlyBloomFilter
 	)
-	if m.blockOpts.InMemoryBlock {
-		// Check if any segments needs filtering.
-		// Prepare the bloom filter to merge into from the live time windows.
-		if m.backgroundCompactIndexedSnapshot == nil {
-			m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
-		}
-		m.backgroundCompactIndexedSnapshot.Reset()
-
-		// Merge with existing live time windows.
-		m.indexedBloomFilterByTimeLock.RLock()
-		activeBlockStarts = make([]xtime.UnixNano, 0, len(m.indexedBloomFilterByTime))
-		for blockStart, bloomFilter := range m.indexedBloomFilterByTime {
-			activeBlockStarts = append(activeBlockStarts, blockStart)
-			bloomFilter.MergeSnapshot(m.backgroundCompactIndexedSnapshot)
-		}
-		m.indexedBloomFilterByTimeLock.RUnlock()
+	if m.blockOpts.InMemoryBlock && m.backgroundCompactIndexedSnapshot != nil {
+		// Only set the bloom filter to actively filter series out
+		// if there were any segments that need the active block starts
+		// updated.
+		activeBlockStarts = m.backgroundCompactActiveBlockStarts
+		activeBloomFilter = m.backgroundCompactIndexedSnapshot.ReadOnlyBloomFilter()
 
 		// Now check which segments need filtering.
-		activeBlockStartsAnyOutdated := false
 		for _, seg := range m.backgroundSegments {
 			alreadyHasTask := false
 			for _, task := range plan.Tasks {
@@ -606,21 +611,18 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			}
 
 			activeBlockStartsOutdated := false
-			if len(seg.containedBlockStarts) != len(activeBlockStarts) {
-				activeBlockStartsOutdated = true
-			} else {
-				for _, blockStart := range seg.containedBlockStarts {
-					found := false
-					for _, activeBlockStart := range activeBlockStarts {
-						if activeBlockStart == blockStart {
-							found = true
-							break
-						}
-					}
-					if !found {
-						activeBlockStartsOutdated = true
+			for _, blockStart := range seg.containedBlockStarts {
+				found := false
+				for _, activeBlockStart := range activeBlockStarts {
+					if activeBlockStart == blockStart {
+						found = true
 						break
 					}
+				}
+				if !found {
+					// Contains an active block start that should be removed.
+					activeBlockStartsOutdated = true
+					break
 				}
 			}
 
@@ -630,7 +632,6 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 			// The active block starts are outdated, need to compact
 			// and remove any old data from the segment.
-			activeBlockStartsAnyOutdated = true
 			plan.Tasks = append(plan.Tasks, compaction.Task{
 				Segments: []compaction.Segment{
 					{
@@ -641,13 +642,6 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 					},
 				},
 			})
-		}
-
-		if activeBlockStartsAnyOutdated {
-			// Only set the bloom filter to actively filter series out
-			// if there were any segments that need the active block starts
-			// updated.
-			activeBloomFilter = m.backgroundCompactIndexedSnapshot.ReadOnlyBloomFilter()
 		}
 	}
 
@@ -808,10 +802,6 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		return err
 	}
 
-	// Rotate out the replaced frozen segments and add the compacted one.
-	m.Lock()
-	defer m.Unlock()
-
 	var replaceSegment segment.Segment
 	if !empty {
 		// Add a read through cache for repeated expensive queries against
@@ -819,6 +809,10 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		// time and accrue a large set of documents.
 		replaceSegment = m.newReadThroughSegment(compacted)
 	}
+
+	// Rotate out the replaced frozen segments and add the compacted one.
+	m.Lock()
+	defer m.Unlock()
 
 	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
 		segments, replaceSegment, activeBlockStarts)
