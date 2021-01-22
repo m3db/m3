@@ -19,7 +19,7 @@ A `m3coordinator` node exposes two external ports:
 There are two other less-commonly used node types:
 
 - **[Query nodes](/docs/m3query)** (`m3query`) are an alternative query option to using M3's built-in PromQL support.
-- **[Aggregator nodes](/docs/m3aggregator)** cluster and aggregate metrics before storing them in storage nodes. Coordinator nodes can also perform this role but are not cluster-aware.
+- **[Aggregator nodes](/docs/how_to/aggregator)** cluster and aggregate metrics before storing them in storage nodes. Coordinator nodes can also perform this role but are not cluster-aware.
 
 <!-- TODO: Add more about what's bundled -->
 
