@@ -169,7 +169,7 @@ func (h *KeyValueStoreHandler) update(
 
 	oldProtoMarshalled := bytes.NewBuffer(nil)
 	if err := (&jsonpb.Marshaler{}).Marshal(oldProtoMarshalled, oldProto); err != nil {
-		return nil, fmt.Errorf("failed to marshal old proto: %w", err)
+		logger.Error("cannot unmarshal old kv proto", zap.Error(err), zap.String("key", update.Key))
 	}
 
 	var version int
