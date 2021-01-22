@@ -32,6 +32,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -975,6 +976,16 @@ func Run(runOpts RunOptions) {
 	service.SetDatabase(db)
 
 	go func() {
+		f, err := os.Create("/tmp/m3db-cpu.prof")
+		if err != nil {
+			logger.Fatal("could not create CPU profile: ", zap.Error(err))
+		}
+		defer f.Close() // error handling omitted for example
+		if err := pprof.StartCPUProfile(f); err != nil {
+			logger.Fatal("could not start CPU profile: ", zap.Error(err))
+		}
+		defer pprof.StopCPUProfile()
+
 		if runOpts.BootstrapCh != nil {
 			// Notify on bootstrap chan if specified.
 			defer func() {
