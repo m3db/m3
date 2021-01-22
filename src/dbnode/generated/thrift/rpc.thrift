@@ -404,6 +404,7 @@ struct AggregateQueryRawRequest {
 	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	9: optional binary source
 	10: optional i64 docsLimit
+	11: optional bool requireExhaustive
 }
 
 struct AggregateQueryRawResult {
@@ -432,6 +433,7 @@ struct AggregateQueryRequest {
 	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	9: optional binary source
 	10: optional i64 docsLimit
+	11: optional bool requireExhaustive
 }
 
 struct AggregateQueryResult {
