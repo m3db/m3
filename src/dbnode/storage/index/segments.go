@@ -25,20 +25,27 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type readableSeg struct {
-	nowFn     clock.NowFn
-	createdAt time.Time
-	segment   segment.Segment
+	nowFn                clock.NowFn
+	createdAt            time.Time
+	segment              segment.Segment
+	containedBlockStarts []xtime.UnixNano
 }
 
-func newReadableSeg(seg segment.Segment, opts Options) *readableSeg {
+func newReadableSeg(
+	seg segment.Segment,
+	containedBlockStarts []xtime.UnixNano,
+	opts Options,
+) *readableSeg {
 	nowFn := opts.ClockOptions().NowFn()
 	return &readableSeg{
-		nowFn:     nowFn,
-		createdAt: nowFn(),
-		segment:   seg,
+		nowFn:                nowFn,
+		createdAt:            nowFn(),
+		segment:              seg,
+		containedBlockStarts: containedBlockStarts,
 	}
 }
 
