@@ -399,13 +399,13 @@ function test_label_query_limits_applied {
 
   # Test the default series limit applied when directly querying
   # coordinator (series limit set by header)
-  echo "Test label series limit with coordinator limit header"
+  echo "Test label series limit with coordinator limit header (default requires exhaustive so error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -lt 3 ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "query exceeded limit") ]]'
 
   echo "Test label series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -lt 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
 
   echo "Test label series limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
@@ -417,13 +417,13 @@ function test_label_query_limits_applied {
 
   # Test the default docs limit applied when directly querying
   # coordinator (docs limit set by header)
-  echo "Test label docs limit with coordinator limit header"
+  echo "Test label docs limit with coordinator limit header (default requires exhaustive so error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -lt 3 ]]'
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/label/__name__/values | jq ."error" | grep "query exceeded limit") ]]'
 
   echo "Test label docs limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -lt 3 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/label/__name__/values | jq -r ".data | length") -eq 1 ]]'
 
  echo "Test label docs limit with require-exhaustive headers true (above limit therefore error)"
   # Test that require exhaustive error is returned
