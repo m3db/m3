@@ -21,6 +21,7 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,9 +68,9 @@ type KeyValueUpdateResult struct {
 	// Key to update.
 	Key string `json:"key"`
 	// Old is the value before the update.
-	Old string `json:"old"`
+	Old json.RawMessage `json:"old"`
 	// New is the value after the update.
-	New string `json:"new"`
+	New json.RawMessage `json:"new"`
 	// Version of the key.
 	Version int `json:"version"`
 }
@@ -162,8 +163,13 @@ func (h *KeyValueStoreHandler) update(
 		return nil, err
 	}
 
-	if err := jsonpb.UnmarshalString(string([]byte(update.Value)), newProto); err != nil {
+	if err := jsonpb.UnmarshalString(string(update.Value), newProto); err != nil {
 		return nil, err
+	}
+
+	oldProtoMarshalled := bytes.NewBuffer(nil)
+	if err := (&jsonpb.Marshaler{}).Marshal(oldProtoMarshalled, oldProto); err != nil {
+		return nil, fmt.Errorf("failed to marshal old proto: %w", err)
 	}
 
 	var version int
@@ -176,8 +182,8 @@ func (h *KeyValueStoreHandler) update(
 
 	result := KeyValueUpdateResult{
 		Key:     update.Key,
-		Old:     oldProto.String(),
-		New:     newProto.String(),
+		Old:     oldProtoMarshalled.Bytes(),
+		New:     update.Value,
 		Version: version,
 	}
 
