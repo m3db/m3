@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -41,20 +42,17 @@ func TestUpdateQueryLimits(t *testing.T) {
 		name          string
 		limits        *kvpb.QueryLimits
 		commit        bool
-		expectedJSON  string
 		expectedError string
 	}{
 		{
-			name:         `nil`,
-			limits:       nil,
-			commit:       true,
-			expectedJSON: "",
+			name:   `nil`,
+			limits: nil,
+			commit: true,
 		},
 		{
-			name:         `empty`,
-			limits:       &kvpb.QueryLimits{},
-			commit:       true,
-			expectedJSON: "",
+			name:   `empty`,
+			limits: &kvpb.QueryLimits{},
+			commit: true,
 		},
 		{
 			name: `only block - commit`,
@@ -65,8 +63,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 			},
-			commit:       true,
-			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
+			commit: true,
 		},
 		{
 			name: `only block - no commit`,
@@ -77,8 +74,7 @@ func TestUpdateQueryLimits(t *testing.T) {
 					ForceExceeded:   true,
 				},
 			},
-			commit:       false,
-			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
+			commit: false,
 		},
 		{
 			name: `all - commit`,
@@ -100,8 +96,6 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit: true,
-			// nolint: lll
-			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 		{
 			name: `all - no commit`,
@@ -123,8 +117,6 @@ func TestUpdateQueryLimits(t *testing.T) {
 				},
 			},
 			commit: false,
-			// nolint: lll
-			expectedJSON: `maxRecentlyQueriedSeriesBlocks:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskBytesRead:<limit:1 lookbackSeconds:15 forceExceeded:true > maxRecentlyQueriedSeriesDiskRead:<limit:1 lookbackSeconds:15 forceExceeded:true > `,
 		},
 	}
 
@@ -150,24 +142,28 @@ func TestUpdateQueryLimits(t *testing.T) {
 		r, err := handler.update(zap.NewNop(), storeMock, update)
 		require.NoError(t, err)
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
-		require.Equal(t, "", r.Old)
-		require.Equal(t, test.expectedJSON, r.New)
+		require.Equal(t, json.RawMessage("{}"), r.Old)
+		require.Equal(t, json.RawMessage(limitJSON), r.New)
 		require.Equal(t, 0, r.Version)
 
 		// (B) test old value.
-		mockVal := kv.NewMockValue(ctrl)
-		storeMock.EXPECT().Get(kvconfig.QueryLimits).Return(mockVal, nil)
-		mockVal.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v *kvpb.QueryLimits) error {
-			v.MaxRecentlyQueriedSeriesBlocks = &kvpb.QueryLimit{
+		oldLimits := &kvpb.QueryLimits{
+			MaxRecentlyQueriedSeriesBlocks: &kvpb.QueryLimit{
 				Limit:           10,
 				LookbackSeconds: 30,
 				ForceExceeded:   false,
-			}
-			v.MaxRecentlyQueriedSeriesDiskBytesRead = &kvpb.QueryLimit{
+			},
+			MaxRecentlyQueriedSeriesDiskRead: &kvpb.QueryLimit{
 				Limit:           100,
 				LookbackSeconds: 300,
 				ForceExceeded:   false,
-			}
+			},
+		}
+		mockVal := kv.NewMockValue(ctrl)
+		storeMock.EXPECT().Get(kvconfig.QueryLimits).Return(mockVal, nil)
+		mockVal.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v *kvpb.QueryLimits) error {
+			v.MaxRecentlyQueriedSeriesBlocks = oldLimits.MaxRecentlyQueriedSeriesBlocks
+			v.MaxRecentlyQueriedSeriesDiskRead = oldLimits.MaxRecentlyQueriedSeriesDiskRead
 			return nil
 		})
 		if test.commit {
@@ -177,10 +173,16 @@ func TestUpdateQueryLimits(t *testing.T) {
 		handler = &KeyValueStoreHandler{}
 		r, err = handler.update(zap.NewNop(), storeMock, update)
 		require.NoError(t, err)
+
+		var oldResult kvpb.QueryLimits
+		err = jsonpb.UnmarshalString(string(r.Old), &oldResult)
+		require.NoError(t, err)
+
 		require.Equal(t, kvconfig.QueryLimits, r.Key)
-		// nolint: lll
-		require.Equal(t, `maxRecentlyQueriedSeriesBlocks:<limit:10 lookbackSeconds:30 > maxRecentlyQueriedSeriesDiskBytesRead:<limit:100 lookbackSeconds:300 > `, r.Old)
-		require.Equal(t, test.expectedJSON, r.New)
+		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesBlocks, *oldResult.MaxRecentlyQueriedSeriesBlocks)
+		require.Nil(t, oldResult.MaxRecentlyQueriedSeriesDiskBytesRead)
+		require.Equal(t, *oldLimits.MaxRecentlyQueriedSeriesDiskRead, *oldResult.MaxRecentlyQueriedSeriesDiskRead)
+		require.Equal(t, json.RawMessage(limitJSON), r.New)
 		require.Equal(t, 0, r.Version)
 	}
 }
