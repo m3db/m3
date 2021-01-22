@@ -1867,7 +1867,7 @@ func TestBlockAggregate(t *testing.T) {
 	defer ctrl.Finish()
 
 	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
-	seriesLimit := 5
+	seriesLimit := 10
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
@@ -1902,20 +1902,19 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	gomock.InOrder(
-		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t2")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f2"), []byte("t1")),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return([]byte("f1"), []byte("t3")),
-		iter.EXPECT().Next().Return(false),
-		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Close().Return(nil),
-	)
+	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t2"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f2"), []byte("t1"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return([]byte("f1"), []byte("t3"))
+	iter.EXPECT().Next().Return(false)
+	iter.EXPECT().Err().Return(nil)
+	iter.EXPECT().Close().Return(nil)
+
 	exhaustive, err := b.Aggregate(
 		ctx,
 		xresource.NewCancellableLifetime(),
