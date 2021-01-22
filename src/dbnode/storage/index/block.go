@@ -645,10 +645,10 @@ func (b *block) aggregateWithSpan(
 		size          = results.Size()
 		resultCount   = results.TotalDocsCount()
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
-		numAdded      = 0
-		currBatchSize = 0
 		maxBatch      = cap(batch)
 		iterClosed    = false // tracking whether we need to free the iterator at the end.
+		currBatchSize int
+		numAdded      int
 	)
 	if maxBatch == 0 {
 		maxBatch = defaultAggregateResultsEntryBatchSize

@@ -110,13 +110,13 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	r.Lock()
 	defer r.Unlock()
 
-	maxDocs := int(math.MaxInt64)
+	remainingDocs := int(math.MaxInt64)
 	if r.aggregateOpts.DocsLimit != 0 {
-		maxDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
+		remainingDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
 	}
 
 	// NB: already hit doc limit.
-	if maxDocs <= 0 {
+	if remainingDocs <= 0 {
 		for idx := 0; idx < len(batch); idx++ {
 			batch[idx].Field.Finalize()
 			for _, term := range batch[idx].Terms {
@@ -128,22 +128,17 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	}
 
 	// NB: cannot insert more than max docs, so that acts as the upper bound here.
-	maxInserts := maxDocs
+	remainingInserts := remainingDocs
 	if r.aggregateOpts.SizeLimit != 0 {
-		if remaining := r.aggregateOpts.SizeLimit - r.size; remaining < maxInserts {
-			maxInserts = remaining
+		if remaining := r.aggregateOpts.SizeLimit - r.size; remaining < remainingInserts {
+			remainingInserts = remaining
 		}
 	}
 
-	limitTripped := false
 	docs := 0
 	numInserts := 0
 	for _, entry := range batch {
-		if docs >= maxDocs || numInserts >= maxInserts {
-			limitTripped = true
-		}
-
-		if limitTripped {
+		if docs >= remainingDocs || numInserts >= remainingInserts {
 			entry.Field.Finalize()
 			for _, term := range entry.Terms {
 				term.Finalize()
@@ -158,7 +153,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
-			if maxInserts > numInserts {
+			if remainingInserts > numInserts {
 				numInserts++
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
@@ -180,12 +175,12 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
-			if maxDocs > docs {
+			if remainingDocs > docs {
 				docs++
 				if !valuesMap.Contains(t) {
 					// we can avoid the copy because we assume ownership of the passed ident.ID,
 					// but still need to finalize it.
-					if maxInserts > numInserts {
+					if remainingInserts > numInserts {
 						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 							NoCopyKey:     true,
 							NoFinalizeKey: false,
