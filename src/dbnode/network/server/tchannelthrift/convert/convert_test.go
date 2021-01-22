@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -101,20 +101,25 @@ func conjunctionQueryATestCase(t *testing.T) (idx.Query, []byte) {
 }
 
 func TestConvertFetchTaggedRequest(t *testing.T) {
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+	)
 	ns := ident.StringID("abc")
 	opts := index.QueryOptions{
 		StartInclusive: time.Now().Add(-900 * time.Hour),
 		EndExclusive:   time.Now(),
-		SeriesLimit:    10,
+		SeriesLimit:    int(seriesLimit),
+		DocsLimit:      int(docsLimit),
 	}
 	fetchData := true
-	var limit int64 = 10
 	requestSkeleton := &rpc.FetchTaggedRequest{
-		NameSpace:  ns.Bytes(),
-		RangeStart: mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:   mustToRpcTime(t, opts.EndExclusive),
-		FetchData:  fetchData,
-		Limit:      &limit,
+		NameSpace:   ns.Bytes(),
+		RangeStart:  mustToRpcTime(t, opts.StartInclusive),
+		RangeEnd:    mustToRpcTime(t, opts.EndExclusive),
+		FetchData:   fetchData,
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 	}
 	requireEqual := func(a, b interface{}) {
 		d := cmp.Diff(a, b)
@@ -166,12 +171,17 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 }
 
 func TestConvertAggregateRawQueryRequest(t *testing.T) {
-	ns := ident.StringID("abc")
+	var (
+		seriesLimit int64 = 10
+		docsLimit   int64 = 10
+		ns                = ident.StringID("abc")
+	)
 	opts := index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
 			StartInclusive: time.Now().Add(-900 * time.Hour),
 			EndExclusive:   time.Now(),
-			SeriesLimit:    10,
+			SeriesLimit:    int(seriesLimit),
+			DocsLimit:      int(docsLimit),
 		},
 		Type: index.AggregateTagNamesAndValues,
 		FieldFilter: index.AggregateFieldFilter{
@@ -179,12 +189,12 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 			[]byte("string"),
 		},
 	}
-	var limit int64 = 10
 	requestSkeleton := &rpc.AggregateQueryRawRequest{
-		NameSpace:  ns.Bytes(),
-		RangeStart: mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:   mustToRpcTime(t, opts.EndExclusive),
-		Limit:      &limit,
+		NameSpace:   ns.Bytes(),
+		RangeStart:  mustToRpcTime(t, opts.StartInclusive),
+		RangeEnd:    mustToRpcTime(t, opts.EndExclusive),
+		SeriesLimit: &seriesLimit,
+		DocsLimit:   &docsLimit,
 		TagNameFilter: [][]byte{
 			[]byte("some"),
 			[]byte("string"),
