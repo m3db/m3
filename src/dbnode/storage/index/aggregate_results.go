@@ -21,7 +21,6 @@
 package index
 
 import (
-	"fmt"
 	"math"
 	"sync"
 
@@ -43,7 +42,7 @@ type aggregatedResults struct {
 	aggregateOpts AggregateResultsOptions
 
 	resultsMap     *AggregateResultsMap
-	size int
+	size           int
 	totalDocsCount int
 
 	idPool    ident.Pool
@@ -115,35 +114,81 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
-	maxInsertions := int(math.MaxInt64)
-	if r.aggregateOpts.SizeLimit != 0 {
-		maxInsertions = r.aggregateOpts.SizeLimit - r.totalDocsCount
+	defer r.Unlock()
+
+	maxDocs := int(math.MaxInt64)
+	if r.aggregateOpts.DocsLimit != 0 {
+		maxDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
 	}
 
+	// NB: already hit doc limit.
+	if maxDocs <= 0 {
+		for _, entry := range batch {
+			entry.Field.Finalize()
+			for _, term := range entry.Terms {
+				term.Finalize()
+			}
+		}
+
+		return r.size, r.totalDocsCount
+	}
+
+	maxInserts := maxDocs
+	if r.aggregateOpts.SizeLimit != 0 {
+		if remaining := r.aggregateOpts.SizeLimit - r.size; remaining < maxInserts {
+			maxInserts = remaining
+		}
+	}
+
+	limitTripped := false
+	docs := 0
 	valueInsertions := 0
 	for _, entry := range batch {
+		if docs >= maxDocs || valueInsertions >= maxInserts {
+			limitTripped = true
+		}
+
+		if limitTripped {
+			entry.Field.Finalize()
+			for _, term := range entry.Terms {
+				term.Finalize()
+			}
+
+			r.size = r.size + valueInsertions
+			r.totalDocsCount = r.totalDocsCount + docs
+			return r.size, r.totalDocsCount
+		}
+
+		docs++
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
-			aggValues = r.valuesPool.Get()
-			// we can avoid the copy because we assume ownership of the passed ident.ID,
-			// but still need to finalize it.
-			r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
-				NoCopyKey:     true,
-				NoFinalizeKey: false,
-			})
+			if maxInserts > valueInsertions {
+				valueInsertions++
+				aggValues = r.valuesPool.Get()
+				// we can avoid the copy because we assume ownership of the passed ident.ID,
+				// but still need to finalize it.
+				r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: false,
+				})
+			} else {
+				// this value exceeds the limit, so should be released to the underling
+				// pool without adding to the map.
+				f.Finalize()
+			}
 		} else {
 			// because we already have a entry for this field, we release the ident back to
 			// the underlying pool.
 			f.Finalize()
 		}
+
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
 			if !valuesMap.Contains(t) {
-				fmt.Println(maxInsertions, valueInsertions, t)
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
-				if maxInsertions > valueInsertions {
+				if maxInserts > valueInsertions {
 					valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 						NoCopyKey:     true,
 						NoFinalizeKey: false,
@@ -162,10 +207,9 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 
-	docsCount := r.totalDocsCount + valueInsertions
-	r.totalDocsCount = docsCount
-	r.Unlock()
-	return r.resultsMap.Len(), docsCount
+	r.size = r.size + valueInsertions
+	r.totalDocsCount = r.totalDocsCount + docs
+	return r.size, r.totalDocsCount
 }
 
 func (r *aggregatedResults) Namespace() ident.ID {
@@ -184,9 +228,9 @@ func (r *aggregatedResults) Map() *AggregateResultsMap {
 
 func (r *aggregatedResults) Size() int {
 	r.RLock()
-	l := r.resultsMap.Len()
+	size := r.size
 	r.RUnlock()
-	return l
+	return size
 }
 
 func (r *aggregatedResults) TotalDocsCount() int {
