@@ -2001,7 +2001,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"f1": {"t1"},
+		"f1": {},
 	}, results)
 
 	sp.Finish()

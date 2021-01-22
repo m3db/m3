@@ -29,12 +29,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 )
 
-const missingDocumentFields = "invalid document fields: empty %s"
-
-// NB: emptyValues is an AggregateValues with no values, used for tracking
-// terms only rather than terms and values.
-var emptyValues = AggregateValues{hasValues: false}
-
 type aggregatedResults struct {
 	sync.RWMutex
 
@@ -133,6 +127,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		return r.size, r.totalDocsCount
 	}
 
+	// NB: cannot insert more than max docs, so that acts as the upper bound here.
 	maxInserts := maxDocs
 	if r.aggregateOpts.SizeLimit != 0 {
 		if remaining := r.aggregateOpts.SizeLimit - r.size; remaining < maxInserts {
@@ -142,9 +137,9 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 	limitTripped := false
 	docs := 0
-	valueInsertions := 0
+	numInserts := 0
 	for _, entry := range batch {
-		if docs >= maxDocs || valueInsertions >= maxInserts {
+		if docs >= maxDocs || numInserts >= maxInserts {
 			limitTripped = true
 		}
 
@@ -154,7 +149,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 				term.Finalize()
 			}
 
-			r.size = r.size + valueInsertions
+			r.size = r.size + numInserts
 			r.totalDocsCount = r.totalDocsCount + docs
 			return r.size, r.totalDocsCount
 		}
@@ -163,8 +158,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
-			if maxInserts > valueInsertions {
-				valueInsertions++
+			if maxInserts > numInserts {
+				numInserts++
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
@@ -185,30 +180,27 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
-			docs++
-			if !valuesMap.Contains(t) {
-				// we can avoid the copy because we assume ownership of the passed ident.ID,
-				// but still need to finalize it.
-				if maxInserts > valueInsertions || maxDocs > docs {
-					valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
-						NoCopyKey:     true,
-						NoFinalizeKey: false,
-					})
-					valueInsertions++
-				} else {
-					// this value exceeds the limit, so should be released to the underling
-					// pool without adding to the map.
-					t.Finalize()
+			if maxDocs > docs {
+				docs++
+				if !valuesMap.Contains(t) {
+					// we can avoid the copy because we assume ownership of the passed ident.ID,
+					// but still need to finalize it.
+					if maxInserts > numInserts {
+						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
+							NoCopyKey:     true,
+							NoFinalizeKey: false,
+						})
+						numInserts++
+						continue
+					}
 				}
-			} else {
-				// because we already have a entry for this term, we release the ident back to
-				// the underlying pool.
-				t.Finalize()
 			}
+
+			t.Finalize()
 		}
 	}
 
-	r.size = r.size + valueInsertions
+	r.size = r.size + numInserts
 	r.totalDocsCount = r.totalDocsCount + docs
 	return r.size, r.totalDocsCount
 }
