@@ -1866,6 +1866,8 @@ func TestBlockAggregate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
+	seriesLimit := 5
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
@@ -1888,7 +1890,7 @@ func TestBlockAggregate(t *testing.T) {
 	}
 
 	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
-		SizeLimit: 3,
+		SizeLimit: seriesLimit,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
@@ -1917,7 +1919,7 @@ func TestBlockAggregate(t *testing.T) {
 	exhaustive, err := b.Aggregate(
 		ctx,
 		xresource.NewCancellableLifetime(),
-		QueryOptions{SeriesLimit: 3},
+		QueryOptions{SeriesLimit: seriesLimit},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)

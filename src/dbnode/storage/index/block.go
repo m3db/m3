@@ -403,7 +403,7 @@ func (b *block) Query(
 	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	results DocumentResults,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
@@ -423,7 +423,7 @@ func (b *block) queryWithSpan(
 	cancellable *xresource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results BaseResults,
+	results DocumentResults,
 	sp opentracing.Span,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
@@ -532,7 +532,7 @@ func (b *block) closeAsync(closer io.Closer) {
 
 func (b *block) addQueryResults(
 	cancellable *xresource.CancellableLifetime,
-	results BaseResults,
+	results DocumentResults,
 	batch []doc.Document,
 	source []byte,
 ) ([]doc.Document, int, int, error) {
@@ -550,7 +550,7 @@ func (b *block) addQueryResults(
 		return batch, 0, 0, errCancelledQuery
 	}
 
-	// try to add the docs to the xresource.
+	// try to add the docs to the resource.
 	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.
@@ -647,7 +647,6 @@ func (b *block) aggregateWithSpan(
 		batch       = AggregateResultsEntries(b.opts.AggregateResultsEntryArrayPool().Get())
 		maxBatch    = cap(batch)
 		iterClosed  = false // tracking whether we need to free the iterator at the end.
-		exhaustive  = false
 	)
 	if maxBatch == 0 {
 		maxBatch = defaultAggregateResultsEntryBatchSize
@@ -686,7 +685,6 @@ func (b *block) aggregateWithSpan(
 
 	for _, reader := range readers {
 		if opts.LimitsExceeded(size, resultCount) {
-			exhaustive = true
 			break
 		}
 
@@ -697,7 +695,6 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 		for iter.Next() {
 			if opts.LimitsExceeded(size, resultCount) {
-				exhaustive = true
 				break
 			}
 
@@ -731,7 +728,7 @@ func (b *block) aggregateWithSpan(
 		}
 	}
 
-	return exhaustive || opts.exhaustive(size, resultCount), nil
+	return opts.exhaustive(size, resultCount), nil
 }
 
 func (b *block) appendFieldAndTermToBatch(

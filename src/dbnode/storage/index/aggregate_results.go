@@ -22,9 +22,9 @@ package index
 
 import (
 	"fmt"
+	"math"
 	"sync"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -43,6 +43,7 @@ type aggregatedResults struct {
 	aggregateOpts AggregateResultsOptions
 
 	resultsMap     *AggregateResultsMap
+	size int
 	totalDocsCount int
 
 	idPool    ident.Pool
@@ -101,20 +102,11 @@ func (r *aggregatedResults) Reset(
 	// reset all keys in the map next
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
+	r.size = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
 	r.Unlock()
-}
-
-func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	r.Lock()
-	err := r.addDocumentsBatchWithLock(batch)
-	size := r.resultsMap.Len()
-	docsCount := r.totalDocsCount + len(batch)
-	r.totalDocsCount = docsCount
-	r.Unlock()
-	return size, docsCount, err
 }
 
 func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
@@ -123,7 +115,11 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
-	maxInsertions := r.aggregateOpts.SizeLimit - r.totalDocsCount
+	maxInsertions := int(math.MaxInt64)
+	if r.aggregateOpts.SizeLimit != 0 {
+		maxInsertions = r.aggregateOpts.SizeLimit - r.totalDocsCount
+	}
+
 	valueInsertions := 0
 	for _, entry := range batch {
 		f := entry.Field
@@ -144,6 +140,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
 			if !valuesMap.Contains(t) {
+				fmt.Println(maxInsertions, valueInsertions, t)
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
 				if maxInsertions > valueInsertions {
@@ -164,145 +161,11 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 			}
 		}
 	}
-	size := r.resultsMap.Len()
+
 	docsCount := r.totalDocsCount + valueInsertions
 	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, docsCount
-}
-
-func (r *aggregatedResults) addDocumentsBatchWithLock(
-	batch []doc.Document,
-) error {
-	for _, doc := range batch {
-		switch r.aggregateOpts.Type {
-		case AggregateTagNamesAndValues:
-			if err := r.addDocumentWithLock(doc); err != nil {
-				return err
-			}
-
-		case AggregateTagNames:
-			// NB: if aggregating by name only, can ignore any additional documents
-			// after the result map size exceeds the optional size limit, since all
-			// incoming terms are either duplicates or new values which will exceed
-			// the limit.
-			size := r.resultsMap.Len()
-			if r.aggregateOpts.SizeLimit > 0 && size >= r.aggregateOpts.SizeLimit {
-				return nil
-			}
-
-			if err := r.addDocumentTermsWithLock(doc); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unsupported aggregation type: %v", r.aggregateOpts.Type)
-		}
-	}
-
-	return nil
-}
-
-func (r *aggregatedResults) addDocumentTermsWithLock(
-	container doc.Document,
-) error {
-	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
-	if err != nil {
-		return fmt.Errorf("unable to decode encoded document; %w", err)
-	}
-	for _, field := range document.Fields {
-		if err := r.addTermWithLock(field.Name); err != nil {
-			return fmt.Errorf("unable to add document terms [%+v]: %v", document, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *aggregatedResults) addTermWithLock(
-	term []byte,
-) error {
-	if len(term) == 0 {
-		return fmt.Errorf(missingDocumentFields, "term")
-	}
-
-	// if a term filter is provided, ensure this field matches the filter,
-	// otherwise ignore it.
-	filter := r.aggregateOpts.FieldFilter
-	if filter != nil && !filter.Allow(term) {
-		return nil
-	}
-
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	termID := ident.BytesID(term)
-	if r.resultsMap.Contains(termID) {
-		// NB: this term is already added; continue.
-		return nil
-	}
-
-	// Set results map to an empty AggregateValues since we only care about
-	// existence of the term in the map, rather than its set of values.
-	r.resultsMap.Set(termID, emptyValues)
-	return nil
-}
-
-func (r *aggregatedResults) addDocumentWithLock(
-	container doc.Document,
-) error {
-	document, err := docs.MetadataFromDocument(container, &r.encodedDocReader)
-	if err != nil {
-		return fmt.Errorf("unable to decode encoded document; %w", err)
-	}
-	for _, field := range document.Fields {
-		if err := r.addFieldWithLock(field.Name, field.Value); err != nil {
-			return fmt.Errorf("unable to add document [%+v]: %v", document, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *aggregatedResults) addFieldWithLock(
-	term []byte,
-	value []byte,
-) error {
-	if len(term) == 0 {
-		return fmt.Errorf(missingDocumentFields, "term")
-	}
-
-	// if a term filter is provided, ensure this field matches the filter,
-	// otherwise ignore it.
-	filter := r.aggregateOpts.FieldFilter
-	if filter != nil && !filter.Allow(term) {
-		return nil
-	}
-
-	// NB: can cast the []byte -> ident.ID to avoid an alloc
-	// before we're sure we need it.
-	termID := ident.BytesID(term)
-	valueID := ident.BytesID(value)
-
-	valueMap, found := r.resultsMap.Get(termID)
-	if found {
-		return valueMap.addValue(valueID)
-	}
-
-	// NB: if over limit, do not add any new values to the map.
-	if r.aggregateOpts.SizeLimit > 0 &&
-		r.resultsMap.Len() >= r.aggregateOpts.SizeLimit {
-		// Early return if limit enforced and we hit our limit.
-		return nil
-	}
-
-	aggValues := r.valuesPool.Get()
-	if err := aggValues.addValue(valueID); err != nil {
-		// Return these values to the pool.
-		r.valuesPool.Put(aggValues)
-		return err
-	}
-
-	r.resultsMap.Set(termID, aggValues)
-	return nil
+	return r.resultsMap.Len(), docsCount
 }
 
 func (r *aggregatedResults) Namespace() ident.ID {
