@@ -32,6 +32,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -988,6 +989,16 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("could not bootstrap database", zap.Error(err))
 		}
 		logger.Info("bootstrapped")
+
+		f, err := os.Create("/tmp/m3db-heap.prof")
+		if err != nil {
+			logger.Fatal("could not create heap profile: ", zap.Error(err))
+		}
+		defer f.Close() // error handling omitted for example
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			logger.Fatal("could not write heap profile: ", zap.Error(err))
+		}
 
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
