@@ -684,10 +684,7 @@ func (b *block) aggregateWithSpan(
 		maxBatch = opts.DocsLimit
 	}
 
-	for idx, reader := range readers {
-		if size > 0 || resultCount > 0 {
-			fmt.Println("reader", idx, "Size", size, "resultCount", resultCount)
-		}
+	for _, reader := range readers {
 		if opts.LimitsExceeded(size, resultCount) {
 			exhaustive = true
 			break
@@ -705,15 +702,12 @@ func (b *block) aggregateWithSpan(
 			}
 
 			field, term := iter.Current()
-			before := len(batch)
 			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
-			fmt.Println("Adding term", string(field), string(term), "before", before, "len", len(batch), "iterateTerms", iterateTerms, "Size batch", batch.Size())
 			if batch.Size() < maxBatch {
 				continue
 			}
 
 			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source)
-			fmt.Println("Added aggregate results", size, "resultCount", resultCount)
 			if err != nil {
 				return false, err
 			}
@@ -731,9 +725,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		fmt.Println("Adding aggregate results at end", size, "resultCount", resultCount, "Batch size", len(batch))
 		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source)
-		fmt.Println("Added aggregate results at end", size, "resultCount", resultCount, "Batch size", len(batch))
 		if err != nil {
 			return false, err
 		}

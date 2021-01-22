@@ -42,8 +42,8 @@ type aggregatedResults struct {
 	nsID          ident.ID
 	aggregateOpts AggregateResultsOptions
 
-	resultsMap       *AggregateResultsMap
-	totalResultCount int
+	resultsMap     *AggregateResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -100,7 +100,7 @@ func (r *aggregatedResults) Reset(
 
 	// reset all keys in the map next
 	r.resultsMap.Reset()
-	r.totalResultCount = 0
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -111,11 +111,10 @@ func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error)
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
-	resultCount := r.totalResultCount + len(batch)
-	r.totalResultCount = resultCount
-	fmt.Println("Size", size, "resultCount", resultCount, "BatchLen", len(batch))
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, resultCount, err
+	return size, docsCount, err
 }
 
 func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
@@ -124,7 +123,7 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
-	maxInsertions := r.aggregateOpts.SizeLimit - r.totalResultCount
+	maxInsertions := r.aggregateOpts.SizeLimit - r.totalDocsCount
 	valueInsertions := 0
 	for _, entry := range batch {
 		f := entry.Field
@@ -153,7 +152,6 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 						NoFinalizeKey: false,
 					})
 					valueInsertions++
-					fmt.Println("max", maxInsertions, "value", valueInsertions)
 				} else {
 					// this value exceeds the limit, so should be released to the underling
 					// pool without adding to the map.
@@ -167,10 +165,10 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 	size := r.resultsMap.Len()
-	resultCount := r.totalResultCount + valueInsertions
-	r.totalResultCount = resultCount
+	docsCount := r.totalDocsCount + valueInsertions
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, resultCount
+	return size, docsCount
 }
 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
@@ -328,9 +326,9 @@ func (r *aggregatedResults) Size() int {
 	return l
 }
 
-func (r *aggregatedResults) totalResultCount() int {
+func (r *aggregatedResults) TotalDocsCount() int {
 	r.RLock()
-	count := r.totalResultCount
+	count := r.totalDocsCount
 	r.RUnlock()
 	return count
 }
