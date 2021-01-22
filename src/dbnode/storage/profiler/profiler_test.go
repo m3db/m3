@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,45 +60,30 @@ func teardown() error {
 	return os.RemoveAll(tmpDir)
 }
 
-func TestCPUProfile(t *testing.T) {
+func TestFileProfile(t *testing.T) {
+
 	tests := []struct {
-		name     string
-		fileName string
+		name      string
+		fileNames []string
 	}{
-		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 1, ProfileFileExtension)},
-		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 2, ProfileFileExtension)},
-		{name: "3", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataCPUProfileNamePrefix.name, 3, ProfileFileExtension)},
+		{name: "testProfile1", fileNames: []string{"testProfile1.cpu.1.pb.gz", "testProfile1.heap.1.pb.gz"}},
+		{name: "testProfile1", fileNames: []string{"testProfile1.cpu.2.pb.gz", "testProfile1.heap.2.pb.gz"}},
+		{name: "testProfile2", fileNames: []string{"testProfile2.cpu.1.pb.gz", "testProfile2.heap.1.pb.gz"}},
 	}
+	sut := NewFileProfiler(tmpDir)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := StartCPUProfile(tmpDir, PeersBootstrapReadDataCPUProfileNamePrefix)
+			profile, err := sut.StartProfile(tt.name)
 			require.NoError(t, err)
-			StopCPUProfile()
-
-			fileInfo, err := os.Stat(filepath.Join(tmpDir, tt.fileName))
-			require.NoError(t, err)
-			assert.Equal(t, tt.fileName, fileInfo.Name())
-		})
-	}
-}
-
-func TestWriteHeapProfile(t *testing.T) {
-	tests := []struct {
-		name     string
-		fileName string
-	}{
-		{name: "1", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 1, ProfileFileExtension)},
-		{name: "2", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 2, ProfileFileExtension)},
-		{name: "3", fileName: fmt.Sprintf("%s%d%s", PeersBootstrapReadDataHeapProfileNamePrefix.name, 3, ProfileFileExtension)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := WriteHeapProfile(tmpDir, PeersBootstrapReadDataHeapProfileNamePrefix)
+			time.Sleep(100 * time.Millisecond)
+			err = profile.StopProfile()
 			require.NoError(t, err)
 
-			fileInfo, err := os.Stat(filepath.Join(tmpDir, tt.fileName))
-			require.NoError(t, err)
-			assert.Equal(t, tt.fileName, fileInfo.Name())
+			for _, fileName := range tt.fileNames {
+				fileInfo, err := os.Stat(filepath.Join(tmpDir, fileName))
+				require.NoError(t, err)
+				assert.Equal(t, fileName, fileInfo.Name())
+			}
 		})
 	}
 }

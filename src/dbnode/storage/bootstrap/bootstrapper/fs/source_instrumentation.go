@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package peers
+package fs
 
 import (
 	"time"
@@ -33,9 +33,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
+	opts                   Options
 	nowFn                  clock.NowFn
 	log                    *zap.Logger
 	start                  time.Time
@@ -44,9 +46,11 @@ type instrumentationContext struct {
 	bootstrapIndexDuration tally.Timer
 	pOpts                  profiler.Options
 	pCtx                   profiler.ProfileContext
+	logFields              []zapcore.Field
 }
 
 func newInstrumentationContext(
+	opts Options,
 	nowFn clock.NowFn,
 	log *zap.Logger,
 	span opentracing.Span,
@@ -54,12 +58,16 @@ func newInstrumentationContext(
 	pOpts profiler.Options,
 ) *instrumentationContext {
 	return &instrumentationContext{
+		opts:                   opts,
 		nowFn:                  nowFn,
 		log:                    log,
 		span:                   span,
 		pOpts:                  pOpts,
 		bootstrapDataDuration:  scope.Timer("data-duration"),
 		bootstrapIndexDuration: scope.Timer("index-duration"),
+		logFields: []zapcore.Field{
+			zap.Stringer("cachePolicy", opts.ResultOptions().SeriesCachePolicy()),
+		},
 	}
 }
 
@@ -86,16 +94,17 @@ func (i *instrumentationContext) stopProfileIfEnabled() {
 }
 
 func (i *instrumentationContext) bootstrapDataStarted() {
-	i.log.Info("bootstrapping time series data start")
+	i.log.Info("bootstrapping time series data start", i.logFields...)
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("peers-data")
+	i.startProfileIfEnabled("fs-data")
 }
 
 func (i *instrumentationContext) bootstrapDataCompleted() {
 	duration := i.nowFn().Sub(i.start)
 	i.bootstrapDataDuration.Record(duration)
-	i.log.Info("bootstrapping time series data success", zap.Duration("took", duration))
+	i.log.Info("bootstrapping time series data success",
+		append(i.logFields, zap.Duration("took", duration))...)
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
 	i.stopProfileIfEnabled()
 }
@@ -104,7 +113,7 @@ func (i *instrumentationContext) bootstrapIndexStarted() {
 	i.log.Info("bootstrapping index metadata start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("peers-index")
+	i.startProfileIfEnabled("fs-index")
 }
 
 func (i *instrumentationContext) bootstrapIndexCompleted() {
@@ -115,88 +124,34 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 	i.stopProfileIfEnabled()
 }
 
-type instrumentationReadShardsContext struct {
-	nowFn                   clock.NowFn
-	log                     *zap.Logger
-	start                   time.Time
-	bootstrapShardsDuration tally.Timer
-}
-
-func newInstrumentationReadShardsContext(
-	nowFn clock.NowFn,
-	log *zap.Logger,
-	scope tally.Scope,
-) *instrumentationReadShardsContext {
-	return &instrumentationReadShardsContext{
-		nowFn:                   nowFn,
-		log:                     log,
-		start:                   nowFn(),
-		bootstrapShardsDuration: scope.Timer("shards-duration"),
-	}
-}
-
-func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
-	duration := i.nowFn().Sub(i.start)
-	i.bootstrapShardsDuration.Record(duration)
-	i.log.Info("bootstrapping shards success", zap.Duration("took", duration))
-}
-
 type instrumentation struct {
-	opts                               Options
-	pOpts                              profiler.Options
-	scope                              tally.Scope
-	log                                *zap.Logger
-	nowFn                              clock.NowFn
-	persistedIndexBlocksOutOfRetention tally.Counter
+	opts  Options
+	pOpts profiler.Options
+	scope tally.Scope
+	log   *zap.Logger
+	nowFn clock.NowFn
 }
 
-func newInstrumentation(opts Options) *instrumentation {
-	var (
-		scope = opts.ResultOptions().InstrumentOptions().
-			MetricsScope().SubScope("peers-bootstrapper")
-		instrumentOptions = opts.ResultOptions().InstrumentOptions().SetMetricsScope(scope)
-	)
-
+func newInstrumentation(opts Options, scope tally.Scope, iOpts instrument.Options) *instrumentation {
 	return &instrumentation{
-		opts:                               opts,
-		pOpts:                              opts.ProfilerOptions(),
-		scope:                              scope,
-		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
-		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
-		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+		opts:  opts,
+		pOpts: opts.StorageOptions().ProfilerOptions(),
+		scope: scope,
+		log:   iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
-func (i *instrumentation) peersBootstrapperSourceReadStarted(
+func (i *instrumentation) fsBootstrapperSourceReadStarted(
 	ctx context.Context,
 ) *instrumentationContext {
-	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
+	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
 	return newInstrumentationContext(
+		i.opts,
 		i.nowFn,
 		i.log,
 		span,
 		i.scope,
 		i.pOpts,
 	)
-}
-
-func (i *instrumentation) bootstrapShardsStarted(
-	count int,
-	concurrency int,
-	shouldPersist bool,
-) *instrumentationReadShardsContext {
-	i.log.Info("peers bootstrapper bootstrapping shards for ranges",
-		zap.Int("shards", count),
-		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist))
-	return newInstrumentationReadShardsContext(
-		i.nowFn,
-		i.log,
-		i.scope,
-	)
-}
-
-func (i *instrumentation) outOfRetentionIndexSegmentSkipped(fields []zapcore.Field) {
-	i.log.Debug("skipping out of retention index segment", fields...)
-	i.persistedIndexBlocksOutOfRetention.Inc(1)
 }

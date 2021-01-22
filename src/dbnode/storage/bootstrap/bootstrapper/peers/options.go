@@ -129,6 +129,9 @@ func (o *options) Validate() error {
 	if n := o.indexSegmentConcurrency; n <= 0 {
 		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
+	if o.profilerOptions != nil {
+		return o.profilerOptions.Validate()
+	}
 	return nil
 }
 

@@ -23,30 +23,129 @@ package profiler
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"sync/atomic"
 )
 
-// StartCPUProfile starts cpu profile.
-func StartCPUProfile(path string, profileNamePrefix *ProfileNamePrefix) error {
-	file, err := newProfileFile(path, profileNamePrefix)
+const (
+	// ProfileFileExtension is the extension of profile files.
+	ProfileFileExtension = ".pb.gz"
+)
+
+// FileProfileContext is file profiler context data.
+type FileProfileContext struct {
+	path        string
+	profileName *profileName
+}
+
+// StopProfile stops started profile.
+func (f FileProfileContext) StopProfile() error {
+	stopCPUProfile()
+	return writeHeapProfile(f.path, f.profileName)
+}
+
+// FileProfiler is profiler which writes its profiles to given path directory.
+type FileProfiler struct {
+	path         string
+	profileNames map[string]*profileName
+}
+
+// NewFileProfiler creates a new file provider.
+func NewFileProfiler(path string) *FileProfiler {
+	return &FileProfiler{
+		path:         path,
+		profileNames: make(map[string]*profileName),
+	}
+}
+
+// StartProfile starts a new named profile.
+func (f FileProfiler) StartProfile(name string) (ProfileContext, error) {
+	profileName, ok := f.profileNames[name]
+	if !ok {
+		profileName = newProfileName(name)
+		f.profileNames[name] = profileName
+	}
+	if err := startCPUProfile(f.path, profileName); err != nil {
+		return nil, err
+	}
+
+	return FileProfileContext{
+		path:        f.path,
+		profileName: profileName,
+	}, nil
+}
+
+type profileType int
+
+func (p profileType) String() string {
+	switch p {
+	case cpuProfile:
+		return "cpu"
+	case heapProfile:
+		return "heap"
+	default:
+		return ""
+	}
+}
+
+const (
+	cpuProfile profileType = iota
+	heapProfile
+)
+
+type profileName struct {
+	name   string
+	counts map[profileType]*int32
+}
+
+func newProfileName(name string) *profileName {
+	return &profileName{
+		name:   name,
+		counts: make(map[profileType]*int32),
+	}
+}
+
+func (p *profileName) inc(pType profileType) int32 {
+	count, ok := p.counts[pType]
+	if !ok {
+		count = new(int32)
+		p.counts[pType] = count
+	}
+	return atomic.AddInt32(count, 1)
+}
+
+func (p *profileName) withProfileType(pType profileType) string {
+	return p.name + "." + pType.String()
+}
+
+func startCPUProfile(path string, profileName *profileName) error {
+	file, err := newProfileFile(path, profileName, cpuProfile)
 	if err != nil {
 		return err
 	}
 
-	return pprof.StartCPUProfile(file)
+	forceStartCPUProfile(file)
+	return nil
 }
 
-// StopCPUProfile stops cpu profile.
-func StopCPUProfile() {
+func forceStartCPUProfile(writer io.Writer) {
+	if err := pprof.StartCPUProfile(writer); err != nil {
+		// cpu profile is already started, so we stop it and start our own.
+		pprof.StopCPUProfile()
+		forceStartCPUProfile(writer)
+	}
+}
+
+func stopCPUProfile() {
 	pprof.StopCPUProfile()
 }
 
-// WriteHeapProfile writes heap profile to file.
-func WriteHeapProfile(path string, profileNamePrefix *ProfileNamePrefix) error {
-	file, err := newProfileFile(path, profileNamePrefix)
+func writeHeapProfile(path string, profileName *profileName) error {
+	file, err := newProfileFile(path, profileName, heapProfile)
 	if err != nil {
 		return err
 	}
@@ -57,7 +156,7 @@ func WriteHeapProfile(path string, profileNamePrefix *ProfileNamePrefix) error {
 // newProfileFile creates new file for writing bootstrap profile.
 // path is a directory where profile files will be put.
 // If path is empty string, temp directory will be used instead.
-func newProfileFile(path string, profileNamePrefix *ProfileNamePrefix) (*os.File, error) {
+func newProfileFile(path string, profileName *profileName, pType profileType) (*os.File, error) {
 	if path == "" {
 		tmpDir, err := ioutil.TempDir("", "profile-")
 		if err != nil {
@@ -70,6 +169,7 @@ func newProfileFile(path string, profileNamePrefix *ProfileNamePrefix) (*os.File
 		return nil, err
 	}
 
-	return os.Create(filepath.Join(path, fmt.Sprintf("%s%d%s",
-		profileNamePrefix.name, profileNamePrefix.inc(), ProfileFileExtension)))
+	filename := fmt.Sprintf("%s.%d%s",
+		profileName.withProfileType(pType), profileName.inc(pType), ProfileFileExtension)
+	return os.Create(filepath.Join(path, filename))
 }

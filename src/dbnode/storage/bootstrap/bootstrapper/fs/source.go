@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -81,6 +80,7 @@ type fileSystemSource struct {
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
 	metrics           fileSystemSourceMetrics
+	instrumentation   *instrumentation
 }
 
 type fileSystemSourceMetrics struct {
@@ -111,6 +111,7 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
 			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
 		},
+		instrumentation: newInstrumentation(opts, scope, iopts),
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
 
@@ -140,8 +141,8 @@ func (s *fileSystemSource) Read(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.fsBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
@@ -162,20 +163,14 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	start := s.nowFn()
-	dataLogFields := []zapcore.Field{
-		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
-	}
-	s.log.Info("bootstrapping time series data start",
-		dataLogFields...)
-	span.LogEvent("bootstrap_data_start")
+	instrCtx.bootstrapDataStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, cache)
+			namespace.DataRunOptions.RunOptions, builder, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -186,13 +181,9 @@ func (s *fileSystemSource) Read(
 			DataResult: r.data,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		append(dataLogFields, zap.Duration("took", s.nowFn().Sub(start)))...)
-	span.LogEvent("bootstrap_data_done")
+	instrCtx.bootstrapDataCompleted()
 
-	start = s.nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	span.LogEvent("bootstrap_index_start")
+	instrCtx.bootstrapIndexStarted()
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -205,7 +196,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, cache)
+			namespace.IndexRunOptions.RunOptions, builder, instrCtx.span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -220,10 +211,7 @@ func (s *fileSystemSource) Read(
 		result.IndexResult = r.index
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", s.nowFn().Sub(start)))
-	span.LogEvent("bootstrap_index_done")
-
+	instrCtx.bootstrapIndexCompleted()
 	return results, nil
 }
 
@@ -366,7 +354,7 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 		for i := range timesWithErrors {
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
-		s.log.Info("encounted errors for range",
+		s.log.Info("encountered errors for range",
 			zap.String("requestedRanges", requestedRanges.SummaryString()),
 			zap.Strings("timesWithErrors", timesWithErrorsString))
 	}

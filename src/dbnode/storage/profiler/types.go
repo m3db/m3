@@ -42,65 +42,32 @@
 
 package profiler
 
-import "sync/atomic"
-
-// ProfileNamePrefix is the prefix of the profile name.
-type ProfileNamePrefix struct {
-	name  string
-	count int32
+// ProfileContext represents the context of started profile.
+type ProfileContext interface {
+	// StopProfile stops previously started profile.
+	StopProfile() error
 }
 
-func (p *ProfileNamePrefix) inc() int32 {
-	return atomic.AddInt32(&p.count, 1)
+// Profiler represents profiler for profiling long-running tasks.
+type Profiler interface {
+	// StartProfile starts the named profile and returns profile context.
+	StartProfile(name string) (ProfileContext, error)
 }
-
-// ServiceName is the gcp service name.
-type ServiceName string
-
-// String returns service name string.
-func (s ServiceName) String() string {
-	return string(s)
-}
-
-var (
-	// PeersBootstrapReadDataCPUProfileNamePrefix is prefix for peers bootstrap read data cpu profile filepath.
-	PeersBootstrapReadDataCPUProfileNamePrefix = &ProfileNamePrefix{
-		name: "pprof.m3dbnode.peers.data.samples.cpu.",
-	}
-
-	// PeersBootstrapReadIndexCPUProfileNamePrefix is prefix for peers bootstrap read index cpu profile filepath.
-	PeersBootstrapReadIndexCPUProfileNamePrefix = &ProfileNamePrefix{
-		name: "pprof.m3dbnode.peers.index.samples.cpu.",
-	}
-
-	// PeersBootstrapReadDataHeapProfileNamePrefix is prefix for peers bootstrap read data heap profile filepath.
-	PeersBootstrapReadDataHeapProfileNamePrefix = &ProfileNamePrefix{
-		name: "pprof.m3dbnode.peers.data.samples.heap.",
-	}
-)
-
-const (
-	// ProfileFileExtension is the extension of profile files.
-	ProfileFileExtension = ".pb.gz"
-
-	// ServiceNamePeersBootstrapReadData is service name for gcp cloud profiler.
-	ServiceNamePeersBootstrapReadData ServiceName = "m3dbnode-peer-bootstrap-read-data"
-
-	// ServiceNamePeersBootstrapReadIndex is service name for gcp cloud profiler.
-	ServiceNamePeersBootstrapReadIndex ServiceName = "m3dbnode-peer-bootstrap-read-index"
-)
 
 // Options represents the profiler options.
 type Options interface {
+	// Validate validates the options.
+	Validate() error
+
 	// Enabled returns if profile is enabled.
 	Enabled() bool
 
 	// SetEnabled enables profiling.
 	SetEnabled(value bool) Options
 
-	// ProfilePath returns the profile path.
-	ProfilePath() string
+	// Profiler returns the profiler.
+	Profiler() Profiler
 
-	// SetProfilePath sets the profile path.
-	SetProfilePath(value string) Options
+	// SetProfiler sets the profiler.
+	SetProfiler(value Profiler) Options
 }

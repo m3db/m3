@@ -3,7 +3,6 @@ module github.com/m3db/m3
 go 1.13
 
 require (
-	cloud.google.com/go v0.66.0
 	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
 	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
@@ -29,11 +28,12 @@ require (
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
 	github.com/golangci/golangci-lint v1.33.0
-	github.com/google/go-cmp v0.5.4
+	github.com/google/go-cmp v0.5.2
 	github.com/google/go-jsonnet v0.16.0
+	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
@@ -105,13 +105,11 @@ require (
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.13.0
-	golang.org/x/net v0.0.0-20200904194848-62affa334b73
+	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
-	google.golang.org/api v0.31.0
-	google.golang.org/genproto v0.0.0-20200914193844-75d14daec038
-	google.golang.org/grpc v1.31.1
+	google.golang.org/grpc v1.29.1
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
@@ -151,5 +149,3 @@ replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // https://github.com/ory/dockertest/issues/212
 replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
-
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.1

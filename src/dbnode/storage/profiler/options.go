@@ -20,9 +20,11 @@
 
 package profiler
 
+import "fmt"
+
 type options struct {
-	bootstrapProfilerEnabled bool
-	bootstrapProfilePath     string
+	enabled  bool
+	profiler Profiler
 }
 
 // NewOptions creates new profiler options.
@@ -30,22 +32,29 @@ func NewOptions() Options {
 	return &options{}
 }
 
+func (o *options) Validate() error {
+	if o.enabled && o.profiler == nil {
+		return fmt.Errorf("profiler is enabled but is not set")
+	}
+	return nil
+}
+
 func (o *options) Enabled() bool {
-	return o.bootstrapProfilerEnabled
+	return o.enabled
 }
 
 func (o *options) SetEnabled(value bool) Options {
 	opts := *o
-	opts.bootstrapProfilerEnabled = value
+	opts.enabled = value
 	return &opts
 }
 
-func (o *options) ProfilePath() string {
-	return o.bootstrapProfilePath
+func (o *options) Profiler() Profiler {
+	return o.profiler
 }
 
-func (o *options) SetProfilePath(value string) Options {
+func (o *options) SetProfiler(value Profiler) Options {
 	opts := *o
-	opts.bootstrapProfilePath = value
+	opts.profiler = value
 	return &opts
 }
