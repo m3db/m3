@@ -404,7 +404,7 @@ function test_label_query_limits_applied {
 
   echo "Test label series limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values = "200" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Series: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "200" ]]'
 
   # Test the default docs limit applied when directly querying
   # coordinator (docs limit set by header)
@@ -418,7 +418,7 @@ function test_label_query_limits_applied {
 
   echo "Test label docs limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values = "200" ]]'
+    '[[ $(curl -s -o /dev/null -w "%{http_code}" -H "M3-Limit-Max-Docs: 10000" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/label/__name__/values) = "200" ]]'
 }
 
 echo "Running readiness test"
