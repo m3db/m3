@@ -42,8 +42,8 @@ type aggregatedResults struct {
 	nsID          ident.ID
 	aggregateOpts AggregateResultsOptions
 
-	resultsMap     *AggregateResultsMap
-	totalDocsCount int
+	resultsMap       *AggregateResultsMap
+	totalResultCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -100,7 +100,7 @@ func (r *aggregatedResults) Reset(
 
 	// reset all keys in the map next
 	r.resultsMap.Reset()
-	r.totalDocsCount = 0
+	r.totalResultCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -111,10 +111,11 @@ func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error)
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
-	docsCount := r.totalDocsCount + len(batch)
-	r.totalDocsCount = docsCount
+	resultCount := r.totalResultCount + len(batch)
+	r.totalResultCount = resultCount
+	fmt.Println("Size", size, "resultCount", resultCount, "BatchLen", len(batch))
 	r.Unlock()
-	return size, docsCount, err
+	return size, resultCount, err
 }
 
 func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
@@ -123,6 +124,7 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
+	maxInsertions := r.aggregateOpts.SizeLimit - r.totalResultCount
 	valueInsertions := 0
 	for _, entry := range batch {
 		f := entry.Field
@@ -145,11 +147,18 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 			if !valuesMap.Contains(t) {
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
-				valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
-					NoCopyKey:     true,
-					NoFinalizeKey: false,
-				})
-				valueInsertions++
+				if maxInsertions > valueInsertions {
+					valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
+						NoCopyKey:     true,
+						NoFinalizeKey: false,
+					})
+					valueInsertions++
+					fmt.Println("max", maxInsertions, "value", valueInsertions)
+				} else {
+					// this value exceeds the limit, so should be released to the underling
+					// pool without adding to the map.
+					t.Finalize()
+				}
 			} else {
 				// because we already have a entry for this term, we release the ident back to
 				// the underlying pool.
@@ -158,10 +167,10 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 	size := r.resultsMap.Len()
-	docsCount := r.totalDocsCount + valueInsertions
-	r.totalDocsCount = docsCount
+	resultCount := r.totalResultCount + valueInsertions
+	r.totalResultCount = resultCount
 	r.Unlock()
-	return size, docsCount
+	return size, resultCount
 }
 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
@@ -319,9 +328,9 @@ func (r *aggregatedResults) Size() int {
 	return l
 }
 
-func (r *aggregatedResults) TotalDocsCount() int {
+func (r *aggregatedResults) totalResultCount() int {
 	r.RLock()
-	count := r.totalDocsCount
+	count := r.totalResultCount
 	r.RUnlock()
 	return count
 }
