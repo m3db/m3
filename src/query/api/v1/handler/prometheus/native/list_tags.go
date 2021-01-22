@@ -23,16 +23,15 @@ package native
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -53,7 +52,7 @@ var (
 type ListTagsHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	nowFn               clock.NowFn
+	parseOpts           promql.ParseOptions
 	instrumentOpts      instrument.Options
 }
 
@@ -62,7 +61,7 @@ func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &ListTagsHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		nowFn:               opts.NowFn(),
+		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
@@ -72,13 +71,17 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
+	start, end, err := prometheus.ParseStartAndEnd(r, h.parseOpts)
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
 		TagMatchers:      models.Matchers{{Type: models.MatchAll}},
-
-		// NB: necessarily spans entire possible query range.
-		Start: time.Time{},
-		End:   h.nowFn(),
+		Start:            start,
+		End:              end,
 	}
 
 	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)

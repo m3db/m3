@@ -20,6 +20,7 @@
 package convert_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
 	"unicode/utf8"
@@ -29,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
+	"github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,10 +77,48 @@ func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	)
 	d, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "bar", string(d.Fields[0].Name))
-	assert.Equal(t, "baz", string(d.Fields[0].Value))
+	assertContentsMatch(t, id, tags.Values(), d)
+}
+
+func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "tags in ID",
+			id:   "bar=baz,quip=quix",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz",quip="quix"}`,
+		},
+		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "quixquip_bazillion_barometers",
+		},
+	}
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+		ident.StringTag("quip", "quix"),
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seriesID := ident.StringID(tt.id)
+			d, err := convert.FromSeriesIDAndTags(seriesID, tags)
+			assert.NoError(t, err)
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
+			}
+		})
+	}
 }
 
 func TestFromSeriesIDAndTagIterValid(t *testing.T) {
@@ -87,18 +128,151 @@ func TestFromSeriesIDAndTagIterValid(t *testing.T) {
 	)
 	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "bar", string(d.Fields[0].Name))
-	assert.Equal(t, "baz", string(d.Fields[0].Value))
+	assertContentsMatch(t, id, tags.Values(), d)
+}
+
+func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "tags in ID",
+			id:   "bar=baz,quip=quix",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz",quip="quix"}`,
+		},
+		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "quixquip_bazillion_barometers",
+		},
+	}
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+		ident.StringTag("quip", "quix"),
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seriesID := ident.StringID(tt.id)
+			d, err := convert.FromSeriesIDAndTagIter(seriesID, ident.NewTagsIterator(tags))
+			assert.NoError(t, err)
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
+			}
+		})
+	}
+}
+
+func TestFromSeriesIDAndEncodedTags(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "no tags in ID",
+			id:   "foo",
+		},
+		{
+			name: "tags in ID",
+			id:   "bar=baz,quip=quix",
+		},
+		{
+			name: "tags in ID with specific format",
+			id:   `{bar="baz",quip="quix"}`,
+		},
+		{
+			name: "tags in ID with specific format reverse order",
+			id:   `{quip="quix",bar="baz"}`,
+		},
+		{
+			name: "inexact tag occurrence in ID",
+			id:   "quixquip_bazillion_barometers",
+		},
+	}
+	var (
+		tags = ident.NewTags(
+			ident.StringTag("bar", "baz"),
+			ident.StringTag("quip", "quix"),
+		)
+		encodedTags = toEncodedTags(t, tags)
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seriesID := ident.BytesID(tt.id)
+			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, encodedTags)
+			assert.NoError(t, err)
+			assertContentsMatch(t, seriesID, tags.Values(), d)
+			for i := range d.Fields {
+				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
+				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
+			}
+		})
+	}
+}
+
+func TestFromSeriesIDAndEncodedTagsInvalid(t *testing.T) {
+	var (
+		validEncodedTags     = []byte{117, 39, 1, 0, 3, 0, 98, 97, 114, 3, 0, 98, 97, 122}
+		tagsWithReservedName = toEncodedTags(t, ident.NewTags(
+			ident.StringTag(string(convert.ReservedFieldNameID), "some_value"),
+		))
+	)
+
+	tests := []struct {
+		name        string
+		encodedTags []byte
+	}{
+		{
+			name:        "reserved tag name",
+			encodedTags: tagsWithReservedName,
+		},
+		{
+			name:        "incomplete header",
+			encodedTags: validEncodedTags[:3],
+		},
+		{
+			name:        "incomplete tag name length",
+			encodedTags: validEncodedTags[:5],
+		},
+		{
+			name:        "incomplete tag value length",
+			encodedTags: validEncodedTags[:10],
+		},
+		{
+			name:        "invalid magic number",
+			encodedTags: []byte{42, 42, 0, 0},
+		},
+		{
+			name:        "empty tag name",
+			encodedTags: []byte{117, 39, 1, 0, 0, 0, 3, 0, 98, 97, 122},
+		},
+	}
+	seriesID := ident.BytesID("foo")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := convert.FromSeriesIDAndEncodedTags(seriesID, tt.encodedTags)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestToSeriesValid(t *testing.T) {
 	d := doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
-			doc.Field{Name: []byte("some"), Value: []byte("others")},
+			{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("some"), Value: []byte("others")},
 		},
 	}
 	id, tags, err := convert.ToSeries(d, testOpts)
@@ -215,3 +389,31 @@ func TestValidateSeries(t *testing.T) {
 }
 
 // TODO(prateek): add a test to ensure we're interacting with the Pools as expected
+
+func assertContentsMatch(t *testing.T, seriesID ident.ID, tags []ident.Tag, doc doc.Metadata) {
+	assert.Equal(t, seriesID.String(), string(doc.ID))
+	assert.Len(t, doc.Fields, len(tags))
+	for i, f := range doc.Fields { //nolint:gocritic
+		assert.Equal(t, tags[i].Name.String(), string(f.Name))
+		assert.Equal(t, tags[i].Value.String(), string(f.Value))
+	}
+}
+
+func assertBackedBySameData(t *testing.T, outer, inner []byte) {
+	if idx := bytes.Index(outer, inner); idx != -1 {
+		subslice := outer[idx : idx+len(inner)]
+		assert.True(t, test.ByteSlicesBackedBySameData(subslice, inner))
+	}
+}
+
+func toEncodedTags(t *testing.T, tags ident.Tags) []byte {
+	pool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), nil)
+	pool.Init()
+	encoder := pool.Get()
+	defer encoder.Finalize()
+
+	require.NoError(t, encoder.Encode(ident.NewTagsIterator(tags)))
+	data, ok := encoder.Data()
+	require.True(t, ok)
+	return append([]byte(nil), data.Bytes()...)
+}
