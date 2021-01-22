@@ -1691,7 +1691,7 @@ func (i *nsIndex) execBlockQueryFn(
 	docResults, ok := results.(index.DocumentResults)
 	if !ok { // should never happen
 		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during wide query", results)
+		err := fmt.Errorf("unknown results type [%T] received during query", results)
 		state.multiErr = state.multiErr.Add(err)
 		state.Unlock()
 		return

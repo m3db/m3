@@ -48,20 +48,6 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// AggregateResultsEntries is a slice of AggregateResultsEntry.
-type AggregateResultsEntries []AggregateResultsEntry
-
-// Size is the element size of the aggregated result entries.
-func (e AggregateResultsEntries) Size() int {
-	// NB: add 1 to the entries length for each entry's field.
-	length := len(e)
-	for _, entry := range e {
-		length += len(entry.Terms)
-	}
-
-	return length
-}
-
 // AggregateResultsEntryArrayPool provides a pool for aggregateResultsEntry slices.
 type AggregateResultsEntryArrayPool interface {
 	// Init initializes the array pool, it needs to be called

@@ -641,12 +641,14 @@ func (b *block) aggregateWithSpan(
 	}
 
 	var (
-		source      = opts.Source
-		size        = results.Size()
-		resultCount = results.TotalDocsCount()
-		batch       = AggregateResultsEntries(b.opts.AggregateResultsEntryArrayPool().Get())
-		maxBatch    = cap(batch)
-		iterClosed  = false // tracking whether we need to free the iterator at the end.
+		source        = opts.Source
+		size          = results.Size()
+		resultCount   = results.TotalDocsCount()
+		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
+		numAdded      = 0
+		currBatchSize = 0
+		maxBatch      = cap(batch)
+		iterClosed    = false // tracking whether we need to free the iterator at the end.
 	)
 	if maxBatch == 0 {
 		maxBatch = defaultAggregateResultsEntryBatchSize
@@ -699,15 +701,18 @@ func (b *block) aggregateWithSpan(
 			}
 
 			field, term := iter.Current()
-			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
-			if batch.Size() < maxBatch {
+			batch, numAdded = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
+			currBatchSize += numAdded
+			if currBatchSize < maxBatch {
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source)
+			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
 			if err != nil {
 				return false, err
 			}
+
+			currBatchSize = 0
 		}
 
 		if err := iter.Err(); err != nil {
@@ -722,7 +727,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source)
+		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
 		if err != nil {
 			return false, err
 		}
@@ -735,7 +740,7 @@ func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-) []AggregateResultsEntry {
+) ([]AggregateResultsEntry, int) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -748,6 +753,7 @@ func (b *block) appendFieldAndTermToBatch(
 		lastField        []byte
 		lastFieldIsValid bool
 		reuseLastEntry   bool
+		numAppended      int
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -770,6 +776,7 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
+		numAppended++
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -778,6 +785,7 @@ func (b *block) appendFieldAndTermToBatch(
 	}
 
 	if includeTerms {
+		numAppended++
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -791,7 +799,7 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 
-	return batch
+	return batch, numAppended
 }
 
 func (b *block) pooledID(id []byte) ident.ID {
@@ -805,12 +813,13 @@ func (b *block) pooledID(id []byte) ident.ID {
 func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
-	batch AggregateResultsEntries,
+	batch []AggregateResultsEntry,
 	source []byte,
-) (AggregateResultsEntries, int, int, error) {
+	currBatchSize int,
+) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(batch.Size(), source); err != nil {
+		if err := b.docsLimit.Inc(currBatchSize, source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

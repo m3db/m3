@@ -117,9 +117,9 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 	// NB: already hit doc limit.
 	if maxDocs <= 0 {
-		for _, entry := range batch {
-			entry.Field.Finalize()
-			for _, term := range entry.Terms {
+		for idx := 0; idx < len(batch); idx++ {
+			batch[idx].Field.Finalize()
+			for _, term := range batch[idx].Terms {
 				term.Finalize()
 			}
 		}
@@ -149,8 +149,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 				term.Finalize()
 			}
 
-			r.size = r.size + numInserts
-			r.totalDocsCount = r.totalDocsCount + docs
+			r.size += numInserts
+			r.totalDocsCount += docs
 			return r.size, r.totalDocsCount
 		}
 
@@ -200,8 +200,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 
-	r.size = r.size + numInserts
-	r.totalDocsCount = r.totalDocsCount + docs
+	r.size += numInserts
+	r.totalDocsCount += docs
 	return r.size, r.totalDocsCount
 }
 

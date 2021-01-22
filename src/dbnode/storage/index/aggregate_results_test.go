@@ -48,7 +48,7 @@ func genResultsEntry(field string, terms ...string) AggregateResultsEntry {
 func toMap(res AggregateResults) map[string][]string {
 	entries := res.Map().Iter()
 	resultMap := make(map[string][]string, len(entries))
-	for _, entry := range entries {
+	for _, entry := range entries { //nolint:gocritic
 		terms := entry.value.Map().Iter()
 		resultTerms := make([]string, 0, len(terms))
 		for _, term := range terms {
