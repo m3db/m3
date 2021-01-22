@@ -81,6 +81,7 @@ func (f FileProfiler) StartProfile(name string) (ProfileContext, error) {
 
 type profileType int
 
+// String returns string representation of profile type.
 func (p profileType) String() string {
 	switch p {
 	case cpuProfile:

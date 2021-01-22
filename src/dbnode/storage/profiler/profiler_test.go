@@ -61,7 +61,6 @@ func teardown() error {
 }
 
 func TestFileProfile(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		fileNames []string
