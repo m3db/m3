@@ -185,10 +185,11 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
+			docs++
 			if !valuesMap.Contains(t) {
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
-				if maxInserts > valueInsertions {
+				if maxInserts > valueInsertions || maxDocs > docs {
 					valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 						NoCopyKey:     true,
 						NoFinalizeKey: false,
