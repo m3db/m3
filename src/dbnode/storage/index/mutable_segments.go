@@ -54,7 +54,9 @@ var (
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
 
-	numBackgroundCompactors = int(math.Max(1, float64(runtime.NumCPU())/2))
+	// numBackgroundCompactors should use up to num CPU minus one
+	// to reserve for the foreground compactor.
+	numBackgroundCompactors = math.Max(1, float64(runtime.NumCPU())-1)
 )
 
 type mutableSegmentsState uint
