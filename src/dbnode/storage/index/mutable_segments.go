@@ -745,6 +745,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 		i, task := i, task
 		wg.Add(1)
 		m.backgroundCompactWorkers.Go(func() {
+			defer wg.Done()
 			err := m.backgroundCompactWithTask(task, activeBlockStarts,
 				activeBloomFilter, log, logger.With(zap.Int("task", i)))
 			if err != nil {
