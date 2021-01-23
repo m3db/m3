@@ -56,7 +56,7 @@ var (
 
 	// numBackgroundCompactors should use up to num CPU minus one
 	// to reserve for the foreground compactor.
-	numBackgroundCompactors = math.Max(1, float64(runtime.NumCPU())-1)
+	numBackgroundCompactors = int(math.Max(1, float64(runtime.NumCPU())-1))
 )
 
 type mutableSegmentsState uint
