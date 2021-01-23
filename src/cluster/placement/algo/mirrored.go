@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -200,18 +201,22 @@ func (a mirroredAlgorithm) ReplaceInstances(
 			return nil, err
 		}
 
-		// NB(cw) I don't think we will ever get here, but just being defensive.
 		return a.returnInitializingShards(p, leavingInstanceIDs)
 	}
 
-	if p, _, err = a.MarkAllShardsAvailable(p); err != nil {
-		return nil, err
+	// Mark shards available only for the specified leaving instances and their peers.
+	// This allows multiple replaces that do not overlap by shard ownership.
+	for _, leavingInstanceID := range leavingInstanceIDs {
+		if p, err = a.markInstanceAndItsPeersAvailable(p, leavingInstanceID); err != nil {
+			return nil, err
+		}
 	}
 
-	// At this point, all leaving instances in the placement are cleaned up.
+	// At this point, all specified leaving instances and their peers in the placement are cleaned up.
 	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
 		return nil, err
 	}
+
 	for i := range leavingInstanceIDs {
 		// We want full replacement for each instance.
 		if p, err = a.shardedAlgo.ReplaceInstances(
@@ -245,6 +250,51 @@ func (a mirroredAlgorithm) MarkAllShardsAvailable(
 	}
 
 	return a.shardedAlgo.MarkAllShardsAvailable(p)
+}
+
+func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
+	p placement.Placement,
+	instanceID string,
+) (placement.Placement, error) {
+	var err error
+	if err = a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	p = p.Clone()
+	instance, exist := p.Instance(instanceID)
+	if !exist {
+		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
+	}
+
+	// Find all peers of specified instance - those owning same shardset.
+	// That includes instances that are replaced by this instance or replace this instance.
+	ownerIDs := []string{instanceID}
+	for _, i := range p.Instances() {
+		if i.ShardSetID() == instance.ShardSetID() {
+			ownerIDs = append(ownerIDs, i.ID())
+		}
+	}
+
+	for _, id := range ownerIDs {
+		instance, exists := p.Instance(id)
+		if !exists {
+			// Instance with leaving shards could already be removed from placement
+			// after initializing shards are marked avaialble (if past cutover time) by below code block.
+			continue
+		}
+
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Initializing {
+				p, err = a.shardedAlgo.MarkShardsAvailable(p, id, s.ID())
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not mark shards available of instnace %s", id)
+				}
+			}
+		}
+	}
+
+	return p, nil
 }
 
 // allInitializing returns true when
