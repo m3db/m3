@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -73,6 +74,7 @@ type mutableSegments struct {
 	indexedSnapshot                    *indexedBloomFilterSnapshot
 	backgroundCompactActiveBlockStarts []xtime.UnixNano
 	backgroundCompactIndexedSnapshot   *indexedBloomFilterSnapshot
+	backgroundCompactWorkers           xsync.WorkerPool
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -230,6 +232,8 @@ func newMutableSegments(
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	iopts instrument.Options,
 ) *mutableSegments {
+	backgroundCompactWorkers := xsync.NewWorkerPool(4)
+	backgroundCompactWorkers.Init()
 	m := &mutableSegments{
 		blockStart:               blockStart,
 		blockSize:                md.Options().IndexOptions().BlockSize(),
@@ -237,6 +241,7 @@ func newMutableSegments(
 		blockOpts:                blockOpts,
 		iopts:                    iopts,
 		indexedBloomFilterByTime: make(map[xtime.UnixNano]*indexedBloomFilter),
+		backgroundCompactWorkers: backgroundCompactWorkers,
 		metrics:                  newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:                   iopts.Logger(),
 	}
@@ -735,16 +740,22 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 		}
 	}
 
+	var wg sync.WaitGroup
 	for i, task := range plan.Tasks {
-		err := m.backgroundCompactWithTask(task, activeBlockStarts,
-			activeBloomFilter, log, logger.With(zap.Int("task", i)))
-		if err != nil {
-			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-				l.Error("error compacting segments", zap.Error(err))
-			})
-			return
-		}
+		i, task := i, task
+		wg.Add(1)
+		m.backgroundCompactWorkers.Go(func() {
+			err := m.backgroundCompactWithTask(task, activeBlockStarts,
+				activeBloomFilter, log, logger.With(zap.Int("task", i)))
+			if err != nil {
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("error compacting segments", zap.Error(err))
+				})
+			}
+		})
 	}
+
+	wg.Wait()
 }
 
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) segment.Segment {
