@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
@@ -43,6 +42,7 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/bloom/v4"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -54,7 +54,7 @@ var (
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
 
-	numBackgroundCompactors = int(math.Min(4, float64(runtime.NumCPU())/2))
+	numBackgroundCompactors = int(math.Max(1, float64(runtime.NumCPU())/2))
 )
 
 type mutableSegmentsState uint

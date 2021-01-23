@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultWriteIndexingPerCPUConcurrency = 0.75
+	defaultWriteIndexingPerCPUConcurrency = 1.0
 	defaultFlushIndexingPerCPUConcurrency = 0.25
 )
 
