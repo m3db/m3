@@ -93,6 +93,15 @@ func (b *builderFromSegments) SetFilter(filter *bloom.ReadOnlyBloomFilter, filte
 }
 
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
+	// Order by largest -> smallest so that the first segment
+	// is the largest when iterating over term postings lists
+	// (which means it can be directly copied into the merged postings
+	// list via a union rather than needing to shift posting list
+	// IDs to take into account for duplicates).
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].Size() > segments[j].Size()
+	})
+
 	// numMaxDocs can sometimes be larger than the actual number of documents
 	// since some are duplicates
 	numMaxDocs := 0
