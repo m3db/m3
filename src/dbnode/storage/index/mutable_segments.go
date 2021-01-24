@@ -534,7 +534,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 	var (
 		activeBlockStarts []xtime.UnixNano
-		activeFilter      *builder.IDsMap
+		activeFilter      segment.DocumentsFilter
 	)
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
@@ -545,20 +545,19 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			// if there were any segments that need the active block starts
 			// updated.
 			activeBlockStarts = m.backgroundCompactActiveBlockStarts
-			activeFilter = m.backgroundCompactIndexedSnapshot
-			if activeFilter == nil {
-				activeFilter = builder.NewIDsMap(builder.IDsMapOptions{})
-				m.backgroundCompactIndexedSnapshot = activeFilter
+			if m.backgroundCompactIndexedSnapshot == nil {
+				m.backgroundCompactIndexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
 			}
 			// Copy the indexed snapshot map so can use it downstream safely
 			// without holding a lock.
-			activeFilter.Reset()
+			m.backgroundCompactIndexedSnapshot.Reset()
 			for _, elem := range m.indexedSnapshot.Iter() {
-				activeFilter.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
+				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
 					NoCopyKey:     true,
 					NoFinalizeKey: true,
 				})
 			}
+			activeFilter = m.backgroundCompactIndexedSnapshot
 		}
 		m.indexedBloomFilterByTimeLock.Unlock()
 
@@ -685,7 +684,7 @@ func (m *mutableSegments) closeCompactedSegmentsWithLock(segments []*readableSeg
 func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
 	activeBlockStarts []xtime.UnixNano,
-	activeFilter *builder.IDsMap,
+	activeFilter segment.DocumentsFilter,
 ) {
 	sw := m.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
@@ -748,7 +747,7 @@ func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) segment.Segment
 func (m *mutableSegments) backgroundCompactWithTask(
 	task compaction.Task,
 	activeBlockStarts []xtime.UnixNano,
-	activeFilter *builder.IDsMap,
+	activeFilter segment.DocumentsFilter,
 	compactor *compaction.Compactor,
 	log bool,
 	logger *zap.Logger,
