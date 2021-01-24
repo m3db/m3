@@ -175,6 +175,7 @@ func newMutableSegments(
 		blockOpts:                blockOpts,
 		iopts:                    iopts,
 		indexedBloomFilterByTime: make(map[xtime.UnixNano]*indexedBloomFilter),
+		indexedSnapshot:          builder.NewIDsMap(builder.IDsMapOptions{}),
 		metrics:                  newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:                   iopts.Logger(),
 	}
@@ -278,9 +279,6 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 		m.indexedBloomFilterByTimeLock.Lock()
 		// Add to the indexed snapshot set.
-		if m.indexedSnapshot == nil {
-			m.indexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
-		}
 		for i := range docs {
 			m.indexedSnapshot.SetUnsafe(docs[i].ID, struct{}{}, builder.IDsMapSetUnsafeOptions{
 				NoCopyKey:     true,
@@ -539,7 +537,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
 		m.indexedBloomFilterByTimeLock.Lock()
-		if m.indexedSnapshot != nil {
+		if m.indexedSnapshot.Len() > 0 {
 			mayNeedFiltering = true
 			// Only set the bloom filter to actively filter series out
 			// if there were any segments that need the active block starts
