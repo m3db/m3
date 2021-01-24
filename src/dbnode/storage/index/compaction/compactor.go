@@ -35,7 +35,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/uber-go/tally"
 )
 
@@ -111,7 +110,7 @@ func NewCompactor(
 // time.
 func (c *Compactor) Compact(
 	segs []segment.Segment,
-	filter *bloom.ReadOnlyBloomFilter,
+	filter segment.DocumentsFilter,
 	filterCounter tally.Counter,
 	reporterOptions mmap.ReporterOptions,
 ) (fst.Segment, error) {

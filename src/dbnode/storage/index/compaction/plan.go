@@ -35,10 +35,10 @@ var (
 
 var (
 	// DefaultLevels are the default Level(s) used for compaction options.
-	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 524K)
+	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 300K)
 		{
 			MinSizeInclusive: 0,
-			MaxSizeExclusive: 1 << 19,
+			MaxSizeExclusive: 1 << 18,
 		},
 	}
 

@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/uber-go/tally"
 )
 
@@ -225,8 +224,13 @@ type SegmentsBuilder interface {
 
 	// SetFilter sets a filter on which documents to retain
 	// when building the segment.
-	SetFilter(bloom *bloom.ReadOnlyBloomFilter, filterCount tally.Counter)
+	SetFilter(keep DocumentsFilter, filterCount tally.Counter)
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
+}
+
+// DocumentsFilter is a documents filter.
+type DocumentsFilter interface {
+	Contains(id []byte) bool
 }

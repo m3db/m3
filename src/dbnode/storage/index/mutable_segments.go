@@ -21,7 +21,6 @@
 package index
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -42,7 +41,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -74,9 +72,9 @@ type mutableSegments struct {
 
 	foregroundSegments                 []*readableSeg
 	backgroundSegments                 []*readableSeg
-	indexedSnapshot                    *indexedBloomFilterSnapshot
+	indexedSnapshot                    *builder.IDsMap
 	backgroundCompactActiveBlockStarts []xtime.UnixNano
-	backgroundCompactIndexedSnapshot   *indexedBloomFilterSnapshot
+	backgroundCompactIndexedSnapshot   *builder.IDsMap
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -95,28 +93,14 @@ type mutableSegments struct {
 }
 
 type indexedBloomFilter struct {
-	doNotWrite    *builder.IDsMap
-	writes        *bloom.BloomFilter
-	snapshotDirty bool
-	snapshot      *bytes.Buffer
+	doNotWrite *builder.IDsMap
 }
 
-var (
-	// Estimate bloom values for 1million and 1% false positive rate.
-	// Roughly 1mb size with k:7 (hash 7 times on insert/lookup).
-	bloomM, bloomK = bloom.EstimateFalsePositiveRate(1<<20, 0.01)
-)
-
 func newIndexedBloomFilter() *indexedBloomFilter {
-	bf := bloom.NewBloomFilter(bloomM, bloomK)
-	snapshot := bytes.NewBuffer(nil)
-	_ = bf.BitSet().Write(snapshot)
 	return &indexedBloomFilter{
 		doNotWrite: builder.NewIDsMap(builder.IDsMapOptions{
 			InitialSize: 4096,
 		}),
-		writes:   bf,
-		snapshot: snapshot,
 	}
 }
 
@@ -129,56 +113,6 @@ func (f *indexedBloomFilter) Write(id []byte) {
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
-	f.writes.Add(id)
-	f.snapshotDirty = true
-}
-
-func (f *indexedBloomFilter) UpdateSnapshotIfRequired() {
-	if !f.snapshotDirty {
-		return
-	}
-	f.snapshot.Truncate(0)
-	_ = f.writes.BitSet().Write(f.snapshot)
-	f.snapshotDirty = false
-}
-
-func (f *indexedBloomFilter) MergeSnapshot(
-	snap *indexedBloomFilterSnapshot,
-) {
-	data := f.snapshot.Bytes()
-	size := len(data)
-	if cap(snap.buffer) < size {
-		// Grow buffer if required.
-		snap.buffer = make([]byte, size)
-	} else {
-		snap.buffer = snap.buffer[:size]
-	}
-
-	for i := range snap.buffer {
-		snap.buffer[i] |= data[i]
-	}
-}
-
-type indexedBloomFilterSnapshot struct {
-	buffer      []byte
-	bloomFilter *bloom.ReadOnlyBloomFilter
-}
-
-func newIndexedBloomFilterSnapshot() *indexedBloomFilterSnapshot {
-	return &indexedBloomFilterSnapshot{}
-}
-
-func (s *indexedBloomFilterSnapshot) Reset() {
-	for i := range s.buffer {
-		s.buffer[i] = 0
-	}
-}
-
-func (s *indexedBloomFilterSnapshot) ReadOnlyBloomFilter() *bloom.ReadOnlyBloomFilter {
-	// In future would be good to update read only bloom filter instead
-	// of having to create a new one with the buffer (even though it's just
-	// a wrapper over the buffer.).
-	return bloom.NewReadOnlyBloomFilter(bloomM, bloomK, s.buffer)
 }
 
 type mutableSegmentsMetrics struct {
@@ -255,7 +189,10 @@ func (m *mutableSegments) NotifySealedBlocks(
 		return nil
 	}
 
+	m.Lock()
+
 	m.indexedBloomFilterByTimeLock.Lock()
+	// Remove entire time windows.
 	for _, blockStart := range sealed {
 		_, exists := m.indexedBloomFilterByTime[blockStart]
 		if !exists {
@@ -264,9 +201,22 @@ func (m *mutableSegments) NotifySealedBlocks(
 		// Remove indexed set if block now sealed.
 		delete(m.indexedBloomFilterByTime, blockStart)
 	}
+	// Remove any from the indexed snapshots.
+	for _, elem := range m.indexedSnapshot.Iter() {
+		id := elem.Key()
+		contained := false
+		for _, filter := range m.indexedBloomFilterByTime {
+			if filter.ContainsWithNoFalsePositive(id) {
+				contained = true
+				break
+			}
+		}
+		if !contained {
+			m.indexedSnapshot.Delete(id)
+		}
+	}
 	m.indexedBloomFilterByTimeLock.Unlock()
 
-	m.Lock()
 	m.maybeBackgroundCompactWithLock()
 	m.Unlock()
 
@@ -296,6 +246,11 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
+	// Take references to the pending entries docs
+	// and make sure not to touch sort order until later.
+	entries := inserts.PendingEntries()
+	docs := inserts.PendingDocs()
+
 	m.Lock()
 	if m.state == mutableSegmentsStateClosed {
 		m.Unlock()
@@ -316,21 +271,21 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	}
 
 	m.compact.compactingForeground = true
-	builder := m.compact.segmentBuilder
 	if m.indexedSnapshot == nil {
-		m.indexedSnapshot = newIndexedBloomFilterSnapshot()
+		m.indexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
 	}
-	m.indexedSnapshot.Reset()
+	for i := range docs {
+		m.indexedSnapshot.SetUnsafe(docs[i].ID, struct{}{}, builder.IDsMapSetUnsafeOptions{
+			NoCopyKey:     true,
+			NoFinalizeKey: true,
+		})
+	}
+	builder := m.compact.segmentBuilder
 	m.Unlock()
 
 	// Updsate indexedBloomFilterByTime if needed.
 	var activeBlockStarts []xtime.UnixNano
 	if m.blockOpts.InMemoryBlock {
-		// Take references to the pending entries docs
-		// and make sure not to touch sort order until later.
-		entries := inserts.PendingEntries()
-		docs := inserts.PendingDocs()
-
 		m.indexedBloomFilterByTimeLock.Lock()
 		// Remove for indexing anything already indexed and
 		// also update the tracking of what things have been indexed
@@ -382,25 +337,14 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 		// Update bloom filter snapshots if required and also
 		// track the active block starts.
 		activeBlockStarts = make([]xtime.UnixNano, 0, len(m.indexedBloomFilterByTime))
-		for blockStart, bloomFilter := range m.indexedBloomFilterByTime {
+		for blockStart := range m.indexedBloomFilterByTime {
 			activeBlockStarts = append(activeBlockStarts, blockStart)
-			bloomFilter.UpdateSnapshotIfRequired()
-			bloomFilter.MergeSnapshot(m.indexedSnapshot)
 		}
 		m.indexedBloomFilterByTimeLock.Unlock()
 	}
 
 	defer func() {
 		m.Lock()
-		// Check if any segments needs filtering.
-		// Prepare the bloom filter to merge into from the live time windows.
-		m.backgroundCompactActiveBlockStarts = activeBlockStarts
-		if m.backgroundCompactIndexedSnapshot == nil {
-			m.backgroundCompactIndexedSnapshot = newIndexedBloomFilterSnapshot()
-		}
-		m.backgroundCompactIndexedSnapshot.buffer =
-			append(m.backgroundCompactIndexedSnapshot.buffer[:0], m.indexedSnapshot.buffer...)
-
 		m.compact.compactingForeground = false
 		m.cleanupForegroundCompactWithLock()
 		m.Unlock()
@@ -589,14 +533,27 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 	var (
 		activeBlockStarts []xtime.UnixNano
-		activeBloomFilter *bloom.ReadOnlyBloomFilter
+		activeFilter      *builder.IDsMap
 	)
-	if m.blockOpts.InMemoryBlock && m.backgroundCompactIndexedSnapshot != nil {
+	if m.blockOpts.InMemoryBlock && m.indexedSnapshot != nil {
 		// Only set the bloom filter to actively filter series out
 		// if there were any segments that need the active block starts
 		// updated.
 		activeBlockStarts = m.backgroundCompactActiveBlockStarts
-		activeBloomFilter = m.backgroundCompactIndexedSnapshot.ReadOnlyBloomFilter()
+		activeFilter = m.backgroundCompactIndexedSnapshot
+		if activeFilter == nil {
+			activeFilter = builder.NewIDsMap(builder.IDsMapOptions{})
+			m.backgroundCompactIndexedSnapshot = activeFilter
+		}
+		// Copy the indexed snapshot map so can use it downstream safely
+		// without holding a lock.
+		activeFilter.Reset()
+		for _, elem := range m.indexedSnapshot.Iter() {
+			activeFilter.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			})
+		}
 
 		// Now check which segments need filtering.
 		for _, seg := range m.backgroundSegments {
@@ -656,7 +613,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	// Kick off compaction.
 	m.compact.compactingBackground = true
 	go func() {
-		m.backgroundCompactWithPlan(plan, activeBlockStarts, activeBloomFilter)
+		m.backgroundCompactWithPlan(plan, activeBlockStarts, activeFilter)
 
 		m.Lock()
 		m.compact.compactingBackground = false
@@ -719,7 +676,7 @@ func (m *mutableSegments) closeCompactedSegmentsWithLock(segments []*readableSeg
 func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
 	activeBlockStarts []xtime.UnixNano,
-	activeBloomFilter *bloom.ReadOnlyBloomFilter,
+	activeFilter *builder.IDsMap,
 ) {
 	sw := m.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
@@ -756,7 +713,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 				wg.Done()
 			}()
 			err := m.backgroundCompactWithTask(task, activeBlockStarts,
-				activeBloomFilter, compactor, log, logger.With(zap.Int("task", i)))
+				activeFilter, compactor, log, logger.With(zap.Int("task", i)))
 			if err != nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("error compacting segments", zap.Error(err))
@@ -782,7 +739,7 @@ func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) segment.Segment
 func (m *mutableSegments) backgroundCompactWithTask(
 	task compaction.Task,
 	activeBlockStarts []xtime.UnixNano,
-	activeBloomFilter *bloom.ReadOnlyBloomFilter,
+	activeFilter *builder.IDsMap,
 	compactor *compaction.Compactor,
 	log bool,
 	logger *zap.Logger,
@@ -798,7 +755,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 	start := time.Now()
 	compacted, err := compactor.Compact(segments,
-		activeBloomFilter,
+		activeFilter,
 		m.metrics.activeBlockGarbageCollectSeries,
 		mmap.ReporterOptions{
 			Context: mmap.Context{

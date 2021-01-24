@@ -30,14 +30,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
-	"github.com/m3db/bloom/v4"
 	"github.com/uber-go/tally"
 )
 
 type builderFromSegments struct {
 	docs           []doc.Document
 	idSet          *IDsMap
-	filter         *bloom.ReadOnlyBloomFilter
+	filter         segment.DocumentsFilter
 	filterCount    tally.Counter
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
@@ -87,7 +86,7 @@ func (b *builderFromSegments) Reset() {
 	b.termsIter.clear()
 }
 
-func (b *builderFromSegments) SetFilter(filter *bloom.ReadOnlyBloomFilter, filterCount tally.Counter) {
+func (b *builderFromSegments) SetFilter(filter segment.DocumentsFilter, filterCount tally.Counter) {
 	b.filter = filter
 	b.filterCount = filterCount
 }
@@ -133,7 +132,7 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 				skip = append(skip, iter.PostingsID())
 				continue
 			}
-			if b.filter != nil && !b.filter.Test(d.ID) {
+			if b.filter != nil && !b.filter.Contains(d.ID) {
 				// Actively filtering and ID is not contained.
 				skip = append(skip, iter.PostingsID())
 				if b.filterCount != nil {
