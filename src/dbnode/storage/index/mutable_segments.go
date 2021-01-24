@@ -189,8 +189,6 @@ func (m *mutableSegments) NotifySealedBlocks(
 		return nil
 	}
 
-	m.Lock()
-
 	m.indexedBloomFilterByTimeLock.Lock()
 	// Remove entire time windows.
 	for _, blockStart := range sealed {
@@ -217,6 +215,7 @@ func (m *mutableSegments) NotifySealedBlocks(
 	}
 	m.indexedBloomFilterByTimeLock.Unlock()
 
+	m.Lock()
 	m.maybeBackgroundCompactWithLock()
 	m.Unlock()
 
@@ -246,11 +245,6 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
-	// Take references to the pending entries docs
-	// and make sure not to touch sort order until later.
-	entries := inserts.PendingEntries()
-	docs := inserts.PendingDocs()
-
 	m.Lock()
 	if m.state == mutableSegmentsStateClosed {
 		m.Unlock()
@@ -271,22 +265,29 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	}
 
 	m.compact.compactingForeground = true
-	if m.indexedSnapshot == nil {
-		m.indexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
-	}
-	for i := range docs {
-		m.indexedSnapshot.SetUnsafe(docs[i].ID, struct{}{}, builder.IDsMapSetUnsafeOptions{
-			NoCopyKey:     true,
-			NoFinalizeKey: true,
-		})
-	}
-	builder := m.compact.segmentBuilder
+	segmentBuilder := m.compact.segmentBuilder
 	m.Unlock()
 
 	// Updsate indexedBloomFilterByTime if needed.
 	var activeBlockStarts []xtime.UnixNano
 	if m.blockOpts.InMemoryBlock {
+		// Take references to the pending entries docs
+		// and make sure not to touch sort order until later.
+		entries := inserts.PendingEntries()
+		docs := inserts.PendingDocs()
+
 		m.indexedBloomFilterByTimeLock.Lock()
+		// Add to the indexed snapshot set.
+		if m.indexedSnapshot == nil {
+			m.indexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
+		}
+		for i := range docs {
+			m.indexedSnapshot.SetUnsafe(docs[i].ID, struct{}{}, builder.IDsMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			})
+		}
+
 		// Remove for indexing anything already indexed and
 		// also update the tracking of what things have been indexed
 		// for what block starts.
@@ -350,12 +351,12 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 		m.Unlock()
 	}()
 
-	builder.Reset()
-	insertResultErr := builder.InsertBatch(m3ninxindex.Batch{
+	segmentBuilder.Reset()
+	insertResultErr := segmentBuilder.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
 	})
-	if len(builder.Docs()) == 0 {
+	if len(segmentBuilder.Docs()) == 0 {
 		// No inserts, no need to compact.
 		return MutableSegmentsStats{}, insertResultErr
 	}
@@ -363,7 +364,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment from the segment builder before we can serve reads
 	// from an FST segment.
-	result, err := m.foregroundCompactWithBuilder(builder, activeBlockStarts)
+	result, err := m.foregroundCompactWithBuilder(segmentBuilder, activeBlockStarts)
 	if err != nil {
 		return MutableSegmentsStats{}, err
 	}
@@ -535,74 +536,82 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		activeBlockStarts []xtime.UnixNano
 		activeFilter      *builder.IDsMap
 	)
-	if m.blockOpts.InMemoryBlock && m.indexedSnapshot != nil {
-		// Only set the bloom filter to actively filter series out
-		// if there were any segments that need the active block starts
-		// updated.
-		activeBlockStarts = m.backgroundCompactActiveBlockStarts
-		activeFilter = m.backgroundCompactIndexedSnapshot
-		if activeFilter == nil {
-			activeFilter = builder.NewIDsMap(builder.IDsMapOptions{})
-			m.backgroundCompactIndexedSnapshot = activeFilter
+	if m.blockOpts.InMemoryBlock {
+		mayNeedFiltering := false
+		m.indexedBloomFilterByTimeLock.Lock()
+		if m.indexedSnapshot != nil {
+			mayNeedFiltering = true
+			// Only set the bloom filter to actively filter series out
+			// if there were any segments that need the active block starts
+			// updated.
+			activeBlockStarts = m.backgroundCompactActiveBlockStarts
+			activeFilter = m.backgroundCompactIndexedSnapshot
+			if activeFilter == nil {
+				activeFilter = builder.NewIDsMap(builder.IDsMapOptions{})
+				m.backgroundCompactIndexedSnapshot = activeFilter
+			}
+			// Copy the indexed snapshot map so can use it downstream safely
+			// without holding a lock.
+			activeFilter.Reset()
+			for _, elem := range m.indexedSnapshot.Iter() {
+				activeFilter.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: true,
+				})
+			}
 		}
-		// Copy the indexed snapshot map so can use it downstream safely
-		// without holding a lock.
-		activeFilter.Reset()
-		for _, elem := range m.indexedSnapshot.Iter() {
-			activeFilter.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
-				NoCopyKey:     true,
-				NoFinalizeKey: true,
-			})
-		}
+		m.indexedBloomFilterByTimeLock.Unlock()
 
 		// Now check which segments need filtering.
-		for _, seg := range m.backgroundSegments {
-			alreadyHasTask := false
-			for _, task := range plan.Tasks {
-				for _, taskSegment := range task.Segments {
-					if taskSegment.Segment == seg.Segment() {
-						alreadyHasTask = true
+		if mayNeedFiltering {
+			for _, seg := range m.backgroundSegments {
+				alreadyHasTask := false
+				for _, task := range plan.Tasks {
+					for _, taskSegment := range task.Segments {
+						if taskSegment.Segment == seg.Segment() {
+							alreadyHasTask = true
+							break
+						}
+					}
+				}
+				if alreadyHasTask {
+					// Skip needing to check if segment needs filtering.
+					continue
+				}
+
+				activeBlockStartsOutdated := false
+				for _, blockStart := range seg.containedBlockStarts {
+					found := false
+					for _, activeBlockStart := range activeBlockStarts {
+						if activeBlockStart == blockStart {
+							found = true
+							break
+						}
+					}
+					if !found {
+						// Contains an active block start that should be removed.
+						activeBlockStartsOutdated = true
 						break
 					}
 				}
-			}
-			if alreadyHasTask {
-				// Skip needing to check if segment needs filtering.
-				continue
-			}
 
-			activeBlockStartsOutdated := false
-			for _, blockStart := range seg.containedBlockStarts {
-				found := false
-				for _, activeBlockStart := range activeBlockStarts {
-					if activeBlockStart == blockStart {
-						found = true
-						break
-					}
+				if !activeBlockStartsOutdated {
+					continue
 				}
-				if !found {
-					// Contains an active block start that should be removed.
-					activeBlockStartsOutdated = true
-					break
-				}
-			}
 
-			if !activeBlockStartsOutdated {
-				continue
-			}
-
-			// The active block starts are outdated, need to compact
-			// and remove any old data from the segment.
-			plan.Tasks = append(plan.Tasks, compaction.Task{
-				Segments: []compaction.Segment{
-					{
-						Age:     seg.Age(),
-						Size:    seg.Segment().Size(),
-						Type:    segments.FSTType,
-						Segment: seg.Segment(),
+				// The active block starts are outdated, need to compact
+				// and remove any old data from the segment.
+				plan.Tasks = append(plan.Tasks, compaction.Task{
+					Segments: []compaction.Segment{
+						{
+							Age:     seg.Age(),
+							Size:    seg.Segment().Size(),
+							Type:    segments.FSTType,
+							Segment: seg.Segment(),
+						},
 					},
-				},
-			})
+				})
+			}
 		}
 	}
 
