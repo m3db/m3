@@ -344,6 +344,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 	defer func() {
 		m.Lock()
+		m.backgroundCompactActiveBlockStarts = activeBlockStarts
 		m.compact.compactingForeground = false
 		m.cleanupForegroundCompactWithLock()
 		m.Unlock()
@@ -532,30 +533,13 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 	var (
 		activeBlockStarts []xtime.UnixNano
-		activeFilter      segment.DocumentsFilter
 	)
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
+		activeBlockStarts = m.backgroundCompactActiveBlockStarts
 		m.indexedBloomFilterByTimeLock.Lock()
 		if m.indexedSnapshot.Len() > 0 {
 			mayNeedFiltering = true
-			// Only set the bloom filter to actively filter series out
-			// if there were any segments that need the active block starts
-			// updated.
-			activeBlockStarts = m.backgroundCompactActiveBlockStarts
-			if m.backgroundCompactIndexedSnapshot == nil {
-				m.backgroundCompactIndexedSnapshot = builder.NewIDsMap(builder.IDsMapOptions{})
-			}
-			// Copy the indexed snapshot map so can use it downstream safely
-			// without holding a lock.
-			m.backgroundCompactIndexedSnapshot.Reset()
-			for _, elem := range m.indexedSnapshot.Iter() {
-				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
-					NoCopyKey:     true,
-					NoFinalizeKey: true,
-				})
-			}
-			activeFilter = m.backgroundCompactIndexedSnapshot
 		}
 		m.indexedBloomFilterByTimeLock.Unlock()
 
@@ -619,6 +603,25 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	// Kick off compaction.
 	m.compact.compactingBackground = true
 	go func() {
+		var activeFilter segment.DocumentsFilter
+		m.indexedBloomFilterByTimeLock.Lock()
+		if m.indexedSnapshot.Len() > 0 {
+			// Only set the bloom filter to actively filter series out
+			// if there were any segments that need the active block starts
+			// updated.
+			// Copy the indexed snapshot map so can use it downstream safely
+			// without holding a lock.
+			m.backgroundCompactIndexedSnapshot.Reset()
+			for _, elem := range m.indexedSnapshot.Iter() {
+				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: true,
+				})
+			}
+			activeFilter = m.backgroundCompactIndexedSnapshot
+		}
+		m.indexedBloomFilterByTimeLock.Unlock()
+
 		m.backgroundCompactWithPlan(plan, activeBlockStarts, activeFilter)
 
 		m.Lock()
