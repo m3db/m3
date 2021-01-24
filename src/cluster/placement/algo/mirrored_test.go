@@ -116,7 +116,6 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetShardSetID(4).
 		SetWeight(4).
 		SetMetadata(placement.InstanceMetadata{DebugPort: 8})
-
 	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
@@ -171,7 +170,6 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{i16})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
-
 	assert.NoError(t, placement.Validate(p))
 
 	i9 := placement.NewInstance().
