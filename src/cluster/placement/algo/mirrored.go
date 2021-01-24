@@ -280,7 +280,7 @@ func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 		instance, exists := p.Instance(id)
 		if !exists {
 			// Instance with leaving shards could already be removed from placement
-			// after initializing shards are marked avaialble (if past cutover time) by below code block.
+			// after initializing shards are marked available (if past cutover time) by below code block.
 			continue
 		}
 
