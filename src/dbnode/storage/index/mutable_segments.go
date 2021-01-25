@@ -532,17 +532,13 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	var (
-		activeBlockStarts []xtime.UnixNano
-	)
+	var activeBlockStarts []xtime.UnixNano
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
 		activeBlockStarts = m.backgroundCompactActiveBlockStarts
-		m.indexedBloomFilterByTimeLock.Lock()
-		if m.indexedSnapshot.Len() > 0 {
+		if len(activeBlockStarts) > 0 {
 			mayNeedFiltering = true
 		}
-		m.indexedBloomFilterByTimeLock.Unlock()
 
 		// Now check which segments need filtering.
 		if mayNeedFiltering {
