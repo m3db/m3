@@ -31,6 +31,9 @@
 
 The simplest and quickest way to try M3 is to use Docker, read [the M3 quickstart section](https://m3db.io/docs/quickstart) for other options.
 
+This example uses [jq](https://stedolan.github.io/jq/) to format the output of API calls. It is not essential for using M3DB.
+
+
 ## Usage
 
 The below is a simplified version of the [M3 quickstart guide](https://m3db.io/docs/quickstart/docker/), and we suggest you read that for more details.
@@ -118,7 +121,7 @@ Recordings of past meetups can be found here: <https://vimeo.com/user/120001164/
 
 ## Office Hours
 
-Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
+Members of the M3 team hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
 
 <hr>
 
