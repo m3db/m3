@@ -516,13 +516,18 @@ func (m *mutableSegments) Close() {
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
-	if m.compact.compactingBackground {
+	if m.compact.compactingBackgroundStandard {
 		return
 	}
 
 	// Create a logical plan.
 	segs := make([]compaction.Segment, 0, len(m.backgroundSegments))
 	for _, seg := range m.backgroundSegments {
+		if seg.garbageCollecting {
+			// Do not try to compact something that we are background
+			// garbage collecting documents from (that have been phased out).
+			continue
+		}
 		segs = append(segs, compaction.Segment{
 			Age:     seg.Age(),
 			Size:    seg.Segment().Size(),
@@ -539,7 +544,10 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	var activeBlockStarts []xtime.UnixNano
+	var (
+		activeBlockStarts []xtime.UnixNano
+		gcPlan            = &compaction.Plan{}
+	)
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
 		activeBlockStarts = m.backgroundCompactActiveBlockStarts
@@ -547,8 +555,9 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			mayNeedFiltering = true
 		}
 
-		// Now check which segments need filtering.
-		if mayNeedFiltering {
+		// Now check which segments need filtering if and only if
+		// we're not background compacting.
+		if !m.compact.compactingBackgroundGarbageCollect && mayNeedFiltering {
 			for _, seg := range m.backgroundSegments {
 				alreadyHasTask := false
 				for _, task := range plan.Tasks {
@@ -586,7 +595,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 				// The active block starts are outdated, need to compact
 				// and remove any old data from the segment.
-				plan.Tasks = append(plan.Tasks, compaction.Task{
+				gcPlan.Tasks = append(gcPlan.Tasks, compaction.Task{
 					Segments: []compaction.Segment{
 						{
 							Age:     seg.Age(),
@@ -596,20 +605,28 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 						},
 					},
 				})
+
+				// Mark as not-compactable for standard compactions
+				// since this will be async compacted into a smaller
+				// segment.
+				seg.garbageCollecting = true
 			}
 		}
 	}
 
-	if len(plan.Tasks) == 0 {
+	if len(plan.Tasks) == 0 && len(gcPlan.Tasks) == 0 {
 		return
 	}
 
 	// Kick off compaction.
-	m.compact.compactingBackground = true
+	m.compact.compactingBackgroundStandard = true
+	if len(gcPlan.Tasks) != 0 {
+		m.compact.compactingBackgroundGarbageCollect = true
+	}
 	go func() {
 		var activeFilter segment.DocumentsFilter
 		m.indexedBloomFilterByTimeLock.Lock()
-		if m.indexedSnapshot.Len() > 0 {
+		if n := m.indexedSnapshot.Len(); n > 0 {
 			// Only set the bloom filter to actively filter series out
 			// if there were any segments that need the active block starts
 			// updated.
@@ -626,10 +643,22 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		}
 		m.indexedBloomFilterByTimeLock.Unlock()
 
+		if len(gcPlan.Tasks) != 0 {
+			// Run non-GC tasks separately so the standard loop is not blocked.
+			go func() {
+				m.backgroundCompactWithPlan(gcPlan, activeBlockStarts, activeFilter)
+
+				m.Lock()
+				m.compact.compactingBackgroundGarbageCollect = false
+				m.cleanupBackgroundCompactWithLock()
+				m.Unlock()
+			}()
+		}
+
 		m.backgroundCompactWithPlan(plan, activeBlockStarts, activeFilter)
 
 		m.Lock()
-		m.compact.compactingBackground = false
+		m.compact.compactingBackgroundStandard = false
 		m.cleanupBackgroundCompactWithLock()
 		m.Unlock()
 	}()
@@ -1095,20 +1124,21 @@ func (m *mutableSegments) cleanupCompactWithLock() {
 	if !m.compact.compactingForeground {
 		m.cleanupForegroundCompactWithLock()
 	}
-	if !m.compact.compactingBackground {
+	if !m.compact.compactingBackgroundStandard && !m.compact.compactingBackgroundGarbageCollect {
 		m.cleanupBackgroundCompactWithLock()
 	}
 }
 
 // mutableSegmentsCompact has several lazily allocated compaction components.
 type mutableSegmentsCompact struct {
-	segmentBuilder       segment.CloseableDocumentsBuilder
-	foregroundCompactor  *compaction.Compactor
-	backgroundCompactors chan *compaction.Compactor
-	compactingForeground bool
-	compactingBackground bool
-	numForeground        int
-	numBackground        int
+	segmentBuilder                     segment.CloseableDocumentsBuilder
+	foregroundCompactor                *compaction.Compactor
+	backgroundCompactors               chan *compaction.Compactor
+	compactingForeground               bool
+	compactingBackgroundStandard       bool
+	compactingBackgroundGarbageCollect bool
+	numForeground                      int
+	numBackground                      int
 }
 
 func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(

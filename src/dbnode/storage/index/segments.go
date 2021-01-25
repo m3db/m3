@@ -33,6 +33,7 @@ type readableSeg struct {
 	createdAt            time.Time
 	segment              segment.Segment
 	containedBlockStarts []xtime.UnixNano
+	garbageCollecting    bool
 }
 
 func newReadableSeg(
