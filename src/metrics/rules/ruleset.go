@@ -83,6 +83,9 @@ type RuleSet interface {
 	// RollupRuleHistory returns a map of rollup rule id to states that rule has been in.
 	RollupRules() (view.RollupRules, error)
 
+	// UtilizationRuleHistory returns a map of utilization rule id to states that rule has been in.
+	UtilizationRules() (view.UtilizationRules, error)
+
 	// Latest returns the latest snapshot of a ruleset containing the latest snapshots
 	// of each rule in the ruleset.
 	Latest() (view.RuleSet, error)
@@ -121,6 +124,16 @@ type MutableRuleSet interface {
 	// DeleteRollupRule deletes a rollup rule
 	DeleteRollupRule(string, UpdateMetadata) error
 
+	// AppendUtilizationRule creates a new utilization rule and adds it to this ruleset.
+	// Should return the id of the newly created rule.
+	AddUtilizationRule(view.UtilizationRule, UpdateMetadata) (string, error)
+
+	// UpdateUtilizationRule creates a new utilization rule and adds it to this ruleset.
+	UpdateUtilizationRule(view.UtilizationRule, UpdateMetadata) error
+
+	// DeleteUtilizationRule deletes a utilization rule
+	DeleteUtilizationRule(string, UpdateMetadata) error
+
 	// Tombstone tombstones this ruleset and all of its rules.
 	Delete(UpdateMetadata) error
 
@@ -142,6 +155,7 @@ type ruleSet struct {
 	cutoverNanos       int64
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
+	utilizationRules   []*utilizationRule
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricid.NewIDFn
 	isRollupIDFn       metricid.MatchIDFn
@@ -169,6 +183,14 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		}
 		rollupRules = append(rollupRules, rc)
 	}
+	utilizationRules := make([]*utilizationRule, 0, len(rs.UtilizationRules))
+	for _, utilizationRule := range rs.UtilizationRules {
+		rc, err := newUtilizationRuleFromProto(utilizationRule, tagsFilterOpts)
+		if err != nil {
+			return nil, err
+		}
+		utilizationRules = append(utilizationRules, rc)
+	}
 	return &ruleSet{
 		uuid:               rs.Uuid,
 		version:            version,
@@ -180,6 +202,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		cutoverNanos:       rs.CutoverNanos,
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
+		utilizationRules:   utilizationRules,
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
 		isRollupIDFn:       opts.IsRollupIDFn(),
@@ -189,12 +212,13 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 // NewEmptyRuleSet returns an empty ruleset to be used with a new namespace.
 func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 	rs := &ruleSet{
-		uuid:         uuid.NewUUID().String(),
-		version:      kv.UninitializedVersion,
-		namespace:    []byte(namespaceName),
-		tombstoned:   false,
-		mappingRules: make([]*mappingRule, 0),
-		rollupRules:  make([]*rollupRule, 0),
+		uuid:             uuid.NewUUID().String(),
+		version:          kv.UninitializedVersion,
+		namespace:        []byte(namespaceName),
+		tombstoned:       false,
+		mappingRules:     make([]*mappingRule, 0),
+		rollupRules:      make([]*rollupRule, 0),
+		utilizationRules: make([]*utilizationRule, 0),
 	}
 	rs.updateMetadata(meta)
 	return rs
@@ -219,10 +243,16 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		activeRule := rollupRule.activeRule(timeNanos)
 		rollupRules = append(rollupRules, activeRule)
 	}
+	utilizationRules := make([]*utilizationRule, 0, len(rs.utilizationRules))
+	for _, utilizationRule := range rs.utilizationRules {
+		activeRule := utilizationRule.activeRule(timeNanos)
+		utilizationRules = append(utilizationRules, activeRule)
+	}
 	return newActiveRuleSet(
 		rs.version,
 		mappingRules,
 		rollupRules,
+		utilizationRules,
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
@@ -286,6 +316,18 @@ func (rs *ruleSet) RollupRules() (view.RollupRules, error) {
 		rollupRules[r.uuid] = hist
 	}
 	return rollupRules, nil
+}
+
+func (rs *ruleSet) UtilizationRules() (view.UtilizationRules, error) {
+	utilizationRules := make(view.UtilizationRules, len(rs.utilizationRules))
+	for _, r := range rs.utilizationRules {
+		hist, err := r.history()
+		if err != nil {
+			return nil, err
+		}
+		utilizationRules[r.uuid] = hist
+	}
+	return utilizationRules, nil
 }
 
 func (rs *ruleSet) Latest() (view.RuleSet, error) {
@@ -475,6 +517,71 @@ func (rs *ruleSet) DeleteRollupRule(id string, meta UpdateMetadata) error {
 	return nil
 }
 
+func (rs *ruleSet) AddUtilizationRule(rrv view.UtilizationRule, meta UpdateMetadata) (string, error) {
+	r, err := rs.getUtilizationRuleByName(rrv.Name)
+	if err != nil && err != errRuleNotFound {
+		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
+	}
+	targets := newRollupTargetsFromView(rrv.Targets)
+	if err == errRuleNotFound {
+		r = newEmptyUtilizationRule()
+		if err = r.addSnapshot(
+			rrv.Name,
+			rrv.Filter,
+			targets,
+			meta,
+			rrv.Value,
+		); err != nil {
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
+		}
+		rs.utilizationRules = append(rs.utilizationRules, r)
+	} else {
+		if err := r.revive(
+			rrv.Name,
+			rrv.Filter,
+			targets,
+			meta,
+			rrv.Value,
+		); err != nil {
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", rrv.Name))
+		}
+	}
+	rs.updateMetadata(meta)
+	return r.uuid, nil
+}
+
+func (rs *ruleSet) UpdateUtilizationRule(rrv view.UtilizationRule, meta UpdateMetadata) error {
+	r, err := rs.getUtilizationRuleByID(rrv.ID)
+	if err != nil {
+		return merrors.NewInvalidInputError(fmt.Sprintf(ruleIDNotFoundErrorFmt, rrv.ID))
+	}
+	targets := newRollupTargetsFromView(rrv.Targets)
+	if err = r.addSnapshot(
+		rrv.Name,
+		rrv.Filter,
+		targets,
+		meta,
+		rrv.Value,
+	); err != nil {
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", rrv.Name))
+	}
+	rs.updateMetadata(meta)
+	return nil
+}
+
+func (rs *ruleSet) DeleteUtilizationRule(id string, meta UpdateMetadata) error {
+	r, err := rs.getUtilizationRuleByID(id)
+	if err != nil {
+		return merrors.NewInvalidInputError(fmt.Sprintf(ruleIDNotFoundErrorFmt, id))
+	}
+
+	if err := r.markTombstoned(meta); err != nil {
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
+	}
+	rs.updateMetadata(meta)
+	return nil
+}
+
 func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 	if rs.tombstoned {
 		return fmt.Errorf("%s is already tombstoned", string(rs.namespace))
@@ -501,6 +608,9 @@ func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 
 func (rs *ruleSet) ApplyRuleSetChanges(rsc changes.RuleSetChanges, meta UpdateMetadata) error {
 	if err := rs.applyMappingRuleChanges(rsc.MappingRuleChanges, meta); err != nil {
+		return err
+	}
+	if err := rs.applyUtilizationRuleChanges(rsc.UtilizationRuleChanges, meta); err != nil {
 		return err
 	}
 	return rs.applyRollupRuleChanges(rsc.RollupRuleChanges, meta)
@@ -568,6 +678,29 @@ func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 	return nil, errRuleNotFound
 }
 
+func (rs *ruleSet) getUtilizationRuleByName(name string) (*utilizationRule, error) {
+	for _, r := range rs.utilizationRules {
+		n, err := r.name()
+		if err != nil {
+			return nil, err
+		}
+
+		if n == name {
+			return r, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
+func (rs *ruleSet) getUtilizationRuleByID(id string) (*utilizationRule, error) {
+	for _, r := range rs.utilizationRules {
+		if r.uuid == id {
+			return r, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
 func (rs *ruleSet) latestMappingRules() ([]view.MappingRule, error) {
 	mrs, err := rs.MappingRules()
 	if err != nil {
@@ -597,6 +730,22 @@ func (rs *ruleSet) latestRollupRules() ([]view.RollupRule, error) {
 		}
 	}
 	sort.Sort(view.RollupRulesByNameAsc(filtered))
+	return filtered, nil
+}
+
+func (rs *ruleSet) latestUtilizationRules() ([]view.UtilizationRule, error) {
+	rrs, err := rs.UtilizationRules()
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]view.UtilizationRule, 0, len(rrs))
+	for _, r := range rrs {
+		if len(r) > 0 && !r[0].Tombstoned {
+			// Rule snapshots are sorted by cutover time in descending order.
+			filtered = append(filtered, r[0])
+		}
+	}
+	sort.Sort(view.UtilizationRulesByNameAsc(filtered))
 	return filtered, nil
 }
 
@@ -636,6 +785,29 @@ func (rs *ruleSet) applyRollupRuleChanges(rrChanges []changes.RollupRuleChange, 
 			}
 		case changes.DeleteOp:
 			if err := rs.DeleteRollupRule(*rrChange.RuleID, meta); err != nil {
+				return err
+			}
+		default:
+			return merrors.NewInvalidInputError(fmt.Sprintf(unknownOpTypeFmt, rrChange.Op))
+		}
+	}
+
+	return nil
+}
+
+func (rs *ruleSet) applyUtilizationRuleChanges(rrChanges []changes.UtilizationRuleChange, meta UpdateMetadata) error {
+	for _, rrChange := range rrChanges {
+		switch rrChange.Op {
+		case changes.AddOp:
+			if _, err := rs.AddUtilizationRule(*rrChange.RuleData, meta); err != nil {
+				return err
+			}
+		case changes.ChangeOp:
+			if err := rs.UpdateUtilizationRule(*rrChange.RuleData, meta); err != nil {
+				return err
+			}
+		case changes.DeleteOp:
+			if err := rs.DeleteUtilizationRule(*rrChange.RuleID, meta); err != nil {
 				return err
 			}
 		default:

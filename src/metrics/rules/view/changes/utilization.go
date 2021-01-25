@@ -20,21 +20,34 @@
 
 package changes
 
-import (
-	"sort"
-)
+import "github.com/m3db/m3/src/metrics/rules/view"
 
-// RuleSetChanges is a ruleset diff.
-type RuleSetChanges struct {
-	Namespace              string                  `json:"namespace"`
-	MappingRuleChanges     []MappingRuleChange     `json:"mappingRuleChanges"`
-	RollupRuleChanges      []RollupRuleChange      `json:"rollupRuleChanges"`
-	UtilizationRuleChanges []UtilizationRuleChange `json:"utilizationRuleChanges"`
+// UtilizationRuleChange is a utilization rule diff.
+type UtilizationRuleChange struct {
+	Op       Op               `json:"op"`
+	RuleID   *string          `json:"ruleID,omitempty"`
+	RuleData *view.UtilizationRule `json:"ruleData,omitempty"`
 }
 
-// Sort sorts the ruleset diff by op and rule names.
-func (d *RuleSetChanges) Sort() {
-	sort.Sort(mappingRuleChangesByOpAscNameAscIDAsc(d.MappingRuleChanges))
-	sort.Sort(rollupRuleChangesByOpAscNameAscIDAsc(d.RollupRuleChanges))
-	sort.Sort(utilizationRuleChangesByOpAscNameAscIDAsc(d.UtilizationRuleChanges))
+type utilizationRuleChangesByOpAscNameAscIDAsc []UtilizationRuleChange
+
+func (a utilizationRuleChangesByOpAscNameAscIDAsc) Len() int      { return len(a) }
+func (a utilizationRuleChangesByOpAscNameAscIDAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a utilizationRuleChangesByOpAscNameAscIDAsc) Less(i, j int) bool {
+	if a[i].Op < a[j].Op {
+		return true
+	}
+	if a[i].Op > a[j].Op {
+		return false
+	}
+	// For adds and changes.
+	if a[i].RuleData != nil && a[j].RuleData != nil {
+		return a[i].RuleData.Name < a[j].RuleData.Name
+	}
+	// For deletes.
+	if a[i].RuleID != nil && a[j].RuleID != nil {
+		return *a[i].RuleID < *a[j].RuleID
+	}
+	// This should not happen.
+	return false
 }

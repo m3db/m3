@@ -85,6 +85,9 @@ func (v *validator) validateSnapshot(snapshot view.RuleSet) error {
 	if err := v.validateMappingRules(snapshot.MappingRules); err != nil {
 		return err
 	}
+	if err := v.validateUtilziationRules(snapshot.UtilizationRules); err != nil {
+		return err
+	}
 	return v.validateRollupRules(snapshot.RollupRules)
 }
 
@@ -191,6 +194,54 @@ func (v *validator) validateRollupRules(rrv []view.RollupRule) error {
 			}
 			pipelines = append(pipelines, target.Pipeline)
 		}
+	}
+
+	return validateNoDuplicateRollupIDIn(pipelines)
+}
+
+func (v *validator) validateUtilziationRules(rrv []view.UtilizationRule) error {
+	var (
+		namesSeen = make(map[string]struct{}, len(rrv))
+		pipelines = make([]mpipeline.Pipeline, 0, len(rrv))
+	)
+	for _, rule := range rrv {
+		if rule.Tombstoned {
+			continue
+		}
+		// Validate that no rules with the same name exist.
+		if _, exists := namesSeen[rule.Name]; exists {
+			return merrors.NewInvalidInputError(fmt.Sprintf("utilzation rule '%s' already exists", rule.Name))
+		}
+		namesSeen[rule.Name] = struct{}{}
+
+		// Validate that the filter is valid.
+		filterValues, err := v.validateFilter(rule.Filter)
+		if err != nil {
+			return fmt.Errorf("utilization rule '%s' has invalid filter %s: %v", rule.Name, rule.Filter, err)
+		}
+
+		// Validate the metric types.
+		types, err := v.opts.MetricTypesFn()(filterValues)
+		if err != nil {
+			return fmt.Errorf("utilization rule '%s' cannot infer metric types from filter %v: %v", rule.Name, rule.Filter, err)
+		}
+		if len(types) == 0 {
+			return fmt.Errorf("utilization rule '%s' does not match any allowed metric types, filter=%s", rule.Name, rule.Filter)
+		}
+
+		for _, target := range rule.Targets {
+			// Validate the pipeline is valid.
+			if err := v.validatePipeline(target.Pipeline, types); err != nil {
+				return fmt.Errorf("utilization rule '%s' has invalid pipeline '%v': %v", rule.Name, target.Pipeline, err)
+			}
+
+			// Validate that the storage policies are valid.
+			if err := v.validateStoragePolicies(target.StoragePolicies, types); err != nil {
+				return fmt.Errorf("utilization rule '%s' has invalid storage policies in %v: %v", rule.Name, target.StoragePolicies, err)
+			}
+			pipelines = append(pipelines, target.Pipeline)
+		}
+		//TODO 22/01/2021 andreisokol: any other validations?
 	}
 
 	return validateNoDuplicateRollupIDIn(pipelines)

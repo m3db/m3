@@ -53,19 +53,21 @@ type Matcher interface {
 }
 
 type activeRuleSet struct {
-	version         int
-	mappingRules    []*mappingRule
-	rollupRules     []*rollupRule
-	cutoverTimesAsc []int64
-	tagsFilterOpts  filters.TagsFilterOptions
-	newRollupIDFn   metricid.NewIDFn
-	isRollupIDFn    metricid.MatchIDFn
+	version          int
+	mappingRules     []*mappingRule
+	rollupRules      []*rollupRule
+	utilizationRules []*utilizationRule
+	cutoverTimesAsc  []int64
+	tagsFilterOpts   filters.TagsFilterOptions
+	newRollupIDFn    metricid.NewIDFn
+	isRollupIDFn     metricid.MatchIDFn
 }
 
 func newActiveRuleSet(
 	version int,
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
+	utilizationRules []*utilizationRule,
 	tagsFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricid.NewIDFn,
 	isRollupIDFn metricid.MatchIDFn,
@@ -81,6 +83,11 @@ func newActiveRuleSet(
 			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
 		}
 	}
+	for _, utilizationRule := range utilizationRules {
+		for _, snapshot := range utilizationRule.snapshots {
+			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
+		}
+	}
 
 	cutoverTimesAsc := make([]int64, 0, len(uniqueCutoverTimes))
 	for t := range uniqueCutoverTimes {
@@ -89,13 +96,14 @@ func newActiveRuleSet(
 	sort.Sort(int64Asc(cutoverTimesAsc))
 
 	return &activeRuleSet{
-		version:         version,
-		mappingRules:    mappingRules,
-		rollupRules:     rollupRules,
-		cutoverTimesAsc: cutoverTimesAsc,
-		tagsFilterOpts:  tagsFilterOpts,
-		newRollupIDFn:   newRollupIDFn,
-		isRollupIDFn:    isRollupIDFn,
+		version:          version,
+		mappingRules:     mappingRules,
+		rollupRules:      rollupRules,
+		utilizationRules: utilizationRules,
+		cutoverTimesAsc:  cutoverTimesAsc,
+		tagsFilterOpts:   tagsFilterOpts,
+		newRollupIDFn:    newRollupIDFn,
+		isRollupIDFn:     isRollupIDFn,
 	}
 }
 
