@@ -9616,6 +9616,7 @@ func (p *HealthResult_) String() string {
 //  - RangeType
 //  - Source
 //  - DocsLimit
+//  - RequireExhaustive
 type AggregateQueryRawRequest struct {
 	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -9627,6 +9628,7 @@ type AggregateQueryRawRequest struct {
 	RangeType          TimeType           `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
 	Source             []byte             `thrift:"source,9" db:"source" json:"source,omitempty"`
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
+	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 }
 
 func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
@@ -9694,6 +9696,15 @@ func (p *AggregateQueryRawRequest) GetDocsLimit() int64 {
 	}
 	return *p.DocsLimit
 }
+
+var AggregateQueryRawRequest_RequireExhaustive_DEFAULT bool
+
+func (p *AggregateQueryRawRequest) GetRequireExhaustive() bool {
+	if !p.IsSetRequireExhaustive() {
+		return AggregateQueryRawRequest_RequireExhaustive_DEFAULT
+	}
+	return *p.RequireExhaustive
+}
 func (p *AggregateQueryRawRequest) IsSetSeriesLimit() bool {
 	return p.SeriesLimit != nil
 }
@@ -9716,6 +9727,10 @@ func (p *AggregateQueryRawRequest) IsSetSource() bool {
 
 func (p *AggregateQueryRawRequest) IsSetDocsLimit() bool {
 	return p.DocsLimit != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetRequireExhaustive() bool {
+	return p.RequireExhaustive != nil
 }
 
 func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
@@ -9779,6 +9794,10 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 10:
 			if err := p.ReadField10(iprot); err != nil {
+				return err
+			}
+		case 11:
+			if err := p.ReadField11(iprot); err != nil {
 				return err
 			}
 		default:
@@ -9913,6 +9932,15 @@ func (p *AggregateQueryRawRequest) ReadField10(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRawRequest) ReadField11(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 11: ", err)
+	} else {
+		p.RequireExhaustive = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -9946,6 +9974,9 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField10(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField11(oprot); err != nil {
 			return err
 		}
 	}
@@ -10103,6 +10134,21 @@ func (p *AggregateQueryRawRequest) writeField10(oprot thrift.TProtocol) (err err
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:docsLimit: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireExhaustive() {
+		if err := oprot.WriteFieldBegin("requireExhaustive", thrift.BOOL, 11); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 11:requireExhaustive: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireExhaustive)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireExhaustive (11) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireExhaustive: ", p), err)
 		}
 	}
 	return err
@@ -10544,6 +10590,7 @@ func (p *AggregateQueryRawResultTagValueElement) String() string {
 //  - RangeType
 //  - Source
 //  - DocsLimit
+//  - RequireExhaustive
 type AggregateQueryRequest struct {
 	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -10555,6 +10602,7 @@ type AggregateQueryRequest struct {
 	RangeType          TimeType           `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
 	Source             []byte             `thrift:"source,9" db:"source" json:"source,omitempty"`
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
+	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 }
 
 func NewAggregateQueryRequest() *AggregateQueryRequest {
@@ -10627,6 +10675,15 @@ func (p *AggregateQueryRequest) GetDocsLimit() int64 {
 	}
 	return *p.DocsLimit
 }
+
+var AggregateQueryRequest_RequireExhaustive_DEFAULT bool
+
+func (p *AggregateQueryRequest) GetRequireExhaustive() bool {
+	if !p.IsSetRequireExhaustive() {
+		return AggregateQueryRequest_RequireExhaustive_DEFAULT
+	}
+	return *p.RequireExhaustive
+}
 func (p *AggregateQueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
@@ -10653,6 +10710,10 @@ func (p *AggregateQueryRequest) IsSetSource() bool {
 
 func (p *AggregateQueryRequest) IsSetDocsLimit() bool {
 	return p.DocsLimit != nil
+}
+
+func (p *AggregateQueryRequest) IsSetRequireExhaustive() bool {
+	return p.RequireExhaustive != nil
 }
 
 func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
@@ -10714,6 +10775,10 @@ func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 10:
 			if err := p.ReadField10(iprot); err != nil {
+				return err
+			}
+		case 11:
+			if err := p.ReadField11(iprot); err != nil {
 				return err
 			}
 		default:
@@ -10844,6 +10909,15 @@ func (p *AggregateQueryRequest) ReadField10(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRequest) ReadField11(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 11: ", err)
+	} else {
+		p.RequireExhaustive = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -10877,6 +10951,9 @@ func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField10(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField11(oprot); err != nil {
 			return err
 		}
 	}
@@ -11036,6 +11113,21 @@ func (p *AggregateQueryRequest) writeField10(oprot thrift.TProtocol) (err error)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:docsLimit: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireExhaustive() {
+		if err := oprot.WriteFieldBegin("requireExhaustive", thrift.BOOL, 11); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 11:requireExhaustive: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.RequireExhaustive)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireExhaustive (11) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:requireExhaustive: ", p), err)
 		}
 	}
 	return err

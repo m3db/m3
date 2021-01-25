@@ -95,11 +95,12 @@ func FetchOptionsToAggregateOptions(
 ) index.AggregationOptions {
 	return index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			SeriesLimit:    fetchOptions.SeriesLimit,
-			DocsLimit:      fetchOptions.DocsLimit,
-			Source:         fetchOptions.Source,
-			StartInclusive: tagQuery.Start,
-			EndExclusive:   tagQuery.End,
+			SeriesLimit:       fetchOptions.SeriesLimit,
+			DocsLimit:         fetchOptions.DocsLimit,
+			Source:            fetchOptions.Source,
+			RequireExhaustive: fetchOptions.RequireExhaustive,
+			StartInclusive:    tagQuery.Start,
+			EndExclusive:      tagQuery.End,
 		},
 		FieldFilter: tagQuery.FilterNameTags,
 		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
