@@ -114,7 +114,7 @@ Read [the development guide](DEVELOPMENT.md) to help you get setup for building 
 
 ## Community Meetings
 
-M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
+M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
 <https://www.meetup.com/M3-Community/>.
 
 Recordings of past meetups can be found here: <https://vimeo.com/user/120001164/folder/2290331>.
