@@ -172,16 +172,18 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 
 func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	var (
-		seriesLimit int64 = 10
-		docsLimit   int64 = 10
-		ns                = ident.StringID("abc")
+		seriesLimit       int64 = 10
+		docsLimit         int64 = 10
+		requireExhaustive       = true
+		ns                      = ident.StringID("abc")
 	)
 	opts := index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			StartInclusive: time.Now().Add(-900 * time.Hour),
-			EndExclusive:   time.Now(),
-			SeriesLimit:    int(seriesLimit),
-			DocsLimit:      int(docsLimit),
+			StartInclusive:    time.Now().Add(-900 * time.Hour),
+			EndExclusive:      time.Now(),
+			SeriesLimit:       int(seriesLimit),
+			DocsLimit:         int(docsLimit),
+			RequireExhaustive: requireExhaustive,
 		},
 		Type: index.AggregateTagNamesAndValues,
 		FieldFilter: index.AggregateFieldFilter{
@@ -190,11 +192,12 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 		},
 	}
 	requestSkeleton := &rpc.AggregateQueryRawRequest{
-		NameSpace:   ns.Bytes(),
-		RangeStart:  mustToRpcTime(t, opts.StartInclusive),
-		RangeEnd:    mustToRpcTime(t, opts.EndExclusive),
-		SeriesLimit: &seriesLimit,
-		DocsLimit:   &docsLimit,
+		NameSpace:         ns.Bytes(),
+		RangeStart:        mustToRpcTime(t, opts.StartInclusive),
+		RangeEnd:          mustToRpcTime(t, opts.EndExclusive),
+		SeriesLimit:       &seriesLimit,
+		DocsLimit:         &docsLimit,
+		RequireExhaustive: &requireExhaustive,
 		TagNameFilter: [][]byte{
 			[]byte("some"),
 			[]byte("string"),
