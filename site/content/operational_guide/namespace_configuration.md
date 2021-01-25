@@ -115,9 +115,14 @@ Deleting a namespace is a simple as using the `DELETE` `/api/v1/services/m3db/na
 `curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/services/m3db/namespace/<NAMESPACE_NAME>`
 
 Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted.
+
 ### Modifying a Namespace
 
-There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example, it is never safe to modify the blockSize of a namespace.
+There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. 
+
+{{% notice warning %}}
+For example, it is never safe to modify the blockSize of a namespace.
+{{% /notice %}}
 
 Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
 

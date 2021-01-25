@@ -40,6 +40,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -1004,6 +1005,7 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.Limits.WriteNewSeriesPerSecond)
 		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
 			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
+		kvWatchQueryLimit(syncCfg.KVStore, logger, queryLimits, limitOpts)
 	}()
 
 	// Wait for process interrupt.
@@ -1174,6 +1176,100 @@ func kvWatchEncodersPerBlockLimit(
 			}
 		}
 	}()
+}
+
+func kvWatchQueryLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	limits limits.QueryLimits,
+	defaultOpts limits.Options,
+) {
+	value, err := store.Get(kvconfig.QueryLimits)
+	if err == nil {
+		dynamicLimits := &kvpb.QueryLimits{}
+		err = value.Unmarshal(dynamicLimits)
+		if err == nil {
+			updateQueryLimits(logger, limits, dynamicLimits, defaultOpts)
+		}
+	} else if !errors.Is(err, kv.ErrNotFound) {
+		logger.Warn("error resolving query limit", zap.Error(err))
+	}
+
+	watch, err := store.Watch(kvconfig.QueryLimits)
+	if err != nil {
+		logger.Error("could not watch query limit", zap.Error(err))
+		return
+	}
+
+	go func() {
+		dynamicLimits := &kvpb.QueryLimits{}
+		for range watch.C() {
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(dynamicLimits); err != nil {
+					logger.Warn("unable to parse new query limits", zap.Error(err))
+					continue
+				}
+				updateQueryLimits(logger, limits, dynamicLimits, defaultOpts)
+			}
+		}
+	}()
+}
+
+func updateQueryLimits(logger *zap.Logger,
+	queryLimits limits.QueryLimits,
+	dynamicOpts *kvpb.QueryLimits,
+	configOpts limits.Options,
+) {
+	var (
+		// Default to the config-based limits if unset in dynamic limits.
+		// Otherwise, use the dynamic limit.
+		docsLimitOpts           = configOpts.DocsLimitOpts()
+		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
+		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
+	)
+	if dynamicOpts != nil {
+		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
+			docsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesBlocks)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
+			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead)
+		}
+	}
+
+	if err := updateQueryLimit(queryLimits.DocsLimit(), docsLimitOpts); err != nil {
+		logger.Error("error updating docs limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(queryLimits.DiskSeriesReadLimit(), diskSeriesReadLimitOpts); err != nil {
+		logger.Error("error updating series read limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(queryLimits.BytesReadLimit(), bytesReadLimitOpts); err != nil {
+		logger.Error("error updating bytes read limit", zap.Error(err))
+	}
+}
+
+func updateQueryLimit(
+	limit limits.LookbackLimit,
+	newOpts limits.LookbackLimitOptions,
+) error {
+	old := limit.Options()
+	if old.Equals(newOpts) {
+		return nil
+	}
+
+	return limit.Update(newOpts)
+}
+
+func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimitOptions {
+	return limits.LookbackLimitOptions{
+		Limit:         dynamicLimit.Limit,
+		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
+		ForceExceeded: dynamicLimit.ForceExceeded,
+	}
 }
 
 func kvWatchClientConsistencyLevels(

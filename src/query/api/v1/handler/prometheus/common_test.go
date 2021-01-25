@@ -22,16 +22,22 @@ package prometheus
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/test"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromCompressedReadSuccess(t *testing.T) {
@@ -102,7 +108,7 @@ func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
 	}
 
 	seriesMatchResult := []models.Metrics{
-		models.Metrics{
+		{
 			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
 			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
 		},
@@ -133,5 +139,57 @@ func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
 		}
 
 		assert.Equal(t, expected, w.value)
+	}
+}
+
+func TestParseStartAndEnd(t *testing.T) {
+	endTime := time.Now().Truncate(time.Hour)
+	opts := promql.NewParseOptions().SetNowFn(func() time.Time { return endTime })
+
+	tests := []struct {
+		querystring string
+		exStart     time.Time
+		exEnd       time.Time
+		exErr       bool
+	}{
+		{querystring: "", exStart: time.Unix(0, 0), exEnd: endTime},
+		{querystring: "start=100", exStart: time.Unix(100, 0), exEnd: endTime},
+		{querystring: "start=100&end=200", exStart: time.Unix(100, 0), exEnd: time.Unix(200, 0)},
+		{querystring: "start=200&end=100", exErr: true},
+		{querystring: "start=foo&end=100", exErr: true},
+		{querystring: "start=100&end=bar", exErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			start, end, err := ParseStartAndEnd(req, opts)
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+				assert.Equal(t, tt.exEnd, end)
+			}
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("POST_%s", tt.querystring), func(t *testing.T) {
+			b := bytes.NewBuffer([]byte(tt.querystring))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", b)
+			require.NoError(t, err)
+			req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
+
+			start, end, err := ParseStartAndEnd(req, opts)
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
+				assert.Equal(t, tt.exEnd, end)
+			}
+		})
 	}
 }
