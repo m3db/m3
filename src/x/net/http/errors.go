@@ -25,8 +25,17 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
+)
+
+// ErrorRewriteFn is a function for rewriting response error.
+type ErrorRewriteFn func(error) error
+
+var (
+	errorRewriteFn     ErrorRewriteFn = func(err error) error { return err }
+	errorRewriteFnLock sync.RWMutex
 )
 
 // Error is an HTTP JSON error that also sets a return status code.
@@ -68,7 +77,8 @@ func (e errorWithCode) Code() int {
 
 // ErrorResponse is a generic response for an HTTP error.
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
 }
 
 type options struct {
@@ -92,15 +102,29 @@ func WriteError(w http.ResponseWriter, err error, opts ...WriteErrorOption) {
 		fn(&o)
 	}
 
+	errorRewriteFnLock.RLock()
+	err = errorRewriteFn(err)
+	errorRewriteFnLock.RUnlock()
+
 	statusCode := getStatusCode(err)
 	if o.response == nil {
 		w.Header().Set(HeaderContentType, ContentTypeJSON)
 		w.WriteHeader(statusCode)
-		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		json.NewEncoder(w).Encode(ErrorResponse{Status: "error", Error: err.Error()}) //nolint:errcheck
 	} else {
 		w.WriteHeader(statusCode)
 		w.Write(o.response)
 	}
+}
+
+// SetErrorRewriteFn sets error rewrite function.
+func SetErrorRewriteFn(f ErrorRewriteFn) ErrorRewriteFn {
+	errorRewriteFnLock.Lock()
+	defer errorRewriteFnLock.Unlock()
+
+	res := errorRewriteFn
+	errorRewriteFn = f
+	return res
 }
 
 func getStatusCode(err error) int {
@@ -117,7 +141,7 @@ func getStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
-// IsClientError returns true if this error would result in 4xx status code
+// IsClientError returns true if this error would result in 4xx status code.
 func IsClientError(err error) bool {
 	code := getStatusCode(err)
 	return code >= 400 && code < 500

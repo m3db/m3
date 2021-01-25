@@ -159,22 +159,29 @@ type BaseResults interface {
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
+	Finalize()
+}
+
+// DocumentResults is a collection of query results that allow accumulation of
+// document values, it is synchronized when access to the results set is used
+// as documented by the methods.
+type DocumentResults interface {
+	BaseResults
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
-
-	// Finalize releases any resources held by the Results object,
-	// including returning it to a backing pool.
-	Finalize()
 }
 
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {
-	BaseResults
+	DocumentResults
 
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID, opts QueryResultsOptions)
@@ -258,6 +265,9 @@ type AggregateResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
+
+	// DocsLimit limits the amount of documents
+	DocsLimit int
 
 	// Type determines what result is required.
 	Type AggregationType
@@ -357,7 +367,7 @@ type Block interface {
 		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
-		results BaseResults,
+		results DocumentResults,
 		logFields []opentracinglog.Field,
 	) (bool, error)
 
@@ -512,7 +522,7 @@ type WriteBatch struct {
 	sortBy writeBatchSortBy
 
 	entries []WriteBatchEntry
-	docs    []doc.Document
+	docs    []doc.Metadata
 }
 
 type writeBatchSortBy uint
@@ -533,14 +543,14 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 	return &WriteBatch{
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
-		docs:    make([]doc.Document, 0, opts.InitialCapacity),
+		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
 	}
 }
 
 // Append appends an entry with accompanying document.
 func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 ) {
 	// Append just using the result from the current entry
 	b.appendWithResult(entry, doc, &entry.resultVal)
@@ -562,7 +572,7 @@ func (b *WriteBatch) AppendAll(from *WriteBatch) {
 
 func (b *WriteBatch) appendWithResult(
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result *WriteBatchEntryResult,
 ) {
 	// Set private WriteBatchEntry fields
@@ -579,7 +589,7 @@ func (b *WriteBatch) appendWithResult(
 type ForEachWriteBatchEntryFn func(
 	idx int,
 	entry WriteBatchEntry,
-	doc doc.Document,
+	doc doc.Metadata,
 	result WriteBatchEntryResult,
 )
 
@@ -677,7 +687,7 @@ func (b *WriteBatch) numPending() int {
 }
 
 // PendingDocs returns all the docs in this batch that are unmarked.
-func (b *WriteBatch) PendingDocs() []doc.Document {
+func (b *WriteBatch) PendingDocs() []doc.Metadata {
 	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
 	return b.docs[:b.numPending()]
 }
@@ -707,7 +717,7 @@ func (b *WriteBatch) Reset() {
 		b.entries[i] = entryZeroed
 	}
 	b.entries = b.entries[:0]
-	var docZeroed doc.Document
+	var docZeroed doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = docZeroed
 	}
@@ -936,6 +946,12 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetMetadataArrayPool sets the document container array pool.
+	SetMetadataArrayPool(value doc.MetadataArrayPool) Options
+
+	// MetadataArrayPool returns the document container array pool.
+	MetadataArrayPool() doc.MetadataArrayPool
 
 	// SetAggregateResultsEntryArrayPool sets the aggregate results entry array pool.
 	SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options

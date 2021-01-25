@@ -21,6 +21,10 @@
 package matcher
 
 import (
+	"time"
+
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
@@ -37,53 +41,117 @@ type Matcher interface {
 }
 
 type matcher struct {
-	opts             Options
-	namespaceTag     []byte
-	defaultNamespace []byte
-
-	namespaces Namespaces
-	cache      cache.Cache
+	namespaceResolver namespaceResolver
+	namespaces        Namespaces
+	cache             cache.Cache
+	metrics           matcherMetrics
 }
 
-// NewMatcher creates a new rule matcher.
+type namespaceResolver struct {
+	namespaceTag     []byte
+	defaultNamespace []byte
+}
+
+func (r namespaceResolver) Resolve(id id.ID) []byte {
+	ns, found := id.TagValue(r.namespaceTag)
+	if !found {
+		ns = r.defaultNamespace
+	}
+	return ns
+}
+
+// NewMatcher creates a new rule matcher, optionally with a cache.
 func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
+	nsResolver := namespaceResolver{
+		namespaceTag:     opts.NamespaceTag(),
+		defaultNamespace: opts.DefaultNamespace(),
+	}
+
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
-	namespacesOpts := opts.SetInstrumentOptions(iOpts).
-		SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Register(namespace, ruleSet)
-		}).
-		SetOnNamespaceRemovedFn(func(namespace []byte) {
-			cache.Unregister(namespace)
-		}).
-		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Refresh(namespace, ruleSet)
-		})
-	key := opts.NamespacesKey()
-	namespaces := NewNamespaces(key, namespacesOpts)
+	namespacesOpts := opts.SetInstrumentOptions(iOpts)
+
+	if cache != nil {
+		namespacesOpts = namespacesOpts.
+			SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Register(namespace, ruleSet)
+			}).
+			SetOnNamespaceRemovedFn(func(namespace []byte) {
+				cache.Unregister(namespace)
+			}).
+			SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Refresh(namespace, ruleSet)
+			})
+	}
+
+	namespaces := NewNamespaces(opts.NamespacesKey(), namespacesOpts)
 	if err := namespaces.Open(); err != nil {
 		return nil, err
 	}
 
+	if cache == nil {
+		return &noCacheMatcher{
+			namespaceResolver: nsResolver,
+			namespaces:        namespaces,
+			metrics:           newMatcherMetrics(scope.SubScope("matcher")),
+		}, nil
+	}
+
 	return &matcher{
-		opts:             opts,
-		namespaceTag:     opts.NamespaceTag(),
-		defaultNamespace: opts.DefaultNamespace(),
-		namespaces:       namespaces,
-		cache:            cache,
+		namespaceResolver: nsResolver,
+		namespaces:        namespaces,
+		cache:             cache,
+		metrics:           newMatcherMetrics(scope.SubScope("cached-matcher")),
 	}, nil
 }
 
-func (m *matcher) ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
-	ns, found := id.TagValue(m.namespaceTag)
-	if !found {
-		ns = m.defaultNamespace
-	}
-	return m.cache.ForwardMatch(ns, id.Bytes(), fromNanos, toNanos)
+func (m *matcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+) rules.MatchResult {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
 }
 
 func (m *matcher) Close() error {
 	m.namespaces.Close()
 	return m.cache.Close()
+}
+
+type noCacheMatcher struct {
+	namespaces        Namespaces
+	namespaceResolver namespaceResolver
+	metrics           matcherMetrics
+}
+
+type matcherMetrics struct {
+	matchLatency tally.Histogram
+}
+
+func newMatcherMetrics(scope tally.Scope) matcherMetrics {
+	return matcherMetrics{
+		matchLatency: scope.Histogram(
+			"match-latency",
+			append(
+				tally.DurationBuckets{0},
+				tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.5, 15)...,
+			),
+		),
+	}
+}
+
+func (m *noCacheMatcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+) rules.MatchResult {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+}
+
+func (m *noCacheMatcher) Close() error {
+	m.namespaces.Close()
+	return nil
 }

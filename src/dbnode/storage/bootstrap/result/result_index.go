@@ -91,7 +91,7 @@ func NewIndexBuilder(builder segment.DocumentsBuilder) *IndexBuilder {
 }
 
 // FlushBatch flushes a batch of documents to the underlying segment builder.
-func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) {
+func (b *IndexBuilder) FlushBatch(batch []doc.Metadata) ([]doc.Metadata, error) {
 	if len(batch) == 0 {
 		// Last flush might not have any docs enqueued
 		return batch, nil
@@ -119,7 +119,7 @@ func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) 
 	}
 
 	// Reset docs batch for reuse
-	var empty doc.Document
+	var empty doc.Metadata
 	for i := range batch {
 		batch[i] = empty
 	}

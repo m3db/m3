@@ -44,8 +44,8 @@ import (
 )
 
 type tagValuesMatcher struct {
-	now       time.Time
-	filterTag string
+	start, end time.Time
+	filterTag  string
 }
 
 func (m *tagValuesMatcher) String() string { return "tag values query" }
@@ -55,11 +55,11 @@ func (m *tagValuesMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !q.Start.Equal(time.Time{}) {
+	if !q.Start.Equal(m.start) {
 		return false
 	}
 
-	if !q.End.Equal(m.now) {
+	if !q.End.Equal(m.end) {
 		return false
 	}
 
@@ -123,7 +123,7 @@ func TestTagValues(t *testing.T) {
 	url := fmt.Sprintf("/label/{%s}/values", NameReplace)
 
 	for _, tt := range names {
-		path := fmt.Sprintf("/label/%s/values", tt.name)
+		path := fmt.Sprintf("/label/%s/values?start=100", tt.name)
 		req, err := http.NewRequest("GET", path, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -132,7 +132,8 @@ func TestTagValues(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router := mux.NewRouter()
 		matcher := &tagValuesMatcher{
-			now:       now,
+			start:     time.Unix(100, 0),
+			end:       now,
 			filterTag: tt.name,
 		}
 
@@ -146,7 +147,7 @@ func TestTagValues(t *testing.T) {
 			},
 			Metadata: block.ResultMetadata{
 				Exhaustive: false,
-				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+				Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 			},
 		}
 
@@ -204,6 +205,6 @@ func TestTagValueErrors(t *testing.T) {
 	read, err := ioutil.ReadAll(rr.Body)
 	require.NoError(t, err)
 
-	ex := fmt.Sprintf(`{"error":"invalid path with no name present"}%s`, "\n")
-	assert.Equal(t, ex, string(read))
+	ex := `{"status":"error","error":"invalid path with no name present"}`
+	assert.JSONEq(t, ex, string(read))
 }

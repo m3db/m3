@@ -22,7 +22,6 @@ package native
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +42,7 @@ import (
 )
 
 type listTagsMatcher struct {
-	now time.Time
+	start, end time.Time
 }
 
 func (m *listTagsMatcher) String() string { return "list tags query" }
@@ -53,12 +52,12 @@ func (m *listTagsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !q.Start.Equal(time.Time{}) {
+	if !q.Start.Equal(m.start) {
 		return false
 	}
 
 	// NB: end time for the query should be roughly `Now`
-	if !q.End.Equal(m.now) {
+	if !q.End.Equal(m.end) {
 		return false
 	}
 
@@ -120,7 +119,7 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		SetNowFn(nowFn)
 	h := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
+		matcher := &listTagsMatcher{start: time.Unix(0, 0), end: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(storeResult, nil)
 
@@ -151,25 +150,19 @@ func TestListErrorTags(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now()
-	nowFn := func() time.Time {
-		return now
-	}
-
 	fb, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
 	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
-		SetFetchOptionsBuilder(fb).
-		SetNowFn(nowFn)
+		SetFetchOptionsBuilder(fb)
 	handler := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
+		matcher := &listTagsMatcher{start: time.Unix(100, 0), end: time.Unix(1000, 0)}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(nil, errors.New("err"))
 
-		req := httptest.NewRequest(method, "/labels", nil)
+		req := httptest.NewRequest(method, "/labels?start=100&end=1000", nil)
 		w := httptest.NewRecorder()
 
 		handler.ServeHTTP(w, req)
@@ -179,9 +172,6 @@ func TestListErrorTags(t *testing.T) {
 		r, err := ioutil.ReadAll(body)
 		require.NoError(t, err)
 
-		ex := `{"error":"err"}`
-		// NB: error handler adds a newline to the output.
-		ex = fmt.Sprintf("%s\n", ex)
-		require.Equal(t, ex, string(r))
+		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
 }

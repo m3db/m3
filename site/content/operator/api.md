@@ -8,24 +8,25 @@ chapter: true
 This document enumerates the Custom Resource Definitions used by the M3DB Operator. It is auto-generated from code comments.
 
 ## Table of Contents
-* [ClusterCondition](#clustercondition)
-* [ClusterSpec](#clusterspec)
-* [ExternalCoordinatorConfig](#externalcoordinatorconfig)
-* [IsolationGroup](#isolationgroup)
-* [M3DBCluster](#m3dbcluster)
-* [M3DBClusterList](#m3dbclusterlist)
-* [M3DBStatus](#m3dbstatus)
-* [NodeAffinityTerm](#nodeaffinityterm)
-* [AggregatedAttributes](#aggregatedattributes)
-* [Aggregation](#aggregation)
-* [AggregationOptions](#aggregationoptions)
-* [DownsampleOptions](#downsampleoptions)
-* [IndexOptions](#indexoptions)
-* [Namespace](#namespace)
-* [NamespaceOptions](#namespaceoptions)
-* [RetentionOptions](#retentionoptions)
-* [PodIdentity](#podidentity)
-* [PodIdentityConfig](#podidentityconfig)
+- [Table of Contents](#table-of-contents)
+- [ClusterCondition](#clustercondition)
+- [ClusterSpec](#clusterspec)
+- [ExternalCoordinatorConfig](#externalcoordinatorconfig)
+- [IsolationGroup](#isolationgroup)
+- [M3DBCluster](#m3dbcluster)
+- [M3DBClusterList](#m3dbclusterlist)
+- [M3DBStatus](#m3dbstatus)
+- [NodeAffinityTerm](#nodeaffinityterm)
+- [AggregatedAttributes](#aggregatedattributes)
+- [Aggregation](#aggregation)
+- [AggregationOptions](#aggregationoptions)
+- [DownsampleOptions](#downsampleoptions)
+- [IndexOptions](#indexoptions)
+- [Namespace](#namespace)
+- [NamespaceOptions](#namespaceoptions)
+- [RetentionOptions](#retentionoptions)
+- [PodIdentity](#podidentity)
+- [PodIdentityConfig](#podidentityconfig)
 
 ## ClusterCondition
 
@@ -220,7 +221,7 @@ Namespace defines an M3DB namespace or points to a preset M3DB namespace.
 
 ## NamespaceOptions
 
-NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.
+NamespaceOptions defines parameters for an M3DB namespace. Read [the namespace configuration guide](/docs/operational_guide/namespace_configuration) for more details.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |

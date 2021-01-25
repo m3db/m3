@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package database contains API endpoints for managing the database.
 package database
 
 import (
@@ -54,6 +55,8 @@ func RegisterRoutes(
 		return err
 	}
 
+	kvStoreHandler := NewKeyValueStoreHandler(client, instrumentOpts)
+
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
 	if err := r.Register(queryhttp.RegisterOptions{
@@ -67,6 +70,13 @@ func RegisterRoutes(
 		Path:    CreateNamespaceURL,
 		Handler: createHandler,
 		Methods: []string{CreateNamespaceHTTPMethod},
+	}); err != nil {
+		return err
+	}
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    KeyValueStoreURL,
+		Handler: kvStoreHandler,
+		Methods: []string{KeyValueStoreHTTPMethod},
 	}); err != nil {
 		return err
 	}

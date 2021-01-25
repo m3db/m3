@@ -84,7 +84,7 @@ var (
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 
-	emptyDoc = doc.Document{}
+	emptyDoc = doc.Metadata{}
 )
 
 type filesetsFn func(
@@ -860,7 +860,9 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
 			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
-				zap.String("series", series.ID().String()),
+				zap.Stringer("namespace", s.namespace.ID()),
+				zap.Uint32("shard", s.ID()),
+				zap.Stringer("series", series.ID()),
 				zap.Int32("readerWriterCount", count))
 			continue
 		}
@@ -1232,7 +1234,7 @@ func (s *dbShard) newShardEntry(
 	// Hence this stays on the storage/series.DatabaseSeries for when it needs
 	// to be re-indexed.
 	var (
-		seriesMetadata doc.Document
+		seriesMetadata doc.Metadata
 		err            error
 	)
 	switch tagsArgOpts.arg {
@@ -2790,7 +2792,7 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	return bs
 }
 
-func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (s *dbShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 

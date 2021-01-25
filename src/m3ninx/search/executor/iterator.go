@@ -108,8 +108,8 @@ func (it *iterator) Close() error {
 }
 
 // nextIter gets the next document iterator by getting the next postings list from
-// the it's searcher and then getting the documents for that postings list from the
-// corresponding reader associated with that postings list.
+// the it's searcher and then getting the encoded documents for that postings list from
+// the corresponding reader associated with that postings list.
 func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	it.idx++
 	if it.idx >= len(it.readers) {

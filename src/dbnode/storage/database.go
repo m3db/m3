@@ -927,17 +927,6 @@ func (d *db) ReadEncoded(
 		return nil, err
 	}
 
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
-		)
-	}
-
-	defer sp.Finish()
 	return n.ReadEncoded(ctx, id, start, end)
 }
 

@@ -20,8 +20,28 @@
 
 package doc
 
-// Iterator provides an iterator over a collection of documents. It is NOT safe for multiple
-// goroutines to invoke methods on an Iterator simultaneously.
+// MetadataIterator provides an iterator over a collection of document metadata. It is NOT
+// safe for multiple goroutines to invoke methods on an MetadataIterator simultaneously.
+type MetadataIterator interface {
+	// Next returns a bool indicating if the iterator has any more metadata
+	// to return.
+	Next() bool
+
+	// Current returns the current metadata. It is only safe to call Current immediately
+	// after a call to Next confirms there are more elements remaining. The Metadata
+	// returned from Current is only valid until the following call to Next(). Callers
+	// should copy the Metadata if they need it live longer.
+	Current() Metadata
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any internal resources used by the iterator.
+	Close() error
+}
+
+// Iterator provides an iterator over a collection of documents. It is NOT
+// safe for multiple goroutines to invoke methods on an Iterator simultaneously.
 type Iterator interface {
 	// Next returns a bool indicating if the iterator has any more documents
 	// to return.

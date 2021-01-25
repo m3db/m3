@@ -38,7 +38,7 @@ var (
 func BenchmarkTermsDict(b *testing.B) {
 	benchmarks := []struct {
 		name string
-		fn   func(docs []doc.Document, b *testing.B)
+		fn   func(docs []doc.Metadata, b *testing.B)
 	}{
 		{
 			name: "benchmark Insert",
@@ -66,7 +66,7 @@ func BenchmarkTermsDict(b *testing.B) {
 	}
 }
 
-func benchmarkTermsDictInsert(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictInsert(docs []doc.Metadata, b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
@@ -81,7 +81,7 @@ func benchmarkTermsDictInsert(docs []doc.Document, b *testing.B) {
 	}
 }
 
-func benchmarkTermsDictMatchTerm(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictMatchTerm(docs []doc.Metadata, b *testing.B) {
 	b.ReportAllocs()
 
 	dict := newTermsDict(NewOptions())
@@ -101,7 +101,7 @@ func benchmarkTermsDictMatchTerm(docs []doc.Document, b *testing.B) {
 	}
 }
 
-func benchmarkTermsDictMatchRegex(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictMatchRegex(docs []doc.Metadata, b *testing.B) {
 	b.ReportAllocs()
 
 	dict := newTermsDict(NewOptions())
