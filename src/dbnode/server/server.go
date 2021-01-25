@@ -982,10 +982,14 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("could not create CPU profile: ", zap.Error(err))
 		}
 		defer f.Close() // error handling omitted for example
-		if err := pprof.StartCPUProfile(f); err != nil {
-			logger.Fatal("could not start CPU profile: ", zap.Error(err))
-		}
-		defer pprof.StopCPUProfile()
+		runtime.SetBlockProfileRate(1)
+
+		defer func() {
+			if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
+				logger.Fatal("could write block profile: ", zap.Error(err))
+			}
+			runtime.SetBlockProfileRate(0)
+		}()
 
 		if runOpts.BootstrapCh != nil {
 			// Notify on bootstrap chan if specified.
