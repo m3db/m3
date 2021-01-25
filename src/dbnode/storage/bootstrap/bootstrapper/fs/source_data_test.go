@@ -972,7 +972,7 @@ func newTestStorageOptions(
 	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions)
 	require.NoError(t, err)
 
-	return storage.NewOptions().
+	return storage.DefaultTestOptions().
 		SetPersistManager(pm).
 		SetIndexClaimsManager(icm).
 		SetNamespaceInitializer(namespace.NewStaticInitializer([]namespace.Metadata{md})).
