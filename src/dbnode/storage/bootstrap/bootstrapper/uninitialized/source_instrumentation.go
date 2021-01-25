@@ -28,7 +28,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -40,8 +39,6 @@ type instrumentationContext struct {
 	start                 time.Time
 	span                  opentracing.Span
 	bootstrapReadDuration tally.Timer
-	pOpts                 profiler.Options
-	pCtx                  profiler.ProfileContext
 }
 
 func newInstrumentationContext(
@@ -49,13 +46,11 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
-	pOpts profiler.Options,
 ) *instrumentationContext {
 	ctx := &instrumentationContext{
 		nowFn:                 nowFn,
 		log:                   log,
 		span:                  span,
-		pOpts:                 pOpts,
 		bootstrapReadDuration: scope.Timer("read-duration"),
 	}
 	ctx.readStarted()
@@ -67,29 +62,10 @@ func (i *instrumentationContext) finish() {
 	i.span.Finish()
 }
 
-func (i *instrumentationContext) startProfileIfEnabled(name string) {
-	if i.pOpts.Enabled() {
-		profileContext, err := i.pOpts.Profiler().StartProfile(name)
-		if err != nil {
-			i.log.Error("unable to start profile", zap.Error(err))
-		}
-		i.pCtx = profileContext
-	}
-}
-
-func (i *instrumentationContext) stopProfileIfEnabled() {
-	if i.pOpts.Enabled() && i.pCtx != nil {
-		if err := i.pCtx.StopProfile(); err != nil {
-			i.log.Error("unable to stop profile", zap.Error(err))
-		}
-	}
-}
-
 func (i *instrumentationContext) readStarted() {
 	i.log.Info("read uninitialized start")
 	i.span.LogFields(opentracinglog.String("event", "read_uninitialized_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("uninitialized-read")
 }
 
 func (i *instrumentationContext) readCompleted() {
@@ -97,11 +73,9 @@ func (i *instrumentationContext) readCompleted() {
 	i.bootstrapReadDuration.Record(duration)
 	i.log.Info("read uninitialized done", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "read_uninitialized_done"))
-	i.stopProfileIfEnabled()
 }
 
 type instrumentation struct {
-	pOpts profiler.Options
 	scope tally.Scope
 	log   *zap.Logger
 	nowFn clock.NowFn
@@ -115,7 +89,6 @@ func newInstrumentation(opts Options) *instrumentation {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	return &instrumentation{
-		pOpts: iopts.ProfilerOptions(),
 		scope: scope,
 		log:   iopts.Logger().With(zap.String("bootstrapper", "uninitialized")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
@@ -131,6 +104,5 @@ func (i *instrumentation) uninitializedBootstrapperSourceReadStarted(
 		i.log,
 		span,
 		i.scope,
-		i.pOpts,
 	)
 }
