@@ -205,6 +205,10 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(5), p.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p))
+
+	_, err = a.ReplaceInstances(p, []string{"foo"}, []placement.Instance{i1})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "instance foo does not exist in placement")
 }
 
 func TestMirrorAddAndRevertBeforeCutover(t *testing.T) {

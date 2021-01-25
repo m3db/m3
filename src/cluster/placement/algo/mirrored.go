@@ -230,37 +230,11 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	return p, nil
 }
 
-func (a mirroredAlgorithm) MarkShardsAvailable(
-	p placement.Placement,
-	instanceID string,
-	shardIDs ...uint32,
-) (placement.Placement, error) {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return nil, err
-	}
-
-	return a.shardedAlgo.MarkShardsAvailable(p, instanceID, shardIDs...)
-}
-
-func (a mirroredAlgorithm) MarkAllShardsAvailable(
-	p placement.Placement,
-) (placement.Placement, bool, error) {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return nil, false, err
-	}
-
-	return a.shardedAlgo.MarkAllShardsAvailable(p)
-}
-
 func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 	p placement.Placement,
 	instanceID string,
 ) (placement.Placement, error) {
 	var err error
-	if err = a.IsCompatibleWith(p); err != nil {
-		return nil, err
-	}
-
 	p = p.Clone()
 	instance, exist := p.Instance(instanceID)
 	if !exist {
@@ -295,6 +269,28 @@ func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 	}
 
 	return p, nil
+}
+
+func (a mirroredAlgorithm) MarkShardsAvailable(
+	p placement.Placement,
+	instanceID string,
+	shardIDs ...uint32,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	return a.shardedAlgo.MarkShardsAvailable(p, instanceID, shardIDs...)
+}
+
+func (a mirroredAlgorithm) MarkAllShardsAvailable(
+	p placement.Placement,
+) (placement.Placement, bool, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, false, err
+	}
+
+	return a.shardedAlgo.MarkAllShardsAvailable(p)
 }
 
 // allInitializing returns true when
