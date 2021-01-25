@@ -903,22 +903,27 @@ func (i *nsIndex) Bootstrapped() bool {
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
-	var result namespaceIndexTickResult
-
+	var (
+		result   namespaceIndexTickResult
+		multiErr xerrors.MultiError
+	)
 	i.state.Lock()
+	sealedBlocks := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
 	defer func() {
 		i.updateBlockStartsWithLock()
+		activeBlock := i.inMemoryBlock
 		i.state.Unlock()
+		// Notify in memory block of sealed blocks
+		// and make sure to do this out of the lock since
+		// this can take a considerable amount of time
+		// and is an expensive task that doesn't require
+		// holding the index lock.
+		_ = activeBlock.InMemoryBlockNotifySealedBlocks(sealedBlocks)
 	}()
 
 	earliestBlockStartToRetain := i.earliestBlockStartToRetainWithLock(startTime)
 
 	result.NumBlocks = int64(len(i.state.blocksByTime))
-
-	var (
-		multiErr     xerrors.MultiError
-		sealedBlocks = make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
-	)
 	for blockStart, block := range i.state.blocksByTime {
 		if c.IsCancelled() {
 			multiErr = multiErr.Add(errDbIndexTerminatingTickCancellation)
@@ -962,9 +967,6 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 	result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 	result.NumTotalDocs += blockTickResult.NumDocs
 	result.FreeMmap += blockTickResult.FreeMmap
-
-	// Notify in memory block of sealed blocks.
-	multiErr = multiErr.Add(block.InMemoryBlockNotifySealedBlocks(sealedBlocks))
 
 	return result, multiErr.FinalError()
 }

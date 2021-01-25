@@ -191,6 +191,7 @@ func (m *mutableSegments) NotifySealedBlocks(
 		return nil
 	}
 
+	removedBlockStarts := false
 	m.indexedBloomFilterByTimeLock.Lock()
 	// Remove entire time windows.
 	for _, blockStart := range sealed {
@@ -200,19 +201,25 @@ func (m *mutableSegments) NotifySealedBlocks(
 		}
 		// Remove indexed set if block now sealed.
 		delete(m.indexedBloomFilterByTime, blockStart)
+		removedBlockStarts = true
 	}
-	// Remove any from the indexed snapshots.
-	for _, elem := range m.indexedSnapshot.Iter() {
-		id := elem.Key()
-		contained := false
-		for _, filter := range m.indexedBloomFilterByTime {
-			if filter.ContainsWithNoFalsePositive(id) {
-				contained = true
-				break
+	if removedBlockStarts {
+		// Remove any from the indexed snapshots,
+		// only do this work which is expensive
+		// if and only if there were block starts that
+		// were actually removed.
+		for _, elem := range m.indexedSnapshot.Iter() {
+			id := elem.Key()
+			contained := false
+			for _, filter := range m.indexedBloomFilterByTime {
+				if filter.ContainsWithNoFalsePositive(id) {
+					contained = true
+					break
+				}
 			}
-		}
-		if !contained {
-			m.indexedSnapshot.Delete(id)
+			if !contained {
+				m.indexedSnapshot.Delete(id)
+			}
 		}
 	}
 	m.indexedBloomFilterByTimeLock.Unlock()
