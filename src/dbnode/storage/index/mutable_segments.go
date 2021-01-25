@@ -169,15 +169,16 @@ func newMutableSegments(
 	iopts instrument.Options,
 ) *mutableSegments {
 	m := &mutableSegments{
-		blockStart:               blockStart,
-		blockSize:                md.Options().IndexOptions().BlockSize(),
-		opts:                     opts,
-		blockOpts:                blockOpts,
-		iopts:                    iopts,
-		indexedBloomFilterByTime: make(map[xtime.UnixNano]*indexedBloomFilter),
-		indexedSnapshot:          builder.NewIDsMap(builder.IDsMapOptions{}),
-		metrics:                  newMutableSegmentsMetrics(iopts.MetricsScope()),
-		logger:                   iopts.Logger(),
+		blockStart:                       blockStart,
+		blockSize:                        md.Options().IndexOptions().BlockSize(),
+		opts:                             opts,
+		blockOpts:                        blockOpts,
+		iopts:                            iopts,
+		indexedBloomFilterByTime:         make(map[xtime.UnixNano]*indexedBloomFilter),
+		indexedSnapshot:                  builder.NewIDsMap(builder.IDsMapOptions{}),
+		backgroundCompactIndexedSnapshot: builder.NewIDsMap(builder.IDsMapOptions{}),
+		metrics:                          newMutableSegmentsMetrics(iopts.MetricsScope()),
+		logger:                           iopts.Logger(),
 	}
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
