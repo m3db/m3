@@ -52,9 +52,8 @@ var (
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
 
-	// numBackgroundCompactors should use up to num CPU minus one
-	// to reserve for the foreground compactor.
-	numBackgroundCompactors = int(math.Max(1, float64(runtime.NumCPU())-1))
+	numBackgroundCompactorsStandard       = 1
+	numBackgroundCompactorsGarbageCollect = 1
 )
 
 type mutableSegmentsState uint
@@ -634,10 +633,11 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			// without holding a lock.
 			m.backgroundCompactIndexedSnapshot.Reset()
 			for _, elem := range m.indexedSnapshot.Iter() {
-				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{}, builder.IDsMapSetUnsafeOptions{
-					NoCopyKey:     true,
-					NoFinalizeKey: true,
-				})
+				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{},
+					builder.IDsMapSetUnsafeOptions{
+						NoCopyKey:     true,
+						NoFinalizeKey: true,
+					})
 			}
 			activeFilter = m.backgroundCompactIndexedSnapshot
 		}
@@ -646,7 +646,8 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		if len(gcPlan.Tasks) != 0 {
 			// Run non-GC tasks separately so the standard loop is not blocked.
 			go func() {
-				m.backgroundCompactWithPlan(gcPlan, activeBlockStarts, activeFilter)
+				m.backgroundCompactWithPlan(gcPlan, activeBlockStarts,
+					activeFilter, m.compact.backgroundCompactorsGarbageCollect)
 
 				m.Lock()
 				m.compact.compactingBackgroundGarbageCollect = false
@@ -655,7 +656,8 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			}()
 		}
 
-		m.backgroundCompactWithPlan(plan, activeBlockStarts, activeFilter)
+		m.backgroundCompactWithPlan(plan, activeBlockStarts,
+			activeFilter, m.compact.backgroundCompactorsStandard)
 
 		m.Lock()
 		m.compact.compactingBackgroundStandard = false
@@ -686,17 +688,24 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	m.backgroundSegments = nil
 
 	// Free compactor resources.
-	if m.compact.backgroundCompactors == nil {
+	if m.compact.backgroundCompactorsStandard == nil {
 		return
 	}
 
-	backgroundCompactors := m.compact.backgroundCompactors
-	close(backgroundCompactors)
+	backgroundCompactors := []chan *compaction.Compactor{
+		m.compact.backgroundCompactorsStandard,
+		m.compact.backgroundCompactorsGarbageCollect,
+	}
+	m.compact.backgroundCompactorsStandard = nil
+	m.compact.backgroundCompactorsGarbageCollect = nil
+	for _, compactors := range backgroundCompactors {
+		close(compactors)
+		for compactor := range compactors {
+			err := compactor.Close()
+			if err == nil {
+				continue
+			}
 
-	m.compact.backgroundCompactors = nil
-
-	for compactor := range backgroundCompactors {
-		if err := compactor.Close(); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 				l.Error("error closing index block background compactor", zap.Error(err))
 			})
@@ -719,6 +728,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
 	activeBlockStarts []xtime.UnixNano,
 	activeFilter segment.DocumentsFilter,
+	compactors chan *compaction.Compactor,
 ) {
 	sw := m.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
@@ -748,10 +758,10 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	for i, task := range plan.Tasks {
 		i, task := i, task
 		wg.Add(1)
-		compactor := <-m.compact.backgroundCompactors
+		compactor := <-compactors
 		go func() {
 			defer func() {
-				m.compact.backgroundCompactors <- compactor
+				compactors <- compactor
 				wg.Done()
 			}()
 			err := m.backgroundCompactWithTask(task, activeBlockStarts,
@@ -988,7 +998,7 @@ func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	if len(segments) == 0 {
 		return
 	}
-	if m.compact.backgroundCompactors == nil {
+	if m.compact.backgroundCompactorsStandard == nil {
 		// No longer performing background compaction due to evict/close.
 		return
 	}
@@ -1133,7 +1143,8 @@ func (m *mutableSegments) cleanupCompactWithLock() {
 type mutableSegmentsCompact struct {
 	segmentBuilder                     segment.CloseableDocumentsBuilder
 	foregroundCompactor                *compaction.Compactor
-	backgroundCompactors               chan *compaction.Compactor
+	backgroundCompactorsStandard       chan *compaction.Compactor
+	backgroundCompactorsGarbageCollect chan *compaction.Compactor
 	compactingForeground               bool
 	compactingBackgroundStandard       bool
 	compactingBackgroundGarbageCollect bool
@@ -1179,9 +1190,10 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 		}
 	}
 
-	if m.backgroundCompactors == nil {
-		m.backgroundCompactors = make(chan *compaction.Compactor, numBackgroundCompactors)
-		for i := 0; i < numBackgroundCompactors; i++ {
+	if m.backgroundCompactorsStandard == nil {
+		n := numBackgroundCompactorsStandard
+		m.backgroundCompactorsStandard = make(chan *compaction.Compactor, n)
+		for i := 0; i < n; i++ {
 			backgroundCompactor, err := compaction.NewCompactor(docsPool,
 				DocumentArrayPoolCapacity,
 				opts.SegmentBuilderOptions(),
@@ -1192,7 +1204,24 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 			if err != nil {
 				return err
 			}
-			m.backgroundCompactors <- backgroundCompactor
+			m.backgroundCompactorsStandard <- backgroundCompactor
+		}
+	}
+	if m.backgroundCompactorsGarbageCollect == nil {
+		n := numBackgroundCompactorsGarbageCollect
+		m.backgroundCompactorsGarbageCollect = make(chan *compaction.Compactor, n)
+		for i := 0; i < n; i++ {
+			backgroundCompactor, err := compaction.NewCompactor(docsPool,
+				DocumentArrayPoolCapacity,
+				opts.SegmentBuilderOptions(),
+				opts.FSTSegmentOptions(),
+				compaction.CompactorOptions{
+					MmapDocsData: blockOpts.BackgroundCompactorMmapDocsData,
+				})
+			if err != nil {
+				return err
+			}
+			m.backgroundCompactorsGarbageCollect <- backgroundCompactor
 		}
 	}
 
