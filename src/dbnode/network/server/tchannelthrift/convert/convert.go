@@ -326,6 +326,9 @@ func FromRPCAggregateQueryRequest(
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
 	}
+	if r := req.RequireExhaustive; r != nil {
+		opts.RequireExhaustive = *r
+	}
 
 	if len(req.Source) > 0 {
 		opts.Source = req.Source
@@ -377,6 +380,9 @@ func FromRPCAggregateQueryRawRequest(
 	}
 	if l := req.DocsLimit; l != nil {
 		opts.DocsLimit = int(*l)
+	}
+	if r := req.RequireExhaustive; r != nil {
+		opts.RequireExhaustive = *r
 	}
 
 	if len(req.Source) > 0 {
@@ -434,6 +440,10 @@ func ToRPCAggregateQueryRawRequest(
 	if opts.DocsLimit > 0 {
 		l := int64(opts.DocsLimit)
 		request.DocsLimit = &l
+	}
+	if opts.RequireExhaustive {
+		r := opts.RequireExhaustive
+		request.RequireExhaustive = &r
 	}
 
 	if len(opts.Source) > 0 {
