@@ -176,6 +176,35 @@ func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	return queries, nil
 }
 
+// ParseStartAndEnd parses start and end params from the request.
+func ParseStartAndEnd(
+	r *http.Request,
+	parseOpts xpromql.ParseOptions,
+) (time.Time, time.Time, error) {
+	if err := r.ParseForm(); err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
+		time.Unix(0, 0))
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
+		parseOpts.NowFn()())
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	if start.After(end) {
+		err := fmt.Errorf("start %v must be after end %v", start, end)
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	return start, end, nil
+}
+
 // ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
@@ -188,16 +217,9 @@ func ParseSeriesMatchQuery(
 		return nil, xerrors.NewInvalidParamsError(errors.ErrInvalidMatchers)
 	}
 
-	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
-		time.Unix(0, 0))
+	start, end, err := ParseStartAndEnd(r, parseOpts)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
-	}
-
-	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
-		time.Now())
-	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, err
 	}
 
 	queries := make([]*storage.FetchQuery, len(matcherValues))
