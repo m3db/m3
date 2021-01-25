@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package uninitialized
 
 import (
 	"time"
@@ -27,51 +27,43 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
-	opts                   Options
-	nowFn                  clock.NowFn
-	log                    *zap.Logger
-	start                  time.Time
-	span                   opentracing.Span
-	bootstrapDataDuration  tally.Timer
-	bootstrapIndexDuration tally.Timer
-	pOpts                  profiler.Options
-	pCtx                   profiler.ProfileContext
-	logFields              []zapcore.Field
+	nowFn                 clock.NowFn
+	log                   *zap.Logger
+	start                 time.Time
+	span                  opentracing.Span
+	bootstrapReadDuration tally.Timer
+	pOpts                 profiler.Options
+	pCtx                  profiler.ProfileContext
 }
 
 func newInstrumentationContext(
-	opts Options,
 	nowFn clock.NowFn,
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
 	pOpts profiler.Options,
 ) *instrumentationContext {
-	return &instrumentationContext{
-		opts:                   opts,
-		nowFn:                  nowFn,
-		log:                    log,
-		span:                   span,
-		pOpts:                  pOpts,
-		bootstrapDataDuration:  scope.Timer("data-duration"),
-		bootstrapIndexDuration: scope.Timer("index-duration"),
-		logFields: []zapcore.Field{
-			zap.Stringer("cachePolicy", opts.ResultOptions().SeriesCachePolicy()),
-		},
+	ctx := &instrumentationContext{
+		nowFn:                 nowFn,
+		log:                   log,
+		span:                  span,
+		pOpts:                 pOpts,
+		bootstrapReadDuration: scope.Timer("read-duration"),
 	}
+	ctx.readStarted()
+	return ctx
 }
 
 func (i *instrumentationContext) finish() {
+	i.readCompleted()
 	i.span.Finish()
 }
 
@@ -93,61 +85,48 @@ func (i *instrumentationContext) stopProfileIfEnabled() {
 	}
 }
 
-func (i *instrumentationContext) bootstrapDataStarted() {
-	i.log.Info("bootstrapping time series data start", i.logFields...)
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
+func (i *instrumentationContext) readStarted() {
+	i.log.Info("read uninitialized start")
+	i.span.LogFields(opentracinglog.String("event", "read_uninitialized_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-data")
+	i.startProfileIfEnabled("uninitialized-read")
 }
 
-func (i *instrumentationContext) bootstrapDataCompleted() {
+func (i *instrumentationContext) readCompleted() {
 	duration := i.nowFn().Sub(i.start)
-	i.bootstrapDataDuration.Record(duration)
-	i.log.Info("bootstrapping time series data success",
-		append(i.logFields, zap.Duration("took", duration))...)
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
-	i.stopProfileIfEnabled()
-}
-
-func (i *instrumentationContext) bootstrapIndexStarted() {
-	i.log.Info("bootstrapping index metadata start")
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
-	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-index")
-}
-
-func (i *instrumentationContext) bootstrapIndexCompleted() {
-	duration := i.nowFn().Sub(i.start)
-	i.bootstrapIndexDuration.Record(duration)
-	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
+	i.bootstrapReadDuration.Record(duration)
+	i.log.Info("read uninitialized done", zap.Duration("took", duration))
+	i.span.LogFields(opentracinglog.String("event", "read_uninitialized_done"))
 	i.stopProfileIfEnabled()
 }
 
 type instrumentation struct {
-	opts  Options
 	pOpts profiler.Options
 	scope tally.Scope
 	log   *zap.Logger
 	nowFn clock.NowFn
 }
 
-func newInstrumentation(opts Options, scope tally.Scope, iOpts instrument.Options) *instrumentation {
+func newInstrumentation(opts Options) *instrumentation {
+	var (
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("uninitialized-bootstrapper")
+		iopts = opts.InstrumentOptions().SetMetricsScope(scope)
+	)
+	opts = opts.SetInstrumentOptions(iopts)
+
 	return &instrumentation{
-		opts:  opts,
-		pOpts: iOpts.ProfilerOptions(),
+		pOpts: iopts.ProfilerOptions(),
 		scope: scope,
-		log:   iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		log:   iopts.Logger().With(zap.String("bootstrapper", "uninitialized")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
-func (i *instrumentation) fsBootstrapperSourceReadStarted(
+func (i *instrumentation) uninitializedBootstrapperSourceReadStarted(
 	ctx context.Context,
 ) *instrumentationContext {
-	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
+	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperUninitializedSourceRead)
 	return newInstrumentationContext(
-		i.opts,
 		i.nowFn,
 		i.log,
 		span,

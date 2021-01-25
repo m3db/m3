@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -5191,34 +5190,6 @@ func (m *MockOptions) TileAggregator() TileAggregator {
 func (mr *MockOptionsMockRecorder) TileAggregator() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TileAggregator", reflect.TypeOf((*MockOptions)(nil).TileAggregator))
-}
-
-// SetProfilerOptions mocks base method
-func (m *MockOptions) SetProfilerOptions(value profiler.Options) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetProfilerOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetProfilerOptions indicates an expected call of SetProfilerOptions
-func (mr *MockOptionsMockRecorder) SetProfilerOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProfilerOptions", reflect.TypeOf((*MockOptions)(nil).SetProfilerOptions), value)
-}
-
-// ProfilerOptions mocks base method
-func (m *MockOptions) ProfilerOptions() profiler.Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProfilerOptions")
-	ret0, _ := ret[0].(profiler.Options)
-	return ret0
-}
-
-// ProfilerOptions indicates an expected call of ProfilerOptions
-func (mr *MockOptionsMockRecorder) ProfilerOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProfilerOptions", reflect.TypeOf((*MockOptions)(nil).ProfilerOptions))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

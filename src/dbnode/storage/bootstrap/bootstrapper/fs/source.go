@@ -94,9 +94,10 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("fs-bootstrapper")
-	iopts = iopts.SetMetricsScope(scope)
+	var (
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("fs-bootstrapper")
+		iopts = opts.InstrumentOptions().SetMetricsScope(scope)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
 
 	s := &fileSystemSource{

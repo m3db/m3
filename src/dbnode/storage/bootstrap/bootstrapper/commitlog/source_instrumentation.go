@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package commitlog
 
 import (
 	"time"
@@ -27,26 +27,23 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
-	opts                   Options
-	nowFn                  clock.NowFn
-	log                    *zap.Logger
-	start                  time.Time
-	span                   opentracing.Span
-	bootstrapDataDuration  tally.Timer
-	bootstrapIndexDuration tally.Timer
-	pOpts                  profiler.Options
-	pCtx                   profiler.ProfileContext
-	logFields              []zapcore.Field
+	opts                       Options
+	nowFn                      clock.NowFn
+	log                        *zap.Logger
+	start                      time.Time
+	span                       opentracing.Span
+	bootstrapSnapshotsDuration tally.Timer
+	bootstrapCommitLogDuration tally.Timer
+	pOpts                      profiler.Options
+	pCtx                       profiler.ProfileContext
 }
 
 func newInstrumentationContext(
@@ -58,16 +55,13 @@ func newInstrumentationContext(
 	pOpts profiler.Options,
 ) *instrumentationContext {
 	return &instrumentationContext{
-		opts:                   opts,
-		nowFn:                  nowFn,
-		log:                    log,
-		span:                   span,
-		pOpts:                  pOpts,
-		bootstrapDataDuration:  scope.Timer("data-duration"),
-		bootstrapIndexDuration: scope.Timer("index-duration"),
-		logFields: []zapcore.Field{
-			zap.Stringer("cachePolicy", opts.ResultOptions().SeriesCachePolicy()),
-		},
+		opts:                       opts,
+		nowFn:                      nowFn,
+		log:                        log,
+		span:                       span,
+		pOpts:                      pOpts,
+		bootstrapSnapshotsDuration: scope.Timer("snapshots-duration"),
+		bootstrapCommitLogDuration: scope.Timer("commitlog-duration"),
 	}
 }
 
@@ -93,34 +87,33 @@ func (i *instrumentationContext) stopProfileIfEnabled() {
 	}
 }
 
-func (i *instrumentationContext) bootstrapDataStarted() {
-	i.log.Info("bootstrapping time series data start", i.logFields...)
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
+func (i *instrumentationContext) bootstrapSnapshotsStarted() {
+	i.log.Info("read snapshots start")
+	i.span.LogFields(opentracinglog.String("event", "read_snapshots_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-data")
+	i.startProfileIfEnabled("commitlog-snapshots")
 }
 
-func (i *instrumentationContext) bootstrapDataCompleted() {
+func (i *instrumentationContext) bootstrapSnapshotsCompleted() {
 	duration := i.nowFn().Sub(i.start)
-	i.bootstrapDataDuration.Record(duration)
-	i.log.Info("bootstrapping time series data success",
-		append(i.logFields, zap.Duration("took", duration))...)
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
+	i.bootstrapSnapshotsDuration.Record(duration)
+	i.log.Info("read snapshots done", zap.Duration("took", duration))
+	i.span.LogFields(opentracinglog.String("event", "read_snapshots_done"))
 	i.stopProfileIfEnabled()
 }
 
-func (i *instrumentationContext) bootstrapIndexStarted() {
-	i.log.Info("bootstrapping index metadata start")
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
+func (i *instrumentationContext) readCommitLogStarted() {
+	i.log.Info("read commit log start")
+	i.span.LogFields(opentracinglog.String("event", "read_commitlog_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-index")
+	i.startProfileIfEnabled("commitlog-read")
 }
 
-func (i *instrumentationContext) bootstrapIndexCompleted() {
+func (i *instrumentationContext) readCommitLogCompleted() {
 	duration := i.nowFn().Sub(i.start)
-	i.bootstrapIndexDuration.Record(duration)
-	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
-	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
+	i.bootstrapCommitLogDuration.Record(duration)
+	i.log.Info("read commit log done", zap.Duration("took", duration))
+	i.span.LogFields(opentracinglog.String("event", "read_commitlog_done"))
 	i.stopProfileIfEnabled()
 }
 
@@ -132,20 +125,20 @@ type instrumentation struct {
 	nowFn clock.NowFn
 }
 
-func newInstrumentation(opts Options, scope tally.Scope, iOpts instrument.Options) *instrumentation {
+func newInstrumentation(opts Options, scope tally.Scope, log *zap.Logger) *instrumentation {
 	return &instrumentation{
 		opts:  opts,
-		pOpts: iOpts.ProfilerOptions(),
+		pOpts: opts.ResultOptions().InstrumentOptions().ProfilerOptions(),
 		scope: scope,
-		log:   iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		log:   log,
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
-func (i *instrumentation) fsBootstrapperSourceReadStarted(
+func (i *instrumentation) commitLogBootstrapperSourceReadStarted(
 	ctx context.Context,
 ) *instrumentationContext {
-	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
+	_, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
 	return newInstrumentationContext(
 		i.opts,
 		i.nowFn,

@@ -159,7 +159,7 @@ func newInstrumentation(opts Options) *instrumentation {
 
 	return &instrumentation{
 		opts:                               opts,
-		pOpts:                              opts.ProfilerOptions(),
+		pOpts:                              instrumentOptions.ProfilerOptions(),
 		scope:                              scope,
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),

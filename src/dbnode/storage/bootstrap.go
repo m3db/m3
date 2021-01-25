@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -76,7 +75,6 @@ type bootstrapManager struct {
 
 	database                    database
 	mediator                    databaseMediator
-	pOpts                       profiler.Options
 	bootstrapFn                 bootstrapFn
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
@@ -95,7 +93,6 @@ func newBootstrapManager(
 	m := &bootstrapManager{
 		database:        database,
 		mediator:        mediator,
-		pOpts:           opts.ProfilerOptions(),
 		processProvider: opts.BootstrapProcessProvider(),
 		sleepFn:         time.Sleep,
 		nowFn:           opts.ClockOptions().NowFn(),

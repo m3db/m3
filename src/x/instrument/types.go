@@ -28,6 +28,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 )
 
 // Reporter reports metrics about a component.
@@ -78,4 +80,10 @@ type Options interface {
 
 	// CustomBuildTags returns the custom build tags.
 	CustomBuildTags() map[string]string
+
+	// SetProfilerOptions sets the profiler options.
+	SetProfilerOptions(value profiler.Options) Options
+
+	// ProfilerOptions returns the ProfilerOptions.
+	ProfilerOptions() profiler.Options
 }

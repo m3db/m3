@@ -28,6 +28,8 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/m3db/m3/src/dbnode/storage/profiler"
 )
 
 const (
@@ -43,6 +45,7 @@ type options struct {
 	timerOptions    TimerOptions
 	reportInterval  time.Duration
 	customBuildTags map[string]string
+	profilerOptions profiler.Options
 }
 
 // NewOptions creates new instrument options.
@@ -56,6 +59,7 @@ func NewOptions() Options {
 		samplingRate:    defaultSamplingRate,
 		reportInterval:  defaultReportingInterval,
 		customBuildTags: map[string]string{},
+		profilerOptions: profiler.NewOptions(),
 	}
 }
 
@@ -117,4 +121,15 @@ func (o *options) SetCustomBuildTags(tags map[string]string) Options {
 
 func (o *options) CustomBuildTags() map[string]string {
 	return o.customBuildTags
+}
+
+func (o *options) SetProfilerOptions(value profiler.Options) Options {
+	opts := *o
+	opts.profilerOptions = value
+
+	return &opts
+}
+
+func (o *options) ProfilerOptions() profiler.Options {
+	return o.profilerOptions
 }

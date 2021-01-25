@@ -365,8 +365,7 @@ func (bsc BootstrapConfiguration) New(
 				SetContextPool(opts.ContextPool()).
 				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
 				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency).
-				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency).
-				SetProfilerOptions(opts.ProfilerOptions())
+				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency)
 			if v := bsc.IndexSegmentConcurrency; v != nil {
 				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
 			}
