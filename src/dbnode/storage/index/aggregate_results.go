@@ -63,12 +63,6 @@ type usageMetrics struct {
 	dedupedFields tally.Counter
 }
 
-type noopCounter struct{}
-
-var _ tally.Counter = (*noopCounter)(nil)
-
-func (*noopCounter) Inc(_ int64) {}
-
 func newUsageMetrics(ns ident.ID, iOpts instrument.Options) usageMetrics {
 	namespace := "unknown"
 	if ns != nil {
