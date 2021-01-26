@@ -1435,7 +1435,7 @@ type TileAggregator interface {
 		shardID uint32,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
-	) (int64, error)
+	) (processedTileCount int64, nextVolume int, err error)
 }
 
 // NewTileAggregatorFn creates a new TileAggregator.

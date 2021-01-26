@@ -2674,20 +2674,14 @@ func (s *dbShard) AggregateTiles(
 ) (int64, error) {
 	var multiErr xerrors.MultiError
 
-	processedTileCount, err := s.tileAggregator.AggregateTiles(
+	processedTileCount, nextVolume, err := s.tileAggregator.AggregateTiles(
 		ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
 	}
 
-	if !multiErr.Empty() {
-		if err := writer.Abort(); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	} else if err := writer.Close(); err != nil {
-		multiErr = multiErr.Add(err)
-	} else {
+	if multiErr.Empty() {
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
