@@ -129,7 +129,7 @@ func (client *TestTChannelClient) TChannelClientFetch(
 	return client.node.Fetch(ctx, req)
 }
 
-// TChannelClientFetch fulfills a fetch request using a tchannel client.
+// TChannelClientAggregateTiles runs a request for AggregateTiles.
 func (client *TestTChannelClient) TChannelClientAggregateTiles(
 	timeout time.Duration, req *rpc.AggregateTilesRequest,
 ) (*rpc.AggregateTilesResult_, error) {

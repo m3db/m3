@@ -56,6 +56,7 @@ type DockerResources interface {
 	Coordinator() Coordinator
 }
 
+// ClusterOptions represents a set of options for a cluster setup.
 type ClusterOptions struct {
 	ReplicationFactor int32
 }
@@ -148,6 +149,8 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (DockerResources, error) { // nol
 	return cluster, err
 }
 
+// AttachToExistingContainers attaches docker API to an existing coordinator
+// and one or more dbnode containers.
 func AttachToExistingContainers(
 	coordinatorContainerName string,
 	dbNodesContainersNames []string,
@@ -159,10 +162,10 @@ func AttachToExistingContainers(
 	pool.MaxWait = timeout
 
 	iOpts := instrument.NewOptions()
-	var dbNodes = Nodes{}
+	dbNodes := Nodes{}
 
 	for _, dbName := range dbNodesContainersNames {
-		dbNodes, err = attachToExistingDbNode(dbNodes, pool, dbName, iOpts)
+		dbNodes, err = attachToExistingDBNode(dbNodes, pool, dbName, iOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +187,7 @@ func AttachToExistingContainers(
 	}, err
 }
 
+// SetupCluster setupts m3 cluster on provided docker containers.
 func SetupCluster(cluster DockerResources, opts *ClusterOptions) error { // nolint: gocyclo
 	coordinator := cluster.Coordinator()
 	iOpts := instrument.NewOptions()
@@ -322,7 +326,7 @@ func (r *dockerResources) Cleanup() error {
 func (r *dockerResources) Nodes() Nodes             { return r.nodes }
 func (r *dockerResources) Coordinator() Coordinator { return r.coordinator }
 
-func attachToExistingDbNode(
+func attachToExistingDBNode(
 	dbNodes Nodes,
 	pool *dockertest.Pool,
 	containerName string,

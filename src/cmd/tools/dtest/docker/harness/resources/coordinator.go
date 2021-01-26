@@ -104,7 +104,7 @@ type coordinator struct {
 
 func newDockerHTTPCoordinatorFromExistingContainer(
 	pool *dockertest.Pool,
-	opts dockerResourceOptions,
+	opts dockerResourceOptions, //nolint: gocritic
 	containerName string,
 ) (Coordinator, error) {
 	container, ok := pool.ContainerByName(containerName)
@@ -310,7 +310,7 @@ func (c *coordinator) CreateDatabase(
 		return admin.DatabaseCreateResponse{}, err
 	}
 
-	if err = c.setNamesaceReady(addRequest.NamespaceName); err != nil {
+	if err = c.setNamespaceReady(addRequest.NamespaceName); err != nil {
 		logger.Error("failed to set namespace to ready state",
 			zap.Error(err),
 			zap.String("namespace", addRequest.NamespaceName),
@@ -345,7 +345,7 @@ func (c *coordinator) AddNamespace(
 		return admin.NamespaceGetResponse{}, err
 	}
 
-	if err = c.setNamesaceReady(addRequest.Name); err != nil {
+	if err = c.setNamespaceReady(addRequest.Name); err != nil {
 		logger.Error("failed to set namespace to ready state", zap.Error(err), zap.String("namespace", addRequest.Name))
 		return response, err
 	}
@@ -353,10 +353,10 @@ func (c *coordinator) AddNamespace(
 	return response, nil
 }
 
-func (c *coordinator) setNamesaceReady(name string) error {
+func (c *coordinator) setNamespaceReady(name string) error {
 	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace/ready")
 	logger := c.resource.logger.With(
-		zapMethod("setNamesaceReady"), zap.String("url", url),
+		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
 	_, err := makePostRequest(logger, url, &admin.NamespaceReadyRequest{
@@ -522,7 +522,6 @@ func (c *coordinator) RunQuery(
 
 		return err
 	})
-
 	if err != nil {
 		logger.Error("failed run", zap.Error(err))
 	}

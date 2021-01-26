@@ -180,7 +180,7 @@ func attachToExistingNode(
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 	var network docker.ContainerNetwork
-	for _, n := range c.resource.resource.Container.NetworkSettings.Networks {
+	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // golint: gocritic
 		network = n
 	}
 
