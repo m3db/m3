@@ -1,4 +1,4 @@
-This quickstart uses [the textfile collector feature](https://github.com/prometheus/node_exporter#textfile-collector) of the Prometheus node exporter to export metrics to Prometheus that M3 then ingests. To follow the next steps, [download node_exporter](https://github.com/prometheus/node_exporter#installation-and-usage)
+This quickstart uses [the textfile collector feature](https://github.com/prometheus/node_exporter#textfile-collector) of the Prometheus node exporter to export metrics to Prometheus that M3 then ingests. To follow the next steps, [download node_exporter](https://github.com/prometheus/node_exporter#installation-and-usage).
 
 #### Configure and Start Prometheus
 
