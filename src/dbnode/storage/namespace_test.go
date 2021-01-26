@@ -1426,7 +1426,8 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		start      = time.Now().Truncate(time.Hour)
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		insOpts    = instrument.NewOptions()
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1452,15 +1453,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		sourceNsID                    = ident.StringID("source")
-		targetNsID                    = ident.StringID("target")
-		sourceBlockSize               = time.Hour
-		targetBlockSize               = 2 * time.Hour
-		start                         = time.Now().Truncate(targetBlockSize)
-		secondSourceBlockStart        = start.Add(sourceBlockSize)
-		shard0ID               uint32 = 10
-		shard1ID               uint32 = 20
-		insOpts                       = instrument.NewOptions()
+		sourceNsID      = ident.StringID("source")
+		targetNsID      = ident.StringID("target")
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		shard0ID        = uint32(10)
+		shard1ID        = uint32(20)
+		insOpts         = instrument.NewOptions()
 	)
 
 	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
@@ -1485,42 +1485,20 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	mockOnColdFlush.EXPECT().ColdFlushNamespace(gomock.Any()).Return(mockOnColdFlushNs, nil)
 	targetNs.opts = targetNs.opts.SetOnColdFlush(mockOnColdFlush)
 
-	sourceShard0 := NewMockdatabaseShard(ctrl)
-	sourceShard1 := NewMockdatabaseShard(ctrl)
-	sourceNs.shards[0] = sourceShard0
-	sourceNs.shards[1] = sourceShard1
-
-	sourceShard0.EXPECT().ID().Return(shard0ID)
-	sourceShard0.EXPECT().IsBootstrapped().Return(true)
-	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
-	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
-
-	sourceShard1.EXPECT().ID().Return(shard1ID)
-	sourceShard1.EXPECT().IsBootstrapped().Return(true)
-	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
-	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
-
 	targetShard0 := NewMockdatabaseShard(ctrl)
 	targetShard1 := NewMockdatabaseShard(ctrl)
 	targetNs.shards[0] = targetShard0
 	targetNs.shards[1] = targetShard1
 
-	targetShard0.EXPECT().ID().Return(uint32(0))
-	targetShard1.EXPECT().ID().Return(uint32(1))
-
-	sourceBlockVolumes0 := []shardBlockVolume{{start, 5}, {secondSourceBlockStart, 15}}
-	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
+	targetShard0.EXPECT().ID().Return(shard0ID)
+	targetShard1.EXPECT().ID().Return(shard1ID)
 
 	targetShard0.EXPECT().
-		AggregateTiles(
-			ctx, sourceNs, targetNs, shard0ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes0, gomock.Any(), opts).
+		AggregateTiles(ctx, sourceNs, targetNs, shard0ID, mockOnColdFlushNs, opts).
 		Return(int64(3), nil)
 
 	targetShard1.EXPECT().
-		AggregateTiles(
-			ctx, sourceNs, targetNs, shard1ID, gomock.Len(2), gomock.Any(),
-			sourceBlockVolumes1, gomock.Any(), opts).
+		AggregateTiles(ctx, sourceNs, targetNs, shard1ID, mockOnColdFlushNs, opts).
 		Return(int64(2), nil)
 
 	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
