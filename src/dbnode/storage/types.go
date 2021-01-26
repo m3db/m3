@@ -681,9 +681,6 @@ type databaseShard interface {
 		sourceNs Namespace,
 		targetNs Namespace,
 		shardID uint32,
-		blockReaders []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
-		sourceBlockVolumes []shardBlockVolume,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)
@@ -1436,8 +1433,6 @@ type TileAggregator interface {
 		ctx context.Context,
 		sourceNs, targetNs Namespace,
 		shardID uint32,
-		readers []fs.DataFileSetReader,
-		writer fs.StreamingWriter,
 		onFlushSeries persist.OnFlushSeries,
 		opts AggregateTilesOptions,
 	) (int64, error)

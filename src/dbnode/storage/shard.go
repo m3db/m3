@@ -2669,88 +2669,13 @@ func (s *dbShard) AggregateTiles(
 	ctx context.Context,
 	sourceNs, targetNs Namespace,
 	shardID uint32,
-	blockReaders []fs.DataFileSetReader,
-	writer fs.StreamingWriter,
-	sourceBlockVolumes []shardBlockVolume,
 	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	if len(blockReaders) != len(sourceBlockVolumes) {
-		return 0, fmt.Errorf(
-			"blockReaders and sourceBlockVolumes length mismatch (%d != %d)",
-			len(blockReaders),
-			len(sourceBlockVolumes))
-	}
-
-	openBlockReaders := make([]fs.DataFileSetReader, 0, len(blockReaders))
-	defer func() {
-		for _, reader := range openBlockReaders {
-			if err := reader.Close(); err != nil {
-				s.logger.Error("could not close DataFileSetReader", zap.Error(err))
-			}
-		}
-	}()
-
-	var (
-		sourceNsID         = sourceNs.ID()
-		plannedSeriesCount = 1
-	)
-
-	for sourceBlockPos, blockReader := range blockReaders {
-		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
-		openOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:   sourceNsID,
-				Shard:       shardID,
-				BlockStart:  sourceBlockVolume.blockStart,
-				VolumeIndex: sourceBlockVolume.latestVolume,
-			},
-			FileSetType:      persist.FileSetFlushType,
-			StreamingEnabled: true,
-		}
-
-		if err := blockReader.Open(openOpts); err != nil {
-			if err == fs.ErrCheckpointFileNotFound {
-				// A very recent source block might not have been flushed yet.
-				continue
-			}
-			s.logger.Error("blockReader.Open",
-				zap.Error(err),
-				zap.Time("blockStart", sourceBlockVolume.blockStart),
-				zap.Int("volumeIndex", sourceBlockVolume.latestVolume))
-			return 0, err
-		}
-
-		entries := blockReader.Entries()
-		if entries > plannedSeriesCount {
-			plannedSeriesCount = entries
-		}
-
-		openBlockReaders = append(openBlockReaders, blockReader)
-	}
-
-	latestTargetVolume, err := s.LatestVolume(opts.Start)
-	if err != nil {
-		return 0, err
-	}
-
-	nextVolume := latestTargetVolume + 1
-	writerOpenOpts := fs.StreamingWriterOpenOptions{
-		NamespaceID:         s.namespace.ID(),
-		ShardID:             s.ID(),
-		BlockStart:          opts.Start,
-		BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
-		VolumeIndex:         nextVolume,
-		PlannedRecordsCount: uint(plannedSeriesCount),
-	}
-	if err = writer.Open(writerOpenOpts); err != nil {
-		return 0, err
-	}
-
 	var multiErr xerrors.MultiError
 
 	processedTileCount, err := s.tileAggregator.AggregateTiles(
-		ctx, sourceNs, targetNs, s.ID(), openBlockReaders, writer, onFlushSeries, opts)
+		ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
