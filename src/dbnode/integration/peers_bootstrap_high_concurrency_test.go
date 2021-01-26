@@ -23,6 +23,7 @@
 package integration
 
 import (
+	gocontext "context"
 	"fmt"
 	"testing"
 	"time"
@@ -188,8 +189,8 @@ func testPeersBootstrapHighConcurrency(
 
 	// Match on common tags
 	termQuery := idx.NewTermQuery(commonTags[0].Name.Bytes(), commonTags[0].Value.Bytes())
-	iter, _, err := session.FetchTaggedIDs(namesp.ID(),
-		index.Query{Query: termQuery}, queryOpts)
+	iter, _, err := session.FetchTaggedIDs(gocontext.Background(),
+		namesp.ID(), index.Query{Query: termQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 

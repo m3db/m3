@@ -71,6 +71,9 @@ type WorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
+	// Size returns the size of the worker pool.
+	Size() int
+
 	// Go waits until the next wbyorker becomes available and executes it.
 	Go(work Work)
 

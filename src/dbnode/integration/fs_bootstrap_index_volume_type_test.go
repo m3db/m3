@@ -23,6 +23,7 @@
 package integration
 
 import (
+	gocontext "context"
 	"testing"
 	"time"
 
@@ -76,8 +77,8 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	fooDoc := doc.Metadata{
 		ID: fooSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_york")},
-			doc.Field{Name: []byte("foo"), Value: []byte("foo")},
+			{Name: []byte("city"), Value: []byte("new_york")},
+			{Name: []byte("foo"), Value: []byte("foo")},
 		},
 	}
 
@@ -88,7 +89,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	barDoc := doc.Metadata{
 		ID: barSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_jersey")},
+			{Name: []byte("city"), Value: []byte("new_jersey")},
 		},
 	}
 
@@ -99,7 +100,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	bazDoc := doc.Metadata{
 		ID: bazSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("seattle")},
+			{Name: []byte("city"), Value: []byte("seattle")},
 		},
 	}
 
@@ -110,7 +111,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	quxDoc := doc.Metadata{
 		ID: quxSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("new_harmony")},
+			{Name: []byte("city"), Value: []byte("new_harmony")},
 		},
 	}
 
@@ -121,7 +122,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	duxDoc := doc.Metadata{
 		ID: duxSeries.ID.Bytes(),
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("city"), Value: []byte("los_angeles")},
+			{Name: []byte("city"), Value: []byte("los_angeles")},
 		},
 	}
 
@@ -219,8 +220,8 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.FetchTaggedIDs(gocontext.Background(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
@@ -233,8 +234,8 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.FetchTaggedIDs(gocontext.Background(),
+		ns1.ID(), index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 

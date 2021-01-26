@@ -122,6 +122,7 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
+	cancelledReadRequest    tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -142,6 +143,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
+		cancelledReadRequest:    scope.Counter("cancelled-read-request"),
 	}
 }
 
@@ -458,7 +460,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	ctx := addSourceToContext(tctx, req.Source)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
@@ -630,7 +632,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -712,11 +714,12 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	fmt.Printf("!! started fetchtagged\n")
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	ctx := addSourceToContext(tctx, req.Source)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
@@ -883,7 +886,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -927,7 +930,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -998,7 +1001,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -1077,7 +1080,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart          = s.nowFn()
@@ -1153,7 +1156,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -1229,7 +1232,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	defer func() {
@@ -2291,7 +2294,16 @@ func (s *service) startReadRPCWithDB() (storage.Database, error) {
 	return db, nil
 }
 
-func (s *service) readRPCCompleted() {
+func (s *service) readRPCCompleted(ctx goctx.Context) {
+	fmt.Printf("!! read RPC completed\n")
+	select {
+	case <-ctx.Done():
+		s.metrics.cancelledReadRequest.Inc(1)
+		fmt.Printf("!! read RPC completed CANCELLED: %v\n", ctx.Err())
+	default:
+		fmt.Printf("!! read RPC completed NO CANCEL: %v\n", ctx.Err())
+	}
+
 	if s.state.maxOutstandingReadRPCs == 0 {
 		// Nothing to do since we're not tracking the number outstanding RPCs.
 		return

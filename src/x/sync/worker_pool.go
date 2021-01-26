@@ -40,6 +40,10 @@ func (p *workerPool) Init() {
 	}
 }
 
+func (p *workerPool) Size() int {
+	return cap(p.workCh)
+}
+
 func (p *workerPool) Go(work Work) {
 	token := <-p.workCh
 	go func() {

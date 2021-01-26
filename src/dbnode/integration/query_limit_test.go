@@ -23,6 +23,7 @@
 package integration
 
 import (
+	gocontext "context"
 	"fmt"
 	"testing"
 	"time"
@@ -66,11 +67,13 @@ func TestQueryLimitExceededError(t *testing.T) {
 			tags       = ident.StringTag("tag", "value")
 			timestamp  = nowFn().Add(-time.Minute * time.Duration(i+1))
 		)
-		session.WriteTagged(ns.ID(), ident.StringID(metricName),
+		err := session.WriteTagged(ns.ID(), ident.StringID(metricName),
 			ident.NewTagsIterator(ident.NewTags(tags)), timestamp, 0.0, xtime.Second, nil)
+		require.NoError(t, err)
 	}
 
-	_, _, err = session.FetchTagged(ns.ID(), query, queryOpts)
+	_, _, err = session.FetchTagged(gocontext.Background(),
+		ns.ID(), query, queryOpts)
 	require.True(t, client.IsResourceExhaustedError(err),
 		"expected resource exhausted error, got: %v", err)
 }

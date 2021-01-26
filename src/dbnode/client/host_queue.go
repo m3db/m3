@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -876,7 +877,9 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		ctx, cancel := q.thriftContextRead(op.context)
+		defer cancel()
+
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
@@ -909,7 +912,9 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		ctx, cancel := q.thriftContextRead(op.context)
+		defer cancel()
+
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
@@ -948,6 +953,28 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 
 		cleanup()
 	})
+}
+
+var noopCancel = context.CancelFunc(func() {})
+
+func (q *queue) thriftContextRead(
+	callingContext context.Context,
+) (thrift.Context, context.CancelFunc) {
+	var (
+		timeout = q.opts.FetchRequestTimeout()
+		cancel  = noopCancel
+	)
+	if callingContext != nil {
+		// Use the original context for the call.
+		_, ok := callingContext.Deadline()
+		if !ok {
+			callingContext, cancel = context.WithTimeout(callingContext, timeout)
+		}
+		return thrift.Wrap(callingContext), cancel
+	}
+
+	// Create a new context.
+	return thrift.NewContext(timeout)
 }
 
 func (q *queue) Len() int {

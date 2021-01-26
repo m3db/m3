@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/x/ident"
@@ -45,6 +46,7 @@ type fetchTaggedAttempt struct {
 }
 
 type fetchTaggedAttemptArgs struct {
+	ctx   context.Context
 	ns    ident.ID
 	query index.Query
 	opts  index.QueryOptions
@@ -61,14 +63,14 @@ func (f *fetchTaggedAttempt) reset() {
 
 func (f *fetchTaggedAttempt) performIDsAttempt() error {
 	var err error
-	f.idsResultIter, f.idsResultMetadata, err = f.session.fetchTaggedIDsAttempt(
+	f.idsResultIter, f.idsResultMetadata, err = f.session.fetchTaggedIDsAttempt(f.args.ctx,
 		f.args.ns, f.args.query, f.args.opts)
 	return err
 }
 
 func (f *fetchTaggedAttempt) performDataAttempt() error {
 	var err error
-	f.dataResultIters, f.dataResultMetadata, err = f.session.fetchTaggedAttempt(
+	f.dataResultIters, f.dataResultMetadata, err = f.session.fetchTaggedAttempt(f.args.ctx,
 		f.args.ns, f.args.query, f.args.opts)
 	return err
 }

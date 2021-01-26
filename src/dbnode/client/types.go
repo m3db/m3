@@ -21,6 +21,7 @@
 package client
 
 import (
+	gocontext "context"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
@@ -82,13 +83,13 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
+	FetchTagged(ctx gocontext.Context, namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
+	FetchTaggedIDs(ctx gocontext.Context, namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
 
 	// Aggregate aggregates values from the database for the given set of constraints.
-	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
+	Aggregate(ctx gocontext.Context, namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations

@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -59,7 +60,8 @@ func TestNamespaceReadyHandler(t *testing.T) {
 	testClusters := testClusters{
 		nonReadyNamespaces: []m3.ClusterNamespace{&testClusterNs},
 	}
-	mockSession.EXPECT().FetchTaggedIDs(testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
+	ctx := context.Background()
+	mockSession.EXPECT().FetchTaggedIDs(ctx, testClusterNs.NamespaceID(), index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1}).Return(nil, client.FetchResponseMetadata{}, nil)
 
 	readyHandler := NewReadyHandler(mockClient, &testClusters, instrument.NewOptions())

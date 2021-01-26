@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
@@ -84,7 +85,7 @@ func (h *ReadyHandler) ServeHTTP(
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	ready, err := h.Ready(req, opts)
+	ready, err := h.ready(r.Context(), req, opts)
 	if err != nil {
 		logger.Error("unable to mark namespace as ready", zap.Error(err))
 		xhttp.WriteError(w, err)
@@ -109,7 +110,11 @@ func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyReque
 	return req, nil
 }
 
-func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptions.ServiceOptions) (bool, error) {
+func (h *ReadyHandler) ready(
+	ctx context.Context,
+	req *admin.NamespaceReadyRequest,
+	opts handleroptions.ServiceOptions,
+) (bool, error) {
 	// Fetch existing namespace metadata.
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
@@ -140,7 +145,7 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 
 	// If we're not forcing the staging state, check db nodes to see if namespace is ready.
 	if !req.Force {
-		if err := h.checkDBNodes(req.Name); err != nil {
+		if err := h.checkDBNodes(ctx, req.Name); err != nil {
 			return false, err
 		}
 	}
@@ -180,7 +185,7 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 	return true, nil
 }
 
-func (h *ReadyHandler) checkDBNodes(namespace string) error {
+func (h *ReadyHandler) checkDBNodes(ctx context.Context, namespace string) error {
 	if h.clusters == nil {
 		err := fmt.Errorf("coordinator is not connected to dbnodes. cannot check namespace %v"+
 			" for readiness. set force = true to make namespaces ready without checking dbnodes", namespace)
@@ -204,7 +209,7 @@ func (h *ReadyHandler) checkDBNodes(namespace string) error {
 	}
 
 	// Do a simple quorum read. A non-error indicates most dbnodes have the namespace.
-	_, _, err := session.FetchTaggedIDs(id,
+	_, _, err := session.FetchTaggedIDs(ctx, id,
 		index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1})
 	// We treat any error here as a proxy for namespace readiness.
