@@ -63,9 +63,6 @@ func TestErrorStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetErrorRewriteFn(func(err error) error {
-				return err
-			})
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.Equal(t, tt.expectedStatus, recorder.Code)
@@ -78,31 +75,37 @@ func TestErrorRewrite(t *testing.T) {
 		name         string
 		err          error
 		expectedBody string
+		expectedStatus int
 	}{
 		{
 			name:         "error that should not be rewritten",
 			err:          errors.New("random error"),
 			expectedBody: `{"status":"error","error":"random error"}`,
+			expectedStatus: 500,
 		},
 		{
 			name:         "error that should be rewritten",
 			err:          xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
 			expectedBody: `{"status":"error","error":"rewritten error"}`,
+			expectedStatus: 500,
 		},
 	}
 
+	invalidParamsRewriteFn := func(err error) error {
+		if xerrors.IsInvalidParams(err) {
+			return errors.New("rewritten error")
+		}
+		return err
+	}
+
+	SetErrorRewriteFn(invalidParamsRewriteFn)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			invalidParamsRewriteFn := func(err error) error {
-				if xerrors.IsInvalidParams(err) {
-					return errors.New("rewritten error")
-				}
-				return err
-			}
-			SetErrorRewriteFn(invalidParamsRewriteFn)
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.JSONEq(t, tt.expectedBody, recorder.Body.String())
+			assert.Equal(t, tt.expectedStatus, recorder.Code)
 		})
 	}
 }
