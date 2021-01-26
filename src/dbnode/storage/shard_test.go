@@ -1853,11 +1853,11 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		targetBlockSize    = 2 * time.Hour
-		start              = time.Now().Truncate(targetBlockSize)
-		latestTargetVolume = 7
-
-		opts = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute}
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		opts            = AggregateTilesOptions{
+			Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute,
+		}
 
 		expectedProcessedTileCount = int64(4)
 
@@ -1878,7 +1878,7 @@ func TestShardAggregateTiles(t *testing.T) {
 
 	aggregator.EXPECT().
 		AggregateTiles(ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts).
-		Return(expectedProcessedTileCount, latestTargetVolume, nil)
+		Return(expectedProcessedTileCount, 33, nil)
 
 	processedTileCount, err := targetShard.AggregateTiles(
 		ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts)

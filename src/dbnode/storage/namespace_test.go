@@ -1446,7 +1446,7 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
