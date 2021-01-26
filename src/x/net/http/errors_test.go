@@ -72,21 +72,21 @@ func TestErrorStatus(t *testing.T) {
 
 func TestErrorRewrite(t *testing.T) {
 	tests := []struct {
-		name         string
-		err          error
-		expectedBody string
+		name           string
+		err            error
+		expectedBody   string
 		expectedStatus int
 	}{
 		{
-			name:         "error that should not be rewritten",
-			err:          errors.New("random error"),
-			expectedBody: `{"status":"error","error":"random error"}`,
+			name:           "error that should not be rewritten",
+			err:            errors.New("random error"),
+			expectedBody:   `{"status":"error","error":"random error"}`,
 			expectedStatus: 500,
 		},
 		{
-			name:         "error that should be rewritten",
-			err:          xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
-			expectedBody: `{"status":"error","error":"rewritten error"}`,
+			name:           "error that should be rewritten",
+			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
+			expectedBody:   `{"status":"error","error":"rewritten error"}`,
 			expectedStatus: 500,
 		},
 	}
