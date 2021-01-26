@@ -49,9 +49,10 @@ type aggregatedResults struct {
 	valuesPool       AggregateValuesPool
 	encodedDocReader docs.EncodedDocumentReader
 
-	iOpts   instrument.Options
-	metrics usageMetrics
+	iOpts instrument.Options
 }
+
+var _ AggregateUsageMetrics = (*usageMetrics)(nil)
 
 type usageMetrics struct {
 	total tally.Counter
@@ -63,20 +64,46 @@ type usageMetrics struct {
 	dedupedFields tally.Counter
 }
 
-func newUsageMetrics(ns ident.ID, iOpts instrument.Options) usageMetrics {
-	namespace := "unknown"
-	if ns != nil {
-		namespace = ns.String()
+func (m *usageMetrics) IncTotal(val int64) {
+	if m.total != nil {
+		m.total.Inc(val)
+	}
+}
+func (m *usageMetrics) IncTotalTerms(val int64) {
+	if m.totalTerms != nil {
+		m.totalTerms.Inc(val)
+	}
+}
+func (m *usageMetrics) IncDedupedTerms(val int64) {
+	if m.dedupedTerms != nil {
+		m.dedupedTerms.Inc(val)
+	}
+}
+func (m *usageMetrics) IncTotalFields(val int64) {
+	if m.totalFields != nil {
+		m.totalFields.Inc(val)
+	}
+}
+func (m *usageMetrics) IncDedupedFields(val int64) {
+	if m.dedupedFields != nil {
+		m.dedupedFields.Inc(val)
+	}
+}
+
+// NewAggregateUsageMetrics builds a new aggregated usage metrics.
+func NewAggregateUsageMetrics(ns ident.ID, iOpts instrument.Options) AggregateUsageMetrics {
+	if ns == nil {
+		return &usageMetrics{}
 	}
 
 	scope := iOpts.MetricsScope()
 	buildCounter := func(val string) tally.Counter {
 		return scope.
-			Tagged(map[string]string{"type": val, "namespace": namespace}).
+			Tagged(map[string]string{"type": val, "namespace": ns.String()}).
 			Counter("aggregated-results")
 	}
 
-	return usageMetrics{
+	return &usageMetrics{
 		total:         buildCounter("total"),
 		totalTerms:    buildCounter("total-terms"),
 		dedupedTerms:  buildCounter("deduped-terms"),
@@ -91,17 +118,19 @@ func NewAggregateResults(
 	aggregateOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
-	iOpts := opts.InstrumentOptions()
+	if aggregateOpts.AggregateUsageMetrics == nil {
+		aggregateOpts.AggregateUsageMetrics = &usageMetrics{}
+	}
+
 	return &aggregatedResults{
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
-		iOpts:         iOpts,
+		iOpts:         opts.InstrumentOptions(),
 		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
 		bytesPool:     opts.CheckedBytesPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
-		metrics:       newUsageMetrics(namespaceID, iOpts),
 	}
 }
 
@@ -113,8 +142,11 @@ func (r *aggregatedResults) Reset(
 ) {
 	r.Lock()
 
-	r.aggregateOpts = aggregateOpts
+	if aggregateOpts.AggregateUsageMetrics == nil {
+		aggregateOpts.AggregateUsageMetrics = NewAggregateUsageMetrics(nsID, r.iOpts)
+	}
 
+	r.aggregateOpts = aggregateOpts
 	// finalize existing held nsID
 	if r.nsID != nil {
 		r.nsID.Finalize()
@@ -131,13 +163,11 @@ func (r *aggregatedResults) Reset(
 		valueMap := entry.Value()
 		valueMap.finalize()
 	}
-
 	// reset all keys in the map next
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
 	r.size = 0
 
-	r.metrics = newUsageMetrics(nsID, r.iOpts)
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
 	r.Unlock()
@@ -158,7 +188,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		totalCount += len(batch[idx].Terms)
 	}
 
-	r.metrics.total.Inc(int64(totalCount))
+	r.aggregateOpts.AggregateUsageMetrics.IncTotal(int64(totalCount))
 	remainingDocs := int(math.MaxInt64)
 	if r.aggregateOpts.DocsLimit != 0 {
 		remainingDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
@@ -168,9 +198,9 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	if remainingDocs <= 0 {
 		for idx := 0; idx < len(batch); idx++ {
 			batch[idx].Field.Finalize()
-			r.metrics.totalFields.Inc(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 			for _, term := range batch[idx].Terms {
-				r.metrics.totalTerms.Inc(1)
+				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 				term.Finalize()
 			}
 		}
@@ -189,12 +219,12 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	docs := 0
 	numInserts := 0
 	for _, entry := range batch {
-		r.metrics.totalFields.Inc(1)
+		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {
 			entry.Field.Finalize()
 			for _, term := range entry.Terms {
-				r.metrics.totalTerms.Inc(1)
+				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 				term.Finalize()
 			}
 
@@ -208,7 +238,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
 			if remainingInserts > numInserts {
-				r.metrics.dedupedFields.Inc(1)
+				r.aggregateOpts.AggregateUsageMetrics.IncDedupedFields(1)
 
 				numInserts++
 				aggValues = r.valuesPool.Get()
@@ -231,14 +261,14 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
-			r.metrics.totalTerms.Inc(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 			if remainingDocs > docs {
 				docs++
 				if !valuesMap.Contains(t) {
 					// we can avoid the copy because we assume ownership of the passed ident.ID,
 					// but still need to finalize it.
 					if remainingInserts > numInserts {
-						r.metrics.dedupedTerms.Inc(1)
+						r.aggregateOpts.AggregateUsageMetrics.IncDedupedTerms(1)
 						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 							NoCopyKey:     true,
 							NoFinalizeKey: false,

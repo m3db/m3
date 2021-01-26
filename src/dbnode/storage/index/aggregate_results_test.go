@@ -248,11 +248,10 @@ func TestWithLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
 			iOpts := instrument.NewOptions().SetMetricsScope(scope)
-			testOpts = testOpts.SetInstrumentOptions(iOpts)
-
 			res := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
-				SizeLimit: tt.sizeLimit,
-				DocsLimit: tt.docLimit,
+				SizeLimit:             tt.sizeLimit,
+				DocsLimit:             tt.docLimit,
+				AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns"), iOpts),
 			}, testOpts)
 
 			size, docsCount := res.AddFields(tt.entries)
@@ -354,7 +353,9 @@ func TestResetUpdatesMetics(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 	testOpts = testOpts.SetInstrumentOptions(iOpts)
-	res := NewAggregateResults(ident.StringID("ns1"), AggregateResultsOptions{}, testOpts)
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns1"), iOpts),
+	}, testOpts)
 	res.AddFields(entries(genResultsEntry("foo")))
 	res.Reset(ident.StringID("ns2"), AggregateResultsOptions{})
 	res.AddFields(entries(genResultsEntry("bar")))
