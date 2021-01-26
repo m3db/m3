@@ -137,7 +137,7 @@ func TestPersistManager(t *testing.T) {
 
 func TestStorageOptions(t *testing.T) {
 	opts := NewTaskOptions()
-	value := storage.NewOptions()
+	value := storage.DefaultTestOptions()
 	require.Equal(t, value, opts.SetStorageOptions(value).StorageOptions())
 }
 
