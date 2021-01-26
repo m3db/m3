@@ -141,7 +141,6 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
 
 	metrics blockMetrics
@@ -251,7 +250,6 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
@@ -703,6 +701,8 @@ func (b *block) aggregateWithSpan(
 			field, term := iter.Current()
 			batch, numAdded = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
 			currBatchSize += numAdded
+
+			// continue appending to the batch until we hit our max batch size
 			if currBatchSize < maxBatch {
 				continue
 			}
@@ -736,6 +736,8 @@ func (b *block) aggregateWithSpan(
 	return opts.exhaustive(size, resultCount), nil
 }
 
+// appendFieldAndTermToBatch adds the provided field / term onto the batch,
+// optionally reusing the last element of the batch if it pertains to the same field.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
@@ -810,6 +812,8 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
+// addAggregateResults adds the fields on the batch
+// to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
