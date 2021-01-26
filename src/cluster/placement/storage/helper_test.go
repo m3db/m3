@@ -175,7 +175,13 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, p, p1)
 
-	m, err := helper.GenerateProto(p1)
+	// append snapshot with earlier cutover time
+	earlierCutoveTime := p.CutoverNanos() - 1
+	_, err = helper.GenerateProto(p.Clone().SetCutoverNanos(earlierCutoveTime))
+	require.Error(t, err)
+
+	// append snapshot with the same cutover time
+	m, err := helper.GenerateProto(p)
 	require.NoError(t, err)
 	require.NoError(t, helper.ValidateProto(m))
 	mProto := m.(*placementpb.PlacementSnapshots)
@@ -183,10 +189,11 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 
 	ps2, err := placement.NewPlacementsFromProto(mProto)
 	require.NoError(t, err)
-	require.Equal(t, p1.SetVersion(0), ps2[2])
+	require.Equal(t, p.SetVersion(0), ps2[2])
 
-	newCutoverTime := p.CutoverNanos() + 1
-	m, err = helper.GenerateProto(p.SetCutoverNanos(newCutoverTime))
+	// append snapshot with later cutover time
+	laterCutoverTime := p.CutoverNanos() + 1
+	m, err = helper.GenerateProto(p.SetCutoverNanos(laterCutoverTime))
 	require.NoError(t, err)
 
 	newProto := m.(*placementpb.PlacementSnapshots)
@@ -214,7 +221,7 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 					ReplicaFactor: 1,
 					NumShards:     3,
 					IsSharded:     true,
-					CutoverTime:   newCutoverTime,
+					CutoverTime:   laterCutoverTime,
 				},
 			},
 		},
