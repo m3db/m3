@@ -196,6 +196,14 @@ func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (d
 		byteOrder = serialize.ByteOrder
 		total     = len(encodedTags)
 	)
+	if total == 0 {
+		// No tags set for this series
+		return doc.Metadata{
+			ID:     clone(id.Bytes()),
+			Fields: nil,
+		}, nil
+	}
+
 	if total < 4 {
 		return doc.Metadata{}, fmt.Errorf("encoded tags too short: size=%d, need=%d", total, 4)
 	}

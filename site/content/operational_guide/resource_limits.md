@@ -53,6 +53,15 @@ per second safely with your deployment and you want to use the default lookback
 of `15s` then you would multiply 10,000 by 15 to get 150,000 as a max value with 
 a 15s lookback.
 
+The third limit `maxRecentlyQueriedSeriesDiskRead` caps the series IDs matched by incoming 
+queries. This originally was distinct from the limit `maxRecentlyQueriedSeriesBlocks`, which
+also limits the memory cost of specific series matched, because of an inefficiency
+in how allocations would occur even for series known to not be present on disk for a given
+shard. This inefficiency has been resolved https://github.com/m3db/m3/pull/3103 and therefore
+this limit should be tracking memory cost linearly relative to `maxRecentlyQueriedSeriesBlocks`.
+It is recommended to defer to using `maxRecentlyQueriedSeriesBlocks` over 
+`maxRecentlyQueriedSeriesDiskRead` given both should cap the resources similarly.
+
 ### Annotated configuration
 
 ```yaml
@@ -82,6 +91,18 @@ limits:
     # and read until the lookback period resets.
     lookback: 15s
 
+  # If set, will enforce a maximum on the series read from disk.
+  # This limit can be used to ensure queries that match an extremely high 
+  # volume of series can be limited before even reading the underlying series data from disk.
+  maxRecentlyQueriedSeriesDiskRead:
+    # Value sets the maximum number of series read from disk.
+    value: 0
+    # Lookback sets the time window that this limit is enforced over, every 
+    # lookback period the global count is reset to zero and when the limit 
+    # is reached it will reject any further time series blocks being matched 
+    # and read until the lookback period resets.
+    lookback: 15s
+
   # If set then will limit the number of parallel write batch requests to the 
   # database and return errors if hit.
   maxOutstandingWriteRequests: 0
@@ -93,6 +114,48 @@ limits:
   # exhaustion from reads.
   maxOutstandingReadRequests: 0
 ```
+
+### Dynamic configuration
+
+Query limits can be dynamically driven by etcd to adjust limits without redeploying. By updating the `m3db.query.limits` key in etcd, specific limits can be overriden. M3Coordinator exposes an API for updating etcd key/value pairs and so this API can be used for modifying these dynamic overrides. For example,
+
+```
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+  "key": "m3db.query.limits",
+  "value":{
+    "maxRecentlyQueriedSeriesDiskBytesRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    },
+    "maxRecentlyQueriedSeriesBlocks": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    },
+    "maxRecentlyQueriedSeriesDiskRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    }
+  },
+  "commit":true
+}'
+```
+
+To remove all overrides, omit all limits from the `value`
+```
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+  "key": "m3db.query.limits",
+  "value":{},
+  "commit":true
+}'
+```
+
+Usage notes:
+- Setting the `commit` flag to false allows for dry-run API calls to see the old and new limits that would be applied.
+- Omitting a limit from the `value` results in that limit to be driven by the config-based settings.
+- The `forceExceeded` flag makes the limit behave as though it is permanently exceeded, thus failing all queries. This is useful for dynamically shutting down all queries in cases where load may be exceeding provisioned resources.
 
 ## M3 Query and M3 Coordinator
 
