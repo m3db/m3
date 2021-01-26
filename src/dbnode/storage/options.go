@@ -183,7 +183,8 @@ type options struct {
 	tileAggregator                  TileAggregator
 }
 
-// NewOptions creates a new set of storage options with defaults
+// NewOptions creates a new set of storage options with defaults.
+// NB: expensive, in tests use DefaultTestOptions instead.
 func NewOptions() Options {
 	return newOptions(defaultPoolOptions)
 }
