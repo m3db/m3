@@ -707,7 +707,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
+			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
 			if err != nil {
 				return false, err
 			}
@@ -727,7 +727,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
+		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
 		if err != nil {
 			return false, err
 		}
@@ -815,11 +815,11 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
-	currBatchSize int,
+	numAdded int,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(currBatchSize, source); err != nil {
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

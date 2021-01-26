@@ -24,8 +24,11 @@ import (
 	"math"
 	"sync"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -42,10 +45,56 @@ type aggregatedResults struct {
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       AggregateResultsPool
-	valuesPool AggregateValuesPool
-
+	pool             AggregateResultsPool
+	valuesPool       AggregateValuesPool
 	encodedDocReader docs.EncodedDocumentReader
+
+	iOpts   instrument.Options
+	metrics usageMetrics
+}
+
+type usageMetrics struct {
+	total tally.Counter
+
+	totalTerms   tally.Counter
+	dedupedTerms tally.Counter
+
+	totalFields   tally.Counter
+	dedupedFields tally.Counter
+}
+
+type noopCounter struct{}
+
+var _ tally.Counter = (*noopCounter)(nil)
+
+func (*noopCounter) Inc(_ int64) {}
+
+func newUsageMetrics(ns ident.ID, iOpts instrument.Options) usageMetrics {
+	if ns == nil {
+		noop := &noopCounter{}
+		return usageMetrics{
+			total:         noop,
+			totalTerms:    noop,
+			dedupedTerms:  noop,
+			totalFields:   noop,
+			dedupedFields: noop,
+		}
+	}
+
+	scope := iOpts.MetricsScope()
+	buildCounter := func(val string) tally.Counter {
+		return scope.
+			Tagged(map[string]string{"type": val, "namespace": ns.String()}).
+			Counter("aggregated-results")
+	}
+
+	return usageMetrics{
+		total:         buildCounter("total"),
+		totalTerms:    buildCounter("total-terms"),
+		dedupedTerms:  buildCounter("deduped-terms"),
+		totalFields:   buildCounter("total-fields"),
+		dedupedFields: buildCounter("deduped-fields"),
+	}
 }
 
 // NewAggregateResults returns a new AggregateResults object.
@@ -54,14 +103,17 @@ func NewAggregateResults(
 	aggregateOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
+	iOpts := opts.InstrumentOptions()
 	return &aggregatedResults{
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
+		iOpts:         iOpts,
 		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
 		bytesPool:     opts.CheckedBytesPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
+		metrics:       newUsageMetrics(namespaceID, iOpts),
 	}
 }
 
@@ -97,6 +149,7 @@ func (r *aggregatedResults) Reset(
 	r.totalDocsCount = 0
 	r.size = 0
 
+	r.metrics = newUsageMetrics(nsID, r.iOpts)
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
 	r.Unlock()
@@ -110,6 +163,14 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	r.Lock()
 	defer r.Unlock()
 
+	// NB: init total count with batch length, since each aggregated entry
+	// will have one field.
+	totalCount := len(batch)
+	for _, entry := range batch {
+		totalCount += len(entry.Terms)
+	}
+
+	r.metrics.total.Inc(int64(totalCount))
 	remainingDocs := int(math.MaxInt64)
 	if r.aggregateOpts.DocsLimit != 0 {
 		remainingDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
@@ -119,7 +180,9 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	if remainingDocs <= 0 {
 		for idx := 0; idx < len(batch); idx++ {
 			batch[idx].Field.Finalize()
+			r.metrics.totalFields.Inc(1)
 			for _, term := range batch[idx].Terms {
+				r.metrics.totalTerms.Inc(1)
 				term.Finalize()
 			}
 		}
@@ -138,9 +201,12 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	docs := 0
 	numInserts := 0
 	for _, entry := range batch {
+		r.metrics.totalFields.Inc(1)
+
 		if docs >= remainingDocs || numInserts >= remainingInserts {
 			entry.Field.Finalize()
 			for _, term := range entry.Terms {
+				r.metrics.totalTerms.Inc(1)
 				term.Finalize()
 			}
 
@@ -154,6 +220,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
 			if remainingInserts > numInserts {
+				r.metrics.dedupedFields.Inc(1)
+
 				numInserts++
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
@@ -175,12 +243,14 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
+			r.metrics.totalTerms.Inc(1)
 			if remainingDocs > docs {
 				docs++
 				if !valuesMap.Contains(t) {
 					// we can avoid the copy because we assume ownership of the passed ident.ID,
 					// but still need to finalize it.
 					if remainingInserts > numInserts {
+						r.metrics.dedupedTerms.Inc(1)
 						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 							NoCopyKey:     true,
 							NoFinalizeKey: false,
