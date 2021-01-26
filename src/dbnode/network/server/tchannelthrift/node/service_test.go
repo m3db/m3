@@ -64,7 +64,7 @@ import (
 var (
 	testIndexOptions          = index.NewOptions()
 	testNamespaceOptions      = namespace.NewOptions()
-	testStorageOpts           = storage.NewOptions()
+	testStorageOpts           = storage.DefaultTestOptions()
 	testTChannelThriftOptions = tchannelthrift.NewOptions()
 )
 

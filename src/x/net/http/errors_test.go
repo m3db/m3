@@ -21,6 +21,7 @@
 package xhttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http/httptest"
@@ -32,40 +33,79 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-func TestErrorRewrite(t *testing.T) {
+func TestErrorStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		err            error
 		expectedStatus int
-		expectedBody   string
 	}{
 		{
-			name:           "error that should not be rewritten",
-			err:            errors.New("random error"),
+			name:           "generic error",
+			err:            errors.New("generic error"),
 			expectedStatus: 500,
-			expectedBody:   `{"status":"error","error":"random error"}`,
 		},
 		{
-			name:           "error that should be rewritten",
-			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
-			expectedStatus: 500,
-			expectedBody:   `{"status":"error","error":"rewritten error"}`,
+			name:           "invalid params",
+			err:            xerrors.NewInvalidParamsError(errors.New("bad param")),
+			expectedStatus: 400,
+		},
+		{
+			name:           "deadline exceeded",
+			err:            context.DeadlineExceeded,
+			expectedStatus: 504,
+		},
+		{
+			name:           "canceled",
+			err:            context.Canceled,
+			expectedStatus: 499,
 		},
 	}
-
-	SetErrorRewriteFn(func(err error) error {
-		if xerrors.IsInvalidParams(err) {
-			return errors.New("rewritten error")
-		}
-		return err
-	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.Equal(t, tt.expectedStatus, recorder.Code)
+		})
+	}
+}
+
+func TestErrorRewrite(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedBody   string
+		expectedStatus int
+	}{
+		{
+			name:           "error that should not be rewritten",
+			err:            errors.New("random error"),
+			expectedBody:   `{"status":"error","error":"random error"}`,
+			expectedStatus: 500,
+		},
+		{
+			name:           "error that should be rewritten",
+			err:            xerrors.NewInvalidParamsError(errors.New("to be rewritten")),
+			expectedBody:   `{"status":"error","error":"rewritten error"}`,
+			expectedStatus: 500,
+		},
+	}
+
+	invalidParamsRewriteFn := func(err error) error {
+		if xerrors.IsInvalidParams(err) {
+			return errors.New("rewritten error")
+		}
+		return err
+	}
+
+	SetErrorRewriteFn(invalidParamsRewriteFn)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			WriteError(recorder, tt.err)
 			assert.JSONEq(t, tt.expectedBody, recorder.Body.String())
+			assert.Equal(t, tt.expectedStatus, recorder.Code)
 		})
 	}
 }
