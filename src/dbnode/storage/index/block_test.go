@@ -44,13 +44,13 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
+	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	opentracing "github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -1948,11 +1948,9 @@ func TestBlockAggregate(t *testing.T) {
 	require.Len(t, spans, 2)
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 
-	for _, v := range scope.Snapshot().Counters() {
-		if v.Name() == "total-docs-matched" {
-			assert.Equal(t, int64(4), v.Value())
-		}
-	}
+	snap := scope.Snapshot()
+	tallytest.AssertCounterValue(t, 4, snap, "query-limit.total-docs-matched", nil)
+	tallytest.AssertCounterValue(t, 8, snap, "aggregate-added-counter", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {

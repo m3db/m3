@@ -70,21 +70,15 @@ var _ tally.Counter = (*noopCounter)(nil)
 func (*noopCounter) Inc(_ int64) {}
 
 func newUsageMetrics(ns ident.ID, iOpts instrument.Options) usageMetrics {
-	if ns == nil {
-		noop := &noopCounter{}
-		return usageMetrics{
-			total:         noop,
-			totalTerms:    noop,
-			dedupedTerms:  noop,
-			totalFields:   noop,
-			dedupedFields: noop,
-		}
+	namespace := "unknown"
+	if ns != nil {
+		namespace = ns.String()
 	}
 
 	scope := iOpts.MetricsScope()
 	buildCounter := func(val string) tally.Counter {
 		return scope.
-			Tagged(map[string]string{"type": val, "namespace": ns.String()}).
+			Tagged(map[string]string{"type": val, "namespace": namespace}).
 			Counter("aggregated-results")
 	}
 
@@ -166,8 +160,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	// NB: init total count with batch length, since each aggregated entry
 	// will have one field.
 	totalCount := len(batch)
-	for _, entry := range batch {
-		totalCount += len(entry.Terms)
+	for idx := 0; idx < len(batch); idx++ {
+		totalCount += len(batch[idx].Terms)
 	}
 
 	r.metrics.total.Inc(int64(totalCount))

@@ -143,6 +143,7 @@ type block struct {
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
+	aggregatedAddedCounter          tally.Counter
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -226,6 +227,7 @@ func NewBlock(
 		iopts,
 	)
 
+	aggAdded := opts.InstrumentOptions().MetricsScope().Counter("aggregate-added-counter")
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -253,6 +255,7 @@ func NewBlock(
 		logger:                          iopts.Logger(),
 		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		aggregatedAddedCounter:          aggAdded,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -819,6 +822,7 @@ func (b *block) addAggregateResults(
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
+		b.aggregatedAddedCounter.Inc(int64(numAdded))
 		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
