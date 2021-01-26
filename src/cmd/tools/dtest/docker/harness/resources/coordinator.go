@@ -29,14 +29,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
@@ -359,10 +358,11 @@ func (c *coordinator) setNamespaceReady(name string) error {
 		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
-	_, err := makePostRequest(logger, url, &admin.NamespaceReadyRequest{
-		Name:  name,
-		Force: true,
-	})
+	_, err := makePostRequest(logger, url,
+		&admin.NamespaceReadyRequest{
+			Name:  name,
+			Force: true,
+		})
 	return err
 }
 
