@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 
 	"github.com/stretchr/testify/require"
 )
@@ -170,15 +171,22 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	_, err = helper.PlacementForVersion(2)
 	require.Error(t, err)
 
-	h, err := helper.PlacementForVersion(1)
+	p1, err := helper.PlacementForVersion(1)
 	require.NoError(t, err)
-	require.Equal(t, p, h)
+	require.Equal(t, p, p1)
 
-	_, err = helper.GenerateProto(p)
-	require.Error(t, err)
+	m, err := helper.GenerateProto(p1)
+	require.NoError(t, err)
+	require.NoError(t, helper.ValidateProto(m))
+	mProto := m.(*placementpb.PlacementSnapshots)
+	require.Equal(t, 3, len(mProto.Snapshots))
+
+	ps2, err := placement.NewPlacementsFromProto(mProto)
+	require.NoError(t, err)
+	require.Equal(t, p1.SetVersion(0), ps2[2])
 
 	newCutoverTime := p.CutoverNanos() + 1
-	m, err := helper.GenerateProto(p.SetCutoverNanos(newCutoverTime))
+	m, err = helper.GenerateProto(p.SetCutoverNanos(newCutoverTime))
 	require.NoError(t, err)
 
 	newProto := m.(*placementpb.PlacementSnapshots)
@@ -234,7 +242,7 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	_, err = store.Set(key, newProto)
 	require.NoError(t, err)
 
-	h, err = helper.PlacementForVersion(3)
+	h, err := helper.PlacementForVersion(3)
 	require.NoError(t, err)
 	require.Equal(t, p.SetVersion(3), h)
 }
