@@ -172,6 +172,7 @@ func newMutableSegments(
 		blockSize:                        md.Options().IndexOptions().BlockSize(),
 		opts:                             opts,
 		blockOpts:                        blockOpts,
+		compact:                          mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
 		iopts:                            iopts,
 		indexedBloomFilterByTime:         make(map[xtime.UnixNano]*indexedBloomFilter),
 		indexedSnapshot:                  builder.NewIDsMap(builder.IDsMapOptions{}),
@@ -265,8 +266,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 	}
 
 	// Lazily allocate the segment builder and compactors.
-	err := m.compact.allocLazyBuilderAndCompactorsWithLock(m.writeIndexingConcurrency,
-		m.blockOpts, m.opts)
+	err := m.compact.allocLazyBuilderAndCompactorsWithLock(m.writeIndexingConcurrency)
 	if err != nil {
 		m.Unlock()
 		return MutableSegmentsStats{}, err
@@ -546,6 +546,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	var (
 		activeBlockStarts []xtime.UnixNano
 		gcPlan            = &compaction.Plan{}
+		gcAlreadyRunning  = m.compact.compactingBackgroundGarbageCollect
 	)
 	if m.blockOpts.InMemoryBlock {
 		mayNeedFiltering := false
@@ -556,7 +557,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 
 		// Now check which segments need filtering if and only if
 		// we're not background compacting.
-		if !m.compact.compactingBackgroundGarbageCollect && mayNeedFiltering {
+		if !gcAlreadyRunning && mayNeedFiltering {
 			for _, seg := range m.backgroundSegments {
 				alreadyHasTask := false
 				for _, task := range plan.Tasks {
@@ -629,15 +630,21 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 			// Only set the bloom filter to actively filter series out
 			// if there were any segments that need the active block starts
 			// updated.
-			// Copy the indexed snapshot map so can use it downstream safely
-			// without holding a lock.
-			m.backgroundCompactIndexedSnapshot.Reset()
-			for _, elem := range m.indexedSnapshot.Iter() {
-				m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{},
-					builder.IDsMapSetUnsafeOptions{
-						NoCopyKey:     true,
-						NoFinalizeKey: true,
-					})
+			if !gcAlreadyRunning {
+				// Make sure to only mutate the indexed snapshot
+				// if GC isn't already running since otherwise we'll be
+				// concurrently writing to the snapshot that's being used for
+				// filtering by segments that are being GC'ed.
+				// Copy the indexed snapshot map so can use it downstream safely
+				// without holding a lock.
+				m.backgroundCompactIndexedSnapshot.Reset()
+				for _, elem := range m.indexedSnapshot.Iter() {
+					m.backgroundCompactIndexedSnapshot.SetUnsafe(elem.Key(), struct{}{},
+						builder.IDsMapSetUnsafeOptions{
+							NoCopyKey:     true,
+							NoFinalizeKey: true,
+						})
+				}
 			}
 			activeFilter = m.backgroundCompactIndexedSnapshot
 		}
@@ -646,8 +653,16 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		if len(gcPlan.Tasks) != 0 {
 			// Run non-GC tasks separately so the standard loop is not blocked.
 			go func() {
-				m.backgroundCompactWithPlan(gcPlan, activeBlockStarts,
-					activeFilter, m.compact.backgroundCompactorsGarbageCollect)
+				compactors, err := m.compact.allocBackgroundCompactorsGarbageCollect()
+				if err != nil {
+					instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+						l.Error("error background gc segments", zap.Error(err))
+					})
+				} else {
+					m.backgroundCompactWithPlan(gcPlan, activeBlockStarts,
+						activeFilter, compactors)
+					m.closeCompactors(compactors)
+				}
 
 				m.Lock()
 				m.compact.compactingBackgroundGarbageCollect = false
@@ -657,7 +672,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		}
 
 		m.backgroundCompactWithPlan(plan, activeBlockStarts,
-			activeFilter, m.compact.backgroundCompactorsStandard)
+			activeFilter, m.compact.backgroundCompactors)
 
 		m.Lock()
 		m.compact.compactingBackgroundStandard = false
@@ -688,28 +703,25 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	m.backgroundSegments = nil
 
 	// Free compactor resources.
-	if m.compact.backgroundCompactorsStandard == nil {
+	if m.compact.backgroundCompactors == nil {
 		return
 	}
 
-	backgroundCompactors := []chan *compaction.Compactor{
-		m.compact.backgroundCompactorsStandard,
-		m.compact.backgroundCompactorsGarbageCollect,
-	}
-	m.compact.backgroundCompactorsStandard = nil
-	m.compact.backgroundCompactorsGarbageCollect = nil
-	for _, compactors := range backgroundCompactors {
-		close(compactors)
-		for compactor := range compactors {
-			err := compactor.Close()
-			if err == nil {
-				continue
-			}
+	m.closeCompactors(m.compact.backgroundCompactors)
+	m.compact.backgroundCompactors = nil
+}
 
-			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-				l.Error("error closing index block background compactor", zap.Error(err))
-			})
+func (m *mutableSegments) closeCompactors(compactors chan *compaction.Compactor) {
+	close(compactors)
+	for compactor := range compactors {
+		err := compactor.Close()
+		if err == nil {
+			continue
 		}
+
+		instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+			l.Error("error closing index block background compactor", zap.Error(err))
+		})
 	}
 }
 
@@ -998,7 +1010,7 @@ func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	if len(segments) == 0 {
 		return
 	}
-	if m.compact.backgroundCompactorsStandard == nil {
+	if m.compact.backgroundCompactors == nil {
 		// No longer performing background compaction due to evict/close.
 		return
 	}
@@ -1141,10 +1153,12 @@ func (m *mutableSegments) cleanupCompactWithLock() {
 
 // mutableSegmentsCompact has several lazily allocated compaction components.
 type mutableSegmentsCompact struct {
+	opts      Options
+	blockOpts BlockOptions
+
 	segmentBuilder                     segment.CloseableDocumentsBuilder
 	foregroundCompactor                *compaction.Compactor
-	backgroundCompactorsStandard       chan *compaction.Compactor
-	backgroundCompactorsGarbageCollect chan *compaction.Compactor
+	backgroundCompactors               chan *compaction.Compactor
 	compactingForeground               bool
 	compactingBackgroundStandard       bool
 	compactingBackgroundGarbageCollect bool
@@ -1154,15 +1168,13 @@ type mutableSegmentsCompact struct {
 
 func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	concurrency int,
-	blockOpts BlockOptions,
-	opts Options,
 ) error {
 	var (
 		err      error
-		docsPool = opts.DocumentArrayPool()
+		docsPool = m.opts.DocumentArrayPool()
 	)
 	if m.segmentBuilder == nil {
-		builderOpts := opts.SegmentBuilderOptions().
+		builderOpts := m.opts.SegmentBuilderOptions().
 			SetConcurrency(concurrency)
 
 		m.segmentBuilder, err = builder.NewBuilderFromDocuments(builderOpts)
@@ -1174,8 +1186,8 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	if m.foregroundCompactor == nil {
 		m.foregroundCompactor, err = compaction.NewCompactor(docsPool,
 			DocumentArrayPoolCapacity,
-			opts.SegmentBuilderOptions(),
-			opts.FSTSegmentOptions(),
+			m.opts.SegmentBuilderOptions(),
+			m.opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
 				FSTWriterOptions: &fst.WriterOptions{
 					// DisableRegistry is set to true to trade a larger FST size
@@ -1183,49 +1195,55 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 					// to end latency for time to first index a metric.
 					DisableRegistry: true,
 				},
-				MmapDocsData: blockOpts.ForegroundCompactorMmapDocsData,
+				MmapDocsData: m.blockOpts.ForegroundCompactorMmapDocsData,
 			})
 		if err != nil {
 			return err
 		}
 	}
 
-	if m.backgroundCompactorsStandard == nil {
+	if m.backgroundCompactors == nil {
 		n := numBackgroundCompactorsStandard
-		m.backgroundCompactorsStandard = make(chan *compaction.Compactor, n)
+		m.backgroundCompactors = make(chan *compaction.Compactor, n)
 		for i := 0; i < n; i++ {
 			backgroundCompactor, err := compaction.NewCompactor(docsPool,
 				DocumentArrayPoolCapacity,
-				opts.SegmentBuilderOptions(),
-				opts.FSTSegmentOptions(),
+				m.opts.SegmentBuilderOptions(),
+				m.opts.FSTSegmentOptions(),
 				compaction.CompactorOptions{
-					MmapDocsData: blockOpts.BackgroundCompactorMmapDocsData,
+					MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
 				})
 			if err != nil {
 				return err
 			}
-			m.backgroundCompactorsStandard <- backgroundCompactor
-		}
-	}
-	if m.backgroundCompactorsGarbageCollect == nil {
-		n := numBackgroundCompactorsGarbageCollect
-		m.backgroundCompactorsGarbageCollect = make(chan *compaction.Compactor, n)
-		for i := 0; i < n; i++ {
-			backgroundCompactor, err := compaction.NewCompactor(docsPool,
-				DocumentArrayPoolCapacity,
-				opts.SegmentBuilderOptions(),
-				opts.FSTSegmentOptions(),
-				compaction.CompactorOptions{
-					MmapDocsData: blockOpts.BackgroundCompactorMmapDocsData,
-				})
-			if err != nil {
-				return err
-			}
-			m.backgroundCompactorsGarbageCollect <- backgroundCompactor
+			m.backgroundCompactors <- backgroundCompactor
 		}
 	}
 
 	return nil
+}
+
+func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
+	chan *compaction.Compactor,
+	error,
+) {
+	docsPool := m.opts.DocumentArrayPool()
+	n := numBackgroundCompactorsGarbageCollect
+	compactors := make(chan *compaction.Compactor, n)
+	for i := 0; i < n; i++ {
+		backgroundCompactor, err := compaction.NewCompactor(docsPool,
+			DocumentArrayPoolCapacity,
+			m.opts.SegmentBuilderOptions(),
+			m.opts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
+			})
+		if err != nil {
+			return nil, err
+		}
+		compactors <- backgroundCompactor
+	}
+	return compactors, nil
 }
 
 func taskNumBuilders(task compaction.Task) int {
