@@ -2,7 +2,7 @@ openapi: 3.0.2
 info:
   title: M3DB
   description: A distributed time series database using M3TSZ float64 compression. You can
-    find out more about M3DB at [https://docs.m3db.io/](https://docs.m3db.io/)
+    find out more about M3DB at [https://m3db.io/docs](https://m3db.io/docs)
     or on [GitHub](https://github.com/m3db/m3).
   version: 1.0.0
   contact:
@@ -27,7 +27,7 @@ tags:
   - name: M3Aggregator
     description: Metrics aggregator and downsampler
 servers:
-  - url: http://hostname:7201/api/v1    
+  - url: http://hostname:7201/api/v1
 paths:
   /services/m3db/namespace:
     get:
