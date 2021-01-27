@@ -21,12 +21,15 @@
 package builder
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -45,13 +48,24 @@ func TestMultiSegmentsBuilderSortedBySizeDescending(t *testing.T) {
 	for i := 1; i <= numSegments; i++ {
 		pi := postings.NewMockIterator(ctrl)
 		gomock.InOrder(
+			pi.EXPECT().Next().Return(true),
+			pi.EXPECT().Current().Return(postings.ID(0)),
 			pi.EXPECT().Next().Return(false),
 			pi.EXPECT().Close().Return(nil),
 		)
 		r := segment.NewMockReader(ctrl)
-		it := index.NewIDDocIterator(nil, pi)
+		it := index.NewIDDocIterator(r, pi)
 		gomock.InOrder(
 			r.EXPECT().AllDocs().Return(it, nil),
+			r.EXPECT().Metadata(postings.ID(0)).Return(doc.Metadata{
+				ID: []byte("foo" + strconv.Itoa(i)),
+				Fields: []doc.Field{
+					{
+						Name:  []byte("bar"),
+						Value: []byte("baz"),
+					},
+				},
+			}, nil),
 			r.EXPECT().Close().Return(nil),
 		)
 
@@ -73,7 +87,18 @@ func TestMultiSegmentsBuilderSortedBySizeDescending(t *testing.T) {
 		actualSegs = append(actualSegs, segMD.segment)
 	}
 
-	for i := 0; i < numSegments; i++ {
-		require.Equal(t, segs[i].Size(), actualSegs[i].Size())
+	for i, segMD := range b.segments {
+		actualSize := segMD.segment.Size()
+		require.Equal(t, segs[i].Size(), actualSize)
+
+		if i > 0 {
+			// Check that offset is going up.
+			actualPrevOffset := b.segments[i-1].offset
+			actualCurrOffset := b.segments[i].offset
+			require.True(t, actualCurrOffset > actualPrevOffset,
+				fmt.Sprintf("expected=(actualCurrOffset > actualPrevOffset)\n"+
+					"actual=(actualCurrOffset=%d, actualPrevOffset=%d)\n",
+					actualCurrOffset, actualPrevOffset))
+		}
 	}
 }
