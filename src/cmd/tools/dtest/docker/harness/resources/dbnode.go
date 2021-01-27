@@ -152,7 +152,7 @@ func newDockerHTTPNode(
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 	var network docker.ContainerNetwork
-	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // golint: rangeValCopy
+	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // nolint: gocritic
 		network = n
 	}
 

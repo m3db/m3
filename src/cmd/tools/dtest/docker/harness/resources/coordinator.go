@@ -337,7 +337,7 @@ func (c *coordinator) setNamespaceReady(name string) error {
 		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
-	_, err := makePostRequest(logger, url,
+	_, err := makePostRequest(logger, url, // nolint: bodyclose
 		&admin.NamespaceReadyRequest{
 			Name:  name,
 			Force: true,
