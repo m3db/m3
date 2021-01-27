@@ -26,13 +26,15 @@ tags:
     description: Configuring M3Aggregator placements
   - name: M3Aggregator
     description: Metrics aggregator and downsampler
+servers:
+  - url: http://hostname:7201/api/v1    
 paths:
   /services/m3db/namespace:
     get:
       description: Get all M3DB namespaces
       tags:
         - M3DB Namespace
-      operationId: namespaceGet
+      operationId: m3DBNamespaceGet
       responses:
         "200":
           description: "OK"
@@ -56,7 +58,7 @@ paths:
       tags:
         - M3DB Namespace
       description: Add an M3DB namespace
-      operationId: namespaceAdd
+      operationId: m3DBNamespaceAdd
       requestBody:
         content:
           application/json:
@@ -85,7 +87,7 @@ paths:
       tags:
         - M3DB Namespace
       description: Update an M3DB namespace
-      operationId: namespaceUpdate
+      operationId: m3DBNamespaceUpdate
       requestBody:
         content:
           application/json:
@@ -115,7 +117,7 @@ paths:
       tags:
         - M3DB Namespace
       description: Delete an M3DB namespace
-      operationId: namespaceDelete
+      operationId: m3DBNamespaceDelete
       parameters:
         - name: namespaceID
           in: path
@@ -146,7 +148,7 @@ paths:
       tags:
         - M3DB Placement
       description: Get the M3DB placement
-      operationId: dbplacementGet
+      operationId: m3DBPlacementGet
       responses:
         "200":
           description: "OK"
@@ -164,7 +166,7 @@ paths:
       tags:
         - M3DB Placement
       description: Add an instance to the placement
-      operationId: dbplacementAdd
+      operationId: m3DBPlacementAdd
       requestBody:
         $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
@@ -210,7 +212,7 @@ paths:
         - M3Coordinator Placement
         - M3Coordinator
       description: Get the M3Coordinator placement
-      operationId: coordplacementGet
+      operationId: m3CoordPlacementGet
       responses:
         "200":
           description: "OK"
@@ -229,7 +231,7 @@ paths:
         - M3Coordinator Placement
         - M3Coordinator
       description: Add an instance to the placement
-      operationId: placementAdd
+      operationId: m3CoordPlacementAdd
       requestBody:
         $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
@@ -256,7 +258,7 @@ paths:
         - M3Coordinator Placement
         - M3Coordinator
       description: Delete the M3Coordinator placement
-      operationId: placementDeleteAll
+      operationId: m3CoordPlacementDeleteAll
       responses:
         "200":
           description: "OK"
@@ -276,7 +278,7 @@ paths:
         - M3Aggregator Placement
         - M3Aggregator
       description: Get the M3Agg placement
-      operationId: m3AggplacementGet
+      operationId: m3AggPlacementGet
       responses:
         "200":
           description: "OK"
@@ -295,7 +297,7 @@ paths:
         - M3Aggregator Placement
         - M3Aggregator
       description: Add an M3Agg instance to the placement
-      operationId: m3AggplacementAdd
+      operationId: m3AggPlacementAdd
       requestBody:
         $ref: "#/components/requestBodies/PlacementAddRequest"
       responses:
@@ -368,7 +370,7 @@ paths:
       tags:
         - M3DB Placement
       description: Replace an M3DB instance in the placement
-      operationId: dbPlacementReplace
+      operationId: m3DBPlacementReplace
       requestBody:
         $ref: "#/components/requestBodies/PlacementReplaceRequest"
       responses:
@@ -427,7 +429,7 @@ paths:
         - M3Coordinator Placement
         - M3Coordinator
       description: Replace an M3Coordinator
-      operationId: coordPlacementReplace
+      operationId: m3CoordPlacementReplace
       requestBody:
         $ref: "#/components/requestBodies/PlacementReplaceRequest"
       responses:
@@ -510,7 +512,7 @@ paths:
       tags:
         - M3DB Placement
       description: Delete an M3DB instance from the placement
-      operationId: placementDelete
+      operationId: m3DBPlacementDelete
       parameters:
         - name: instanceID
           in: path
@@ -574,7 +576,7 @@ paths:
         - M3Aggregator Placement
         - M3Aggregator
       description: Delete an M3Agg instance from the placement
-      operationId: m3aggPlacementDelete
+      operationId: m3AggPlacementDelete
       parameters:
         - name: instanceID
           in: path
@@ -605,7 +607,7 @@ paths:
       tags:
         - M3DB Database
       description: Configures M3DB with most options defaulted
-      operationId: databaseCreate
+      operationId: m3DBDdatabaseCreate
       requestBody:
         content:
           application/json:
@@ -630,8 +632,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericError"
-servers:
-  - url: http://hostname:7201/api/v1
 components:
   requestBodies:
     PlacementAddRequest:
@@ -875,6 +875,8 @@ components:
     GenericError:
       type: object
       properties:
+        status:
+         type: "string"
         error:
           type: string
     DatabaseCreateRequest:
