@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -148,33 +147,6 @@ func newDockerHTTPNode(
 	return &dbNode{
 		tchanClient: tchanClient,
 		resource:    resource,
-	}, nil
-}
-
-func attachToExistingNode(
-	pool *dockertest.Pool,
-	containerName string,
-	iOpts instrument.Options,
-) (Node, error) {
-	resource, ok := pool.ContainerByName(containerName)
-	if !ok {
-		return nil, fmt.Errorf("docker container '%s' was not found", containerName)
-	}
-
-	addr := resource.GetHostPort("9000/tcp")
-	tchanClient, err := integration.NewTChannelClient("client", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	iOpts.Logger().Info("set up tchanClient", zap.String("node_addr", addr))
-	return &dbNode{
-		tchanClient: tchanClient,
-		resource: &dockerResource{
-			logger:   iOpts.Logger(),
-			resource: resource,
-			pool:     pool,
-		},
 	}, nil
 }
 

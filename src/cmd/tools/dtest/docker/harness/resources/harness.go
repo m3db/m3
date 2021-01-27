@@ -163,18 +163,23 @@ func AttachToExistingContainers(
 
 	iOpts := instrument.NewOptions()
 	dbNodes := Nodes{}
-
-	for _, dbName := range dbNodesContainersNames {
-		dbNodes, err = attachToExistingDBNode(dbNodes, pool, dbName, iOpts)
+	for _, containerName := range dbNodesContainersNames {
+		dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
+			iOpts:         iOpts,
+			containerName: containerName,
+		})
 		if err != nil {
 			return nil, err
 		}
+		dbNodes = append(dbNodes, dbNode)
 	}
 
-	coordinator, err := newDockerHTTPCoordinatorFromExistingContainer(
+	coordinator, err := newDockerHTTPCoordinator(
 		pool,
-		dockerResourceOptions{iOpts: iOpts},
-		coordinatorContainerName,
+		dockerResourceOptions{
+			iOpts:         iOpts,
+			containerName: coordinatorContainerName,
+		},
 	)
 	if err != nil {
 		return nil, err
@@ -325,17 +330,3 @@ func (r *dockerResources) Cleanup() error {
 
 func (r *dockerResources) Nodes() Nodes             { return r.nodes }
 func (r *dockerResources) Coordinator() Coordinator { return r.coordinator }
-
-func attachToExistingDBNode(
-	dbNodes Nodes,
-	pool *dockertest.Pool,
-	containerName string,
-	iOpts instrument.Options,
-) (Nodes, error) {
-	dbNode, err := attachToExistingNode(pool, containerName, iOpts)
-	if err != nil {
-		return dbNodes, err
-	}
-	dbNodes = append(dbNodes, dbNode)
-	return dbNodes, nil
-}

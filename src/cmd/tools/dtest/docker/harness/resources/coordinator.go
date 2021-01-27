@@ -101,27 +101,6 @@ type coordinator struct {
 	resource *dockerResource
 }
 
-func newDockerHTTPCoordinatorFromExistingContainer(
-	pool *dockertest.Pool,
-	opts dockerResourceOptions, //nolint: gocritic
-	containerName string,
-) (Coordinator, error) {
-	container, ok := pool.ContainerByName(containerName)
-	if !ok {
-		return nil, fmt.Errorf("docker container '%s' was not found", containerName)
-	}
-
-	resource := &dockerResource{
-		logger:   opts.iOpts.Logger(),
-		resource: container,
-		pool:     pool,
-	}
-
-	return &coordinator{
-		resource: resource,
-	}, nil
-}
-
 func newDockerHTTPCoordinator(
 	pool *dockertest.Pool,
 	opts dockerResourceOptions,
