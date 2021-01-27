@@ -1,6 +1,8 @@
 package storage
 
-import "sync"
+import (
+	"sync"
+)
 
 // Throttler controls fair access to limited resources.
 type Throttler struct {
@@ -116,5 +118,9 @@ func (t *Throttler) Release(key string, weight int) {
 func (t *Throttler) maxWeightPerKey() int {
 	// Limit per key such that each key gets an equal
 	// allocation of the total max weight available.
-	return t.globalMaxWeight / len(t.keyQueue)
+	m := t.globalMaxWeight / len(t.keyQueue)
+	if m <= 1 {
+		return 1
+	}
+	return m
 }
