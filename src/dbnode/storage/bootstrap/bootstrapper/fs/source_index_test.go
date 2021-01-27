@@ -26,10 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -37,8 +39,6 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 type testTimesOptions struct {
@@ -465,7 +465,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Now write index block segment from first two data blocks
 	testData := testGoodTaggedSeriesDataBlocks()
-	shards := map[uint32]struct{}{testShard: struct{}{}}
+	shards := map[uint32]struct{}{testShard: {}}
 	writeTSDBPersistedIndexBlock(t, dir, testNsMetadata(t), times.start, shards,
 		append(testData[0], testData[1]...))
 
@@ -526,131 +526,171 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 // right now it only builds a partial segment for the second of three index
 // blocks it is trying to build.
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	timesOpts := testTimesOptions{
-		numBlocks: 3,
+	tests := []struct {
+		name                         string
+		now                          time.Time
+		expectedInfoFiles            int
+		expectedSegmentsFirstBlock   int
+		expectedSegmentsSecondBlock  int
+		expectedOutOfRetentionBlocks int64
+	}{
+		{
+			name:                         "now",
+			now:                          time.Now(),
+			expectedInfoFiles:            2,
+			expectedSegmentsFirstBlock:   1,
+			expectedSegmentsSecondBlock:  1,
+			expectedOutOfRetentionBlocks: 0,
+		},
+		{
+			name:                         "now + 4h",
+			now:                          time.Now().Add(time.Hour * 4),
+			expectedInfoFiles:            1,
+			expectedSegmentsFirstBlock:   0,
+			expectedSegmentsSecondBlock:  1,
+			expectedOutOfRetentionBlocks: 1,
+		},
+		{
+			name:                         "now + 8h",
+			now:                          time.Now().Add(time.Hour * 8),
+			expectedInfoFiles:            0,
+			expectedSegmentsFirstBlock:   0,
+			expectedSegmentsSecondBlock:  0,
+			expectedOutOfRetentionBlocks: 2,
+		},
 	}
-	times := newTestBootstrapIndexTimes(timesOpts)
-	firstIndexBlockStart := times.start.Truncate(testIndexBlockSize)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := createTempDir(t)
+			defer func() {
+				_ = os.RemoveAll(dir)
+			}()
 
-	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
+			timesOpts := testTimesOptions{
+				numBlocks: 3,
+			}
+			times := newTestBootstrapIndexTimes(timesOpts)
+			firstIndexBlockStart := times.start.Truncate(testIndexBlockSize)
 
-	opts := newTestOptionsWithPersistManager(t, dir)
+			writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
-	scope := tally.NewTestScope("", nil)
-	opts = opts.
-		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+			opts := newTestOptionsWithPersistManager(t, dir)
 
-	at := time.Now()
-	resultOpts := opts.ResultOptions()
-	clockOpts := resultOpts.ClockOptions().
-		SetNowFn(func() time.Time {
-			return at
+			scope := tally.NewTestScope("", nil)
+			opts = opts.
+				SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+			at := test.now
+			resultOpts := opts.ResultOptions()
+			clockOpts := resultOpts.ClockOptions().
+				SetNowFn(func() time.Time {
+					return at
+				})
+			opts = opts.SetResultOptions(resultOpts.SetClockOptions(clockOpts))
+
+			runOpts := testDefaultRunOpts.
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+
+			fsSrc, err := newFileSystemSource(opts)
+			require.NoError(t, err)
+
+			src, ok := fsSrc.(*fileSystemSource)
+			require.True(t, ok)
+
+			retentionPeriod := time.Hour * 6
+			ropts := testRetentionOptions.
+				SetBlockSize(testBlockSize).
+				SetRetentionPeriod(retentionPeriod)
+			ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
+				SetRetentionOptions(ropts).
+				SetIndexOptions(testNamespaceIndexOptions.
+					SetEnabled(true).
+					SetBlockSize(testIndexBlockSize)))
+			require.NoError(t, err)
+
+			// NB(bodu): Simulate requesting bootstrapping of two whole index blocks instead of 3 data blocks (1.5 index blocks).
+			times.shardTimeRanges = result.NewShardTimeRanges().Set(
+				testShard,
+				xtime.NewRanges(xtime.Range{
+					Start: firstIndexBlockStart,
+					End:   times.end,
+				}),
+			)
+			tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
+				times.shardTimeRanges, opts.FilesystemOptions(), ns)
+			defer tester.Finish()
+
+			tester.TestReadWith(src)
+			indexResults := tester.ResultForNamespace(ns.ID()).IndexResult.IndexResults()
+
+			// Check that single persisted segment got written out
+			infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
+				src.fsopts.InfoReaderBufferSize())
+			require.Equal(t, test.expectedInfoFiles, len(infoFiles), "index info files")
+
+			for _, infoFile := range infoFiles {
+				require.NoError(t, infoFile.Err.Error())
+
+				if infoFile.Info.BlockStart == firstIndexBlockStart.UnixNano() {
+					expectedStart := times.end.Add(-2 * testIndexBlockSize).UnixNano()
+					require.Equal(t, expectedStart, infoFile.Info.BlockStart,
+						fmt.Sprintf("expected=%v, actual=%v",
+							time.Unix(0, expectedStart).String(),
+							time.Unix(0, infoFile.Info.BlockStart)))
+				} else {
+					expectedStart := times.end.Add(-1 * testIndexBlockSize).UnixNano()
+					require.Equal(t, expectedStart, infoFile.Info.BlockStart,
+						fmt.Sprintf("expected=%v, actual=%v",
+							time.Unix(0, expectedStart).String(),
+							time.Unix(0, infoFile.Info.BlockStart)))
+				}
+
+				require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
+				require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
+				require.Equal(t, 1, len(infoFile.Info.Segments))
+				require.Equal(t, 1, len(infoFile.Info.Shards))
+				require.Equal(t, testShard, infoFile.Info.Shards[0])
+			}
+
+			// Check that the segment is not a mutable segment
+			blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+			require.True(t, ok)
+			block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+			require.True(t, ok)
+			require.Equal(t, test.expectedSegmentsFirstBlock, len(block.Segments()), "first block segment count")
+			if len(block.Segments()) > 0 {
+				segment := block.Segments()[0]
+				require.True(t, ok)
+				require.True(t, segment.IsPersisted())
+			}
+
+			// Check that the second is not a mutable segment
+			blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+			require.True(t, ok)
+			block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+			require.True(t, ok)
+			require.Equal(t, test.expectedSegmentsSecondBlock, len(block.Segments()), "second block segment count")
+			if len(block.Segments()) > 0 {
+				segment := block.Segments()[0]
+				require.True(t, ok)
+				require.True(t, segment.IsPersisted())
+			}
+
+			// Validate results
+			if test.expectedSegmentsFirstBlock > 0 {
+				validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)
+			}
+
+			// Validate that wrote the block out (and no index blocks
+			// were read as existing index blocks on disk)
+			counters := scope.Snapshot().Counters()
+			require.Equal(t, int64(0),
+				counters["fs-bootstrapper.persist-index-blocks-read+"].Value(), "index blocks read")
+			require.Equal(t, int64(test.expectedInfoFiles),
+				counters["fs-bootstrapper.persist-index-blocks-write+"].Value(), "index blocks")
+			require.Equal(t, test.expectedOutOfRetentionBlocks,
+				counters["fs-bootstrapper.persist-index-blocks-out-of-retention+"].Value(), "out of retention blocks")
+			tester.EnsureNoWrites()
 		})
-	opts = opts.SetResultOptions(resultOpts.SetClockOptions(clockOpts))
-
-	runOpts := testDefaultRunOpts.
-		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
-
-	fsSrc, err := newFileSystemSource(opts)
-	require.NoError(t, err)
-
-	src, ok := fsSrc.(*fileSystemSource)
-	require.True(t, ok)
-
-	retentionPeriod := testBlockSize
-	for {
-		// Make sure that retention is set to end half way through the first block
-		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, at)
-		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
-			break
-		}
-		retentionPeriod += testBlockSize
 	}
-
-	ropts := testRetentionOptions.
-		SetBlockSize(testBlockSize).
-		SetRetentionPeriod(retentionPeriod)
-	ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
-		SetRetentionOptions(ropts).
-		SetIndexOptions(testNamespaceIndexOptions.
-			SetEnabled(true).
-			SetBlockSize(testIndexBlockSize)))
-	require.NoError(t, err)
-
-	// NB(bodu): Simulate requesting bootstrapping of two whole index blocks instead of 3 data blocks (1.5 index blocks).
-	times.shardTimeRanges = result.NewShardTimeRanges().Set(
-		testShard,
-		xtime.NewRanges(xtime.Range{
-			Start: firstIndexBlockStart,
-			End:   times.end,
-		}),
-	)
-	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts,
-		times.shardTimeRanges, opts.FilesystemOptions(), ns)
-	defer tester.Finish()
-
-	tester.TestReadWith(src)
-	indexResults := tester.ResultForNamespace(ns.ID()).IndexResult.IndexResults()
-
-	// Check that single persisted segment got written out
-	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
-	require.Equal(t, 2, len(infoFiles))
-
-	for _, infoFile := range infoFiles {
-		require.NoError(t, infoFile.Err.Error())
-
-		if infoFile.Info.BlockStart == firstIndexBlockStart.UnixNano() {
-			expectedStart := times.end.Add(-2 * testIndexBlockSize).UnixNano()
-			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
-				fmt.Sprintf("expected=%v, actual=%v",
-					time.Unix(0, expectedStart).String(),
-					time.Unix(0, infoFile.Info.BlockStart)))
-		} else {
-			expectedStart := times.end.Add(-1 * testIndexBlockSize).UnixNano()
-			require.Equal(t, expectedStart, infoFile.Info.BlockStart,
-				fmt.Sprintf("expected=%v, actual=%v",
-					time.Unix(0, expectedStart).String(),
-					time.Unix(0, infoFile.Info.BlockStart)))
-		}
-
-		require.Equal(t, testIndexBlockSize, time.Duration(infoFile.Info.BlockSize))
-		require.Equal(t, persist.FileSetFlushType, persist.FileSetType(infoFile.Info.FileType))
-		require.Equal(t, 1, len(infoFile.Info.Segments))
-		require.Equal(t, 1, len(infoFile.Info.Shards))
-		require.Equal(t, testShard, infoFile.Info.Shards[0])
-	}
-
-	// Check that the segment is not a mutable segment
-	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
-	require.True(t, ok)
-	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
-	require.True(t, ok)
-	require.Equal(t, 1, len(block.Segments()))
-	segment := block.Segments()[0]
-	require.True(t, ok)
-	require.True(t, segment.IsPersisted())
-
-	// Check that the second is not a mutable segment
-	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
-	require.True(t, ok)
-	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
-	require.True(t, ok)
-	require.Equal(t, 1, len(block.Segments()))
-	segment = block.Segments()[0]
-	require.True(t, ok)
-	require.True(t, segment.IsPersisted())
-
-	// Validate results
-	validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)
-
-	// Validate that wrote the block out (and no index blocks
-	// were read as existing index blocks on disk)
-	counters := scope.Snapshot().Counters()
-	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
-	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
-	tester.EnsureNoWrites()
 }

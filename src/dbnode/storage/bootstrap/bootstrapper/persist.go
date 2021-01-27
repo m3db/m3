@@ -94,6 +94,14 @@ func PersistBootstrapIndexSegment(
 	retentionOpts := ns.Options().RetentionOptions()
 	nowFn := resultOpts.ClockOptions().NowFn()
 	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+
+	// If bootstrapping is taking more time than our retention period, we might end up in a situation
+	// when earliestRetentionTime is larger than out block end time. This means that the blocks
+	// got outdated during bootstrap so we just skip building index segments for them.
+	if earliestRetentionTime.After(blockEnd) {
+		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
+	}
+
 	if blockStart.Before(earliestRetentionTime) {
 		expectedRangeStart = earliestRetentionTime
 	}
@@ -253,6 +261,14 @@ func BuildBootstrapIndexSegment(
 	retentionOpts := ns.Options().RetentionOptions()
 	nowFn := resultOpts.ClockOptions().NowFn()
 	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+
+	// If bootstrapping is taking more time than our retention period, we might end up in a situation
+	// when earliestRetentionTime is larger than out block end time. This means that the blocks
+	// got outdated during bootstrap so we just skip building index segments for them.
+	if earliestRetentionTime.After(blockEnd) {
+		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
+	}
+
 	if blockStart.Before(earliestRetentionTime) {
 		expectedRangeStart = earliestRetentionTime
 	}

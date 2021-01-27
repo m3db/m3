@@ -528,17 +528,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
+			overlapsWithInitialIndexRange = false
+			min, max                      = requestedRanges.MinMax()
+			blockStart                    = min.Truncate(indexBlockSize)
+			blockEnd                      = blockStart.Add(indexBlockSize)
+			iopts                         = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                    result.IndexBlock
+			err                           error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
+				overlapsWithInitialIndexRange = true
 			}
 		}
 
@@ -566,13 +566,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			persistCfg.FileSetType == persist.FileSetFlushType
 
 		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		satisfiedFlushRanges := noneRemaining || overlapsWithInitialIndexRange
 
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
@@ -581,10 +581,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+			zap.Bool("satisfiedFlushRanges", satisfiedFlushRanges),
 		}
 
-		if shouldFlush && satisifiedFlushRanges {
+		if shouldFlush && satisfiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -626,7 +626,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
