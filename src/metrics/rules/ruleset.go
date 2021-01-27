@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -291,6 +291,16 @@ func (rs *ruleSet) Proto() (*rulepb.RuleSet, error) {
 	}
 	res.RollupRules = rollupRules
 
+	utilizationRules := make([]*rulepb.UtilizationRule, len(rs.utilizationRules))
+	for i, r := range rs.utilizationRules {
+		ur, err := r.proto()
+		if err != nil {
+			return nil, err
+		}
+		utilizationRules[i] = ur
+	}
+	res.UtilizationRules = utilizationRules
+
 	return res, nil
 }
 
@@ -364,6 +374,12 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		rollupRules[i] = &c
 	}
 
+	utilizationRules := make([]*utilizationRule, len(rs.utilizationRules))
+	for i, r := range rs.utilizationRules {
+		c := r.clone()
+		utilizationRules[i] = &c
+	}
+
 	// This clone deliberately ignores tagFliterOpts and rollupIDFn
 	// as they are not useful for the MutableRuleSet.
 	return &ruleSet{
@@ -377,6 +393,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		namespace:          namespace,
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
+		utilizationRules:   utilizationRules,
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
 		isRollupIDFn:       rs.isRollupIDFn,

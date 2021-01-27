@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -16,7 +16,7 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE
+// THE SOFTWARE.
 
 package kv
 
@@ -48,7 +48,9 @@ func TestUpdateRuleSet(t *testing.T) {
 	require.NoError(t, err)
 	rrs, err := initialRuleSet.RollupRules()
 	require.NoError(t, err)
-	rsChanges := newTestRuleSetChanges(mrs, rrs)
+	urs, err := initialRuleSet.UtilizationRules()
+	require.NoError(t, err)
+	rsChanges := newTestRuleSetChanges(mrs, rrs, urs)
 	require.NoError(t, err)
 
 	proto, err := initialRuleSet.ToMutableRuleSet().Proto()
@@ -95,6 +97,7 @@ func TestUpdateRuleSetVersionMisMatch(t *testing.T) {
 	rsChanges := newTestRuleSetChanges(
 		view.MappingRules{},
 		view.RollupRules{},
+		view.UtilizationRules{},
 	)
 
 	ctrl := gomock.NewController(t)
@@ -121,6 +124,7 @@ func TestUpdateRuleSetFetchNotFound(t *testing.T) {
 	rsChanges := newTestRuleSetChanges(
 		view.MappingRules{},
 		view.RollupRules{},
+		view.UtilizationRules{},
 	)
 
 	ctrl := gomock.NewController(t)
@@ -147,6 +151,7 @@ func TestUpdateRuleSetFetchFailure(t *testing.T) {
 	rsChanges := newTestRuleSetChanges(
 		view.MappingRules{},
 		view.RollupRules{},
+		view.UtilizationRules{},
 	)
 
 	ctrl := gomock.NewController(t)
@@ -178,6 +183,7 @@ func TestUpdateRuleSetMutationFail(t *testing.T) {
 			"invalidMappingRule": []view.MappingRule{},
 		},
 		view.RollupRules{},
+		view.UtilizationRules{},
 	)
 	require.NoError(t, err)
 
@@ -210,7 +216,9 @@ func TestUpdateRuleSetWriteFailure(t *testing.T) {
 	require.NoError(t, err)
 	rrs, err := initialRuleSet.RollupRules()
 	require.NoError(t, err)
-	rsChanges := newTestRuleSetChanges(mrs, rrs)
+	urs, err := initialRuleSet.UtilizationRules()
+	require.NoError(t, err)
+	rsChanges := newTestRuleSetChanges(mrs, rrs, urs)
 	require.NoError(t, err)
 
 	proto, err := initialRuleSet.ToMutableRuleSet().Proto()
@@ -250,7 +258,7 @@ func TestUpdateRuleSetWriteFailure(t *testing.T) {
 	require.IsType(t, r2.NewConflictError(""), err)
 }
 
-func newTestRuleSetChanges(mrs view.MappingRules, rrs view.RollupRules) changes.RuleSetChanges {
+func newTestRuleSetChanges(mrs view.MappingRules, rrs view.RollupRules, urs view.UtilizationRules) changes.RuleSetChanges {
 	mrChanges := make([]changes.MappingRuleChange, 0, len(mrs))
 	for uuid := range mrs {
 		mrChanges = append(
@@ -281,10 +289,26 @@ func newTestRuleSetChanges(mrs view.MappingRules, rrs view.RollupRules) changes.
 		)
 	}
 
+	urChanges := make([]changes.UtilizationRuleChange, 0, len(urs))
+	for uuid := range urs {
+		urChanges = append(
+			urChanges,
+			changes.UtilizationRuleChange{
+				Op:     changes.ChangeOp,
+				RuleID: &uuid,
+				RuleData: &view.UtilizationRule{
+					ID:   uuid,
+					Name: "updateUtilizationRule",
+				},
+			},
+		)
+	}
+
 	return changes.RuleSetChanges{
-		Namespace:          "testNamespace",
-		RollupRuleChanges:  rrChanges,
-		MappingRuleChanges: mrChanges,
+		Namespace:              "testNamespace",
+		RollupRuleChanges:      rrChanges,
+		MappingRuleChanges:     mrChanges,
+		UtilizationRuleChanges: urChanges,
 	}
 }
 
@@ -326,6 +350,31 @@ func testRuleSet(version int, meta rules.UpdateMetadata) (rules.RuleSet, error) 
 						Name: "mappingRule3",
 						StoragePolicies: policy.StoragePolicies{
 							policy.MustParseStoragePolicy("1s:6h"),
+						},
+					},
+				},
+			},
+			UtilizationRuleChanges: []changes.UtilizationRuleChange{
+				changes.UtilizationRuleChange{
+					Op: changes.AddOp,
+					RuleData: &view.UtilizationRule{
+						Name: "utilizationRule3",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       []byte("testTarget"),
+											Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
 						},
 					},
 				},

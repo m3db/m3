@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules/view"
-
 	"github.com/pborman/uuid"
 )
 
@@ -39,7 +38,7 @@ var (
 	errNilUtilizationRuleProto                  = errors.New("nil utilization rule proto")
 )
 
-// rollupRuleSnapshot defines a rule snapshot such that if a metric matches the
+// utilizationRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is rolled up using the provided list of rollup targets.
 type utilizationRuleSnapshot struct {
 	name               string
@@ -122,7 +121,7 @@ func newUtilizationRuleSnapshotFromFields(
 	), nil
 }
 
-// newRollupRuleSnapshotFromFieldsInternal creates a new rollup rule snapshot
+// newUtilizationRuleSnapshotFromFieldsInternal creates a new utilization rule snapshot
 // from various given fields assuming the filter has already been validated.
 func newUtilizationRuleSnapshotFromFieldsInternal(
 	name string,
@@ -195,7 +194,7 @@ func (rrs *utilizationRuleSnapshot) proto() (*rulepb.UtilizationRuleSnapshot, er
 	return res, nil
 }
 
-// rollupRule stores rollup rule snapshots.
+// utilizationRule stores utilization rule snapshots.
 type utilizationRule struct {
 	uuid      string
 	snapshots []*utilizationRuleSnapshot

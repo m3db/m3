@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -166,6 +166,44 @@ func TestDeleteRollupRuleSuccess(t *testing.T) {
 func TestFetchRollupRuleHistorySuccess(t *testing.T) {
 	expected := view.RollupRuleSnapshots{RollupRules: []view.RollupRule{}}
 	actual, err := fetchRollupRuleHistory(newTestService(nil), newTestGetRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+func TestFetchUtilizationRuleSuccess(t *testing.T) {
+	expected := view.UtilizationRule{}
+	actual, err := fetchUtilizationRule(newTestService(nil), newTestGetRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestCreateUtilizationRuleSuccess(t *testing.T) {
+	expected := view.UtilizationRule{}
+	actual, err := createUtilizationRule(newTestService(nil), newTestPostRequest(
+		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
+	))
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestUpdateUtilizationRuleSuccess(t *testing.T) {
+	expected := view.UtilizationRule{}
+	actual, err := updateUtilizationRule(newTestService(nil), newTestPutRequest(
+		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
+	))
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDeleteUtilizationRuleSuccess(t *testing.T) {
+	expected := fmt.Sprintf("Deleted utilization rule: %s in namespace %s", "", "")
+	actual, err := deleteUtilizationRule(newTestService(nil), newTestDeleteRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestFetchUtilizationRuleHistorySuccess(t *testing.T) {
+	expected := view.UtilizationRuleSnapshots{UtilizationRules: []view.UtilizationRule{}}
+	actual, err := fetchUtilizationRuleHistory(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -353,6 +391,14 @@ func newTestBulkReqBody() updateRuleSetRequest {
 					},
 				},
 			},
+			UtilizationRuleChanges: []changes.UtilizationRuleChange{
+				changes.UtilizationRuleChange{
+					Op: changes.AddOp,
+					RuleData: &view.UtilizationRule{
+						Name: "utilizationRule3",
+					},
+				},
+			},
 		},
 	}
 }
@@ -385,6 +431,18 @@ func newTestRuleSet(version int) rules.RuleSet {
 	mrs.AddMappingRule(
 		view.MappingRule{
 			Name: "mappingRule2",
+		},
+		meta,
+	)
+	mrs.AddUtilizationRule(
+		view.UtilizationRule{
+			Name: "utilizationRule1",
+		},
+		meta,
+	)
+	mrs.AddUtilizationRule(
+		view.UtilizationRule{
+			Name: "utilizationRule2",
 		},
 		meta,
 	)
@@ -467,6 +525,26 @@ func (s mockStore) DeleteRollupRule(namespaceID, rollupRuleID string, uOpts stor
 
 func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view.RollupRule, error) {
 	return make([]view.RollupRule, 0), nil
+}
+
+func (s mockStore) FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.UtilizationRule, error) {
+	return view.UtilizationRule{}, nil
+}
+
+func (s mockStore) CreateUtilizationRule(namespaceID string, rrv view.UtilizationRule, uOpts store.UpdateOptions) (view.UtilizationRule, error) {
+	return view.UtilizationRule{}, nil
+}
+
+func (s mockStore) UpdateUtilizationRule(namespaceID, utilizationRuleID string, rrv view.UtilizationRule, uOpts store.UpdateOptions) (view.UtilizationRule, error) {
+	return view.UtilizationRule{}, nil
+}
+
+func (s mockStore) DeleteUtilizationRule(namespaceID, utilizationRuleID string, uOpts store.UpdateOptions) error {
+	return nil
+}
+
+func (s mockStore) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.UtilizationRule, error) {
+	return make([]view.UtilizationRule, 0), nil
 }
 
 func (s mockStore) Close() {}
