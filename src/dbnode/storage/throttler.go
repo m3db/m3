@@ -31,8 +31,6 @@ func (t *Throttler) Acquire(key string, weight int) {
 	t.Lock()
 	defer t.Unlock()
 
-	// check if user is under dynamic limit
-	// TODO: needs to consider waiting and in-flight keys
 	maxWeightPerKey := t.maxWeightPerKey()
 
 	currentKey, alreadyExists := t.keyState[key]
