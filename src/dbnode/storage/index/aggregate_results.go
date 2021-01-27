@@ -189,7 +189,7 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
 	defer r.Unlock()
-
+ 
 	// NB: init total count with batch length, since each aggregated entry
 	// will have one field.
 	totalCount := len(batch)
@@ -197,8 +197,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		totalCount += len(batch[idx].Terms)
 	}
 
-	r.aggregateOpts.AggregateUsageMetrics.IncTotal(int64(totalCount))
-	remainingDocs := int(math.MaxInt64)
+	r.aggregateOpts.AggregateUsageMetrics.IncTotal(int64(totalCount)) 
+	remainingDocs := math.MaxInt64 
 	if r.aggregateOpts.DocsLimit != 0 {
 		remainingDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
 	}
