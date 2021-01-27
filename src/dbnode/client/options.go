@@ -217,6 +217,11 @@ var (
 	defaultChannelOptions = &tchannel.ChannelOptions{
 		MaxIdleTime:       5 * time.Minute,
 		IdleCheckInterval: 5 * time.Minute,
+		DefaultConnectionOptions: tchannel.ConnectionOptions{
+			// By default cancel requests if the context becomes
+			// cancelled.
+			ContextDoneCancelsRequest: true,
+		},
 	}
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")

@@ -714,7 +714,6 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	fmt.Printf("!! started fetchtagged\n")
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -2295,13 +2294,10 @@ func (s *service) startReadRPCWithDB() (storage.Database, error) {
 }
 
 func (s *service) readRPCCompleted(ctx goctx.Context) {
-	fmt.Printf("!! read RPC completed\n")
 	select {
 	case <-ctx.Done():
 		s.metrics.cancelledReadRequest.Inc(1)
-		fmt.Printf("!! read RPC completed CANCELLED: %v\n", ctx.Err())
 	default:
-		fmt.Printf("!! read RPC completed NO CANCEL: %v\n", ctx.Err())
 	}
 
 	if s.state.maxOutstandingReadRPCs == 0 {

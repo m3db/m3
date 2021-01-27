@@ -125,6 +125,8 @@ require (
 // branch 0.9.3-pool-read-binary-3
 replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
 
+replace github.com/uber/tchannel-go => github.com/robskillington/tchannel-go v1.21.1-0.20210127072629-7a291a7211f1
+
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
 // in at least two encoders (see below) take int64s and expect that msgpack will size them down accordingly. We'll have
