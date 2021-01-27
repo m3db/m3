@@ -65,26 +65,35 @@ type usageMetrics struct {
 }
 
 func (m *usageMetrics) IncTotal(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
 	if m.total != nil {
 		m.total.Inc(val)
 	}
 }
+
 func (m *usageMetrics) IncTotalTerms(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
 	if m.totalTerms != nil {
 		m.totalTerms.Inc(val)
 	}
 }
+
 func (m *usageMetrics) IncDedupedTerms(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
 	if m.dedupedTerms != nil {
 		m.dedupedTerms.Inc(val)
 	}
 }
+
 func (m *usageMetrics) IncTotalFields(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
 	if m.totalFields != nil {
 		m.totalFields.Inc(val)
 	}
 }
+
 func (m *usageMetrics) IncDedupedFields(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
 	if m.dedupedFields != nil {
 		m.dedupedFields.Inc(val)
 	}
