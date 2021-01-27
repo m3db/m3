@@ -104,7 +104,7 @@ func (t *Throttler) Release(key string, weight int) {
 
 		// (A) Key would exceed per-key limit if we granted the current weight, so we skip
 		// and add to back of queue to allow for it to release more resources first.
-		if nextKeyState.currentWeight+weight > maxWeightPerKey {
+		if nextKeyState.currentWeight+nextRequest.weight > maxWeightPerKey {
 			t.keyQueue = append(t.keyQueue, nextKey)
 			continue
 		}
