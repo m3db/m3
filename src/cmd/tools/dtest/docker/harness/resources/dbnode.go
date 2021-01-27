@@ -22,6 +22,7 @@ package resources
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -30,6 +31,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
 )
 
@@ -92,6 +94,11 @@ type Node interface {
 	WaitForBootstrap() error
 	// WritePoint writes a datapoint to the node directly.
 	WritePoint(req *rpc.WriteRequest) error
+	// WriteTaggedPoint writes a datapoint with tags to the node directly.
+	WriteTaggedPoint(req *rpc.WriteTaggedRequest) error
+	// AggregateTiles starts tiles aggregation, waits until it will complete
+	// and returns the amount of aggregated tiles.
+	AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error)
 	// Fetch fetches datapoints.
 	Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error)
 	// Exec executes the given commands on the node container, returning
@@ -108,8 +115,6 @@ type Node interface {
 }
 
 type dbNode struct {
-	opts dockerResourceOptions
-
 	tchanClient *integration.TestTChannelClient
 	resource    *dockerResource
 }
@@ -140,26 +145,25 @@ func newDockerHTTPNode(
 	resource.logger.Info("set up tchanClient", zap.String("node_addr", addr))
 	completed = true
 	return &dbNode{
-		opts: opts,
-
 		tchanClient: tchanClient,
 		resource:    resource,
 	}, nil
 }
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
-	port, err := c.resource.getPort(p)
-	if err != nil {
-		return nil, err
+	var network docker.ContainerNetwork
+	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // nolint: gocritic
+		network = n
 	}
 
+	host := strings.TrimLeft(c.resource.resource.Container.Name, "/")
 	return &admin.Host{
-		Id:             "m3db_local",
-		IsolationGroup: "rack-a",
+		Id:             host,
+		IsolationGroup: "rack-a-" + c.resource.resource.Container.Name,
 		Zone:           "embedded",
 		Weight:         1024,
-		Address:        c.opts.containerName,
-		Port:           uint32(port),
+		Address:        network.IPAddress,
+		Port:           uint32(p),
 	}, nil
 }
 
@@ -215,6 +219,38 @@ func (c *dbNode) WritePoint(req *rpc.WriteRequest) error {
 	return nil
 }
 
+func (c *dbNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("write-tagged"))
+	err := c.tchanClient.TChannelClientWriteTagged(timeout, req)
+	if err != nil {
+		logger.Error("could not write-tagged", zap.Error(err))
+		return err
+	}
+
+	logger.Info("wrote")
+	return nil
+}
+
+func (c *dbNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
+	if c.resource.closed {
+		return 0, errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("aggregate-tiles"))
+	rsp, err := c.tchanClient.TChannelClientAggregateTiles(timeout, req)
+	if err != nil {
+		logger.Error("could not aggregate tiles", zap.Error(err))
+		return 0, err
+	}
+
+	logger.Info("wrote")
+	return rsp.ProcessedTileCount, nil
+}
+
 func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	if c.resource.closed {
 		return nil, errClosed
@@ -236,7 +272,7 @@ func (c *dbNode) Restart() error {
 		return errClosed
 	}
 
-	cName := c.opts.containerName
+	cName := c.resource.resource.Container.Name
 	logger := c.resource.logger.With(zapMethod("restart"))
 	logger.Info("restarting container", zap.String("container", cName))
 	err := c.resource.pool.Client.RestartContainer(cName, 60)
