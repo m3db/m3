@@ -29,7 +29,20 @@ type request struct {
 }
 
 // Acquire blocks until the requested weight is granted to the specified key.
-func (t *Throttler) Acquire(key string, weight int) {
+func (t *Throttler) Acquire(key string, weight int) error {
+	blockCh, err := t.tryAcquire(key, weight)
+	if err != nil {
+		return err
+	}
+
+	if blockCh != nil {
+		<-blockCh
+	}
+
+	return nil
+}
+
+func (t *Throttler) tryAcquire(key string, weight int) (chan struct{}, error) {
 	t.Lock()
 	defer t.Unlock()
 
@@ -60,9 +73,12 @@ func (t *Throttler) Acquire(key string, weight int) {
 			t.keyQueue = append(t.keyQueue, key)
 		}
 
-		// Block until enough weight is released.
-		<-blockCh
+		// Return the chan the caller should block on since we cannot acquire yet.
+		return blockCh, nil
 	}
+
+	// Can acquire directly so return nil chan to wait on.
+	return nil, nil
 }
 
 // Release frees the weight associated with the key to be available for others.
