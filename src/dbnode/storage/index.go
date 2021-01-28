@@ -1404,10 +1404,9 @@ func (i *nsIndex) AggregateQuery(
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
-	id := i.nsMetadata.ID()
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", id.String()),
+		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
 		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
@@ -1418,15 +1417,12 @@ func (i *nsIndex) AggregateQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	metrics := index.NewAggregateUsageMetrics(id, i.opts.InstrumentOptions())
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
-		SizeLimit:             opts.SeriesLimit,
-		DocsLimit:             opts.DocsLimit,
-		FieldFilter:           opts.FieldFilter,
-		Type:                  opts.Type,
-		AggregateUsageMetrics: metrics,
+		SizeLimit:   opts.SeriesLimit,
+		FieldFilter: opts.FieldFilter,
+		Type:        opts.Type,
 	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
@@ -1445,7 +1441,7 @@ func (i *nsIndex) AggregateQuery(
 		}
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
-	results.Reset(id, aopts)
+	results.Reset(i.nsMetadata.ID(), aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
@@ -1691,16 +1687,7 @@ func (i *nsIndex) execBlockQueryFn(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	docResults, ok := results.(index.DocumentResults)
-	if !ok { // should never happen
-		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during query", results)
-		state.multiErr = state.multiErr.Add(err)
-		state.Unlock()
-		return
-	}
-
-	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
+	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1738,16 +1725,7 @@ func (i *nsIndex) execBlockWideQueryFn(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	docResults, ok := results.(index.DocumentResults)
-	if !ok { // should never happen
-		state.Lock()
-		err := fmt.Errorf("unknown results type [%T] received during wide query", results)
-		state.multiErr = state.multiErr.Add(err)
-		state.Unlock()
-		return
-	}
-
-	_, err := block.Query(ctx, cancellable, query, opts, docResults, logFields)
+	_, err := block.Query(ctx, cancellable, query, opts, results, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
