@@ -133,6 +133,7 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 		ropts       = r.opts.RetentionOptions()
 		blockSize   = ropts.BlockSize()
 		readerCount = end.Sub(start) / blockSize
+		maxBlocks = 10_000
 	)
 
 	if readerCount < 0 {
@@ -197,6 +198,9 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 
 		if len(resultsBlock) > 0 {
 			results = append(results, resultsBlock)
+		}
+		if len(results) >= maxBlocks {
+			// bail early
 		}
 	}
 

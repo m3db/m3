@@ -275,7 +275,8 @@ type FetchTaggedResults interface {
 	// numIDs is the number of seriesIDs that will be added.
 	// namespaceID is the namespaceID
 	// exhaustive is true if results cover the entire query.
-	Init(numIDs int, namespaceID ident.ID, exhaustive bool)
+	// tagEncoder for encoding the series ID tags.
+	Init(numIDs int, namespaceID ident.ID, exhaustive bool, tagEncoder serialize.TagEncoder)
 
 	// NextID sends the next series ID index result being processed.
 	NextID(indexResult *index.ResultsMapEntry) error
@@ -295,19 +296,18 @@ type fetchTaggedResults struct {
 	iOpts      instrument.Options
 }
 
-func newFetchTaggedResults(reader *docs.EncodedDocumentReader, tagEncoder serialize.TagEncoder,
-	iOpts instrument.Options) *fetchTaggedResults {
+func newFetchTaggedResults(reader *docs.EncodedDocumentReader, iOpts instrument.Options) *fetchTaggedResults {
 	return &fetchTaggedResults{
-		reader:     reader,
-		tagEncoder: tagEncoder,
-		iOpts:      iOpts,
+		reader: reader,
+		iOpts:  iOpts,
 	}
 }
 
-func (f *fetchTaggedResults) Init(numIDs int, namespaceID ident.ID, exhaustive bool) {
+func (f *fetchTaggedResults) Init(numIDs int, namespaceID ident.ID, exhaustive bool, tagEncoder serialize.TagEncoder) {
 	f.proto.Elements = make([]*rpc.FetchTaggedIDResult_, 0, numIDs)
 	f.proto.Exhaustive = exhaustive
 	f.nsID = namespaceID
+	f.tagEncoder = tagEncoder
 }
 
 func (f *fetchTaggedResults) NextID(indexResult *index.ResultsMapEntry) error {
@@ -786,10 +786,7 @@ func (s *service) readDatapoints(
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
 	// TODO: make this impl configurable
-	tagEncoder := s.pools.tagEncoder.Get()
-	ctx := tchannelthrift.Context(tctx)
-	ctx.RegisterFinalizer(tagEncoder)
-	response := newFetchTaggedResults(docs.NewEncodedDocumentReader(), tagEncoder, s.opts.InstrumentOptions())
+	response := newFetchTaggedResults(docs.NewEncodedDocumentReader(), s.opts.InstrumentOptions())
 
 	if err := s.FetchTaggedWithResults(tctx, req, response); err != nil {
 		return nil, err
@@ -849,7 +846,9 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	}
 
 	results := queryResult.Results
-	response.Init(results.Size(), ns, queryResult.Exhaustive)
+	tagEncoder := s.pools.tagEncoder.Get()
+	ctx.RegisterFinalizer(tagEncoder)
+	response.Init(results.Size(), ns, queryResult.Exhaustive, tagEncoder)
 
 	// TODO: batchSize should somehow be tied to max limit
 	batchSize := results.Size()
