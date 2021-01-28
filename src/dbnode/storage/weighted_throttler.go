@@ -69,8 +69,9 @@ func (t *WeightedThrottler) tryAcquire(key string, weight int) (chan struct{}, e
 			weight:  weight,
 		})
 
-		// If this is first request by the key, then enqueue it for releasing.
-		if !alreadyExists {
+		// If this is first request to wait for the key, then enqueue
+		// it for being claimed upon a future release.
+		if len(currentKey.waiting) == 1 {
 			t.keyQueue = append(t.keyQueue, key)
 		}
 

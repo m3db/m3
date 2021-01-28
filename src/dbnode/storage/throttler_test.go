@@ -18,15 +18,15 @@ func TestThrottler(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(20)
-	for i := 0; i < 10; i++ {
+	wg.Add(200)
+	for i := 0; i < 100; i++ {
 		i := i
 		go func() {
 			// Simulate distinct small user.
 			u1 := fmt.Sprintf("user_%d", i)
 			claim1, err := throttler.Acquire(u1)
 			require.NoError(t, err)
-			time.Sleep(time.Millisecond * 200)
+			time.Sleep(time.Millisecond * 10)
 			claim1.Release()
 			wg.Done()
 		}()
@@ -36,7 +36,7 @@ func TestThrottler(t *testing.T) {
 			u2 := "user_bad"
 			claim2, err := throttler.Acquire(u2)
 			require.NoError(t, err)
-			time.Sleep(time.Millisecond * 200)
+			time.Sleep(time.Millisecond * 10)
 			claim2.Release()
 			wg.Done()
 		}()
