@@ -58,7 +58,7 @@ func (t *WeightedThrottler) tryAcquire(key string, weight int) (chan struct{}, e
 
 	// If new weight would keep the key under the per-key limit then grant.
 	// Otherwise enqueue and block.
-	if currentKey.currentWeight+weight < maxWeightPerKey {
+	if currentKey.currentWeight+weight <= maxWeightPerKey && currentKey.currentWeight+weight <= t.globalMaxWeight {
 		currentKey.currentWeight += weight
 		t.globalCurrentWeight += weight
 	} else {
