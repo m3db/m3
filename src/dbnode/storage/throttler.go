@@ -32,6 +32,15 @@ type keyContext struct {
 	currentClaims int
 }
 
+// NewThrottler returns a new throttler.
+func NewThrottler(maxClaims int) *Throttler {
+	return &Throttler{
+		keyState:        make(map[string]*keyContext),
+		keyQueue:        list.New(),
+		globalMaxClaims: maxClaims,
+	}
+}
+
 // Release releases the current claim.
 func (c *Claim) Release() {
 	c.throttler.Release(c.key)

@@ -568,15 +568,14 @@ func (r *blockRetriever) seriesPresentInBloomFilter(
 	// Capture variable and RLock() because this slice can be modified in the
 	// Open() method
 	r.RLock()
-	seekerMgr := r.seekerMgr
-	r.RUnlock()
-
 	// This should never happen unless caller tries to use Stream() before Open()
-	if seekerMgr == nil {
+	if r.seekerMgr == nil {
+		r.RUnlock()
 		return false, errNoSeekerMgr
 	}
+	r.RUnlock()
 
-	idExists, err := seekerMgr.Test(id, shard, startTime)
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
 		return false, err
 	}
@@ -595,6 +594,7 @@ func (r *blockRetriever) streamRequest(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
+	nsCtx namespace.Context,
 ) error {
 	req.resultWg.Add(1)
 	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
@@ -671,7 +671,7 @@ func (r *blockRetriever) Stream(
 		}
 	}
 
-	err = r.streamRequest(ctx, req, shard, id, startTime)
+	err = r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
@@ -707,7 +707,7 @@ func (r *blockRetriever) StreamWideEntry(
 	req.streamReqType = streamWideEntryReq
 	req.wideFilter = filter
 
-	err = r.streamRequest(ctx, req, shard, id, startTime)
+	err = r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
 	if err != nil {
 		req.resultWg.Done()
 		return block.EmptyStreamedWideEntry, err

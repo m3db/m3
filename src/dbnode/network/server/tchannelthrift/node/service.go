@@ -24,6 +24,7 @@ import (
 	goctx "context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"runtime"
 	"sort"
 	"sync"
@@ -69,6 +70,8 @@ var (
 	// NB(r): pool sizes are vars to help reduce stress on tests.
 	segmentArrayPoolSize        = 65536
 	writeBatchPooledReqPoolSize = 1024
+
+	throttler = storage.NewThrottler(100_000)
 )
 
 const (
@@ -122,6 +125,7 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
+	fetchTaggedIDs          tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -142,6 +146,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
+		fetchTaggedIDs:          scope.Counter("fetchTaggedIDs"),
 	}
 }
 
@@ -808,46 +813,74 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	// Re-use reader and id for more memory-efficient processing of
 	// tags from doc.Metadata
 	reader := docs.NewEncodedDocumentReader()
+	userID := fmt.Sprintf("user_%d", rand.Intn(100))
 	for _, entry := range results.Map().Iter() {
+		s.metrics.fetchTaggedIDs.Inc(1)
+
 		idx := i
 		i++
 
-		// NB(r): Use a bytes ID here so that this ID doesn't need to be
-		// copied by the blockRetriever in the streamRequest method when
-		// it checks if the ID is finalizeable or not with IsNoFinalize.
-		id := ident.BytesID(entry.Key())
-
-		d := entry.Value()
-		metadata, err := docs.MetadataFromDocument(d, reader)
+		claim, err := throttler.Acquire(userID)
 		if err != nil {
 			return err
 		}
-		tags := idxconvert.ToSeriesTags(metadata, idxconvert.Opts{NoClone: true})
-
-		enc := s.pools.tagEncoder.Get()
-		ctx.RegisterFinalizer(enc)
-		encodedTags, err := s.encodeTags(enc, tags)
-		if err != nil { // This is an invariant, should never happen
-			return tterrors.NewInternalError(err)
-		}
-
-		elem := &rpc.FetchTaggedIDResult_{
-			NameSpace:   nsIDBytes,
-			ID:          id.Bytes(),
-			EncodedTags: encodedTags.Bytes(),
-		}
-		response.Elements = append(response.Elements, elem)
-		if !fetchData {
-			continue
-		}
-
-		encoded, err := db.ReadEncoded(ctx, nsID, id,
-			opts.StartInclusive, opts.EndExclusive)
+		err = s.fetchReadEncodedID(ctx, db, response, nsID, nsIDBytes, opts, fetchData, encodedDataResults, reader, entry, idx)
+		claim.Release()
 		if err != nil {
-			return convert.ToRPCError(err)
-		} else {
-			encodedDataResults[idx] = encoded
+			return err
 		}
+	}
+	return nil
+}
+
+func (s *service) fetchReadEncodedID(
+	ctx context.Context,
+	db storage.Database,
+	response *rpc.FetchTaggedResult_,
+	nsID ident.ID,
+	nsIDBytes []byte,
+	opts index.QueryOptions,
+	fetchData bool,
+	encodedDataResults [][][]xio.BlockReader,
+	reader *docs.EncodedDocumentReader,
+	entry index.ResultsMapEntry,
+	idx int,
+) error {
+	// NB(r): Use a bytes ID here so that this ID doesn't need to be
+	// copied by the blockRetriever in the streamRequest method when
+	// it checks if the ID is finalizeable or not with IsNoFinalize.
+	id := ident.BytesID(entry.Key())
+
+	d := entry.Value()
+	metadata, err := docs.MetadataFromDocument(d, reader)
+	if err != nil {
+		return err
+	}
+	tags := idxconvert.ToSeriesTags(metadata, idxconvert.Opts{NoClone: true})
+
+	enc := s.pools.tagEncoder.Get()
+	ctx.RegisterFinalizer(enc)
+	encodedTags, err := s.encodeTags(enc, tags)
+	if err != nil { // This is an invariant, should never happen
+		return tterrors.NewInternalError(err)
+	}
+
+	elem := &rpc.FetchTaggedIDResult_{
+		NameSpace:   nsIDBytes,
+		ID:          id.Bytes(),
+		EncodedTags: encodedTags.Bytes(),
+	}
+	response.Elements = append(response.Elements, elem)
+	if !fetchData {
+		return nil
+	}
+
+	encoded, err := db.ReadEncoded(ctx, nsID, id,
+		opts.StartInclusive, opts.EndExclusive)
+	if err != nil {
+		return convert.ToRPCError(err)
+	} else {
+		encodedDataResults[idx] = encoded
 	}
 	return nil
 }

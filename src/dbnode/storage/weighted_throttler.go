@@ -99,6 +99,8 @@ func (t *WeightedThrottler) Release(key string, weight int) {
 
 	// Cycle through the queue of keys waiting for resources to determine
 	// the first which could make use of the newly available weight.
+	// TODO: free up as many enqueued as we can to account for how a release could
+	// have freed a weight that many N enqueued items could now be granted.
 	for i := 0; i < len(t.keyQueue); i++ {
 		nextKey := t.keyQueue[0]
 		t.keyQueue = t.keyQueue[1:]

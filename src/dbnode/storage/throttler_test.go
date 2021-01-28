@@ -14,7 +14,7 @@ func TestThrottler(t *testing.T) {
 	throttler := &Throttler{
 		keyState:        make(map[string]*keyContext, 0),
 		keyQueue:        list.New(),
-		globalMaxClaims: 2,
+		globalMaxClaims: 10,
 	}
 
 	var wg sync.WaitGroup
