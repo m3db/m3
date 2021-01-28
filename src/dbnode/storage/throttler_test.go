@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,28 +14,30 @@ func TestThrottler(t *testing.T) {
 	throttler := &Throttler{
 		keyState:        make(map[string]*keyContext, 0),
 		keyQueue:        list.New(),
-		globalMaxClaims: 10,
+		globalMaxClaims: 2,
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
+	wg.Add(20)
+	for i := 0; i < 10; i++ {
+		i := i
 		go func() {
 			// Simulate distinct small user.
-			u := fmt.Sprintf("user_%d", i)
-			claim, err := throttler.Acquire(u)
+			u1 := fmt.Sprintf("user_%d", i)
+			claim1, err := throttler.Acquire(u1)
 			require.NoError(t, err)
-			claim.Release()
+			time.Sleep(time.Millisecond * 200)
+			claim1.Release()
 			wg.Done()
 		}()
 
-		wg.Add(1)
 		go func() {
 			// Simulate distinct small user.
-			u := "user_bad"
-			claim, err := throttler.Acquire(u)
+			u2 := "user_bad"
+			claim2, err := throttler.Acquire(u2)
 			require.NoError(t, err)
-			claim.Release()
+			time.Sleep(time.Millisecond * 200)
+			claim2.Release()
 			wg.Done()
 		}()
 	}

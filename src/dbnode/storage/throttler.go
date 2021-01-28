@@ -45,7 +45,11 @@ func (t *Throttler) Acquire(key string) (*Claim, error) {
 	}
 
 	if blockCh != nil {
+		fmt.Println("blocked", key)
 		<-blockCh
+		fmt.Println("granted", key)
+	} else {
+		fmt.Println("acquired", key)
 	}
 
 	return &Claim{key: key, throttler: t}, nil
@@ -61,7 +65,7 @@ func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 	if !alreadyExists {
 		currentKey = &keyContext{
 			currentClaims: 0,
-			waiting:       make([]chan struct{}, 0),
+			waiting:       make([]chan struct{}, 0, 0),
 		}
 		t.keyState[key] = currentKey
 	}
@@ -74,11 +78,12 @@ func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 	}
 
 	// Otherwise, enqueue this key and block acquisition.
-	blockCh := make(chan struct{}, 1)
+	blockCh := make(chan struct{})
 	currentKey.waiting = append(currentKey.waiting, blockCh)
 
-	// If this is first request by the key, then enqueue it for releasing.
-	if !alreadyExists {
+	// If this is first request to wait for the key, then enqueue
+	// it for being claimed upon a future release.
+	if len(currentKey.waiting) == 1 {
 		t.keyQueue.PushBack(key)
 	}
 
@@ -108,22 +113,14 @@ func (t *Throttler) Release(key string) {
 		nextKeyState := t.keyState[nextKey]
 		nextWaiting := nextKeyState.waiting[0]
 
-		fmt.Println("REL", i, nextKey)
-
-		// (A) If key is above it's per-key limit, then skip and continue to
+		// If key is above it's per-key limit, then skip and continue to
 		// a different key to grant.
 		if nextKeyState.currentClaims >= maxClaimsPerKey {
 			t.keyQueue.MoveToBack(nextElement)
 			continue
 		}
 
-		// (B) If above the global limit then just return to wait for a future release.
-		// Keep the current key's queue position though since it should go next.
-		if t.globalCurrentClaims >= t.globalMaxClaims {
-			return
-		}
-
-		// (C) Below both global + per-key limits so unblock the next
+		// Below both global + per-key limits so unblock the next
 		// request and remove it from the queue.
 		nextWaiting <- struct{}{}
 		nextKeyState.currentClaims++
@@ -137,8 +134,6 @@ func (t *Throttler) Release(key string) {
 			t.keyQueue.Remove(nextElement)
 		}
 	}
-
-	fmt.Println("released", key, t.globalCurrentClaims)
 }
 
 func (t *Throttler) maxClaimsPerKey() int {
