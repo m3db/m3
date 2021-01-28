@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -41,10 +40,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -52,7 +49,6 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -1870,16 +1866,6 @@ func TestBlockAggregate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	scope := tally.NewTestScope("", nil)
-	iOpts := instrument.NewOptions().SetMetricsScope(scope)
-	limitOpts := limits.NewOptions().
-		SetInstrumentOptions(iOpts).
-		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
-		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
-	queryLimits, err := limits.NewQueryLimits((limitOpts))
-	require.NoError(t, err)
-	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
-
 	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
 	seriesLimit := 10
 	testMD := newTestNSMetadata(t)
@@ -1947,10 +1933,6 @@ func TestBlockAggregate(t *testing.T) {
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
-
-	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 4, snap, "query-limit.total-docs-matched", nil)
-	tallytest.AssertCounterValue(t, 8, snap, "aggregate-added-counter", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {

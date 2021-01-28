@@ -142,7 +142,6 @@ type block struct {
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	docsLimit                       limits.LookbackLimit
-	aggregatedAddedCounter          tally.Counter
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -226,7 +225,6 @@ func NewBlock(
 		iopts,
 	)
 
-	aggAdded := opts.InstrumentOptions().MetricsScope().Counter("aggregate-added-counter")
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -253,7 +251,6 @@ func NewBlock(
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
-		aggregatedAddedCounter:          aggAdded,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -710,7 +707,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
+			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
 			if err != nil {
 				return false, err
 			}
@@ -730,7 +727,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
+		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
 		if err != nil {
 			return false, err
 		}
@@ -822,12 +819,11 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
-	numAdded int,
+	currBatchSize int,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		b.aggregatedAddedCounter.Inc(int64(numAdded))
-		if err := b.docsLimit.Inc(len(batch), source); err != nil {
+		if err := b.docsLimit.Inc(currBatchSize, source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

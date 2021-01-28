@@ -26,10 +26,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
@@ -64,6 +62,22 @@ func toMap(res AggregateResults) map[string][]string {
 	return resultMap
 }
 
+func TestAggResultsInsertWithRepeatedFields(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	entries := entries(genResultsEntry("foo", "baz", "baz", "baz", "qux"))
+	size, docsCount := res.AddFields(entries)
+	require.Equal(t, 3, size)
+	require.Equal(t, 5, docsCount)
+	require.Equal(t, 3, res.Size())
+	require.Equal(t, 5, res.TotalDocsCount())
+
+	expected := map[string][]string{
+		"foo": {"baz", "qux"},
+	}
+
+	assert.Equal(t, expected, toMap(res))
+}
+
 func TestWithLimits(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -73,7 +87,6 @@ func TestWithLimits(t *testing.T) {
 		exSeries  int
 		exDocs    int
 		expected  map[string][]string
-		exMetrics map[string]int64
 	}{
 		{
 			name:     "single term",
@@ -81,11 +94,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 1,
 			exDocs:   1,
 			expected: map[string][]string{"foo": {}},
-
-			exMetrics: map[string]int64{
-				"total": 1, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 0, "deduped-terms": 0,
-			},
 		},
 		{
 			name:     "same term",
@@ -93,10 +101,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 1,
 			exDocs:   2,
 			expected: map[string][]string{"foo": {}},
-			exMetrics: map[string]int64{
-				"total": 2, "total-fields": 2, "deduped-fields": 1,
-				"total-terms": 0, "deduped-terms": 0,
-			},
 		},
 		{
 			name:     "multiple terms",
@@ -104,10 +108,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 2,
 			exDocs:   2,
 			expected: map[string][]string{"foo": {}, "bar": {}},
-			exMetrics: map[string]int64{
-				"total": 2, "total-fields": 2, "deduped-fields": 2,
-				"total-terms": 0, "deduped-terms": 0,
-			},
 		},
 		{
 			name:     "single entry",
@@ -115,10 +115,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 2,
 			exDocs:   2,
 			expected: map[string][]string{"foo": {"bar"}},
-			exMetrics: map[string]int64{
-				"total": 2, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 1, "deduped-terms": 1,
-			},
 		},
 		{
 			name:     "single entry multiple fields",
@@ -126,10 +122,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 4,
 			exDocs:   6,
 			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
-			exMetrics: map[string]int64{
-				"total": 6, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 5, "deduped-terms": 3,
-			},
 		},
 		{
 			name: "multiple entry multiple fields",
@@ -139,10 +131,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 4,
 			exDocs:   7,
 			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
-			exMetrics: map[string]int64{
-				"total": 7, "total-fields": 2, "deduped-fields": 1,
-				"total-terms": 5, "deduped-terms": 3,
-			},
 		},
 		{
 			name:     "multiple entries",
@@ -150,10 +138,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 5,
 			exDocs:   5,
 			expected: map[string][]string{"foo": {"baz"}, "bar": {"baz", "qux"}},
-			exMetrics: map[string]int64{
-				"total": 5, "total-fields": 2, "deduped-fields": 2,
-				"total-terms": 3, "deduped-terms": 3,
-			},
 		},
 
 		{
@@ -163,10 +147,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries:  4,
 			exDocs:    5,
 			expected:  map[string][]string{"foo": {"bar", "baz", "qux"}},
-			exMetrics: map[string]int64{
-				"total": 5, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 4, "deduped-terms": 3,
-			},
 		},
 		{
 			name:     "single entry query at doc limit",
@@ -175,10 +155,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 4,
 			exDocs:   5,
 			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
-			exMetrics: map[string]int64{
-				"total": 5, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 4, "deduped-terms": 3,
-			},
 		},
 
 		{
@@ -188,10 +164,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries:  3,
 			exDocs:    4,
 			expected:  map[string][]string{"foo": {"bar", "baz"}},
-			exMetrics: map[string]int64{
-				"total": 4, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 3, "deduped-terms": 2,
-			},
 		},
 		{
 			name:     "single entry query below doc limit",
@@ -200,11 +172,8 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 2,
 			exDocs:   3,
 			expected: map[string][]string{"foo": {"bar"}},
-			exMetrics: map[string]int64{
-				"total": 5, "total-fields": 1, "deduped-fields": 1,
-				"total-terms": 4, "deduped-terms": 1,
-			},
 		},
+
 		{
 			name:      "multiple entry query below series limit",
 			entries:   entries(genResultsEntry("foo", "bar"), genResultsEntry("baz", "qux")),
@@ -212,10 +181,6 @@ func TestWithLimits(t *testing.T) {
 			exSeries:  3,
 			exDocs:    4,
 			expected:  map[string][]string{"foo": {"bar"}, "baz": {}},
-			exMetrics: map[string]int64{
-				"total": 4, "total-fields": 2, "deduped-fields": 2,
-				"total-terms": 2, "deduped-terms": 1,
-			},
 		},
 		{
 			name:     "multiple entry query below doc limit",
@@ -224,11 +189,8 @@ func TestWithLimits(t *testing.T) {
 			exSeries: 3,
 			exDocs:   3,
 			expected: map[string][]string{"foo": {"bar"}, "baz": {}},
-			exMetrics: map[string]int64{
-				"total": 4, "total-fields": 2, "deduped-fields": 2,
-				"total-terms": 2, "deduped-terms": 1,
-			},
 		},
+
 		{
 			name:      "multiple entry query both limits",
 			entries:   entries(genResultsEntry("foo", "bar"), genResultsEntry("baz", "qux")),
@@ -237,21 +199,14 @@ func TestWithLimits(t *testing.T) {
 			exSeries:  3,
 			exDocs:    3,
 			expected:  map[string][]string{"foo": {"bar"}, "baz": {}},
-			exMetrics: map[string]int64{
-				"total": 4, "total-fields": 2, "deduped-fields": 2,
-				"total-terms": 2, "deduped-terms": 1,
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scope := tally.NewTestScope("", nil)
-			iOpts := instrument.NewOptions().SetMetricsScope(scope)
-			res := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
-				SizeLimit:             tt.sizeLimit,
-				DocsLimit:             tt.docLimit,
-				AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns"), iOpts),
+			res := NewAggregateResults(nil, AggregateResultsOptions{
+				SizeLimit: tt.sizeLimit,
+				DocsLimit: tt.docLimit,
 			}, testOpts)
 
 			size, docsCount := res.AddFields(tt.entries)
@@ -261,14 +216,6 @@ func TestWithLimits(t *testing.T) {
 			assert.Equal(t, tt.exDocs, res.TotalDocsCount())
 
 			assert.Equal(t, tt.expected, toMap(res))
-
-			counters := scope.Snapshot().Counters()
-			actualCounters := make(map[string]int64, len(counters))
-			for _, v := range counters {
-				actualCounters[v.Tags()["type"]] = v.Value()
-			}
-
-			assert.Equal(t, tt.exMetrics, actualCounters)
 		})
 	}
 }
@@ -347,30 +294,4 @@ func TestAggResultFinalize(t *testing.T) {
 		id := entry.Key()
 		require.False(t, id.IsNoFinalize())
 	}
-}
-
-func TestResetUpdatesMetics(t *testing.T) {
-	scope := tally.NewTestScope("", nil)
-	iOpts := instrument.NewOptions().SetMetricsScope(scope)
-	testOpts = testOpts.SetInstrumentOptions(iOpts)
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns1"), iOpts),
-	}, testOpts)
-	res.AddFields(entries(genResultsEntry("foo")))
-	res.Reset(ident.StringID("ns2"), AggregateResultsOptions{})
-	res.AddFields(entries(genResultsEntry("bar")))
-
-	counters := scope.Snapshot().Counters()
-	seenNamespaces := make(map[string]struct{})
-	for _, v := range counters {
-		ns := v.Tags()["namespace"]
-		seenNamespaces[ns] = struct{}{}
-	}
-
-	assert.Equal(t, map[string]struct{}{
-		"ns1": {},
-		"ns2": {},
-	}, seenNamespaces)
-
-	res.Finalize()
 }

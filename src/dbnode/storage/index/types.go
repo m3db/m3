@@ -278,24 +278,6 @@ type AggregateResultsOptions struct {
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.
 	RestrictByQuery *Query
-
-	// AggregateUsageMetrics are aggregate usage metrics that track field
-	// and term counts for aggregate queries.
-	AggregateUsageMetrics AggregateUsageMetrics
-}
-
-// AggregateUsageMetrics are metrics for aggregate query usage.
-type AggregateUsageMetrics interface {
-	// IncTotal increments the total metric count.
-	IncTotal(val int64)
-	// IncTotalTerms increments the totalTerms metric count.
-	IncTotalTerms(val int64)
-	// IncDedupedTerms increments the dedupedTerms metric count.
-	IncDedupedTerms(val int64)
-	// IncTotalFields increments the totalFields metric count.
-	IncTotalFields(val int64)
-	// IncDedupedFields increments the dedupedFields metric count.
-	IncDedupedFields(val int64)
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
