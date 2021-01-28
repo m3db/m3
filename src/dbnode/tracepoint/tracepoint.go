@@ -34,9 +34,6 @@ const (
 	// Query is the operation name for the tchannelthrift Query path.
 	Query = "tchannelthrift/node.service.Query"
 
-	// FetchReadEncoded is the operation name for the tchannelthrift FetchReadEncoded path.
-	FetchReadEncoded = "tchannelthrift/node.service.FetchReadEncoded"
-
 	// FetchReadResults is the operation name for the tchannelthrift FetchReadResults path.
 	FetchReadResults = "tchannelthrift/node.service.FetchReadResults"
 

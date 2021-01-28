@@ -1701,7 +1701,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	spans := mtr.FinishedSpans()
 
 	require.Len(t, spans, 4)
-	assert.Equal(t, tracepoint.FetchReadEncoded, spans[0].OperationName)
+	assert.Equal(t, tracepoint.FetchReadResults, spans[0].OperationName)
 	assert.Equal(t, tracepoint.FetchReadResults, spans[1].OperationName)
 	assert.Equal(t, tracepoint.FetchTagged, spans[2].OperationName)
 	assert.Equal(t, "root", spans[3].OperationName)
