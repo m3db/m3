@@ -67,7 +67,7 @@ func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 	}
 
 	// If below both the per-key and global max claims, then grant the claim.
-	if currentKey.currentClaims < maxClaimsPerKey && currentKey.currentClaims < t.globalMaxClaims {
+	if currentKey.currentClaims < maxClaimsPerKey && t.globalCurrentClaims < t.globalMaxClaims {
 		currentKey.currentClaims++
 		t.globalCurrentClaims++
 		return nil, nil
@@ -108,7 +108,7 @@ func (t *Throttler) Release(key string) {
 		nextKeyState := t.keyState[nextKey]
 		nextWaiting := nextKeyState.waiting[0]
 
-		fmt.Println("release", i, nextKey)
+		fmt.Println("REL", i, nextKey)
 
 		// (A) If key is above it's per-key limit, then skip and continue to
 		// a different key to grant.
