@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"container/list"
 	"sync"
 )
 
@@ -10,27 +11,22 @@ type Throttler struct {
 
 	keyState map[string]*keyContext
 	// Each entry in the queue should be unique to avoid unfair access
-	keyQueue []string
+	keyQueue list.List
 
-	globalCurrentWeight int
-	globalMaxWeight     int
+	globalCurrentClaims int
+	globalMaxClaims     int
 }
 
 type keyContext struct {
 	// Requests for weight to be granted which are waiting.
-	waiting []request
+	waiting []chan struct{}
 	// Currently granted weight for this key.
-	currentWeight int
+	currentClaims int
 }
 
-type request struct {
-	blockCh chan struct{}
-	weight  int
-}
-
-// Acquire blocks until the requested weight is granted to the specified key.
-func (t *Throttler) Acquire(key string, weight int) error {
-	blockCh, err := t.tryAcquire(key, weight)
+// Acquire blocks until the request for a claim is granted for the specified key.
+func (t *Throttler) Acquire(key string) error {
+	blockCh, err := t.tryAcquire(key)
 	if err != nil {
 		return err
 	}
@@ -42,99 +38,95 @@ func (t *Throttler) Acquire(key string, weight int) error {
 	return nil
 }
 
-func (t *Throttler) tryAcquire(key string, weight int) (chan struct{}, error) {
+func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 	t.Lock()
 	defer t.Unlock()
 
-	maxWeightPerKey := t.maxWeightPerKey()
+	maxClaimsPerKey := t.maxClaimsPerKey()
 
 	currentKey, alreadyExists := t.keyState[key]
 	if !alreadyExists {
 		t.keyState[key] = &keyContext{
-			currentWeight: 0,
-			waiting:       make([]request, 0),
+			currentClaims: 0,
+			waiting:       make([]chan struct{}, 0),
 		}
 	}
 
-	// If new weight would keep the key under the per-key limit then grant.
-	// Otherwise enqueue and block.
-	if currentKey.currentWeight+weight < maxWeightPerKey {
-		currentKey.currentWeight += weight
-		t.globalCurrentWeight += weight
-	} else {
-		blockCh := make(chan struct{}, 0)
-		currentKey.waiting = append(currentKey.waiting, request{
-			blockCh: blockCh,
-			weight:  weight,
-		})
-
-		// If this is first request by the key, then enqueue it for releasing.
-		if !alreadyExists {
-			t.keyQueue = append(t.keyQueue, key)
-		}
-
-		// Return the chan the caller should block on since we cannot acquire yet.
-		return blockCh, nil
+	// If below both the per-key and global max claims, then grant the claim.
+	if currentKey.currentClaims < maxClaimsPerKey && currentKey.currentClaims < t.globalMaxClaims {
+		currentKey.currentClaims++
+		t.globalCurrentClaims++
+		return nil, nil
 	}
 
-	// Can acquire directly so return nil chan to wait on.
-	return nil, nil
+	// Otherwise, enqueue this key and block acquisition.
+	blockCh := make(chan struct{}, 0)
+	currentKey.waiting = append(currentKey.waiting, blockCh)
+
+	// If this is first request by the key, then enqueue it for releasing.
+	if !alreadyExists {
+		t.keyQueue.PushBack(key)
+	}
+
+	// Return the chan the caller should block on since we cannot acquire yet.
+	return blockCh, nil
 }
 
-// Release frees the weight associated with the key to be available for others.
-func (t *Throttler) Release(key string, weight int) {
+// Release frees a claim.
+func (t *Throttler) Release(key string) {
 	t.Lock()
 	defer t.Unlock()
 
 	currentKey := t.keyState[key]
 
 	// Reduce granted weight associated with this key.
-	currentKey.currentWeight -= weight
-	t.globalCurrentWeight -= weight
+	currentKey.currentClaims--
+	t.globalCurrentClaims--
 
 	// calculate dynamic limit
-	maxWeightPerKey := t.maxWeightPerKey()
+	maxClaimsPerKey := t.maxClaimsPerKey()
 
 	// Cycle through the queue of keys waiting for resources to determine
 	// the first which could make use of the newly available weight.
-	for i := 0; i < len(t.keyQueue); i++ {
-		nextKey := t.keyQueue[0]
-		t.keyQueue = t.keyQueue[1:]
+	for i := 0; i < t.keyQueue.Len(); i++ {
+		nextElement := t.keyQueue.Front()
+		nextKey := nextElement.Value.(string)
 		nextKeyState := t.keyState[nextKey]
+		nextWaiting := nextKeyState.waiting[0]
 
-		// (A) Key would exceed per-key limit if we granted the current weight, so we skip
-		// and add to back of queue to allow for it to release more resources first.
-		if nextKeyState.currentWeight+nextRequest.weight > maxWeightPerKey {
-			t.keyQueue = append(t.keyQueue, nextKey)
+		// (A) If key is above it's per-key limit, then skip and continue to
+		// a different key to grant.
+		if nextKeyState.currentClaims >= maxClaimsPerKey {
+			t.keyQueue.MoveToBack(nextElement)
 			continue
 		}
 
-		nextRequest := nextKeyState.waiting[0]
-
-		// (B) Key would exceed the global limit, so we return to wait for another
-		// Release but keep the key's position in the queue to ensure it goes next.
-		if t.globalCurrentWeight+nextRequest.weight > t.globalMaxWeight {
+		// (B) If above the global limit then just return to wait for a future release.
+		// Keep the current key's queue position though since it should go next.
+		if t.globalCurrentClaims >= t.globalMaxClaims {
 			return
 		}
 
-		// (C) below both global + per-key limits so unblock the next
+		// (C) Below both global + per-key limits so unblock the next
 		// request and remove it from the queue.
-		nextRequest.blockCh <- struct{}{}
-		nextKeyState.currentWeight += nextRequest.weight
-		t.globalCurrentWeight += nextRequest.weight
+		nextWaiting <- struct{}{}
+		nextKeyState.currentClaims++
+		t.globalCurrentClaims++
 		nextKeyState.waiting = nextKeyState.waiting[1:]
 
-		// If there are more requests, then re-enqueue.
+		// If there are more requests, then re-enqueue, otherwise remove.
 		if len(nextKeyState.waiting) != 0 {
-			t.keyQueue = append(t.keyQueue, nextKey)
+			t.keyQueue.MoveToBack(nextElement)
+		} else {
+			t.keyQueue.Remove(nextElement)
 		}
 	}
 }
 
-func (t *Throttler) maxWeightPerKey() int {
+func (t *Throttler) maxClaimsPerKey() int {
 	// Limit per key such that each key gets an equal
-	// allocation of the total max weight available.
-	m := t.globalMaxWeight / len(t.keyQueue)
+	// share of concurrent grants to claims.
+	m := t.globalMaxClaims / t.keyQueue.Len()
 	if m <= 1 {
 		return 1
 	}
