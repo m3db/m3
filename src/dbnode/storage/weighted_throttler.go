@@ -50,10 +50,11 @@ func (t *WeightedThrottler) tryAcquire(key string, weight int) (chan struct{}, e
 
 	currentKey, alreadyExists := t.keyState[key]
 	if !alreadyExists {
-		t.keyState[key] = &weightedKeyContext{
+		currentKey = &weightedKeyContext{
 			currentWeight: 0,
 			waiting:       make([]weightedRequest, 0),
 		}
+		t.keyState[key] = currentKey
 	}
 
 	// If new weight would keep the key under the per-key limit then grant.
@@ -133,9 +134,15 @@ func (t *WeightedThrottler) Release(key string, weight int) {
 func (t *WeightedThrottler) maxWeightPerKey() int {
 	// Limit per key such that each key gets an equal
 	// allocation of the total max weight available.
-	m := t.globalMaxWeight / len(t.keyQueue)
+	s := len(t.keyQueue)
+	if s == 0 {
+		return t.globalMaxWeight
+	}
+
+	m := t.globalMaxWeight / s
 	if m <= 1 {
 		return 1
 	}
+
 	return m
 }

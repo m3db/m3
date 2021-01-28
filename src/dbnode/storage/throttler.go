@@ -11,10 +11,17 @@ type Throttler struct {
 
 	keyState map[string]*keyContext
 	// Each entry in the queue should be unique to avoid unfair access
-	keyQueue list.List
+	keyQueue *list.List
 
 	globalCurrentClaims int
 	globalMaxClaims     int
+}
+
+// Claim is a claim to a throttled resource that has
+// been granted and must be released.
+type Claim struct {
+	key       string
+	throttler *Throttler
 }
 
 type keyContext struct {
@@ -24,18 +31,23 @@ type keyContext struct {
 	currentClaims int
 }
 
+// Release releases the current claim.
+func (c *Claim) Release() {
+	c.throttler.Release(c.key)
+}
+
 // Acquire blocks until the request for a claim is granted for the specified key.
-func (t *Throttler) Acquire(key string) error {
+func (t *Throttler) Acquire(key string) (*Claim, error) {
 	blockCh, err := t.tryAcquire(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if blockCh != nil {
 		<-blockCh
 	}
 
-	return nil
+	return &Claim{key: key}, nil
 }
 
 func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
@@ -46,10 +58,11 @@ func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 
 	currentKey, alreadyExists := t.keyState[key]
 	if !alreadyExists {
-		t.keyState[key] = &keyContext{
+		currentKey = &keyContext{
 			currentClaims: 0,
 			waiting:       make([]chan struct{}, 0),
 		}
+		t.keyState[key] = currentKey
 	}
 
 	// If below both the per-key and global max claims, then grant the claim.
@@ -126,9 +139,15 @@ func (t *Throttler) Release(key string) {
 func (t *Throttler) maxClaimsPerKey() int {
 	// Limit per key such that each key gets an equal
 	// share of concurrent grants to claims.
-	m := t.globalMaxClaims / t.keyQueue.Len()
+	s := t.keyQueue.Len()
+	if s == 0 {
+		return t.globalMaxClaims
+	}
+
+	m := t.globalMaxClaims / s
 	if m <= 1 {
 		return 1
 	}
+
 	return m
 }
