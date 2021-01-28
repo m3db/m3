@@ -2,7 +2,6 @@ package storage
 
 import (
 	"container/list"
-	"fmt"
 	"sync"
 )
 
@@ -54,11 +53,11 @@ func (t *Throttler) Acquire(key string) (*Claim, error) {
 	}
 
 	if blockCh != nil {
-		fmt.Println("blocked", key)
+		//fmt.Println("blocked", key)
 		<-blockCh
-		fmt.Println("granted", key)
+		//fmt.Println("granted", key)
 	} else {
-		fmt.Println("acquired", key)
+		//fmt.Println("acquired", key)
 	}
 
 	return &Claim{key: key, throttler: t}, nil
