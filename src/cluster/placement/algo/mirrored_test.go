@@ -385,33 +385,39 @@ func TestMirrorAddMultiplePairs(t *testing.T) {
 	assert.Equal(t, i7.Shards().AllIDs(), i8.Shards().AllIDs())
 	assert.Equal(t, i7.ShardSetID(), i8.ShardSetID())
 
-	// Removing all initializing nodes will trigger the revert path.
-	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i6", "i7", "i8"})
+	// Removing part of initializing instances will trigger the revert path and remove only those instances.
+	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i7"})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p2.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p2))
+	// Instances that are left.
 	_, ok = p2.Instance("i5")
 	assert.False(t, ok)
 	_, ok = p2.Instance("i7")
 	assert.False(t, ok)
+	// Instances that are still in placement.
+	newI6, ok := p2.Instance("i6")
+	assert.True(t, ok)
+	assert.Equal(t, i6.Shards().AllIDs(), newI6.Shards().AllIDs())
+	assert.Equal(t, i6.ShardSetID(), newI6.ShardSetID())
+	newI8, ok := p2.Instance("i8")
+	assert.True(t, ok)
+	assert.Equal(t, i8.Shards().AllIDs(), newI8.Shards().AllIDs())
+	assert.Equal(t, i8.ShardSetID(), newI8.ShardSetID())
+	assert.True(t, allInitializing(p1, []string{"i6", "i8"}, nowNanos))
 
-	assert.NoError(t, err)
-	assert.Equal(t, p.SetMaxShardSetID(4), p2)
-
-	// Removing part of the initializing nodes will not trigger the revert path
-	// and will only do a normal revert.
-	p3, err := a.RemoveInstances(p1.Clone(), []string{"i7", "i8"})
+	// Removing remaining part of initializing instances will trigger the revert path and remove only those instances.
+	p3, err := a.RemoveInstances(p2.Clone(), []string{"i6", "i8"})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p3.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p3))
-	_, ok = p3.Instance("i5")
-	assert.True(t, ok)
-	newI7, ok := p3.Instance("i7")
-	assert.True(t, ok)
-	assert.True(t, newI7.IsLeaving())
+	_, ok = p3.Instance("i6")
+	assert.False(t, ok)
+	_, ok = p3.Instance("i8")
+	assert.False(t, ok)
 
-	assert.NoError(t, err)
-	assert.Equal(t, p.SetMaxShardSetID(4), p2)
+	// We should arrive at original placement.
+	assert.Equal(t, p.SetMaxShardSetID(4), p3)
 }
 
 func TestMirrorAddAndRevertAfterCutover(t *testing.T) {
@@ -701,10 +707,6 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
-
-	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
 
 	p1, err := a.ReplaceInstances(p, []string{"i4"}, []placement.Instance{i5})
 	assert.NoError(t, err)

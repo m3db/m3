@@ -196,6 +196,8 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	}
 
 	nowNanos := a.opts.NowFn()().UnixNano()
+
+	// Revert of pending replace.
 	if allLeaving(p, addingInstances, nowNanos) && allInitializing(p, leavingInstanceIDs, nowNanos) {
 		if p, err = a.reclaimLeavingShards(p, addingInstances); err != nil {
 			return nil, err
@@ -234,7 +236,6 @@ func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 	p placement.Placement,
 	instanceID string,
 ) (placement.Placement, error) {
-	var err error
 	p = p.Clone()
 	instance, exist := p.Instance(instanceID)
 	if !exist {
@@ -243,7 +244,7 @@ func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 
 	// Find all peers of specified instance - those owning same shardset.
 	// That includes instances that are replaced by this instance or replace this instance.
-	ownerIDs := []string{instanceID}
+	var ownerIDs []string
 	for _, i := range p.Instances() {
 		if i.ShardSetID() == instance.ShardSetID() {
 			ownerIDs = append(ownerIDs, i.ID())
@@ -260,9 +261,12 @@ func (a mirroredAlgorithm) markInstanceAndItsPeersAvailable(
 
 		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Initializing {
+				var err error
+				// MarkShardsAvailable will properly handle respective leaving shards
+				// of the respective peer leaving instance.
 				p, err = a.shardedAlgo.MarkShardsAvailable(p, id, s.ID())
 				if err != nil {
-					return nil, xerrors.Wrapf(err, "could not mark shards available of instnace %s", id)
+					return nil, xerrors.Wrapf(err, "could not mark shards available of instance %s", id)
 				}
 			}
 		}
@@ -335,17 +339,18 @@ func allInstancesInState(
 	p placement.Placement,
 	forEachShardFn func(s shard.Shard) bool,
 ) bool {
-	for _, instance := range p.Instances() {
-		if !instanceCheck(instance, forEachShardFn) {
-			continue
-		}
-		if _, ok := instanceIDs[instance.ID()]; !ok {
+	for id := range instanceIDs {
+		instance, exist := p.Instance(id)
+		if !exist {
 			return false
 		}
-		delete(instanceIDs, instance.ID())
+
+		if !instanceCheck(instance, forEachShardFn) {
+			return false
+		}
 	}
 
-	return len(instanceIDs) == 0
+	return true
 }
 
 // returnInitializingShards tries to return initializing shards on the given instances
