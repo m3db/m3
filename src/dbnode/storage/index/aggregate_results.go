@@ -110,7 +110,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	r.Lock()
 	defer r.Unlock()
 
-	remainingDocs := math.MaxInt64
+	remainingDocs := int(math.MaxInt64)
 	if r.aggregateOpts.DocsLimit != 0 {
 		remainingDocs = r.aggregateOpts.DocsLimit - r.totalDocsCount
 	}
