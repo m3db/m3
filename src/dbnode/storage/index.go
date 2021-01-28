@@ -1404,9 +1404,10 @@ func (i *nsIndex) AggregateQuery(
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
+	id := i.nsMetadata.ID()
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+		opentracinglog.String("namespace", id.String()),
 		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
@@ -1417,13 +1418,15 @@ func (i *nsIndex) AggregateQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	metrics := index.NewAggregateUsageMetrics(id, i.opts.InstrumentOptions())
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
-		SizeLimit:   opts.SeriesLimit,
-		DocsLimit:   opts.DocsLimit,
-		FieldFilter: opts.FieldFilter,
-		Type:        opts.Type,
+		SizeLimit:             opts.SeriesLimit,
+		DocsLimit:             opts.DocsLimit,
+		FieldFilter:           opts.FieldFilter,
+		Type:                  opts.Type,
+		AggregateUsageMetrics: metrics,
 	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
@@ -1442,7 +1445,7 @@ func (i *nsIndex) AggregateQuery(
 		}
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
-	results.Reset(i.nsMetadata.ID(), aopts)
+	results.Reset(id, aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err

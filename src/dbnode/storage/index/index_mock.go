@@ -587,6 +587,89 @@ func (mr *MockAggregateResultsMockRecorder) Map() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Map", reflect.TypeOf((*MockAggregateResults)(nil).Map))
 }
 
+// MockAggregateUsageMetrics is a mock of AggregateUsageMetrics interface
+type MockAggregateUsageMetrics struct {
+	ctrl     *gomock.Controller
+	recorder *MockAggregateUsageMetricsMockRecorder
+}
+
+// MockAggregateUsageMetricsMockRecorder is the mock recorder for MockAggregateUsageMetrics
+type MockAggregateUsageMetricsMockRecorder struct {
+	mock *MockAggregateUsageMetrics
+}
+
+// NewMockAggregateUsageMetrics creates a new mock instance
+func NewMockAggregateUsageMetrics(ctrl *gomock.Controller) *MockAggregateUsageMetrics {
+	mock := &MockAggregateUsageMetrics{ctrl: ctrl}
+	mock.recorder = &MockAggregateUsageMetricsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAggregateUsageMetrics) EXPECT() *MockAggregateUsageMetricsMockRecorder {
+	return m.recorder
+}
+
+// IncTotal mocks base method
+func (m *MockAggregateUsageMetrics) IncTotal(val int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IncTotal", val)
+}
+
+// IncTotal indicates an expected call of IncTotal
+func (mr *MockAggregateUsageMetricsMockRecorder) IncTotal(val interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncTotal", reflect.TypeOf((*MockAggregateUsageMetrics)(nil).IncTotal), val)
+}
+
+// IncTotalTerms mocks base method
+func (m *MockAggregateUsageMetrics) IncTotalTerms(val int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IncTotalTerms", val)
+}
+
+// IncTotalTerms indicates an expected call of IncTotalTerms
+func (mr *MockAggregateUsageMetricsMockRecorder) IncTotalTerms(val interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncTotalTerms", reflect.TypeOf((*MockAggregateUsageMetrics)(nil).IncTotalTerms), val)
+}
+
+// IncDedupedTerms mocks base method
+func (m *MockAggregateUsageMetrics) IncDedupedTerms(val int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IncDedupedTerms", val)
+}
+
+// IncDedupedTerms indicates an expected call of IncDedupedTerms
+func (mr *MockAggregateUsageMetricsMockRecorder) IncDedupedTerms(val interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncDedupedTerms", reflect.TypeOf((*MockAggregateUsageMetrics)(nil).IncDedupedTerms), val)
+}
+
+// IncTotalFields mocks base method
+func (m *MockAggregateUsageMetrics) IncTotalFields(val int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IncTotalFields", val)
+}
+
+// IncTotalFields indicates an expected call of IncTotalFields
+func (mr *MockAggregateUsageMetricsMockRecorder) IncTotalFields(val interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncTotalFields", reflect.TypeOf((*MockAggregateUsageMetrics)(nil).IncTotalFields), val)
+}
+
+// IncDedupedFields mocks base method
+func (m *MockAggregateUsageMetrics) IncDedupedFields(val int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IncDedupedFields", val)
+}
+
+// IncDedupedFields indicates an expected call of IncDedupedFields
+func (mr *MockAggregateUsageMetricsMockRecorder) IncDedupedFields(val interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncDedupedFields", reflect.TypeOf((*MockAggregateUsageMetrics)(nil).IncDedupedFields), val)
+}
+
 // MockAggregateResultsPool is a mock of AggregateResultsPool interface
 type MockAggregateResultsPool struct {
 	ctrl     *gomock.Controller
