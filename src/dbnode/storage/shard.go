@@ -2679,9 +2679,7 @@ func (s *dbShard) AggregateTiles(
 	if err != nil {
 		// NB: cannot return on the error here, must finish writing.
 		multiErr = multiErr.Add(err)
-	}
-
-	if multiErr.Empty() {
+	} else {
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
