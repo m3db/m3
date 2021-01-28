@@ -141,8 +141,8 @@ type block struct {
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
-	queryLimits                     limits.QueryLimits
 	docsLimit                       limits.LookbackLimit
+	aggregatedAddedCounter          tally.Counter
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -226,6 +226,7 @@ func NewBlock(
 		iopts,
 	)
 
+	aggAdded := opts.InstrumentOptions().MetricsScope().Counter("aggregate-added-counter")
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -251,8 +252,8 @@ func NewBlock(
 		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryLimits:                     opts.QueryLimits(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		aggregatedAddedCounter:          aggAdded,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -703,11 +704,13 @@ func (b *block) aggregateWithSpan(
 			field, term := iter.Current()
 			batch, numAdded = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
 			currBatchSize += numAdded
+
+			// continue appending to the batch until we hit our max batch size
 			if currBatchSize < maxBatch {
 				continue
 			}
 
-			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
+			batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
 			if err != nil {
 				return false, err
 			}
@@ -727,7 +730,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	for len(batch) > 0 {
-		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, currBatchSize)
+		batch, size, resultCount, err = b.addAggregateResults(cancellable, results, batch, source, numAdded)
 		if err != nil {
 			return false, err
 		}
@@ -736,6 +739,8 @@ func (b *block) aggregateWithSpan(
 	return opts.exhaustive(size, resultCount), nil
 }
 
+// appendFieldAndTermToBatch adds the provided field / term onto the batch,
+// optionally reusing the last element of the batch if it pertains to the same field.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
@@ -810,16 +815,19 @@ func (b *block) pooledID(id []byte) ident.ID {
 	return b.opts.IdentifierPool().BinaryID(data)
 }
 
+// addAggregateResults adds the fields on the batch
+// to the provided results and resets the batch to be reused.
 func (b *block) addAggregateResults(
 	cancellable *xresource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 	source []byte,
-	currBatchSize int,
+	numAdded int,
 ) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if results.EnforceLimits() {
-		if err := b.docsLimit.Inc(currBatchSize, source); err != nil {
+		b.aggregatedAddedCounter.Inc(int64(numAdded))
+		if err := b.docsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
 		}
 	}

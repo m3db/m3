@@ -1923,6 +1923,43 @@ func TestOpenStreamingReader(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestOpenStreamingReader(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		blockStart = time.Now().Truncate(time.Hour)
+		testOpts   = DefaultTestOptions()
+	)
+
+	shard := testDatabaseShard(t, testOpts)
+	defer assert.NoError(t, shard.Close())
+
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
+	require.NoError(t, err)
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	reader := fs.NewMockDataFileSetReader(ctrl)
+	reader.EXPECT().Open(openOpts).Return(nil)
+
+	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
+		return reader, nil
+	}
+
+	_, err = shard.OpenStreamingReader(blockStart)
+	require.NoError(t, err)
+}
+
 func TestShardScan(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
