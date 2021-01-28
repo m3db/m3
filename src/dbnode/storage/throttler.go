@@ -2,6 +2,7 @@ package storage
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 )
 
@@ -47,7 +48,7 @@ func (t *Throttler) Acquire(key string) (*Claim, error) {
 		<-blockCh
 	}
 
-	return &Claim{key: key}, nil
+	return &Claim{key: key, throttler: t}, nil
 }
 
 func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
@@ -73,7 +74,7 @@ func (t *Throttler) tryAcquire(key string) (chan struct{}, error) {
 	}
 
 	// Otherwise, enqueue this key and block acquisition.
-	blockCh := make(chan struct{}, 0)
+	blockCh := make(chan struct{}, 1)
 	currentKey.waiting = append(currentKey.waiting, blockCh)
 
 	// If this is first request by the key, then enqueue it for releasing.
@@ -107,6 +108,8 @@ func (t *Throttler) Release(key string) {
 		nextKeyState := t.keyState[nextKey]
 		nextWaiting := nextKeyState.waiting[0]
 
+		fmt.Println("release", i, nextKey)
+
 		// (A) If key is above it's per-key limit, then skip and continue to
 		// a different key to grant.
 		if nextKeyState.currentClaims >= maxClaimsPerKey {
@@ -134,6 +137,8 @@ func (t *Throttler) Release(key string) {
 			t.keyQueue.Remove(nextElement)
 		}
 	}
+
+	fmt.Println("released", key, t.globalCurrentClaims)
 }
 
 func (t *Throttler) maxClaimsPerKey() int {
