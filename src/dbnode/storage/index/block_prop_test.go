@@ -23,7 +23,6 @@
 package index
 
 import (
-	stdlibctx "context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -51,7 +50,6 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -374,9 +372,6 @@ func TestAggregateDocLimits(t *testing.T) {
 
 			ctx := context.NewContext()
 			defer ctx.BlockingClose()
-
-			// create initial span from a mock tracer and get ctx
-			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), nil))
 
 			exhaustive, err := b.Aggregate(
 				ctx,
