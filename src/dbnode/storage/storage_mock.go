@@ -1110,6 +1110,22 @@ func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
+// ReadableShardAt mocks base method
+func (m *MockNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
+	ret0, _ := ret[0].(databaseShard)
+	ret1, _ := ret[1].(namespace.Context)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadableShardAt indicates an expected call of ReadableShardAt
+func (mr *MockNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockNamespace)(nil).ReadableShardAt), shardID)
+}
+
 // SetIndex mocks base method
 func (m *MockNamespace) SetIndex(reverseIndex NamespaceIndex) error {
 	m.ctrl.T.Helper()
@@ -1329,6 +1345,22 @@ func (m *MockdatabaseNamespace) Shards() []Shard {
 func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
+}
+
+// ReadableShardAt mocks base method
+func (m *MockdatabaseNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
+	ret0, _ := ret[0].(databaseShard)
+	ret1, _ := ret[1].(namespace.Context)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadableShardAt indicates an expected call of ReadableShardAt
+func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadableShardAt), shardID)
 }
 
 // SetIndex mocks base method
@@ -1822,22 +1854,6 @@ func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts)
 }
 
-// ReadableShardAt mocks base method
-func (m *MockdatabaseNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadableShardAt", shardID)
-	ret0, _ := ret[0].(databaseShard)
-	ret1, _ := ret[1].(namespace.Context)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// ReadableShardAt indicates an expected call of ReadableShardAt
-func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadableShardAt", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadableShardAt), shardID)
-}
-
 // MockShard is a mock of Shard interface
 type MockShard struct {
 	ctrl     *gomock.Controller
@@ -1931,6 +1947,21 @@ func (mr *MockShardMockRecorder) ScanData(blockStart, processor interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockShard)(nil).ScanData), blockStart, processor)
 }
 
+// OpenStreamingReader mocks base method
+func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
+	ret0, _ := ret[0].(fs.DataFileSetReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenStreamingReader indicates an expected call of OpenStreamingReader
+func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
+}
+
 // MockdatabaseShard is a mock of databaseShard interface
 type MockdatabaseShard struct {
 	ctrl     *gomock.Controller
@@ -2022,6 +2053,21 @@ func (m *MockdatabaseShard) ScanData(blockStart time.Time, processor fs.DataEntr
 func (mr *MockdatabaseShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockdatabaseShard)(nil).ScanData), blockStart, processor)
+}
+
+// OpenStreamingReader mocks base method
+func (m *MockdatabaseShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
+	ret0, _ := ret[0].(fs.DataFileSetReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenStreamingReader indicates an expected call of OpenStreamingReader
+func (mr *MockdatabaseShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockdatabaseShard)(nil).OpenStreamingReader), blockStart)
 }
 
 // OnEvictedFromWiredList mocks base method

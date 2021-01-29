@@ -829,7 +829,7 @@ func TestLimits(t *testing.T) {
 					cancellable interface{},
 					query interface{},
 					opts interface{},
-					results index.DocumentResults,
+					results index.BaseResults,
 					logFields interface{}) (bool, error) {
 					_, _, err = results.AddDocuments([]doc.Document{
 						// Results in size=1 and docs=2.
