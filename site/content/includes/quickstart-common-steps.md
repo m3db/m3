@@ -426,7 +426,7 @@ curl -X "POST" -G "{{% apiendpoint %}}query_range" \
 
 #### Values collected from Prometheus
 
-If you followed the steps above for collecting metrics from Prometheus, the examples above work, but don't return any results. To query those results, use the following commands.
+If you followed the steps above for collecting metrics from Prometheus, the examples above work, but don't return any results. To query those results, use the following commands to return a sum of the values.
 
 {{< tabs name="example_promql_sum" >}}
 {{% tab name="Linux" %}}
