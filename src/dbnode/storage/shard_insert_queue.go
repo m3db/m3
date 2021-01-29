@@ -269,9 +269,10 @@ func (q *dbShardInsertQueue) Stop() error {
 }
 
 func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
+	now := q.nowFn()
 	if !insert.opts.skipRateLimit {
 		if limit := q.insertPerSecondLimit.Load(); limit > 0 {
-			windowNanos := uint64(q.nowFn().Truncate(time.Second).UnixNano())
+			windowNanos := uint64(now.Truncate(time.Second).UnixNano())
 			currLimitWindowNanos := q.insertPerSecondLimitWindowNanos.Load()
 			if currLimitWindowNanos != windowNanos {
 				// Rolled into a new window.
@@ -288,7 +289,14 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 		}
 	}
 
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	// Choose the queue relevant to current CPU index.
+	// Note: since inserts by CPU core is allocated when
+	// nsIndexInsertBatch is constructed and then never modified
+	// it is safe to concurently read (but not modify obviously).
+	// Add randomization.
+	queueOffset := int(now.UnixNano()) % queuesPerCPUCore
+	queueIdx := (xsync.CPUCore() * queuesPerCPUCore) + queueOffset
+	inserts := q.currBatch.insertsByCPUCore[queueIdx]
 	inserts.Lock()
 	// Track if first insert, if so then we need to notify insert loop,
 	// otherwise we already have a pending notification.
@@ -387,8 +395,8 @@ func newDbShardInsertBatch(
 		nowFn: nowFn,
 		wg:    &sync.WaitGroup{},
 	}
-	numCores := xsync.NumCores()
-	for i := 0; i < numCores; i++ {
+	numQueues := xsync.NumCores() * queuesPerCPUCore
+	for i := 0; i < numQueues; i++ {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &dbShardInsertsByCPUCore{
 			wg:      b.wg,
 			metrics: newDBShardInsertsByCPUCoreMetrics(i, scope),

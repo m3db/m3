@@ -52,6 +52,8 @@ const (
 	defaultIndexBatchBackoff = 2 * time.Millisecond
 
 	indexResetAllInsertsEvery = 3 * time.Minute
+
+	queuesPerCPUCore = 32
 )
 
 type nsIndexInsertQueue struct {
@@ -226,7 +228,13 @@ func (q *nsIndexInsertQueue) InsertPending(
 	// Note: since inserts by CPU core is allocated when
 	// nsIndexInsertBatch is constructed and then never modified
 	// it is safe to concurently read (but not modify obviously).
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	queueOffset := 0
+	if batchLen > 0 {
+		// Add randomization.
+		queueOffset += int(pending[0].Entry.EnqueuedAt.UnixNano()) % queuesPerCPUCore
+	}
+	queueIdx := (xsync.CPUCore() * queuesPerCPUCore) + queueOffset
+	inserts := q.currBatch.insertsByCPUCore[queueIdx]
 	inserts.Lock()
 	firstInsert := len(inserts.batchInserts) == 0
 	inserts.batchInserts = append(inserts.batchInserts, pending...)
@@ -340,8 +348,8 @@ func newNsIndexInsertBatch(
 		namespace: namespace,
 		nowFn:     nowFn,
 	}
-	numCores := xsync.NumCores()
-	for i := 0; i < numCores; i++ {
+	numQueues := xsync.NumCores() * queuesPerCPUCore
+	for i := 0; i < numQueues; i++ {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &nsIndexInsertsByCPUCore{
 			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),
 		})
