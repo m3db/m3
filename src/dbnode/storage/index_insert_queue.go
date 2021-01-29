@@ -53,7 +53,7 @@ const (
 
 	indexResetAllInsertsEvery = 3 * time.Minute
 
-	queuesPerCPUCore = 32
+	queuesPerCPUCore = 128
 )
 
 type nsIndexInsertQueue struct {
