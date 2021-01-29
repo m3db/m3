@@ -285,6 +285,10 @@ type FetchTaggedResults interface {
 	// For large queries this might be called many times for a single series ID if the number of segments exceeds
 	// the limits.
 	AddSegments(segments []*rpc.Segments)
+
+	// Done indicates that all results have been added. This must be called once
+	// finished.
+	Done()
 }
 
 // an impl of FetchTaggedResults that accumulates results in the RPC response proto.
@@ -337,6 +341,10 @@ func (f *fetchTaggedResults) AddSegments(segments []*rpc.Segments) {
 		curResult.Segments = make([]*rpc.Segments, 0, len(segments))
 	}
 	curResult.Segments = append(curResult.Segments, segments...)
+}
+
+func (f *fetchTaggedResults) Done() {
+	// Done is a no-op in this implementation.
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -894,6 +902,8 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	if err := s.writeFetchResults(ctx, ns, response, fetchResults); err != nil {
 		return err
 	}
+
+	response.Done()
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
 	return nil
