@@ -225,9 +225,14 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		}
 	}
 
-	docs := 0
-	numInserts := 0
-	for _, entry := range batch {
+	var (
+		docs       int
+		numInserts int
+		entry      AggregateResultsEntry
+	)
+
+	for idx := 0; idx < len(batch); idx++ {
+		entry = batch[idx]
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {

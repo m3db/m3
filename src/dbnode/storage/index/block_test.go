@@ -1951,8 +1951,7 @@ func TestBlockAggregate(t *testing.T) {
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 
 	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 4, snap, "query-limit.total-docs-matched", nil)
-	tallytest.AssertCounterValue(t, 8, snap, "aggregate-added-counter", nil)
+	tallytest.AssertCounterValue(t, 3, snap, "query-limit.total-docs-matched", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {

@@ -234,7 +234,6 @@ func NewBlock(
 		iopts,
 	)
 
-	aggAdded := opts.InstrumentOptions().MetricsScope().Counter("aggregate-added-counter")
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldSegs := []*mutableSegments{
 		newMutableSegments(
@@ -261,7 +260,6 @@ func NewBlock(
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
-		aggregatedAddedCounter:          aggAdded,
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -745,7 +743,6 @@ func (b *block) aggregateWithSpan(
 
 					batchedFields = 1
 				}
-
 			}
 
 			batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
