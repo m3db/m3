@@ -2,7 +2,7 @@ You can use the _{{% apiendpoint %}}json/write_ endpoint to write a tagged metri
 
 -   `tags`: An object of at least one `name`/`value` pairs
 -   `timestamp`: The UNIX timestamp for the data
--   `value`: The value for the data, can be of any type
+-   `value`: The float64 value for the data
 
 {{% notice tip %}}
 The examples below use `__name__` as the name for one of the tags, which is a Prometheus reserved tag that allows you to query metrics using the value of the tag to filter results.
