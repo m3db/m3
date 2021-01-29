@@ -75,7 +75,7 @@ func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 	}
 
 	// Keep the last annotation which was set.
-	if annotation != nil {
+	if len(annotation) > 0 {
 		c.annotation = annotation
 	}
 }

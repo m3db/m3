@@ -55,7 +55,7 @@ func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
 	t.addValue(value)
 
 	// Keep the last annotation which was set.
-	if annotation != nil {
+	if len(annotation) > 0 {
 		t.annotation = annotation
 	}
 }

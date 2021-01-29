@@ -81,7 +81,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 	}
 
 	// Keep the last annotation which was set.
-	if annotation != nil {
+	if len(annotation) > 0 {
 		g.annotation = annotation
 	}
 }

@@ -187,23 +187,28 @@ func TestCounterElemAddUnion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a counter metric.
+	testCounter.Annotation = []byte{1}
 	require.NoError(t, e.AddUnion(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, []byte{1}, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric at slightly different time
 	// but still within the same aggregation interval.
+	testCounter.Annotation = []byte{}
 	require.NoError(t, e.AddUnion(testTimestamps[1], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, 2*testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, []byte{1}, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric in the next aggregation interval.
+	testCounter.Annotation = []byte{2}
 	require.NoError(t, e.AddUnion(testTimestamps[2], testCounter))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -212,6 +217,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 	require.Equal(t, testCounter.CounterVal, e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, []byte{1}, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Adding the counter metric to a closed element results in an error.
 	e.closed = true
@@ -223,20 +229,24 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a counter metric.
+	testCounter.Annotation = []byte{1}
 	require.NoError(t, e.AddUnion(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Max())
 	require.Equal(t, int64(testCounter.CounterVal*testCounter.CounterVal), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, []byte{1}, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric at slightly different time
 	// but still within the same aggregation interval.
+	testCounter.Annotation = []byte{}
 	require.NoError(t, e.AddUnion(testTimestamps[1], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].startAtNanos)
 	require.Equal(t, 2*testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, testCounter.CounterVal, e.values[0].lockedAgg.aggregation.Max())
+	require.Equal(t, []byte{1}, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric in the next aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[2], testCounter))
