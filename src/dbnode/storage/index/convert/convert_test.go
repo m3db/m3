@@ -354,7 +354,7 @@ func TestTagsFromTagsIterNoPool(t *testing.T) {
 func TestToSeriesInvalidID(t *testing.T) {
 	d := doc.Metadata{
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("bar"), Value: []byte("baz")},
 		},
 	}
 	_, _, err := convert.ToSeries(d, testOpts)
@@ -365,7 +365,7 @@ func TestToSeriesInvalidTag(t *testing.T) {
 	d := doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
+			{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
 		},
 	}
 	_, tags, err := convert.ToSeries(d, testOpts)

@@ -339,6 +339,21 @@ func (mr *MockDataFileSetReaderMockRecorder) StreamingRead() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingRead", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingRead))
 }
 
+// StreamingReadMetadata mocks base method
+func (m *MockDataFileSetReader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamingReadMetadata")
+	ret0, _ := ret[0].(StreamedMetadataEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamingReadMetadata indicates an expected call of StreamingReadMetadata
+func (mr *MockDataFileSetReaderMockRecorder) StreamingReadMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingReadMetadata", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingReadMetadata))
+}
+
 // Validate mocks base method
 func (m *MockDataFileSetReader) Validate() error {
 	m.ctrl.T.Helper()

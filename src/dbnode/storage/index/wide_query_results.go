@@ -38,8 +38,6 @@ var ErrWideQueryResultsExhausted = errors.New("no more values to add to wide que
 
 type shardFilterFn func(ident.ID) (uint32, bool)
 
-var _ DocumentResults = (*wideResults)(nil)
-
 type wideResults struct {
 	sync.RWMutex
 	size           int
@@ -74,7 +72,7 @@ func NewWideQueryResults(
 	shardFilter shardFilterFn,
 	collector chan *ident.IDBatch,
 	opts WideQueryOptions,
-) DocumentResults {
+) BaseResults {
 	batchSize := opts.BatchSize
 	results := &wideResults{
 		nsID:        namespaceID,

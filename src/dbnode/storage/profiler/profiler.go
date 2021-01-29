@@ -169,7 +169,7 @@ func newProfileFile(path string, profileName *profileName, pType profileType) (*
 		filename := fmt.Sprintf("%s.%d%s",
 			profileName.withProfileType(pType), profileName.inc(pType), ProfileFileExtension)
 		// fails if a file with given name exists
-		if file, err := os.OpenFile(filepath.Join(path, filepath.Clean(filename)), os.O_CREATE|os.O_EXCL, 0600); err == nil {
+		if file, err := os.OpenFile(filepath.Clean(filepath.Join(path, filename)), os.O_CREATE|os.O_EXCL, 0600); err == nil {
 			return file, nil
 		}
 	}

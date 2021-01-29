@@ -43,7 +43,7 @@ func TestOptionsValidateStorageOptions(t *testing.T) {
 	opts = opts.SetStorageOptions(nil)
 	require.Error(t, opts.Validate())
 
-	opts = opts.SetStorageOptions(storage.NewOptions())
+	opts = opts.SetStorageOptions(storage.DefaultTestOptions())
 	require.Error(t, opts.Validate())
 }
 
