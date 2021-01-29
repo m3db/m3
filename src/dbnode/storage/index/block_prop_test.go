@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,13 +47,13 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
-	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -233,13 +235,13 @@ type propTestSegment struct {
 	segmentMap segmentMap
 }
 
-type testValuesSet map[string]struct{}
-type segmentMap map[string]testValuesSet
+type testValuesSet map[string]struct{}   //nolint:gofumpt
+type segmentMap map[string]testValuesSet //nolint:gofumpt
 
 func genTestSegment() gopter.Gen {
 	return gen.SliceOf(genField()).Map(func(input []testFields) propTestSegment {
 		segMap := make(segmentMap, len(input))
-		for _, field := range input {
+		for _, field := range input { //nolint:gocritic
 			for _, value := range field.values {
 				exVals, found := segMap[field.name]
 				if !found {
@@ -266,7 +268,7 @@ func genTestSegment() gopter.Gen {
 		})
 
 		docFields := []doc.Field{}
-		for _, field := range fields {
+		for _, field := range fields { //nolint:gocritic
 			for _, val := range field.values {
 				docFields = append(docFields, doc.Field{
 					Name:  []byte(field.name),
@@ -283,7 +285,33 @@ func genTestSegment() gopter.Gen {
 	})
 }
 
-func TestGenSegments(t *testing.T) {
+func verifyResults(
+	t *testing.T,
+	results AggregateResults,
+	exMap segmentMap,
+) {
+	resultMap := make(segmentMap, results.Map().Len())
+	for _, field := range results.Map().Iter() { //nolint:gocritic
+		name := field.Key().String()
+		_, found := resultMap[name]
+		require.False(t, found, "duplicate values in results map")
+
+		values := make(testValuesSet, field.value.Map().Len())
+		for _, value := range field.value.Map().Iter() {
+			val := value.Key().String()
+			_, found := values[val]
+			require.False(t, found, "duplicate values in results map")
+
+			values[val] = struct{}{}
+		}
+
+		resultMap[name] = values
+	}
+
+	require.Equal(t, resultMap, exMap)
+}
+
+func TestAggregateDocLimits(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
@@ -293,7 +321,7 @@ func TestGenSegments(t *testing.T) {
 	parameters.MinSuccessfulTests = 1000
 	parameters.MinSize = 5
 	parameters.MaxSize = 10
-	parameters.Rng = rand.New(rand.NewSource(seed))
+	parameters.Rng = rand.New(rand.NewSource(seed)) //nolint:gosec
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("segments dedupe and have correct docs counts", prop.ForAll(
@@ -361,50 +389,18 @@ func TestGenSegments(t *testing.T) {
 				return false, err
 			}
 
-			if !exhaustive {
-				return false, errors.New("not exhaustive")
-			}
-
-			resultMap := make(segmentMap, results.Map().Len())
-			for _, field := range results.Map().Iter() {
-				name := field.Key().String()
-				_, found := resultMap[name]
-				if found {
-					return false, errors.New("duplicate fields in results map")
-				}
-
-				values := make(testValuesSet, field.value.Map().Len())
-				for _, value := range field.value.Map().Iter() {
-					val := value.Key().String()
-					_, found := values[val]
-					if found {
-						return false, errors.New("duplicate values in results map")
-					}
-
-					values[val] = struct{}{}
-				}
-
-				resultMap[name] = values
-			}
-
-			require.Equal(t, resultMap, testSegment.segmentMap)
+			require.True(t, exhaustive, errors.New("not exhaustive"))
+			verifyResults(t, results, testSegment.segmentMap)
 			found := false
 			for _, c := range scope.Snapshot().Counters() {
 				if c.Name() == "query-limit.total-docs-matched" {
-					if c.Value() != testSegment.exCount {
-						return false, fmt.Errorf("docs count %d does not match expected %d",
-							c.Value(), testSegment.exCount)
-					}
-
+					require.Equal(t, testSegment.exCount, c.Value(), "docs count mismatch")
 					found = true
 					break
 				}
 			}
 
-			if !found {
-				return false, errors.New("counter not found in metrics")
-			}
-
+			require.True(t, found, "counter not found in metrics")
 			return true, nil
 		},
 		genTestSegment(),

@@ -47,7 +47,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -55,6 +54,7 @@ import (
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
