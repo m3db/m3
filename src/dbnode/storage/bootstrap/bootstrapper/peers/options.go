@@ -55,7 +55,7 @@ var (
 	// src/cmd/services/m3dbnode/config package if this is changed.
 	DefaultShardPersistenceFlushConcurrency = 1
 	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
-	defaultIndexSegmentConcurrency = 1
+	defaultIndexSegmentConcurrency = int(math.Min(2, float64(runtime.NumCPU())))
 )
 
 var (
