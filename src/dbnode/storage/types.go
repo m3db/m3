@@ -283,6 +283,9 @@ type Namespace interface {
 	// Shards returns the shard description.
 	Shards() []Shard
 
+	// ReadableShardAt returns a readable (bootstrapped) shard by id.
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
+
 	// SetIndex sets and enables reverse index for this namespace.
 	SetIndex(reverseIndex NamespaceIndex) error
 
@@ -475,9 +478,6 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 	) (int64, error)
-
-	// ReadableShardAt returns a shard of this namespace by shardID.
-	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -515,6 +515,10 @@ type Shard interface {
 		blockStart time.Time,
 		processor fs.DataEntryProcessor,
 	) error
+
+	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
+	// on the latest volume of the given block.
+	OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error)
 }
 
 type databaseShard interface {

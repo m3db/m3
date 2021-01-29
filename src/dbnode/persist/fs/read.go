@@ -53,9 +53,6 @@ var (
 
 	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by id")
 
-	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
-	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
-
 	errStreamingRequired    = errors.New("streaming must be enabled for streaming read methods")
 	errStreamingUnsupported = errors.New("streaming mode be disabled for non streaming read methods")
 )
@@ -112,10 +109,6 @@ type reader struct {
 	volume                    int
 	open                      bool
 	streamingEnabled          bool
-	// NB(bodu): Informs whether or not we optimize for only reading
-	// metadata. We don't need to sort for reading metadata but sorting is
-	// required if we are performing regulars reads.
-	optimizedReadMetadataOnly bool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -292,7 +285,6 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	r.open = true
 	r.namespace = namespace
 	r.shard = shard
-	r.optimizedReadMetadataOnly = opts.OptimizedReadMetadataOnly
 
 	return nil
 }
@@ -363,12 +355,10 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 		}
 		r.indexEntriesByOffsetAsc = append(r.indexEntriesByOffsetAsc, entry)
 	}
-	// This is false by default so we always sort unless otherwise specified.
-	if !r.optimizedReadMetadataOnly {
-		// NB(r): As we decode each block we need access to each index entry
-		// in the order we decode the data. This is only required for regular reads.
-		sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
-	}
+	// NB(r): As we decode each block we need access to each index entry
+	// in the order we decode the data. This is only required for regular reads.
+	sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
+
 	return nil
 }
 
@@ -405,14 +395,12 @@ func (r *reader) StreamingRead() (StreamedDataEntry, error) {
 
 	r.entriesRead++
 
-	dataEntry := StreamedDataEntry{
+	return StreamedDataEntry{
 		ID:           r.streamingID,
 		EncodedTags:  r.streamingTags,
 		Data:         r.streamingData,
 		DataChecksum: uint32(entry.DataChecksum),
-	}
-
-	return dataEntry, nil
+	}, nil
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
@@ -420,10 +408,6 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 		return nil, nil, nil, 0, errStreamingUnsupported
 	}
 
-	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
-	if r.optimizedReadMetadataOnly {
-		return nil, nil, nil, 0, errReadMetadataOptimizedForRead
-	}
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
@@ -463,6 +447,33 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 
 	r.entriesRead++
 	return id, tags, data, uint32(entry.DataChecksum), nil
+}
+
+func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
+	if !r.streamingEnabled {
+		return StreamedMetadataEntry{}, errStreamingRequired
+	}
+
+	if r.metadataRead >= r.entries {
+		return StreamedMetadataEntry{}, io.EOF
+	}
+
+	entry, err := r.decoder.DecodeIndexEntry(nil)
+	if err != nil {
+		return StreamedMetadataEntry{}, err
+	}
+
+	r.streamingID = append(r.streamingID[:0], entry.ID...)
+	r.streamingTags = append(r.streamingTags[:0], entry.EncodedTags...)
+
+	r.metadataRead++
+
+	return StreamedMetadataEntry{
+		ID:           r.streamingID,
+		EncodedTags:  r.streamingTags,
+		Length:       int(entry.Size),
+		DataChecksum: uint32(entry.DataChecksum),
+	}, nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {

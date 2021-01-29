@@ -78,6 +78,7 @@ func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.NoError(t, err)
 	assertContentsMatch(t, id, tags.Values(), d)
+	assert.False(t, test.ByteSlicesBackedBySameData(id.Bytes(), d.ID))
 }
 
 func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
@@ -113,6 +114,7 @@ func TestFromSeriesIDAndTagsReuseBytesFromSeriesId(t *testing.T) {
 			d, err := convert.FromSeriesIDAndTags(seriesID, tags)
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
@@ -129,6 +131,7 @@ func TestFromSeriesIDAndTagIterValid(t *testing.T) {
 	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
 	assertContentsMatch(t, id, tags.Values(), d)
+	assert.False(t, test.ByteSlicesBackedBySameData(id.Bytes(), d.ID))
 }
 
 func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
@@ -164,6 +167,7 @@ func TestFromSeriesIDAndTagIterReuseBytesFromSeriesId(t *testing.T) {
 			d, err := convert.FromSeriesIDAndTagIter(seriesID, ident.NewTagsIterator(tags))
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
@@ -212,10 +216,44 @@ func TestFromSeriesIDAndEncodedTags(t *testing.T) {
 			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, encodedTags)
 			assert.NoError(t, err)
 			assertContentsMatch(t, seriesID, tags.Values(), d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 			for i := range d.Fields {
 				assertBackedBySameData(t, d.ID, d.Fields[i].Name)
 				assertBackedBySameData(t, d.ID, d.Fields[i].Value)
 			}
+		})
+	}
+}
+
+func TestFromSeriesIDAndEncodedTags_EmptyEncodedTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		encodedTags []byte
+	}{
+		{
+			name:        "nil slice",
+			encodedTags: nil,
+		},
+		{
+			name:        "empty slice",
+			encodedTags: make([]byte, 0),
+		},
+	}
+
+	var (
+		seriesID = ident.BytesID("foo")
+		expected = doc.Metadata{
+			ID:     seriesID,
+			Fields: nil,
+		}
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := convert.FromSeriesIDAndEncodedTags(seriesID, tt.encodedTags)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, d)
+			assert.False(t, test.ByteSlicesBackedBySameData(seriesID.Bytes(), d.ID))
 		})
 	}
 }
@@ -316,7 +354,7 @@ func TestTagsFromTagsIterNoPool(t *testing.T) {
 func TestToSeriesInvalidID(t *testing.T) {
 	d := doc.Metadata{
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
+			{Name: []byte("bar"), Value: []byte("baz")},
 		},
 	}
 	_, _, err := convert.ToSeries(d, testOpts)
@@ -327,7 +365,7 @@ func TestToSeriesInvalidTag(t *testing.T) {
 	d := doc.Metadata{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
-			doc.Field{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
+			{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
 		},
 	}
 	_, tags, err := convert.ToSeries(d, testOpts)
