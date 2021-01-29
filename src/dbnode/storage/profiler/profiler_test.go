@@ -72,10 +72,12 @@ func TestFileProfile(t *testing.T) {
 	sut := NewFileProfiler(tmpDir)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			profile, err := sut.StartProfile(tt.name)
+			err := sut.StartCPUProfile(tt.name)
 			require.NoError(t, err)
 			time.Sleep(100 * time.Millisecond)
-			err = profile.StopProfile()
+			err = sut.StopCPUProfile()
+			require.NoError(t, err)
+			err = sut.WriteHeapProfile(tt.name)
 			require.NoError(t, err)
 
 			for _, fileName := range tt.fileNames {

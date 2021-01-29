@@ -45,7 +45,6 @@ type instrumentationContext struct {
 	bootstrapDataDuration  tally.Timer
 	bootstrapIndexDuration tally.Timer
 	pOpts                  profiler.Options
-	pCtx                   profiler.ProfileContext
 	logFields              []zapcore.Field
 }
 
@@ -71,24 +70,37 @@ func newInstrumentationContext(
 	}
 }
 
+const (
+	dataProfile  = "fs-data"
+	indexProfile = "fs-index"
+)
+
 func (i *instrumentationContext) finish() {
 	i.span.Finish()
 }
 
-func (i *instrumentationContext) startProfileIfEnabled(name string) {
+func (i *instrumentationContext) startCPUProfileIfEnabled(name string) {
 	if i.pOpts.Enabled() {
-		profileContext, err := i.pOpts.Profiler().StartProfile(name)
+		err := i.pOpts.Profiler().StartCPUProfile(name)
 		if err != nil {
-			i.log.Error("unable to start profile", zap.Error(err))
+			i.log.Error("unable to start cpu profile", zap.Error(err))
 		}
-		i.pCtx = profileContext
 	}
 }
 
-func (i *instrumentationContext) stopProfileIfEnabled() {
-	if i.pOpts.Enabled() && i.pCtx != nil {
-		if err := i.pCtx.StopProfile(); err != nil {
-			i.log.Error("unable to stop profile", zap.Error(err))
+func (i *instrumentationContext) stopCPUProfileIfEnabled() {
+	if i.pOpts.Enabled() {
+		if err := i.pOpts.Profiler().StopCPUProfile(); err != nil {
+			i.log.Error("unable to stop cpu profile", zap.Error(err))
+		}
+	}
+}
+
+func (i *instrumentationContext) writeHeapProfileIfEnabled(name string) {
+	if i.pOpts.Enabled() {
+		err := i.pOpts.Profiler().WriteHeapProfile(name)
+		if err != nil {
+			i.log.Error("unable to write heap profile", zap.Error(err))
 		}
 	}
 }
@@ -97,7 +109,8 @@ func (i *instrumentationContext) bootstrapDataStarted() {
 	i.log.Info("bootstrapping time series data start", i.logFields...)
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-data")
+	i.startCPUProfileIfEnabled(dataProfile)
+	i.writeHeapProfileIfEnabled(dataProfile)
 }
 
 func (i *instrumentationContext) bootstrapDataCompleted() {
@@ -106,14 +119,16 @@ func (i *instrumentationContext) bootstrapDataCompleted() {
 	i.log.Info("bootstrapping time series data success",
 		append(i.logFields, zap.Duration("took", duration))...)
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_data_done"))
-	i.stopProfileIfEnabled()
+	i.stopCPUProfileIfEnabled()
+	i.writeHeapProfileIfEnabled(dataProfile)
 }
 
 func (i *instrumentationContext) bootstrapIndexStarted() {
 	i.log.Info("bootstrapping index metadata start")
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_start"))
 	i.start = i.nowFn()
-	i.startProfileIfEnabled("fs-index")
+	i.startCPUProfileIfEnabled(indexProfile)
+	i.writeHeapProfileIfEnabled(indexProfile)
 }
 
 func (i *instrumentationContext) bootstrapIndexCompleted() {
@@ -121,7 +136,8 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 	i.bootstrapIndexDuration.Record(duration)
 	i.log.Info("bootstrapping index metadata success", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "bootstrap_index_done"))
-	i.stopProfileIfEnabled()
+	i.stopCPUProfileIfEnabled()
+	i.writeHeapProfileIfEnabled(indexProfile)
 }
 
 type instrumentation struct {

@@ -18,40 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-/*
- * // Copyright (c) 2021 Uber Technologies, Inc.
- * //
- * // Permission is hereby granted, free of charge, to any person obtaining a copy
- * // of this software and associated documentation files (the "Software"), to deal
- * // in the Software without restriction, including without limitation the rights
- * // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * // copies of the Software, and to permit persons to whom the Software is
- * // furnished to do so, subject to the following conditions:
- * //
- * // The above copyright notice and this permission notice shall be included in
- * // all copies or substantial portions of the Software.
- * //
- * // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * // THE SOFTWARE.
- */
-
 package profiler
-
-// ProfileContext represents the context of started profile.
-type ProfileContext interface {
-	// StopProfile stops previously started profile.
-	StopProfile() error
-}
 
 // Profiler represents profiler for profiling long-running tasks.
 type Profiler interface {
-	// StartProfile starts the named profile and returns profile context.
-	StartProfile(name string) (ProfileContext, error)
+	// StartCPUProfile starts the named cpu profile.
+	StartCPUProfile(name string) error
+
+	// StopCPUProfile stops started cpu profile.
+	StopCPUProfile() error
+
+	// WriteHeapProfile writes heap profile.
+	WriteHeapProfile(name string) error
 }
 
 // Options represents the profiler options.

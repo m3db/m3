@@ -23,7 +23,6 @@ package profiler
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,18 +34,6 @@ const (
 	// ProfileFileExtension is the extension of profile files.
 	ProfileFileExtension = ".pb.gz"
 )
-
-// FileProfileContext is file profiler context data.
-type FileProfileContext struct {
-	path        string
-	profileName *profileName
-}
-
-// StopProfile stops started profile.
-func (f FileProfileContext) StopProfile() error {
-	stopCPUProfile()
-	return writeHeapProfile(f.path, f.profileName)
-}
 
 // FileProfiler is profiler which writes its profiles to given path directory.
 type FileProfiler struct {
@@ -62,21 +49,31 @@ func NewFileProfiler(path string) *FileProfiler {
 	}
 }
 
-// StartProfile starts a new named profile.
-func (f FileProfiler) StartProfile(name string) (ProfileContext, error) {
+// StartCPUProfile starts named cpu profile.
+func (f FileProfiler) StartCPUProfile(name string) error {
+	profileName := f.profileName(name)
+	return startCPUProfile(f.path, profileName)
+}
+
+// StopCPUProfile stops started cpu profile.
+func (f FileProfiler) StopCPUProfile() error {
+	stopCPUProfile()
+	return nil
+}
+
+// WriteHeapProfile writes named heap profile.
+func (f FileProfiler) WriteHeapProfile(name string) error {
+	profileName := f.profileName(name)
+	return writeHeapProfile(f.path, profileName)
+}
+
+func (f FileProfiler) profileName(name string) *profileName {
 	profileName, ok := f.profileNames[name]
 	if !ok {
 		profileName = newProfileName(name)
 		f.profileNames[name] = profileName
 	}
-	if err := startCPUProfile(f.path, profileName); err != nil {
-		return nil, err
-	}
-
-	return FileProfileContext{
-		path:        f.path,
-		profileName: profileName,
-	}, nil
+	return profileName
 }
 
 type profileType int
@@ -129,15 +126,13 @@ func startCPUProfile(path string, profileName *profileName) error {
 		return err
 	}
 
-	forceStartCPUProfile(file)
-	return nil
-}
-
-func forceStartCPUProfile(writer io.Writer) {
-	if err := pprof.StartCPUProfile(writer); err != nil {
-		// cpu profile is already started, so we stop it and start our own.
-		pprof.StopCPUProfile()
-		forceStartCPUProfile(writer)
+	for {
+		if err := pprof.StartCPUProfile(file); err != nil {
+			// cpu profile is already started, so we stop it and start our own.
+			pprof.StopCPUProfile()
+			continue
+		}
+		return nil
 	}
 }
 
@@ -170,7 +165,12 @@ func newProfileFile(path string, profileName *profileName, pType profileType) (*
 		return nil, err
 	}
 
-	filename := fmt.Sprintf("%s.%d%s",
-		profileName.withProfileType(pType), profileName.inc(pType), ProfileFileExtension)
-	return os.Create(filepath.Join(path, filename))
+	for {
+		filename := fmt.Sprintf("%s.%d%s",
+			profileName.withProfileType(pType), profileName.inc(pType), ProfileFileExtension)
+		// fails if a file with given name exists
+		if file, err := os.OpenFile(filepath.Join(path, filepath.Clean(filename)), os.O_CREATE|os.O_EXCL, 0600); err == nil {
+			return file, nil
+		}
+	}
 }
