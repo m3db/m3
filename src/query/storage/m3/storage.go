@@ -327,8 +327,9 @@ func (s *m3storage) fetchCompressed(
 					log.String("namespace", namespaceID.String()),
 					log.Int("series", iters.Len()),
 					log.Bool("exhaustive", metadata.Exhaustive),
-					log.Int("responses", metadata.Responses),
-					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+					log.Int("responsesTotal", metadata.Stats.ResponsesTotal),
+					log.Int("errorsPerShardAvailableMax", metadata.Stats.ErrorsPerShardAvailableMax),
+					log.Int("estimateTotalBytes", metadata.Stats.EstimateTotalBytes),
 				)
 			}
 
@@ -477,8 +478,9 @@ func (s *m3storage) CompleteTags(
 					log.String("namespace", namespaceID.String()),
 					log.Int("results", aggTagIter.Remaining()),
 					log.Bool("exhaustive", metadata.Exhaustive),
-					log.Int("responses", metadata.Responses),
-					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+					log.Int("responsesTotal", metadata.Stats.ResponsesTotal),
+					log.Int("errorsPerShardAvailableMax", metadata.Stats.ErrorsPerShardAvailableMax),
+					log.Int("estimateTotalBytes", metadata.Stats.EstimateTotalBytes),
 				)
 			}
 
@@ -592,8 +594,9 @@ func (s *m3storage) SearchCompressed(
 					log.String("namespace", namespaceID.String()),
 					log.Int("series", iter.Remaining()),
 					log.Bool("exhaustive", metadata.Exhaustive),
-					log.Int("responses", metadata.Responses),
-					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+					log.Int("responsesTotal", metadata.Stats.ResponsesTotal),
+					log.Int("errorsPerShardAvailableMax", metadata.Stats.ErrorsPerShardAvailableMax),
+					log.Int("estimateTotalBytes", metadata.Stats.EstimateTotalBytes),
 				)
 			}
 

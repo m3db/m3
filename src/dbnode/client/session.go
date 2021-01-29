@@ -1374,6 +1374,8 @@ func (s *session) Aggregate(
 func (s *session) aggregateAttempt(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
+	start := s.nowFn()
+
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1416,6 +1418,8 @@ func (s *session) aggregateAttempt(
 	// pool if ref count == 0.
 	fetchState.decRef()
 
+	s.recordFetchMetrics(err, int32(meta.Stats.ErrorsPerShardAvailableMax), start)
+
 	return iters, meta, err
 }
 
@@ -1448,10 +1452,13 @@ func (s *session) FetchTaggedIDs(
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
+	start := s.nowFn()
+
 	nsCtx, err := s.nsCtxFor(ns)
 	if err != nil {
 		return nil, FetchResponseMetadata{}, err
 	}
+
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1493,19 +1500,22 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, metadata, err := fetchState.asEncodingSeriesIterators(
+	iters, meta, err := fetchState.asEncodingSeriesIterators(
 		s.pools, nsCtx.Schema, s.opts.IterationOptions())
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, metadata, err
+	s.recordFetchMetrics(err, int32(meta.Stats.ErrorsPerShardAvailableMax), start)
+
+	return iters, meta, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (TaggedIDsIterator, FetchResponseMetadata, error) {
+	start := s.nowFn()
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1547,13 +1557,15 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asTaggedIDsIterator` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools)
+	iter, meta, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iter, metadata, err
+	s.recordFetchMetrics(err, int32(meta.Stats.ErrorsPerShardAvailableMax), start)
+
+	return iter, meta, err
 }
 
 type newFetchStateOpts struct {

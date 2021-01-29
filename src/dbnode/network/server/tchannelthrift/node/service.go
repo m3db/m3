@@ -795,7 +795,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	fetchData bool,
 	encodedDataResults [][][]xio.BlockReader,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadEncoded)
+ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadEncoded)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("id", nsID.String()),
