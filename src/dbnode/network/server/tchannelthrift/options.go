@@ -21,6 +21,7 @@
 package tchannelthrift
 
 import (
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -42,6 +43,7 @@ type options struct {
 	checkedBytesWrapperPool     xpool.CheckedBytesWrapperPool
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
+	queryLimits                 limits.QueryLimits
 }
 
 // NewOptions creates new options.
@@ -83,6 +85,7 @@ func NewOptions() Options {
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
+		queryLimits:              limits.NoOpQueryLimits(),
 	}
 }
 
@@ -194,4 +197,14 @@ func (o *options) SetMaxOutstandingReadRequests(value int) Options {
 
 func (o *options) MaxOutstandingReadRequests() int {
 	return o.maxOutstandingReadRequests
+}
+
+func (o *options) SetQueryLimits(value limits.QueryLimits) Options {
+	opts := *o
+	opts.queryLimits = value
+	return &opts
+}
+
+func (o *options) QueryLimits() limits.QueryLimits {
+	return o.queryLimits
 }

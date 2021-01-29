@@ -710,7 +710,8 @@ func Run(runOpts RunOptions) {
 		SetTagDecoderPool(tagDecoderPool).
 		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
-		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
+		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests).
+		SetQueryLimits(queryLimits)
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.

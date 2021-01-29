@@ -322,7 +322,9 @@ func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.NowFn()()
 	end := s.NowFn()().Add(5 * time.Minute)
-	readers, err := s.DB().ReadEncoded(ctx, nsCtx.ID, id, start, end)
+	iter, err := s.DB().ReadEncoded(ctx, nsCtx.ID, id, start, end)
+	require.NoError(t, err)
+	readers, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	mIter := s.DB().Options().MultiReaderIteratorPool().Get()

@@ -332,10 +332,10 @@ func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts i
 }
 
 // ReadEncoded mocks base method
-func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -771,10 +771,10 @@ func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts i
 }
 
 // ReadEncoded mocks base method
-func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1592,10 +1592,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts int
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2114,10 +2114,10 @@ func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, v
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end, nsCtx)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
