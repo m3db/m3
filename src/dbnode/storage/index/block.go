@@ -122,6 +122,13 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 	return nil
 }
 
+type addAggregateResultsFn func(
+	cancellable *xresource.CancellableLifetime,
+	results AggregateResults,
+	batch []AggregateResultsEntry,
+	source []byte,
+) ([]AggregateResultsEntry, int, int, error)
+
 // nolint: maligned
 type block struct {
 	sync.RWMutex
@@ -133,6 +140,7 @@ type block struct {
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorWithRLockFn          newExecutorFn
+	addAggregateResultsFn           addAggregateResultsFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
@@ -256,6 +264,7 @@ func NewBlock(
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
+	b.addAggregateResultsFn = b.addAggregateResults
 
 	return b, nil
 }
@@ -697,7 +706,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
+			batch, size, docsCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
 			if err != nil {
 				return false, err
 			}
@@ -715,7 +724,7 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch, source)
+		batch, size, docsCount, err = b.addAggregateResultsFn(cancellable, results, batch, source)
 		if err != nil {
 			return false, err
 		}
