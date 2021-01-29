@@ -300,6 +300,27 @@ func TestRuleSetRollupRules(t *testing.T) {
 	}
 }
 
+func TestRuleSetUtilizationRules(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	rr, err := rs.UtilizationRules()
+	require.NoError(t, err)
+	require.True(t, len(rr) > 0)
+	for _, r := range rs.utilizationRules {
+		require.Contains(t, rr, r.uuid)
+		rrv, err := r.utilizationRuleView(len(r.snapshots) - 1)
+		require.NoError(t, err)
+		require.Equal(t, rr[r.uuid][0], rrv)
+	}
+}
+
 func TestRuleSetLatest(t *testing.T) {
 	proto := &rulepb.RuleSet{
 		Namespace:        "testNamespace",
@@ -454,6 +475,119 @@ func TestRuleSetLatest(t *testing.T) {
 			{
 				ID:         "rollupRule6",
 				Name:       "rollupRule6.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName6"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+		},
+		UtilizationRules: []view.UtilizationRule{
+			{
+				ID:         "utilizationRule1",
+				Name:       "utilizationRule1.snapshot3",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName1"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule3",
+				Name:       "utilizationRule3.snapshot2",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName3"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule4",
+				Name:       "utilizationRule4.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName4"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule5",
+				Name:       "utilizationRule5.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName5"),
+									Tags:    bs("rtagName1"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule6",
+				Name:       "utilizationRule6.snapshot1",
 				Tombstoned: false,
 				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
 				Targets: []view.RollupTarget{
@@ -1076,6 +1210,325 @@ func TestRuleSetDeleteRollupRule(t *testing.T) {
 	rrs, err = rs.RollupRules()
 	require.NoError(t, err)
 	require.Contains(t, rrs, "rollupRule5")
+}
+
+func TestRuleSetAddUtilizationRuleNewRule(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	_, err = rs.getUtilizationRuleByName("foo")
+	require.Equal(t, errRuleNotFound, err)
+
+	view := view.UtilizationRule{
+		Name:         "foo",
+		Filter:       "tag1:value tag2:value",
+		Targets: []view.RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+	}
+	nowNanos := time.Now().UnixNano()
+	helper := NewRuleSetUpdateHelper(10)
+	newID, err := rs.AddUtilizationRule(view, helper.NewUpdateMetadata(nowNanos, testUser))
+	require.NoError(t, err)
+	rrs, err := rs.UtilizationRules()
+	require.Contains(t, rrs, newID)
+	require.NoError(t, err)
+
+	rr, err := rs.getUtilizationRuleByName("foo")
+	require.NoError(t, err)
+	require.Contains(t, rrs, rr.uuid)
+
+	expected := &utilizationRuleSnapshot{
+		name:         "foo",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "tag1:value tag2:value",
+		targets: []rollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
+	}
+	require.True(t, cmp.Equal(expected, rr.snapshots[len(rr.snapshots)-1], testUtilizationRuleSnapshotCmpOpts...))
+
+	require.Equal(t, nowNanos+10, rs.cutoverNanos)
+	require.Equal(t, testUser, rs.lastUpdatedBy)
+	require.Equal(t, nowNanos, rs.lastUpdatedAtNanos)
+}
+
+func TestRuleSetAddUtilizationRuleDuplicateRule(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	r, err := rs.getUtilizationRuleByID("utilizationRule5")
+	require.NoError(t, err)
+	require.NotNil(t, r)
+
+	view := view.UtilizationRule{
+		Name:   "utilizationRule5.snapshot1",
+		Filter: "test:bar",
+		Targets: []view.RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+	}
+	nowNanos := time.Now().UnixNano()
+	helper := NewRuleSetUpdateHelper(10)
+	newID, err := rs.AddUtilizationRule(view, helper.NewUpdateMetadata(nowNanos, testUser))
+	require.Error(t, err)
+	require.Empty(t, newID)
+	containedErr, ok := err.(xerrors.ContainedError)
+	require.True(t, ok)
+	err = containedErr.InnerError()
+	_, ok = err.(merrors.InvalidInputError)
+	require.True(t, ok)
+}
+
+func TestRuleSetAddUtilizationRuleReviveRule(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	rr, err := rs.getUtilizationRuleByID("utilizationRule3")
+	require.NoError(t, err)
+	require.NotNil(t, rr)
+
+	view := view.UtilizationRule{
+		Name:   "utilizationRule3.snapshot4",
+		Filter: "test:bar",
+		Targets: []view.RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+	}
+	nowNanos := time.Now().UnixNano()
+	helper := NewRuleSetUpdateHelper(10)
+	newID, err := rs.AddUtilizationRule(view, helper.NewUpdateMetadata(nowNanos, testUser))
+	require.NoError(t, err)
+	require.NotEmpty(t, newID)
+	rrs, err := rs.UtilizationRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, newID)
+
+	rr, err = rs.getUtilizationRuleByID(newID)
+	require.NoError(t, err)
+	require.Equal(t, rr.snapshots[len(rr.snapshots)-1].rawFilter, view.Filter)
+
+	expected := &rollupRuleSnapshot{
+		name:         "utilizationRule3.snapshot4",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "test:bar",
+		targets: []rollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
+	}
+	require.True(t, cmp.Equal(expected, rr.snapshots[len(rr.snapshots)-1], testUtilizationRuleSnapshotCmpOpts...))
+
+	require.Equal(t, nowNanos+10, rs.cutoverNanos)
+	require.Equal(t, testUser, rs.lastUpdatedBy)
+	require.Equal(t, nowNanos, rs.lastUpdatedAtNanos)
+}
+
+func TestRuleSetUpdateUtilizationRule(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	rr, err := rs.getUtilizationRuleByID("utilizationRule5")
+	require.NoError(t, err)
+
+	view := view.UtilizationRule{
+		ID:           "utilizationRule5",
+		Name:         "utilizationRule5.snapshot2",
+		Filter:       "test:bar",
+		Targets: []view.RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+	}
+	nowNanos := time.Now().UnixNano()
+	helper := NewRuleSetUpdateHelper(10)
+	err = rs.UpdateUtilizationRule(view, helper.NewUpdateMetadata(nowNanos, testUser))
+	require.NoError(t, err)
+
+	r, err := rs.getUtilizationRuleByID(rr.uuid)
+	require.NoError(t, err)
+
+	rrs, err := rs.UtilizationRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, r.uuid)
+
+	expected := &rollupRuleSnapshot{
+		name:         "utilizationRule5.snapshot2",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "test:bar",
+		keepOriginal: true,
+		targets: []rollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       b("blah"),
+							Tags:          bs("a"),
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
+	}
+	require.True(t, cmp.Equal(expected, r.snapshots[len(r.snapshots)-1], testUtilizationRuleSnapshotCmpOpts...))
+
+	require.Equal(t, nowNanos+10, rs.cutoverNanos)
+	require.Equal(t, testUser, rs.lastUpdatedBy)
+	require.Equal(t, nowNanos, rs.lastUpdatedAtNanos)
+}
+
+func TestRuleSetDeleteUtilizationRule(t *testing.T) {
+	var (
+		version = 1
+		proto   = testRuleSetProto()
+		opts    = testRuleSetOptions()
+	)
+	res, err := NewRuleSetFromProto(version, proto, opts)
+	require.NoError(t, err)
+	rs := res.(*ruleSet)
+
+	rrs, err := rs.UtilizationRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, "utilizationRule5")
+
+	rr, err := rs.getUtilizationRuleByID("utilizationRule5")
+	require.NoError(t, err)
+
+	nowNanos := time.Now().UnixNano()
+	helper := NewRuleSetUpdateHelper(10)
+	err = rs.DeleteUtilizationRule(rr.uuid, helper.NewUpdateMetadata(nowNanos, testUser))
+	require.NoError(t, err)
+
+	rr, err = rs.getUtilizationRuleByName("utilizationRule5.snapshot1")
+	require.NoError(t, err)
+	require.True(t, rr.tombstoned())
+
+	require.Equal(t, nowNanos+10, rr.snapshots[len(rr.snapshots)-1].cutoverNanos)
+	require.Nil(t, rr.snapshots[len(rr.snapshots)-1].targets)
+
+	rrs, err = rs.UtilizationRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, "utilizationRule5")
 }
 
 func TestRuleSetDelete(t *testing.T) {

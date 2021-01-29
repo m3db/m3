@@ -349,12 +349,17 @@ func (rs *ruleSet) Latest() (view.RuleSet, error) {
 	if err != nil {
 		return view.RuleSet{}, err
 	}
+	urs, err := rs.latestUtilizationRules()
+	if err != nil {
+		return view.RuleSet{}, err
+	}
 	return view.RuleSet{
-		Namespace:     string(rs.Namespace()),
-		Version:       rs.Version(),
-		CutoverMillis: rs.CutoverNanos() / nanosPerMilli,
-		MappingRules:  mrs,
-		RollupRules:   rrs,
+		Namespace:        string(rs.Namespace()),
+		Version:          rs.Version(),
+		CutoverMillis:    rs.CutoverNanos() / nanosPerMilli,
+		MappingRules:     mrs,
+		RollupRules:      rrs,
+		UtilizationRules: urs,
 	}, nil
 }
 

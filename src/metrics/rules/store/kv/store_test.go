@@ -380,6 +380,208 @@ var (
 				},
 			},
 		},
+		UtilizationRules: []*rulepb.UtilizationRule{
+			&rulepb.UtilizationRule{
+				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
+				Snapshots: []*rulepb.UtilizationRuleSnapshot{
+					&rulepb.UtilizationRuleSnapshot{
+						Name:         "foo2",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
+						Filter:       "tag1:value1 tag2:value2",
+						Targets: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+					&rulepb.UtilizationRuleSnapshot{
+						Name:         "bar",
+						Tombstoned:   true,
+						CutoverNanos: 67890,
+						Filter:       "tag3:value3 tag4:value4",
+						Targets: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+												AggregationTypes: []aggregationpb.AggregationType{
+													aggregationpb.AggregationType_MEAN,
+												},
+											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: policypb.Retention{
+											Period: int64(48 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			&rulepb.UtilizationRule{
+				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
+				Snapshots: []*rulepb.UtilizationRuleSnapshot{
+					&rulepb.UtilizationRuleSnapshot{
+						Name:         "foo",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
+						Filter:       "tag1:value1 tag2:value2",
+						Targets: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+					&rulepb.UtilizationRuleSnapshot{
+						Name:         "baz",
+						Tombstoned:   false,
+						CutoverNanos: 67890,
+						Filter:       "tag3:value3 tag4:value4",
+						Targets: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+												AggregationTypes: []aggregationpb.AggregationType{
+													aggregationpb.AggregationType_MEAN,
+												},
+											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: policypb.Retention{
+											Period: int64(48 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			&rulepb.UtilizationRule{
+				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
+				Snapshots: []*rulepb.UtilizationRuleSnapshot{
+					&rulepb.UtilizationRuleSnapshot{
+						Name:         "dup",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
+						Filter:       "tag1:value1 tag2:value2",
+
+						Targets: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 )
 
