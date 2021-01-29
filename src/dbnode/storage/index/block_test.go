@@ -2416,10 +2416,8 @@ func TestBlockAggregateBatching(t *testing.T) {
 					count += len(entry.Terms)
 				}
 
-				// FIXME: this currently fails, but will be fixed after
-				// https://github.com/m3db/m3/pull/3133 is reverted.
-				// require.True(t, count <= tt.batchSize,
-				// 	fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
+				require.True(t, count <= tt.batchSize,
+					fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
 
 				return addAggregateResultsFn(cancellable, results, batch, source)
 			}
