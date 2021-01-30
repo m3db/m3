@@ -1187,7 +1187,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		totalSeries := totalSeriesList.Values[0]
 		if totalSeriesList.Len() != 1 {
 			// Divide each by their matching total if matching
-			// number of total,
+			// number of total.
 			totalSeries = totalSeriesList.Values[idx]
 		}
 		normalized, start, _, millisPerStep, err := common.Normalize(ctx,
