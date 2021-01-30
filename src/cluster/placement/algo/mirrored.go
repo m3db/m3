@@ -215,6 +215,10 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		}
 	}
 
+	if !allAvailable(p, leavingInstanceIDs, nowNanos) {
+		return nil, fmt.Errorf("replaced instances must have all their shards available")
+	}
+
 	// At this point, all specified leaving instances and their peers in the placement are cleaned up.
 	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
 		return nil, err
@@ -323,6 +327,17 @@ func allLeaving(p placement.Placement, instances []placement.Instance, nowNanos 
 
 	return allInstancesInState(ids, p, func(s shard.Shard) bool {
 		return s.State() == shard.Leaving && s.CutoffNanos() > nowNanos
+	})
+}
+
+func allAvailable(p placement.Placement, instances []string, nowNanos int64) bool {
+	ids := make(map[string]struct{}, len(instances))
+	for _, i := range instances {
+		ids[i] = struct{}{}
+	}
+
+	return allInstancesInState(ids, p, func(s shard.Shard) bool {
+		return s.State() == shard.Available && s.CutoffNanos() > nowNanos
 	})
 }
 
