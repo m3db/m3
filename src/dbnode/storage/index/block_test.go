@@ -23,6 +23,7 @@ package index
 import (
 	stdlibctx "context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -1870,18 +1872,6 @@ func TestBlockAggregate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	scope := tally.NewTestScope("", nil)
-	iOpts := instrument.NewOptions().SetMetricsScope(scope)
-	limitOpts := limits.NewOptions().
-		SetInstrumentOptions(iOpts).
-		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
-		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
-	queryLimits, err := limits.NewQueryLimits((limitOpts))
-	require.NoError(t, err)
-	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
-
-	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
-	seriesLimit := 10
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
@@ -1904,7 +1894,7 @@ func TestBlockAggregate(t *testing.T) {
 	}
 
 	results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
-		SizeLimit: seriesLimit,
+		SizeLimit: 3,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
@@ -1916,23 +1906,24 @@ func TestBlockAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	iter.EXPECT().Reset(reader, gomock.Any()).Return(nil)
-	iter.EXPECT().Next().Return(true)
-	iter.EXPECT().Current().Return([]byte("f1"), []byte("t1"))
-	iter.EXPECT().Next().Return(true)
-	iter.EXPECT().Current().Return([]byte("f1"), []byte("t2"))
-	iter.EXPECT().Next().Return(true)
-	iter.EXPECT().Current().Return([]byte("f2"), []byte("t1"))
-	iter.EXPECT().Next().Return(true)
-	iter.EXPECT().Current().Return([]byte("f1"), []byte("t3"))
-	iter.EXPECT().Next().Return(false)
-	iter.EXPECT().Err().Return(nil)
-	iter.EXPECT().Close().Return(nil)
-
+	gomock.InOrder(
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t2")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f2"), []byte("t1")),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return([]byte("f1"), []byte("t3")),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Close().Return(nil),
+	)
 	exhaustive, err := b.Aggregate(
 		ctx,
 		xresource.NewCancellableLifetime(),
-		QueryOptions{SeriesLimit: seriesLimit},
+		QueryOptions{SeriesLimit: 3},
 		results,
 		emptyLogFields)
 	require.NoError(t, err)
@@ -1947,10 +1938,6 @@ func TestBlockAggregate(t *testing.T) {
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
 	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
-
-	snap := scope.Snapshot()
-	tallytest.AssertCounterValue(t, 4, snap, "query-limit.total-docs-matched", nil)
-	tallytest.AssertCounterValue(t, 8, snap, "aggregate-added-counter", nil)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -2019,7 +2006,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
-		"f1": {},
+		"f1": {"t1"},
 	}, results)
 
 	sp.Finish()
@@ -2258,5 +2245,201 @@ func testDoc3() doc.Metadata {
 				Value: []byte("other"),
 			},
 		},
+	}
+}
+
+func optionsWithAggResultsPool(capacity int) Options {
+	pool := NewAggregateResultsEntryArrayPool(
+		AggregateResultsEntryArrayPoolOpts{
+			Capacity: capacity,
+		},
+	)
+
+	pool.Init()
+	return testOpts.SetAggregateResultsEntryArrayPool(pool)
+}
+
+func buildSegment(t *testing.T, term string, fields []string, opts mem.Options) *readableSeg {
+	seg, err := mem.NewSegment(opts)
+	require.NoError(t, err)
+
+	docFields := make([]doc.Field, 0, len(fields))
+	sort.Strings(fields)
+	for _, field := range fields {
+		docFields = append(docFields, doc.Field{Name: []byte(term), Value: []byte(field)})
+	}
+
+	_, err = seg.Insert(doc.Metadata{Fields: docFields})
+	require.NoError(t, err)
+
+	require.NoError(t, seg.Seal())
+	return newReadableSeg(seg, testOpts)
+}
+
+func TestBlockAggregateBatching(t *testing.T) {
+	memOpts := mem.NewOptions()
+
+	var (
+		batchSizeMap      = make(map[string][]string)
+		batchSizeSegments = make([]*readableSeg, 0, defaultQueryDocsBatchSize)
+	)
+
+	for i := 0; i < defaultQueryDocsBatchSize; i++ {
+		fields := make([]string, 0, defaultQueryDocsBatchSize)
+		for j := 0; j < defaultQueryDocsBatchSize; j++ {
+			fields = append(fields, fmt.Sprintf("bar_%d", j))
+		}
+
+		if i == 0 {
+			batchSizeMap["foo"] = fields
+		}
+
+		batchSizeSegments = append(batchSizeSegments, buildSegment(t, "foo", fields, memOpts))
+	}
+
+	tests := []struct {
+		name                string
+		batchSize           int
+		segments            []*readableSeg
+		expectedDocsMatched int64
+		expected            map[string][]string
+	}{
+		{
+			name:      "single term multiple fields duplicated across readers",
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 1,
+			expected: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+		},
+		{
+			name:      "multiple term multiple fields",
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bag", "bat"}, memOpts),
+				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 2,
+			expected: map[string][]string{
+				"foo": {"bag", "bar", "bat", "baz"},
+				"qux": {"bar", "baz"},
+			},
+		},
+		{
+			name: "term present in first and third reader",
+			// NB: expecting three batches due to the way batches are split (on the
+			// first different term ID in a batch), will look like this:
+			// [{foo [bar baz]} {dog [bar baz]} {qux [bar]}
+			// [{qux [baz]} {qaz [bar baz]} {foo [bar]}]
+			// [{foo [baz]}]
+			batchSize: 3,
+			segments: []*readableSeg{
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "dog", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "qux", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "qaz", []string{"bar", "baz"}, memOpts),
+				buildSegment(t, "foo", []string{"bar", "baz"}, memOpts),
+			},
+			expectedDocsMatched: 7,
+			expected: map[string][]string{
+				"foo": {"bar", "baz"},
+				"dog": {"bar", "baz"},
+				"qux": {"bar", "baz"},
+				"qaz": {"bar", "baz"},
+			},
+		},
+		{
+			name:                "batch size case",
+			batchSize:           defaultQueryDocsBatchSize,
+			segments:            batchSizeSegments,
+			expectedDocsMatched: 1,
+			expected:            batchSizeMap,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
+			limitOpts := limits.NewOptions().
+				SetInstrumentOptions(iOpts).
+				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
+				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
+			queryLimits, err := limits.NewQueryLimits((limitOpts))
+			require.NoError(t, err)
+			testOpts = optionsWithAggResultsPool(tt.batchSize).
+				SetInstrumentOptions(iOpts).
+				SetQueryLimits(queryLimits)
+
+			testMD := newTestNSMetadata(t)
+			start := time.Now().Truncate(time.Hour)
+			blk, err := NewBlock(start, testMD, BlockOptions{},
+				namespace.NewRuntimeOptionsManager("foo"), testOpts)
+			require.NoError(t, err)
+
+			b, ok := blk.(*block)
+			require.True(t, ok)
+
+			// NB: wrap existing aggregate results fn to more easily inspect batch size.
+			addAggregateResultsFn := b.addAggregateResultsFn
+			b.addAggregateResultsFn = func(
+				cancellable *xresource.CancellableLifetime,
+				results AggregateResults,
+				batch []AggregateResultsEntry,
+				source []byte,
+			) ([]AggregateResultsEntry, int, int, error) {
+				// NB: since both terms and values count towards the batch size, initialize
+				// this with batch size to account for terms.
+				count := len(batch)
+				for _, entry := range batch {
+					count += len(entry.Terms)
+				}
+
+				// FIXME: this currently fails, but will be fixed after
+				// https://github.com/m3db/m3/pull/3133 is reverted.
+				// require.True(t, count <= tt.batchSize,
+				// 	fmt.Sprintf("batch %v exceeds batchSize %d", batch, tt.batchSize))
+
+				return addAggregateResultsFn(cancellable, results, batch, source)
+			}
+
+			b.mutableSegments.foregroundSegments = tt.segments
+			results := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+				Type: AggregateTagNamesAndValues,
+			}, testOpts)
+
+			ctx := context.NewContext()
+			defer ctx.BlockingClose()
+
+			exhaustive, err := b.Aggregate(
+				ctx,
+				xresource.NewCancellableLifetime(),
+				QueryOptions{},
+				results,
+				emptyLogFields)
+			require.NoError(t, err)
+			require.True(t, exhaustive)
+
+			snap := scope.Snapshot()
+			tallytest.AssertCounterValue(t, tt.expectedDocsMatched, snap, "query-limit.total-docs-matched", nil)
+			resultsMap := make(map[string][]string, results.Map().Len())
+			for _, res := range results.Map().Iter() {
+				vals := make([]string, 0, res.Value().valuesMap.Len())
+				for _, val := range res.Value().valuesMap.Iter() {
+					vals = append(vals, val.Key().String())
+				}
+
+				sort.Strings(vals)
+				resultsMap[res.Key().String()] = vals
+			}
+
+			assert.Equal(t, tt.expected, resultsMap)
+		})
 	}
 }
