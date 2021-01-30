@@ -1166,6 +1166,14 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			}
 			totalSeriesList = sum
 		} else {
+			// Sort both by name so they get divided by same name if same length
+			// or closest match.
+			sort.Slice(input.Values, func(i, j int) bool {
+				return strings.Compare(input.Values[i].Name(), input.Values[j].Name()) < 0
+			})
+			sort.Slice(total.Values, func(i, j int) bool {
+				return strings.Compare(total.Values[i].Name(), total.Values[j].Name()) < 0
+			})
 			totalSeriesList = total
 		}
 	default:
