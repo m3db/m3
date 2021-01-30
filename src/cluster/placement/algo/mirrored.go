@@ -191,6 +191,7 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		return nil, err
 	}
 
+	p = p.Clone()
 	if len(addingInstances) != len(leavingInstanceIDs) {
 		return nil, fmt.Errorf("could not replace %d instances with %d instances for mirrored replace", len(leavingInstanceIDs), len(addingInstances))
 	}

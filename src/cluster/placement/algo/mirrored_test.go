@@ -999,6 +999,112 @@ func TestMirrorMultipleOverlappingReplacesFail(t *testing.T) {
 	assert.True(t, allInitializing(p2, []string{"i5", "i6"}, nowNanos))
 }
 
+func TestMirrorMultipleReplaceAndRevert(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(1).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(1).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(2).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(2).
+		SetWeight(2)
+
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 12
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	shardCutoverTime := now.Add(time.Hour).UnixNano()
+	a := NewAlgorithm(placement.NewOptions().
+		SetIsMirrored(true).
+		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
+		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	assert.Equal(t, uint32(2), p.MaxShardSetID())
+
+	p, _, err = a.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
+
+	// First replace: i1 replaced by i1a.
+	i1a := placement.NewInstance().
+		SetID("i1a").
+		SetIsolationGroup("r1a").
+		SetEndpoint("endpoint1a").
+		SetShardSetID(i1.ShardSetID()).
+		SetWeight(i1.Weight())
+	p1, err := a.ReplaceInstances(p, []string{"i1"}, []placement.Instance{i1a})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p1))
+	assert.Equal(t, uint32(2), p1.MaxShardSetID())
+	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, allInitializing(p1, []string{"i1a"}, nowNanos))
+
+	// Second replace: i3 replaced by i3a.
+	i3a := placement.NewInstance().
+		SetID("i3a").
+		SetIsolationGroup("r3a").
+		SetEndpoint("endpoint3a").
+		SetShardSetID(i3.ShardSetID()).
+		SetWeight(i3.Weight())
+	p2, err := a.ReplaceInstances(p1, []string{"i3"}, []placement.Instance{i3a})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p2))
+	assert.Equal(t, uint32(2), p2.MaxShardSetID())
+	assert.True(t, allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
+	assert.True(t, allInitializing(p2, []string{"i1a", "i3a"}, nowNanos))
+
+	// Revert of non-matching replace pairs must fail.
+	i1, ok := p2.Instance("i1")
+	assert.True(t, ok)
+	_, err = a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i1})
+	assert.Error(t, err)
+
+	i3, ok = p2.Instance("i3")
+	assert.True(t, ok)
+	_, err = a.ReplaceInstances(p2, []string{"i1a"}, []placement.Instance{i3})
+	assert.Error(t, err)
+
+	// Revert of matching replace pairs must succeed.
+	p3, err := a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i3})
+	assert.NoError(t, err)
+	_, ok = p3.Instance("i3a")
+	assert.False(t, ok)
+	i3, ok = p3.Instance("i3")
+	assert.True(t, ok)
+	assert.Equal(t, i3.Shards().NumShards(), i3.Shards().NumShardsForState(shard.Available))
+
+	p4, err := a.ReplaceInstances(p3, []string{"i1a"}, []placement.Instance{i1})
+	assert.NoError(t, err)
+	_, ok = p4.Instance("i1a")
+	assert.False(t, ok)
+	i1, ok = p4.Instance("i1")
+	assert.True(t, ok)
+	assert.Equal(t, i1.Shards().NumShards(), i1.Shards().NumShardsForState(shard.Available))
+}
+
 func TestMirrorInitError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
