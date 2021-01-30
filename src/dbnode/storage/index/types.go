@@ -159,29 +159,22 @@ type BaseResults interface {
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
-	// Finalize releases any resources held by the Results object,
-	// including returning it to a backing pool.
-	Finalize()
-}
-
-// DocumentResults is a collection of query results that allow accumulation of
-// document values, it is synchronized when access to the results set is used
-// as documented by the methods.
-type DocumentResults interface {
-	BaseResults
-
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
+
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
+	Finalize()
 }
 
 // QueryResults is a collection of results for a query, it is synchronized
 // when access to the results set is used as documented by the methods.
 type QueryResults interface {
-	DocumentResults
+	BaseResults
 
 	// Reset resets the Results object to initial state.
 	Reset(nsID ident.ID, opts QueryResultsOptions)
@@ -265,9 +258,6 @@ type AggregateResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
-
-	// DocsLimit limits the amount of documents
-	DocsLimit int
 
 	// Type determines what result is required.
 	Type AggregationType
@@ -367,7 +357,7 @@ type Block interface {
 		cancellable *xresource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
-		results DocumentResults,
+		results BaseResults,
 		logFields []opentracinglog.Field,
 	) (bool, error)
 

@@ -128,6 +128,22 @@ func (mr *MockBaseResultsMockRecorder) EnforceLimits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockBaseResults)(nil).EnforceLimits))
 }
 
+// AddDocuments mocks base method
+func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockBaseResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockBaseResults)(nil).AddDocuments), batch)
+}
+
 // Finalize mocks base method
 func (m *MockBaseResults) Finalize() {
 	m.ctrl.T.Helper()
@@ -138,113 +154,6 @@ func (m *MockBaseResults) Finalize() {
 func (mr *MockBaseResultsMockRecorder) Finalize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockBaseResults)(nil).Finalize))
-}
-
-// MockDocumentResults is a mock of DocumentResults interface
-type MockDocumentResults struct {
-	ctrl     *gomock.Controller
-	recorder *MockDocumentResultsMockRecorder
-}
-
-// MockDocumentResultsMockRecorder is the mock recorder for MockDocumentResults
-type MockDocumentResultsMockRecorder struct {
-	mock *MockDocumentResults
-}
-
-// NewMockDocumentResults creates a new mock instance
-func NewMockDocumentResults(ctrl *gomock.Controller) *MockDocumentResults {
-	mock := &MockDocumentResults{ctrl: ctrl}
-	mock.recorder = &MockDocumentResultsMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockDocumentResults) EXPECT() *MockDocumentResultsMockRecorder {
-	return m.recorder
-}
-
-// Namespace mocks base method
-func (m *MockDocumentResults) Namespace() ident.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Namespace")
-	ret0, _ := ret[0].(ident.ID)
-	return ret0
-}
-
-// Namespace indicates an expected call of Namespace
-func (mr *MockDocumentResultsMockRecorder) Namespace() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockDocumentResults)(nil).Namespace))
-}
-
-// Size mocks base method
-func (m *MockDocumentResults) Size() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Size indicates an expected call of Size
-func (mr *MockDocumentResultsMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockDocumentResults)(nil).Size))
-}
-
-// TotalDocsCount mocks base method
-func (m *MockDocumentResults) TotalDocsCount() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TotalDocsCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// TotalDocsCount indicates an expected call of TotalDocsCount
-func (mr *MockDocumentResultsMockRecorder) TotalDocsCount() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockDocumentResults)(nil).TotalDocsCount))
-}
-
-// EnforceLimits mocks base method
-func (m *MockDocumentResults) EnforceLimits() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnforceLimits")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// EnforceLimits indicates an expected call of EnforceLimits
-func (mr *MockDocumentResultsMockRecorder) EnforceLimits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockDocumentResults)(nil).EnforceLimits))
-}
-
-// Finalize mocks base method
-func (m *MockDocumentResults) Finalize() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalize")
-}
-
-// Finalize indicates an expected call of Finalize
-func (mr *MockDocumentResultsMockRecorder) Finalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockDocumentResults)(nil).Finalize))
-}
-
-// AddDocuments mocks base method
-func (m *MockDocumentResults) AddDocuments(batch []doc.Document) (int, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddDocuments", batch)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// AddDocuments indicates an expected call of AddDocuments
-func (mr *MockDocumentResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockDocumentResults)(nil).AddDocuments), batch)
 }
 
 // MockQueryResults is a mock of QueryResults interface
@@ -326,18 +235,6 @@ func (mr *MockQueryResultsMockRecorder) EnforceLimits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockQueryResults)(nil).EnforceLimits))
 }
 
-// Finalize mocks base method
-func (m *MockQueryResults) Finalize() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalize")
-}
-
-// Finalize indicates an expected call of Finalize
-func (mr *MockQueryResultsMockRecorder) Finalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockQueryResults)(nil).Finalize))
-}
-
 // AddDocuments mocks base method
 func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
@@ -352,6 +249,18 @@ func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) 
 func (mr *MockQueryResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockQueryResults)(nil).AddDocuments), batch)
+}
+
+// Finalize mocks base method
+func (m *MockQueryResults) Finalize() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (mr *MockQueryResultsMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockQueryResults)(nil).Finalize))
 }
 
 // Reset mocks base method
@@ -518,6 +427,22 @@ func (m *MockAggregateResults) EnforceLimits() bool {
 func (mr *MockAggregateResultsMockRecorder) EnforceLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnforceLimits", reflect.TypeOf((*MockAggregateResults)(nil).EnforceLimits))
+}
+
+// AddDocuments mocks base method
+func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDocuments", batch)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddDocuments indicates an expected call of AddDocuments
+func (mr *MockAggregateResultsMockRecorder) AddDocuments(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocuments", reflect.TypeOf((*MockAggregateResults)(nil).AddDocuments), batch)
 }
 
 // Finalize mocks base method
@@ -849,7 +774,7 @@ func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results DocumentResults, logFields []log.Field) (bool, error) {
+func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results BaseResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", ctx, cancellable, query, opts, results, logFields)
 	ret0, _ := ret[0].(bool)

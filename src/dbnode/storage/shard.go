@@ -2810,6 +2810,35 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
+func (s *dbShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		return nil, err
+	}
+
+	return reader, nil
+}
+
 func (s *dbShard) ScanData(
 	blockStart time.Time,
 	processor fs.DataEntryProcessor,

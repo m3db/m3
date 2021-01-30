@@ -170,7 +170,10 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 	}
 	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, expectedFetches)
 
+	valueWriteWg := sync.WaitGroup{}
+	valueWriteWg.Add(1)
 	go func() {
+		defer valueWriteWg.Done()
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
 		fulfillFetchBatchOps(t, testOpts, fetches, *fetchBatchOps, 0)
@@ -181,6 +184,8 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 	results, err := session.FetchIDs(nsID, fetches.IDsIter(), start, end)
 	if testOpts.expectedErr == nil {
 		require.NoError(t, err)
+		// wait for testValues to be written to before reading to assert.
+		valueWriteWg.Wait()
 		assertFetchResults(t, start, end, fetches, results, testOpts.annEqual)
 	} else {
 		require.Equal(t, testOpts.expectedErr, err)
