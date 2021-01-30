@@ -691,11 +691,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			42.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,42.500)",
 					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,42.500)",
 					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
 				},
@@ -710,11 +710,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			-0.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,-0.500)",
 					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,-0.500)",
 					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
 				},
@@ -1470,18 +1470,18 @@ func TestFallbackSeries(t *testing.T) {
 	}{
 		{
 			nil,
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
 			[]common.TestSeries{},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
-			[]common.TestSeries{common.TestSeries{"fallback", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"fallback", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
 		},
 	}
 
@@ -1905,7 +1905,7 @@ func TestAsPercentWithSeriesTotal(t *testing.T) {
 		output := r.Values
 		require.Equal(t, 1, len(output))
 		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
-		assert.Equal(t, "asPercent(<values>, <totals>)", output[0].Name())
+		assert.Equal(t, "asPercent(<values>,<totals>)", output[0].Name())
 
 		for step := 0; step < output[0].Len(); step++ {
 			v := output[0].ValueAt(step)
@@ -1949,7 +1949,7 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 		output := r.Values
 		require.Equal(t, 1, len(output))
 		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
-		expectedName := fmt.Sprintf("asPercent(<values>, "+common.FloatingPointFormat+")",
+		expectedName := fmt.Sprintf("asPercent(<values>,"+common.FloatingPointFormat+")",
 			test.total)
 		assert.Equal(t, expectedName, output[0].Name())
 
@@ -1990,7 +1990,7 @@ func TestAsPercentWithNilTotal(t *testing.T) {
 		output := r.Values
 		require.Equal(t, 1, len(output))
 		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
-		expectedName := fmt.Sprintf("asPercent(<values>, sumSeries(<values>))")
+		expectedName := fmt.Sprintf("asPercent(<values>,sumSeries(<values>))")
 		assert.Equal(t, expectedName, output[0].Name())
 
 		for step := 0; step < output[0].Len(); step++ {
@@ -2027,12 +2027,12 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 		values []float64
 	}{
 		{
-			"asPercent(foo, foo)",
+			"asPercent(foo,sumSeries(foo,bar))",
 			200,
 			[]float64{65.0, 100.0, 50.0},
 		},
 		{
-			"asPercent(bar, bar)",
+			"asPercent(bar,sumSeries(foo,bar))",
 			200,
 			[]float64{35.0, nan, 50.0},
 		},
@@ -2061,7 +2061,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	}
 
 	for _, totalArg := range []interface{}{
-		ts.SeriesList{Values: []*ts.Series(nil)},
+		nil,
 		singlePathSpec{},
 	} {
 		r, err := asPercent(ctx, singlePathSpec{
@@ -2080,7 +2080,6 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func testLogarithm(t *testing.T, base int, indices []int) {
@@ -2701,8 +2700,8 @@ func TestSquareRoot(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
-		common.TestSeries{Name: "squareRoot(bar)", Data: []float64{2.0}},
+		{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
+		{Name: "squareRoot(bar)", Data: []float64{2.0}},
 	}
 	results, err := squareRoot(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2744,7 +2743,7 @@ func TestStdev(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
+		{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
 	}
 	results, err := stdev(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2828,11 +2827,11 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 
 func TestNPercentile(t *testing.T) {
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "nPercentile(bar, 40.123)",
 			Data: []float64{3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
 		},
-		common.TestSeries{
+		{
 			Name: "nPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2843,15 +2842,15 @@ func TestNPercentile(t *testing.T) {
 func TestRemoveAbovePercentile(t *testing.T) {
 	nan := math.NaN()
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(bar, 40.123)",
 			Data: []float64{3.0, 2.0, nan, nan, 1.0, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2864,15 +2863,15 @@ func TestRemoveBelowPercentile(t *testing.T) {
 	nan := math.NaN()
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(bar, 40.123)",
 			Data: []float64{3.0, nan, 4.0, nan, nan, 6.0, nan, 5.0},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2975,7 +2974,7 @@ func TestChanged(t *testing.T) {
 	)
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "changed(foo)",
 			Data: []float64{0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0},
 		},
