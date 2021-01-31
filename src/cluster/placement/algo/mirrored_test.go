@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMirrorWorkflow(t *testing.T) {
@@ -562,8 +563,8 @@ func TestMirrorMultipleNonOverlappingReplaces(t *testing.T) {
 	// First replace: i1 replaced by i5.
 	i5 := newTestInstance("i5").SetShardSetID(1)
 	p1, err := a.ReplaceInstances(p, []string{"i1"}, []placement.Instance{i5})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
 	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
@@ -571,8 +572,8 @@ func TestMirrorMultipleNonOverlappingReplaces(t *testing.T) {
 	// Second replace that does not overlap with first replace: i3 replaced by i6.
 	i6 := newTestInstance("i6").SetShardSetID(2)
 	p2, err := a.ReplaceInstances(p1, []string{"i3"}, []placement.Instance{i6})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p2))
 
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 	assert.True(t, allLeaving(p2, []placement.Instance{i3, i1}, nowNanos))
@@ -600,12 +601,12 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	a = NewAlgorithm(placement.NewOptions().
 		SetIsMirrored(true).
@@ -617,8 +618,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	// First replace: i1 replaced by i5.
 	i5 := newTestInstance("i5").SetShardSetID(1)
 	p1, err := a.ReplaceInstances(p, []string{"i1"}, []placement.Instance{i5})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
 	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
@@ -627,7 +628,7 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	// because i5 has initializing shards that are not cutover.
 	i6 := newTestInstance("i6").SetShardSetID(1)
 	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i6})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Not cutover")
 	assert.Nil(t, p2)
 
@@ -638,7 +639,7 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	// Third replace: i1 replaced by i6, is overlapping with first replace
 	// because i1 has a pending replacement peer i5 with initializing shards that are not cutover.
 	p2, err = a.ReplaceInstances(p1, []string{"i1"}, []placement.Instance{i6})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Not cutover")
 	assert.Nil(t, p2)
 
@@ -649,8 +650,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	// Fourth replace: i3 replaced by i6, is not overlapping with first replace and must go through.
 	i6.SetShardSetID(i3.ShardSetID())
 	p2, err = a.ReplaceInstances(p1, []string{"i3"}, []placement.Instance{i6})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 	assert.True(t, allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
 	assert.True(t, allInitializing(p2, []string{"i5", "i6"}, nowNanos))
@@ -677,8 +678,8 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p, _, err = a.MarkAllShardsAvailable(p)
@@ -689,8 +690,8 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 		SetShardSetID(i1.ShardSetID()).
 		SetWeight(i1.Weight())
 	p1, err := a.ReplaceInstances(p, []string{"i1"}, []placement.Instance{i1a})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
 	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
 	assert.True(t, allInitializing(p1, []string{"i1a"}, nowNanos))
@@ -700,8 +701,8 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 		SetShardSetID(i3.ShardSetID()).
 		SetWeight(i3.Weight())
 	p2, err := a.ReplaceInstances(p1, []string{"i3"}, []placement.Instance{i3a})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p2))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
 	assert.True(t, allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
 	assert.True(t, allInitializing(p2, []string{"i1a", "i3a"}, nowNanos))
@@ -719,7 +720,7 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 
 	// Revert of matching replace pairs must succeed.
 	p3, err := a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i3})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, ok = p3.Instance("i3a")
 	assert.False(t, ok)
 	i3, ok = p3.Instance("i3")
@@ -727,7 +728,7 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 	assert.Equal(t, i3.Shards().NumShards(), i3.Shards().NumShardsForState(shard.Available))
 
 	p4, err := a.ReplaceInstances(p3, []string{"i1a"}, []placement.Instance{i1})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, ok = p4.Instance("i1a")
 	assert.False(t, ok)
 	i1, ok = p4.Instance("i1")
@@ -756,12 +757,12 @@ func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p, _, err = a.MarkAllShardsAvailable(p)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	a = NewAlgorithm(placement.NewOptions().
 		SetIsMirrored(true).
@@ -774,8 +775,8 @@ func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
 	i5 := newTestInstance("i5").SetShardSetID(3)
 	i6 := newTestInstance("i6").SetShardSetID(3)
 	p1, err := a.AddInstances(p, []placement.Instance{i5, i6})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 
 	i1, ok := p1.Instance("i1")
 	assert.True(t, ok)
@@ -796,7 +797,7 @@ func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
 		SetShardSetID(i5.ShardSetID()).
 		SetWeight(i5.Weight())
 	_, err = a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i5a})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Not cutover")
 
 	// Replace of instance that has some shards available
@@ -810,7 +811,7 @@ func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
 		SetShardSetID(i1.ShardSetID()).
 		SetWeight(i1.Weight())
 	_, err = a.ReplaceInstances(p1, []string{"i1"}, []placement.Instance{i1a})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "replaced instances must have all their shards available")
 }
 
@@ -835,8 +836,8 @@ func TestMirrorReplaceDuringPendingRemoveMustFail(t *testing.T) {
 		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
 		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
 	p, err := a.InitialPlacement(instances, ids, 2)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 
 	p, _, err = a.MarkAllShardsAvailable(p)
@@ -850,8 +851,8 @@ func TestMirrorReplaceDuringPendingRemoveMustFail(t *testing.T) {
 		SetIsShardCutoverFn(func(shard.Shard) error { return errors.New("Not cutover") }))
 
 	p1, err := a.RemoveInstances(p, []string{"i3", "i4"})
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p1))
 	i3, ok := p1.Instance("i3")
 	assert.True(t, ok)
 	i4, ok = p1.Instance("i4")
@@ -867,7 +868,7 @@ func TestMirrorReplaceDuringPendingRemoveMustFail(t *testing.T) {
 		SetShardSetID(i3.ShardSetID()).
 		SetWeight(i3.Weight())
 	_, err = a.ReplaceInstances(p1, []string{"i3"}, []placement.Instance{i3a})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "replaced instances must have all their shards available")
 
 	// Replace of instance that has some shards available
@@ -881,7 +882,7 @@ func TestMirrorReplaceDuringPendingRemoveMustFail(t *testing.T) {
 		SetShardSetID(i1.ShardSetID()).
 		SetWeight(i1.Weight())
 	_, err = a.ReplaceInstances(p1, []string{"i1"}, []placement.Instance{i1a})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Not cutover")
 }
 
