@@ -1470,18 +1470,18 @@ func TestFallbackSeries(t *testing.T) {
 	}{
 		{
 			nil,
-			[]common.TestSeries{{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 1.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 1.0}}},
 		},
 		{
 			[]common.TestSeries{},
-			[]common.TestSeries{{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 1.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 1.0}}},
 		},
 		{
-			[]common.TestSeries{{"output", []float64{0, 2.0}}},
-			[]common.TestSeries{{"fallback", []float64{0, 1.0}}},
-			[]common.TestSeries{{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 2.0}}},
+			[]common.TestSeries{{Name: "fallback", Data: []float64{0, 1.0}}},
+			[]common.TestSeries{{Name: "output", Data: []float64{0, 2.0}}},
 		},
 	}
 
@@ -1990,7 +1990,7 @@ func TestAsPercentWithNilTotal(t *testing.T) {
 		output := r.Values
 		require.Equal(t, 1, len(output))
 		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
-		expectedName := fmt.Sprintf("asPercent(<values>,sumSeries(<values>))")
+		expectedName := "asPercent(<values>,sumSeries(<values>))"
 		assert.Equal(t, expectedName, output[0].Name())
 
 		for step := 0; step < output[0].Len(); step++ {
@@ -2530,8 +2530,8 @@ func TestInterpolate(t *testing.T) {
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		input := []common.TestSeries{{"foo", test.values}}
-		expected := []common.TestSeries{{"interpolate(foo)", test.output}}
+		input := []common.TestSeries{{Name: "foo", Data: test.values}}
+		expected := []common.TestSeries{{Name: "interpolate(foo)", Data: test.output}}
 		timeSeries := generateSeriesList(ctx, start, input, step)
 		output, err := interpolate(ctx, singlePathSpec{
 			Values: timeSeries,
@@ -2593,8 +2593,8 @@ func TestDerivative(t *testing.T) {
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		input := []common.TestSeries{{"foo", test.values}}
-		expected := []common.TestSeries{{"derivative(foo)", test.output}}
+		input := []common.TestSeries{{Name: "foo", Data: test.values}}
+		expected := []common.TestSeries{{Name: "derivative(foo)", Data: test.output}}
 		timeSeries := generateSeriesList(ctx, start, input, step)
 		output, err := derivative(ctx, singlePathSpec{
 			Values: timeSeries,
@@ -2629,8 +2629,8 @@ func TestNonNegativeDerivative(t *testing.T) {
 	start := time.Now()
 	step := 100
 	for _, test := range tests {
-		input := []common.TestSeries{{"foo", test.values}}
-		expected := []common.TestSeries{{"nonNegativeDerivative(foo)", test.output}}
+		input := []common.TestSeries{{Name: "foo", Data: test.values}}
+		expected := []common.TestSeries{{Name: "nonNegativeDerivative(foo)", Data: test.output}}
 		timeSeries := generateSeriesList(ctx, start, input, step)
 		output, err := nonNegativeDerivative(ctx, singlePathSpec{
 			Values: timeSeries,
