@@ -1066,6 +1066,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 			}
 			keys = append(keys, k)
 		}
+		// Sort keys for determinism and test result.
+		sort.Strings(keys)
 
 		results := make([]*ts.Series, 0, len(metaSeries))
 		for _, k := range keys {

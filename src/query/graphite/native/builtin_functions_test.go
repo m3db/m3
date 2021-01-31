@@ -2082,6 +2082,339 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 	}
 }
 
+func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	nan := math.NaN()
+	inputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"foo.value",
+			100,
+			[]float64{12.0, 14.0, 16.0, nan, 20.0, 30.0},
+		},
+		{
+			"bar.value",
+			200,
+			[]float64{7.0, nan, 25.0},
+		},
+	}
+	totals := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"foo.total",
+			100,
+			[]float64{24.0, 28.0, 48.0, nan, 40.0, 60.0},
+		},
+		{
+			"bar.total",
+			200,
+			[]float64{14.0, nan, 75.0},
+		},
+	}
+	outputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"asPercent(bar.value,bar.total)",
+			200,
+			[]float64{50.0, nan, 33.33333333333333},
+		},
+		{
+			"asPercent(foo.value,foo.total)",
+			100,
+			[]float64{50.0, 50.0, 33.33333333333333, nan, 50.0, 50.0},
+		},
+	}
+
+	var inputSeries []*ts.Series
+	for _, input := range inputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		inputSeries = append(inputSeries, timeSeries)
+	}
+
+	var totalSeries []*ts.Series
+	for _, input := range totals {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		totalSeries = append(totalSeries, timeSeries)
+	}
+
+	var expected []*ts.Series
+	for _, output := range outputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			output.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, output.step, output.values),
+		)
+		expected = append(expected, timeSeries)
+	}
+
+	r, err := asPercent(ctx, singlePathSpec{
+		Values: inputSeries,
+	}, singlePathSpec{
+		Values: totalSeries,
+	})
+	require.NoError(t, err)
+
+	results := r.Values
+	require.Equal(t, len(expected), len(results))
+	for i := 0; i < len(results); i++ {
+		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
+		require.Equal(t, expected[i].Len(), results[i].Len())
+		require.Equal(t, expected[i].Name(), results[i].Name())
+		for step := 0; step < results[i].Len(); step++ {
+			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
+		}
+	}
+}
+
+func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	inputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"cpu.foo.core1",
+			200,
+			[]float64{12.0, 5.0, 48.0},
+		},
+		{
+			"cpu.foo.core2",
+			200,
+			[]float64{12.0, 15.0, 16.0},
+		},
+		{
+			"cpu.bar.core1",
+			200,
+			[]float64{12.0, 14.0, 16.0},
+		},
+	}
+	outputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"asPercent(cpu.bar.core1,cpu.bar.core1)",
+			200,
+			[]float64{100.0, 100.0, 100.0},
+		},
+		{
+			"asPercent(cpu.foo.core1,sumSeries(cpu.foo.core1,cpu.foo.core2))",
+			200,
+			[]float64{50.0, 25.0, 75.0},
+		},
+		{
+			"asPercent(cpu.foo.core2,sumSeries(cpu.foo.core1,cpu.foo.core2))",
+			200,
+			[]float64{50.0, 75.0, 25.0},
+		},
+	}
+
+	var inputSeries []*ts.Series
+	for _, input := range inputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		inputSeries = append(inputSeries, timeSeries)
+	}
+
+	var expected []*ts.Series
+	for _, output := range outputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			output.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, output.step, output.values),
+		)
+		expected = append(expected, timeSeries)
+	}
+
+	r, err := asPercent(ctx, singlePathSpec{
+		Values: inputSeries,
+	}, nil, 1)
+	require.NoError(t, err)
+
+	results := r.Values
+	require.Equal(t, len(expected), len(results))
+	for i := 0; i < len(results); i++ {
+		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
+		require.Equal(t, expected[i].Len(), results[i].Len())
+		require.Equal(t, expected[i].Name(), results[i].Name())
+		for step := 0; step < results[i].Len(); step++ {
+			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
+		}
+	}
+}
+
+func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	nan := math.NaN()
+	inputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"cpu.foo.core1",
+			200,
+			[]float64{12.0, 5.0, 48.0},
+		},
+		{
+			"cpu.foo.core2",
+			200,
+			[]float64{12.0, 15.0, 16.0},
+		},
+		{
+			"cpu.bar.core1",
+			200,
+			[]float64{12.0, 14.0, 16.0},
+		},
+		{
+			"cpu.qux.core1",
+			200,
+			[]float64{12.0, 14.0, 16.0},
+		},
+	}
+	totals := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"cpu_cluster.foo.zone-a",
+			200,
+			[]float64{24.0, 40.0, 256.0},
+		},
+		{
+			"cpu_cluster.foo.zone-b",
+			200,
+			[]float64{24.0, 40.0, 256.0},
+		},
+		{
+			"cpu_cluster.bar",
+			200,
+			[]float64{48.0, 14.0, 16.0},
+		},
+		{
+			"cpu_cluster.baz",
+			200,
+			[]float64{12.0, 14.0, 16.0},
+		},
+	}
+	outputs := []struct {
+		name   string
+		step   int
+		values []float64
+	}{
+		{
+			"asPercent(cpu.bar.core1,cpu_cluster.bar)",
+			200,
+			[]float64{25.0, 100.0, 100.0},
+		},
+		{
+			"asPercent(MISSING,cpu_cluster.baz)",
+			200,
+			[]float64{nan, nan, nan},
+		},
+		{
+			"asPercent(cpu.foo.core1,sumSeries(cpu_cluster.foo.zone-a,cpu_cluster.foo.zone-b))",
+			200,
+			[]float64{25.0, 6.25, 9.375},
+		},
+		{
+			"asPercent(cpu.foo.core2,sumSeries(cpu_cluster.foo.zone-a,cpu_cluster.foo.zone-b))",
+			200,
+			[]float64{25.0, 18.75, 3.125},
+		},
+		{
+			"asPercent(cpu.qux.core1,MISSING)",
+			200,
+			[]float64{nan, nan, nan},
+		},
+	}
+
+	var inputSeries []*ts.Series
+	for _, input := range inputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		inputSeries = append(inputSeries, timeSeries)
+	}
+
+	var totalSeries []*ts.Series
+	for _, input := range totals {
+		timeSeries := ts.NewSeries(
+			ctx,
+			input.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, input.step, input.values),
+		)
+		totalSeries = append(totalSeries, timeSeries)
+	}
+
+	var expected []*ts.Series
+	for _, output := range outputs {
+		timeSeries := ts.NewSeries(
+			ctx,
+			output.name,
+			ctx.StartTime,
+			common.NewTestSeriesValues(ctx, output.step, output.values),
+		)
+		expected = append(expected, timeSeries)
+	}
+
+	r, err := asPercent(ctx, singlePathSpec{
+		Values: inputSeries,
+	}, singlePathSpec{
+		Values: totalSeries,
+	}, 1)
+	require.NoError(t, err)
+
+	results := r.Values
+	require.Equal(t, len(expected), len(results))
+	for i := 0; i < len(results); i++ {
+		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
+		require.Equal(t, expected[i].Len(), results[i].Len())
+		require.Equal(t, expected[i].Name(), results[i].Name())
+		for step := 0; step < results[i].Len(); step++ {
+			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
+		}
+	}
+}
+
 func testLogarithm(t *testing.T, base int, indices []int) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
