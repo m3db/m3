@@ -1185,7 +1185,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 	results := make([]*ts.Series, 0, len(input.Values))
 	for idx, series := range input.Values {
 		totalSeries := totalSeriesList.Values[0]
-		if totalSeriesList.Len() != 1 {
+		if totalSeriesList.Len() == len(input.Values) {
 			// Divide each by their matching total if matching
 			// number of total.
 			totalSeries = totalSeriesList.Values[idx]
