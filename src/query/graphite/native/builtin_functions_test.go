@@ -2068,16 +2068,18 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 			Values: inputSeries,
 		}, totalArg)
 		require.NoError(t, err)
+		requireEqual(t, expected, r.Values)
+	}
+}
 
-		results := r.Values
-		require.Equal(t, len(expected), len(results))
-		for i := 0; i < len(results); i++ {
-			require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
-			require.Equal(t, expected[i].Len(), results[i].Len())
-			require.Equal(t, expected[i].Name(), results[i].Name())
-			for step := 0; step < results[i].Len(); step++ {
-				xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
-			}
+func requireEqual(t *testing.T, expected, results []*ts.Series) {
+	require.Equal(t, len(expected), len(results))
+	for i := 0; i < len(results); i++ {
+		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
+		require.Equal(t, expected[i].Len(), results[i].Len())
+		require.Equal(t, expected[i].Name(), results[i].Name())
+		for step := 0; step < results[i].Len(); step++ {
+			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
 		}
 	}
 }
@@ -2176,18 +2178,6 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 	requireEqual(t, expected, r.Values)
-}
-
-func requireEqual(t *testing.T, expected, results []*ts.Series) {
-	require.Equal(t, len(expected), len(results))
-	for i := 0; i < len(results); i++ {
-		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
-		require.Equal(t, expected[i].Len(), results[i].Len())
-		require.Equal(t, expected[i].Name(), results[i].Name())
-		for step := 0; step < results[i].Len(); step++ {
-			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
-		}
-	}
 }
 
 func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
