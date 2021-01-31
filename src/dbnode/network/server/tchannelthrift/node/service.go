@@ -734,12 +734,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	sp.Finish()
 
-	if err != nil {
-		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-	} else {
-		s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
-	}
-
+	s.metrics.fetchTagged.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	return result, err
 }
 
@@ -754,12 +749,8 @@ func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) 
 	}
 
 	for iter.Next(ctx) {
-		if iter.Err() != nil {
-			return nil, iter.Err()
-		}
 		cur := iter.Current()
-		tagBytes := make([]byte, 0)
-		tagBytes, err = cur.WriteTags(tagBytes)
+		tagBytes, err := cur.WriteTags(nil)
 		if err != nil {
 			return nil, err
 		}
@@ -771,11 +762,14 @@ func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) 
 		response.Elements = append(response.Elements, idResult)
 		segIter := cur.SegmentsIter()
 		for segIter.Next(ctx) {
-			if segIter.Err() != nil {
-				return nil, segIter.Err()
-			}
 			idResult.Segments = append(idResult.Segments, segIter.Current())
 		}
+		if segIter.Err() != nil {
+			return nil, segIter.Err()
+		}
+	}
+	if iter.Err() != nil {
+		return nil, iter.Err()
 	}
 
 	return response, nil
@@ -817,8 +811,10 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 
 // BaseIter has common iterator methods.
 type BaseIter interface {
-	// Next advances to the next element. Returns false if all elements have already been processed. If an error occurs
-	// it can be retrieved with Err().
+	// Next advances to the next element, returning if one exists.
+	//
+	// Iterators that embed this interface should expose a Current() function to return the element retrieved by Next.
+	// If an error occurs this returns false and it can be retrieved with Err.
 	Next(ctx context.Context) bool
 
 	// Err returns a non-nil error if an error occurred when calling Next().
@@ -839,7 +835,7 @@ type FetchTaggedResultsIter interface {
 	// Namespace is the namespace.
 	Namespace() ident.ID
 
-	// Current returns the current IDResult. The result is only valid if Err() is nil.
+	// Current returns the current IDResult fetched with Next. The result is only valid if Err is nil.
 	Current() IDResult
 }
 
@@ -851,7 +847,7 @@ type SegmentsIter interface {
 }
 
 type fetchTaggedResultsIter struct {
-	queryResults   map[index.ResultsMapHash]index.ResultsMapEntry
+	queryResults   *index.ResultsMap
 	idResults      []IDResult
 	startInclusive time.Time
 	endExclusive   time.Time
@@ -880,7 +876,7 @@ type fetchTaggedResultsIterOpts struct {
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
 	iter := &fetchTaggedResultsIter{
-		queryResults:   opts.queryResult.Results.Map().Iter(),
+		queryResults:   opts.queryResult.Results.Map(),
 		idResults:      make([]IDResult, 0, opts.queryResult.Results.Map().Len()),
 		exhaustive:     opts.queryResult.Exhaustive,
 		db:             opts.db,
@@ -897,7 +893,7 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 }
 
 func (i *fetchTaggedResultsIter) NumIDs() int {
-	return len(i.queryResults)
+	return i.queryResults.Len()
 }
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
@@ -909,12 +905,12 @@ func (i *fetchTaggedResultsIter) Namespace() ident.ID {
 }
 
 func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
-	if i.idx >= len(i.queryResults) {
+	if i.idx >= i.queryResults.Len() {
 		return false
 	}
 	// TODO(rhall): don't request all series blocks at once.
 	if i.idx == 0 {
-		for _, entry := range i.queryResults { // nolint: gocritic
+		for _, entry := range i.queryResults.Iter() { // nolint: gocritic
 			result := IDResult{
 				queryResult: entry,
 				docReader:   i.docReader,
@@ -928,7 +924,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 				id := ident.BytesID(result.queryResult.Key())
 				result.blockReaders, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.startInclusive, i.endExclusive)
 				if i.err != nil {
-					return true
+					return false
 				}
 			}
 			i.idResults = append(i.idResults, result)
@@ -961,9 +957,9 @@ func (i *IDResult) ID() []byte {
 	return i.queryResult.Key()
 }
 
-// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needed
+// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needs
 // to grow, just like append().
-func (i *IDResult) WriteTags(result []byte) ([]byte, error) {
+func (i *IDResult) WriteTags(dst []byte) ([]byte, error) {
 	metadata, err := docs.MetadataFromDocument(i.queryResult.Value(), i.docReader)
 	if err != nil {
 		return nil, err
@@ -973,9 +969,9 @@ func (i *IDResult) WriteTags(result []byte) ([]byte, error) {
 	if err != nil { // This is an invariant, should never happen
 		return nil, tterrors.NewInternalError(err)
 	}
-	result = append(result, encodedTags.Bytes()...)
+	dst = append(dst[:0], encodedTags.Bytes()...)
 	i.tagEncoder.Reset()
-	return result, nil
+	return dst, nil
 }
 
 // SegmentsIter returns an iterator for the Segments.
@@ -999,8 +995,9 @@ func (i *segmentsIter) Next(_ context.Context) bool {
 		i.idx++
 		if rpcErr != nil {
 			i.err = rpcErr
+			return false
 		}
-		if i.err != nil || i.cur != nil {
+		if i.cur != nil {
 			return true
 		}
 	}
