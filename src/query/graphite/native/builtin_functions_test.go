@@ -2084,7 +2084,7 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 
 func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	inputs := []struct {
@@ -2136,7 +2136,7 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 		},
 	}
 
-	var inputSeries []*ts.Series
+	var inputSeries []*ts.Series // nolint: prealloc
 	for _, input := range inputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2147,7 +2147,7 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	var totalSeries []*ts.Series
+	var totalSeries []*ts.Series // nolint: prealloc
 	for _, input := range totals {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2158,7 +2158,7 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 		totalSeries = append(totalSeries, timeSeries)
 	}
 
-	var expected []*ts.Series
+	var expected []*ts.Series // nolint: prealloc
 	for _, output := range outputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2175,8 +2175,10 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 		Values: totalSeries,
 	})
 	require.NoError(t, err)
+	requireEqual(t, expected, r.Values)
+}
 
-	results := r.Values
+func requireEqual(t *testing.T, expected, results []*ts.Series) {
 	require.Equal(t, len(expected), len(results))
 	for i := 0; i < len(results); i++ {
 		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
@@ -2190,7 +2192,7 @@ func TestAsPercentWithSeriesListAndTotalSeriesList(t *testing.T) {
 
 func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	inputs := []struct {
 		name   string
@@ -2235,7 +2237,7 @@ func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
 		},
 	}
 
-	var inputSeries []*ts.Series
+	var inputSeries []*ts.Series // nolint: prealloc
 	for _, input := range inputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2246,7 +2248,7 @@ func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	var expected []*ts.Series
+	var expected []*ts.Series // nolint: prealloc
 	for _, output := range outputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2261,22 +2263,12 @@ func TestAsPercentWithNodesAndTotalNil(t *testing.T) {
 		Values: inputSeries,
 	}, nil, 1)
 	require.NoError(t, err)
-
-	results := r.Values
-	require.Equal(t, len(expected), len(results))
-	for i := 0; i < len(results); i++ {
-		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
-		require.Equal(t, expected[i].Len(), results[i].Len())
-		require.Equal(t, expected[i].Name(), results[i].Name())
-		for step := 0; step < results[i].Len(); step++ {
-			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
-		}
-	}
+	requireEqual(t, expected, r.Values)
 }
 
 func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 	ctx := common.NewTestContext()
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	nan := math.NaN()
 	inputs := []struct {
@@ -2363,7 +2355,7 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 		},
 	}
 
-	var inputSeries []*ts.Series
+	var inputSeries []*ts.Series // nolint: prealloc
 	for _, input := range inputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2374,7 +2366,7 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 		inputSeries = append(inputSeries, timeSeries)
 	}
 
-	var totalSeries []*ts.Series
+	var totalSeries []*ts.Series // nolint: prealloc
 	for _, input := range totals {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2385,7 +2377,7 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 		totalSeries = append(totalSeries, timeSeries)
 	}
 
-	var expected []*ts.Series
+	var expected []*ts.Series // nolint: prealloc
 	for _, output := range outputs {
 		timeSeries := ts.NewSeries(
 			ctx,
@@ -2402,17 +2394,7 @@ func TestAsPercentWithNodesAndTotalSeriesList(t *testing.T) {
 		Values: totalSeries,
 	}, 1)
 	require.NoError(t, err)
-
-	results := r.Values
-	require.Equal(t, len(expected), len(results))
-	for i := 0; i < len(results); i++ {
-		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
-		require.Equal(t, expected[i].Len(), results[i].Len())
-		require.Equal(t, expected[i].Name(), results[i].Name())
-		for step := 0; step < results[i].Len(); step++ {
-			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
-		}
-	}
+	requireEqual(t, expected, r.Values)
 }
 
 func testLogarithm(t *testing.T, base int, indices []int) {
