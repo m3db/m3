@@ -150,7 +150,6 @@ type block struct {
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	docsLimit                       limits.LookbackLimit
-	aggregatedAddedCounter          tally.Counter
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -804,11 +803,11 @@ func (b *block) appendFieldAndTermToBatch(
 	// idents is transferred to the results map, which either hangs on to them (if they are new),
 	// or finalizes them if they are duplicates.
 	var (
-		entry                   AggregateResultsEntry
-		lastField               []byte
-		lastFieldIsValid        bool
-		reuseLastEntry          bool
-		fieldsAdded, termsAdded bool
+		entry                       AggregateResultsEntry
+		lastField                   []byte
+		lastFieldIsValid            bool
+		reuseLastEntry              bool
+		newFieldAdded, newTermAdded bool
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -831,7 +830,7 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		fieldsAdded = true
+		newFieldAdded = true
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -840,7 +839,7 @@ func (b *block) appendFieldAndTermToBatch(
 	}
 
 	if includeTerms {
-		termsAdded = true
+		newTermAdded = true
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
@@ -854,7 +853,7 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 
-	return batch, fieldsAdded, termsAdded
+	return batch, newFieldAdded, newTermAdded
 }
 
 func (b *block) pooledID(id []byte) ident.ID {
