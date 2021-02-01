@@ -75,7 +75,8 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 
 	scope := iops.MetricsScope()
 	log := iops.Logger()
-	log.Info(fmt.Sprintf("found %d commit log files to read", len(filteredFiles)),
+	log.Info("found commit log files to read",
+		zap.Int("fileCount", len(filteredFiles)),
 		zap.Strings("commitlog-files", commitLogFilesForLogging(filteredFiles)))
 	return &iterator{
 		iterOpts: iterOpts,
@@ -176,7 +177,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	i.log.Info("opened commit log file", zap.String("file", file.FilePath))
+	i.log.Info("reading commit log file", zap.String("file", file.FilePath))
 	i.reader = reader
 	return true
 }
@@ -224,6 +225,5 @@ func (i *iterator) closeAndResetReader() error {
 	}
 	reader := i.reader
 	i.reader = nil
-	i.log.Info("closing commit log file")
 	return reader.Close()
 }
