@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -43,11 +44,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -80,13 +83,17 @@ type fileSystemSource struct {
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
+	deleteFilesFn     fs.DeleteFilesFn
 	metrics           fileSystemSourceMetrics
+
+	filesToDelete []string
 }
 
 type fileSystemSourceMetrics struct {
 	persistedIndexBlocksRead           tally.Counter
 	persistedIndexBlocksWrite          tally.Counter
 	persistedIndexBlocksOutOfRetention tally.Counter
+	indexBlocksFailedValidation        tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -100,16 +107,18 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	s := &fileSystemSource{
-		opts:        opts,
-		fsopts:      opts.FilesystemOptions(),
-		log:         iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
-		nowFn:       opts.ResultOptions().ClockOptions().NowFn(),
-		idPool:      opts.IdentifierPool(),
-		newReaderFn: fs.NewReader,
+		opts:          opts,
+		fsopts:        opts.FilesystemOptions(),
+		log:           iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn:         opts.ResultOptions().ClockOptions().NowFn(),
+		idPool:        opts.IdentifierPool(),
+		newReaderFn:   fs.NewReader,
+		deleteFilesFn: fs.DeleteFiles,
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:           scope.Counter("persist-index-blocks-read"),
 			persistedIndexBlocksWrite:          scope.Counter("persist-index-blocks-write"),
 			persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+			indexBlocksFailedValidation:        scope.Counter("index-blocks-failed-validation"),
 		},
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
@@ -585,18 +594,31 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
+			// Use debug level with full log fidelity.
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
+			// Use info log with more high level attributes.
+			// NB(bodu): In the case of missing index filesets, it is possible to
+			// bootstrap more index data than we need as re-building index segments
+			// for a block may include index data from other index volume types.
+			s.log.Info("rebuilding file set index segment",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Int("totalEntries", totalEntries),
+				zap.Time("blockStart", blockStart),
+				zap.Time("blockEnd", blockEnd))
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
 				builder.Builder(),
 				persistManager,
+				// NB(bodu): The index claims manager ensures that we properly
+				// advance the volume index past existing volume indices.
 				s.opts.IndexClaimsManager(),
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
 				blockStart,
 				blockEnd,
 			)
+
 			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
 				// Bail early if the index segment is already out of retention.
 				// This can happen when the edge of requested ranges at time of data bootstrap
@@ -604,7 +626,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
 				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
 				return
-			} else if err != nil {
+			}
+
+			if err == nil {
+				// Track success.
+				s.metrics.persistedIndexBlocksWrite.Inc(1)
+			} else {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -612,8 +639,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						zap.Stringer("requestedRanges", requestedRanges))
 				})
 			}
-			// Track success.
-			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
 			s.log.Info("building in-memory index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
@@ -748,21 +773,17 @@ func (s *fileSystemSource) read(
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		res               *runResult
+		res               = newRunResult()
 	)
 	if shardTimeRanges.IsEmpty() {
 		return newRunResult(), nil
 	}
 
-	setOrMergeResult := func(newResult *runResult) {
+	mergeResult := func(newResult *runResult) {
 		if newResult == nil {
 			return
 		}
-		if res == nil {
-			res = newResult
-		} else {
-			res = res.mergedResult(newResult)
-		}
+		res = res.mergedResult(newResult)
 	}
 
 	if run == bootstrapDataRunType {
@@ -786,7 +807,7 @@ func (s *fileSystemSource) read(
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
-			shardTimeRanges)
+			shardTimeRanges, cache)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
@@ -794,7 +815,7 @@ func (s *fileSystemSource) read(
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
-			setOrMergeResult(r.result)
+			mergeResult(r.result)
 		}
 		logSpan("bootstrap_from_index_persisted_blocks_done")
 	}
@@ -833,8 +854,6 @@ func (s *fileSystemSource) read(
 		Cache:            cache,
 	})
 
-	bootstrapFromReadersRunResult := newRunResult()
-
 	var buildWg sync.WaitGroup
 	for i := 0; i < indexSegmentConcurrency; i++ {
 		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
@@ -870,7 +889,7 @@ func (s *fileSystemSource) read(
 		buildWg.Add(1)
 		go func() {
 			s.bootstrapFromReaders(run, md,
-				accumulator, runOpts, bootstrapFromReadersRunResult,
+				accumulator, runOpts, res,
 				readerPool, readersCh, builder,
 				&bootstrapper.SharedPersistManager{Mgr: persistManager},
 				&bootstrapper.SharedCompactor{Compactor: compactor})
@@ -879,9 +898,6 @@ func (s *fileSystemSource) read(
 	}
 
 	buildWg.Wait()
-
-	// Merge any existing results if necessary.
-	setOrMergeResult(bootstrapFromReadersRunResult)
 
 	return res, nil
 }
@@ -926,18 +942,67 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 	result    *runResult
 }
 
-func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
+// Get instersecting shard time ranges of an index block and requested
+// shard time ranges.
+func (s *fileSystemSource) fulfillableShardTimeRanges(
+	info *indexpb.IndexVolumeInfo,
+	shardTimeRanges result.ShardTimeRanges,
+	blockStart time.Time,
+	blockSize time.Duration,
+) result.ShardTimeRanges {
+	indexBlockRange := xtime.Range{
+		Start: blockStart,
+		End:   blockStart.Add(blockSize),
+	}
+	willFulfill := result.NewShardTimeRanges()
+	for _, shard := range info.Shards {
+		tr, ok := shardTimeRanges.Get(shard)
+		if !ok {
+			// No ranges match for this shard.
+			continue
+		}
+		if _, ok := willFulfill.Get(shard); !ok {
+			willFulfill.Set(shard, xtime.NewRanges())
+		}
+
+		iter := tr.Iter()
+		for iter.Next() {
+			curr := iter.Value()
+			intersection, intersects := curr.Intersect(indexBlockRange)
+			if !intersects {
+				continue
+			}
+			willFulfill.GetOrAdd(shard).AddRange(intersection)
+		}
+	}
+	return willFulfill
+}
+
+type validatedIndexBlock struct {
+	volumeType idxpersist.IndexVolumeType
+	segments   []segment.Segment
+	fulfilled  result.ShardTimeRanges
+}
+
+type eachInfoFileFn func(
+	id fs.FileSetFileIdentifier,
+	info indexpb.IndexVolumeInfo,
+	filePaths []string,
+	fulfilled result.ShardTimeRanges,
+	blockStartNanos xtime.UnixNano,
+) error
+
+func (s *fileSystemSource) forEachInfoFile(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-) (bootstrapFromIndexPersistedBlocksResult, error) {
-	res := bootstrapFromIndexPersistedBlocksResult{
-		fulfilled: result.NewShardTimeRanges(),
-	}
-
+	cache bootstrap.Cache,
+	eachFn eachInfoFileFn,
+) error {
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	infoFiles := fs.ReadIndexInfoFiles(s.fsopts.FilePathPrefix(), ns.ID(),
-		s.fsopts.InfoReaderBufferSize())
-
+	infoFiles, err := cache.IndexInfoFilesForNamespace(ns)
+	if err != nil {
+		return err
+	}
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
 			s.log.Error("unable to read index info file",
@@ -949,39 +1014,56 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			continue
 		}
 
-		info := infoFile.Info
-		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
-		indexBlockRange := xtime.Range{
-			Start: indexBlockStart,
-			End:   indexBlockStart.Add(indexBlockSize),
-		}
-		willFulfill := result.NewShardTimeRanges()
-		for _, shard := range info.Shards {
-			tr, ok := shardTimeRanges.Get(shard)
-			if !ok {
-				// No ranges match for this shard.
-				continue
-			}
-			if _, ok := willFulfill.Get(shard); !ok {
-				willFulfill.Set(shard, xtime.NewRanges())
-			}
-
-			iter := tr.Iter()
-			for iter.Next() {
-				curr := iter.Value()
-				intersection, intersects := curr.Intersect(indexBlockRange)
-				if !intersects {
-					continue
-				}
-				willFulfill.GetOrAdd(shard).AddRange(intersection)
-			}
-		}
-
+		indexBlockStartUnixNanos := xtime.UnixNano(infoFile.Info.BlockStart)
+		indexBlockStart := indexBlockStartUnixNanos.ToTime()
+		willFulfill := s.fulfillableShardTimeRanges(
+			&infoFile.Info,
+			shardTimeRanges,
+			indexBlockStart,
+			indexBlockSize,
+		)
 		if willFulfill.IsEmpty() {
 			// No matching shard/time ranges with this block.
 			continue
 		}
 
+		if err := eachFn(
+			infoFile.ID,
+			infoFile.Info,
+			infoFile.AbsoluteFilePaths,
+			willFulfill,
+			indexBlockStartUnixNanos,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// First pass grabs both validated and corrupted index blocks. Needs a second pass to clean up.
+func (s *fileSystemSource) firstPassGetValidatedAndCorruptedIndexBlocks(
+	ns namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+) (
+	map[xtime.UnixNano]struct{},
+	map[xtime.UnixNano][]validatedIndexBlock,
+	error,
+) {
+	// Track corrupted block starts as we will attempt to later recover
+	// from corruption by building an index segment from TSDB data.
+	corruptedBlockStarts := make(map[xtime.UnixNano]struct{})
+	validatedIndexBlocks := make(map[xtime.UnixNano][]validatedIndexBlock)
+	if err := s.forEachInfoFile(ns, shardTimeRanges, cache, func(
+		id fs.FileSetFileIdentifier,
+		info indexpb.IndexVolumeInfo,
+		_ []string,
+		fulfilled result.ShardTimeRanges,
+		blockStartNanos xtime.UnixNano,
+	) error {
+		if _, ok := corruptedBlockStarts[blockStartNanos]; ok {
+			return nil
+		}
 		fsOpts := s.fsopts
 		verify := s.opts.IndexSegmentsVerify()
 		if verify {
@@ -994,7 +1076,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 
 		readResult, err := fs.ReadIndexSegments(fs.ReadIndexSegmentsOptions{
 			ReaderOptions: fs.IndexReaderOpenOptions{
-				Identifier:  infoFile.ID,
+				Identifier:  id,
 				FileSetType: persist.FileSetFlushType,
 			},
 			FilesystemOptions: fsOpts,
@@ -1003,36 +1085,138 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			s.log.Error("unable to read segments from index fileset",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Error(err),
-				zap.Time("blockStart", indexBlockStart),
-				zap.Int("volumeIndex", infoFile.ID.VolumeIndex),
+				zap.Time("blockStart", blockStartNanos.ToTime()),
+				zap.Int("volumeIndex", id.VolumeIndex),
 			)
+			if errors.Is(err, fs.ErrIndexReaderValidationFailed) {
+				// Emit a metric for failed validations.
+				s.metrics.indexBlocksFailedValidation.Inc(1)
+				corruptedBlockStarts[blockStartNanos] = struct{}{}
+				return nil
+			}
+			return err
+		}
+
+		validatedIndexBlocks[blockStartNanos] =
+			append(validatedIndexBlocks[blockStartNanos], validatedIndexBlock{
+				volumeType: volumeTypeFromInfo(&info),
+				segments:   readResult.Segments,
+				fulfilled:  fulfilled,
+			})
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+	return corruptedBlockStarts, validatedIndexBlocks, nil
+}
+
+func (s *fileSystemSource) validateAndDeleteCorruptedIndexBlocks(
+	ns namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+) (map[xtime.UnixNano][]validatedIndexBlock, error) {
+	corruptedBlockStarts, validatedIndexBlocks, err :=
+		s.firstPassGetValidatedAndCorruptedIndexBlocks(ns, shardTimeRanges, cache)
+	if err != nil {
+		return nil, err
+	}
+
+	s.filesToDelete = s.filesToDelete[:0]
+	if err := s.forEachInfoFile(ns, shardTimeRanges, cache, func(
+		_ fs.FileSetFileIdentifier,
+		info indexpb.IndexVolumeInfo,
+		filePaths []string,
+		_ result.ShardTimeRanges,
+		blockStartNanos xtime.UnixNano,
+	) error {
+		if _, ok := corruptedBlockStarts[blockStartNanos]; !ok {
+			return nil
+		}
+
+		s.filesToDelete = append(s.filesToDelete, filePaths...)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Delete all index segments in corrupted blocks.
+	iopts := s.opts.ResultOptions().InstrumentOptions()
+	if err := s.deleteFilesFn(s.filesToDelete); err != nil {
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.Error("failed to delete index filesets at corrupted blocks",
+				zap.Error(err),
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("requestedRanges", shardTimeRanges))
+		})
+	}
+
+	multiErr := xerrors.NewMultiError()
+	for blockStart, blocks := range validatedIndexBlocks {
+		if _, ok := corruptedBlockStarts[blockStart]; !ok {
 			continue
 		}
+		// Remove corrupted blocks from validated blocks
+		for i := range blocks {
+			b := blocks[i]
+			for j := range b.segments {
+				multiErr = multiErr.Add(b.segments[j].Close())
+				b.segments[j] = nil
+			}
+		}
+		validatedIndexBlocks[blockStart] = nil
+	}
+	return validatedIndexBlocks, multiErr.FinalError()
+}
 
-		// Track success.
-		s.metrics.persistedIndexBlocksRead.Inc(1)
+func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
+	ns namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
+	cache bootstrap.Cache,
+) (bootstrapFromIndexPersistedBlocksResult, error) {
+	res := bootstrapFromIndexPersistedBlocksResult{
+		fulfilled: result.NewShardTimeRanges(),
+	}
 
-		// Record result.
-		if res.result == nil {
-			res.result = newRunResult()
+	validatedIndexBlocks, err := s.validateAndDeleteCorruptedIndexBlocks(
+		ns,
+		shardTimeRanges,
+		cache,
+	)
+	if err != nil {
+		return res, err
+	}
+
+	for indexBlockStartUnixNanos, blocks := range validatedIndexBlocks {
+		for i := range blocks {
+			b := blocks[i]
+			// Track success.
+			s.metrics.persistedIndexBlocksRead.Inc(1)
+
+			// Record result.
+			// NB(bodu): All segments read from disk are already persisted.
+			persistedSegments := make([]result.Segment, 0, len(b.segments))
+			for _, segment := range b.segments {
+				persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
+			}
+			indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStartUnixNanos.ToTime())
+			indexBlockByVolumeType.SetBlock(b.volumeType,
+				result.NewIndexBlock(persistedSegments, b.fulfilled))
+
+			if res.result == nil {
+				res.result = newRunResult()
+			}
+			// NB(r): Don't need to call MarkFulfilled on the IndexResults here
+			// as we've already passed the ranges fulfilled to the block that
+			// we place in the IndexResuts with the call to Add(...).
+			res.result.index.Add(indexBlockByVolumeType, nil)
+
+			// NB(bodu): We only mark ranges as fulfilled for the default index volume type.
+			// It's possible to have other index volume types but the default type is required to
+			// fulfill bootstrappable ranges.
+			if b.volumeType == idxpersist.DefaultIndexVolumeType {
+				res.fulfilled.AddRanges(b.fulfilled)
+			}
 		}
-		segmentsFulfilled := willFulfill
-		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]result.Segment, 0, len(readResult.Segments))
-		for _, segment := range readResult.Segments {
-			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
-		}
-		volumeType := idxpersist.DefaultIndexVolumeType
-		if info.IndexVolumeType != nil {
-			volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
-		}
-		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
-		indexBlockByVolumeType.SetBlock(volumeType, result.NewIndexBlock(persistedSegments, segmentsFulfilled))
-		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
-		// as we've already passed the ranges fulfilled to the block that
-		// we place in the IndexResuts with the call to Add(...).
-		res.result.index.Add(indexBlockByVolumeType, nil)
-		res.fulfilled.AddRanges(segmentsFulfilled)
 	}
 
 	return res, nil
@@ -1074,4 +1258,12 @@ func (r *runResult) mergedResult(other *runResult) *runResult {
 		data:  result.MergedDataBootstrapResult(r.data, other.data),
 		index: result.MergedIndexBootstrapResult(r.index, other.index),
 	}
+}
+
+func volumeTypeFromInfo(info *indexpb.IndexVolumeInfo) idxpersist.IndexVolumeType {
+	volumeType := idxpersist.DefaultIndexVolumeType
+	if info.IndexVolumeType != nil {
+		volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
+	}
+	return volumeType
 }

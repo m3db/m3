@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
@@ -357,9 +358,20 @@ func writeTestDataToDisk(
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 ) error {
+	return writeTestDataToDiskWithShards(metadata, setup, seriesMaps, volume, setup.ShardSet())
+}
+
+// nolint: unused
+func writeTestDataToDiskWithShards(
+	metadata namespace.Metadata,
+	setup TestSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
+	shardSet sharding.ShardSet,
+) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
+	return writer.WriteData(namespace.NewContextFrom(metadata), shardSet, seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
