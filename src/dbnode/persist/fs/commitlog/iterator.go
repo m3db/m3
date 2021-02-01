@@ -22,7 +22,9 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 
@@ -72,6 +74,10 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 	filteredCorruptFiles := filterCorruptFiles(corruptFiles, iterOpts.FileFilterPredicate)
 
 	scope := iops.MetricsScope()
+	log := iops.Logger()
+	log.Info(fmt.Sprintf("found %d commit log files to read", len(filteredFiles)),
+		zap.Strings("commitlogFiles", commitLogFilesForLogging(filteredFiles)),
+		zap.Strings("corruptFiles", corruptFilesForLogging(filteredCorruptFiles)))
 	return &iterator{
 		iterOpts: iterOpts,
 		opts:     opts,
@@ -79,7 +85,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:   iops.Logger(),
+		log:   log,
 		files: filteredFiles,
 	}, filteredCorruptFiles, nil
 }
@@ -171,6 +177,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
+	i.log.Info("opened commit log file", zap.String("file", file.FilePath))
 	i.reader = reader
 	return true
 }
@@ -200,11 +207,37 @@ func filterCorruptFiles(corruptFiles []ErrorWithPath, predicate FileFilterPredic
 	return filtered
 }
 
+func commitLogFilesForLogging(files []persist.CommitLogFile) []string {
+	result := make([]string, 0, len(files))
+	for _, f := range files {
+		var fileSize int64
+		if fi, err := os.Stat(f.FilePath); err == nil {
+			fileSize = fi.Size()
+		}
+
+		result = append(result, fmt.Sprintf("path=%s, len=%d", f.FilePath, fileSize))
+	}
+	return result
+}
+
+func corruptFilesForLogging(files []ErrorWithPath) []string {
+	result := make([]string, 0, len(files))
+	for _, f := range files {
+		var fileSize int64
+		if fi, err := os.Stat(f.Path()); err == nil {
+			fileSize = fi.Size()
+		}
+		result = append(result, fmt.Sprintf("path=%s, len=%d", f.Path(), fileSize))
+	}
+	return result
+}
+
 func (i *iterator) closeAndResetReader() error {
 	if i.reader == nil {
 		return nil
 	}
 	reader := i.reader
 	i.reader = nil
+	i.log.Info("closing commit log file")
 	return reader.Close()
 }
