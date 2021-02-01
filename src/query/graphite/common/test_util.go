@@ -120,6 +120,8 @@ type MovingFunctionStorage struct {
 	StepMillis     int
 	Bootstrap      []float64
 	Values         []float64
+	OriginalIDs    []string
+	BootstrapIDs   []string
 	BootstrapStart time.Time
 }
 
@@ -152,12 +154,21 @@ func (s *MovingFunctionStorage) fetchByIDs(
 		var values []float64
 		if opts.StartTime.Equal(s.BootstrapStart) {
 			values = s.Bootstrap
+			if s.BootstrapIDs != nil {
+				ids = s.BootstrapIDs
+			}
 		} else {
 			values = s.Values
+			if s.OriginalIDs != nil {
+				ids = s.OriginalIDs
+			}
 		}
-		series := ts.NewSeries(ctx, ids[0], opts.StartTime,
-			NewTestSeriesValues(ctx, s.StepMillis, values))
-		seriesList = append(seriesList, series)
+
+		for _, id := range ids {
+			series := ts.NewSeries(ctx, id, opts.StartTime,
+				NewTestSeriesValues(ctx, s.StepMillis, values))
+			seriesList = append(seriesList, series)
+		}
 	}
 
 	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil

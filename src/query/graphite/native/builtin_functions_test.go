@@ -691,11 +691,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			42.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,42.500)",
 					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,42.500)",
 					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
 				},
@@ -710,11 +710,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			-0.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,-0.500)",
 					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,-0.500)",
 					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
 				},
@@ -836,7 +836,8 @@ func TestCombineBootstrapWithOriginal(t *testing.T) {
 
 	defer ctx.Close()
 
-	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime, bootstrappedSeriesList, originalSeriesList)
+	output, err := combineBootstrapWithOriginal(ctx, bootstrapStartTime, bootstrapEndTime,
+		contextStart, contextEnd, bootstrappedSeriesList, originalSeriesList)
 	assert.Equal(t, output.Values[0], expectedSeries)
 	assert.Nil(t, err)
 }
@@ -941,6 +942,57 @@ func TestMovingSumSuccess(t *testing.T) {
 func TestMovingSumError(t *testing.T) {
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingSum(foo.bar.baz, 0)")
+}
+
+// TestMovingSumOriginalIDsMissingFromBootstrapIDs tests the case for the
+// "moving" function families where the bootstrap of the time range that
+// expands back returns timeseries not present from the original series list
+// which can happen when using a temporal index (i.e. latest time window
+// does not include the same timeseries as the time window from the bootstrap
+// list, say using movingSum 1h but the query is only for the last few minutes
+// and in the last few minutes data for a series from an hour ago exists
+// but is not present in the last few minutes; for this case the results
+// from the preceeding hour should still be evaluated as part of the movingSum
+// calculation).
+func TestMovingSumOriginalIDsMissingFromBootstrapIDs(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	end := time.Now().Truncate(time.Minute)
+	start := end.Add(-3 * time.Minute)
+	bootstrapStart := start.Add(-10 * time.Minute)
+
+	engine := NewEngine(&common.MovingFunctionStorage{
+		StepMillis:     60000,
+		Bootstrap:      []float64{1, 1, 1, 1, 1, 2, 2, 2, 2, 2},
+		BootstrapStart: bootstrapStart,
+		Values:         []float64{3, 3, 3},
+		OriginalIDs:    []string{"foo.bar"},
+		BootstrapIDs:   []string{"foo.bar", "foo.baz"},
+	}, CompileOptions{})
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  start,
+		End:    end,
+		Engine: engine,
+	})
+
+	target := "movingSum(foo.*, '10min')"
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "movingSum(foo.bar,\"10min\")",
+			Data: []float64{15, 17, 19},
+		},
+		{
+			Name: "movingSum(foo.baz,\"10min\")",
+			Data: []float64{15, 14, 13},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 60000, start,
+		expected, res.Values)
 }
 
 func TestMovingMaxSuccess(t *testing.T) {
@@ -1470,18 +1522,18 @@ func TestFallbackSeries(t *testing.T) {
 	}{
 		{
 			nil,
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
 			[]common.TestSeries{},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
-			[]common.TestSeries{common.TestSeries{"fallback", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"fallback", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
 		},
 	}
 
@@ -2701,8 +2753,8 @@ func TestSquareRoot(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
-		common.TestSeries{Name: "squareRoot(bar)", Data: []float64{2.0}},
+		{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
+		{Name: "squareRoot(bar)", Data: []float64{2.0}},
 	}
 	results, err := squareRoot(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2744,7 +2796,7 @@ func TestStdev(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
+		{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
 	}
 	results, err := stdev(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2828,11 +2880,11 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 
 func TestNPercentile(t *testing.T) {
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "nPercentile(bar, 40.123)",
 			Data: []float64{3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
 		},
-		common.TestSeries{
+		{
 			Name: "nPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2843,15 +2895,15 @@ func TestNPercentile(t *testing.T) {
 func TestRemoveAbovePercentile(t *testing.T) {
 	nan := math.NaN()
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(bar, 40.123)",
 			Data: []float64{3.0, 2.0, nan, nan, 1.0, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2864,15 +2916,15 @@ func TestRemoveBelowPercentile(t *testing.T) {
 	nan := math.NaN()
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(bar, 40.123)",
 			Data: []float64{3.0, nan, 4.0, nan, nan, 6.0, nan, 5.0},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2975,7 +3027,7 @@ func TestChanged(t *testing.T) {
 	)
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "changed(foo)",
 			Data: []float64{0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0},
 		},

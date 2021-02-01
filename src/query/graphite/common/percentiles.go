@@ -66,7 +66,6 @@ func SafeSort(input []float64) int {
 			nans++
 		}
 	}
-
 	sort.Float64s(input)
 	return nans
 }
@@ -79,10 +78,17 @@ func SafeSum(input []float64) (float64, int) {
 		if !math.IsNaN(v) {
 			sum += v
 		} else {
-			nans += 1
+			nans++
 		}
 	}
 	return sum, nans
+}
+
+// SafeAverage returns the average of the input slice the number of NaNs in the input.
+func SafeAverage(input []float64) (float64, int) {
+	sum, nans := SafeSum(input)
+	count := len(input) - nans
+	return sum / float64(count), nans
 }
 
 // SafeMax returns the maximum value of the input slice the number of NaNs in the input.
