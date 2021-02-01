@@ -143,24 +143,24 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 }'
 
 echo "Read data"
+queryResult=$(curl -sSf -X POST 0.0.0.0:9003/query -d '{
+  "namespace": "unagg",
+  "query": {
+    "regexp": {
+      "field": "city",
+      "regexp": ".*"
+    }
+  },
+  "rangeStart": 0,
+  "rangeEnd":'"$(date +"%s")"'
+}' | jq '.results | length')
 
-function query_data {
-  queryResult=$(curl -sSf -X POST 0.0.0.0:9003/query -d '{
-    "namespace": "unagg",
-    "query": {
-      "regexp": {
-        "field": "city",
-        "regexp": ".*"
-      }
-    },
-    "rangeStart": 0,
-    "rangeEnd":'"$(date +"%s")"'
-  }' | jq '.results | length')
-
-  test "$queryResult" = 1
-  return $?
-}
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff query_data
+if [ "$queryResult" -lt 1 ]; then
+  echo "Result not found"
+  exit 1
+else
+  echo "Result found"
+fi
 
 echo "Deleting placement"
 curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/services/m3db/placement
