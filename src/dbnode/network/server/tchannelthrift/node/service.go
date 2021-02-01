@@ -744,7 +744,7 @@ func (s *service) fetchTagged(ctx context.Context, req *rpc.FetchTaggedRequest) 
 		return nil, err
 	}
 	response := &rpc.FetchTaggedResult_{
-		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, iter.NumIDs()),
+		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, iter.Len()),
 		Exhaustive: iter.Exhaustive(),
 	}
 
@@ -819,6 +819,9 @@ type BaseIter interface {
 
 	// Err returns a non-nil error if an error occurred when calling Next().
 	Err() error
+
+	// Len returns the total number of elements in the iterator.
+	Len() int
 }
 
 // FetchTaggedResultsIter iterates over the results from FetchTagged
@@ -826,10 +829,7 @@ type BaseIter interface {
 type FetchTaggedResultsIter interface {
 	BaseIter
 
-	// NumIDs returns the total number of series IDs in the result.
-	NumIDs() int
-
-	// Exhaustive returns true if NumIDs is all IDs that the query could have returned.
+	// Exhaustive returns true if Len is all IDs that the query could have returned.
 	Exhaustive() bool
 
 	// Namespace is the namespace.
@@ -892,7 +892,7 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 	return iter
 }
 
-func (i *fetchTaggedResultsIter) NumIDs() int {
+func (i *fetchTaggedResultsIter) Len() int {
 	return i.queryResults.Len()
 }
 
@@ -988,8 +988,12 @@ type segmentsIter struct {
 	err          error
 }
 
+func (i *segmentsIter) Len() int {
+	return len(i.blockReaders)
+}
+
 func (i *segmentsIter) Next(_ context.Context) bool {
-	for i.idx < len(i.blockReaders) {
+	for i.idx < i.Len() {
 		var rpcErr *rpc.Error
 		i.cur, rpcErr = readEncodedResultSegment(i.blockReaders[i.idx])
 		i.idx++
