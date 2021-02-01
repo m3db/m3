@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -597,7 +598,15 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			src, ok := fsSrc.(*fileSystemSource)
 			require.True(t, ok)
 
-			retentionPeriod := time.Hour * 6
+			retentionPeriod := testBlockSize
+			for {
+				// Make sure that retention is set to end half way through the first block
+				flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, time.Now())
+				if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
+					break
+				}
+				retentionPeriod += testBlockSize
+			}
 			ropts := testRetentionOptions.
 				SetBlockSize(testBlockSize).
 				SetRetentionPeriod(retentionPeriod)
@@ -661,7 +670,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			if len(block.Segments()) > 0 {
 				segment := block.Segments()[0]
 				require.True(t, ok)
-				require.True(t, segment.IsPersisted())
+				require.True(t, segment.IsPersisted(), "should be persisted")
 			}
 
 			// Check that the second is not a mutable segment
@@ -673,7 +682,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			if len(block.Segments()) > 0 {
 				segment := block.Segments()[0]
 				require.True(t, ok)
-				require.True(t, segment.IsPersisted())
+				require.True(t, segment.IsPersisted(), "should be persisted")
 			}
 
 			// Validate results
