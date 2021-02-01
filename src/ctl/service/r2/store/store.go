@@ -77,6 +77,22 @@ type Store interface {
 	// and rule ID.
 	FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view.RollupRule, error)
 
+	// FetchUtilizationRule fetches the utilization rule for the given namespace ID and rule ID.
+	FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error)
+
+	// CreateUtilizationRule creates a utilization rule for the given namespace ID and rule data.
+	CreateUtilizationRule(namespaceID string, rrv view.RollupRule, uOpts UpdateOptions) (view.RollupRule, error)
+
+	// UpdateUtilizationRule updates a utilization rule for the given namespace ID and rule data.
+	UpdateUtilizationRule(namespaceID, utilizationRuleID string, rrv view.RollupRule, uOpts UpdateOptions) (view.RollupRule, error)
+
+	// DeleteUtilizationRule deletes the utilization rule for the given namespace ID and rule ID.
+	DeleteUtilizationRule(namespaceID, utilizationRuleID string, uOpts UpdateOptions) error
+
+	// FetchRollupRuleHistory fetches the history of the utilization rule for the given namespace ID
+	// and rule ID.
+	FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.RollupRule, error)
+
 	// Close closes the store.
 	Close()
 }

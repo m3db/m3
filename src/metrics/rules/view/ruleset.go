@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,17 +26,19 @@ import (
 
 // RuleSet is a snapshot of the rule set at a given point in time.
 type RuleSet struct {
-	Namespace     string        `json:"id"`
-	Version       int           `json:"version"`
-	CutoverMillis int64         `json:"cutoverMillis"`
-	MappingRules  []MappingRule `json:"mappingRules"`
-	RollupRules   []RollupRule  `json:"rollupRules"`
+	Namespace        string        `json:"id"`
+	Version          int           `json:"version"`
+	CutoverMillis    int64         `json:"cutoverMillis"`
+	MappingRules     []MappingRule `json:"mappingRules"`
+	RollupRules      []RollupRule  `json:"rollupRules"`
+	UtilizationRules []RollupRule  `json:"utilizationRules"`
 }
 
 // Sort sorts the rules in the ruleset.
 func (r *RuleSet) Sort() {
 	sort.Sort(MappingRulesByNameAsc(r.MappingRules))
 	sort.Sort(RollupRulesByNameAsc(r.RollupRules))
+	sort.Sort(RollupRulesByNameAsc(r.UtilizationRules))
 }
 
 // RuleSets is a collection of rulesets.

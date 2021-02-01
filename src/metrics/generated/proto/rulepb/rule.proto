@@ -91,4 +91,5 @@ message RuleSet {
   repeated MappingRule mapping_rules = 7;
   repeated RollupRule rollup_rules = 8;
   string last_updated_by = 9;
+  repeated RollupRule utilization_rules = 10;
 }

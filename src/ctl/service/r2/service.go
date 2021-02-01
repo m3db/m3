@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,11 +38,12 @@ import (
 )
 
 const (
-	namespacePath     = "/namespaces"
-	mappingRulePrefix = "mapping-rules"
-	rollupRulePrefix  = "rollup-rules"
-	namespaceIDVar    = "namespaceID"
-	ruleIDVar         = "ruleID"
+	namespacePath         = "/namespaces"
+	mappingRulePrefix     = "mapping-rules"
+	rollupRulePrefix      = "rollup-rules"
+	utilizationRulePrefix = "utilization-rules"
+	namespaceIDVar        = "namespaceID"
+	ruleIDVar             = "ruleID"
 )
 
 var (
@@ -58,46 +59,60 @@ var (
 	rollupRuleWithIDPath  = fmt.Sprintf("%s/{%s}", rollupRuleRoot, ruleIDVar)
 	rollupRuleHistoryPath = fmt.Sprintf("%s/history", rollupRuleWithIDPath)
 
+	utilizationRuleRoot        = fmt.Sprintf("%s/%s", namespacePrefix, utilizationRulePrefix)
+	utilizationRuleWithIDPath  = fmt.Sprintf("%s/{%s}", utilizationRuleRoot, ruleIDVar)
+	utilizationRuleHistoryPath = fmt.Sprintf("%s/history", utilizationRuleWithIDPath)
+
 	errNilRequest = errors.New("Nil request")
 )
 
 type serviceMetrics struct {
-	fetchNamespaces         instrument.MethodMetrics
-	fetchNamespace          instrument.MethodMetrics
-	createNamespace         instrument.MethodMetrics
-	deleteNamespace         instrument.MethodMetrics
-	validateRuleSet         instrument.MethodMetrics
-	fetchMappingRule        instrument.MethodMetrics
-	createMappingRule       instrument.MethodMetrics
-	updateMappingRule       instrument.MethodMetrics
-	deleteMappingRule       instrument.MethodMetrics
-	fetchMappingRuleHistory instrument.MethodMetrics
-	fetchRollupRule         instrument.MethodMetrics
-	createRollupRule        instrument.MethodMetrics
-	updateRollupRule        instrument.MethodMetrics
-	deleteRollupRule        instrument.MethodMetrics
-	fetchRollupRuleHistory  instrument.MethodMetrics
-	updateRuleSet           instrument.MethodMetrics
+	fetchNamespaces             instrument.MethodMetrics
+	fetchNamespace              instrument.MethodMetrics
+	createNamespace             instrument.MethodMetrics
+	deleteNamespace             instrument.MethodMetrics
+	validateRuleSet             instrument.MethodMetrics
+	fetchMappingRule            instrument.MethodMetrics
+	createMappingRule           instrument.MethodMetrics
+	updateMappingRule           instrument.MethodMetrics
+	deleteMappingRule           instrument.MethodMetrics
+	fetchMappingRuleHistory     instrument.MethodMetrics
+	fetchRollupRule             instrument.MethodMetrics
+	createRollupRule            instrument.MethodMetrics
+	updateRollupRule            instrument.MethodMetrics
+	deleteRollupRule            instrument.MethodMetrics
+	fetchRollupRuleHistory      instrument.MethodMetrics
+	fetchUtilizationRule        instrument.MethodMetrics
+	createUtilizationRule       instrument.MethodMetrics
+	updateUtilizationRule       instrument.MethodMetrics
+	deleteUtilizationRule       instrument.MethodMetrics
+	fetchUtilizationRuleHistory instrument.MethodMetrics
+	updateRuleSet               instrument.MethodMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetchNamespaces:         instrument.NewMethodMetrics(scope, "fetchNamespaces", opts),
-		fetchNamespace:          instrument.NewMethodMetrics(scope, "fetchNamespace", opts),
-		createNamespace:         instrument.NewMethodMetrics(scope, "createNamespace", opts),
-		deleteNamespace:         instrument.NewMethodMetrics(scope, "deleteNamespace", opts),
-		validateRuleSet:         instrument.NewMethodMetrics(scope, "validateRuleSet", opts),
-		fetchMappingRule:        instrument.NewMethodMetrics(scope, "fetchMappingRule", opts),
-		createMappingRule:       instrument.NewMethodMetrics(scope, "createMappingRule", opts),
-		updateMappingRule:       instrument.NewMethodMetrics(scope, "updateMappingRule", opts),
-		deleteMappingRule:       instrument.NewMethodMetrics(scope, "deleteMappingRule", opts),
-		fetchMappingRuleHistory: instrument.NewMethodMetrics(scope, "fetchMappingRuleHistory", opts),
-		fetchRollupRule:         instrument.NewMethodMetrics(scope, "fetchRollupRule", opts),
-		createRollupRule:        instrument.NewMethodMetrics(scope, "createRollupRule", opts),
-		updateRollupRule:        instrument.NewMethodMetrics(scope, "updateRollupRule", opts),
-		deleteRollupRule:        instrument.NewMethodMetrics(scope, "deleteRollupRule", opts),
-		fetchRollupRuleHistory:  instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", opts),
-		updateRuleSet:           instrument.NewMethodMetrics(scope, "updateRuleSet", opts),
+		fetchNamespaces:             instrument.NewMethodMetrics(scope, "fetchNamespaces", opts),
+		fetchNamespace:              instrument.NewMethodMetrics(scope, "fetchNamespace", opts),
+		createNamespace:             instrument.NewMethodMetrics(scope, "createNamespace", opts),
+		deleteNamespace:             instrument.NewMethodMetrics(scope, "deleteNamespace", opts),
+		validateRuleSet:             instrument.NewMethodMetrics(scope, "validateRuleSet", opts),
+		fetchMappingRule:            instrument.NewMethodMetrics(scope, "fetchMappingRule", opts),
+		createMappingRule:           instrument.NewMethodMetrics(scope, "createMappingRule", opts),
+		updateMappingRule:           instrument.NewMethodMetrics(scope, "updateMappingRule", opts),
+		deleteMappingRule:           instrument.NewMethodMetrics(scope, "deleteMappingRule", opts),
+		fetchMappingRuleHistory:     instrument.NewMethodMetrics(scope, "fetchMappingRuleHistory", opts),
+		fetchRollupRule:             instrument.NewMethodMetrics(scope, "fetchRollupRule", opts),
+		createRollupRule:            instrument.NewMethodMetrics(scope, "createRollupRule", opts),
+		updateRollupRule:            instrument.NewMethodMetrics(scope, "updateRollupRule", opts),
+		deleteRollupRule:            instrument.NewMethodMetrics(scope, "deleteRollupRule", opts),
+		fetchRollupRuleHistory:      instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", opts),
+		fetchUtilizationRule:        instrument.NewMethodMetrics(scope, "fetchUtilizationRule", opts),
+		createUtilizationRule:       instrument.NewMethodMetrics(scope, "createUtilizationRule", opts),
+		updateUtilizationRule:       instrument.NewMethodMetrics(scope, "updateUtilizationRule", opts),
+		deleteUtilizationRule:       instrument.NewMethodMetrics(scope, "deleteUtilizationRule", opts),
+		fetchUtilizationRuleHistory: instrument.NewMethodMetrics(scope, "fetchUtilizationRuleHistory", opts),
+		updateRuleSet:               instrument.NewMethodMetrics(scope, "updateRuleSet", opts),
 	}
 }
 
@@ -194,6 +209,15 @@ func (s *service) RegisterHandlers(router *mux.Router) error {
 
 		// Rollup Rule history.
 		{route: route{path: rollupRuleHistoryPath, method: http.MethodGet}, handler: s.fetchRollupRuleHistory},
+		// Utilization Rule actions.
+		{route: route{path: utilizationRuleRoot, method: http.MethodPost}, handler: s.createUtilizationRule},
+
+		{route: route{path: utilizationRuleWithIDPath, method: http.MethodGet}, handler: s.fetchUtilizationRule},
+		{route: route{path: utilizationRuleWithIDPath, method: http.MethodPut}, handler: s.updateUtilizationRule},
+		{route: route{path: utilizationRuleWithIDPath, method: http.MethodDelete}, handler: s.deleteUtilizationRule},
+
+		// Utilization Rule history.
+		{route: route{path: utilizationRuleHistoryPath, method: http.MethodGet}, handler: s.fetchUtilizationRuleHistory},
 	}
 
 	h := r2Handler{s.logger, s.authService}
@@ -366,6 +390,46 @@ func (s *service) deleteRollupRule(w http.ResponseWriter, r *http.Request) error
 
 func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request) error {
 	data, err := s.handleRoute(fetchRollupRuleHistory, r, s.metrics.fetchRollupRuleHistory)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusOK, data)
+}
+
+func (s *service) fetchUtilizationRule(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(fetchUtilizationRule, r, s.metrics.fetchUtilizationRule)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusOK, data)
+}
+
+func (s *service) createUtilizationRule(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(createUtilizationRule, r, s.metrics.createUtilizationRule)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusCreated, data)
+}
+
+func (s *service) updateUtilizationRule(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(updateUtilizationRule, r, s.metrics.updateUtilizationRule)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusOK, data)
+}
+
+func (s *service) deleteUtilizationRule(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(deleteUtilizationRule, r, s.metrics.deleteUtilizationRule)
+	if err != nil {
+		return err
+	}
+	return writeAPIResponse(w, http.StatusOK, data.(string))
+}
+
+func (s *service) fetchUtilizationRuleHistory(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(fetchUtilizationRuleHistory, r, s.metrics.fetchUtilizationRuleHistory)
 	if err != nil {
 		return err
 	}

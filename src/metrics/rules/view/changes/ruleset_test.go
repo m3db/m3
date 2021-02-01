@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -102,6 +102,41 @@ func TestRuleSetChangeSetsSort(t *testing.T) {
 				},
 			},
 		},
+		UtilizationRuleChanges: []RollupRuleChange{
+			{
+				Op: AddOp,
+				RuleData: &view.RollupRule{
+					Name: "Add1",
+				},
+			},
+			{
+				Op: AddOp,
+				RuleData: &view.RollupRule{
+					Name: "Add2",
+				},
+			},
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID2"),
+				RuleData: &view.RollupRule{
+					Name: "change1",
+				},
+			},
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID3"),
+				RuleData: &view.RollupRule{
+					Name: "change2",
+				},
+			},
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID1"),
+				RuleData: &view.RollupRule{
+					Name: "change3",
+				},
+			},
+		},
 	}
 
 	ruleSet.Sort()
@@ -171,6 +206,41 @@ var (
 			{
 				Op:     ChangeOp,
 				RuleID: ptr("rrID3"),
+				RuleData: &view.RollupRule{
+					Name: "change2",
+				},
+			},
+			{
+				Op: AddOp,
+				RuleData: &view.RollupRule{
+					Name: "Add1",
+				},
+			},
+		},
+		UtilizationRuleChanges: []RollupRuleChange{
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID1"),
+				RuleData: &view.RollupRule{
+					Name: "change3",
+				},
+			},
+			{
+				Op: AddOp,
+				RuleData: &view.RollupRule{
+					Name: "Add2",
+				},
+			},
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID2"),
+				RuleData: &view.RollupRule{
+					Name: "change1",
+				},
+			},
+			{
+				Op:     ChangeOp,
+				RuleID: ptr("urID3"),
 				RuleData: &view.RollupRule{
 					Name: "change2",
 				},

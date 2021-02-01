@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -227,6 +227,68 @@ func deleteRollupRule(s *service, r *http.Request) (data interface{}, err error)
 func fetchRollupRuleHistory(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
 	snapshots, err := s.store.FetchRollupRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
+	if err != nil {
+		return nil, err
+	}
+	return view.RollupRuleSnapshots{RollupRules: snapshots}, nil
+}
+func fetchUtilizationRule(s *service, r *http.Request) (data interface{}, err error) {
+	vars := mux.Vars(r)
+	return s.store.FetchUtilizationRule(vars[namespaceIDVar], vars[ruleIDVar])
+}
+
+func createUtilizationRule(s *service, r *http.Request) (data interface{}, err error) {
+	vars := mux.Vars(r)
+	namespaceID := vars[namespaceIDVar]
+
+	var rrj view.RollupRule
+	if err := parseRequest(&rrj, r.Body); err != nil {
+		return nil, err
+	}
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.store.CreateUtilizationRule(namespaceID, rrj, uOpts)
+}
+
+func updateUtilizationRule(s *service, r *http.Request) (data interface{}, err error) {
+	vars := mux.Vars(r)
+	var rrj view.RollupRule
+	if err := parseRequest(&rrj, r.Body); err != nil {
+		return nil, err
+	}
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.store.UpdateUtilizationRule(vars[namespaceIDVar], vars[ruleIDVar], rrj, uOpts)
+}
+
+func deleteUtilizationRule(s *service, r *http.Request) (data interface{}, err error) {
+	vars := mux.Vars(r)
+	namespaceID := vars[namespaceIDVar]
+	utilizationRuleID := vars[ruleIDVar]
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.store.DeleteUtilizationRule(namespaceID, utilizationRuleID, uOpts); err != nil {
+		return nil, err
+	}
+
+	return fmt.Sprintf("Deleted utilization rule: %s in namespace %s", utilizationRuleID, namespaceID), nil
+}
+
+func fetchUtilizationRuleHistory(s *service, r *http.Request) (data interface{}, err error) {
+	vars := mux.Vars(r)
+	snapshots, err := s.store.FetchUtilizationRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
 	if err != nil {
 		return nil, err
 	}

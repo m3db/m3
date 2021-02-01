@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +26,15 @@ import (
 
 // RuleSetChanges is a ruleset diff.
 type RuleSetChanges struct {
-	Namespace          string              `json:"namespace"`
-	MappingRuleChanges []MappingRuleChange `json:"mappingRuleChanges"`
-	RollupRuleChanges  []RollupRuleChange  `json:"rollupRuleChanges"`
+	Namespace              string              `json:"namespace"`
+	MappingRuleChanges     []MappingRuleChange `json:"mappingRuleChanges"`
+	RollupRuleChanges      []RollupRuleChange  `json:"rollupRuleChanges"`
+	UtilizationRuleChanges []RollupRuleChange  `json:"utilizationRuleChanges"`
 }
 
 // Sort sorts the ruleset diff by op and rule names.
 func (d *RuleSetChanges) Sort() {
 	sort.Sort(mappingRuleChangesByOpAscNameAscIDAsc(d.MappingRuleChanges))
 	sort.Sort(rollupRuleChangesByOpAscNameAscIDAsc(d.RollupRuleChanges))
+	sort.Sort(rollupRuleChangesByOpAscNameAscIDAsc(d.UtilizationRuleChanges))
 }

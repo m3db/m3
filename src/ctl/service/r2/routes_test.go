@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -466,6 +466,26 @@ func (s mockStore) DeleteRollupRule(namespaceID, rollupRuleID string, uOpts stor
 }
 
 func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view.RollupRule, error) {
+	return make([]view.RollupRule, 0), nil
+}
+
+func (s mockStore) FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
+}
+
+func (s mockStore) CreateUtilizationRule(namespaceID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
+}
+
+func (s mockStore) UpdateUtilizationRule(namespaceID, utilizationRuleID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
+}
+
+func (s mockStore) DeleteUtilizationRule(namespaceID, utilizationRuleID string, uOpts store.UpdateOptions) error {
+	return nil
+}
+
+func (s mockStore) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.RollupRule, error) {
 	return make([]view.RollupRule, 0), nil
 }
 

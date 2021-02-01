@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,68 @@ func TestRuleSetSort(t *testing.T) {
 			{
 				ID:            "uuid4",
 				Name:          "baz",
+				CutoverMillis: 4567,
+				Filter:        "filter4",
+				Targets: []RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name"),
+									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+							policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					},
+				},
+				LastUpdatedAtMillis: 4567,
+				LastUpdatedBy:       "jane",
+			},
+		},
+		UtilizationRules: []RollupRule{
+			{
+				ID:            "uuid5",
+				Name:          "util2",
+				CutoverMillis: 1234,
+				Filter:        "filter3",
+				Targets: []RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name"),
+									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						},
+					},
+				},
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john",
+			},
+			{
+				ID:            "uuid6",
+				Name:          "util1",
 				CutoverMillis: 4567,
 				Filter:        "filter4",
 				Targets: []RollupTarget{
@@ -209,6 +271,68 @@ func TestRuleSetSort(t *testing.T) {
 				LastUpdatedBy:       "john",
 			},
 		},
+		UtilizationRules: []RollupRule{
+			{
+				ID:            "uuid6",
+				Name:          "util1",
+				CutoverMillis: 4567,
+				Filter:        "filter4",
+				Targets: []RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name"),
+									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+							policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					},
+				},
+				LastUpdatedAtMillis: 4567,
+				LastUpdatedBy:       "jane",
+			},
+			{
+				ID:            "uuid5",
+				Name:          "util2",
+				CutoverMillis: 1234,
+				Filter:        "filter3",
+				Targets: []RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name"),
+									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						},
+					},
+				},
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john",
+			},
+		},
 	}
 	require.Equal(t, expected, ruleset)
 }
@@ -279,6 +403,73 @@ func TestRuleSetsSort(t *testing.T) {
 					},
 					LastUpdatedAtMillis: 4567,
 					LastUpdatedBy:       "jane",
+				},
+				{
+					ID:            "uuid3",
+					Name:          "baz",
+					CutoverMillis: 1234,
+					Filter:        "filter3",
+					Targets: []RollupTarget{
+						{
+							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+								{
+									Type: pipeline.RollupOpType,
+									Rollup: pipeline.RollupOp{
+										NewName:       []byte("name"),
+										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+										AggregationID: aggregation.DefaultID,
+									},
+								},
+							}),
+							StoragePolicies: policy.StoragePolicies{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							},
+						},
+					},
+					LastUpdatedAtMillis: 1234,
+					LastUpdatedBy:       "john",
+				},
+			},
+		},
+		"ns3": &RuleSet{
+			Namespace:     "ns3",
+			Version:       1,
+			CutoverMillis: 1234,
+			UtilizationRules: []RollupRule{
+				{
+					ID:            "uuid5",
+					Name:          "util",
+					CutoverMillis: 4567,
+					Filter:        "filter4",
+					Targets: []RollupTarget{
+						{
+							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+								{
+									Type:        pipeline.AggregationOpType,
+									Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+								},
+								{
+									Type:           pipeline.TransformationOpType,
+									Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+								},
+								{
+									Type: pipeline.RollupOpType,
+									Rollup: pipeline.RollupOp{
+										NewName:       []byte("name"),
+										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+										AggregationID: aggregation.DefaultID,
+									},
+								},
+							}),
+							StoragePolicies: policy.StoragePolicies{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+								policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						},
+					},
+					LastUpdatedAtMillis: 4567,
+					LastUpdatedBy:       "john",
 				},
 				{
 					ID:            "uuid3",
@@ -400,6 +591,73 @@ func TestRuleSetsSort(t *testing.T) {
 					},
 					LastUpdatedAtMillis: 4567,
 					LastUpdatedBy:       "jane",
+				},
+			},
+		},
+		"ns3": &RuleSet{
+			Namespace:     "ns3",
+			Version:       1,
+			CutoverMillis: 1234,
+			UtilizationRules: []RollupRule{
+				{
+					ID:            "uuid3",
+					Name:          "baz",
+					CutoverMillis: 1234,
+					Filter:        "filter3",
+					Targets: []RollupTarget{
+						{
+							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+								{
+									Type: pipeline.RollupOpType,
+									Rollup: pipeline.RollupOp{
+										NewName:       []byte("name"),
+										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+										AggregationID: aggregation.DefaultID,
+									},
+								},
+							}),
+							StoragePolicies: policy.StoragePolicies{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							},
+						},
+					},
+					LastUpdatedAtMillis: 1234,
+					LastUpdatedBy:       "john",
+				},
+				{
+					ID:            "uuid5",
+					Name:          "util",
+					CutoverMillis: 4567,
+					Filter:        "filter4",
+					Targets: []RollupTarget{
+						{
+							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+								{
+									Type:        pipeline.AggregationOpType,
+									Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+								},
+								{
+									Type:           pipeline.TransformationOpType,
+									Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+								},
+								{
+									Type: pipeline.RollupOpType,
+									Rollup: pipeline.RollupOp{
+										NewName:       []byte("name"),
+										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+										AggregationID: aggregation.DefaultID,
+									},
+								},
+							}),
+							StoragePolicies: policy.StoragePolicies{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+								policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						},
+					},
+					LastUpdatedAtMillis: 4567,
+					LastUpdatedBy:       "john",
 				},
 			},
 		},

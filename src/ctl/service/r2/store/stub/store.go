@@ -40,14 +40,16 @@ import (
 
 type mappingRuleHistories map[string][]view.MappingRule
 type rollupRuleHistories map[string][]view.RollupRule
+type utilizationRuleHistories map[string][]view.RollupRule
 
 type stubData struct {
-	Namespaces        view.Namespaces
-	ErrorNamespace    string
-	ConflictNamespace string
-	RuleSets          map[string]view.RuleSet
-	MappingHistory    map[string]mappingRuleHistories
-	RollupHistory     map[string]rollupRuleHistories
+	Namespaces         view.Namespaces
+	ErrorNamespace     string
+	ConflictNamespace  string
+	RuleSets           map[string]view.RuleSet
+	MappingHistory     map[string]mappingRuleHistories
+	RollupHistory      map[string]rollupRuleHistories
+	UtilizationHistory map[string]utilizationRuleHistories
 }
 
 var (
@@ -145,6 +147,54 @@ var (
 						},
 					},
 				},
+				UtilizationRules: []view.RollupRule{
+					{
+						ID:            "ur_id1",
+						Name:          "ur1",
+						CutoverMillis: cutoverMillis,
+						Filter:        "tag1:val1 tag2:val2",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+						},
+					},
+					{
+						ID:            "ur_id2",
+						Name:          "ur2",
+						CutoverMillis: cutoverMillis,
+						Filter:        "tag1:val1",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:30d"),
+								},
+							},
+						},
+					},
+				},
 			},
 			"ns2": {
 				Namespace:     "ns2",
@@ -191,6 +241,7 @@ var (
 						},
 					},
 				},
+				UtilizationRules: []view.RollupRule{},
 			},
 		},
 		MappingHistory: map[string]mappingRuleHistories{
@@ -293,6 +344,115 @@ var (
 					{
 						ID:            "rr_id1",
 						Name:          "rr1",
+						CutoverMillis: cutoverMillis,
+						Filter:        "tag1:val1 tag2:val2",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.P999),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		UtilizationHistory: map[string]utilizationRuleHistories{
+			"ns1": utilizationRuleHistories{
+				"ur_id1": []view.RollupRule{
+					{
+						ID:            "ur_id1",
+						Name:          "ur1",
+						CutoverMillis: cutoverMillis,
+						Filter:        "tag1:val1 tag2:val2",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.P999),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+						},
+					},
+					{
+						ID:            "ur_id1",
+						Name:          "ur1",
+						CutoverMillis: cutoverMillis,
+						Filter:        "tag1:val1",
+						Targets: []view.RollupTarget{
+							{
+								Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: pipeline.RollupOp{
+											NewName:       b("testTarget"),
+											Tags:          bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+										},
+									},
+								}),
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:10d"),
+								},
+							},
+						},
+					},
+				},
+			},
+			"ns2": utilizationRuleHistories{
+				"ur_id3": []view.RollupRule{
+					{
+						ID:            "ur_id1",
+						Name:          "ur1",
 						CutoverMillis: cutoverMillis,
 						Filter:        "tag1:val1 tag2:val2",
 						Targets: []view.RollupTarget{
@@ -689,6 +849,139 @@ func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view
 		hist, exists := ns[rollupRuleID]
 		if !exists {
 			return nil, r2.NewNotFoundError(fmt.Sprintf("rollupRule: %s doesn't exist in Namespace: %s", rollupRuleID, namespaceID))
+		}
+		return hist, nil
+	}
+}
+
+func (s *store) FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error) {
+	switch namespaceID {
+	case s.data.ErrorNamespace:
+		return view.RollupRule{}, r2.NewInternalError(fmt.Sprintf("Could not fetch utilizationRule: %s in namespace: %s", namespaceID, utilizationRuleID))
+	default:
+		rs, exists := s.data.RuleSets[namespaceID]
+		if !exists {
+			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+		}
+		for _, r := range rs.UtilizationRules {
+			if utilizationRuleID == r.ID {
+				return r, nil
+			}
+		}
+		return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("utilizationRule: %s doesn't exist in Namespace: %s", utilizationRuleID, namespaceID))
+	}
+}
+
+func (s *store) CreateUtilizationRule(
+	namespaceID string,
+	rrv view.RollupRule,
+	uOpts r2store.UpdateOptions,
+) (view.RollupRule, error) {
+	switch namespaceID {
+	case s.data.ErrorNamespace:
+		return view.RollupRule{}, r2.NewInternalError("could not create utilization rule")
+	case s.data.ConflictNamespace:
+		return view.RollupRule{}, r2.NewVersionError("namespaces version mismatch")
+	default:
+		rs, exists := s.data.RuleSets[namespaceID]
+		if !exists {
+			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+		}
+		for _, r := range rs.UtilizationRules {
+			if rrv.Name == r.Name {
+				return view.RollupRule{}, r2.NewConflictError(fmt.Sprintf("utilization rule: %s already exists in namespace: %s", rrv.Name, namespaceID))
+			}
+		}
+		newID := uuid.New()
+		newRule := view.RollupRule{
+			ID:            newID,
+			Name:          rrv.Name,
+			CutoverMillis: time.Now().UnixNano(),
+			Filter:        rrv.Filter,
+			Targets:       rrv.Targets,
+		}
+		rs.UtilizationRules = append(rs.UtilizationRules, newRule)
+		return newRule, nil
+	}
+}
+
+func (s *store) UpdateUtilizationRule(
+	namespaceID,
+	utilizationRuleID string,
+	rrv view.RollupRule,
+	uOpts r2store.UpdateOptions,
+) (view.RollupRule, error) {
+	switch namespaceID {
+	case s.data.ErrorNamespace:
+		return view.RollupRule{}, r2.NewInternalError("could not update utilization rule.")
+	case s.data.ConflictNamespace:
+		return view.RollupRule{}, r2.NewVersionError("namespaces version mismatch")
+	default:
+		rs, exists := s.data.RuleSets[namespaceID]
+		if !exists {
+			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+		}
+
+		for i, m := range rs.UtilizationRules {
+			if utilizationRuleID == m.ID {
+				newRule := view.RollupRule{
+					ID:            utilizationRuleID,
+					Name:          rrv.Name,
+					CutoverMillis: time.Now().UnixNano(),
+					Filter:        rrv.Filter,
+					Targets:       rrv.Targets,
+				}
+				rs.UtilizationRules[i] = newRule
+				return newRule, nil
+			}
+		}
+		return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("utilization rule: %s doesn't exist in namespace: %s", utilizationRuleID, namespaceID))
+	}
+}
+
+func (s *store) DeleteUtilizationRule(
+	namespaceID,
+	utilizationRuleID string,
+	uOpts r2store.UpdateOptions,
+) error {
+	switch namespaceID {
+	case s.data.ErrorNamespace:
+		return r2.NewInternalError("could not delete utilization rule.")
+	case s.data.ConflictNamespace:
+		return r2.NewVersionError("namespaces version mismatch")
+	default:
+		rs, exists := s.data.RuleSets[namespaceID]
+		if !exists {
+			return r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+		}
+
+		foundIdx := -1
+		for i, rule := range rs.UtilizationRules {
+			if rule.ID == utilizationRuleID {
+				foundIdx = i
+				break
+			}
+		}
+		if foundIdx == -1 {
+			return r2.NewNotFoundError(fmt.Sprintf("utilization rule: %s doesn't exist in namespace: %s", utilizationRuleID, namespaceID))
+		}
+		rs.UtilizationRules = append(rs.UtilizationRules[:foundIdx], rs.UtilizationRules[foundIdx+1:]...)
+		return nil
+	}
+}
+
+func (s *store) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.RollupRule, error) {
+	switch namespaceID {
+	case s.data.ErrorNamespace:
+		return nil, r2.NewInternalError(fmt.Sprintf("Could not fetch utilizationRule: %s in namespace: %s", namespaceID, utilizationRuleID))
+	default:
+		ns, exists := s.data.UtilizationHistory[namespaceID]
+		if !exists {
+			return nil, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+		}
+		hist, exists := ns[utilizationRuleID]
+		if !exists {
+			return nil, r2.NewNotFoundError(fmt.Sprintf("utilizationRule: %s doesn't exist in Namespace: %s", utilizationRuleID, namespaceID))
 		}
 		return hist, nil
 	}

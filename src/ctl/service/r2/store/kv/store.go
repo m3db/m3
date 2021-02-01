@@ -439,6 +439,120 @@ func (s *store) FetchRollupRuleHistory(
 	return nil, rollupRuleNotFoundError(namespaceID, rollupRuleID)
 }
 
+func (s *store) FetchUtilizationRule(
+	namespaceID string,
+	utilizationRuleID string,
+) (view.RollupRule, error) {
+	ruleset, err := s.FetchRuleSetSnapshot(namespaceID)
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	for _, rr := range ruleset.UtilizationRules {
+		if rr.ID == utilizationRuleID {
+			return rr, nil
+		}
+	}
+
+	return view.RollupRule{}, utilizationRuleNotFoundError(namespaceID, utilizationRuleID)
+}
+
+func (s *store) CreateUtilizationRule(
+	namespaceID string,
+	rrv view.RollupRule,
+	uOpts r2store.UpdateOptions,
+) (view.RollupRule, error) {
+	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	mutable := rs.ToMutableRuleSet().Clone()
+	newID, err := mutable.AddUtilizationRule(rrv, s.newUpdateMeta(uOpts))
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	err = s.ruleStore.WriteRuleSet(mutable)
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	return s.FetchUtilizationRule(namespaceID, newID)
+}
+
+func (s *store) UpdateUtilizationRule(
+	namespaceID,
+	utilizationRuleID string,
+	rrv view.RollupRule,
+	uOpts r2store.UpdateOptions,
+) (view.RollupRule, error) {
+	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	mutable := rs.ToMutableRuleSet().Clone()
+	err = mutable.UpdateUtilizationRule(rrv, s.newUpdateMeta(uOpts))
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	err = s.ruleStore.WriteRuleSet(mutable)
+	if err != nil {
+		return view.RollupRule{}, handleUpstreamError(err)
+	}
+
+	return s.FetchUtilizationRule(namespaceID, utilizationRuleID)
+}
+
+func (s *store) DeleteUtilizationRule(
+	namespaceID string,
+	utilizationRuleID string,
+	uOpts r2store.UpdateOptions,
+) error {
+	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
+	if err != nil {
+		return handleUpstreamError(err)
+	}
+
+	mutable := rs.ToMutableRuleSet().Clone()
+	err = mutable.DeleteUtilizationRule(utilizationRuleID, s.newUpdateMeta(uOpts))
+	if err != nil {
+		return handleUpstreamError(err)
+	}
+
+	err = s.ruleStore.WriteRuleSet(mutable)
+	if err != nil {
+		return handleUpstreamError(err)
+	}
+
+	return nil
+}
+
+func (s *store) FetchUtilizationRuleHistory(
+	namespaceID string,
+	utilizationRuleID string,
+) ([]view.RollupRule, error) {
+	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
+	if err != nil {
+		return nil, handleUpstreamError(err)
+	}
+
+	urs, err := rs.UtilizationRules()
+	if err != nil {
+		return nil, handleUpstreamError(err)
+	}
+
+	for _, utilizations := range urs {
+		if len(utilizations) > 0 && utilizations[0].ID == utilizationRuleID {
+			return utilizations, nil
+		}
+	}
+
+	return nil, utilizationRuleNotFoundError(namespaceID, utilizationRuleID)
+}
+
 func (s *store) Close() { s.ruleStore.Close() }
 
 func (s *store) newUpdateMeta(uOpts r2store.UpdateOptions) rules.UpdateMetadata {
@@ -458,6 +572,15 @@ func rollupRuleNotFoundError(namespaceID, rollupRuleID string) error {
 	return r2.NewNotFoundError(
 		fmt.Sprintf("rollup rule: %s doesn't exist in Namespace: %s",
 			rollupRuleID,
+			namespaceID,
+		),
+	)
+}
+
+func utilizationRuleNotFoundError(namespaceID, utilizationRuleID string) error {
+	return r2.NewNotFoundError(
+		fmt.Sprintf("utilization rule: %s doesn't exist in Namespace: %s",
+			utilizationRuleID,
 			namespaceID,
 		),
 	)
