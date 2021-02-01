@@ -76,8 +76,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 	scope := iops.MetricsScope()
 	log := iops.Logger()
 	log.Info(fmt.Sprintf("found %d commit log files to read", len(filteredFiles)),
-		zap.Strings("commitlogFiles", commitLogFilesForLogging(filteredFiles)),
-		zap.Strings("corruptFiles", corruptFilesForLogging(filteredCorruptFiles)))
+		zap.Strings("commitlog-files", commitLogFilesForLogging(filteredFiles)))
 	return &iterator{
 		iterOpts: iterOpts,
 		opts:     opts,
@@ -214,20 +213,7 @@ func commitLogFilesForLogging(files []persist.CommitLogFile) []string {
 		if fi, err := os.Stat(f.FilePath); err == nil {
 			fileSize = fi.Size()
 		}
-
 		result = append(result, fmt.Sprintf("path=%s, len=%d", f.FilePath, fileSize))
-	}
-	return result
-}
-
-func corruptFilesForLogging(files []ErrorWithPath) []string {
-	result := make([]string, 0, len(files))
-	for _, f := range files {
-		var fileSize int64
-		if fi, err := os.Stat(f.Path()); err == nil {
-			fileSize = fi.Size()
-		}
-		result = append(result, fmt.Sprintf("path=%s, len=%d", f.Path(), fileSize))
 	}
 	return result
 }
