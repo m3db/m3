@@ -655,7 +655,8 @@ func (b *block) aggregateWithSpan(
 		resultCount   = results.TotalDocsCount()
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
 		maxBatch      = cap(batch)
-		iterClosed    = false // tracking whether we need to free the iterator at the end.
+		maxBytes      = 1024 * 1024 // NB: up to a max of 1MB per batch.
+		iterClosed    = false       // tracking whether we need to free the iterator at the end.
 		lastField     []byte
 		batchedFields int
 	)
@@ -738,7 +739,7 @@ func (b *block) aggregateWithSpan(
 				// legacy limits would have been updated. It increments by two to
 				// reflect the term appearing as both the last element of the previous
 				// batch, as well as the first element in the next batch.
-				if batchedFields > maxBatch {
+				if batchedFields > maxBatch || len(idBuffer) > maxBytes {
 					if err := b.docsLimit.Inc(2, source); err != nil {
 						return false, err
 					}

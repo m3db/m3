@@ -296,6 +296,10 @@ type AggregateUsageMetrics interface {
 	IncTotalFields(val int64)
 	// IncDedupedFields increments the dedupedFields metric count.
 	IncDedupedFields(val int64)
+	// IncDedupedBytes increments the totalBytes metric count.
+	IncTotalBytes(val int64)
+	// IncDedupedBytes increments the dedupedBytes metric count.
+	IncDedupedBytes(val int64)
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
