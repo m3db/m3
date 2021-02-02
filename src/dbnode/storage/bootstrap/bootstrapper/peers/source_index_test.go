@@ -202,7 +202,7 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 				SetBlockSize(indexBlockSize))
 	})
 
-	at := test.indexBlockStart // time.Now().Add(-5 * time.Hour) // assume index blocks started 8 hours ago
+	at := test.indexBlockStart
 	start := at.Add(-ropts.RetentionPeriod()).Truncate(blockSize)
 	indexStart := start.Truncate(indexBlockSize)
 	for !start.Equal(indexStart) {
