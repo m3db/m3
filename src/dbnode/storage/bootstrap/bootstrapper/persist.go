@@ -98,7 +98,7 @@ func PersistBootstrapIndexSegment(
 	// If bootstrapping is taking more time than our retention period, we might end up in a situation
 	// when earliestRetentionTime is larger than out block end time. This means that the blocks
 	// got outdated during bootstrap so we just skip building index segments for them.
-	if earliestRetentionTime.After(blockEnd) {
+	if earliestRetentionTime.After(blockEnd) || earliestRetentionTime.Equal(blockEnd) {
 		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
 	}
 
@@ -256,8 +256,8 @@ func BuildBootstrapIndexSegment(
 	//  Index block size: 4 hours
 	//  Data block size: 2 hours
 	//  Retention: 6 hours
-	//           [12PM->2PM][2PM->4PM][4PM->6PM] (Data Blocks)
-	// [10AM     ->     2PM][2PM     ->     6PM] (Index Blocks)
+	//           [12PM->2PM)[2PM->4PM)[4PM->6PM) (Data Blocks)
+	// [10AM     ->     2PM)[2PM     ->     6PM) (Index Blocks)
 	retentionOpts := ns.Options().RetentionOptions()
 	nowFn := resultOpts.ClockOptions().NowFn()
 	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
@@ -265,7 +265,7 @@ func BuildBootstrapIndexSegment(
 	// If bootstrapping is taking more time than our retention period, we might end up in a situation
 	// when earliestRetentionTime is larger than out block end time. This means that the blocks
 	// got outdated during bootstrap so we just skip building index segments for them.
-	if earliestRetentionTime.After(blockEnd) {
+	if earliestRetentionTime.After(blockEnd) || earliestRetentionTime.Equal(blockEnd) {
 		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
 	}
 
