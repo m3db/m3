@@ -534,39 +534,40 @@ func (rs *ruleSet) DeleteRollupRule(id string, meta UpdateMetadata) error {
 	return nil
 }
 
-func (rs *ruleSet) AddUtilizationRule(rrv view.RollupRule, meta UpdateMetadata) (string, error) {
-	r, err := rs.getUtilizationRuleByName(rrv.Name)
-	if err != nil && err != errRuleNotFound {
-		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
+//nolint:gocritic,dupl
+func (rs *ruleSet) AddUtilizationRule(urv view.RollupRule, meta UpdateMetadata) (string, error) {
+	ur, err := rs.getUtilizationRuleByName(urv.Name)
+	if err != nil && !errors.Is(err, errRuleNotFound) {
+		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", urv.Name))
 	}
-	targets := newRollupTargetsFromView(rrv.Targets)
-	if err == errRuleNotFound {
-		r = newEmptyRollupRule()
-		if err = r.addSnapshot(
-			rrv.Name,
-			rrv.Filter,
+	targets := newRollupTargetsFromView(urv.Targets)
+	if errors.Is(err, errRuleNotFound) {
+		ur = newEmptyRollupRule()
+		if err = ur.addSnapshot(
+			urv.Name,
+			urv.Filter,
 			targets,
 			meta,
-			rrv.KeepOriginal,
+			urv.KeepOriginal,
 		); err != nil {
-			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", urv.Name))
 		}
-		rs.utilizationRules = append(rs.utilizationRules, r)
-	} else {
-		if err := r.revive(
-			rrv.Name,
-			rrv.Filter,
-			targets,
-			meta,
-			rrv.KeepOriginal,
-		); err != nil {
-			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", rrv.Name))
-		}
+		rs.utilizationRules = append(rs.utilizationRules, ur)
+	} else if err := ur.revive(
+		urv.Name,
+		urv.Filter,
+		targets,
+		meta,
+		urv.KeepOriginal,
+	); err != nil {
+		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", urv.Name))
 	}
+
 	rs.updateMetadata(meta)
-	return r.uuid, nil
+	return ur.uuid, nil
 }
 
+//nolint:gocritic,dupl
 func (rs *ruleSet) UpdateUtilizationRule(rrv view.RollupRule, meta UpdateMetadata) error {
 	r, err := rs.getUtilizationRuleByID(rrv.ID)
 	if err != nil {
@@ -802,6 +803,7 @@ func (rs *ruleSet) applyRollupRuleChanges(rrChanges []changes.RollupRuleChange, 
 	return nil
 }
 
+//nolint:gocritic,dupl
 func (rs *ruleSet) applyUtilizationRuleChanges(urChanges []changes.RollupRuleChange, meta UpdateMetadata) error {
 	for _, urChange := range urChanges {
 		switch urChange.Op {

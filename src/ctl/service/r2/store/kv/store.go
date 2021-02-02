@@ -439,6 +439,7 @@ func (s *store) FetchRollupRuleHistory(
 	return nil, rollupRuleNotFoundError(namespaceID, rollupRuleID)
 }
 
+//nolint:gocritic
 func (s *store) FetchUtilizationRule(
 	namespaceID string,
 	utilizationRuleID string,
@@ -457,9 +458,10 @@ func (s *store) FetchUtilizationRule(
 	return view.RollupRule{}, utilizationRuleNotFoundError(namespaceID, utilizationRuleID)
 }
 
+//nolint:gocritic,dupl
 func (s *store) CreateUtilizationRule(
 	namespaceID string,
-	rrv view.RollupRule,
+	urv view.RollupRule,
 	uOpts r2store.UpdateOptions,
 ) (view.RollupRule, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
@@ -468,7 +470,7 @@ func (s *store) CreateUtilizationRule(
 	}
 
 	mutable := rs.ToMutableRuleSet().Clone()
-	newID, err := mutable.AddUtilizationRule(rrv, s.newUpdateMeta(uOpts))
+	newID, err := mutable.AddUtilizationRule(urv, s.newUpdateMeta(uOpts))
 	if err != nil {
 		return view.RollupRule{}, handleUpstreamError(err)
 	}
@@ -481,6 +483,7 @@ func (s *store) CreateUtilizationRule(
 	return s.FetchUtilizationRule(namespaceID, newID)
 }
 
+//nolint:gocritic
 func (s *store) UpdateUtilizationRule(
 	namespaceID,
 	utilizationRuleID string,

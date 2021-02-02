@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
+//nolint:dupl,gocritic
+// Package stub for store
 package stub
 
 import (
@@ -134,9 +136,11 @@ var (
 									{
 										Type: pipeline.RollupOpType,
 										Rollup: pipeline.RollupOp{
-											NewName:       b("testTarget"),
-											Tags:          bs("tag1", "tag2"),
-											AggregationID: aggregation.MustCompressTypes(aggregation.Min),
+											NewName: b("testTarget"),
+											Tags:    bs("tag1", "tag2"),
+											AggregationID: aggregation.MustCompressTypes(
+												aggregation.Min,
+											),
 										},
 									},
 								}),
@@ -245,7 +249,7 @@ var (
 			},
 		},
 		MappingHistory: map[string]mappingRuleHistories{
-			"ns1": mappingRuleHistories{
+			"ns1": {
 				"mr_id1": []view.MappingRule{
 					{
 						ID:            "mr_id1",
@@ -274,7 +278,7 @@ var (
 			"ns2": nil,
 		},
 		RollupHistory: map[string]rollupRuleHistories{
-			"ns1": rollupRuleHistories{
+			"ns1": {
 				"rr_id1": []view.RollupRule{
 					{
 						ID:            "rr_id1",
@@ -339,7 +343,7 @@ var (
 					},
 				},
 			},
-			"ns2": rollupRuleHistories{
+			"ns2": {
 				"rr_id3": []view.RollupRule{
 					{
 						ID:            "rr_id1",
@@ -383,7 +387,7 @@ var (
 			},
 		},
 		UtilizationHistory: map[string]utilizationRuleHistories{
-			"ns1": utilizationRuleHistories{
+			"ns1": {
 				"ur_id1": []view.RollupRule{
 					{
 						ID:            "ur_id1",
@@ -448,7 +452,7 @@ var (
 					},
 				},
 			},
-			"ns2": utilizationRuleHistories{
+			"ns2": {
 				"ur_id3": []view.RollupRule{
 					{
 						ID:            "ur_id1",
@@ -857,18 +861,32 @@ func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view
 func (s *store) FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
-		return view.RollupRule{}, r2.NewInternalError(fmt.Sprintf("Could not fetch utilizationRule: %s in namespace: %s", namespaceID, utilizationRuleID))
+		return view.RollupRule{}, r2.NewInternalError(
+			fmt.Sprintf(
+				"Could not fetch utilizationRule: %s in namespace: %s",
+				namespaceID,
+				utilizationRuleID,
+			),
+		)
 	default:
 		rs, exists := s.data.RuleSets[namespaceID]
 		if !exists {
-			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+			return view.RollupRule{}, r2.NewNotFoundError(
+				fmt.Sprintf("namespace %s doesn't exist", namespaceID),
+			)
 		}
 		for _, r := range rs.UtilizationRules {
 			if utilizationRuleID == r.ID {
 				return r, nil
 			}
 		}
-		return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("utilizationRule: %s doesn't exist in Namespace: %s", utilizationRuleID, namespaceID))
+		return view.RollupRule{}, r2.NewNotFoundError(
+			fmt.Sprintf(
+				"utilizationRule: %s doesn't exist in Namespace: %s",
+				utilizationRuleID,
+				namespaceID,
+			),
+		)
 	}
 }
 
@@ -885,11 +903,19 @@ func (s *store) CreateUtilizationRule(
 	default:
 		rs, exists := s.data.RuleSets[namespaceID]
 		if !exists {
-			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+			return view.RollupRule{}, r2.NewNotFoundError(
+				fmt.Sprintf("namespace %s doesn't exist", namespaceID),
+			)
 		}
 		for _, r := range rs.UtilizationRules {
 			if rrv.Name == r.Name {
-				return view.RollupRule{}, r2.NewConflictError(fmt.Sprintf("utilization rule: %s already exists in namespace: %s", rrv.Name, namespaceID))
+				return view.RollupRule{}, r2.NewConflictError(
+					fmt.Sprintf(
+						"utilization rule: %s already exists in namespace: %s",
+						rrv.Name,
+						namespaceID,
+					),
+				)
 			}
 		}
 		newID := uuid.New()
@@ -919,7 +945,9 @@ func (s *store) UpdateUtilizationRule(
 	default:
 		rs, exists := s.data.RuleSets[namespaceID]
 		if !exists {
-			return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("namespace %s doesn't exist", namespaceID))
+			return view.RollupRule{}, r2.NewNotFoundError(
+				fmt.Sprintf("namespace %s doesn't exist", namespaceID),
+			)
 		}
 
 		for i, m := range rs.UtilizationRules {
@@ -935,7 +963,13 @@ func (s *store) UpdateUtilizationRule(
 				return newRule, nil
 			}
 		}
-		return view.RollupRule{}, r2.NewNotFoundError(fmt.Sprintf("utilization rule: %s doesn't exist in namespace: %s", utilizationRuleID, namespaceID))
+		return view.RollupRule{}, r2.NewNotFoundError(
+			fmt.Sprintf(
+				"utilization rule: %s doesn't exist in namespace: %s",
+				utilizationRuleID,
+				namespaceID,
+			),
+		)
 	}
 }
 
@@ -963,9 +997,16 @@ func (s *store) DeleteUtilizationRule(
 			}
 		}
 		if foundIdx == -1 {
-			return r2.NewNotFoundError(fmt.Sprintf("utilization rule: %s doesn't exist in namespace: %s", utilizationRuleID, namespaceID))
+			return r2.NewNotFoundError(fmt.Sprintf(
+				"utilization rule: %s doesn't exist in namespace: %s",
+				utilizationRuleID,
+				namespaceID,
+			),
+			)
 		}
-		rs.UtilizationRules = append(rs.UtilizationRules[:foundIdx], rs.UtilizationRules[foundIdx+1:]...)
+		rs.UtilizationRules = append(
+			rs.UtilizationRules[:foundIdx],
+			rs.UtilizationRules[foundIdx+1:]...)
 		return nil
 	}
 }
@@ -973,7 +1014,11 @@ func (s *store) DeleteUtilizationRule(
 func (s *store) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.RollupRule, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
-		return nil, r2.NewInternalError(fmt.Sprintf("Could not fetch utilizationRule: %s in namespace: %s", namespaceID, utilizationRuleID))
+		return nil, r2.NewInternalError(fmt.Sprintf(
+			"Could not fetch utilizationRule: %s in namespace: %s",
+			namespaceID,
+			utilizationRuleID,
+		))
 	default:
 		ns, exists := s.data.UtilizationHistory[namespaceID]
 		if !exists {
@@ -981,7 +1026,10 @@ func (s *store) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID strin
 		}
 		hist, exists := ns[utilizationRuleID]
 		if !exists {
-			return nil, r2.NewNotFoundError(fmt.Sprintf("utilizationRule: %s doesn't exist in Namespace: %s", utilizationRuleID, namespaceID))
+			return nil, r2.NewNotFoundError(fmt.Sprintf(
+				"utilizationRule: %s doesn't exist in Namespace: %s",
+				utilizationRuleID,
+				namespaceID))
 		}
 		return hist, nil
 	}

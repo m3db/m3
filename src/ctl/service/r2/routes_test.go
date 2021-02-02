@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//nolint:gocritic
 package r2
 
 import (
@@ -166,6 +167,44 @@ func TestDeleteRollupRuleSuccess(t *testing.T) {
 func TestFetchRollupRuleHistorySuccess(t *testing.T) {
 	expected := view.RollupRuleSnapshots{RollupRules: []view.RollupRule{}}
 	actual, err := fetchRollupRuleHistory(newTestService(nil), newTestGetRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+func TestFetchUtilizationRuleSuccess(t *testing.T) {
+	expected := view.RollupRule{}
+	actual, err := fetchUtilizationRule(newTestService(nil), newTestGetRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestCreateUtilizationRuleSuccess(t *testing.T) {
+	expected := view.RollupRule{}
+	actual, err := createUtilizationRule(newTestService(nil), newTestPostRequest(
+		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
+	))
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestUpdateUtilizationRuleSuccess(t *testing.T) {
+	expected := view.RollupRule{}
+	actual, err := updateUtilizationRule(newTestService(nil), newTestPutRequest(
+		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
+	))
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDeleteUtilizationRuleSuccess(t *testing.T) {
+	expected := fmt.Sprintf("Deleted utilization rule: %s in namespace %s", "", "")
+	actual, err := deleteUtilizationRule(newTestService(nil), newTestDeleteRequest())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestFetchUtilizationRuleHistorySuccess(t *testing.T) {
+	expected := view.RollupRuleSnapshots{RollupRules: []view.RollupRule{}}
+	actual, err := fetchUtilizationRuleHistory(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -469,23 +508,38 @@ func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]v
 	return make([]view.RollupRule, 0), nil
 }
 
-func (s mockStore) FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error) {
+func (s mockStore) FetchUtilizationRule(
+	namespaceID, utilizationRuleID string,
+) (view.RollupRule, error) {
 	return view.RollupRule{}, nil
 }
 
-func (s mockStore) CreateUtilizationRule(namespaceID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+func (s mockStore) CreateUtilizationRule(
+	namespaceID string,
+	rrv view.RollupRule,
+	uOpts store.UpdateOptions,
+) (view.RollupRule, error) {
 	return view.RollupRule{}, nil
 }
 
-func (s mockStore) UpdateUtilizationRule(namespaceID, utilizationRuleID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+func (s mockStore) UpdateUtilizationRule(
+	namespaceID, utilizationRuleID string,
+	rrv view.RollupRule,
+	uOpts store.UpdateOptions,
+) (view.RollupRule, error) {
 	return view.RollupRule{}, nil
 }
 
-func (s mockStore) DeleteUtilizationRule(namespaceID, utilizationRuleID string, uOpts store.UpdateOptions) error {
+func (s mockStore) DeleteUtilizationRule(
+	namespaceID, utilizationRuleID string,
+	uOpts store.UpdateOptions,
+) error {
 	return nil
 }
 
-func (s mockStore) FetchUtilizationRuleHistory(namespaceID, utilizationRuleID string) ([]view.RollupRule, error) {
+func (s mockStore) FetchUtilizationRuleHistory(
+	namespaceID, utilizationRuleID string,
+) ([]view.RollupRule, error) {
 	return make([]view.RollupRule, 0), nil
 }
 

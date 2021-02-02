@@ -81,10 +81,18 @@ type Store interface {
 	FetchUtilizationRule(namespaceID, utilizationRuleID string) (view.RollupRule, error)
 
 	// CreateUtilizationRule creates a utilization rule for the given namespace ID and rule data.
-	CreateUtilizationRule(namespaceID string, rrv view.RollupRule, uOpts UpdateOptions) (view.RollupRule, error)
+	CreateUtilizationRule(
+		namespaceID string,
+		rrv view.RollupRule,
+		uOpts UpdateOptions,
+	) (view.RollupRule, error)
 
 	// UpdateUtilizationRule updates a utilization rule for the given namespace ID and rule data.
-	UpdateUtilizationRule(namespaceID, utilizationRuleID string, rrv view.RollupRule, uOpts UpdateOptions) (view.RollupRule, error)
+	UpdateUtilizationRule(
+		namespaceID, utilizationRuleID string,
+		rrv view.RollupRule,
+		uOpts UpdateOptions,
+	) (view.RollupRule, error)
 
 	// DeleteUtilizationRule deletes the utilization rule for the given namespace ID and rule ID.
 	DeleteUtilizationRule(namespaceID, utilizationRuleID string, uOpts UpdateOptions) error

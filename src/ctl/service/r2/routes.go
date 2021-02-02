@@ -232,6 +232,7 @@ func fetchRollupRuleHistory(s *service, r *http.Request) (data interface{}, err 
 	}
 	return view.RollupRuleSnapshots{RollupRules: snapshots}, nil
 }
+
 func fetchUtilizationRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
 	return s.store.FetchUtilizationRule(vars[namespaceIDVar], vars[ruleIDVar])

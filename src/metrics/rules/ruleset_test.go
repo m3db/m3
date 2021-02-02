@@ -130,11 +130,11 @@ func TestRuleSetActiveSet(t *testing.T) {
 		{
 			activeSetTimeNanos: 30000,
 			expectedMappingRules: []*mappingRule{
-				&mappingRule{
+				{
 					uuid:      rs.mappingRules[0].uuid,
 					snapshots: rs.mappingRules[0].snapshots[2:],
 				},
-				&mappingRule{
+				{
 					uuid:      rs.mappingRules[1].uuid,
 					snapshots: rs.mappingRules[1].snapshots[1:],
 				},
@@ -143,11 +143,11 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.mappingRules[4],
 			},
 			expectedRollupRules: []*rollupRule{
-				&rollupRule{
+				{
 					uuid:      rs.rollupRules[0].uuid,
 					snapshots: rs.rollupRules[0].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.rollupRules[1].uuid,
 					snapshots: rs.rollupRules[1].snapshots[1:],
 				},
@@ -157,11 +157,11 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.rollupRules[5],
 			},
 			expectedUtilizationRules: []*rollupRule{
-				&rollupRule{
+				{
 					uuid:      rs.utilizationRules[0].uuid,
 					snapshots: rs.utilizationRules[0].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.utilizationRules[1].uuid,
 					snapshots: rs.utilizationRules[1].snapshots[1:],
 				},
@@ -174,15 +174,15 @@ func TestRuleSetActiveSet(t *testing.T) {
 		{
 			activeSetTimeNanos: 200000,
 			expectedMappingRules: []*mappingRule{
-				&mappingRule{
+				{
 					uuid:      rs.mappingRules[0].uuid,
 					snapshots: rs.mappingRules[0].snapshots[2:],
 				},
-				&mappingRule{
+				{
 					uuid:      rs.mappingRules[1].uuid,
 					snapshots: rs.mappingRules[1].snapshots[2:],
 				},
-				&mappingRule{
+				{
 					uuid:      rs.mappingRules[2].uuid,
 					snapshots: rs.mappingRules[2].snapshots[1:],
 				},
@@ -190,15 +190,15 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.mappingRules[4],
 			},
 			expectedRollupRules: []*rollupRule{
-				&rollupRule{
+				{
 					uuid:      rs.rollupRules[0].uuid,
 					snapshots: rs.rollupRules[0].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.rollupRules[1].uuid,
 					snapshots: rs.rollupRules[1].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.rollupRules[2].uuid,
 					snapshots: rs.rollupRules[2].snapshots[1:],
 				},
@@ -207,15 +207,15 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.rollupRules[5],
 			},
 			expectedUtilizationRules: []*rollupRule{
-				&rollupRule{
+				{
 					uuid:      rs.utilizationRules[0].uuid,
 					snapshots: rs.utilizationRules[0].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.utilizationRules[1].uuid,
 					snapshots: rs.utilizationRules[1].snapshots[2:],
 				},
-				&rollupRule{
+				{
 					uuid:      rs.utilizationRules[2].uuid,
 					snapshots: rs.utilizationRules[2].snapshots[1:],
 				},
@@ -1460,16 +1460,16 @@ func testRuleSetProto() *rulepb.RuleSet {
 
 func testMappingRulesConfig() []*rulepb.MappingRule {
 	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule1",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 10000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 10 * time.Second.Nanoseconds(),
 								Precision:  time.Second.Nanoseconds(),
@@ -1481,13 +1481,13 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					},
 					Tags: []*metricpb.Tag{},
 				},
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 20000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 10 * time.Second.Nanoseconds(),
 								Precision:  time.Second.Nanoseconds(),
@@ -1496,7 +1496,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: 6 * time.Hour.Nanoseconds(),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 5 * time.Minute.Nanoseconds(),
 								Precision:  time.Minute.Nanoseconds(),
@@ -1505,7 +1505,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: 48 * time.Hour.Nanoseconds(),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 10 * time.Minute.Nanoseconds(),
 								Precision:  time.Minute.Nanoseconds(),
@@ -1517,13 +1517,13 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					},
 					Tags: []*metricpb.Tag{},
 				},
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot3",
 					Tombstoned:   false,
 					CutoverNanos: 30000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 30 * time.Second.Nanoseconds(),
 								Precision:  time.Second.Nanoseconds(),
@@ -1537,16 +1537,16 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 				},
 			},
 		},
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule2",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule2.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 15000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 10 * time.Second.Nanoseconds(),
 								Precision:  time.Second.Nanoseconds(),
@@ -1558,7 +1558,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					},
 					Tags: []*metricpb.Tag{},
 				},
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule2.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
@@ -1567,7 +1567,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 						aggregationpb.AggregationType_MIN,
 					},
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: 10 * time.Second.Nanoseconds(),
 								Precision:  time.Second.Nanoseconds(),
@@ -1576,7 +1576,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: 2 * time.Hour.Nanoseconds(),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(time.Minute),
 								Precision:  int64(time.Minute),
@@ -1588,7 +1588,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					},
 					Tags: []*metricpb.Tag{},
 				},
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule2.snapshot3",
 					Tombstoned:   true,
 					CutoverNanos: 35000,
@@ -1597,7 +1597,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 						aggregationpb.AggregationType_MIN,
 					},
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -1606,7 +1606,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: int64(2 * time.Hour),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(time.Minute),
 								Precision:  int64(time.Minute),
@@ -1620,10 +1620,10 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 				},
 			},
 		},
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule3",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule3.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
@@ -1632,7 +1632,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 						aggregationpb.AggregationType_MAX,
 					},
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -1641,7 +1641,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: int64(12 * time.Hour),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(5 * time.Minute),
 								Precision:  int64(time.Minute),
@@ -1653,13 +1653,13 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					},
 					Tags: []*metricpb.Tag{},
 				},
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule3.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 34000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -1668,7 +1668,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 								Period: int64(2 * time.Hour),
 							},
 						},
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(time.Minute),
 								Precision:  int64(time.Minute),
@@ -1682,10 +1682,10 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 				},
 			},
 		},
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule4",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule4.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
@@ -1694,7 +1694,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 						aggregationpb.AggregationType_P999,
 					},
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -1708,10 +1708,10 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 				},
 			},
 		},
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule5",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:               "mappingRule5.snapshot1",
 					Tombstoned:         false,
 					CutoverNanos:       100000,
@@ -1719,7 +1719,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 					LastUpdatedBy:      "test",
 					Filter:             "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -1736,18 +1736,19 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 	}
 }
 
+//nolint:dupl
 func testRollupRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 10000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1760,7 +1761,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -1773,13 +1774,13 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 20000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1792,7 +1793,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -1801,7 +1802,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(6 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(5 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -1810,7 +1811,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(48 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -1823,13 +1824,13 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot3",
 					Tombstoned:   false,
 					CutoverNanos: 30000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1842,7 +1843,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(30 * time.Second),
 										Precision:  int64(time.Second),
@@ -1857,16 +1858,16 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule2",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 15000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1879,7 +1880,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -1892,13 +1893,13 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1911,7 +1912,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -1920,7 +1921,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(2 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -1933,13 +1934,13 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot3",
 					Tombstoned:   true,
 					CutoverNanos: 35000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1952,7 +1953,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -1967,16 +1968,16 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule3",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule3.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -1989,7 +1990,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -1998,7 +1999,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(12 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2007,7 +2008,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(24 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(5 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -2018,7 +2019,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 						},
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2031,7 +2032,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2044,13 +2045,13 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule3.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 34000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2063,7 +2064,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2072,7 +2073,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 										Period: int64(2 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2087,16 +2088,16 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule4",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule4.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2109,7 +2110,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2124,16 +2125,16 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule5",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule5.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2146,7 +2147,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Second),
 										Precision:  int64(time.Second),
@@ -2161,16 +2162,16 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule6",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule6.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 100000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2183,7 +2184,7 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2200,18 +2201,20 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 		},
 	}
 }
+
+//nolint:dupl
 func testUtilizationRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 10000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2224,7 +2227,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2237,13 +2240,13 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 20000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2256,7 +2259,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2265,7 +2268,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(6 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(5 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -2274,7 +2277,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(48 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -2287,13 +2290,13 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot3",
 					Tombstoned:   false,
 					CutoverNanos: 30000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2306,7 +2309,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(30 * time.Second),
 										Precision:  int64(time.Second),
@@ -2321,16 +2324,16 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule2",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 15000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2343,7 +2346,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2356,13 +2359,13 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2375,7 +2378,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2384,7 +2387,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(2 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2397,13 +2400,13 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule2.snapshot3",
 					Tombstoned:   true,
 					CutoverNanos: 35000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2416,7 +2419,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2431,16 +2434,16 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule3",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule3.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2453,7 +2456,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2462,7 +2465,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(12 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2471,7 +2474,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(24 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(5 * time.Minute),
 										Precision:  int64(time.Minute),
@@ -2482,7 +2485,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 						},
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2495,7 +2498,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2508,13 +2511,13 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 						},
 					},
 				},
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule3.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 34000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2527,7 +2530,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(10 * time.Second),
 										Precision:  int64(time.Second),
@@ -2536,7 +2539,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 										Period: int64(2 * time.Hour),
 									},
 								},
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2551,16 +2554,16 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule4",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule4.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2573,7 +2576,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -2588,16 +2591,16 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule5",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule5.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2610,7 +2613,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Second),
 										Precision:  int64(time.Second),
@@ -2625,16 +2628,16 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 				},
 			},
 		},
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule6",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule6.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 100000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -2647,7 +2650,7 @@ func testUtilizationRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
