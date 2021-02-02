@@ -61,6 +61,9 @@ type usageMetrics struct {
 
 	totalFields   tally.Counter
 	dedupedFields tally.Counter
+
+	totalBytes   tally.Counter
+	dedupedBytes tally.Counter
 }
 
 func (m *usageMetrics) IncTotal(val int64) {
@@ -98,6 +101,20 @@ func (m *usageMetrics) IncDedupedFields(val int64) {
 	}
 }
 
+func (m *usageMetrics) IncTotalBytes(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
+	if m.totalBytes != nil {
+		m.totalBytes.Inc(val)
+	}
+}
+
+func (m *usageMetrics) IncDedupedBytes(val int64) {
+	// NB: if metrics not set, to valid values, no-op.
+	if m.dedupedBytes != nil {
+		m.dedupedBytes.Inc(val)
+	}
+}
+
 // NewAggregateUsageMetrics builds a new aggregated usage metrics.
 func NewAggregateUsageMetrics(ns ident.ID, iOpts instrument.Options) AggregateUsageMetrics {
 	if ns == nil {
@@ -117,6 +134,8 @@ func NewAggregateUsageMetrics(ns ident.ID, iOpts instrument.Options) AggregateUs
 		dedupedTerms:  buildCounter("deduped-terms"),
 		totalFields:   buildCounter("total-fields"),
 		dedupedFields: buildCounter("deduped-fields"),
+		totalBytes:    buildCounter("total-bytes"),
+		dedupedBytes:  buildCounter("deduped-bytes"),
 	}
 }
 
@@ -207,6 +226,10 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		for idx := 0; idx < len(batch); idx++ {
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(batch[idx].Field)))
+			for _, term := range batch[idx].Terms {
+				r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(term)))
+			}
 		}
 
 		return r.size, r.totalDocsCount
@@ -229,6 +252,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	for idx := 0; idx < len(batch); idx++ {
 		entry = batch[idx]
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
+		r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(entry.Field)))
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
@@ -245,6 +269,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 				r.aggregateOpts.AggregateUsageMetrics.IncDedupedFields(1)
 
 				numInserts++
+				r.aggregateOpts.AggregateUsageMetrics.IncDedupedBytes(int64(len(entry.Field)))
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
@@ -258,17 +283,19 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalBytes(int64(len(t)))
 			if remainingDocs > docs {
 				docs++
 				r.reusableID.Reset(t)
 				if !valuesMap.Contains(r.reusableID) {
 					if remainingInserts > numInserts {
+						numInserts++
 						r.aggregateOpts.AggregateUsageMetrics.IncDedupedTerms(1)
+						r.aggregateOpts.AggregateUsageMetrics.IncDedupedBytes(int64(len(t)))
 						valuesMap.SetUnsafe(r.reusableID, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 							NoCopyKey:     false,
 							NoFinalizeKey: false,
 						})
-						numInserts++
 					}
 				}
 			}
