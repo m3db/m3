@@ -177,6 +177,7 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 }
 
+//nolint
 func testBootstrapIndex(t *testing.T, test testOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -319,7 +320,7 @@ func testBootstrapIndex(t *testing.T, test testOptions) {
 	require.Equal(t, test.expectedIndexBlocks, numIndexBlocks)
 
 	if numIndexBlocks > 0 {
-		for _, expected := range []struct {
+		for _, expected := range []*struct {
 			indexBlockStart time.Time
 			series          map[string]testSeriesMetadata
 		}{
