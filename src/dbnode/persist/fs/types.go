@@ -704,11 +704,3 @@ type StreamedMetadataEntry struct {
 
 // NewReaderFn creates a new DataFileSetReader.
 type NewReaderFn func(bytesPool pool.CheckedBytesPool, opts Options) (DataFileSetReader, error)
-
-// DataEntryProcessor processes StreamedDataEntries.
-type DataEntryProcessor interface {
-	// SetEntriesCount sets the number of entries to be processed.
-	SetEntriesCount(int)
-	// ProcessEntry processes a single StreamedDataEntry.
-	ProcessEntry(StreamedDataEntry) error
-}

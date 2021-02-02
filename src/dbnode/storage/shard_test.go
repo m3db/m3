@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -1989,52 +1988,6 @@ func TestOpenStreamingReader(t *testing.T) {
 
 	_, err = shard.OpenStreamingReader(blockStart)
 	require.NoError(t, err)
-}
-
-func TestShardScan(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		blockSize = time.Hour
-		start     = time.Now().Truncate(blockSize)
-		testOpts  = DefaultTestOptions()
-	)
-
-	shard := testDatabaseShard(t, testOpts)
-	defer assert.NoError(t, shard.Close())
-
-	shardEntries := []fs.StreamedDataEntry{
-		{
-			ID:           ident.BytesID("id1"),
-			EncodedTags:  ts.EncodedTags("tags1"),
-			Data:         []byte{1},
-			DataChecksum: 11,
-		},
-		{
-			ID:           ident.BytesID("id2"),
-			EncodedTags:  ts.EncodedTags("tags2"),
-			Data:         []byte{2},
-			DataChecksum: 22,
-		},
-	}
-
-	processor := fs.NewMockDataEntryProcessor(ctrl)
-	processor.EXPECT().SetEntriesCount(len(shardEntries))
-
-	reader, _ := getMockReader(ctrl, t, shard, start, nil)
-	reader.EXPECT().Entries().Return(len(shardEntries))
-	for _, entry := range shardEntries {
-		reader.EXPECT().StreamingRead().Return(entry, nil)
-		processor.EXPECT().ProcessEntry(entry)
-	}
-	reader.EXPECT().StreamingRead().Return(fs.StreamedDataEntry{}, io.EOF)
-
-	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
-		return reader, nil
-	}
-
-	require.NoError(t, shard.ScanData(start, processor))
 }
 
 func getMockReader(
