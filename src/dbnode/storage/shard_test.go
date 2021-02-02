@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -1954,50 +1953,41 @@ func TestShardAggregateTilesVerifySliceLengths(t *testing.T) {
 	require.EqualError(t, err, "blockReaders and sourceBlockVolumes length mismatch (0 != 1)")
 }
 
-func TestShardScan(t *testing.T) {
+func TestOpenStreamingReader(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		blockSize = time.Hour
-		start     = time.Now().Truncate(blockSize)
-		testOpts  = DefaultTestOptions()
+		blockStart = time.Now().Truncate(time.Hour)
+		testOpts   = DefaultTestOptions()
 	)
 
 	shard := testDatabaseShard(t, testOpts)
 	defer assert.NoError(t, shard.Close())
 
-	shardEntries := []fs.StreamedDataEntry{
-		{
-			ID:           ident.BytesID("id1"),
-			EncodedTags:  ts.EncodedTags("tags1"),
-			Data:         []byte{1},
-			DataChecksum: 11,
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
+	require.NoError(t, err)
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
 		},
-		{
-			ID:           ident.BytesID("id2"),
-			EncodedTags:  ts.EncodedTags("tags2"),
-			Data:         []byte{2},
-			DataChecksum: 22,
-		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
 	}
 
-	processor := fs.NewMockDataEntryProcessor(ctrl)
-	processor.EXPECT().SetEntriesCount(len(shardEntries))
-
-	reader, _ := getMockReader(ctrl, t, shard, start, nil)
-	reader.EXPECT().Entries().Return(len(shardEntries))
-	for _, entry := range shardEntries {
-		reader.EXPECT().StreamingRead().Return(entry, nil)
-		processor.EXPECT().ProcessEntry(entry)
-	}
-	reader.EXPECT().StreamingRead().Return(fs.StreamedDataEntry{}, io.EOF)
+	reader := fs.NewMockDataFileSetReader(ctrl)
+	reader.EXPECT().Open(openOpts).Return(nil)
 
 	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
 		return reader, nil
 	}
 
-	require.NoError(t, shard.ScanData(start, processor))
+	_, err = shard.OpenStreamingReader(blockStart)
+	require.NoError(t, err)
 }
 
 func getMockReader(

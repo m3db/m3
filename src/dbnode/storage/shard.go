@@ -2810,18 +2810,15 @@ func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
-func (s *dbShard) ScanData(
-	blockStart time.Time,
-	processor fs.DataEntryProcessor,
-) error {
+func (s *dbShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
 	latestVolume, err := s.LatestVolume(blockStart)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	openOpts := fs.DataReaderOpenOptions{
@@ -2836,38 +2833,10 @@ func (s *dbShard) ScanData(
 	}
 
 	if err := reader.Open(openOpts); err != nil {
-		return err
+		return nil, err
 	}
 
-	readEntriesErr := s.scanDataWithReader(reader, processor)
-	// Always close the reader regardless of if failed, but
-	// make sure to propagate if an error occurred closing the reader too.
-	readCloseErr := reader.Close()
-	if err := readEntriesErr; err != nil {
-		return readEntriesErr
-	}
-	return readCloseErr
-}
-
-func (s *dbShard) scanDataWithReader(
-	reader fs.DataFileSetReader,
-	processor fs.DataEntryProcessor,
-) error {
-	processor.SetEntriesCount(reader.Entries())
-
-	for {
-		entry, err := reader.StreamingRead()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
-		}
-
-		if err := processor.ProcessEntry(entry); err != nil {
-			return err
-		}
-	}
+	return reader, nil
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {

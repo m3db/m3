@@ -147,13 +147,6 @@ func (s *fileSystemSource) Read(
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
 
-	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
-	}
-	builder := result.NewIndexBuilder(segBuilder)
-
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
 	// having to re-read migrated info files.
@@ -175,7 +168,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, cache)
+			namespace.DataRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -205,7 +198,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, cache)
+			namespace.IndexRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -725,15 +718,12 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	builder *result.IndexBuilder,
 ) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	entry, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}
@@ -753,7 +743,6 @@ func (s *fileSystemSource) read(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-	builder *result.IndexBuilder,
 	span opentracing.Span,
 	cache bootstrap.Cache,
 ) (*runResult, error) {
@@ -837,11 +826,11 @@ func (s *fileSystemSource) read(
 		BlockSize:       blockSize,
 		// NB(bodu): We only read metadata when bootstrap index
 		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
-		Logger:                    s.log,
-		Span:                      span,
-		NowFn:                     s.nowFn,
-		Cache:                     cache,
+		ReadMetadataOnly: run == bootstrapIndexRunType,
+		Logger:           s.log,
+		Span:             span,
+		NowFn:            s.nowFn,
+		Cache:            cache,
 	})
 
 	bootstrapFromReadersRunResult := newRunResult()
