@@ -656,7 +656,8 @@ func (b *block) aggregateWithSpan(
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
 		maxBatch      = cap(batch)
 		maxBytes      = 1024 * 1024 // NB: up to a max of 1MB per batch.
-		iterClosed    = false       // tracking whether we need to free the iterator at the end.
+		idBuffer      = make([]byte, 0, maxBytes)
+		iterClosed    = false // tracking whether we need to free the iterator at the end.
 		lastField     []byte
 		batchedFields int
 	)
@@ -695,9 +696,6 @@ func (b *block) aggregateWithSpan(
 		maxBatch = opts.DocsLimit
 	}
 
-	// NB: idBuffer length is one higher than max batch, in case the entry
-	// that trips the batch size needs to add both a new field and a new term.
-	idBuffer := make([]byte, 0, maxBatch)
 	batchedCount := 0
 	for _, reader := range readers {
 		if opts.LimitsExceeded(size, resultCount) {
@@ -739,7 +737,7 @@ func (b *block) aggregateWithSpan(
 				// legacy limits would have been updated. It increments by two to
 				// reflect the term appearing as both the last element of the previous
 				// batch, as well as the first element in the next batch.
-				if batchedFields > maxBatch || len(idBuffer) > maxBytes {
+				if batchedFields > maxBatch {
 					if err := b.docsLimit.Inc(2, source); err != nil {
 						return false, err
 					}
@@ -751,7 +749,7 @@ func (b *block) aggregateWithSpan(
 			batch, batchedCount, idBuffer = b.appendFieldAndTermToBatch(
 				batch, field, term, iterateTerms, batchedCount, idBuffer)
 			// continue appending to the batch until we hit our max batch size.
-			if batchedCount < maxBatch {
+			if batchedCount < maxBatch || len(idBuffer) > maxBytes {
 				continue
 			}
 
