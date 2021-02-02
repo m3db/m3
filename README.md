@@ -4,26 +4,37 @@
 
 <p align="center"><img src="site/static/images/logo-square.png" alt="M3 Logo" width="256" height="270"></p>
 
-[Distributed TSDB](https://docs.m3db.io/m3db/) and [Query Engine](https://docs.m3db.io/how_to/query/), [Prometheus Sidecar](https://docs.m3db.io/integrations/prometheus/), [Metrics Aggregator](https://docs.m3db.io/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://docs.m3db.io/integrations/graphite/).
+[Distributed TSDB](https://m3db.io/docs/m3db/) and [Query Engine](https://m3db.io/docs/how_to/query/), [Prometheus Sidecar](https://m3db.io/docs/integrations/prometheus/), [Metrics Aggregator](https://m3db.io/docs/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://m3db.io/docs/integrations/graphite/).
 
 ## Table of Contents
 
 - [M3](#m3)
   - [Table of Contents](#table-of-contents)
   - [More Information](#more-information)
+    - [Community Meetings](#community-meetings)
+    - [Office Hours](#office-hours)
   - [Install](#install)
     - [Dependencies](#dependencies)
   - [Usage](#usage)
   - [Contributing](#contributing)
-  - [Community Meetings](#community-meetings)
-  - [Office Hours](#office-hours)
 
 ## More Information
 
--   [Documentation](https://docs.m3db.io/)
+-   [Documentation](https://m3db.io/docs)
 -   [Developer Guide: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPMENT.md)
 -   [Slack](http://bit.ly/m3slack)
 -   [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
+
+### Community Meetings
+
+M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
+<https://www.meetup.com/M3-Community/>.
+
+You can find recordings of past meetups here: <https://vimeo.com/user/120001164/folder/2290331>.
+
+### Office Hours
+
+Members of the M3 team hold office hours on the third Thursday of every month from 11-1pm EST. To join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
 
 ## Install
 
@@ -32,7 +43,6 @@
 The simplest and quickest way to try M3 is to use Docker, read [the M3 quickstart section](https://m3db.io/docs/quickstart) for other options.
 
 This example uses [jq](https://stedolan.github.io/jq/) to format the output of API calls. It is not essential for using M3DB.
-
 
 ## Usage
 
@@ -109,19 +119,7 @@ You can ask questions and give feedback in the following ways:
 -   [In the public M3 Slack](http://bit.ly/m3slack)
 -   [In the M3 forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 
-M3 welcomes pull requests…
-Read [the development guide](DEVELOPMENT.md) to help you get setup for building and contributing to M3.
-
-## Community Meetings
-
-M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
-<https://www.meetup.com/M3-Community/>.
-
-Recordings of past meetups can be found here: <https://vimeo.com/user/120001164/folder/2290331>.
-
-## Office Hours
-
-Members of the M3 team hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
+M3 welcomes pull requests, read [the development guide](DEVELOPMENT.md) to help you get setup for building and contributing to M3.
 
 <hr>
 
