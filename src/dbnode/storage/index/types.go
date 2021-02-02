@@ -331,8 +331,8 @@ type AggregateValuesPool interface {
 // AggregateResultsEntry is used during block.Aggregate() execution
 // to collect entries.
 type AggregateResultsEntry struct {
-	Field ident.ID
-	Terms []ident.ID
+	Field []byte
+	Terms [][]byte
 }
 
 // OnIndexSeries provides a set of callback hooks to allow the reverse index

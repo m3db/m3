@@ -694,10 +694,10 @@ func (b *block) aggregateWithSpan(
 		maxBatch = opts.DocsLimit
 	}
 
-	// NB: batchedIDs length is one higher than max batch, in case the entry
+	// NB: idBuffer length is one higher than max batch, in case the entry
 	// that trips the batch size needs to add both a new field and a new term.
-	batchedIDs := make([]ident.BytesID, maxBatch+1)
-	batchedIdx := 0
+	idBuffer := make([]byte, 0, maxBatch)
+	batchedCount := 0
 	for _, reader := range readers {
 		if opts.LimitsExceeded(size, resultCount) {
 			break
@@ -747,9 +747,10 @@ func (b *block) aggregateWithSpan(
 				}
 			}
 
-			batch, batchedIdx = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms, batchedIdx, batchedIDs)
+			batch, batchedCount, idBuffer = b.appendFieldAndTermToBatch(
+				batch, field, term, iterateTerms, batchedCount, idBuffer)
 			// continue appending to the batch until we hit our max batch size.
-			if batchedIdx < maxBatch {
+			if batchedCount < maxBatch {
 				continue
 			}
 
@@ -758,7 +759,8 @@ func (b *block) aggregateWithSpan(
 				return false, err
 			}
 
-			batchedIdx = 0
+			idBuffer = idBuffer[:0]
+			batchedCount = 0
 		}
 
 		if err := iter.Err(); err != nil {
@@ -785,16 +787,16 @@ func (b *block) aggregateWithSpan(
 // appendFieldAndTermToBatch adds the provided field / term onto the batch,
 // optionally reusing the last element of the batch if it pertains to the same field.
 // The underlying bytes in the returned batch are kept in the resettable slice
-// of batchedIDs.
+// of idBuffer.
 // First boolean result indicates that a unique field was added to the batch
 // and the second boolean indicates if a unique term was added.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-	batchedIdx int,
-	batchedIDs []ident.BytesID,
-) ([]AggregateResultsEntry, int) {
+	batchedCount int,
+	idBuffer []byte,
+) ([]AggregateResultsEntry, int, []byte) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -823,7 +825,7 @@ func (b *block) appendFieldAndTermToBatch(
 	// optimisation, it doesn't affect correctness.
 	if len(batch) > 0 {
 		lastFieldIsValid = true
-		lastField = batch[len(batch)-1].Field.Bytes()
+		lastField = batch[len(batch)-1].Field
 	}
 	if lastFieldIsValid && bytes.Equal(lastField, field) {
 		reuseLastEntry = true
@@ -833,8 +835,10 @@ func (b *block) appendFieldAndTermToBatch(
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
 		// the fields FST and reusing the same byte slice.
-		entry.Field = resetAtIndex(batchedIDs, batchedIdx, field)
-		batchedIdx++
+		startIdx := len(idBuffer)
+		idBuffer = append(idBuffer, field...)
+		entry.Field = idBuffer[startIdx : startIdx+len(field)]
+		batchedCount++
 	}
 
 	if includeTerms {
@@ -842,8 +846,10 @@ func (b *block) appendFieldAndTermToBatch(
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
 		// the terms FST and reusing the same byte slice.
-		entry.Terms = append(entry.Terms, resetAtIndex(batchedIDs, batchedIdx, term))
-		batchedIdx++
+		startIdx := len(idBuffer)
+		idBuffer = append(idBuffer, term...)
+		entry.Terms = append(entry.Terms, idBuffer[startIdx:startIdx+len(term)])
+		batchedCount++
 	}
 
 	if reuseLastEntry {
@@ -852,16 +858,16 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 
-	return batch, batchedIdx
+	return batch, batchedCount, idBuffer
 }
 
-func resetAtIndex(batchedIDs []ident.BytesID, idx int, data []byte) ident.BytesID {
-	if batchedIDs[idx] == nil {
-		batchedIDs[idx] = make(ident.BytesID, 0, len(data))
+func resetAtIndex(idBuffer []ident.BytesID, idx int, data []byte) ident.BytesID {
+	if idBuffer[idx] == nil {
+		idBuffer[idx] = make(ident.BytesID, 0, len(data))
 	}
 
-	batchedIDs[idx] = append(batchedIDs[idx][:0], data...)
-	return batchedIDs[idx]
+	idBuffer[idx] = append(idBuffer[idx][:0], data...)
+	return idBuffer[idx]
 }
 
 // addAggregateResults adds the fields on the batch
