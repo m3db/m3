@@ -2,9 +2,9 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-SCRIPT_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/coordinator_config_rules
+SCRIPT_PATH="$M3_PATH"/scripts/docker-integration-tests/coordinator_config_rules
 COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
 PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
