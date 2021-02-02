@@ -42,7 +42,9 @@ if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
 	trap cleanup_nc EXIT
 fi
 
-scripts/docker-integration-tests/setup.sh
+if [[ -z "$SKIP_SETUP" ]] || [[ "$SKIP_SETUP" == "false" ]]; then
+	scripts/docker-integration-tests/setup.sh
+fi
 
 NUM_TESTS=${#TESTS[@]}
 MIN_IDX=$((NUM_TESTS*BUILDKITE_PARALLEL_JOB/BUILDKITE_PARALLEL_JOB_COUNT))
