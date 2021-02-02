@@ -42,7 +42,7 @@ type instrumentationContext struct {
 	span                       opentracing.Span
 	bootstrapSnapshotsDuration tally.Timer
 	bootstrapCommitLogDuration tally.Timer
-	pOpts                      profiler.Options
+	profiler                   profiler.Profiler
 }
 
 func newInstrumentationContext(
@@ -51,14 +51,14 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
-	pOpts profiler.Options,
+	profiler profiler.Profiler,
 ) *instrumentationContext {
 	return &instrumentationContext{
 		opts:                       opts,
 		nowFn:                      nowFn,
 		log:                        log,
 		span:                       span,
-		pOpts:                      pOpts,
+		profiler:                   profiler,
 		bootstrapSnapshotsDuration: scope.Timer("snapshots-duration"),
 		bootstrapCommitLogDuration: scope.Timer("commitlog-duration"),
 	}
@@ -74,20 +74,20 @@ func (i *instrumentationContext) finish() {
 }
 
 func (i *instrumentationContext) startCPUProfile(name string) {
-	err := i.pOpts.Profiler().StartCPUProfile(name)
+	err := i.profiler.StartCPUProfile(name)
 	if err != nil {
 		i.log.Error("unable to start cpu profile", zap.Error(err))
 	}
 }
 
 func (i *instrumentationContext) stopCPUProfile() {
-	if err := i.pOpts.Profiler().StopCPUProfile(); err != nil {
+	if err := i.profiler.StopCPUProfile(); err != nil {
 		i.log.Error("unable to stop cpu profile", zap.Error(err))
 	}
 }
 
 func (i *instrumentationContext) writeHeapProfile(name string) {
-	err := i.pOpts.Profiler().WriteHeapProfile(name)
+	err := i.profiler.WriteHeapProfile(name)
 	if err != nil {
 		i.log.Error("unable to write heap profile", zap.Error(err))
 	}
@@ -128,20 +128,20 @@ func (i *instrumentationContext) readCommitLogCompleted() {
 }
 
 type instrumentation struct {
-	opts  Options
-	pOpts profiler.Options
-	scope tally.Scope
-	log   *zap.Logger
-	nowFn clock.NowFn
+	opts     Options
+	profiler profiler.Profiler
+	scope    tally.Scope
+	log      *zap.Logger
+	nowFn    clock.NowFn
 }
 
 func newInstrumentation(opts Options, scope tally.Scope, log *zap.Logger) *instrumentation {
 	return &instrumentation{
-		opts:  opts,
-		pOpts: opts.ResultOptions().InstrumentOptions().ProfilerOptions(),
-		scope: scope,
-		log:   log,
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		opts:     opts,
+		profiler: opts.ResultOptions().InstrumentOptions().ProfilerOptions().Profiler(),
+		scope:    scope,
+		log:      log,
+		nowFn:    opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
@@ -155,6 +155,6 @@ func (i *instrumentation) commitLogBootstrapperSourceReadStarted(
 		i.log,
 		span,
 		i.scope,
-		i.pOpts,
+		i.profiler,
 	)
 }

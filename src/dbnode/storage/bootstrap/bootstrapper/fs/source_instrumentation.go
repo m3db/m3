@@ -44,7 +44,7 @@ type instrumentationContext struct {
 	span                   opentracing.Span
 	bootstrapDataDuration  tally.Timer
 	bootstrapIndexDuration tally.Timer
-	pOpts                  profiler.Options
+	profiler               profiler.Profiler
 	logFields              []zapcore.Field
 }
 
@@ -54,14 +54,14 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
-	pOpts profiler.Options,
+	profiler profiler.Profiler,
 ) *instrumentationContext {
 	return &instrumentationContext{
 		opts:                   opts,
 		nowFn:                  nowFn,
 		log:                    log,
 		span:                   span,
-		pOpts:                  pOpts,
+		profiler:               profiler,
 		bootstrapDataDuration:  scope.Timer("data-duration"),
 		bootstrapIndexDuration: scope.Timer("index-duration"),
 		logFields: []zapcore.Field{
@@ -80,20 +80,20 @@ func (i *instrumentationContext) finish() {
 }
 
 func (i *instrumentationContext) startCPUProfile(name string) {
-	err := i.pOpts.Profiler().StartCPUProfile(name)
+	err := i.profiler.StartCPUProfile(name)
 	if err != nil {
 		i.log.Error("unable to start cpu profile", zap.Error(err))
 	}
 }
 
 func (i *instrumentationContext) stopCPUProfile() {
-	if err := i.pOpts.Profiler().StopCPUProfile(); err != nil {
+	if err := i.profiler.StopCPUProfile(); err != nil {
 		i.log.Error("unable to stop cpu profile", zap.Error(err))
 	}
 }
 
 func (i *instrumentationContext) writeHeapProfile(name string) {
-	err := i.pOpts.Profiler().WriteHeapProfile(name)
+	err := i.profiler.WriteHeapProfile(name)
 	if err != nil {
 		i.log.Error("unable to write heap profile", zap.Error(err))
 	}
@@ -135,20 +135,20 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 }
 
 type instrumentation struct {
-	opts  Options
-	pOpts profiler.Options
-	scope tally.Scope
-	log   *zap.Logger
-	nowFn clock.NowFn
+	opts     Options
+	profiler profiler.Profiler
+	scope    tally.Scope
+	log      *zap.Logger
+	nowFn    clock.NowFn
 }
 
 func newInstrumentation(opts Options, scope tally.Scope, iOpts instrument.Options) *instrumentation {
 	return &instrumentation{
-		opts:  opts,
-		pOpts: iOpts.ProfilerOptions(),
-		scope: scope,
-		log:   iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		opts:     opts,
+		profiler: iOpts.ProfilerOptions().Profiler(),
+		scope:    scope,
+		log:      iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn:    opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
@@ -162,6 +162,6 @@ func (i *instrumentation) fsBootstrapperSourceReadStarted(
 		i.log,
 		span,
 		i.scope,
-		i.pOpts,
+		i.profiler,
 	)
 }
