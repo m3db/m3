@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
+// Package stub for store.
 //nolint:dupl,gocritic
-// Package stub for store
 package stub
 
 import (
