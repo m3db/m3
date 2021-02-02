@@ -8,15 +8,13 @@
 
 ## Table of Contents
 
-- [M3](#m3)
-  - [Table of Contents](#table-of-contents)
-  - [More Information](#more-information)
-    - [Community Meetings](#community-meetings)
-    - [Office Hours](#office-hours)
-  - [Install](#install)
-    - [Dependencies](#dependencies)
-  - [Usage](#usage)
-  - [Contributing](#contributing)
+- [More Information](#more-information)
+  - [Community Meetings](#community-meetings)
+  - [Office Hours](#office-hours)
+- [Install](#install)
+  - [Dependencies](#dependencies)
+- [Usage](#usage)
+- [Contributing](#contributing)
 
 ## More Information
 
