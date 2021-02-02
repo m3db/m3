@@ -20,33 +20,15 @@
 
 package profiler
 
-import "fmt"
-
 type options struct {
-	enabled  bool
 	profiler Profiler
 }
 
 // NewOptions creates new profiler options.
 func NewOptions() Options {
-	return &options{}
-}
-
-func (o *options) Validate() error {
-	if o.enabled && o.profiler == nil {
-		return fmt.Errorf("profiler is enabled but is not set")
+	return &options{
+		profiler: NewNoOpProfiler(),
 	}
-	return nil
-}
-
-func (o *options) Enabled() bool {
-	return o.enabled
-}
-
-func (o *options) SetEnabled(value bool) Options {
-	opts := *o
-	opts.enabled = value
-	return &opts
 }
 
 func (o *options) Profiler() Profiler {

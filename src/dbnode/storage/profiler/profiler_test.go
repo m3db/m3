@@ -21,70 +21,17 @@
 package profiler
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var tmpDir string
-
-func TestMain(m *testing.M) {
-	if err := setup(); err != nil {
-		fmt.Println("setup error")
-		os.Exit(1)
-	}
-	code := m.Run()
-	if err := teardown(); err != nil {
-		fmt.Println("teardown error")
-		os.Exit(1)
-	}
-	os.Exit(code)
-}
-
-func setup() error {
-	tempDir, err := ioutil.TempDir("", "bootstrapProfileTests")
-	if err != nil {
-		return err
-	}
-	tmpDir = tempDir
-	return nil
-}
-
-func teardown() error {
-	return os.RemoveAll(tmpDir)
-}
-
-func TestFileProfile(t *testing.T) {
-	tests := []struct {
-		name      string
-		fileNames []string
-	}{
-		{name: "testProfile1", fileNames: []string{"testProfile1.cpu.1.pb.gz", "testProfile1.heap.1.pb.gz"}},
-		{name: "testProfile1", fileNames: []string{"testProfile1.cpu.2.pb.gz", "testProfile1.heap.2.pb.gz"}},
-		{name: "testProfile2", fileNames: []string{"testProfile2.cpu.1.pb.gz", "testProfile2.heap.1.pb.gz"}},
-	}
-	sut := NewFileProfiler(tmpDir)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := sut.StartCPUProfile(tt.name)
-			require.NoError(t, err)
-			time.Sleep(100 * time.Millisecond)
-			err = sut.StopCPUProfile()
-			require.NoError(t, err)
-			err = sut.WriteHeapProfile(tt.name)
-			require.NoError(t, err)
-
-			for _, fileName := range tt.fileNames {
-				fileInfo, err := os.Stat(filepath.Join(tmpDir, fileName))
-				require.NoError(t, err)
-				assert.Equal(t, fileName, fileInfo.Name())
-			}
-		})
-	}
+func TestNoOpProfile(t *testing.T) {
+	sut := NewNoOpProfiler()
+	err := sut.StartCPUProfile("foo")
+	require.NoError(t, err)
+	err = sut.StopCPUProfile()
+	require.NoError(t, err)
+	err = sut.WriteHeapProfile("bar")
+	require.NoError(t, err)
 }

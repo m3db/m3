@@ -34,15 +34,6 @@ type Profiler interface {
 
 // Options represents the profiler options.
 type Options interface {
-	// Validate validates the options.
-	Validate() error
-
-	// Enabled returns if profile is enabled.
-	Enabled() bool
-
-	// SetEnabled enables profiling.
-	SetEnabled(value bool) Options
-
 	// Profiler returns the profiler.
 	Profiler() Profiler
 

@@ -73,29 +73,23 @@ func (i *instrumentationContext) finish() {
 	i.span.Finish()
 }
 
-func (i *instrumentationContext) startCPUProfileIfEnabled(name string) {
-	if i.pOpts.Enabled() {
-		err := i.pOpts.Profiler().StartCPUProfile(name)
-		if err != nil {
-			i.log.Error("unable to start cpu profile", zap.Error(err))
-		}
+func (i *instrumentationContext) startCPUProfile(name string) {
+	err := i.pOpts.Profiler().StartCPUProfile(name)
+	if err != nil {
+		i.log.Error("unable to start cpu profile", zap.Error(err))
 	}
 }
 
-func (i *instrumentationContext) stopCPUProfileIfEnabled() {
-	if i.pOpts.Enabled() {
-		if err := i.pOpts.Profiler().StopCPUProfile(); err != nil {
-			i.log.Error("unable to stop cpu profile", zap.Error(err))
-		}
+func (i *instrumentationContext) stopCPUProfile() {
+	if err := i.pOpts.Profiler().StopCPUProfile(); err != nil {
+		i.log.Error("unable to stop cpu profile", zap.Error(err))
 	}
 }
 
-func (i *instrumentationContext) writeHeapProfileIfEnabled(name string) {
-	if i.pOpts.Enabled() {
-		err := i.pOpts.Profiler().WriteHeapProfile(name)
-		if err != nil {
-			i.log.Error("unable to write heap profile", zap.Error(err))
-		}
+func (i *instrumentationContext) writeHeapProfile(name string) {
+	err := i.pOpts.Profiler().WriteHeapProfile(name)
+	if err != nil {
+		i.log.Error("unable to write heap profile", zap.Error(err))
 	}
 }
 
@@ -103,8 +97,8 @@ func (i *instrumentationContext) bootstrapSnapshotsStarted() {
 	i.log.Info("read snapshots start")
 	i.span.LogFields(opentracinglog.String("event", "read_snapshots_start"))
 	i.start = i.nowFn()
-	i.startCPUProfileIfEnabled(snapshotsProfileName)
-	i.writeHeapProfileIfEnabled(snapshotsProfileName)
+	i.startCPUProfile(snapshotsProfileName)
+	i.writeHeapProfile(snapshotsProfileName)
 }
 
 func (i *instrumentationContext) bootstrapSnapshotsCompleted() {
@@ -112,16 +106,16 @@ func (i *instrumentationContext) bootstrapSnapshotsCompleted() {
 	i.bootstrapSnapshotsDuration.Record(duration)
 	i.log.Info("read snapshots done", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "read_snapshots_done"))
-	i.stopCPUProfileIfEnabled()
-	i.writeHeapProfileIfEnabled(snapshotsProfileName)
+	i.stopCPUProfile()
+	i.writeHeapProfile(snapshotsProfileName)
 }
 
 func (i *instrumentationContext) readCommitLogStarted() {
 	i.log.Info("read commit log start")
 	i.span.LogFields(opentracinglog.String("event", "read_commitlog_start"))
 	i.start = i.nowFn()
-	i.startCPUProfileIfEnabled(readProfileName)
-	i.writeHeapProfileIfEnabled(readProfileName)
+	i.startCPUProfile(readProfileName)
+	i.writeHeapProfile(readProfileName)
 }
 
 func (i *instrumentationContext) readCommitLogCompleted() {
@@ -129,8 +123,8 @@ func (i *instrumentationContext) readCommitLogCompleted() {
 	i.bootstrapCommitLogDuration.Record(duration)
 	i.log.Info("read commit log done", zap.Duration("took", duration))
 	i.span.LogFields(opentracinglog.String("event", "read_commitlog_done"))
-	i.stopCPUProfileIfEnabled()
-	i.writeHeapProfileIfEnabled(readProfileName)
+	i.stopCPUProfile()
+	i.writeHeapProfile(readProfileName)
 }
 
 type instrumentation struct {
