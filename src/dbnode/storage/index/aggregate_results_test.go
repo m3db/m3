@@ -36,13 +36,13 @@ import (
 func entries(entries ...AggregateResultsEntry) []AggregateResultsEntry { return entries }
 
 func genResultsEntry(field string, terms ...string) AggregateResultsEntry {
-	entryTerms := make([]ident.ID, 0, len(terms))
+	entryTerms := make([][]byte, 0, len(terms))
 	for _, term := range terms {
-		entryTerms = append(entryTerms, ident.StringID(term))
+		entryTerms = append(entryTerms, []byte(term))
 	}
 
 	return AggregateResultsEntry{
-		Field: ident.StringID(field),
+		Field: []byte(field),
 		Terms: entryTerms,
 	}
 }

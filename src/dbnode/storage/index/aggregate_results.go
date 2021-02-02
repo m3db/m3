@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 type aggregatedResults struct {
@@ -42,8 +41,8 @@ type aggregatedResults struct {
 	size           int
 	totalDocsCount int
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
+	reusableID *ident.ReusableBytesID
+	idPool     ident.Pool
 
 	pool             AggregateResultsPool
 	valuesPool       AggregateValuesPool
@@ -137,9 +136,9 @@ func NewAggregateResults(
 		iOpts:         opts.InstrumentOptions(),
 		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
-		bytesPool:     opts.CheckedBytesPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
+		reusableID:    ident.NewReusableBytesID(),
 	}
 }
 
@@ -206,12 +205,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	// NB: already hit doc limit.
 	if remainingDocs <= 0 {
 		for idx := 0; idx < len(batch); idx++ {
-			batch[idx].Field.Finalize()
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
-			for _, term := range batch[idx].Terms {
-				term.Finalize()
-			}
 		}
 
 		return r.size, r.totalDocsCount
@@ -236,20 +231,15 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {
-			entry.Field.Finalize()
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
-			for _, term := range entry.Terms {
-				term.Finalize()
-			}
-
 			r.size += numInserts
 			r.totalDocsCount += docs
 			return r.size, r.totalDocsCount
 		}
 
 		docs++
-		f := entry.Field
-		aggValues, ok := r.resultsMap.Get(f)
+		r.reusableID.Reset(entry.Field)
+		aggValues, ok := r.resultsMap.Get(r.reusableID)
 		if !ok {
 			if remainingInserts > numInserts {
 				r.aggregateOpts.AggregateUsageMetrics.IncDedupedFields(1)
@@ -258,26 +248,23 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 				aggValues = r.valuesPool.Get()
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
-				r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
+				r.resultsMap.SetUnsafe(r.reusableID, aggValues, AggregateResultsMapSetUnsafeOptions{
 					NoCopyKey:     false,
 					NoFinalizeKey: false,
 				})
 			}
 		}
 
-		// A copy of the key taken from the result map ID pool is taken, so it is
-		// safe to finalize the entry field.
-		f.Finalize()
-
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 			if remainingDocs > docs {
 				docs++
-				if !valuesMap.Contains(t) {
+				r.reusableID.Reset(t)
+				if !valuesMap.Contains(r.reusableID) {
 					if remainingInserts > numInserts {
 						r.aggregateOpts.AggregateUsageMetrics.IncDedupedTerms(1)
-						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
+						valuesMap.SetUnsafe(r.reusableID, struct{}{}, AggregateValuesMapSetUnsafeOptions{
 							NoCopyKey:     false,
 							NoFinalizeKey: false,
 						})
@@ -285,8 +272,6 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 					}
 				}
 			}
-
-			t.Finalize()
 		}
 	}
 
