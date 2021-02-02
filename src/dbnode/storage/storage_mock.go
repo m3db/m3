@@ -1933,20 +1933,6 @@ func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
-// ScanData mocks base method
-func (m *MockShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ScanData indicates an expected call of ScanData
-func (mr *MockShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockShard)(nil).ScanData), blockStart, processor)
-}
-
 // OpenStreamingReader mocks base method
 func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
@@ -2039,20 +2025,6 @@ func (m *MockdatabaseShard) BootstrapState() BootstrapState {
 func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
-}
-
-// ScanData mocks base method
-func (m *MockdatabaseShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ScanData indicates an expected call of ScanData
-func (mr *MockdatabaseShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockdatabaseShard)(nil).ScanData), blockStart, processor)
 }
 
 // OpenStreamingReader mocks base method
