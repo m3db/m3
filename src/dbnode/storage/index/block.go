@@ -150,6 +150,7 @@ type block struct {
 	nsMD                            namespace.Metadata
 	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	docsLimit                       limits.LookbackLimit
+	aggregateBatchCounter           tally.Counter
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -259,6 +260,7 @@ func NewBlock(
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		docsLimit:                       opts.QueryLimits().DocsLimit(),
+		aggregateBatchCounter:           iopts.MetricsScope().Counter("aggregate-batch-counter"),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorWithRLockFn = b.executorWithRLock
@@ -654,12 +656,8 @@ func (b *block) aggregateWithSpan(
 		batch         = b.opts.AggregateResultsEntryArrayPool().Get()
 		maxBatch      = cap(batch)
 		iterClosed    = false // tracking whether we need to free the iterator at the end.
-		fieldAppended bool
-		termAppended  bool
 		lastField     []byte
 		batchedFields int
-		currFields    int
-		currTerms     int
 	)
 	if maxBatch == 0 {
 		maxBatch = defaultAggregateResultsEntryBatchSize
@@ -681,12 +679,12 @@ func (b *block) aggregateWithSpan(
 	// Make sure to close readers at end of query since results can
 	// include references to the underlying bytes from the index segment
 	// read by the readers.
-	for _, reader := range readers {
-		reader := reader // Capture for inline function.
-		ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
+	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
+		for _, reader := range readers {
+			reader := reader // Capture for inline function.
 			b.closeAsync(reader)
-		}))
-	}
+		}
+	}))
 
 	if opts.SeriesLimit > 0 && opts.SeriesLimit < maxBatch {
 		maxBatch = opts.SeriesLimit
@@ -696,6 +694,10 @@ func (b *block) aggregateWithSpan(
 		maxBatch = opts.DocsLimit
 	}
 
+	// NB: batchedIDs length is one higher than max batch, in case the entry
+	// that trips the batch size needs to add both a new field and a new term.
+	batchedIDs := make([]ident.BytesID, maxBatch+1)
+	batchedIdx := 0
 	for _, reader := range readers {
 		if opts.LimitsExceeded(size, resultCount) {
 			break
@@ -705,6 +707,7 @@ func (b *block) aggregateWithSpan(
 		if err != nil {
 			return false, err
 		}
+
 		iterClosed = false // only once the iterator has been successfully Reset().
 		for iter.Next() {
 			if opts.LimitsExceeded(size, resultCount) {
@@ -744,15 +747,9 @@ func (b *block) aggregateWithSpan(
 				}
 			}
 
-			batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
-			if fieldAppended {
-				currFields++
-			}
-			if termAppended {
-				currTerms++
-			}
+			batch, batchedIdx = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms, batchedIdx, batchedIDs)
 			// continue appending to the batch until we hit our max batch size.
-			if currFields+currTerms < maxBatch {
+			if batchedIdx < maxBatch {
 				continue
 			}
 
@@ -761,8 +758,7 @@ func (b *block) aggregateWithSpan(
 				return false, err
 			}
 
-			currFields = 0
-			currTerms = 0
+			batchedIdx = 0
 		}
 
 		if err := iter.Err(); err != nil {
@@ -788,13 +784,17 @@ func (b *block) aggregateWithSpan(
 
 // appendFieldAndTermToBatch adds the provided field / term onto the batch,
 // optionally reusing the last element of the batch if it pertains to the same field.
+// The underlying bytes in the returned batch are kept in the resettable slice
+// of batchedIDs.
 // First boolean result indicates that a unique field was added to the batch
 // and the second boolean indicates if a unique term was added.
 func (b *block) appendFieldAndTermToBatch(
 	batch []AggregateResultsEntry,
 	field, term []byte,
 	includeTerms bool,
-) ([]AggregateResultsEntry, bool, bool) {
+	batchedIdx int,
+	batchedIDs []ident.BytesID,
+) ([]AggregateResultsEntry, int) {
 	// NB(prateek): we make a copy of the (field, term) entries returned
 	// by the iterator during traversal, because the []byte are only valid per entry during
 	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
@@ -803,11 +803,10 @@ func (b *block) appendFieldAndTermToBatch(
 	// idents is transferred to the results map, which either hangs on to them (if they are new),
 	// or finalizes them if they are duplicates.
 	var (
-		entry                       AggregateResultsEntry
-		lastField                   []byte
-		lastFieldIsValid            bool
-		reuseLastEntry              bool
-		newFieldAdded, newTermAdded bool
+		entry            AggregateResultsEntry
+		lastField        []byte
+		lastFieldIsValid bool
+		reuseLastEntry   bool
 	)
 	// we are iterating multiple segments so we may receive duplicates (same field/term), but
 	// as we are iterating one segment at a time, and because the underlying index structures
@@ -830,21 +829,21 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		newFieldAdded = true
 		// allocate id because this is the first time we've seen it
 		// NB(r): Iterating fields FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
 		// the fields FST and reusing the same byte slice.
-		entry.Field = b.pooledID(field)
+		entry.Field = resetAtIndex(batchedIDs, batchedIdx, field)
+		batchedIdx++
 	}
 
 	if includeTerms {
-		newTermAdded = true
 		// terms are always new (as far we know without checking the map for duplicates), so we allocate
 		// NB(r): Iterating terms FST, this byte slice is only temporarily available
 		// since we are pushing/popping characters from the stack as we iterate
 		// the terms FST and reusing the same byte slice.
-		entry.Terms = append(entry.Terms, b.pooledID(term))
+		entry.Terms = append(entry.Terms, resetAtIndex(batchedIDs, batchedIdx, term))
+		batchedIdx++
 	}
 
 	if reuseLastEntry {
@@ -853,15 +852,16 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 
-	return batch, newFieldAdded, newTermAdded
+	return batch, batchedIdx
 }
 
-func (b *block) pooledID(id []byte) ident.ID {
-	data := b.opts.CheckedBytesPool().Get(len(id))
-	data.IncRef()
-	data.AppendAll(id)
-	data.DecRef()
-	return b.opts.IdentifierPool().BinaryID(data)
+func resetAtIndex(batchedIDs []ident.BytesID, idx int, data []byte) ident.BytesID {
+	if batchedIDs[idx] == nil {
+		batchedIDs[idx] = make(ident.BytesID, 0, len(data))
+	}
+
+	batchedIDs[idx] = append(batchedIDs[idx][:0], data...)
+	return batchedIDs[idx]
 }
 
 // addAggregateResults adds the fields on the batch
@@ -872,6 +872,8 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error) {
+	b.aggregateBatchCounter.Inc(1)
+
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {

@@ -208,8 +208,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		for idx := 0; idx < len(batch); idx++ {
 			batch[idx].Field.Finalize()
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
 			for _, term := range batch[idx].Terms {
-				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 				term.Finalize()
 			}
 		}
@@ -237,8 +237,8 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 		if docs >= remainingDocs || numInserts >= remainingInserts {
 			entry.Field.Finalize()
+			r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(int64(len(batch[idx].Terms)))
 			for _, term := range entry.Terms {
-				r.aggregateOpts.AggregateUsageMetrics.IncTotalTerms(1)
 				term.Finalize()
 			}
 
@@ -259,19 +259,15 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 				// we can avoid the copy because we assume ownership of the passed ident.ID,
 				// but still need to finalize it.
 				r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
-					NoCopyKey:     true,
+					NoCopyKey:     false,
 					NoFinalizeKey: false,
 				})
-			} else {
-				// this value exceeds the limit, so should be released to the underling
-				// pool without adding to the map.
-				f.Finalize()
 			}
-		} else {
-			// because we already have a entry for this field, we release the ident back to
-			// the underlying pool.
-			f.Finalize()
 		}
+
+		// A copy of the key taken from the result map ID pool is taken, so it is
+		// safe to finalize the entry field.
+		f.Finalize()
 
 		valuesMap := aggValues.Map()
 		for _, t := range entry.Terms {
@@ -279,16 +275,13 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 			if remainingDocs > docs {
 				docs++
 				if !valuesMap.Contains(t) {
-					// we can avoid the copy because we assume ownership of the passed ident.ID,
-					// but still need to finalize it.
 					if remainingInserts > numInserts {
 						r.aggregateOpts.AggregateUsageMetrics.IncDedupedTerms(1)
 						valuesMap.SetUnsafe(t, struct{}{}, AggregateValuesMapSetUnsafeOptions{
-							NoCopyKey:     true,
+							NoCopyKey:     false,
 							NoFinalizeKey: false,
 						})
 						numInserts++
-						continue
 					}
 				}
 			}
