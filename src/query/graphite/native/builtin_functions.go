@@ -157,8 +157,10 @@ func useSeriesAbove(
 		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but mark as unsorted since this was done in parallel.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 
@@ -296,6 +298,7 @@ func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.Series
 		}
 	}
 
+	// Retain sort applied function.
 	r := ts.SeriesList(seriesList)
 	r.Values = filtered
 	return r, nil
