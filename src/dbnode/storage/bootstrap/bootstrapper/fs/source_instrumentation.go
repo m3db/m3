@@ -29,7 +29,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -44,7 +43,7 @@ type instrumentationContext struct {
 	span                   opentracing.Span
 	bootstrapDataDuration  tally.Timer
 	bootstrapIndexDuration tally.Timer
-	profiler               profiler.Profiler
+	profiler               instrument.Profiler
 	logFields              []zapcore.Field
 }
 
@@ -54,7 +53,7 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
-	profiler profiler.Profiler,
+	profiler instrument.Profiler,
 ) *instrumentationContext {
 	return &instrumentationContext{
 		opts:                   opts,
@@ -136,7 +135,7 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 
 type instrumentation struct {
 	opts     Options
-	profiler profiler.Profiler
+	profiler instrument.Profiler
 	scope    tally.Scope
 	log      *zap.Logger
 	nowFn    clock.NowFn
@@ -145,7 +144,7 @@ type instrumentation struct {
 func newInstrumentation(opts Options, scope tally.Scope, iOpts instrument.Options) *instrumentation {
 	return &instrumentation{
 		opts:     opts,
-		profiler: iOpts.ProfilerOptions().Profiler(),
+		profiler: iOpts.Profiler(),
 		scope:    scope,
 		log:      iOpts.Logger().With(zap.String("bootstrapper", "filesystem")),
 		nowFn:    opts.ResultOptions().ClockOptions().NowFn(),

@@ -28,8 +28,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 )
 
 // Reporter reports metrics about a component.
@@ -38,6 +36,18 @@ type Reporter interface {
 	Start() error
 	// Stop stops the reporter.
 	Stop() error
+}
+
+// Profiler represents profiler for profiling long-running tasks.
+type Profiler interface {
+	// StartCPUProfile starts the named cpu profile.
+	StartCPUProfile(name string) error
+
+	// StopCPUProfile stops started cpu profile.
+	StopCPUProfile() error
+
+	// WriteHeapProfile writes heap profile.
+	WriteHeapProfile(name string) error
 }
 
 // Options represents the options for instrumentation.
@@ -81,9 +91,9 @@ type Options interface {
 	// CustomBuildTags returns the custom build tags.
 	CustomBuildTags() map[string]string
 
-	// SetProfilerOptions sets the profiler options.
-	SetProfilerOptions(value profiler.Options) Options
+	// SetProfiler sets the profiler.
+	SetProfiler(value Profiler) Options
 
-	// ProfilerOptions returns the ProfilerOptions.
-	ProfilerOptions() profiler.Options
+	// Profiler returns the Profiler.
+	Profiler() Profiler
 }

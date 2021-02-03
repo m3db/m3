@@ -28,10 +28,10 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/dbnode/storage/profiler"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type instrumentationContext struct {
@@ -42,7 +42,7 @@ type instrumentationContext struct {
 	span                       opentracing.Span
 	bootstrapSnapshotsDuration tally.Timer
 	bootstrapCommitLogDuration tally.Timer
-	profiler                   profiler.Profiler
+	profiler                   instrument.Profiler
 }
 
 func newInstrumentationContext(
@@ -51,7 +51,7 @@ func newInstrumentationContext(
 	log *zap.Logger,
 	span opentracing.Span,
 	scope tally.Scope,
-	profiler profiler.Profiler,
+	profiler instrument.Profiler,
 ) *instrumentationContext {
 	return &instrumentationContext{
 		opts:                       opts,
@@ -129,7 +129,7 @@ func (i *instrumentationContext) readCommitLogCompleted() {
 
 type instrumentation struct {
 	opts     Options
-	profiler profiler.Profiler
+	profiler instrument.Profiler
 	scope    tally.Scope
 	log      *zap.Logger
 	nowFn    clock.NowFn
@@ -138,7 +138,7 @@ type instrumentation struct {
 func newInstrumentation(opts Options, scope tally.Scope, log *zap.Logger) *instrumentation {
 	return &instrumentation{
 		opts:     opts,
-		profiler: opts.ResultOptions().InstrumentOptions().ProfilerOptions().Profiler(),
+		profiler: opts.ResultOptions().InstrumentOptions().Profiler(),
 		scope:    scope,
 		log:      log,
 		nowFn:    opts.ResultOptions().ClockOptions().NowFn(),
