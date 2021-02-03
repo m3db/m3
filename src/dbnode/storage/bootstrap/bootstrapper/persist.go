@@ -99,7 +99,7 @@ func PersistBootstrapIndexSegment(
 	// when earliestRetentionTime is larger than out block end time. This means that the blocks
 	// got outdated during bootstrap so we just skip building index segments for them.
 	if !blockEnd.After(earliestRetentionTime) {
-		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
+		return result.IndexBlock{}, fs.ErrIndexOutOfRetention
 	}
 
 	if blockStart.Before(earliestRetentionTime) {
@@ -266,7 +266,7 @@ func BuildBootstrapIndexSegment(
 	// when earliestRetentionTime is larger than out block end time. This means that the blocks
 	// got outdated during bootstrap so we just skip building index segments for them.
 	if !blockEnd.After(earliestRetentionTime) {
-		return result.IndexBlock{}, fs.ErrOutOfRetentionClaim
+		return result.IndexBlock{}, fs.ErrIndexOutOfRetention
 	}
 
 	if blockStart.Before(earliestRetentionTime) {

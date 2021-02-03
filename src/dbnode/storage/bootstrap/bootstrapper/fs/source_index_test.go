@@ -677,7 +677,6 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	require.Equal(t, test.expectedSegmentsFirstBlock, len(block.Segments()), "first block segment count")
 	if len(block.Segments()) > 0 {
 		segment := block.Segments()[0]
-		require.True(t, ok)
 		require.True(t, segment.IsPersisted(), "should be persisted")
 	}
 
@@ -689,7 +688,6 @@ func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, tes
 	require.Equal(t, test.expectedSegmentsSecondBlock, len(block.Segments()), "second block segment count")
 	if len(block.Segments()) > 0 {
 		segment := block.Segments()[0]
-		require.True(t, ok)
 		require.True(t, segment.IsPersisted(), "should be persisted")
 	}
 
