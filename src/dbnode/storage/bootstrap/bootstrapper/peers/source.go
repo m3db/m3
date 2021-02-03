@@ -934,7 +934,7 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+		if errors.Is(err, fs.ErrIndexOutOfRetention) {
 			// Bail early if the index segment is already out of retention.
 			// This can happen when the edge of requested ranges at time of data bootstrap
 			// is now out of retention.
@@ -960,7 +960,13 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if err != nil {
+		if errors.Is(err, fs.ErrIndexOutOfRetention) {
+			// Bail early if the index segment is already out of retention.
+			// This can happen when the edge of requested ranges at time of data bootstrap
+			// is now out of retention.
+			s.instrumentation.outOfRetentionIndexSegmentSkipped(buildIndexLogFields)
+			return remainingRanges, timesWithErrors
+		} else if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),

@@ -2,14 +2,14 @@
 
 set -xe
 
-TEST_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests
+TEST_PATH="$M3_PATH"/scripts/docker-integration-tests
 FANOUT_PATH=$TEST_PATH/query_fanout
 source $TEST_PATH/common.sh
 source $FANOUT_PATH/warning.sh
 source $FANOUT_PATH/restrict.sh
 
 REVISION=$(git rev-parse HEAD)
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
