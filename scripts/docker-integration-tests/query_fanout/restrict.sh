@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -ex
-TEST_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests
+TEST_PATH="$M3_PATH"/scripts/docker-integration-tests
 FANOUT_PATH=$TEST_PATH/query_fanout
 source $TEST_PATH/common.sh
 source $FANOUT_PATH/warning.sh
