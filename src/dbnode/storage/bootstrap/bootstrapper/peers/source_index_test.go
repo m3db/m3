@@ -164,12 +164,6 @@ func TestBootstrapIndex(t *testing.T) {
 			retentionPeriod:     48 * time.Hour,
 		},
 		{
-			name:                "now - 4h (out of retention)",
-			indexBlockStart:     time.Now().Add(-4 * time.Hour),
-			expectedIndexBlocks: 0,
-			retentionPeriod:     4 * time.Hour,
-		},
-		{
 			name:                "now - 8h (out of retention)",
 			indexBlockStart:     time.Now().Add(-8 * time.Hour),
 			expectedIndexBlocks: 0,
