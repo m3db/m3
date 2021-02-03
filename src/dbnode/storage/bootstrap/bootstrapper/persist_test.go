@@ -36,7 +36,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func TestPersistBootstrapIndexSegmentOutOfRetention(t *testing.T) {
+func TestBootstrapIndexSegmentOutOfRetention(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	blockSize := 2 * time.Hour
@@ -86,6 +86,17 @@ func TestPersistBootstrapIndexSegmentOutOfRetention(t *testing.T) {
 
 	require.Equal(t, fs.ErrIndexOutOfRetention, err)
 
+	_, err = BuildBootstrapIndexSegment(
+		mockMetadata,
+		shardTimeRanges,
+		builder,
+		nil,
+		resultOptions,
+		nil,
+		blockStart,
+		blockEnd)
+	require.Equal(t, fs.ErrIndexOutOfRetention, err)
+
 	blockEnd = end.Add(-1 * time.Hour) // blockEnd less than earliest retention time
 
 	_, err = PersistBootstrapIndexSegment(
@@ -99,5 +110,16 @@ func TestPersistBootstrapIndexSegmentOutOfRetention(t *testing.T) {
 		blockStart,
 		blockEnd)
 
+	require.Equal(t, fs.ErrIndexOutOfRetention, err)
+
+	_, err = BuildBootstrapIndexSegment(
+		mockMetadata,
+		shardTimeRanges,
+		builder,
+		nil,
+		resultOptions,
+		nil,
+		blockStart,
+		blockEnd)
 	require.Equal(t, fs.ErrIndexOutOfRetention, err)
 }
