@@ -2,9 +2,9 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
-SCRIPT_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/coordinator_noop
+SCRIPT_PATH="$M3_PATH"/scripts/docker-integration-tests/coordinator_noop
 COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
