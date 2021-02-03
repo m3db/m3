@@ -900,7 +900,10 @@ func (s *peersSource) processReaders(
 	)
 
 	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+	resultLock.Lock()
 	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	resultLock.Unlock()
+
 	if !ok {
 		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 			blockStart.String(), blockStart.UnixNano())
