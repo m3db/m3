@@ -95,7 +95,7 @@ func (a mirroredAlgorithm) RemoveInstances(
 	nowNanos := a.opts.NowFn()().UnixNano()
 	// If the instances being removed are all the initializing instances in the placement.
 	// We just need to return these shards back to their sources.
-	if allInitializing(p, instanceIDs, nowNanos) {
+	if globalChecker.allInitializing(p, instanceIDs, nowNanos) {
 		return a.returnInitializingShards(p, instanceIDs)
 	}
 
@@ -145,7 +145,7 @@ func (a mirroredAlgorithm) AddInstances(
 	nowNanos := a.opts.NowFn()().UnixNano()
 	// If the instances being added are all the leaving instances in the placement.
 	// We just need to get their shards back.
-	if allLeaving(p, addingInstances, nowNanos) {
+	if globalChecker.allLeaving(p, addingInstances, nowNanos) {
 		return a.reclaimLeavingShards(p, addingInstances)
 	}
 
@@ -199,7 +199,8 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	nowNanos := a.opts.NowFn()().UnixNano()
 
 	// Revert of pending replace.
-	if allLeaving(p, addingInstances, nowNanos) && allInitializing(p, leavingInstanceIDs, nowNanos) {
+	if localChecker.allLeaving(p, addingInstances, nowNanos) &&
+		localChecker.allInitializing(p, leavingInstanceIDs, nowNanos) {
 		if p, err = a.reclaimLeavingShards(p, addingInstances); err != nil {
 			return nil, err
 		}
@@ -215,7 +216,7 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		}
 	}
 
-	if !allAvailable(p, leavingInstanceIDs, nowNanos) {
+	if !localChecker.allAvailable(p, leavingInstanceIDs, nowNanos) {
 		return nil, fmt.Errorf("replaced instances must have all their shards available")
 	}
 
@@ -300,73 +301,6 @@ func (a mirroredAlgorithm) MarkAllShardsAvailable(
 	}
 
 	return a.shardedAlgo.MarkAllShardsAvailable(p)
-}
-
-// allInitializing returns true when
-// 1: the given list of instances matches all the initializing instances in the placement.
-// 2: the shards are not cutover yet.
-func allInitializing(p placement.Placement, instances []string, nowNanos int64) bool {
-	ids := make(map[string]struct{}, len(instances))
-	for _, i := range instances {
-		ids[i] = struct{}{}
-	}
-
-	return allInstancesInState(ids, p, func(s shard.Shard) bool {
-		return s.State() == shard.Initializing && s.CutoverNanos() > nowNanos
-	})
-}
-
-// allLeaving returns true when
-// 1: the given list of instances matches all the leaving instances in the placement.
-// 2: the shards are not cutoff yet.
-func allLeaving(p placement.Placement, instances []placement.Instance, nowNanos int64) bool {
-	ids := make(map[string]struct{}, len(instances))
-	for _, i := range instances {
-		ids[i.ID()] = struct{}{}
-	}
-
-	return allInstancesInState(ids, p, func(s shard.Shard) bool {
-		return s.State() == shard.Leaving && s.CutoffNanos() > nowNanos
-	})
-}
-
-func allAvailable(p placement.Placement, instances []string, nowNanos int64) bool {
-	ids := make(map[string]struct{}, len(instances))
-	for _, i := range instances {
-		ids[i] = struct{}{}
-	}
-
-	return allInstancesInState(ids, p, func(s shard.Shard) bool {
-		return s.State() == shard.Available && s.CutoffNanos() > nowNanos
-	})
-}
-
-func instanceCheck(instance placement.Instance, shardCheckFn func(s shard.Shard) bool) bool {
-	for _, s := range instance.Shards().All() {
-		if !shardCheckFn(s) {
-			return false
-		}
-	}
-	return true
-}
-
-func allInstancesInState(
-	instanceIDs map[string]struct{},
-	p placement.Placement,
-	forEachShardFn func(s shard.Shard) bool,
-) bool {
-	for id := range instanceIDs {
-		instance, exist := p.Instance(id)
-		if !exist {
-			return false
-		}
-
-		if !instanceCheck(instance, forEachShardFn) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // returnInitializingShards tries to return initializing shards on the given instances

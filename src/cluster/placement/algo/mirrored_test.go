@@ -184,7 +184,7 @@ func TestMirrorAddAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p1))
-	assert.True(t, allInitializing(p1, []string{"i5", "i6"}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5", "i6"}, nowNanos))
 
 	p2, err := a.RemoveInstances(p1, []string{"i5", "i6"})
 	assert.NoError(t, err)
@@ -236,53 +236,99 @@ func TestMirrorAddMultiplePairs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p1.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p1))
-	assert.True(t, allInitializing(p1, []string{"i5", "i6", "i7", "i8"}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5", "i6", "i7", "i8"}, nowNanos))
 	i5, ok := p1.Instance("i5")
 	assert.True(t, ok)
 	i6, ok = p1.Instance("i6")
 	assert.True(t, ok)
-	assert.Equal(t, i5.Shards().AllIDs(), i6.Shards().AllIDs())
-	assert.Equal(t, i5.ShardSetID(), i6.ShardSetID())
+	assertInstancesArePeers(t, i5, i6)
 	i7, ok = p1.Instance("i7")
 	assert.True(t, ok)
 	i8, ok = p1.Instance("i8")
 	assert.True(t, ok)
-	assert.Equal(t, i7.Shards().AllIDs(), i8.Shards().AllIDs())
-	assert.Equal(t, i7.ShardSetID(), i8.ShardSetID())
+	assertInstancesArePeers(t, i7, i8)
 
-	// Removing part of initializing instances will trigger the revert path and remove only those instances.
-	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i7"})
+	// Removing all initializing nodes will trigger the revert path.
+	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i6", "i7", "i8"})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p2.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p2))
-	// Instances that are left.
 	_, ok = p2.Instance("i5")
 	assert.False(t, ok)
 	_, ok = p2.Instance("i7")
 	assert.False(t, ok)
-	// Instances that are still in placement.
-	newI6, ok := p2.Instance("i6")
-	assert.True(t, ok)
-	assert.Equal(t, i6.Shards().AllIDs(), newI6.Shards().AllIDs())
-	assert.Equal(t, i6.ShardSetID(), newI6.ShardSetID())
-	newI8, ok := p2.Instance("i8")
-	assert.True(t, ok)
-	assert.Equal(t, i8.Shards().AllIDs(), newI8.Shards().AllIDs())
-	assert.Equal(t, i8.ShardSetID(), newI8.ShardSetID())
-	assert.True(t, allInitializing(p1, []string{"i6", "i8"}, nowNanos))
 
-	// Removing remaining part of initializing instances will trigger the revert path and remove only those instances.
-	p3, err := a.RemoveInstances(p2.Clone(), []string{"i6", "i8"})
+	assert.NoError(t, err)
+	assert.Equal(t, p.SetMaxShardSetID(4), p2)
+
+	// Removing part of the initializing nodes will not trigger the revert path
+	// and will only do a normal revert.
+	p3, err := a.RemoveInstances(p1.Clone(), []string{"i7", "i8"})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p3.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p3))
-	_, ok = p3.Instance("i6")
-	assert.False(t, ok)
-	_, ok = p3.Instance("i8")
-	assert.False(t, ok)
+	_, ok = p3.Instance("i5")
+	assert.True(t, ok)
+	newI7, ok := p3.Instance("i7")
+	assert.True(t, ok)
+	assert.True(t, newI7.IsLeaving())
 
-	// We should arrive at original placement.
-	assert.Equal(t, p.SetMaxShardSetID(4), p3)
+	assert.NoError(t, err)
+	assert.Equal(t, p.SetMaxShardSetID(4), p2)
+}
+
+func TestMirrorAddMultiplePairsAndPartialRevert(t *testing.T) {
+	i1 := newTestInstance("i1").SetShardSetID(1).SetWeight(1)
+	i2 := newTestInstance("i2").SetShardSetID(1).SetWeight(1)
+	i3 := newTestInstance("i3").SetShardSetID(2).SetWeight(2)
+	i4 := newTestInstance("i4").SetShardSetID(2).SetWeight(2)
+	i5 := newTestInstance("i5").SetShardSetID(3).SetWeight(3)
+	i6 := newTestInstance("i6").SetShardSetID(3).SetWeight(3)
+	i7 := newTestInstance("i7").SetShardSetID(4).SetWeight(3)
+	i8 := newTestInstance("i8").SetShardSetID(4).SetWeight(3)
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 100
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	shardCutoverTime := now.Add(time.Hour).UnixNano()
+	opts := placement.NewOptions().
+		SetIsMirrored(true).
+		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
+		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime })
+	a := NewAlgorithm(opts)
+	p, err := a.InitialPlacement(instances, ids, 2)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(2), p.MaxShardSetID())
+	assert.NoError(t, placement.Validate(p))
+
+	p, _, err = a.MarkAllShardsAvailable(p)
+	require.NoError(t, err)
+
+	p1, err := a.AddInstances(p, []placement.Instance{i5, i6, i7, i8})
+	require.NoError(t, err)
+	assert.Equal(t, uint32(4), p1.MaxShardSetID())
+	require.NoError(t, placement.Validate(p1))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5", "i6", "i7", "i8"}, nowNanos))
+	i5, ok := p1.Instance("i5")
+	assert.True(t, ok)
+	i6, ok = p1.Instance("i6")
+	assert.True(t, ok)
+	assertInstancesArePeers(t, i5, i6)
+	i7, ok = p1.Instance("i7")
+	assert.True(t, ok)
+	i8, ok = p1.Instance("i8")
+	assert.True(t, ok)
+	assertInstancesArePeers(t, i7, i8)
+
+	// Removing instances that are not peers and are pending add must fail.
+	_, err = a.RemoveInstances(p1.Clone(), []string{"i5", "i7"})
+	assert.Error(t, err)
 }
 
 func TestMirrorAddAndRevertAfterCutover(t *testing.T) {
@@ -316,7 +362,7 @@ func TestMirrorAddAndRevertAfterCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p1))
-	assert.False(t, allInitializing(p1, []string{"i5", "i6"}, nowNanos))
+	assert.False(t, globalChecker.allInitializing(p1, []string{"i5", "i6"}, nowNanos))
 
 	p2, err := a.RemoveInstances(p1, []string{"i5", "i6"})
 	assert.NoError(t, err)
@@ -365,7 +411,7 @@ func TestMirrorRemoveAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p1))
-	assert.True(t, allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
 
 	p2, err := a.AddInstances(p1, []placement.Instance{i5, i6})
 	assert.NoError(t, err)
@@ -413,7 +459,7 @@ func TestMirrorRemoveAndRevertAfterCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
-	assert.False(t, allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
+	assert.False(t, globalChecker.allLeaving(p1, []placement.Instance{i5, i6}, nowNanos))
 
 	p2, err := a.AddInstances(p1, []placement.Instance{i5.SetShards(shard.NewShards(nil)), i6.SetShards(shard.NewShards(nil))})
 	assert.NoError(t, err)
@@ -436,7 +482,7 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	i5 := newTestInstance("i5").SetShardSetID(2).SetWeight(2)
 	instances := []placement.Instance{i1, i2, i3, i4}
 
-	numShards := 100
+	numShards := 12
 	ids := make([]uint32, numShards)
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
@@ -458,8 +504,8 @@ func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i4}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i4}, nowNanos))
+	assert.True(t, localChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i4})
 	assert.NoError(t, err)
@@ -502,8 +548,8 @@ func TestMirrorReplaceAndRevertAfterCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.False(t, allLeaving(p1, []placement.Instance{i4}, nowNanos))
-	assert.False(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.False(t, globalChecker.allLeaving(p1, []placement.Instance{i4}, nowNanos))
+	assert.False(t, globalChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	i4, ok := p1.Instance("i4")
 	assert.True(t, ok)
@@ -566,8 +612,8 @@ func TestMirrorMultipleNonOverlappingReplaces(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	// Second replace that does not overlap with first replace: i3 replaced by i6.
 	i6 := newTestInstance("i6").SetShardSetID(2)
@@ -576,8 +622,8 @@ func TestMirrorMultipleNonOverlappingReplaces(t *testing.T) {
 	require.NoError(t, placement.Validate(p2))
 
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
-	assert.True(t, allLeaving(p2, []placement.Instance{i3, i1}, nowNanos))
-	assert.True(t, allInitializing(p2, []string{"i6", "i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p2, []placement.Instance{i3, i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p2, []string{"i6", "i5"}, nowNanos))
 }
 
 func TestMirrorReplacesCannotOverlap(t *testing.T) {
@@ -621,8 +667,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	// Second replace: i5 replaced by i6, is overlapping with first replace
 	// because i5 has initializing shards that are not cutover.
@@ -633,8 +679,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	assert.Nil(t, p2)
 
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	// Third replace: i1 replaced by i6, is overlapping with first replace
 	// because i1 has a pending replacement peer i5 with initializing shards that are not cutover.
@@ -644,8 +690,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	assert.Nil(t, p2)
 
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i5"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5"}, nowNanos))
 
 	// Fourth replace: i3 replaced by i6, is not overlapping with first replace and must go through.
 	i6.SetShardSetID(i3.ShardSetID())
@@ -653,8 +699,8 @@ func TestMirrorReplacesCannotOverlap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
-	assert.True(t, allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
-	assert.True(t, allInitializing(p2, []string{"i5", "i6"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p2, []string{"i5", "i6"}, nowNanos))
 }
 
 func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
@@ -693,8 +739,8 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p1))
 	assert.Equal(t, uint32(2), p1.MaxShardSetID())
-	assert.True(t, allLeaving(p1, []placement.Instance{i1}, nowNanos))
-	assert.True(t, allInitializing(p1, []string{"i1a"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i1}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i1a"}, nowNanos))
 
 	// Second replace: i3 replaced by i3a.
 	i3a := newTestInstance("i3a").
@@ -704,36 +750,38 @@ func TestMirrorRevertOfReplaceMustMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p2))
 	assert.Equal(t, uint32(2), p2.MaxShardSetID())
-	assert.True(t, allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
-	assert.True(t, allInitializing(p2, []string{"i1a", "i3a"}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p2, []placement.Instance{i1, i3}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p2, []string{"i1a", "i3a"}, nowNanos))
 
-	// Revert of non-matching replace pairs must fail.
-	i1, ok := p2.Instance("i1")
-	assert.True(t, ok)
-	_, err = a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i1})
-	assert.Error(t, err)
+	t.Run("revert_of_non_matching_replace_must_fail", func(t *testing.T) {
+		i1, ok := p2.Instance("i1")
+		assert.True(t, ok)
+		_, err = a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i1})
+		assert.Error(t, err)
 
-	i3, ok = p2.Instance("i3")
-	assert.True(t, ok)
-	_, err = a.ReplaceInstances(p2, []string{"i1a"}, []placement.Instance{i3})
-	assert.Error(t, err)
+		i3, ok = p2.Instance("i3")
+		assert.True(t, ok)
+		_, err = a.ReplaceInstances(p2, []string{"i1a"}, []placement.Instance{i3})
+		assert.Error(t, err)
+	})
 
-	// Revert of matching replace pairs must succeed.
-	p3, err := a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i3})
-	require.NoError(t, err)
-	_, ok = p3.Instance("i3a")
-	assert.False(t, ok)
-	i3, ok = p3.Instance("i3")
-	assert.True(t, ok)
-	assert.Equal(t, i3.Shards().NumShards(), i3.Shards().NumShardsForState(shard.Available))
+	t.Run("revert_of_matching_replace_must_succeed", func(t *testing.T) {
+		p3, err := a.ReplaceInstances(p2, []string{"i3a"}, []placement.Instance{i3})
+		require.NoError(t, err)
+		_, ok := p3.Instance("i3a")
+		assert.False(t, ok)
+		i3, ok = p3.Instance("i3")
+		assert.True(t, ok)
+		assert.True(t, localChecker.allAvailable(p3, []string{"i3"}, nowNanos))
 
-	p4, err := a.ReplaceInstances(p3, []string{"i1a"}, []placement.Instance{i1})
-	require.NoError(t, err)
-	_, ok = p4.Instance("i1a")
-	assert.False(t, ok)
-	i1, ok = p4.Instance("i1")
-	assert.True(t, ok)
-	assert.Equal(t, i1.Shards().NumShards(), i1.Shards().NumShardsForState(shard.Available))
+		p4, err := a.ReplaceInstances(p3, []string{"i1a"}, []placement.Instance{i1})
+		require.NoError(t, err)
+		_, ok = p4.Instance("i1a")
+		assert.False(t, ok)
+		i1, ok = p4.Instance("i1")
+		assert.True(t, ok)
+		assert.True(t, localChecker.allAvailable(p4, []string{"i1"}, nowNanos))
+	})
 }
 
 func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
@@ -784,13 +832,12 @@ func TestMirrorReplaceDuringPendingAddMustFail(t *testing.T) {
 	assert.True(t, i1.Shards().NumShardsForState(shard.Available) > i1.Shards().NumShardsForState(shard.Leaving))
 
 	assert.Equal(t, uint32(3), p1.MaxShardSetID())
-	assert.True(t, allInitializing(p1, []string{"i5", "i6"}, nowNanos))
+	assert.True(t, globalChecker.allInitializing(p1, []string{"i5", "i6"}, nowNanos))
 	i5, ok = p1.Instance("i5")
 	assert.True(t, ok)
 	i6, ok = p1.Instance("i6")
 	assert.True(t, ok)
-	assert.Equal(t, i5.Shards().AllIDs(), i6.Shards().AllIDs())
-	assert.Equal(t, i5.ShardSetID(), i6.ShardSetID())
+	assertInstancesArePeers(t, i5, i6)
 
 	// Replace of instance that is pending add must fail.
 	i5a := newTestInstance("i5a").
@@ -857,7 +904,7 @@ func TestMirrorReplaceDuringPendingRemoveMustFail(t *testing.T) {
 	assert.True(t, ok)
 	i4, ok = p1.Instance("i4")
 	assert.True(t, ok)
-	assert.True(t, allLeaving(p1, []placement.Instance{i3, i4}, nowNanos))
+	assert.True(t, globalChecker.allLeaving(p1, []placement.Instance{i3, i4}, nowNanos))
 	i1, ok = p1.Instance("i1")
 	assert.True(t, ok)
 	assert.True(t, i1.Shards().NumShardsForState(shard.Initializing) > 0)
@@ -1464,6 +1511,110 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 	verifyAllShardsInAvailableState(t, p)
 }
 
+func TestMarkInstanceAndItsPeersAvailable(t *testing.T) {
+	i1 := newTestInstance("i1").SetShardSetID(1)
+	i2 := newTestInstance("i2").SetShardSetID(1)
+	i3 := newTestInstance("i3").SetShardSetID(2)
+	i4 := newTestInstance("i4").SetShardSetID(2)
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 12
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	shardCutoverTime := now.Add(time.Hour).UnixNano()
+	a := NewAlgorithm(placement.NewOptions().
+		SetIsMirrored(true).
+		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
+		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime }))
+	p, err := a.InitialPlacement(instances, ids, 2)
+	require.NoError(t, err)
+	require.NoError(t, placement.Validate(p))
+	require.Equal(t, uint32(2), p.MaxShardSetID())
+	require.True(t, globalChecker.allInitializing(p, []string{"i1", "i2", "i3", "i4"}, nowNanos))
+
+	mirroredAlgo, ok := a.(mirroredAlgorithm)
+	require.True(t, ok)
+
+	t.Run("empty_input", func(t *testing.T) {
+		_, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p, "")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid_instance", func(t *testing.T) {
+		_, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p, "non-existent")
+		require.Error(t, err)
+	})
+
+	t.Run("noop_when_shards_already_available", func(t *testing.T) {
+		p1, _, err := mirroredAlgo.MarkAllShardsAvailable(p)
+		require.NoError(t, err)
+		require.True(t, globalChecker.allAvailable(p1, []string{"i1", "i2", "i3", "i4"}, nowNanos))
+
+		for i := 1; i < 3; i++ {
+			p2, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p1, "i1")
+			require.NoError(t, err)
+			require.Equal(t, p1, p2)
+		}
+	})
+
+	t.Run("mark_first_pair", func(t *testing.T) {
+		p1, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p.Clone(), "i1")
+		require.NoError(t, err)
+		require.True(t, globalChecker.allAvailable(p1, []string{"i1", "i2"}, nowNanos))
+		require.True(t, globalChecker.allInitializing(p1, []string{"i3", "i4"}, nowNanos))
+
+		// Shouldn't matter which of the peers is marked.
+		p2, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p.Clone(), "i2")
+		require.NoError(t, err)
+		require.Equal(t, p1, p2)
+	})
+
+	t.Run("mark_second_pair", func(t *testing.T) {
+		p1, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p.Clone(), "i4")
+		require.NoError(t, err)
+		require.True(t, globalChecker.allAvailable(p1, []string{"i3", "i4"}, nowNanos))
+		require.True(t, globalChecker.allInitializing(p1, []string{"i1", "i2"}, nowNanos))
+
+		// Shouldn't matter which of the peers is marked.
+		p2, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p.Clone(), "i3")
+		require.NoError(t, err)
+		require.Equal(t, p1, p2)
+	})
+
+	t.Run("mark_added_pair", func(t *testing.T) {
+		i5 := newTestInstance("i5").SetShardSetID(3)
+		i6 := newTestInstance("i6").SetShardSetID(3)
+		p1, err := mirroredAlgo.AddInstances(p, []placement.Instance{i5, i6})
+		require.NoError(t, err)
+		require.True(t, globalChecker.allInitializing(p1, []string{"i5", "i6"}, nowNanos))
+		i1, exists := p1.Instance("i1")
+		require.True(t, exists)
+		require.True(t, i1.Shards().NumShardsForState(shard.Leaving) > 0)
+		require.True(t, i1.Shards().NumShardsForState(shard.Available) > i1.Shards().NumShardsForState(shard.Leaving))
+		i2, exists := p1.Instance("i2")
+		require.True(t, exists)
+		require.Equal(t, i1.Shards().NumShardsForState(shard.Leaving), i2.Shards().NumShardsForState(shard.Leaving))
+		require.Equal(t, i1.Shards().NumShardsForState(shard.Available), i2.Shards().NumShardsForState(shard.Available))
+		i3, exists := p1.Instance("i3")
+		require.True(t, exists)
+		require.True(t, i3.Shards().NumShardsForState(shard.Leaving) > 0)
+		require.True(t, i3.Shards().NumShardsForState(shard.Available) > i3.Shards().NumShardsForState(shard.Leaving))
+		i4, exists := p1.Instance("i4")
+		require.True(t, exists)
+		require.Equal(t, i3.Shards().NumShardsForState(shard.Leaving), i4.Shards().NumShardsForState(shard.Leaving))
+		require.Equal(t, i3.Shards().NumShardsForState(shard.Available), i4.Shards().NumShardsForState(shard.Available))
+
+		p2, err := mirroredAlgo.markInstanceAndItsPeersAvailable(p1, "i5")
+		require.NoError(t, err)
+		require.True(t, globalChecker.allAvailable(p2, []string{"i1", "i2", "i3", "i4", "i5", "i6"}, nowNanos))
+	})
+}
+
 func newTestInstance(id string) placement.Instance {
 	return placement.NewInstance().
 		SetID(id).
@@ -1471,4 +1622,9 @@ func newTestInstance(id string) placement.Instance {
 		SetEndpoint("endpoint-" + id).
 		SetMetadata(placement.InstanceMetadata{DebugPort: 80}).
 		SetWeight(1)
+}
+
+func assertInstancesArePeers(t *testing.T, i1, i2 placement.Instance) {
+	assert.Equal(t, i1.Shards().AllIDs(), i1.Shards().AllIDs())
+	assert.Equal(t, i2.ShardSetID(), i2.ShardSetID())
 }
