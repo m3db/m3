@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"io"
 	"os"
 	"time"
@@ -50,6 +51,9 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+// ErrIndexOutOfRetention returned when reserving an index block or volume claim that is out of retention.
+var ErrIndexOutOfRetention = errors.New("out of retention index")
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile.
 type FileSetFileIdentifier struct {
