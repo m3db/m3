@@ -21,7 +21,10 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
@@ -57,6 +60,43 @@ func NewInternalError(err error) *rpc.Error {
 // NewBadRequestError creates a new bad request error
 func NewBadRequestError(err error) *rpc.Error {
 	return newError(rpc.ErrorType_BAD_REQUEST, err, int64(rpc.ErrorFlags_NONE))
+}
+
+var (
+	reRPCError = regexp.MustCompile(`Error\({Type:(\w+) Message:(.*) Flags:(\d)}\)`)
+)
+
+// ParseErrorFromString takes an error string of the format generated
+// by rpc.(*Error).String() and inflates it into a proper rpc.Error object.
+func ParseErrorFromString(errString string) (*rpc.Error, error) {
+	matches := reRPCError.FindStringSubmatch(errString)
+
+	if len(matches) != 4 { // 4 because Golang captures the entire string at index 0
+		return nil, errors.New("error string does not match rpc.BadRequest error format")
+	}
+
+	var (
+		errTypeStr = matches[1]
+		message    = matches[2]
+		flagsStr   = matches[3]
+	)
+
+	errType, err := rpc.ErrorTypeFromString(errTypeStr)
+	if err != nil {
+		return nil, err
+	}
+
+	flags, err := strconv.Atoi(flagsStr)
+	if err != nil {
+		return nil, err
+	}
+
+	rpcErr := rpc.NewError()
+	rpcErr.Type = errType
+	rpcErr.Message = message
+	rpcErr.Flags = int64(flags)
+
+	return rpcErr, nil
 }
 
 // NewResourceExhaustedError creates a new resource exhausted error.

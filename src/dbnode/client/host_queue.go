@@ -24,10 +24,12 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
@@ -35,7 +37,9 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 const workerPoolKillProbability = 0.01
@@ -69,6 +73,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
+	logger                                       *zap.Logger
 }
 
 func newHostQueue(
@@ -143,6 +148,7 @@ func newHostQueue(
 		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
 		drainIn:                                      make(chan []op, opsArraysLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
+		logger:                                       iOpts.Logger(),
 	}, nil
 }
 
@@ -879,6 +885,20 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
+			if se, ok := err.(tchannel.SystemError); ok {
+				if se.Code() == tchannel.ErrCodeUnexpected &&
+					strings.Contains(se.Message(), rpc.ErrorType_BAD_REQUEST.String()) {
+
+					newErr, parseErr := tterrors.ParseErrorFromString(se.Message())
+					if parseErr == nil {
+						err = newErr
+					} else {
+						q.logger.Debug("failed to parse application error from error string. " +
+							"ignoring and using provided system error")
+					}
+				}
+			}
+
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return

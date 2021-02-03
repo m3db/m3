@@ -21,16 +21,19 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -101,7 +104,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.FetchTaggedResult_{
 		Elements: []*rpc.FetchTaggedIDResult_{
-			&rpc.FetchTaggedIDResult_{
+			{
 				NameSpace: []byte(namespace),
 				ID:        []byte("abc"),
 			},
@@ -109,7 +112,7 @@ func TestHostQueueFetchTagged(t *testing.T) {
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +128,7 @@ func TestHostQueueFetchTaggedErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +147,42 @@ func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
+			result: fetchTaggedResultAccumulatorOpts{host: h},
+			err:    expectedErr,
+		},
+	}
+	opts := &testHostQueueFetchTaggedOptions{
+		fetchTaggedErr: expectedErr,
+	}
+	testHostQueueFetchTagged(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+		assert.Equal(t, expectedResults, results)
+	})
+}
+
+func TestHostQueueFetchTaggedErrorOnFetchTaggedUnwrappedSystemError(t *testing.T) {
+	namespace := "testNs"
+	expectedErr := tterrors.NewBadRequestError(errors.New("blah"))
+	expectedResults := []hostQueueResult{
+		{
+			result: fetchTaggedResultAccumulatorOpts{host: h},
+			err:    expectedErr,
+		},
+	}
+	opts := &testHostQueueFetchTaggedOptions{
+		fetchTaggedErr: tchannel.NewSystemError(tchannel.ErrCodeUnexpected, expectedErr.String()),
+	}
+	testHostQueueFetchTagged(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+		assert.Equal(t, expectedResults, results)
+	})
+}
+
+func TestHostQueueFetchTaggedErrorOnFetchTaggedSystemError(t *testing.T) {
+	namespace := "testNs"
+	innerErr := tterrors.NewInternalError(errors.New("blah"))
+	expectedErr := tchannel.NewSystemError(tchannel.ErrCodeUnexpected, innerErr.String())
+	expectedResults := []hostQueueResult{
+		{
 			result: fetchTaggedResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},

@@ -22,10 +22,40 @@ package errors
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestParseErrorsFromString(t *testing.T) {
+	tests := []*rpc.Error{
+		NewResourceExhaustedError(errors.New(
+			"query aborted due to limit: name=docs-matched, limit=1, current=2, within=1s")),
+		NewBadRequestError(errors.New("")),
+		NewInternalError(errors.New("boom")),
+	}
+
+	for i, err := range tests {
+		t.Run(fmt.Sprintf("index %d", i), func(t *testing.T) {
+			actual, aerr := ParseErrorFromString(err.String())
+			require.NoError(t, aerr)
+			require.Equal(t, err, actual)
+		})
+	}
+}
+
+func TestParseErrorsFromStringFails(t *testing.T) {
+	_, err := ParseErrorFromString("blah")
+	require.Error(t, err)
+
+	_, err = ParseErrorFromString("Error({Type:FOO Message:query aborted due to " +
+		"limit: name=docs-matched, limit=1, current=2, within=1s Flags:1})")
+	require.Error(t, err)
+}
 
 func TestErrorsAreRecognized(t *testing.T) {
 	someError := errors.New("some inner error")
