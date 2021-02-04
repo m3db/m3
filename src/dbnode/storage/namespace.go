@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -907,7 +906,7 @@ func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
