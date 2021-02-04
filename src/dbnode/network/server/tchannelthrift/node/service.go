@@ -842,7 +842,7 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	queryResults    *index.ResultsMap
-	idResults       []IDResult
+	idResults       []idResult
 	startInclusive  time.Time
 	endExclusive    time.Time
 	db              storage.Database
@@ -874,7 +874,7 @@ type fetchTaggedResultsIterOpts struct {
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
 	iter := &fetchTaggedResultsIter{
 		queryResults:    opts.queryResult.Results.Map(),
-		idResults:       make([]IDResult, 0, opts.queryResult.Results.Map().Len()),
+		idResults:       make([]idResult, 0, opts.queryResult.Results.Map().Len()),
 		exhaustive:      opts.queryResult.Exhaustive,
 		db:              opts.db,
 		fetchData:       opts.fetchData,
@@ -906,7 +906,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	// initialize the iterator state on the first fetch.
 	if i.idx == 0 {
 		for _, entry := range i.queryResults.Iter() { // nolint: gocritic
-			result := IDResult{
+			result := idResult{
 				queryResult:     entry,
 				docReader:       i.docReader,
 				tagEncoder:      i.tagEncoder,
@@ -955,7 +955,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	}
 
-	i.cur = i.idResults[i.idx]
+	i.cur = &i.idResults[i.idx]
 	i.idx++
 	return true
 }
@@ -969,7 +969,20 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 }
 
 // IDResult is the FetchTagged result for a series ID.
-type IDResult struct {
+type IDResult interface {
+	// ID returns the series ID.
+	ID() []byte
+
+	// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needs
+	// to grow, just like append().
+	WriteTags(dst []byte) ([]byte, error)
+
+	// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
+	// needs to grow, just like append().
+	WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error)
+}
+
+type idResult struct {
 	queryResult      index.ResultsMapEntry
 	docReader        *docs.EncodedDocumentReader
 	tagEncoder       serialize.TagEncoder
@@ -979,14 +992,11 @@ type IDResult struct {
 	iOpts            instrument.Options
 }
 
-// ID returns the series ID.
-func (i *IDResult) ID() []byte {
+func (i *idResult) ID() []byte {
 	return i.queryResult.Key()
 }
 
-// WriteTags writes the encoded tags to provided slice. Callers must use the returned reference in case the slice needs
-// to grow, just like append().
-func (i *IDResult) WriteTags(dst []byte) ([]byte, error) {
+func (i *idResult) WriteTags(dst []byte) ([]byte, error) {
 	metadata, err := docs.MetadataFromDocument(i.queryResult.Value(), i.docReader)
 	if err != nil {
 		return nil, err
@@ -1001,9 +1011,7 @@ func (i *IDResult) WriteTags(dst []byte) ([]byte, error) {
 	return dst, nil
 }
 
-// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
-// needs to grow, just like append().
-func (i *IDResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
+func (i *idResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
 	dst = dst[:0]
 	for _, blockReaders := range i.blockReaders {
 		segments, err := readEncodedResultSegment(blockReaders)
