@@ -1720,13 +1720,16 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		Return(blockReaders[1], nil)
 
 	// Check reads as expected
-	r, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
+	iter, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
-	for i, readers := range r {
-		require.Equal(t, 1, len(readers))
-		assert.Equal(t, blockReaders[i], readers[0])
+	count := 0
+	for iter.Next(ctx) {
+		require.Equal(t, 1, len(iter.Current()))
+		assert.Equal(t, blockReaders[count], iter.Current()[0])
+		count++
 	}
+	require.Equal(t, 2, count)
+	require.NoError(t, iter.Err())
 
 	// Check that gets cached
 	begin := time.Now()

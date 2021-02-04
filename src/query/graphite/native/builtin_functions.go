@@ -79,7 +79,8 @@ func sortByName(_ *common.Context, series singlePathSpec) (ts.SeriesList, error)
 		sorted[i] = series.Values[i]
 	}
 
-	sort.Sort(ts.SeriesByName(sorted))
+	// Use sort.Stable for deterministic output.
+	sort.Stable(ts.SeriesByName(sorted))
 
 	r := ts.SeriesList(series)
 	r.Values = sorted
@@ -105,13 +106,16 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
-func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
+func useSeriesAbove(
+	ctx *common.Context,
+	seriesList singlePathSpec,
+	maxAllowedValue float64,
+	search, replace string,
+) (ts.SeriesList, error) {
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
-		newNames []string
-
+		mu             sync.Mutex
+		multiErr       xerrors.MultiError
+		newNames       []string
 		output         = make([]*ts.Series, 0, len(seriesList.Values))
 		maxConcurrency = runtime.NumCPU() / 2
 	)
@@ -124,36 +128,39 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec, maxAllowedVa
 	}
 
 	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
-		if multiErr.LastError() != nil {
-			return ts.NewSeriesList(), multiErr.LastError()
-		}
-
+		var wg sync.WaitGroup
 		for _, newTarget := range newNameChunk {
+			newTarget := newTarget
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
+				mu.Lock()
+				defer mu.Unlock()
+
 				if err != nil {
-					mu.Lock()
 					multiErr = multiErr.Add(err)
-					mu.Unlock()
 					return
 				}
 
-				mu.Lock()
 				for _, resultSeries := range resultSeriesList.Values {
 					resultSeries.Specification = newTarget
 					output = append(output, resultSeries)
 				}
-				mu.Unlock()
 			}()
 		}
 		wg.Wait()
+
+		if err := multiErr.LastError(); err != nil {
+			return ts.NewSeriesList(), err
+		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain metadata but mark as unsorted since this was done in parallel.
+	r := ts.SeriesList(seriesList)
 	r.Values = output
+	r.SortApplied = false
 	return r, nil
 }
 
@@ -263,8 +270,16 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	}
 	upperBound := int(math.Min(float64(len(series.Values)), float64(n)))
 
+	if !series.SortApplied {
+		// If sort not applied then sort to get deterministic results.
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(series.Values))
+	}
+
 	r := ts.SeriesList(series)
 	r.Values = series.Values[0:upperBound]
+	// Note: If wasn't sorted we applied a sort by name for determinism.
+	r.SortApplied = true
 	return r, nil
 }
 
@@ -283,7 +298,8 @@ func grep(_ *common.Context, seriesList singlePathSpec, regex string) (ts.Series
 		}
 	}
 
-	r := ts.NewSeriesList()
+	// Retain sort applied function.
+	r := ts.SeriesList(seriesList)
 	r.Values = filtered
 	return r, nil
 }
@@ -639,16 +655,11 @@ func removeEmptySeries(ctx *common.Context, input singlePathSpec) (ts.SeriesList
 }
 
 func takeByFunction(input singlePathSpec, n int, sr ts.SeriesReducer, sort ts.Direction) (ts.SeriesList, error) {
-	series, err := ts.SortSeries(input.Values, sr, sort)
+	result, err := ts.SortSeries(ts.SeriesList(input), sr, sort)
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
-	r := ts.SeriesList{
-		Values:      series,
-		SortApplied: true,
-		Metadata:    input.Metadata,
-	}
-	return common.Head(r, n)
+	return common.Head(result, n)
 }
 
 func getReducer(f string) (ts.SeriesReducer, error) {
@@ -2116,7 +2127,7 @@ func newMovingBinaryTransform(
 
 			results := make([]*ts.Series, 0, original.Len())
 			maxWindowPoints := 0
-			for i, _ := range bootstrapList.Values {
+			for i := range bootstrapList.Values {
 				series := original.Values[i]
 				windowPoints := windowPointsLength(series, interval)
 				if windowPoints <= 0 {

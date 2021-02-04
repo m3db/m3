@@ -23,6 +23,7 @@ package native
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -691,11 +692,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			42.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,42.500)",
 					Data: []float64{0, 42.5, 2.0, 42.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,42.500)",
 					Data: []float64{42.5, 7, 2.0, 6.5, 42.5},
 				},
@@ -710,11 +711,11 @@ func TestTransformNull(t *testing.T) {
 			},
 			-0.5,
 			[]common.TestSeries{
-				common.TestSeries{
+				{
 					Name: "transformNull(foo1,-0.500)",
 					Data: []float64{0, 1.0, 2.0, -0.5, 3.0},
 				},
-				common.TestSeries{
+				{
 					Name: "transformNull(foo2,-0.500)",
 					Data: []float64{-0.5, 7, -0.5, 6.5, -0.5},
 				},
@@ -1470,18 +1471,18 @@ func TestFallbackSeries(t *testing.T) {
 	}{
 		{
 			nil,
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
 			[]common.TestSeries{},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 1.0}}},
 		},
 		{
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
-			[]common.TestSeries{common.TestSeries{"fallback", []float64{0, 1.0}}},
-			[]common.TestSeries{common.TestSeries{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
+			[]common.TestSeries{{"fallback", []float64{0, 1.0}}},
+			[]common.TestSeries{{"output", []float64{0, 2.0}}},
 		},
 	}
 
@@ -2377,6 +2378,49 @@ func TestLimit(t *testing.T) {
 	require.Equal(t, len(testInput), testSeries.Len())
 }
 
+func TestLimitSortStable(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	constValues := common.NewTestSeriesValues(ctx, 1000, []float64{1, 2, 3, 4})
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "qux", time.Now(), constValues),
+		ts.NewSeries(ctx, "bar", time.Now(), constValues),
+		ts.NewSeries(ctx, "foo", time.Now(), constValues),
+		ts.NewSeries(ctx, "baz", time.Now(), constValues),
+	}
+
+	// Check that if input order is random that the same first
+	// series is chosen deterministically each time if the results weren't
+	// already ordered.
+	var lastOrder []string
+	for i := 0; i < 100; i++ {
+		rand.Shuffle(len(series), func(i, j int) {
+			series[i], series[j] = series[j], series[i]
+		})
+
+		result, err := limit(ctx, singlePathSpec(ts.SeriesList{
+			Values:      series,
+			SortApplied: false,
+		}), 2)
+		require.NoError(t, err)
+
+		order := make([]string, 0, len(result.Values))
+		for _, series := range result.Values {
+			order = append(order, series.Name())
+		}
+
+		expectedOrder := lastOrder
+		lastOrder = order
+		if expectedOrder == nil {
+			continue
+		}
+
+		require.Equal(t, expectedOrder, order)
+	}
+
+}
+
 func TestHitCount(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2701,8 +2745,8 @@ func TestSquareRoot(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
-		common.TestSeries{Name: "squareRoot(bar)", Data: []float64{2.0}},
+		{Name: "squareRoot(foo)", Data: []float64{1.0, nan, 1.73205, nan}},
+		{Name: "squareRoot(bar)", Data: []float64{2.0}},
 	}
 	results, err := squareRoot(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2744,7 +2788,7 @@ func TestStdev(t *testing.T) {
 		inputSeries = append(inputSeries, series)
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
+		{Name: "stddev(foo,3)", Data: []float64{0.0, 0.5, 0.8165, 0.8165, 0.5, 0.0, nan, 0.0, 0.5, 0.5, 0.0}},
 	}
 	results, err := stdev(ctx, singlePathSpec{
 		Values: inputSeries,
@@ -2828,11 +2872,11 @@ func testPercentileFunction(t *testing.T, f percentileFunction, expected []commo
 
 func TestNPercentile(t *testing.T) {
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "nPercentile(bar, 40.123)",
 			Data: []float64{3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
 		},
-		common.TestSeries{
+		{
 			Name: "nPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2843,15 +2887,15 @@ func TestNPercentile(t *testing.T) {
 func TestRemoveAbovePercentile(t *testing.T) {
 	nan := math.NaN()
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(bar, 40.123)",
 			Data: []float64{3.0, 2.0, nan, nan, 1.0, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeAbovePercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2864,15 +2908,15 @@ func TestRemoveBelowPercentile(t *testing.T) {
 	nan := math.NaN()
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(foo, 40.123)",
 			Data: []float64{nan, nan, nan, nan, nan},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(bar, 40.123)",
 			Data: []float64{3.0, nan, 4.0, nan, nan, 6.0, nan, 5.0},
 		},
-		common.TestSeries{
+		{
 			Name: "removeBelowPercentile(baz, 40.123)",
 			Data: []float64{1.0},
 		},
@@ -2975,7 +3019,7 @@ func TestChanged(t *testing.T) {
 	)
 
 	expected := []common.TestSeries{
-		common.TestSeries{
+		{
 			Name: "changed(foo)",
 			Data: []float64{0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0},
 		},
