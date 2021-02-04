@@ -73,6 +73,21 @@ func (pc *placementChecker) allLeaving(p placement.Placement, instances []placem
 	return pc.instanceEvaluator(ids, p, shardCheckFn)
 }
 
+// allLeavingByIDs is a wrapper of allLeaving that uses string IDs
+func (pc *placementChecker) allLeavingByIDs(p placement.Placement, instanceIDs []string, nowNanos int64) bool {
+	instances := make([]placement.Instance, len(instanceIDs))
+	for i, id := range instanceIDs {
+		curr, exists := p.Instance(id)
+		if !exists {
+			return false
+		}
+
+		instances[i] = curr
+	}
+
+	return pc.allLeaving(p, instances, nowNanos)
+}
+
 func (pc *placementChecker) allAvailable(p placement.Placement, instances []string, nowNanos int64) bool {
 	ids := make(map[string]struct{}, len(instances))
 	for _, i := range instances {

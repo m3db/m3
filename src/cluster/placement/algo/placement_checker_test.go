@@ -21,6 +21,7 @@
 package algo
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -29,6 +30,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type placementCheckerTest struct {
+	name     string
+	globalFn func(placement.Placement, []string, int64) bool
+	localFn  func(placement.Placement, []string, int64) bool
+	cases    []placementCheckerTestCase
+}
+
+type placementCheckerTestCase struct {
+	instances      []string
+	expectedGlobal bool
+	expectedLocal  bool
+}
+
+//nolint:dupl
 func TestPlacementChecker(t *testing.T) {
 	var nowNanos int64 = 10
 	pastNanos := nowNanos - 1
@@ -42,46 +57,145 @@ func TestPlacementChecker(t *testing.T) {
 	i6 := newTestInstance("i6").SetShards(newTestShards(shard.Initializing, 9, 12, 0, futureNanos))
 	p := placement.NewPlacement().SetInstances([]placement.Instance{i1, i2, i3, i4, i5, i6})
 
-	require.True(t, globalChecker.allAvailable(p, []string{"i1", "i2"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"i1"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"i2"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"i3"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"i1,i3"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"non-existent"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{}, nowNanos))
+	tests := []placementCheckerTest{
+		{
+			name:     "allAvailable",
+			globalFn: globalChecker.allAvailable,
+			localFn:  localChecker.allAvailable,
+			cases: []placementCheckerTestCase{
+				{
+					instances:      []string{"i1", "i2"},
+					expectedGlobal: true,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i1"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i2"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i3"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"i1,i3"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"non-existent"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+			},
+		},
+		{
+			name:     "allLeaving",
+			globalFn: globalChecker.allLeavingByIDs,
+			localFn:  localChecker.allLeavingByIDs,
+			cases: []placementCheckerTestCase{
+				{
+					instances:      []string{"i3", "i4"},
+					expectedGlobal: true,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i3"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i4"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i1"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"i3,i6"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"non-existent"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+			},
+		},
+		{
+			name:     "allInitializing",
+			globalFn: globalChecker.allInitializing,
+			localFn:  localChecker.allInitializing,
+			cases: []placementCheckerTestCase{
+				{
+					instances:      []string{"i5", "i6"},
+					expectedGlobal: true,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i5"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i6"},
+					expectedGlobal: false,
+					expectedLocal:  true,
+				},
+				{
+					instances:      []string{"i1"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"i5,i1"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{"non-existent"},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+				{
+					instances:      []string{},
+					expectedGlobal: false,
+					expectedLocal:  false,
+				},
+			},
+		},
+	}
 
-	require.True(t, localChecker.allAvailable(p, []string{"i1", "i2"}, nowNanos))
-	require.True(t, localChecker.allAvailable(p, []string{"i1"}, nowNanos))
-	require.True(t, localChecker.allAvailable(p, []string{"i2"}, nowNanos))
-	require.False(t, localChecker.allAvailable(p, []string{"i1,i3"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{"non-existent"}, nowNanos))
-	require.False(t, globalChecker.allAvailable(p, []string{}, nowNanos))
-
-	require.True(t, globalChecker.allLeaving(p, []placement.Instance{i3, i4}, nowNanos))
-	require.False(t, globalChecker.allLeaving(p, []placement.Instance{i3}, nowNanos))
-	require.False(t, globalChecker.allLeaving(p, []placement.Instance{i4}, nowNanos))
-	require.False(t, globalChecker.allLeaving(p, []placement.Instance{i1}, nowNanos))
-	require.False(t, globalChecker.allLeaving(p, []placement.Instance{i3, i6}, nowNanos))
-	require.False(t, globalChecker.allLeaving(p, []placement.Instance{}, nowNanos))
-
-	require.True(t, localChecker.allLeaving(p, []placement.Instance{i3, i4}, nowNanos))
-	require.True(t, localChecker.allLeaving(p, []placement.Instance{i3}, nowNanos))
-	require.True(t, localChecker.allLeaving(p, []placement.Instance{i4}, nowNanos))
-	require.False(t, localChecker.allLeaving(p, []placement.Instance{i1}, nowNanos))
-	require.False(t, localChecker.allLeaving(p, []placement.Instance{i3, i6}, nowNanos))
-	require.False(t, localChecker.allLeaving(p, []placement.Instance{}, nowNanos))
-
-	require.True(t, globalChecker.allInitializing(p, []string{"i5", "i6"}, nowNanos))
-	require.False(t, globalChecker.allInitializing(p, []string{"i5"}, nowNanos))
-	require.False(t, globalChecker.allInitializing(p, []string{"i6"}, nowNanos))
-	require.False(t, globalChecker.allInitializing(p, []string{"i5,i1"}, nowNanos))
-	require.False(t, globalChecker.allInitializing(p, []string{"non-existent"}, nowNanos))
-
-	require.True(t, localChecker.allInitializing(p, []string{"i5", "i6"}, nowNanos))
-	require.True(t, localChecker.allInitializing(p, []string{"i5"}, nowNanos))
-	require.True(t, localChecker.allInitializing(p, []string{"i6"}, nowNanos))
-	require.False(t, localChecker.allInitializing(p, []string{"i5,i1"}, nowNanos))
-	require.False(t, localChecker.allInitializing(p, []string{"non-existent"}, nowNanos))
+	for _, test := range tests {
+		for _, tc := range test.cases {
+			testName := fmt.Sprintf("%s(%+v)", test.name, tc.instances)
+			//nolint:scopelint
+			t.Run(testName, func(t *testing.T) {
+				require.Equal(t, tc.expectedGlobal, test.globalFn(p, tc.instances, nowNanos))
+				require.Equal(t, tc.expectedLocal, test.localFn(p, tc.instances, nowNanos))
+			})
+		}
+	}
 }
 
 func newTestShards(s shard.State, minID, maxID uint32, cutoffNanos int64, cutoverNanos int64) shard.Shards {
