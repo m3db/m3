@@ -343,12 +343,17 @@ func (rs *ruleSet) Latest() (view.RuleSet, error) {
 	if err != nil {
 		return view.RuleSet{}, err
 	}
+	urs, err := rs.latestUtilizationRules()
+	if err != nil {
+		return view.RuleSet{}, err
+	}
 	return view.RuleSet{
-		Namespace:     string(rs.Namespace()),
-		Version:       rs.Version(),
-		CutoverMillis: rs.CutoverNanos() / nanosPerMilli,
-		MappingRules:  mrs,
-		RollupRules:   rrs,
+		Namespace:        string(rs.Namespace()),
+		Version:          rs.Version(),
+		CutoverMillis:    rs.CutoverNanos() / nanosPerMilli,
+		MappingRules:     mrs,
+		RollupRules:      rrs,
+		UtilizationRules: urs,
 	}, nil
 }
 
@@ -742,6 +747,22 @@ func (rs *ruleSet) latestRollupRules() ([]view.RollupRule, error) {
 	}
 	filtered := make([]view.RollupRule, 0, len(rrs))
 	for _, r := range rrs {
+		if len(r) > 0 && !r[0].Tombstoned {
+			// Rule snapshots are sorted by cutover time in descending order.
+			filtered = append(filtered, r[0])
+		}
+	}
+	sort.Sort(view.RollupRulesByNameAsc(filtered))
+	return filtered, nil
+}
+
+func (rs *ruleSet) latestUtilizationRules() ([]view.RollupRule, error) {
+	urs, err := rs.UtilizationRules()
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]view.RollupRule, 0, len(urs))
+	for _, r := range urs {
 		if len(r) > 0 && !r[0].Tombstoned {
 			// Rule snapshots are sorted by cutover time in descending order.
 			filtered = append(filtered, r[0])

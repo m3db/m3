@@ -463,6 +463,119 @@ func TestRuleSetLatest(t *testing.T) {
 				},
 			},
 		},
+		UtilizationRules: []view.RollupRule{
+			{
+				ID:         "utilizationRule1",
+				Name:       "utilizationRule1.snapshot3",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName1"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule3",
+				Name:       "utilizationRule3.snapshot2",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName3"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule4",
+				Name:       "utilizationRule4.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName4"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule5",
+				Name:       "utilizationRule5.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName5"),
+									Tags:    bs("rtagName1"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute),
+						},
+					},
+				},
+			},
+			{
+				ID:         "utilizationRule6",
+				Name:       "utilizationRule6.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName: b("rName6"),
+									Tags:    bs("rtagName1", "rtagName2"),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+						},
+					},
+				},
+			},
+		},
 	}
 	require.Equal(t, expected, latest)
 }
