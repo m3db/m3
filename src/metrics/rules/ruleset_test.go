@@ -117,16 +117,14 @@ func TestRuleSetActiveSet(t *testing.T) {
 	rs := res.(*ruleSet)
 
 	inputs := []struct {
-		activeSetTimeNanos       int64
-		expectedMappingRules     []*mappingRule
-		expectedRollupRules      []*rollupRule
-		expectedUtilizationRules []*rollupRule
+		activeSetTimeNanos   int64
+		expectedMappingRules []*mappingRule
+		expectedRollupRules  []*rollupRule
 	}{
 		{
-			activeSetTimeNanos:       0,
-			expectedMappingRules:     rs.mappingRules,
-			expectedRollupRules:      rs.rollupRules,
-			expectedUtilizationRules: rs.utilizationRules,
+			activeSetTimeNanos:   0,
+			expectedMappingRules: rs.mappingRules,
+			expectedRollupRules:  rs.rollupRules,
 		},
 		{
 			activeSetTimeNanos: 30000,
@@ -156,20 +154,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.rollupRules[3],
 				rs.rollupRules[4],
 				rs.rollupRules[5],
-			},
-			expectedUtilizationRules: []*rollupRule{
-				{
-					uuid:      rs.utilizationRules[0].uuid,
-					snapshots: rs.utilizationRules[0].snapshots[2:],
-				},
-				{
-					uuid:      rs.utilizationRules[1].uuid,
-					snapshots: rs.utilizationRules[1].snapshots[1:],
-				},
-				rs.utilizationRules[2],
-				rs.utilizationRules[3],
-				rs.utilizationRules[4],
-				rs.utilizationRules[5],
 			},
 		},
 		{
@@ -207,23 +191,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 				rs.rollupRules[4],
 				rs.rollupRules[5],
 			},
-			expectedUtilizationRules: []*rollupRule{
-				{
-					uuid:      rs.utilizationRules[0].uuid,
-					snapshots: rs.utilizationRules[0].snapshots[2:],
-				},
-				{
-					uuid:      rs.utilizationRules[1].uuid,
-					snapshots: rs.utilizationRules[1].snapshots[2:],
-				},
-				{
-					uuid:      rs.utilizationRules[2].uuid,
-					snapshots: rs.utilizationRules[2].snapshots[1:],
-				},
-				rs.utilizationRules[3],
-				rs.utilizationRules[4],
-				rs.utilizationRules[5],
-			},
 		},
 	}
 
@@ -233,7 +200,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 			version,
 			input.expectedMappingRules,
 			input.expectedRollupRules,
-			input.expectedUtilizationRules,
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
 			rs.isRollupIDFn,

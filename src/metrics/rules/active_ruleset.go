@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -53,21 +53,19 @@ type Matcher interface {
 }
 
 type activeRuleSet struct {
-	version          int
-	mappingRules     []*mappingRule
-	rollupRules      []*rollupRule
-	utilizationRules []*rollupRule
-	cutoverTimesAsc  []int64
-	tagsFilterOpts   filters.TagsFilterOptions
-	newRollupIDFn    metricid.NewIDFn
-	isRollupIDFn     metricid.MatchIDFn
+	version         int
+	mappingRules    []*mappingRule
+	rollupRules     []*rollupRule
+	cutoverTimesAsc []int64
+	tagsFilterOpts  filters.TagsFilterOptions
+	newRollupIDFn   metricid.NewIDFn
+	isRollupIDFn    metricid.MatchIDFn
 }
 
 func newActiveRuleSet(
 	version int,
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
-	utilizationRules []*rollupRule,
 	tagsFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricid.NewIDFn,
 	isRollupIDFn metricid.MatchIDFn,
@@ -83,11 +81,6 @@ func newActiveRuleSet(
 			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
 		}
 	}
-	for _, utilizationRule := range utilizationRules {
-		for _, snapshot := range utilizationRule.snapshots {
-			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
-		}
-	}
 
 	cutoverTimesAsc := make([]int64, 0, len(uniqueCutoverTimes))
 	for t := range uniqueCutoverTimes {
@@ -96,14 +89,13 @@ func newActiveRuleSet(
 	sort.Sort(int64Asc(cutoverTimesAsc))
 
 	return &activeRuleSet{
-		version:          version,
-		mappingRules:     mappingRules,
-		rollupRules:      rollupRules,
-		utilizationRules: utilizationRules,
-		cutoverTimesAsc:  cutoverTimesAsc,
-		tagsFilterOpts:   tagsFilterOpts,
-		newRollupIDFn:    newRollupIDFn,
-		isRollupIDFn:     isRollupIDFn,
+		version:         version,
+		mappingRules:    mappingRules,
+		rollupRules:     rollupRules,
+		cutoverTimesAsc: cutoverTimesAsc,
+		tagsFilterOpts:  tagsFilterOpts,
+		newRollupIDFn:   newRollupIDFn,
+		isRollupIDFn:    isRollupIDFn,
 	}
 }
 

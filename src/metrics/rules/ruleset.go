@@ -243,16 +243,10 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		activeRule := rollupRule.activeRule(timeNanos)
 		rollupRules = append(rollupRules, activeRule)
 	}
-	utilizationRules := make([]*rollupRule, 0, len(rs.rollupRules))
-	for _, utilizationRule := range rs.utilizationRules {
-		activeRule := utilizationRule.activeRule(timeNanos)
-		utilizationRules = append(utilizationRules, activeRule)
-	}
 	return newActiveRuleSet(
 		rs.version,
 		mappingRules,
 		rollupRules,
-		utilizationRules,
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,

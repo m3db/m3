@@ -79,7 +79,8 @@ func updateRuleSet(s *service, r *http.Request) (data interface{}, err error) {
 		return nil, NewBadInputError(err.Error())
 	}
 	if len(req.RuleSetChanges.MappingRuleChanges) == 0 &&
-		len(req.RuleSetChanges.RollupRuleChanges) == 0 {
+		len(req.RuleSetChanges.RollupRuleChanges) == 0 &&
+		len(req.RuleSetChanges.UtilizationRuleChanges) == 0 {
 		return nil, NewBadInputError(
 			"invalid request: no ruleset changes detected",
 		)
