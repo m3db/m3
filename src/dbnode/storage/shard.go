@@ -1112,7 +1112,7 @@ func (s *dbShard) ReadEncoded(
 	id ident.ID,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {

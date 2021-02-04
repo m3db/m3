@@ -58,7 +58,7 @@ for test in "${TESTS[@]}"; do
 		docker rm -f $(docker ps -aq) 2>/dev/null || true
 		echo "----------------------------------------------"
 		echo "running $test"
-		if ! $test; then
+		if ! (export M3_PATH=$(pwd) && $test); then
 			echo "--- :bk-status-failed: $test FAILED"
 			exit 1
 		fi
