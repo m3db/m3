@@ -786,7 +786,15 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 
 		s.metrics.fetchTagged.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	}
+	iter, err := s.fetchTaggedIter(ctx, req, instrumentClose)
+	if err != nil {
+		instrumentClose(err)
+	}
+	return iter, err
+}
 
+func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
+	FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
