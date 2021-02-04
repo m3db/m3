@@ -156,6 +156,7 @@ type blockReaderIterOpts struct {
 	cached    []xio.BlockReader
 	buffer    [][]xio.BlockReader
 }
+
 type blockReaderIter struct {
 	blockReaderIterOpts
 
