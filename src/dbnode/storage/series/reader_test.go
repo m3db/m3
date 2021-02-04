@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -33,10 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
@@ -631,6 +631,7 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 
 			// Setup mocks.
 			for _, currTime := range tc.times {
+				tc := tc
 				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
 				if wasInDiskCache {
 					// If the data was in the disk cache then expect a read from it but don't expect
