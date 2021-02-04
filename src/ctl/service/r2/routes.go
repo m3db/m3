@@ -22,6 +22,7 @@ package r2
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 
 	"github.com/m3db/m3/src/metrics/rules/view"
@@ -75,9 +76,11 @@ func validateRuleSet(s *service, r *http.Request) (data interface{}, err error) 
 
 func updateRuleSet(s *service, r *http.Request) (data interface{}, err error) {
 	var req updateRuleSetRequest
+	s.logger.Info("Received update request", zap.Any("req", r))
 	if err := parseRequest(&req, r.Body); err != nil {
 		return nil, NewBadInputError(err.Error())
 	}
+	s.logger.Info("Parsed update request", zap.Any("changes", req))
 	if len(req.RuleSetChanges.MappingRuleChanges) == 0 &&
 		len(req.RuleSetChanges.RollupRuleChanges) == 0 &&
 		len(req.RuleSetChanges.UtilizationRuleChanges) == 0 {
