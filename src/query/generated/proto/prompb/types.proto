@@ -20,8 +20,9 @@ message TimeSeries {
 
   // NB: These are custom fields that M3 uses. They start at 101 so that they
   // should never clash with prometheus fields.
-  M3Type m3_type        = 101;
-  Source source         = 102;
+  M3Type m3_type                 = 101;
+  Source source                  = 102;
+  GraphiteSource graphite_source = 103;
 }
 
 message Label {
@@ -58,12 +59,18 @@ enum MetricType {
 }
 
 enum M3Type {
-  M3_GAUGE = 0;
+  M3_GAUGE   = 0;
   M3_COUNTER = 1;
-  M3_TIMER = 2;
+  M3_TIMER   = 2;
 }
 
 enum Source {
   PROMETHEUS = 0;
-  GRAPHITE = 1;
+  GRAPHITE   = 1;
+}
+
+enum GraphiteSource {
+  GRAPHITE_CARBON    = 0;
+  GRAPHITE_STATSD    = 1;
+  GRAPHITE_DOGSTATSD = 2;
 }
