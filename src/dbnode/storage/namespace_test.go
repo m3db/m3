@@ -494,6 +494,43 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
+func TestNamespaceBootstrap_UnfulfilledShardsNotMarkedBootstrapped(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.NewContext()
+	defer ctx.Close()
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	var shardIDs, unfulfilledShardIDs []uint32
+	for i, testShard := range testShardIDs {
+		id := testShard.ID()
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().IsBootstrapped().Return(false)
+		shard.EXPECT().ID().Return(id)
+		ns.shards[id] = shard
+		shardIDs = append(shardIDs, id)
+		if i%2 == 0 {
+			unfulfilledShardIDs = append(unfulfilledShardIDs, id)
+		}
+	}
+	require.True(t, len(unfulfilledShardIDs) > 0)
+
+	var (
+		unfulfilledRanges = result.NewDataBootstrapResult()
+		unfulfilledTo     = time.Now().Truncate(time.Hour)
+		unfulfilledFrom   = unfulfilledTo.Add(-time.Hour)
+	)
+	unfulfilledRanges.SetUnfulfilled(
+		result.NewShardTimeRangesFromRange(unfulfilledFrom, unfulfilledTo, unfulfilledShardIDs...))
+	nsResult := bootstrap.NamespaceResult{
+		DataResult: unfulfilledRanges,
+		Shards:     shardIDs,
+	}
+
+	require.Error(t, ns.Bootstrap(ctx, nsResult))
+}
+
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
