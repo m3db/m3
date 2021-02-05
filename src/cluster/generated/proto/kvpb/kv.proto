@@ -36,7 +36,7 @@ message KeyValueUpdateResult {
 message QueryLimits {
 	QueryLimit maxRecentlyQueriedSeriesBlocks = 1;
 	QueryLimit maxRecentlyQueriedSeriesDiskBytesRead = 2;
-	QueryLimit maxRecentlyQueriedSeriesDiskRead = 3;
+       reserved 3;
 }
 
 message QueryLimit {

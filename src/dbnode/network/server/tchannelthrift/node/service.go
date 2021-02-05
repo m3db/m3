@@ -811,7 +811,6 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		nsID:           ns,
 		tagEncoder:     tagEncoder,
 		iOpts:          s.opts.InstrumentOptions(),
-		blockReadLimit: s.queryLimits.DiskSeriesReadLimit(),
 	}), nil
 }
 
@@ -856,7 +855,6 @@ type fetchTaggedResultsIter struct {
 	docReader       *docs.EncodedDocumentReader
 	tagEncoder      serialize.TagEncoder
 	iOpts           instrument.Options
-	blocksReadLimit limits.LookbackLimit
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -868,7 +866,6 @@ type fetchTaggedResultsIterOpts struct {
 	nsID           ident.ID
 	tagEncoder     serialize.TagEncoder
 	iOpts          instrument.Options
-	blockReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -884,7 +881,6 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 		docReader:       opts.docReader,
 		tagEncoder:      opts.tagEncoder,
 		iOpts:           opts.iOpts,
-		blocksReadLimit: opts.blockReadLimit,
 	}
 
 	return iter
@@ -911,7 +907,6 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 				docReader:       i.docReader,
 				tagEncoder:      i.tagEncoder,
 				iOpts:           i.iOpts,
-				blocksReadLimit: i.blocksReadLimit,
 			}
 			if i.fetchData {
 				// NB(r): Use a bytes ID here so that this ID doesn't need to be
@@ -941,10 +936,6 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
 				blockReaders = append(blockReaders, curr)
-				if err := i.blocksReadLimit.Inc(len(blockReaders), nil); err != nil {
-					i.err = err
-					return false
-				}
 			}
 			if blockIter.Err() != nil {
 				i.err = blockIter.Err()
@@ -988,7 +979,6 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksReadLimit  limits.LookbackLimit
 	iOpts            instrument.Options
 }
 
