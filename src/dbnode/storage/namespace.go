@@ -1767,7 +1767,7 @@ func (n *dbNamespace) aggregateTiles(
 		// Abort buildling reverse index if aggregation fails.
 		if err := onColdFlushNs.Abort(); err != nil {
 			n.log.Error("error aborting cold flush",
-				zap.String("sourceNs", sourceNs.ID().String()), zap.Error(err))
+				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
 	for _, targetShard := range targetShards {

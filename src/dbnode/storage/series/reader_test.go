@@ -612,6 +612,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 	}
 }
 
+//nolint:scopelint
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		tc := tc
@@ -631,7 +632,6 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 
 			// Setup mocks.
 			for _, currTime := range tc.times {
-				tc := tc
 				cachedBlocks, wasInDiskCache := tc.cachedBlocks[xtime.ToUnixNano(currTime)]
 				if wasInDiskCache {
 					// If the data was in the disk cache then expect a read from it but don't expect
