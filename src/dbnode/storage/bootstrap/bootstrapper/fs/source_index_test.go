@@ -572,7 +572,7 @@ type testOptions struct {
 func testBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T, test testOptions) {
 	dir := createTempDir(t)
 	defer func() {
-		_ = os.RemoveAll(dir)
+		require.NoError(t, os.RemoveAll(dir))
 	}()
 
 	timesOpts := testTimesOptions{
