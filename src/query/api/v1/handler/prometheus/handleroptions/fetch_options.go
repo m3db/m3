@@ -258,6 +258,11 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
 	}
+	if offset, err := ParseQueryOffset(req); err == nil  {
+		fetchOpts.QueryOffset = &offset
+	} else if err != errors.ErrNotFound {
+		return nil, fmt.Errorf("could not parse query offset: err=%v", err)
+	}
 
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
 	if err != nil {
@@ -392,6 +397,15 @@ func ParseRequestTimeout(
 	}
 
 	return duration, nil
+}
+
+// ParseQueryOffset gets the query offset.
+func ParseQueryOffset(req *http.Request) (time.Duration, error) {
+	value := req.Header.Get(headers.OffsetQueryHeader)
+	if value == "" {
+		return 0, errors.ErrNotFound
+	}
+	return time.ParseDuration(value)
 }
 
 func validateTimeout(v time.Duration) error {

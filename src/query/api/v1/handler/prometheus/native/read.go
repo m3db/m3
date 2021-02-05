@@ -23,16 +23,19 @@ package native
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracingext "github.com/opentracing/opentracing-go/ext"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	promql "github.com/prometheus/prometheus/promql/parser"
 	"go.uber.org/zap"
 )
 
@@ -149,6 +152,32 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If a query offset is provided then make the offset query.
+	var offsetResult types.ReadResult
+	if parsedOptions.FetchOpts.QueryOffset != nil {
+		var err error
+		offsetParams := parsedOptions.Params
+		offsetParams.Query, err = offsetQuery(offsetParams.Query, *parsedOptions.FetchOpts.QueryOffset)
+		if err != nil {
+			xhttp.WriteError(w, err)
+			return
+		}
+		parsedOptions.Params = offsetParams
+
+		offsetResult, err = read(ctx, parsedOptions, h.opts)
+		if err != nil {
+			sp := xopentracing.SpanFromContextOrNoop(ctx)
+			sp.LogFields(opentracinglog.Error(err))
+			opentracingext.Error.Set(sp, true)
+			logger.Error("range query error",
+				zap.Error(err),
+				zap.Any("parsedOptions", parsedOptions))
+			h.promReadMetrics.incError(err)
+
+			xhttp.WriteError(w, err)
+		}
+	}
+
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	handleroptions.AddResponseHeaders(w, result.Meta, parsedOptions.FetchOpts)
 	h.promReadMetrics.fetchSuccess.Inc(1)
@@ -163,6 +192,11 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If we have called query offset, then run the query results processor.
+	if parsedOptions.FetchOpts.QueryOffset != nil {
+		result = h.opts.QueryResultsProcessor().ProccessM3QueryResults(result, offsetResult)
+	}
+
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
@@ -175,4 +209,20 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func offsetQuery(query string, offset time.Duration) (string, error) {
+	expr, err := promql.ParseExpr(query)
+	if err != nil {
+		return "", err
+	}
+	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
+		switch n := node.(type) {
+		case *promql.VectorSelector:
+			n.Offset += offset
+		default:
+		}
+		return nil
+	})
+	return expr.String(), nil
 }

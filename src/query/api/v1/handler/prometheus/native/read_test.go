@@ -22,7 +22,9 @@ package native
 
 import (
 	"context"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -32,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -118,6 +121,40 @@ func TestPromReadHandlerWithTimeout(t *testing.T) {
 		"context deadline exceeded",
 		err.Error())
 }
+
+func TestPromReadHandlerReadWithOffset(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	setup := newTestSetup(t, nil)
+	promRead := setup.Handlers.read
+	promRead.opts = promRead.opts.SetQueryResultsProcessor(&testQueryResultsProcessor{t})
+
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	m := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: block.NewResultMetadata(),
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
+	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
+
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.Header.Set(headers.OffsetQueryHeader, "1m")
+	req.URL.RawQuery = defaultParams().Encode()
+
+	w := httptest.NewRecorder()
+	promRead.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+	body := w.Result().Body
+	defer body.Close()
+
+	r, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+	require.NotEmpty(t, string(r))
+}
+
 
 func testPromReadHandlerRead(
 	t *testing.T,
@@ -245,4 +282,47 @@ var _ handler.CancelWatcher = (*cancelWatcher)(nil)
 func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
 	// Simulate longer request to test timeout.
 	time.Sleep(c.delay)
+}
+
+type testQueryResultsProcessor struct{t *testing.T}
+
+func (d *testQueryResultsProcessor) ProccessM3QueryResults(
+	result1, result2 types.ReadResult,
+) types.ReadResult {
+	require.Len(d.t, result1.Series, 2)
+	require.Len(d.t, result2.Series, 2)
+	result1.Series = append(result1.Series, result2.Series...)
+	return result1
+}
+
+func (d *testQueryResultsProcessor) ProcessPromResults() {}
+
+func TestOffsetQuery(t *testing.T) {
+	for _, test := range []struct {
+		query string
+		expected string
+	}{
+		{
+			"up",
+			"up offset 1m",
+		},
+		{
+			"sum(down)",
+			"sum(down offset 1m)",
+		},
+		{
+			"min_over_time( rate(http_requests_total[5m])[30m:1m])",
+			"min_over_time(rate(http_requests_total[5m] offset 1m)[30m:1m])",
+		},
+		{
+			"up + sum(down) - rate(left[5m]) + right offset 2m * min_over_time( rate(http_requests_total[5m])[30m:1m])",
+			"up offset 1m + sum(down offset 1m) - rate(left[5m] offset 1m) + right offset 3m * min_over_time(rate(http_requests_total[5m] offset 1m)[30m:1m])",
+		},
+	} {
+		t.Run(test.query, func (t *testing.T){
+			actual, err := offsetQuery(test.query, time.Minute)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, actual)
+		})
+	}
 }

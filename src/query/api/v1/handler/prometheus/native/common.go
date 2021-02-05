@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/executor"
@@ -261,7 +262,7 @@ type RenderResultsOptions struct {
 // RenderResultsJSON renders results in JSON for range queries.
 func RenderResultsJSON(
 	w io.Writer,
-	result ReadResult,
+	result types.ReadResult,
 	opts RenderResultsOptions,
 ) error {
 	var (
@@ -352,7 +353,7 @@ func RenderResultsJSON(
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
 	w io.Writer,
-	result ReadResult,
+	result types.ReadResult,
 	keepNaNs bool,
 ) {
 	var (

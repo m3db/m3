@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -93,6 +94,22 @@ type QueryRouterOptions struct {
 // RemoteReadRenderer renders remote read output.
 type RemoteReadRenderer func(io.Writer, []*ts.Series,
 	models.RequestParams, bool)
+
+// QueryResultsProcessor is a processor for query results.
+type QueryResultsProcessor interface {
+	ProccessM3QueryResults(types.ReadResult, types.ReadResult) types.ReadResult
+	ProcessPromResults()
+}
+
+type defaultQueryResultsProcessor struct{}
+
+func (d *defaultQueryResultsProcessor) ProccessM3QueryResults(
+	result, _ types.ReadResult,
+) types.ReadResult {
+	return result
+}
+
+func (d *defaultQueryResultsProcessor) ProcessPromResults() {}
 
 // HandlerOptions represents handler options.
 type HandlerOptions interface {
@@ -215,6 +232,11 @@ type HandlerOptions interface {
 	SetNamespaceValidator(NamespaceValidator) HandlerOptions
 	// NamespaceValidator returns the NamespaceValidator.
 	NamespaceValidator() NamespaceValidator
+
+	// SetQueryResultsProcessor sets the query results processor.
+	SetQueryResultsProcessor(QueryResultsProcessor) HandlerOptions
+	// QueryResultsProcessor returns the query results processor.
+	QueryResultsProcessor() QueryResultsProcessor
 }
 
 // HandlerOptions represents handler options.
@@ -243,14 +265,16 @@ type handlerOptions struct {
 	m3dbOpts              m3db.Options
 	namespaceValidator    NamespaceValidator
 	storeMetricsType      bool
+	queryResultsProcessor QueryResultsProcessor
 }
 
-// EmptyHandlerOptions returns  default handler options.
+// EmptyHandlerOptions returns default handler options.
 func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
 		m3dbOpts:       m3db.NewOptions(),
+		queryResultsProcessor: &defaultQueryResultsProcessor{},
 	}
 }
 
@@ -305,6 +329,7 @@ func NewHandlerOptions(
 		m3dbOpts:              m3dbOpts,
 		storeMetricsType:      storeMetricsType,
 		namespaceValidator:    validators.NamespaceValidator,
+		queryResultsProcessor: &defaultQueryResultsProcessor{},
 	}, nil
 }
 
@@ -565,6 +590,16 @@ func (o *handlerOptions) SetNamespaceValidator(value NamespaceValidator) Handler
 
 func (o *handlerOptions) NamespaceValidator() NamespaceValidator {
 	return o.namespaceValidator
+}
+
+func (o *handlerOptions) SetQueryResultsProcessor(value QueryResultsProcessor) HandlerOptions {
+	opts := *o
+	opts.queryResultsProcessor = value
+	return &opts
+}
+
+func (o *handlerOptions) QueryResultsProcessor() QueryResultsProcessor {
+	return o.queryResultsProcessor
 }
 
 // NamespaceValidator defines namespace validation logics.

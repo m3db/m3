@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -206,7 +207,7 @@ func TestRenderResultsJSON(t *testing.T) {
 			})),
 	}
 
-	readResult := ReadResult{Series: series}
+	readResult := types.ReadResult{Series: series}
 	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
 		Start:    params.Start,
 		End:      params.End,
@@ -316,7 +317,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	meta := block.NewResultMetadata()
 	meta.AddWarning("foo", "bar")
 	meta.AddWarning("baz", "qux")
-	readResult := ReadResult{
+	readResult := types.ReadResult{
 		Series: series,
 		Meta:   meta,
 	}
@@ -397,7 +398,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 			})),
 	}
 
-	readResult := ReadResult{
+	readResult := types.ReadResult{
 		Series: series,
 		Meta:   block.NewResultMetadata(),
 	}
@@ -475,7 +476,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 			})),
 	}
 
-	readResult := ReadResult{
+	readResult := types.ReadResult{
 		Series: series,
 		Meta:   block.NewResultMetadata(),
 	}
@@ -535,7 +536,7 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 			test.TagSliceToTags([]models.Tag{})),
 	}
 
-	readResult := ReadResult{
+	readResult := types.ReadResult{
 		Series:    series,
 		Meta:      block.NewResultMetadata(),
 		BlockType: block.BlockScalar,

@@ -126,4 +126,8 @@ const (
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
 	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
+
+	// OffsetQueryHeader is the header added to indicate running additional
+	// offset queries.
+	OffsetQueryHeader = M3HeaderPrefix + "Offset-Query-Header"
 )

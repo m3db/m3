@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/types"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -71,13 +72,6 @@ func (m *promReadMetrics) incError(err error) {
 // ReadResponse is the response that gets returned to the user
 type ReadResponse struct {
 	Results []ts.Series `json:"results,omitempty"`
-}
-
-// ReadResult is a result from a remote read.
-type ReadResult struct {
-	Series    []*ts.Series
-	Meta      block.ResultMetadata
-	BlockType block.BlockType
 }
 
 // ParseRequest parses the given request.
@@ -156,7 +150,7 @@ func read(
 	ctx context.Context,
 	parsed ParsedOptions,
 	handlerOpts options.HandlerOptions,
-) (ReadResult, error) {
+) (types.ReadResult, error) {
 	var (
 		opts          = parsed.QueryOpts
 		fetchOpts     = parsed.FetchOpts
@@ -175,7 +169,7 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	emptyResult := ReadResult{
+	emptyResult := types.ReadResult{
 		Meta:      block.NewResultMetadata(),
 		BlockType: block.BlockEmpty,
 	}
@@ -251,7 +245,7 @@ func read(
 
 	blockType := bl.Info().Type()
 
-	return ReadResult{
+	return types.ReadResult{
 		Series:    seriesList,
 		Meta:      resultMeta,
 		BlockType: blockType,

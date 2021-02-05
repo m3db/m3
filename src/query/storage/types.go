@@ -135,6 +135,9 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+	// QueryOffset indicates we need to additionally run an offset query with
+	// the specified offset duration.
+	QueryOffset *time.Duration
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
