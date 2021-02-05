@@ -1036,11 +1036,12 @@ func (n *dbNamespace) Bootstrap(
 	for _, shard := range n.OwnedShards() {
 		// Make sure it was bootstrapped during this bootstrap run.
 		shardID := shard.ID()
-		bootstrapped := false
-		for _, elem := range bootstrappedShards {
-			if elem == shardID {
-				bootstrapped = true
-				break
+		bootstrapped := true
+		if _, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok {
+			bootstrapped = false
+		} else if n.reverseIndex != nil {
+			if _, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok {
+				bootstrapped = false
 			}
 		}
 		if !bootstrapped {
