@@ -1025,22 +1025,22 @@ func (n *dbNamespace) Bootstrap(
 	workers.Init()
 
 	var (
-		multiErr = xerrors.NewMultiError()
-		mutex    sync.Mutex
-		wg       sync.WaitGroup
+		bootstrappedShards = bootstrapResult.Shards
+		multiErr           = xerrors.NewMultiError()
+		mutex              sync.Mutex
+		wg                 sync.WaitGroup
 	)
 	n.log.Info("bootstrap marking all shards as bootstrapped",
 		zap.Stringer("namespace", n.id),
-		zap.Int("numShards", len(bootstrapResult.Shards)))
+		zap.Int("numShards", len(bootstrappedShards)))
 	for _, shard := range n.OwnedShards() {
 		// Make sure it was bootstrapped during this bootstrap run.
 		shardID := shard.ID()
-		bootstrapped := true
-		if _, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok {
-			bootstrapped = false
-		} else if n.reverseIndex != nil {
-			if _, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok {
-				bootstrapped = false
+		bootstrapped := false
+		for _, elem := range bootstrappedShards {
+			if elem == shardID {
+				bootstrapped = true
+				break
 			}
 		}
 		if !bootstrapped {
