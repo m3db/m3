@@ -106,6 +106,7 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+//nolint:govet,gocritic
 func useSeriesAbove(
 	ctx *common.Context,
 	seriesList singlePathSpec,
@@ -314,7 +315,6 @@ func timeShift(
 	_ bool,
 	_ bool,
 ) (*unaryContextShifter, error) {
-
 	// TODO: implement resetEnd
 	if !(strings.HasPrefix(timeShiftS, "+") || strings.HasPrefix(timeShiftS, "-")) {
 		timeShiftS = "-" + timeShiftS
@@ -484,7 +484,6 @@ func offset(ctx *common.Context, input singlePathSpec, factor float64) (ts.Serie
 // transform converts values in a timeseries according to the valueTransformer.
 func transform(ctx *common.Context, input singlePathSpec,
 	fname func(inputName string) string, fn common.TransformFunc) (ts.SeriesList, error) {
-
 	t := common.NewStatelessTransformer(fn)
 	return common.Transform(ctx, ts.SeriesList(input), t, func(in *ts.Series) string {
 		return fname(in.Name())
@@ -818,7 +817,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 	}
 
 	widowSize, err := parseWindowSize(windowSizeValue, input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1136,8 +1134,8 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 // expression.
 func exclude(_ *common.Context, input singlePathSpec, pattern string) (ts.SeriesList, error) {
 	rePattern, err := regexp.Compile(pattern)
-	//NB(rooz): we decided to just fail if regex compilation fails to
-	//differentiate it from an all-excluding regex
+	// NB(rooz): we decided to just fail if regex compilation fails to
+	// differentiate it from an all-excluding regex
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
@@ -1274,7 +1272,6 @@ func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
 
 func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate string,
 	fn func(float64, float64) float64) (ts.SeriesList, error) {
-
 	output := make([]*ts.Series, len(input.Values))
 	for i, in := range input.Values {
 		derivativeValues := ts.NewValues(ctx, in.MillisPerStep(), in.Len())
