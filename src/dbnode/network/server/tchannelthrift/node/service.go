@@ -903,9 +903,7 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 		tagEncoder:      opts.tagEncoder,
 		iOpts:           opts.iOpts,
 		instrumentClose: opts.instrumentClose,
-
-  
-  }
+	}
 
 	return iter
 }
@@ -927,10 +925,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	if i.idx == 0 {
 		for _, entry := range i.queryResults.Iter() { // nolint: gocritic
 			result := idResult{
-				queryResult:     entry,
-				docReader:       i.docReader,
-				tagEncoder:      i.tagEncoder,
-				iOpts:           i.iOpts,
+				queryResult: entry,
+				docReader:   i.docReader,
+				tagEncoder:  i.tagEncoder,
+				iOpts:       i.iOpts,
 			}
 			if i.fetchData {
 				// NB(r): Use a bytes ID here so that this ID doesn't need to be
