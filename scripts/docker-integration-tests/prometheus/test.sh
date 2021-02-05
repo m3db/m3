@@ -407,8 +407,6 @@ function test_labels {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  sleep 100000
-
   # Test label search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 77 ]]' # 77 withou a match
