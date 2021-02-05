@@ -235,13 +235,13 @@ func ParseSeriesMatchQuery(
 	}
 
 	queries := make([]*storage.FetchQuery, 0, len(matcherValues))
-	for _, m := range matcherValues {
-		queries[i] = &storage.FetchQuery{
-			Raw:         fmt.Sprintf("match[]=%s", s),
-			TagMatchers: matchers,
+	for _, m := range matchers {
+		queries = append(queries, &storage.FetchQuery{
+			Raw:         fmt.Sprintf("match[]=%s", m.Match),
+			TagMatchers: m.Matchers,
 			Start:       start,
 			End:         end,
-		}
+		})
 	}
 
 	return queries, nil
@@ -250,7 +250,7 @@ func ParseSeriesMatchQuery(
 // ParsedMatch is a parsed matched.
 type ParsedMatch struct {
 	Match    string
-	Matchers []models.Matchers
+	Matchers models.Matchers
 }
 
 // ParseMatch parses all match params from the GET request.
@@ -268,7 +268,7 @@ func ParseMatch(
 		return nil, false, nil
 	}
 
-	matchers := make([]models.Matchers, 0, len(matcherValues))
+	matchers := make([]ParsedMatch, 0, len(matcherValues))
 	for _, str := range matcherValues {
 		m, err := parseMatch(r, parseOpts, tagOptions, str)
 		if err != nil {

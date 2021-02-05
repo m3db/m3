@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -59,6 +61,7 @@ type TagValuesHandler struct {
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	parseOpts           promql.ParseOptions
 	instrumentOpts      instrument.Options
+	tagOpts             models.TagOptions
 }
 
 // TagValuesResponse is the response that gets returned to the user
@@ -67,12 +70,13 @@ type TagValuesResponse struct {
 }
 
 // NewTagValuesHandler returns a new instance of handler.
-func NewTagValuesHandler(options options.HandlerOptions) http.Handler {
+func NewTagValuesHandler(opts options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
-		storage:             options.Storage(),
-		fetchOptionsBuilder: options.FetchOptionsBuilder(),
-		parseOpts:           promql.NewParseOptions().SetNowFn(options.NowFn()),
-		instrumentOpts:      options.InstrumentOpts(),
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
+		instrumentOpts:      opts.InstrumentOpts(),
+		tagOpts:             opts.TagOptions(),
 	}
 }
 
@@ -125,16 +129,31 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	}
 
 	nameBytes := []byte(name)
+
+	tagMatchers := models.Matchers{
+		models.Matcher{
+			Type: models.MatchField,
+			Name: nameBytes,
+		},
+	}
+	reqTagMatchers, ok, err := prometheus.ParseMatch(r, h.parseOpts, h.tagOpts)
+	if err != nil {
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+	if ok {
+		if n := len(reqTagMatchers); n != 1 {
+			err := xerrors.NewInvalidParamsError(fmt.Errorf(
+				"only single tag matcher allowed: actual=%d", n))
+			return nil, err
+		}
+		tagMatchers = reqTagMatchers[0].Matchers
+	}
+
 	return &storage.CompleteTagsQuery{
 		Start:            start,
 		End:              end,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
-		TagMatchers: models.Matchers{
-			models.Matcher{
-				Type: models.MatchField,
-				Name: nameBytes,
-			},
-		},
+		TagMatchers:      tagMatchers,
 	}, nil
 }
