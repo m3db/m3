@@ -391,6 +391,22 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 	return i.postingsIter, nil
 }
 
+func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPostingsListIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if i.r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	i.fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.r,
+		fst:         i.r.fieldsFST,
+		finalizeFST: false,
+	})
+	i.postingsIter.reset(i.r, i.fieldsIter)
+	return i.postingsIter, nil
+}
+
 func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset uint64) error {
 	r.RLock()
 	defer r.RUnlock()
@@ -877,6 +893,19 @@ func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
 	}
 
 	return sr.fsSegment.fieldsFST.Contains(field)
+}
+
+func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	if sr.termsIterable == nil {
+		sr.termsIterable = newTermsIterable(sr.fsSegment)
+	}
+	sr.fsSegment.RLock()
+	iter, err := sr.termsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
+	sr.fsSegment.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
