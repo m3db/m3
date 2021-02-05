@@ -506,13 +506,15 @@ func TestNamespaceBootstrap_UnfulfilledShardsNotMarkedBootstrapped(t *testing.T)
 	for i, testShard := range testShardIDs {
 		id := testShard.ID()
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(id)
-		ns.shards[id] = shard
-		shardIDs = append(shardIDs, id)
 		if i%2 == 0 {
 			unfulfilledShardIDs = append(unfulfilledShardIDs, id)
+		} else {
+			shard.EXPECT().IsBootstrapped().Return(false)
+			shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		}
+		ns.shards[id] = shard
+		shardIDs = append(shardIDs, id)
 	}
 	require.True(t, len(unfulfilledShardIDs) > 0)
 
