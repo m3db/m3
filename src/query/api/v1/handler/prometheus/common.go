@@ -270,7 +270,7 @@ func ParseMatch(
 
 	matchers := make([]ParsedMatch, 0, len(matcherValues))
 	for _, str := range matcherValues {
-		m, err := parseMatch(r, parseOpts, tagOptions, str)
+		m, err := parseMatch(parseOpts, tagOptions, str)
 		if err != nil {
 			return nil, false, err
 		}
@@ -284,7 +284,6 @@ func ParseMatch(
 }
 
 func parseMatch(
-	r *http.Request,
 	parseOpts xpromql.ParseOptions,
 	tagOptions models.TagOptions,
 	matcher string,
