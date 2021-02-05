@@ -394,7 +394,7 @@ function test_series {
 function test_labels {
   TAG_NAME_0="name_0" TAG_VALUE_0="value_0_1" \
     TAG_NAME_1="name_1" TAG_VALUE_1="value_1_1" \
-    TAG_NAME_2="name_2" TAG_VALUE_1="value_2_1" \
+    TAG_NAME_2="name_2" TAG_VALUE_2="value_2_1" \
     prometheus_remote_write \
     label_metric now 42.42 \
     true "Expected request to succeed" \
@@ -408,6 +408,7 @@ function test_labels {
     200 "Expected request to return status code 200"
 
   sleep 100000
+
   # Test label search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 77 ]]' # 77 withou a match
