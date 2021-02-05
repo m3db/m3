@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -130,12 +131,11 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 
 	nameBytes := []byte(name)
 
-	tagMatchers := models.Matchers{
-		models.Matcher{
-			Type: models.MatchField,
-			Name: nameBytes,
-		},
+	nameMatcher := models.Matcher{
+		Type: models.MatchField,
+		Name: nameBytes,
 	}
+	tagMatchers := models.Matchers{nameMatcher}
 	reqTagMatchers, ok, err := prometheus.ParseMatch(r, h.parseOpts, h.tagOpts)
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
@@ -146,7 +146,15 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 				"only single tag matcher allowed: actual=%d", n))
 			return nil, err
 		}
-		tagMatchers = reqTagMatchers[0].Matchers
+
+		reqTagMatcher := reqTagMatchers[0]
+
+		for _, m := range reqTagMatcher.Matchers {
+			// add all matchers that don't match the default name matcher.
+			if m.Type != nameMatcher.Type || !bytes.Equal(m.Name, nameMatcher.Name) {
+				tagMatchers = append(tagMatchers, m)
+			}
+		}
 	}
 
 	return &storage.CompleteTagsQuery{
