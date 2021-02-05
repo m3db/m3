@@ -494,40 +494,106 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
-func TestNamespaceBootstrap_UnfulfilledShardsNotMarkedBootstrapped(t *testing.T) {
+func TestNamespaceBootstrapUnfulfilledShards(t *testing.T) {
+	unfulfilledRangeForShards := func(ids ...uint32) result.IndexBootstrapResult {
+		var (
+			unfulfilledRange = result.NewIndexBootstrapResult()
+			unfulfilledTo    = time.Now().Truncate(time.Hour)
+			unfulfilledFrom  = unfulfilledTo.Add(-time.Hour)
+		)
+		unfulfilledRange.SetUnfulfilled(result.NewShardTimeRangesFromRange(
+			unfulfilledFrom, unfulfilledTo, ids...))
+		return unfulfilledRange
+	}
+
+	shardIDs := []uint32{0, 1}
+	tests := []struct {
+		name                string
+		withIndex           bool
+		unfulfilledShardIDs []uint32
+		nsResult            bootstrap.NamespaceResult
+	}{
+		{
+			name:                "no index, unfulfilled data",
+			withIndex:           false,
+			unfulfilledShardIDs: []uint32{0},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult: unfulfilledRangeForShards(0),
+				Shards:     shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0, 1),
+				IndexResult: unfulfilledRangeForShards(),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+		{
+			name:                "with index, unfulfilled data and index",
+			withIndex:           true,
+			unfulfilledShardIDs: []uint32{0, 1},
+			nsResult: bootstrap.NamespaceResult{
+				DataResult:  unfulfilledRangeForShards(0),
+				IndexResult: unfulfilledRangeForShards(1),
+				Shards:      shardIDs,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testNamespaceBootstrapUnfulfilledShards(t, shardIDs, tt.unfulfilledShardIDs,
+				tt.withIndex, tt.nsResult)
+		})
+	}
+}
+
+func testNamespaceBootstrapUnfulfilledShards(
+	t *testing.T,
+	shardIDs, unfulfilledShardIDs []uint32,
+	withIndex bool,
+	nsResult bootstrap.NamespaceResult,
+) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.NewContext()
 	defer ctx.Close()
-	ns, closer := newTestNamespace(t)
+
+	var (
+		ns     *dbNamespace
+		closer func()
+	)
+	if withIndex {
+		idx := NewMockNamespaceIndex(ctrl)
+		idx.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		ns, closer = newTestNamespaceWithIndex(t, idx)
+	} else {
+		ns, closer = newTestNamespace(t)
+	}
 	defer closer()
 
-	var shardIDs, unfulfilledShardIDs []uint32
-	for i, testShard := range testShardIDs {
-		id := testShard.ID()
+	for _, id := range shardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(id)
-		if i%2 == 0 {
-			unfulfilledShardIDs = append(unfulfilledShardIDs, id)
-		} else {
+		if !contains(unfulfilledShardIDs, id) {
 			shard.EXPECT().IsBootstrapped().Return(false)
 			shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		}
 		ns.shards[id] = shard
-		shardIDs = append(shardIDs, id)
-	}
-	require.True(t, len(unfulfilledShardIDs) > 0)
-
-	var (
-		unfulfilledRanges = result.NewDataBootstrapResult()
-		unfulfilledTo     = time.Now().Truncate(time.Hour)
-		unfulfilledFrom   = unfulfilledTo.Add(-time.Hour)
-	)
-	unfulfilledRanges.SetUnfulfilled(
-		result.NewShardTimeRangesFromRange(unfulfilledFrom, unfulfilledTo, unfulfilledShardIDs...))
-	nsResult := bootstrap.NamespaceResult{
-		DataResult: unfulfilledRanges,
-		Shards:     shardIDs,
 	}
 
 	require.Error(t, ns.Bootstrap(ctx, nsResult))
@@ -1588,4 +1654,13 @@ func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTru
 	needsFlush, err := ns.NeedsFlush(t0, t1)
 	require.NoError(t, err)
 	require.Equal(t, assertTrue, needsFlush)
+}
+
+func contains(c []uint32, x uint32) bool {
+	for _, y := range c {
+		if x == y {
+			return true
+		}
+	}
+	return false
 }
