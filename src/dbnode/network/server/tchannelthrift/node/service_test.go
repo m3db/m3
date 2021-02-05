@@ -1558,11 +1558,6 @@ func TestServiceFetchTagged(t *testing.T) {
 		{
 			name: "happy path",
 		},
-		{
-			name:            "block read limit",
-			blocksReadLimit: 1,
-			fetchErrMsg:     "query aborted due to limit",
-		},
 	}
 
 	for _, tc := range testCases {
@@ -1577,11 +1572,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			queryLimits, err := limits.NewQueryLimits(limits.NewOptions().
 				SetInstrumentOptions(testTChannelThriftOptions.InstrumentOptions()).
 				SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
-				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
-				SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
-					Limit:    tc.blocksReadLimit,
-					Lookback: time.Second * 1,
-				}))
+				SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()))
 			require.NoError(t, err)
 			testTChannelThriftOptions = testTChannelThriftOptions.SetQueryLimits(queryLimits)
 
