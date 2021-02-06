@@ -96,9 +96,7 @@ func (f *fstTermsPostingsIter) Next() bool {
 	if f.termsIter.opts.fieldsFST {
 		var fieldsData fswriter.FieldData
 		fieldsData, f.err = f.seg.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(currOffset)
-		if f.err != nil {
-			currOffset = fieldsData.FieldPostingsListOffset
-		}
+		currOffset = fieldsData.FieldPostingsListOffset
 	}
 	if f.err != nil {
 		// Only attempt if the previous unmarshal definitely succeeded
