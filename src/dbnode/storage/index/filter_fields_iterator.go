@@ -94,5 +94,5 @@ func (f *filterFieldsIterator) Err() error {
 }
 
 func (f *filterFieldsIterator) Close() error {
-	return nil
+	return f.fieldsIter.Close()
 }
