@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package limits
+package index
 
 import (
 	"math"
@@ -28,6 +28,20 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 )
+
+// NewQueryMetrics returns a new QueryMetrics.
+func NewQueryMetrics(name string, scope tally.Scope) QueryMetrics {
+	return QueryMetrics{
+		ByRange: NewQueryRangeMetrics(name, scope),
+		ByDocs:  NewCardinalityMetrics(name, scope),
+	}
+}
+
+// QueryMetrics is a composite type of QueryDurationMetrics and QueryCardinalityMetrics.
+type QueryMetrics struct {
+	ByRange QueryDurationMetrics
+	ByDocs  QueryCardinalityMetrics
+}
 
 type queryRangeHist struct {
 	threshold time.Duration
@@ -81,7 +95,7 @@ func NewQueryRangeMetrics(metricType string, scope tally.Scope) QueryDurationMet
 	}
 }
 
-// QueryDurationMetrics are metrics for query runtime by duration.
+// QueryDurationMetrics are timing metrics bucketed by the query window (start, end).
 type QueryDurationMetrics interface {
 	// Record records the runtime for queries given their range.
 	Record(queryRange time.Duration, queryRuntime time.Duration)
@@ -139,8 +153,8 @@ func NewCardinalityMetrics(metricType string, scope tally.Scope) QueryCardinalit
 	}
 }
 
-// QueryCardinalityMetrics are metrics for query runtime by cardinality.
+// QueryCardinalityMetrics are metrics bucketed by the # of documents returned by a query result.
 type QueryCardinalityMetrics interface {
 	// Record records the runtime for queries given their cardinality.
-	Record(seriesCount int, queryRuntime time.Duration)
+	Record(docCount int, queryRuntime time.Duration)
 }

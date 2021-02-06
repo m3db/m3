@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -1672,12 +1671,12 @@ func (i *nsIndex) queryWithSpan(
 	queryRuntime := time.Since(indexMatchingStartTime)
 	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
 
-	i.metrics.queryTotalTimeByRange.Record(queryRange, queryRuntime)
-	i.metrics.queryTotalTimeByCardinality.Record(results.TotalDocsCount(), queryRuntime)
-	i.metrics.querySearchByRange.Record(queryRange, results.TotalDuration().Search)
-	i.metrics.querySearchByCardinality.Record(results.TotalDocsCount(), results.TotalDuration().Search)
-	i.metrics.queryProcessingTimeByRange.Record(queryRange, results.TotalDuration().Total)
-	i.metrics.queryProcessingTimeByCardinality.Record(results.TotalDocsCount(), results.TotalDuration().Total)
+	i.metrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
+	i.metrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
+	i.metrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Total)
+	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Total)
+	i.metrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
+	i.metrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
 
 	return exhaustive, nil
 }
@@ -2226,24 +2225,14 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
 
-	// query*Time metrics by both range and cardinality. byRange buckets by the query time window ([start,end]).
-	// byCardinality buckets by the # of documents returned by the query. byRange allows us to understand the impact
-	// of queries that look at many index blocks. byCardinality allows us to understand the impact of queries that
-	// return many documents from index blocks.
-
 	// the total time for a query, including waiting for processing resources.
-	queryTotalTimeByRange       limits.QueryDurationMetrics
-	queryTotalTimeByCardinality limits.QueryCardinalityMetrics
-
-	// the total time a query was consuming processing resources. queryTotalTime - queryProcessing == time waiting for
-	// resources.
-	queryProcessingTimeByRange       limits.QueryDurationMetrics
-	queryProcessingTimeByCardinality limits.QueryCardinalityMetrics
-
-	// the total time a query was searching for documents. queryProcessing - querySearch == time processing search
-	// results.
-	querySearchByRange       limits.QueryDurationMetrics
-	querySearchByCardinality limits.QueryCardinalityMetrics
+	queryTotalTime index.QueryMetrics
+	// the total time a query was consuming processing resources. queryTotalTime - queryProcessingTime == time waiting
+	// for resources.
+	queryProcessingTime index.QueryMetrics
+	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
+	// search results.
+	querySearchTime index.QueryMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -2339,12 +2328,9 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
-		queryTotalTimeByRange:            limits.NewQueryRangeMetrics("query_total", scope),
-		queryTotalTimeByCardinality:      limits.NewCardinalityMetrics("query_total", scope),
-		queryProcessingTimeByRange:       limits.NewQueryRangeMetrics("query_processing", scope),
-		queryProcessingTimeByCardinality: limits.NewCardinalityMetrics("query_processing", scope),
-		querySearchByRange:               limits.NewQueryRangeMetrics("query_search", scope),
-		querySearchByCardinality:         limits.NewCardinalityMetrics("query_search", scope),
+		queryTotalTime:      index.NewQueryMetrics("query_total", scope),
+		queryProcessingTime: index.NewQueryMetrics("query_processing", scope),
+		querySearchTime:     index.NewQueryMetrics("query_search", scope),
 	}
 
 	// Initialize gauges that should default to zero before

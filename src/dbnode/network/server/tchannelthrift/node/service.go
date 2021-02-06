@@ -124,23 +124,14 @@ type serviceMetrics struct {
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
 
-	queryTimingFetchTagged  queryMetrics
-	queryTimingAggregate    queryMetrics
-	queryTimingAggregateRaw queryMetrics
-
-	queryTimingDataRead queryMetrics
-}
-
-func newQueryMetrics(name string, scope tally.Scope) queryMetrics {
-	return queryMetrics{
-		byRange: limits.NewQueryRangeMetrics(name, scope),
-		byDocs:  limits.NewCardinalityMetrics(name, scope),
-	}
-}
-
-type queryMetrics struct {
-	byRange limits.QueryDurationMetrics
-	byDocs  limits.QueryCardinalityMetrics
+	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
+	queryTimingFetchTagged index.QueryMetrics
+	// the total time to read data blocks.
+	queryTimingDataRead index.QueryMetrics
+	// the total time to call Aggregate.
+	queryTimingAggregate index.QueryMetrics
+	// the total time to call AggregateRaw.
+	queryTimingAggregateRaw index.QueryMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -162,10 +153,10 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
 
-		queryTimingFetchTagged:  newQueryMetrics("fetch_tagged", scope),
-		queryTimingAggregate:    newQueryMetrics("aggregate", scope),
-		queryTimingAggregateRaw: newQueryMetrics("aggregate_raw", scope),
-		queryTimingDataRead:     newQueryMetrics("data_read", scope),
+		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
+		queryTimingAggregate:    index.NewQueryMetrics("aggregate", scope),
+		queryTimingAggregateRaw: index.NewQueryMetrics("aggregate_raw", scope),
+		queryTimingDataRead:     index.NewQueryMetrics("data_read", scope),
 	}
 }
 
@@ -888,28 +879,13 @@ type FetchTaggedResultsIter interface {
 }
 
 type fetchTaggedResultsIter struct {
-	queryResults    *index.ResultsMap
-	idResults       []idResult
-	startInclusive  time.Time
-	endExclusive    time.Time
-	db              storage.Database
-	idx             int
-	blockReadIdx    int
-	exhaustive      bool
-	fetchData       bool
-	cur             IDResult
-	err             error
-	nsID            ident.ID
-	docReader       *docs.EncodedDocumentReader
-	tagEncoder      serialize.TagEncoder
-	iOpts           instrument.Options
-	instrumentClose func(error)
-	startTime       time.Time
-	nowFn           clock.NowFn
-	fetchStart      time.Time
-	totalDocsCount  int
-	dataReadMetrics queryMetrics
-	totalMetrics    queryMetrics
+	fetchTaggedResultsIterOpts
+	idResults     []idResult
+	dataReadStart time.Time
+	idx           int
+	blockReadIdx  int
+	cur           IDResult
+	err           error
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -925,40 +901,24 @@ type fetchTaggedResultsIterOpts struct {
 	nowFn           clock.NowFn
 	fetchStart      time.Time
 	totalDocsCount  int
-	dataReadMetrics queryMetrics
-	totalMetrics    queryMetrics
+	dataReadMetrics index.QueryMetrics
+	totalMetrics    index.QueryMetrics
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
-	iter := &fetchTaggedResultsIter{
-		queryResults:    opts.queryResult.Results.Map(),
-		idResults:       make([]idResult, 0, opts.queryResult.Results.Map().Len()),
-		exhaustive:      opts.queryResult.Exhaustive,
-		db:              opts.db,
-		fetchData:       opts.fetchData,
-		startInclusive:  opts.queryOpts.StartInclusive,
-		endExclusive:    opts.queryOpts.EndExclusive,
-		nsID:            opts.nsID,
-		docReader:       opts.docReader,
-		tagEncoder:      opts.tagEncoder,
-		iOpts:           opts.iOpts,
-		instrumentClose: opts.instrumentClose,
-		totalDocsCount:  opts.totalDocsCount,
-		nowFn:           opts.nowFn,
-		fetchStart:      opts.fetchStart,
-		dataReadMetrics: opts.dataReadMetrics,
-		totalMetrics:    opts.totalMetrics,
+	return &fetchTaggedResultsIter{
+		fetchTaggedResultsIterOpts: opts,
+		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
+		dataReadStart:              opts.nowFn(),
 	}
-
-	return iter
 }
 
 func (i *fetchTaggedResultsIter) NumIDs() int {
-	return i.queryResults.Len()
+	return i.queryResult.Results.Map().Len()
 }
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
-	return i.exhaustive
+	return i.queryResult.Exhaustive
 }
 
 func (i *fetchTaggedResultsIter) Namespace() ident.ID {
@@ -968,7 +928,7 @@ func (i *fetchTaggedResultsIter) Namespace() ident.ID {
 func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	// initialize the iterator state on the first fetch.
 	if i.idx == 0 {
-		for _, entry := range i.queryResults.Iter() { // nolint: gocritic
+		for _, entry := range i.queryResult.Results.Map().Iter() { // nolint: gocritic
 			result := idResult{
 				queryResult: entry,
 				docReader:   i.docReader,
@@ -980,7 +940,8 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 				// copied by the blockRetriever in the streamRequest method when
 				// it checks if the ID is finalizeable or not with IsNoFinalize.
 				id := ident.BytesID(result.queryResult.Key())
-				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.startInclusive, i.endExclusive)
+				result.blockReadersIter, i.err = i.db.ReadEncoded(ctx, i.nsID, id, i.queryOpts.StartInclusive,
+					i.queryOpts.EndExclusive)
 				if i.err != nil {
 					return false
 				}
@@ -989,14 +950,14 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	}
 
-	if i.idx == i.queryResults.Len() {
+	if i.idx == i.queryResult.Results.Map().Len() {
 		return false
 	}
 
 	if i.fetchData {
 		// ensure the blockReaders exist for the current series ID. additionally try to prefetch additional blockReaders
 		// for future seriesID to pipeline the disk reads.
-		for i.blockReadIdx < i.queryResults.Len() {
+		for i.blockReadIdx < i.queryResult.Results.Map().Len() {
 			var blockReaders [][]xio.BlockReader
 			blockIter := i.idResults[i.blockReadIdx].blockReadersIter
 
@@ -1028,14 +989,15 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
+	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
 	now := i.nowFn()
-	elapsed := now.Sub(i.startTime)
-	i.dataReadMetrics.byRange.Record(i.endExclusive.Sub(i.startInclusive), elapsed)
-	i.dataReadMetrics.byDocs.Record(i.totalDocsCount, elapsed)
+	dataReadTime := now.Sub(i.dataReadStart)
+	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
+	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
 
-	totalElapsed := now.Sub(i.fetchStart)
-	i.totalMetrics.byRange.Record(i.endExclusive.Sub(i.startInclusive), totalElapsed)
-	i.totalMetrics.byDocs.Record(i.totalDocsCount, totalElapsed)
+	totalFetchTime := now.Sub(i.fetchStart)
+	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
+	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
 }
 
 // IDResult is the FetchTagged result for a series ID.
@@ -1142,8 +1104,8 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregate
 	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.byRange.Record(rng, duration)
-	queryTiming.byDocs.Record(size, duration)
+	queryTiming.ByRange.Record(rng, duration)
+	queryTiming.ByDocs.Record(size, duration)
 
 	return response, nil
 }
@@ -1197,8 +1159,8 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	duration := s.nowFn().Sub(callStart)
 	queryTiming := s.metrics.queryTimingAggregateRaw
 	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.byRange.Record(rng, duration)
-	queryTiming.byDocs.Record(size, duration)
+	queryTiming.ByRange.Record(rng, duration)
+	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
