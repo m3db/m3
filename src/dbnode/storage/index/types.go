@@ -180,7 +180,7 @@ type BaseResults interface {
 	Finalize()
 }
 
-// ResultsDuration holds various timing information for a query result.
+// ResultDurations holds various timing information for a query result.
 type ResultDurations struct {
 	// Total is the total time.
 	Total time.Duration
@@ -189,17 +189,17 @@ type ResultDurations struct {
 }
 
 // AddTotal adds the provided duration to the Total duration.
-func (r ResultDurations) AddTotal(duration time. Duration) ResultDurations {
+func (r ResultDurations) AddTotal(duration time.Duration) ResultDurations {
 	return ResultDurations{
-		Total: r.Total + duration,
+		Total:  r.Total + duration,
 		Search: r.Search,
 	}
 }
 
 // AddSearch adds the provided duration to the Search duration.
-func (r ResultDurations) AddSearch(duration time. Duration) ResultDurations {
+func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
 	return ResultDurations{
-		Total: r.Total,
+		Total:  r.Total,
 		Search: r.Search + duration,
 	}
 }

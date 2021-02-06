@@ -53,7 +53,6 @@ type results struct {
 	bytesPool pool.CheckedBytesPool
 
 	pool           QueryResultsPool
-	noFinalize     bool
 	resultDuration ResultDurations
 }
 
