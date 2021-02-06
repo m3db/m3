@@ -62,8 +62,10 @@ type Iterator interface {
 	Close() error
 }
 
+// QueryDocIterator is an Iterator for all documents returned for a query. See Iterator for more details.
 type QueryDocIterator interface {
 	Iterator
+
 	// SearchDuration is how long it took to search for documents while iterating.
 	SearchDuration() time.Duration
 }
