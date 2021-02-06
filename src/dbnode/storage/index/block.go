@@ -163,6 +163,8 @@ type blockMetrics struct {
 	segmentFreeMmapSuccess          tally.Counter
 	segmentFreeMmapError            tally.Counter
 	segmentFreeMmapSkipNotImmutable tally.Counter
+	blockQueryCardinality           limits.QueryCardinalityMetrics
+	blockSearchCardinality          limits.QueryCardinalityMetrics
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
@@ -184,6 +186,8 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"result":    "skip",
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
+		blockQueryCardinality:  limits.NewCardinalityMetrics("block_query", s),
+		blockSearchCardinality: limits.NewCardinalityMetrics("block_search", s),
 	}
 }
 
@@ -419,9 +423,17 @@ func (b *block) Query(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	start := time.Now()
 	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
+	}
+	queryDuration := time.Since(start)
+	if results != nil {
+		b.metrics.blockSearchCardinality.Record(
+			results.TotalDocsCount(),
+			queryDuration,
+		)
 	}
 
 	return exhaustive, err
@@ -528,6 +540,12 @@ func (b *block) queryWithSpan(
 	if err := iterCloser.Close(); err != nil {
 		return false, err
 	}
+
+	searchDuration := iter.SearchDuration()
+	b.metrics.blockSearchCardinality.Record(
+		docsCount,
+		searchDuration,
+	)
 
 	return opts.exhaustive(size, docsCount), nil
 }

@@ -525,7 +525,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -566,7 +566,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -574,6 +574,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
@@ -619,7 +620,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(false),
@@ -658,7 +659,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -666,6 +667,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 1
@@ -711,7 +713,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -719,6 +721,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	limit := 2
@@ -764,7 +767,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -772,6 +775,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	docsLimit := 1
@@ -815,7 +819,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 		return exec, nil
 	}
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -823,6 +827,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 	docsLimit := 2
@@ -877,12 +882,13 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 
@@ -931,7 +937,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dIter := doc.NewMockIterator(ctrl)
+	dIter := doc.NewMockQueryDocIterator(ctrl)
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
 		dIter.EXPECT().Next().Return(true),
@@ -941,6 +947,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
+		dIter.EXPECT().SearchDuration().Return(time.Second),
 		exec.EXPECT().Close().Return(nil),
 	)
 

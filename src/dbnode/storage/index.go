@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -1565,6 +1566,8 @@ func (i *nsIndex) queryWithSpan(
 	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
+	indexMatchingStartTime := time.Now()
+
 	for _, block := range blocks {
 		// Capture block for async query execution below.
 		block := block
@@ -1665,6 +1668,19 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return false, err
 	}
+
+	queryRuntime := time.Since(indexMatchingStartTime)
+
+	i.metrics.indexBlockMatchingQueryRange.Record(
+		opts.EndExclusive.Sub(opts.StartInclusive),
+		queryRuntime,
+	)
+
+	i.metrics.indexBlockMatchingCardinality.Record(
+		results.TotalDocsCount(),
+		queryRuntime,
+	)
+
 	return exhaustive, nil
 }
 
@@ -2211,6 +2227,9 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveLimitError       tally.Counter
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
+
+	indexBlockMatchingQueryRange  limits.QueryDurationMetrics
+	indexBlockMatchingCardinality limits.QueryCardinalityMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -2306,6 +2325,8 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
+		indexBlockMatchingQueryRange:  limits.NewQueryRangeMetrics("index_match", scope),
+		indexBlockMatchingCardinality: limits.NewCardinalityMetrics("index_match", scope),
 	}
 
 	// Initialize gauges that should default to zero before

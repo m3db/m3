@@ -123,6 +123,24 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
+
+	queryTimingFetchTagged  queryMetrics
+	queryTimingAggregate    queryMetrics
+	queryTimingAggregateRaw queryMetrics
+
+	queryTimingDataRead queryMetrics
+}
+
+func newQueryMetrics(name string, scope tally.Scope) queryMetrics {
+	return queryMetrics{
+		byRange: limits.NewQueryRangeMetrics(name, scope),
+		byDocs:  limits.NewCardinalityMetrics(name, scope),
+	}
+}
+
+type queryMetrics struct {
+	byRange limits.QueryDurationMetrics
+	byDocs  limits.QueryCardinalityMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -143,6 +161,11 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
+
+		queryTimingFetchTagged:  newQueryMetrics("fetch_tagged", scope),
+		queryTimingAggregate:    newQueryMetrics("aggregate", scope),
+		queryTimingAggregateRaw: newQueryMetrics("aggregate_raw", scope),
+		queryTimingDataRead:     newQueryMetrics("data_read", scope),
 	}
 }
 
@@ -803,6 +826,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		s.readRPCCompleted()
 	}))
 
+	startTime := s.nowFn()
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(err)
@@ -826,6 +850,11 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
+		totalDocsCount:  queryResult.Results.TotalDocsCount(),
+		nowFn:           s.nowFn,
+		fetchStart:      startTime,
+		dataReadMetrics: s.metrics.queryTimingDataRead,
+		totalMetrics:    s.metrics.queryTimingFetchTagged,
 	}), nil
 }
 
@@ -875,6 +904,12 @@ type fetchTaggedResultsIter struct {
 	tagEncoder      serialize.TagEncoder
 	iOpts           instrument.Options
 	instrumentClose func(error)
+	startTime       time.Time
+	nowFn           clock.NowFn
+	fetchStart      time.Time
+	totalDocsCount  int
+	dataReadMetrics queryMetrics
+	totalMetrics    queryMetrics
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -887,6 +922,11 @@ type fetchTaggedResultsIterOpts struct {
 	tagEncoder      serialize.TagEncoder
 	iOpts           instrument.Options
 	instrumentClose func(error)
+	nowFn           clock.NowFn
+	fetchStart      time.Time
+	totalDocsCount  int
+	dataReadMetrics queryMetrics
+	totalMetrics    queryMetrics
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -903,6 +943,11 @@ func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResul
 		tagEncoder:      opts.tagEncoder,
 		iOpts:           opts.iOpts,
 		instrumentClose: opts.instrumentClose,
+		totalDocsCount:  opts.totalDocsCount,
+		nowFn:           opts.nowFn,
+		fetchStart:      opts.fetchStart,
+		dataReadMetrics: opts.dataReadMetrics,
+		totalMetrics:    opts.totalMetrics,
 	}
 
 	return iter
@@ -983,6 +1028,14 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
+	now := i.nowFn()
+	elapsed := now.Sub(i.startTime)
+	i.dataReadMetrics.byRange.Record(i.endExclusive.Sub(i.startInclusive), elapsed)
+	i.dataReadMetrics.byDocs.Record(i.totalDocsCount, elapsed)
+
+	totalElapsed := now.Sub(i.fetchStart)
+	i.totalMetrics.byRange.Record(i.endExclusive.Sub(i.startInclusive), totalElapsed)
+	i.totalMetrics.byDocs.Record(i.totalDocsCount, totalElapsed)
 }
 
 // IDResult is the FetchTagged result for a series ID.
@@ -1067,7 +1120,9 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
+	size := 0
 	for _, entry := range results.Map().Iter() {
+		size++
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
 			TagName: entry.Key().String(),
 		}
@@ -1075,6 +1130,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
+			size++
 			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
 				TagValue: entry.Key().String(),
 			})
@@ -1082,6 +1138,13 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		response.Results = append(response.Results, responseElem)
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
+
+	duration := s.nowFn().Sub(callStart)
+	queryTiming := s.metrics.queryTimingAggregate
+	rng := time.Duration(req.RangeEnd - req.RangeStart)
+	queryTiming.byRange.Record(rng, duration)
+	queryTiming.byDocs.Record(size, duration)
+
 	return response, nil
 }
 
@@ -1111,7 +1174,9 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
+	size := 0
 	for _, entry := range results.Map().Iter() {
+		size++
 		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
 			TagName: entry.Key().Bytes(),
 		}
@@ -1120,6 +1185,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			tagValuesMap := tagValues.Map()
 			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
 			for _, entry := range tagValuesMap.Iter() {
+				size++
 				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
 					TagValue: entry.Key().Bytes(),
 				})
@@ -1127,6 +1193,13 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		}
 		response.Results = append(response.Results, responseElem)
 	}
+
+	duration := s.nowFn().Sub(callStart)
+	queryTiming := s.metrics.queryTimingAggregateRaw
+	rng := time.Duration(req.RangeEnd - req.RangeStart)
+	queryTiming.byRange.Record(rng, duration)
+	queryTiming.byDocs.Record(size, duration)
+
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
 }

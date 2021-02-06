@@ -21,6 +21,8 @@
 package executor
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -33,12 +35,13 @@ type iterator struct {
 	idx      int
 	currDoc  doc.Document
 	currIter doc.Iterator
+	totalSearchDuration time.Duration
 
 	err    error
 	closed bool
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
+func newIterator(s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
 	it := &iterator{
 		searcher: s,
 		readers:  rs,
@@ -52,6 +55,10 @@ func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
 
 	it.currIter = currIter
 	return it, nil
+}
+
+func (it *iterator) SearchDuration() time.Duration {
+	return it.totalSearchDuration
 }
 
 func (it *iterator) Next() bool {
@@ -117,10 +124,12 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	}
 
 	reader := it.readers[it.idx]
+	start := time.Now()
 	pl, err := it.searcher.Search(reader)
 	if err != nil {
 		return nil, false, err
 	}
+	it.totalSearchDuration = time.Duration(int(it.totalSearchDuration) + int(time.Since(start)))
 
 	iter, err := reader.Docs(pl)
 	if err != nil {
