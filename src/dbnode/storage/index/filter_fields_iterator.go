@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 
+	xerrors "github.com/m3db/m3/src/x/errors"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
@@ -94,5 +96,12 @@ func (f *filterFieldsIterator) Err() error {
 }
 
 func (f *filterFieldsIterator) Close() error {
-	return f.fieldsIter.Close()
+	multiErr := xerrors.NewMultiError()
+	if err := f.reader.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := f.fieldsIter.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	return multiErr.FinalError()
 }
