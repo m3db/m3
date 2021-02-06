@@ -93,7 +93,7 @@ func NewWideQueryResults(
 }
 
 func (r *wideResults) TotalDuration() ResultDurations {
-	r.RUnlock()
+	r.RLock()
 	defer r.RUnlock()
 	return r.resultDuration
 }
