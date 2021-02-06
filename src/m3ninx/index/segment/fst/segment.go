@@ -46,15 +46,16 @@ import (
 )
 
 var (
-	errReaderClosed            = errors.New("segment is closed")
-	errReaderFinalized         = errors.New("segment is finalized")
-	errReaderNilRegexp         = errors.New("nil regexp provided")
-	errUnsupportedMajorVersion = errors.New("unsupported major version")
-	errDocumentsDataUnset      = errors.New("documents data bytes are not set")
-	errDocumentsIdxUnset       = errors.New("documents index bytes are not set")
-	errPostingsDataUnset       = errors.New("postings data bytes are not set")
-	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
-	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
+	errReaderClosed                         = errors.New("segment is closed")
+	errReaderFinalized                      = errors.New("segment is finalized")
+	errReaderNilRegexp                      = errors.New("nil regexp provided")
+	errUnsupportedMajorVersion              = errors.New("unsupported major version")
+	errDocumentsDataUnset                   = errors.New("documents data bytes are not set")
+	errDocumentsIdxUnset                    = errors.New("documents index bytes are not set")
+	errPostingsDataUnset                    = errors.New("postings data bytes are not set")
+	errFSTTermsDataUnset                    = errors.New("fst terms data bytes are not set")
+	errFSTFieldsDataUnset                   = errors.New("fst fields data bytes are not set")
+	errUnsupportedFeatureFieldsPostingsList = errors.New("fst unsupported operation on old segment version: missing field postings list")
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -402,6 +403,7 @@ func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPos
 		seg:         i.r,
 		fst:         i.r.fieldsFST,
 		finalizeFST: false,
+		fieldsFST:   true,
 	})
 	i.postingsIter.reset(i.r, i.fieldsIter)
 	return i.postingsIter, nil
@@ -454,18 +456,37 @@ func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
+	fieldData, err := r.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(termsFSTOffset)
 	if err != nil {
-		return nil, err
-	}
-
-	var fieldData fswriter.FieldData
-	if err := fieldData.Unmarshal(protoBytes); err != nil {
 		return nil, err
 	}
 
 	postingsOffset := fieldData.FieldPostingsListOffset
 	return r.retrievePostingsListWithRLock(postingsOffset)
+}
+
+func (r *fsSegment) unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(
+	fieldDataOffset uint64,
+) (fswriter.FieldData, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return fswriter.FieldData{}, errReaderFinalized
+	}
+	if !r.data.Version.supportsFieldPostingsList() {
+		return fswriter.FieldData{}, errUnsupportedFeatureFieldsPostingsList
+	}
+
+	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, fieldDataOffset)
+	if err != nil {
+		return fswriter.FieldData{}, err
+	}
+
+	var fieldData fswriter.FieldData
+	if err := fieldData.Unmarshal(protoBytes); err != nil {
+		return fswriter.FieldData{}, err
+	}
+	return fieldData, nil
 }
 
 func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
