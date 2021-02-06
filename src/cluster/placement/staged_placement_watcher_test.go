@@ -50,16 +50,15 @@ func TestStagedPlacementWatcherActiveStagedPlacementNotWatching(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
 	watcher.state = placementWatcherNotWatching
 
-	_, _, err := watcher.ActiveStagedPlacement()
+	_, err := watcher.ActiveStagedPlacement()
 	require.Equal(t, errPlacementWatcherIsNotWatching, err)
 }
 
 func TestStagedPlacementWatcherActiveStagedPlacementSuccess(t *testing.T) {
 	watcher, _ := testStagedPlacementWatcher(t)
 	watcher.state = placementWatcherWatching
-	_, doneFn, err := watcher.ActiveStagedPlacement()
+	_, err := watcher.ActiveStagedPlacement()
 	require.NoError(t, err)
-	doneFn()
 }
 
 func TestStagedPlacementWatcherUnwatchNotWatching(t *testing.T) {
@@ -164,8 +163,8 @@ type mockPlacement struct {
 	closeFn closeFn
 }
 
-func (mp *mockPlacement) ActivePlacement() (Placement, DoneFn, error) {
-	return nil, func() {}, nil
+func (mp *mockPlacement) ActivePlacement() (Placement, error) {
+	return nil, nil
 }
 
 func (mp *mockPlacement) Close() error { return mp.closeFn() }

@@ -49,7 +49,6 @@ type stagedPlacementWatcher struct {
 
 	nowFn         clock.NowFn
 	placementOpts ActiveStagedPlacementOptions
-	doneFn        DoneFn
 
 	state     placementWatcherState
 	proto     *placementpb.PlacementSnapshots
@@ -63,7 +62,6 @@ func NewStagedPlacementWatcher(opts StagedPlacementWatcherOptions) StagedPlaceme
 		placementOpts: opts.ActiveStagedPlacementOptions(),
 		proto:         &placementpb.PlacementSnapshots{},
 	}
-	watcher.doneFn = watcher.onActiveStagedPlacementDone
 
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -90,13 +88,15 @@ func (t *stagedPlacementWatcher) Watch() error {
 	return t.Value.Watch()
 }
 
-func (t *stagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error) {
+func (t *stagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, error) {
 	t.RLock()
+	defer t.RUnlock()
+
 	if t.state != placementWatcherWatching {
-		t.RUnlock()
-		return nil, nil, errPlacementWatcherIsNotWatching
+		return nil, errPlacementWatcherIsNotWatching
 	}
-	return t.placement, t.doneFn, nil
+
+	return t.placement, nil
 }
 
 func (t *stagedPlacementWatcher) Unwatch() error {
@@ -118,8 +118,6 @@ func (t *stagedPlacementWatcher) Unwatch() error {
 	t.Value.Unwatch()
 	return nil
 }
-
-func (t *stagedPlacementWatcher) onActiveStagedPlacementDone() { t.RUnlock() }
 
 func (t *stagedPlacementWatcher) toStagedPlacement(value kv.Value) (interface{}, error) {
 	t.Lock()
