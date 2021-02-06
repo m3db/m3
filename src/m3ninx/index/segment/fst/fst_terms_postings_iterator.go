@@ -98,7 +98,7 @@ func (f *fstTermsPostingsIter) Next() bool {
 		fieldsData, f.err = f.seg.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(currOffset)
 		currOffset = fieldsData.FieldPostingsListOffset
 	}
-	if f.err != nil {
+	if f.err == nil {
 		// Only attempt if the previous unmarshal definitely succeeded
 		// if we are operating on a fields FST.
 		f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
