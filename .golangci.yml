@@ -298,4 +298,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: origin/master
+  new-from-rev: a5e31f3b107df8e9de5f1d9f0f267a0e81534fd7
