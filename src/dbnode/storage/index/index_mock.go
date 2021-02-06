@@ -114,6 +114,44 @@ func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
 }
 
+// TotalDuration mocks base method
+func (m *MockBaseResults) TotalDuration() ResultDurations {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDuration")
+	ret0, _ := ret[0].(ResultDurations)
+	return ret0
+}
+
+// TotalDuration indicates an expected call of TotalDuration
+func (mr *MockBaseResultsMockRecorder) TotalDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockBaseResults)(nil).TotalDuration))
+}
+
+// AddBlockTotalDuration mocks base method
+func (m *MockBaseResults) AddBlockTotalDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+}
+
+// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
+func (mr *MockBaseResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockBaseResults)(nil).AddBlockTotalDuration), duration)
+}
+
+// AddBlockSearchDuration mocks base method
+func (m *MockBaseResults) AddBlockSearchDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockSearchDuration", duration)
+}
+
+// AddBlockSearchDuration indicates an expected call of AddBlockSearchDuration
+func (mr *MockBaseResultsMockRecorder) AddBlockSearchDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockSearchDuration", reflect.TypeOf((*MockBaseResults)(nil).AddBlockSearchDuration), duration)
+}
+
 // EnforceLimits mocks base method
 func (m *MockBaseResults) EnforceLimits() bool {
 	m.ctrl.T.Helper()
@@ -219,6 +257,44 @@ func (m *MockQueryResults) TotalDocsCount() int {
 func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
+}
+
+// TotalDuration mocks base method
+func (m *MockQueryResults) TotalDuration() ResultDurations {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDuration")
+	ret0, _ := ret[0].(ResultDurations)
+	return ret0
+}
+
+// TotalDuration indicates an expected call of TotalDuration
+func (mr *MockQueryResultsMockRecorder) TotalDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockQueryResults)(nil).TotalDuration))
+}
+
+// AddBlockTotalDuration mocks base method
+func (m *MockQueryResults) AddBlockTotalDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+}
+
+// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
+func (mr *MockQueryResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockQueryResults)(nil).AddBlockTotalDuration), duration)
+}
+
+// AddBlockSearchDuration mocks base method
+func (m *MockQueryResults) AddBlockSearchDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockSearchDuration", duration)
+}
+
+// AddBlockSearchDuration indicates an expected call of AddBlockSearchDuration
+func (mr *MockQueryResultsMockRecorder) AddBlockSearchDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockSearchDuration", reflect.TypeOf((*MockQueryResults)(nil).AddBlockSearchDuration), duration)
 }
 
 // EnforceLimits mocks base method
@@ -413,6 +489,44 @@ func (m *MockAggregateResults) TotalDocsCount() int {
 func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
+}
+
+// TotalDuration mocks base method
+func (m *MockAggregateResults) TotalDuration() ResultDurations {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDuration")
+	ret0, _ := ret[0].(ResultDurations)
+	return ret0
+}
+
+// TotalDuration indicates an expected call of TotalDuration
+func (mr *MockAggregateResultsMockRecorder) TotalDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockAggregateResults)(nil).TotalDuration))
+}
+
+// AddBlockTotalDuration mocks base method
+func (m *MockAggregateResults) AddBlockTotalDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+}
+
+// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
+func (mr *MockAggregateResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockAggregateResults)(nil).AddBlockTotalDuration), duration)
+}
+
+// AddBlockSearchDuration mocks base method
+func (m *MockAggregateResults) AddBlockSearchDuration(duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBlockSearchDuration", duration)
+}
+
+// AddBlockSearchDuration indicates an expected call of AddBlockSearchDuration
+func (mr *MockAggregateResultsMockRecorder) AddBlockSearchDuration(duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockSearchDuration", reflect.TypeOf((*MockAggregateResults)(nil).AddBlockSearchDuration), duration)
 }
 
 // EnforceLimits mocks base method
