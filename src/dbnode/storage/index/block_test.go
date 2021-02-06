@@ -373,8 +373,10 @@ func TestBlockQueryAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -392,8 +394,10 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	cancellable := xresource.NewCancellableLifetime()
 	cancellable.Cancel()
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), cancellable,
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 	require.Equal(t, errCancelledQuery, err)
 }
@@ -412,8 +416,10 @@ func TestBlockQueryExecutorError(t *testing.T) {
 		return nil, fmt.Errorf("random-err")
 	}
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -435,8 +441,10 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -475,8 +483,10 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg3.EXPECT().Reader().Return(nil, randErr)
 
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -502,8 +512,10 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
+
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	_, err = b.Query(context.NewContext(), xresource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 

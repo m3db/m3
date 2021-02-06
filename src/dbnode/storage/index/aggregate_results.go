@@ -23,6 +23,7 @@ package index
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -52,6 +53,7 @@ type aggregatedResults struct {
 	valuesPool AggregateValuesPool
 
 	encodedDocReader docs.EncodedDocumentReader
+	resultDuration   ResultDurations
 }
 
 // NewAggregateResults returns a new AggregateResults object.
@@ -69,6 +71,18 @@ func NewAggregateResults(
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
 	}
+}
+
+func (r *aggregatedResults) TotalDuration() ResultDurations {
+	return r.resultDuration
+}
+
+func (r *aggregatedResults) AddBlockTotalDuration(duration time.Duration) {
+	r.resultDuration = r.resultDuration.AddTotal(duration)
+}
+
+func (r *aggregatedResults) AddBlockSearchDuration(duration time.Duration) {
+	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 
 func (r *aggregatedResults) EnforceLimits() bool { return true }

@@ -23,6 +23,7 @@ package index
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -51,8 +52,9 @@ type results struct {
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
 
-	pool       QueryResultsPool
-	noFinalize bool
+	pool           QueryResultsPool
+	noFinalize     bool
+	resultDuration ResultDurations
 }
 
 // NewQueryResults returns a new query results object.
@@ -70,6 +72,18 @@ func NewQueryResults(
 		pool:       indexOpts.QueryResultsPool(),
 		reusableID: ident.NewReusableBytesID(),
 	}
+}
+
+func (r *results) TotalDuration() ResultDurations {
+	return r.resultDuration
+}
+
+func (r *results) AddBlockTotalDuration(duration time.Duration) {
+	r.resultDuration = r.resultDuration.AddTotal(duration)
+}
+
+func (r *results) AddBlockSearchDuration(duration time.Duration) {
+	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 
 func (r *results) EnforceLimits() bool { return true }
