@@ -74,14 +74,20 @@ func NewQueryResults(
 }
 
 func (r *results) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
 	return r.resultDuration
 }
 
 func (r *results) AddBlockTotalDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
 	r.resultDuration = r.resultDuration.AddTotal(duration)
 }
 
 func (r *results) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
 	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 

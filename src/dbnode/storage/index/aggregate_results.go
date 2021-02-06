@@ -74,14 +74,20 @@ func NewAggregateResults(
 }
 
 func (r *aggregatedResults) TotalDuration() ResultDurations {
+	r.RLock()
+	defer r.RUnlock()
 	return r.resultDuration
 }
 
 func (r *aggregatedResults) AddBlockTotalDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
 	r.resultDuration = r.resultDuration.AddTotal(duration)
 }
 
 func (r *aggregatedResults) AddBlockSearchDuration(duration time.Duration) {
+	r.Lock()
+	defer r.Unlock()
 	r.resultDuration = r.resultDuration.AddSearch(duration)
 }
 
