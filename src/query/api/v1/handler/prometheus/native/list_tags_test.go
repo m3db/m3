@@ -163,7 +163,7 @@ func testListTagsWithMatch(
 	require.Equal(t, http.StatusOK, w.Result().StatusCode)
 
 	body := w.Result().Body
-	defer body.Close()
+	defer body.Close() // nolint:errcheck
 
 	r, err := ioutil.ReadAll(body)
 	require.NoError(t, err)

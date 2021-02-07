@@ -164,6 +164,7 @@ func testTagValuesWithMatch(
 		TagMatchers:      matchers,
 	}
 
+	// nolint:noctx
 	req, err := http.NewRequest("GET", path, nil)
 	if err != nil {
 		t.Fatal(err)

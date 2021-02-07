@@ -149,6 +149,7 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 
 		reqTagMatcher := reqTagMatchers[0]
 
+		//nolint:gocritic
 		for _, m := range reqTagMatcher.Matchers {
 			// add all matchers that don't match the default name matcher.
 			if m.Type != nameMatcher.Type || !bytes.Equal(m.Name, nameMatcher.Name) {

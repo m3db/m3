@@ -49,13 +49,14 @@ var (
 	errReaderClosed                         = errors.New("segment is closed")
 	errReaderFinalized                      = errors.New("segment is finalized")
 	errReaderNilRegexp                      = errors.New("nil regexp provided")
-	errUnsupportedMajorVersion              = errors.New("unsupported major version")
 	errDocumentsDataUnset                   = errors.New("documents data bytes are not set")
 	errDocumentsIdxUnset                    = errors.New("documents index bytes are not set")
 	errPostingsDataUnset                    = errors.New("postings data bytes are not set")
 	errFSTTermsDataUnset                    = errors.New("fst terms data bytes are not set")
 	errFSTFieldsDataUnset                   = errors.New("fst fields data bytes are not set")
-	errUnsupportedFeatureFieldsPostingsList = errors.New("fst unsupported operation on old segment version: missing field postings list")
+	errUnsupportedFeatureFieldsPostingsList = errors.New(
+		"fst unsupported operation on old segment version: missing field postings list",
+	)
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.

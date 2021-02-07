@@ -24,10 +24,9 @@ import (
 	"bytes"
 	"errors"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
