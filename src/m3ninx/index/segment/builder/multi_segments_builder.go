@@ -132,7 +132,7 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 				skip = append(skip, iter.PostingsID())
 				continue
 			}
-			if b.filter != nil && !b.filter.Contains(d.ID) {
+			if b.filter != nil && !b.filter.Contains(d) {
 				// Actively filtering and ID is not contained.
 				skip = append(skip, iter.PostingsID())
 				if b.filterCount != nil {

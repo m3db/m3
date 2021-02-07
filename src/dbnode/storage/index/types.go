@@ -345,6 +345,19 @@ type OnIndexSeries interface {
 	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
 	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
+
+	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+		blockStart xtime.UnixNano,
+	) bool
+
+	RemoveIndexedForBlockStarts(
+		blockStarts map[xtime.UnixNano]struct{},
+	) RemoveIndexedForBlockStartsResult
+}
+
+type RemoveIndexedForBlockStartsResult struct {
+	IndexedBlockStartsRemoved   int
+	IndexedBlockStartsRemaining int
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
@@ -701,6 +714,15 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 }
 
+func (b *WriteBatch) PendingAny() bool {
+	for i := range b.entries {
+		if !b.entries[i].result.Done {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
@@ -779,6 +801,20 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
+	}
+}
+
+// MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize marks an entry as success.
+func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
+	for idx := range b.entries {
+		if !b.entries[idx].result.Done {
+			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+			if r {
+				b.entries[idx].result.Done = true
+				b.entries[idx].result.Err = nil
+			}
+		}
 	}
 }
 

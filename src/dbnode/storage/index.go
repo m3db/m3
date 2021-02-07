@@ -606,6 +606,12 @@ func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) 
 func (i *nsIndex) WriteBatch(
 	batch *index.WriteBatch,
 ) error {
+	// Filter anything with a pending index out before acquiring lock.
+	batch.MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize()
+	if !batch.PendingAny() {
+		return nil
+	}
+
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
@@ -648,6 +654,23 @@ func (i *nsIndex) WriteBatch(
 func (i *nsIndex) WritePending(
 	pending []writes.PendingIndexInsert,
 ) error {
+	// Filter anything with a pending index out before acquiring lock.
+	for j := 0; j < len(pending); j++ {
+		t := xtime.ToUnixNano(pending[j].Entry.Timestamp.Truncate(i.blockSize))
+		if !pending[j].Entry.OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(t) {
+			continue
+		}
+		// Remove this elem by moving tail here and shrinking by one.
+		n := len(pending)
+		pending[j] = pending[n-1]
+		pending = pending[:n-1]
+		// Reprocess element.
+		j--
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()

@@ -232,5 +232,15 @@ type SegmentsBuilder interface {
 
 // DocumentsFilter is a documents filter.
 type DocumentsFilter interface {
-	Contains(id []byte) bool
+	Contains(d doc.Document) bool
+}
+
+// DocumentsFilterFn implements DocumentsFilter.
+type DocumentsFilterFn func(d doc.Document) bool
+
+var _ DocumentsFilter = DocumentsFilterFn(nil)
+
+// Contains implements the DocumentsFilter interface.
+func (f DocumentsFilterFn) Contains(d doc.Document) bool {
+	return f(d)
 }

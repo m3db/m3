@@ -91,6 +91,10 @@ func (f Fields) shallowCopy() Fields {
 type Document struct {
 	ID     []byte
 	Fields []Field
+
+	// Ref is a general purpose ref to track a related
+	// object to a document.
+	Ref interface{}
 }
 
 // Get returns the value of the specified field name in the document if it exists.
