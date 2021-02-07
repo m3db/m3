@@ -389,7 +389,7 @@ func (agg *forwardedAggregation) reset() {
 // key already exists, its ref count is incremented. Otherwise, a new aggregation
 // bucket is created and added to the set of aggregtaions.
 func (agg *forwardedAggregation) add(key aggregationKey) {
-	if idx := agg.index(key); idx >= 0 {
+	if idx := agg.index(&key); idx >= 0 {
 		agg.byKey[idx].totalRefCnt++
 		return
 	}
@@ -406,7 +406,7 @@ func (agg *forwardedAggregation) add(key aggregationKey) {
 // remove removes the aggregation key from the set of aggregations, returning
 // the remaining number of aggregations, and whether the removal is successful.
 func (agg *forwardedAggregation) remove(key aggregationKey) (int, bool) {
-	idx := agg.index(key)
+	idx := agg.index(&key)
 	if idx < 0 {
 		return 0, false
 	}
@@ -426,13 +426,13 @@ func (agg *forwardedAggregation) write(
 	timeNanos int64,
 	value float64,
 ) {
-	idx := agg.index(key)
+	idx := agg.index(&key)
 	agg.byKey[idx].add(timeNanos, value)
 	agg.metrics.write.Inc(1)
 }
 
 func (agg *forwardedAggregation) onDone(key aggregationKey) error {
-	idx := agg.index(key)
+	idx := agg.index(&key)
 	agg.byKey[idx].currRefCnt++
 	if agg.byKey[idx].currRefCnt < agg.byKey[idx].totalRefCnt {
 		agg.metrics.onDoneNoWrite.Inc(1)
@@ -473,7 +473,7 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 	return fmt.Errorf("unexpected refcount: current=%d, total=%d", agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
 }
 
-func (agg *forwardedAggregation) index(key aggregationKey) int {
+func (agg *forwardedAggregation) index(key *aggregationKey) int {
 	for i, k := range agg.byKey {
 		if k.key.Equal(key) {
 			return i

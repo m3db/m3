@@ -2062,7 +2062,7 @@ func expectedLocalMetricsForGauge(
 func verifyForwardedMetrics(t *testing.T, expected, actual []testForwardedMetricWithMetadata) {
 	require.Equal(t, len(expected), len(actual))
 	for i := 0; i < len(expected); i++ {
-		require.True(t, expected[i].aggregationKey.Equal(actual[i].aggregationKey))
+		require.True(t, expected[i].aggregationKey.Equal(&actual[i].aggregationKey))
 		require.Equal(t, expected[i].timeNanos, actual[i].timeNanos)
 		if math.IsNaN(expected[i].value) {
 			require.True(t, math.IsNaN(actual[i].value))
@@ -2075,7 +2075,7 @@ func verifyForwardedMetrics(t *testing.T, expected, actual []testForwardedMetric
 func verifyOnForwardedFlushResult(t *testing.T, expected, actual []testOnForwardedFlushedData) {
 	require.Equal(t, len(expected), len(actual))
 	for i := 0; i < len(expected); i++ {
-		require.True(t, expected[i].aggregationKey.Equal(actual[i].aggregationKey))
+		require.True(t, expected[i].aggregationKey.Equal(&actual[i].aggregationKey))
 	}
 }
 

@@ -200,10 +200,10 @@ func NewRollupOpFromProto(pb *pipelinepb.RollupOp) (RollupOp, error) {
 // SameTransform returns true if the two rollup operations have the same rollup transformation
 // (i.e., same new rollup metric name and same set of rollup tags).
 func (op RollupOp) SameTransform(other RollupOp) bool {
-	if !bytes.Equal(op.NewName, other.NewName) {
+	if len(op.Tags) != len(other.Tags) {
 		return false
 	}
-	if len(op.Tags) != len(other.Tags) {
+	if !bytes.Equal(op.NewName, other.NewName) {
 		return false
 	}
 	// Sort the tags and compare.
@@ -220,7 +220,7 @@ func (op RollupOp) SameTransform(other RollupOp) bool {
 }
 
 // Equal returns true if two rollup operations are equal.
-func (op RollupOp) Equal(other RollupOp) bool {
+func (op *RollupOp) Equal(other RollupOp) bool {
 	if !op.AggregationID.Equal(other.AggregationID) {
 		return false
 	}

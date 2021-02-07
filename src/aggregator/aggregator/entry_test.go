@@ -372,8 +372,8 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 	require.Equal(t, 2, len(e.aggregations))
 	require.Equal(t, 1, len(testDefaultStagedMetadatas))
 	require.Equal(t, 1, len(testDefaultStagedMetadatas[0].Pipelines))
-	for _, key := range testDefaultAggregationKeys {
-		idx := e.aggregations.index(key)
+	for i := range testDefaultAggregationKeys {
+		idx := e.aggregations.index(&testDefaultAggregationKeys[i])
 		require.True(t, idx >= 0)
 		elem := e.aggregations[idx].elem.Value.(*TimerElem)
 		require.Equal(t, 1, len(elem.values))
@@ -1327,7 +1327,7 @@ func TestEntryAddTimed(t *testing.T) {
 		storagePolicy:      testTimedMetadata.StoragePolicy,
 		idPrefixSuffixType: NoPrefixNoSuffix,
 	}
-	idx := e.aggregations.index(expectedKey)
+	idx := e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem := e.aggregations[idx].elem
 	require.Equal(t, 1, len(lists.lists))
@@ -1353,7 +1353,7 @@ func TestEntryAddTimed(t *testing.T) {
 	// Add the timed metric again with duplicate metadata should not result in an error.
 	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
 	require.Equal(t, 1, len(e.aggregations))
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
@@ -1367,7 +1367,7 @@ func TestEntryAddTimed(t *testing.T) {
 	metric.TimeNanos += testTimedMetadata.StoragePolicy.Resolution().Window.Nanoseconds()
 	require.NoError(t, e.AddTimed(metric, testTimedMetadata))
 	require.Equal(t, 1, len(e.aggregations))
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
@@ -1390,13 +1390,13 @@ func TestEntryAddTimed(t *testing.T) {
 		storagePolicy:      metadata.StoragePolicy,
 		idPrefixSuffixType: NoPrefixNoSuffix,
 	}
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 2, len(values))
 	checkElemTombstoned(t, expectedElem.Value.(metricElem), nil)
-	idx = e.aggregations.index(expectedKeyNew)
+	idx = e.aggregations.index(&expectedKeyNew)
 	require.True(t, idx >= 0)
 	expectedElemNew := e.aggregations[idx].elem
 	require.Equal(t, 2, len(lists.lists))
@@ -1536,7 +1536,7 @@ func TestEntryAddForwarded(t *testing.T) {
 		numForwardedTimes:  testForwardMetadata1.NumForwardedTimes,
 		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
-	idx := e.aggregations.index(expectedKey)
+	idx := e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem := e.aggregations[idx].elem
 	require.Equal(t, 1, len(lists.lists))
@@ -1563,7 +1563,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	// Add the forwarded metric again with duplicate metadata should not result in an error.
 	require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata1))
 	require.Equal(t, 1, len(e.aggregations))
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
@@ -1576,7 +1576,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	metadata.SourceID = 67890
 	require.NoError(t, e.AddForwarded(testForwardedMetric, metadata))
 	require.Equal(t, 1, len(e.aggregations))
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
@@ -1589,7 +1589,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	metric.TimeNanos += testForwardMetadata1.StoragePolicy.Resolution().Window.Nanoseconds()
 	require.NoError(t, e.AddForwarded(metric, testForwardMetadata1))
 	require.Equal(t, 1, len(e.aggregations))
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
@@ -1612,13 +1612,13 @@ func TestEntryAddForwarded(t *testing.T) {
 		numForwardedTimes:  testForwardMetadata2.NumForwardedTimes,
 		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
-	idx = e.aggregations.index(expectedKey)
+	idx = e.aggregations.index(&expectedKey)
 	require.True(t, idx >= 0)
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 2, len(values))
 	checkElemTombstoned(t, expectedElem.Value.(metricElem), nil)
-	idx = e.aggregations.index(expectedKeyNew)
+	idx = e.aggregations.index(&expectedKeyNew)
 	require.True(t, idx >= 0)
 	expectedElemNew := e.aggregations[idx].elem
 	require.Equal(t, 2, len(lists.lists))
@@ -1784,8 +1784,8 @@ func TestAggregationValues(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expectedIndex, vals.index(input.key))
-		require.Equal(t, input.expectedContains, vals.contains(input.key))
+		require.Equal(t, input.expectedIndex, vals.index(&input.key))
+		require.Equal(t, input.expectedContains, vals.contains(&input.key))
 	}
 }
 
@@ -1952,8 +1952,9 @@ func testEntryAddUntimed(
 		require.Equal(t, now.UnixNano(), e.lastAccessNanos)
 
 		require.Equal(t, len(expectedAggregationKeys), len(e.aggregations))
-		for _, key := range expectedAggregationKeys {
-			idx := e.aggregations.index(key)
+		for i := range expectedAggregationKeys {
+			key := expectedAggregationKeys[i]
+			idx := e.aggregations.index(&key)
 			require.True(t, idx >= 0)
 			elem := e.aggregations[idx].elem
 			input.fn(t, elem, now.Truncate(key.storagePolicy.Resolution().Window))
@@ -1983,7 +1984,7 @@ func aggregationKeys(pipelines []metadata.PipelineMetadata) []aggregationKey {
 	for i := 0; i < len(aggregationKeys); i++ {
 		found := false
 		for j := 0; j < i; j++ {
-			if aggregationKeys[i].Equal(aggregationKeys[j]) {
+			if aggregationKeys[i].Equal(&aggregationKeys[j]) {
 				found = true
 				break
 			}

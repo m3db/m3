@@ -128,7 +128,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	// Validate that the aggregation key has been added.
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 1, agg.byKey[0].totalRefCnt)
-	require.True(t, aggKey.Equal(agg.byKey[0].key))
+	require.True(t, aggKey.Equal(&agg.byKey[0].key))
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 
 	// Validate that writeFn can be used to write data to the aggregation.

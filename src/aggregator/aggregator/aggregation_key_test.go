@@ -169,7 +169,7 @@ func TestAggregationKeyEqual(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		require.Equal(t, input.expected, input.a.Equal(input.b))
-		require.Equal(t, input.expected, input.b.Equal(input.a))
+		require.Equal(t, input.expected, input.a.Equal(&input.b))
+		require.Equal(t, input.expected, input.b.Equal(&input.a))
 	}
 }

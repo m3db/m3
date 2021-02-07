@@ -504,7 +504,7 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 				pipeline:           pipeline.Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
-			idx := e.aggregations.index(key)
+			idx := e.aggregations.index(&key)
 			if idx < 0 {
 				return true
 			}
@@ -543,10 +543,10 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	newAggregations aggregationValues,
 ) (aggregationValues, error) {
 	// Remove duplicate aggregation pipelines.
-	if newAggregations.contains(key) {
+	if newAggregations.contains(&key) {
 		return newAggregations, nil
 	}
-	if idx := e.aggregations.index(key); idx >= 0 {
+	if idx := e.aggregations.index(&key); idx >= 0 {
 		newAggregations = append(newAggregations, e.aggregations[idx])
 		return newAggregations, nil
 	}
@@ -584,7 +584,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 
 func (e *Entry) removeOldAggregations(newAggregations aggregationValues) {
 	for _, val := range e.aggregations {
-		if !newAggregations.contains(val.key) {
+		if !newAggregations.contains(&val.key) {
 			val.elem.Value.(metricElem).MarkAsTombstoned()
 		}
 	}
@@ -750,7 +750,7 @@ func (e *Entry) addTimed(
 		storagePolicy:      metadata.StoragePolicy,
 		idPrefixSuffixType: NoPrefixNoSuffix,
 	}
-	if idx := e.aggregations.index(key); idx >= 0 {
+	if idx := e.aggregations.index(&key); idx >= 0 {
 		err := e.addTimedWithLock(e.aggregations[idx], metric)
 		e.RUnlock()
 		timeLock.RUnlock()
@@ -765,7 +765,7 @@ func (e *Entry) addTimed(
 		return errEntryClosed
 	}
 
-	if idx := e.aggregations.index(key); idx >= 0 {
+	if idx := e.aggregations.index(&key); idx >= 0 {
 		err := e.addTimedWithLock(e.aggregations[idx], metric)
 		e.Unlock()
 		timeLock.RUnlock()
@@ -778,7 +778,7 @@ func (e *Entry) addTimed(
 		timeLock.RUnlock()
 		return err
 	}
-	idx := e.aggregations.index(key)
+	idx := e.aggregations.index(&key)
 	err := e.addTimedWithLock(e.aggregations[idx], metric)
 	e.Unlock()
 	timeLock.RUnlock()
@@ -923,7 +923,7 @@ func (e *Entry) addForwarded(
 		numForwardedTimes:  metadata.NumForwardedTimes,
 		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
-	if idx := e.aggregations.index(key); idx >= 0 {
+	if idx := e.aggregations.index(&key); idx >= 0 {
 		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
 		e.RUnlock()
 		timeLock.RUnlock()
@@ -938,7 +938,7 @@ func (e *Entry) addForwarded(
 		return errEntryClosed
 	}
 
-	if idx := e.aggregations.index(key); idx >= 0 {
+	if idx := e.aggregations.index(&key); idx >= 0 {
 		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
 		e.Unlock()
 		timeLock.RUnlock()
@@ -951,7 +951,7 @@ func (e *Entry) addForwarded(
 		timeLock.RUnlock()
 		return err
 	}
-	idx := e.aggregations.index(key)
+	idx := e.aggregations.index(&key)
 	err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
 	e.Unlock()
 	timeLock.RUnlock()
@@ -1075,15 +1075,15 @@ type aggregationValue struct {
 // versus a map with a partial key versus a map with a hash of full key.
 type aggregationValues []aggregationValue
 
-func (vals aggregationValues) index(k aggregationKey) int {
-	for i, val := range vals {
-		if val.key.Equal(k) {
+func (vals aggregationValues) index(k *aggregationKey) int {
+	for i := range vals {
+		if vals[i].key.Equal(k) {
 			return i
 		}
 	}
 	return -1
 }
 
-func (vals aggregationValues) contains(k aggregationKey) bool {
+func (vals aggregationValues) contains(k *aggregationKey) bool {
 	return vals.index(k) != -1
 }

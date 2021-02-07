@@ -186,7 +186,7 @@ func (p Pipeline) IsEmpty() bool { return p.Len() == 0 }
 func (p Pipeline) At(i int) OpUnion { return p.operations[i] }
 
 // Equal determines whether two pipelines are equal.
-func (p Pipeline) Equal(other Pipeline) bool {
+func (p *Pipeline) Equal(other Pipeline) bool {
 	if len(p.operations) != len(other.operations) {
 		return false
 	}

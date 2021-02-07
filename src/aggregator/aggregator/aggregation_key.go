@@ -34,7 +34,7 @@ type aggregationKey struct {
 	idPrefixSuffixType IDPrefixSuffixType
 }
 
-func (k aggregationKey) Equal(other aggregationKey) bool {
+func (k aggregationKey) Equal(other *aggregationKey) bool {
 	return k.aggregationID == other.aggregationID &&
 		k.storagePolicy == other.storagePolicy &&
 		k.pipeline.Equal(other.pipeline) &&
