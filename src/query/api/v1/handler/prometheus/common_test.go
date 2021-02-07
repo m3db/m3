@@ -209,16 +209,19 @@ func TestParseMatch(t *testing.T) {
 		{exEmpty: true},
 		{
 			querystring: "match[]=eq_label",
-			exMatch: []ParsedMatch{{
-				Match: "eq_label",
-				Matchers: models.Matchers{
-					{
-						Type:  models.MatchEqual,
-						Name:  []byte("__name__"),
-						Value: []byte("eq_label"),
+			exMatch: []ParsedMatch{
+				{
+					Match: "eq_label",
+					Matchers: models.Matchers{
+						{
+							Type:  models.MatchEqual,
+							Name:  []byte("__name__"),
+							Value: []byte("eq_label"),
+						},
 					},
 				},
-			}}},
+			},
+		},
 		{querystring: "match[]=illegal%match", exErr: true},
 	}
 
