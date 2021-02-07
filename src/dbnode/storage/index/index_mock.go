@@ -128,16 +128,16 @@ func (mr *MockBaseResultsMockRecorder) TotalDuration() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockBaseResults)(nil).TotalDuration))
 }
 
-// AddBlockTotalDuration mocks base method
-func (m *MockBaseResults) AddBlockTotalDuration(duration time.Duration) {
+// AddBlockProcessingDuration mocks base method
+func (m *MockBaseResults) AddBlockProcessingDuration(duration time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+	m.ctrl.Call(m, "AddBlockProcessingDuration", duration)
 }
 
-// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
-func (mr *MockBaseResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+// AddBlockProcessingDuration indicates an expected call of AddBlockProcessingDuration
+func (mr *MockBaseResultsMockRecorder) AddBlockProcessingDuration(duration interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockBaseResults)(nil).AddBlockTotalDuration), duration)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockProcessingDuration", reflect.TypeOf((*MockBaseResults)(nil).AddBlockProcessingDuration), duration)
 }
 
 // AddBlockSearchDuration mocks base method
@@ -273,16 +273,16 @@ func (mr *MockQueryResultsMockRecorder) TotalDuration() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockQueryResults)(nil).TotalDuration))
 }
 
-// AddBlockTotalDuration mocks base method
-func (m *MockQueryResults) AddBlockTotalDuration(duration time.Duration) {
+// AddBlockProcessingDuration mocks base method
+func (m *MockQueryResults) AddBlockProcessingDuration(duration time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+	m.ctrl.Call(m, "AddBlockProcessingDuration", duration)
 }
 
-// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
-func (mr *MockQueryResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+// AddBlockProcessingDuration indicates an expected call of AddBlockProcessingDuration
+func (mr *MockQueryResultsMockRecorder) AddBlockProcessingDuration(duration interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockQueryResults)(nil).AddBlockTotalDuration), duration)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockProcessingDuration", reflect.TypeOf((*MockQueryResults)(nil).AddBlockProcessingDuration), duration)
 }
 
 // AddBlockSearchDuration mocks base method
@@ -505,16 +505,16 @@ func (mr *MockAggregateResultsMockRecorder) TotalDuration() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDuration", reflect.TypeOf((*MockAggregateResults)(nil).TotalDuration))
 }
 
-// AddBlockTotalDuration mocks base method
-func (m *MockAggregateResults) AddBlockTotalDuration(duration time.Duration) {
+// AddBlockProcessingDuration mocks base method
+func (m *MockAggregateResults) AddBlockProcessingDuration(duration time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddBlockTotalDuration", duration)
+	m.ctrl.Call(m, "AddBlockProcessingDuration", duration)
 }
 
-// AddBlockTotalDuration indicates an expected call of AddBlockTotalDuration
-func (mr *MockAggregateResultsMockRecorder) AddBlockTotalDuration(duration interface{}) *gomock.Call {
+// AddBlockProcessingDuration indicates an expected call of AddBlockProcessingDuration
+func (mr *MockAggregateResultsMockRecorder) AddBlockProcessingDuration(duration interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockTotalDuration", reflect.TypeOf((*MockAggregateResults)(nil).AddBlockTotalDuration), duration)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockProcessingDuration", reflect.TypeOf((*MockAggregateResults)(nil).AddBlockProcessingDuration), duration)
 }
 
 // AddBlockSearchDuration mocks base method

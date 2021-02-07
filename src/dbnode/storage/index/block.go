@@ -424,7 +424,7 @@ func (b *block) Query(
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
-	results.AddBlockTotalDuration(time.Since(start))
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }

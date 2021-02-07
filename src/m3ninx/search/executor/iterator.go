@@ -129,7 +129,7 @@ func (it *iterator) nextIter() (doc.Iterator, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	it.totalSearchDuration = time.Duration(int(it.totalSearchDuration) + int(time.Since(start)))
+	it.totalSearchDuration += time.Since(start)
 
 	iter, err := reader.Docs(pl)
 	if err != nil {

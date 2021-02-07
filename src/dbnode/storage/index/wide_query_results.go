@@ -98,10 +98,10 @@ func (r *wideResults) TotalDuration() ResultDurations {
 	return r.resultDuration
 }
 
-func (r *wideResults) AddBlockTotalDuration(duration time.Duration) {
+func (r *wideResults) AddBlockProcessingDuration(duration time.Duration) {
 	r.Lock()
 	defer r.Unlock()
-	r.resultDuration = r.resultDuration.AddTotal(duration)
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
 }
 
 func (r *wideResults) AddBlockSearchDuration(duration time.Duration) {

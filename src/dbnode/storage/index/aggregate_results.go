@@ -79,10 +79,10 @@ func (r *aggregatedResults) TotalDuration() ResultDurations {
 	return r.resultDuration
 }
 
-func (r *aggregatedResults) AddBlockTotalDuration(duration time.Duration) {
+func (r *aggregatedResults) AddBlockProcessingDuration(duration time.Duration) {
 	r.Lock()
 	defer r.Unlock()
-	r.resultDuration = r.resultDuration.AddTotal(duration)
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
 }
 
 func (r *aggregatedResults) AddBlockSearchDuration(duration time.Duration) {
@@ -121,6 +121,8 @@ func (r *aggregatedResults) Reset(
 	// reset all keys in the map next
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
+
+	r.resultDuration = ResultDurations{}
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.

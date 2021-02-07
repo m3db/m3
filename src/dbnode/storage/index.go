@@ -1673,8 +1673,8 @@ func (i *nsIndex) queryWithSpan(
 
 	i.metrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
 	i.metrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
-	i.metrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Total)
-	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Total)
+	i.metrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
+	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
 	i.metrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
 	i.metrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
 
@@ -2227,8 +2227,8 @@ type nsIndexMetrics struct {
 
 	// the total time for a query, including waiting for processing resources.
 	queryTotalTime index.QueryMetrics
-	// the total time a query was consuming processing resources. queryTotalTime - queryProcessingTime == time waiting
-	// for resources.
+	// the total time a query was consuming processing resources. this can actually be greater than queryTotalTime
+	// if the query uses multiple CPUs.
 	queryProcessingTime index.QueryMetrics
 	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
 	// search results.

@@ -159,8 +159,8 @@ type BaseResults interface {
 	// TotalDuration is the total ResultDurations for the query.
 	TotalDuration() ResultDurations
 
-	// AddBlockTotalDuration adds the total duration for a single block to the TotalDuration.
-	AddBlockTotalDuration(duration time.Duration)
+	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
+	AddBlockProcessingDuration(duration time.Duration)
 
 	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
 	AddBlockSearchDuration(duration time.Duration)
@@ -182,25 +182,25 @@ type BaseResults interface {
 
 // ResultDurations holds various timing information for a query result.
 type ResultDurations struct {
-	// Total is the total time.
-	Total time.Duration
+	// Processing is the total time to a process.
+	Processing time.Duration
 	// Search is the time spent searching the index.
 	Search time.Duration
 }
 
-// AddTotal adds the provided duration to the Total duration.
-func (r ResultDurations) AddTotal(duration time.Duration) ResultDurations {
+// AddProcessing adds the provided duration to the Processing duration.
+func (r ResultDurations) AddProcessing(duration time.Duration) ResultDurations {
 	return ResultDurations{
-		Total:  r.Total + duration,
-		Search: r.Search,
+		Processing: r.Processing + duration,
+		Search:     r.Search,
 	}
 }
 
 // AddSearch adds the provided duration to the Search duration.
 func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
 	return ResultDurations{
-		Total:  r.Total,
-		Search: r.Search + duration,
+		Processing: r.Processing,
+		Search:     r.Search + duration,
 	}
 }
 

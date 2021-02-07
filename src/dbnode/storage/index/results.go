@@ -79,10 +79,10 @@ func (r *results) TotalDuration() ResultDurations {
 	return r.resultDuration
 }
 
-func (r *results) AddBlockTotalDuration(duration time.Duration) {
+func (r *results) AddBlockProcessingDuration(duration time.Duration) {
 	r.Lock()
 	defer r.Unlock()
-	r.resultDuration = r.resultDuration.AddTotal(duration)
+	r.resultDuration = r.resultDuration.AddProcessing(duration)
 }
 
 func (r *results) AddBlockSearchDuration(duration time.Duration) {
@@ -109,6 +109,8 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
 	r.totalDocsCount = 0
+
+	r.resultDuration = ResultDurations{}
 
 	r.opts = opts
 
