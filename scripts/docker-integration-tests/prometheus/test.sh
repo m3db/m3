@@ -409,27 +409,27 @@ function test_labels {
 
   # Test label search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?start=0&end=9999999999999.99999" | jq -r ".data | length") -gt 3 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels" | jq -r "[.data[] | select(index(\"name_0\", \"name_1\", \"name_2\"))] | length") -eq 3 ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 4 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric" | jq -r ".data | length") -eq 4 ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric_2&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 3 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/labels?match[]=label_metric_2" | jq -r ".data | length") -eq 3 ]]'
 
   # Test label values search with match
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 2 ]]' # two values without a match
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values" | jq -r ".data | length") -eq 2 ]]' # two values without a match
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data | length") -eq 1 ]]'
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric&start=0&end=9999999999999.99999" | jq -r ".data[0]") = "value_1_1" ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric" | jq -r ".data[0]") = "value_1_1" ]]'
 
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data | length") -eq 1 ]]'
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2&start=0&end=9999999999999.99999" | jq -r ".data[0]") = "value_1_2" ]]'
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/label/name_1/values?match[]=label_metric_2" | jq -r ".data[0]") = "value_1_2" ]]'
 }
 
 echo "Running readiness test"
