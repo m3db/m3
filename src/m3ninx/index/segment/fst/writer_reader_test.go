@@ -317,6 +317,7 @@ func TestPostingsListEqualForMatchFieldWithFieldsPostingsList(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
 			for _, tc := range newTestCases(t, test.docs) {
+				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
 					expSeg, obsSeg := tc.expected, tc.observed
 					expReader, err := expSeg.Reader()
