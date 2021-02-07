@@ -33,14 +33,14 @@ import (
 func NewQueryMetrics(name string, scope tally.Scope) QueryMetrics {
 	return QueryMetrics{
 		ByRange: NewQueryRangeMetrics(name, scope),
-		ByDocs:  NewCardinalityMetrics(name, scope),
+		ByDocs:  NewDocCountMetrics(name, scope),
 	}
 }
 
-// QueryMetrics is a composite type of QueryDurationMetrics and QueryCardinalityMetrics.
+// QueryMetrics is a composite type of QueryDurationMetrics and QueryDocCountMetrics.
 type QueryMetrics struct {
 	ByRange QueryDurationMetrics
-	ByDocs  QueryCardinalityMetrics
+	ByDocs  QueryDocCountMetrics
 }
 
 type queryRangeHist struct {
@@ -77,7 +77,7 @@ func (bm *queryDurationMetrics) Record(
 	}
 }
 
-// NewQueryRangeMetrics creates query duration metrics.
+// NewQueryRangeMetrics creates QueryDurationMetrics.
 func NewQueryRangeMetrics(metricType string, scope tally.Scope) QueryDurationMetrics {
 	scope = scope.SubScope(metricType).SubScope("query_range")
 	return &queryDurationMetrics{
@@ -97,64 +97,64 @@ func NewQueryRangeMetrics(metricType string, scope tally.Scope) QueryDurationMet
 
 // QueryDurationMetrics are timing metrics bucketed by the query window (start, end).
 type QueryDurationMetrics interface {
-	// Record records the runtime for queries given their range.
-	Record(queryRange time.Duration, queryRuntime time.Duration)
+	// Record records the duration for queries given their range.
+	Record(queryRange time.Duration, duration time.Duration)
 }
 
-type cardinalityHist struct {
+type docCountHist struct {
 	threshold int
 	timing    tally.Histogram
 }
 
-func newCardinalityHist(
+func newDocCountHist(
 	threshold int,
-	value string,
+	docCount string,
 	scope tally.Scope,
-) *cardinalityHist {
-	return &cardinalityHist{
+) *docCountHist {
+	return &docCountHist{
 		threshold: threshold,
 		timing: scope.
-			Tagged(map[string]string{"count": value}).
+			Tagged(map[string]string{"count": docCount}).
 			Histogram("timing", instrument.SparseHistogramTimerHistogramBuckets()),
 	}
 }
 
-type queryCardinality struct {
-	cardinalityHists []*cardinalityHist
+type queryDocCount struct {
+	docCountHists []*docCountHist
 }
 
-func (bm *queryCardinality) Record(seriesCount int, queryRuntime time.Duration) {
-	for _, m := range bm.cardinalityHists {
-		if seriesCount <= m.threshold {
-			m.timing.RecordDuration(queryRuntime)
+func (bm *queryDocCount) Record(docCount int, duration time.Duration) {
+	for _, m := range bm.docCountHists {
+		if docCount <= m.threshold {
+			m.timing.RecordDuration(duration)
 			return
 		}
 	}
 }
 
-// NewCardinalityMetrics creates query cardinality metrics.
-func NewCardinalityMetrics(metricType string, scope tally.Scope) QueryCardinalityMetrics {
-	scope = scope.SubScope(metricType).SubScope("cardinality")
-	return &queryCardinality{
-		cardinalityHists: []*cardinalityHist{
-			newCardinalityHist(50, "50", scope),
-			newCardinalityHist(200, "200", scope),
-			newCardinalityHist(1000, "1k", scope),
-			newCardinalityHist(5000, "5k", scope),
-			newCardinalityHist(10_000, "10k", scope),
-			newCardinalityHist(50_000, "50k", scope),
-			newCardinalityHist(100_000, "100k", scope),
-			newCardinalityHist(250_000, "250k", scope),
-			newCardinalityHist(500_000, "500k", scope),
-			newCardinalityHist(750_000, "750k", scope),
-			newCardinalityHist(1_000_000, "1M", scope),
-			newCardinalityHist(int(math.MaxInt32), "max", scope),
+// NewDocCountMetrics creates QueryDocCountMetrics.
+func NewDocCountMetrics(metricType string, scope tally.Scope) QueryDocCountMetrics {
+	scope = scope.SubScope(metricType).SubScope("doc_count")
+	return &queryDocCount{
+		docCountHists: []*docCountHist{
+			newDocCountHist(50, "50", scope),
+			newDocCountHist(200, "200", scope),
+			newDocCountHist(1000, "1k", scope),
+			newDocCountHist(5000, "5k", scope),
+			newDocCountHist(10_000, "10k", scope),
+			newDocCountHist(50_000, "50k", scope),
+			newDocCountHist(100_000, "100k", scope),
+			newDocCountHist(250_000, "250k", scope),
+			newDocCountHist(500_000, "500k", scope),
+			newDocCountHist(750_000, "750k", scope),
+			newDocCountHist(1_000_000, "1M", scope),
+			newDocCountHist(int(math.MaxInt32), "max", scope),
 		},
 	}
 }
 
-// QueryCardinalityMetrics are metrics bucketed by the # of documents returned by a query result.
-type QueryCardinalityMetrics interface {
-	// Record records the runtime for queries given their cardinality.
-	Record(docCount int, queryRuntime time.Duration)
+// QueryDocCountMetrics are metrics bucketed by the # of documents returned by a query result.
+type QueryDocCountMetrics interface {
+	// Record records the duration given their document count.
+	Record(docCount int, duration time.Duration)
 }
