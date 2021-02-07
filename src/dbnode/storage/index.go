@@ -1567,6 +1567,7 @@ func (i *nsIndex) queryWithSpan(
 
 	indexMatchingStartTime := time.Now()
 	var totalWaitTime time.Duration
+	var waitTimeLock sync.Mutex
 
 	for _, block := range blocks {
 		// Capture block for async query execution below.
@@ -1595,7 +1596,9 @@ func (i *nsIndex) queryWithSpan(
 			wg.Add(1)
 			enqueueTime := time.Now()
 			i.queryWorkersPool.Go(func() {
+				waitTimeLock.Lock()
 				totalWaitTime += time.Since(enqueueTime)
+				waitTimeLock.Unlock()
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			})
@@ -1608,7 +1611,9 @@ func (i *nsIndex) queryWithSpan(
 			wg.Add(1)
 			enqueueTime := time.Now()
 			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
+				waitTimeLock.Lock()
 				totalWaitTime += time.Since(enqueueTime)
+				waitTimeLock.Unlock()
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			}, timeLeft)
