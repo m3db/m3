@@ -143,31 +143,31 @@ func (s *handler) Handle(conn net.Conn) {
 		case encoding.CounterWithMetadatasType:
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.ForwardedMetricWithMetadataType:
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
 			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
-			err = toAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
+			err = addForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
 		case encoding.TimedMetricWithMetadataType:
 			timedMetric = current.TimedMetricWithMetadata.Metric
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
-			err = toAddTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
+			err = addTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
 		case encoding.TimedMetricWithMetadatasType:
 			timedMetric = current.TimedMetricWithMetadatas.Metric
 			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
-			err = toAddTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
+			err = addTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
 		case encoding.PassthroughMetricWithMetadataType:
 			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
 			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
-			err = toAddPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
+			err = addPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -265,54 +265,10 @@ func (e unknownMessageTypeError) Error() string {
 	return fmt.Sprintf("unknown message type %v", e.msgType)
 }
 
-type addUntimedError struct {
-	err error
-}
+type addForwardedError error
 
-func toAddUntimedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addUntimedError{err: err}
-}
+type addPassthroughError error
 
-func (e addUntimedError) Error() string { return e.err.Error() }
+type addTimedError error
 
-type addTimedError struct {
-	err error
-}
-
-func toAddTimedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addTimedError{err: err}
-}
-
-func (e addTimedError) Error() string { return e.err.Error() }
-
-type addForwardedError struct {
-	err error
-}
-
-func toAddForwardedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addForwardedError{err: err}
-}
-
-func (e addForwardedError) Error() string { return e.err.Error() }
-
-type addPassthroughError struct {
-	err error
-}
-
-func toAddPassthroughError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addPassthroughError{err: err}
-}
-
-func (e addPassthroughError) Error() string { return e.err.Error() }
+type addUntimedError error
