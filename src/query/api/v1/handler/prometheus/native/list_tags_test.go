@@ -160,7 +160,7 @@ func testListTagsWithMatch(
 
 	h.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Result().StatusCode)
+	require.Equal(t, http.StatusOK, w.Result().StatusCode) // nolint:bodyclose
 
 	body := w.Result().Body
 	defer body.Close() // nolint:errcheck

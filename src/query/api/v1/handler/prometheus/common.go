@@ -235,7 +235,7 @@ func ParseSeriesMatchQuery(
 	}
 
 	queries := make([]*storage.FetchQuery, 0, len(matcherValues))
-	// nolint:rangeValCopy (the set of matchers is small)
+	// nolint:gocritic
 	for _, m := range matchers {
 		queries = append(queries, &storage.FetchQuery{
 			Raw:         fmt.Sprintf("match[]=%s", m.Match),

@@ -282,9 +282,9 @@ func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string
 	})
 
 	r := segment.NewMockReader(ctrl)
-	fieldIterator := &stubFieldIterator{points: fields}
+	fieldsPostingsListIterator := &stubFieldsPostingsListIterator{points: fields}
 
-	r.EXPECT().Fields().Return(fieldIterator, nil).AnyTimes()
+	r.EXPECT().FieldsPostingsList().Return(fieldsPostingsListIterator, nil).AnyTimes()
 
 	for _, f := range fields {
 		termValues := tagValues[f.value]
@@ -300,6 +300,40 @@ func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string
 	}
 
 	return r
+}
+
+type stubFieldsPostingsListIterator struct {
+	current iterpoint
+	points  []iterpoint
+}
+
+func (s *stubFieldsPostingsListIterator) Next() bool {
+	if len(s.points) == 0 {
+		return false
+	}
+	s.current = s.points[0]
+	s.points = s.points[1:]
+	return true
+}
+
+func (s *stubFieldsPostingsListIterator) Current() ([]byte, postings.List) {
+	return []byte(s.current.value), nil
+}
+
+func (s *stubFieldsPostingsListIterator) Err() error {
+	return s.current.err
+}
+
+func (s *stubFieldsPostingsListIterator) Close() error {
+	if s.current.err != nil {
+		return s.current.err
+	}
+	for s.Next() {
+		if err := s.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type stubTermIterator struct {
