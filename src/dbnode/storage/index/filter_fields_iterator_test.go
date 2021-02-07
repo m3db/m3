@@ -43,15 +43,11 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
-	r := segment.NewMockReader(ctrl)
-	f := segment.NewMockFieldsPostingsListIterator(ctrl)
-	r.EXPECT().FieldsPostingsList().Return(f, nil)
-	iter, err := newFilterFieldsIterator(r, filters)
-	require.NoError(t, err)
+	reader := newMockSegmentReader(ctrl, map[string][]string{})
+	reader.EXPECT().Close().Return(nil).Times(1)
 
-	f.EXPECT().Next().Return(false).Times(1)
-	r.EXPECT().Close().Return(nil).Times(1)
-	f.EXPECT().Close().Return(nil).Times(1)
+	iter, err := newFilterFieldsIterator(reader, filters)
+	require.NoError(t, err)
 
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
@@ -63,17 +59,10 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	f := segment.NewMockFieldsPostingsListIterator(ctrl)
+	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil})
+	reader.EXPECT().Close().Return(nil).Times(1)
 
-	r.EXPECT().FieldsPostingsList().Return(f, nil)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("a"), nil).Times(2)
-	f.EXPECT().Next().Return(false)
-	r.EXPECT().Close().Return(nil).Times(1)
-	f.EXPECT().Close().Return(nil).Times(1)
-
-	iter, err := newFilterFieldsIterator(r, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -89,19 +78,10 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	f := segment.NewMockFieldsPostingsListIterator(ctrl)
+	reader := newMockSegmentReader(ctrl, map[string][]string{"d": nil, "b": nil, "e": nil})
+	reader.EXPECT().Close().Return(nil).Times(1)
 
-	r.EXPECT().FieldsPostingsList().Return(f, nil)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("d"), nil).Times(1)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("b"), nil).Times(2)
-	f.EXPECT().Next().Return(false)
-	r.EXPECT().Close().Return(nil).Times(1)
-	f.EXPECT().Close().Return(nil).Times(1)
-
-	iter, err := newFilterFieldsIterator(r, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -117,21 +97,10 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	f := segment.NewMockFieldsPostingsListIterator(ctrl)
+	reader := newMockSegmentReader(ctrl, map[string][]string{"d": nil, "e": nil, "c": nil})
+	reader.EXPECT().Close().Return(nil).Times(1)
 
-	r.EXPECT().FieldsPostingsList().Return(f, nil)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("d"), nil).Times(1)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("e"), nil).Times(1)
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("c"), nil).Times(2)
-	f.EXPECT().Next().Return(false)
-	r.EXPECT().Close().Return(nil).Times(1)
-	f.EXPECT().Close().Return(nil).Times(1)
-
-	iter, err := newFilterFieldsIterator(r, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -147,34 +116,47 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	r := segment.NewMockReader(ctrl)
-	f := segment.NewMockFieldsPostingsListIterator(ctrl)
+	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil, "b": nil, "c": nil})
+	reader.EXPECT().Close().Return(nil).Times(1)
 
-	r.EXPECT().FieldsPostingsList().Return(f, nil)
-	iter, err := newFilterFieldsIterator(r, filters)
+	iter, err := newFilterFieldsIterator(reader, filters)
 	require.NoError(t, err)
 
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("a"), nil).Times(2)
 	require.True(t, iter.Next())
 	val, _ := iter.Current()
 	require.Equal(t, "a", string(val))
 
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("b"), nil).Times(2)
 	require.True(t, iter.Next())
 	val, _ = iter.Current()
 	require.Equal(t, "b", string(val))
 
-	f.EXPECT().Next().Return(true)
-	f.EXPECT().Current().Return([]byte("c"), nil).Times(2)
 	require.True(t, iter.Next())
 	val, _ = iter.Current()
 	require.Equal(t, "c", string(val))
 
-	f.EXPECT().Next().Return(false)
-	r.EXPECT().Close().Return(nil).Times(1)
-	f.EXPECT().Close().Return(nil).Times(1)
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+}
+
+func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
+	reader := newMockSegmentReader(ctrl, map[string][]string{"a": nil, "c": nil})
+	reader.EXPECT().Close().Return(nil).Times(1)
+
+	iter, err := newFilterFieldsIterator(reader, filters)
+	require.NoError(t, err)
+
+	require.True(t, iter.Next())
+	val, _ := iter.Current()
+	require.Equal(t, "a", string(val))
+
+	require.True(t, iter.Next())
+	val, _ = iter.Current()
+	require.Equal(t, "c", string(val))
 
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())

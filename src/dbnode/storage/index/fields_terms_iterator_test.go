@@ -270,7 +270,7 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	}, slice)
 }
 
-func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string) segment.Reader {
+func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string) *segment.MockReader {
 	fields := make([]iterpoint, 0, len(tagValues))
 	for k := range tagValues {
 		fields = append(fields, iterpoint{
