@@ -22,7 +22,10 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -34,25 +37,18 @@ var (
 	errNilValue                      = errors.New("nil value received")
 	errPlacementWatcherIsNotWatching = errors.New("placement watcher is not watching")
 	errPlacementWatcherIsWatching    = errors.New("placement watcher is watching")
-)
-
-type placementWatcherState int
-
-const (
-	placementWatcherNotWatching placementWatcherState = iota
-	placementWatcherWatching
+	errPlacementWatcherCastError     = errors.New("interface cast failed, unexpected placement type")
 )
 
 type stagedPlacementWatcher struct {
-	sync.RWMutex
 	runtime.Value
+	mtx sync.Mutex
 
 	nowFn         clock.NowFn
 	placementOpts ActiveStagedPlacementOptions
 
-	state     placementWatcherState
-	proto     *placementpb.PlacementSnapshots
-	placement ActiveStagedPlacement
+	watching  atomic.Bool
+	placement atomic.Value
 }
 
 // NewStagedPlacementWatcher creates a new staged placement watcher.
@@ -60,7 +56,6 @@ func NewStagedPlacementWatcher(opts StagedPlacementWatcherOptions) StagedPlaceme
 	watcher := &stagedPlacementWatcher{
 		nowFn:         opts.ClockOptions().NowFn(),
 		placementOpts: opts.ActiveStagedPlacementOptions(),
-		proto:         &placementpb.PlacementSnapshots{},
 	}
 
 	valueOpts := runtime.NewOptions().
@@ -74,81 +69,76 @@ func NewStagedPlacementWatcher(opts StagedPlacementWatcherOptions) StagedPlaceme
 }
 
 func (t *stagedPlacementWatcher) Watch() error {
-	t.Lock()
-	if t.state != placementWatcherNotWatching {
-		t.Unlock()
+	if !t.watching.CAS(false, true) {
 		return errPlacementWatcherIsWatching
 	}
-	t.state = placementWatcherWatching
-	t.Unlock()
 
-	// NB(xichen): we watch the placementWatcher updates outside the lock because
-	// otherwise the initial update will trigger the process() callback,
-	// which attempts to acquire the same lock, causing a deadlock.
 	return t.Value.Watch()
 }
 
 func (t *stagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	if t.state != placementWatcherWatching {
+	if !t.watching.Load() {
 		return nil, errPlacementWatcherIsNotWatching
 	}
 
-	return t.placement, nil
+	pl := t.placement.Load()
+	placement, ok := pl.(ActiveStagedPlacement)
+	fmt.Printf("%+v\n", t)
+	fmt.Printf("%+v\n", t.placement.Load())
+	if !ok {
+		return nil, errPlacementWatcherCastError
+	}
+
+	return placement, nil
 }
 
 func (t *stagedPlacementWatcher) Unwatch() error {
-	t.Lock()
-	if t.state != placementWatcherWatching {
-		t.Unlock()
+	if !t.watching.CAS(true, false) {
 		return errPlacementWatcherIsNotWatching
 	}
-	t.state = placementWatcherNotWatching
-	if t.placement != nil {
-		t.placement.Close()
-	}
-	t.placement = nil
-	t.Unlock()
 
-	// NB(xichen): we unwatch the updates outside the lock to avoid deadlock
-	// due to placementWatcher contending for the runtime value lock and the
-	// runtime updating goroutine attempting to acquire placementWatcher lock.
+	pl := t.placement.Load()
+	placement, ok := pl.(ActiveStagedPlacement)
+	if ok && placement != nil {
+		placement.Close() //nolint:errcheck
+	}
+
 	t.Value.Unwatch()
 	return nil
 }
 
 func (t *stagedPlacementWatcher) toStagedPlacement(value kv.Value) (interface{}, error) {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.state != placementWatcherWatching {
+	if !t.watching.Load() {
 		return nil, errPlacementWatcherIsNotWatching
 	}
 	if value == nil {
 		return nil, errNilValue
 	}
-	t.proto.Reset()
-	if err := value.Unmarshal(t.proto); err != nil {
+
+	var proto placementpb.PlacementSnapshots
+	if err := value.Unmarshal(&proto); err != nil {
 		return nil, err
 	}
 	version := value.Version()
-	return NewStagedPlacementFromProto(version, t.proto, t.placementOpts)
+	return NewStagedPlacementFromProto(version, &proto, t.placementOpts)
 }
 
 func (t *stagedPlacementWatcher) process(value interface{}) error {
-	t.Lock()
-	defer t.Unlock()
+	t.mtx.Lock() // serialize value processing
+	defer t.mtx.Unlock()
 
-	if t.state != placementWatcherWatching {
+	if !t.watching.Load() {
 		return errPlacementWatcherIsNotWatching
 	}
 	ps := value.(StagedPlacement)
 	placement := ps.ActiveStagedPlacement(t.nowFn().UnixNano())
-	if t.placement != nil {
-		t.placement.Close()
+
+	pl := t.placement.Load()
+	oldPlacement, ok := pl.(ActiveStagedPlacement)
+	if ok && oldPlacement != nil {
+		oldPlacement.Close() //nolint:errcheck
 	}
-	t.placement = placement
+
+	t.placement.Store(placement)
 	return nil
 }
