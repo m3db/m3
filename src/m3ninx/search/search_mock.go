@@ -59,10 +59,10 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method
-func (m *MockExecutor) Execute(q Query) (doc.Iterator, error) {
+func (m *MockExecutor) Execute(q Query) (doc.QueryDocIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", q)
-	ret0, _ := ret[0].(doc.Iterator)
+	ret0, _ := ret[0].(doc.QueryDocIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
