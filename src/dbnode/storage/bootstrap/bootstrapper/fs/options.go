@@ -59,8 +59,8 @@ var (
 	// pull a lot more data into memory if we create more than one at a time.
 	defaultBootstrapIndexNumProcessors = 1
 
-	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
-	defaultIndexSegmentConcurrency = 1
+	// DefaultIndexSegmentConcurrency defines the default index segment building concurrency.
+	DefaultIndexSegmentConcurrency = int(math.Min(2, float64(goruntime.NumCPU())))
 
 	// defaultIndexSegmentsVerify defines default for index segments validation.
 	defaultIndexSegmentsVerify = false
@@ -93,7 +93,7 @@ func NewOptions() Options {
 	return &options{
 		instrumentOpts:          instrument.NewOptions(),
 		resultOpts:              result.NewOptions(),
-		indexSegmentConcurrency: defaultIndexSegmentConcurrency,
+		indexSegmentConcurrency: DefaultIndexSegmentConcurrency,
 		indexSegmentsVerify:     defaultIndexSegmentsVerify,
 		runtimeOptsMgr:          runtime.NewOptionsManager(),
 		identifierPool:          idPool,

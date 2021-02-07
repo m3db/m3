@@ -332,10 +332,10 @@ func (mr *MockDatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts i
 }
 
 // ReadEncoded mocks base method
-func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -771,10 +771,10 @@ func (mr *MockdatabaseMockRecorder) AggregateQuery(ctx, namespace, query, opts i
 }
 
 // ReadEncoded mocks base method
-func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1592,10 +1592,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) AggregateQuery(ctx, query, opts int
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1933,20 +1933,6 @@ func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
-// ScanData mocks base method
-func (m *MockShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ScanData indicates an expected call of ScanData
-func (mr *MockShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockShard)(nil).ScanData), blockStart, processor)
-}
-
 // OpenStreamingReader mocks base method
 func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
@@ -2041,20 +2027,6 @@ func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
 }
 
-// ScanData mocks base method
-func (m *MockdatabaseShard) ScanData(blockStart time.Time, processor fs.DataEntryProcessor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScanData", blockStart, processor)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ScanData indicates an expected call of ScanData
-func (mr *MockdatabaseShardMockRecorder) ScanData(blockStart, processor interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanData", reflect.TypeOf((*MockdatabaseShard)(nil).ScanData), blockStart, processor)
-}
-
 // OpenStreamingReader mocks base method
 func (m *MockdatabaseShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
@@ -2142,10 +2114,10 @@ func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, v
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) ([][]xio.BlockReader, error) {
+func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end, nsCtx)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].(series.BlockReaderIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3743,6 +3715,20 @@ func (m *MockOnColdFlushNamespace) CheckpointAndMaybeCompact() error {
 func (mr *MockOnColdFlushNamespaceMockRecorder) CheckpointAndMaybeCompact() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckpointAndMaybeCompact", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).CheckpointAndMaybeCompact))
+}
+
+// Abort mocks base method
+func (m *MockOnColdFlushNamespace) Abort() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Abort")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Abort indicates an expected call of Abort
+func (mr *MockOnColdFlushNamespaceMockRecorder) Abort() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Abort", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).Abort))
 }
 
 // Done mocks base method

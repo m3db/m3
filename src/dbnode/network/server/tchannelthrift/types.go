@@ -21,6 +21,7 @@
 package tchannelthrift
 
 import (
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/clock"
@@ -100,4 +101,10 @@ type Options interface {
 	// MaxOutstandingReadRequests returns the maxinum number of allowed
 	// outstanding read requests.
 	MaxOutstandingReadRequests() int
+
+	// QueryLimits returns the QueryLimits.
+	QueryLimits() limits.QueryLimits
+
+	// SetQueryLimits sets the QueryLimits.
+	SetQueryLimits(value limits.QueryLimits) Options
 }
