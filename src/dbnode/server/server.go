@@ -451,6 +451,7 @@ func Run(runOpts RunOptions) {
 	// Setup query stats tracking.
 	docsLimit := limits.DefaultLookbackLimitOptions()
 	bytesReadLimit := limits.DefaultLookbackLimitOptions()
+	diskSeriesReadLimit := limits.DefaultLookbackLimitOptions()
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
@@ -459,9 +460,14 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskRead; limitConfig != nil {
+		diskSeriesReadLimit.Limit = limitConfig.Value
+		diskSeriesReadLimit.Lookback = limitConfig.Lookback
+	}
 	limitOpts := limits.NewOptions().
 		SetDocsLimitOpts(docsLimit).
 		SetBytesReadLimitOpts(bytesReadLimit).
+		SetDiskSeriesReadLimitOpts(diskSeriesReadLimit).
 		SetInstrumentOptions(iOpts)
 	if builder := opts.SourceLoggerBuilder(); builder != nil {
 		limitOpts = limitOpts.SetSourceLoggerBuilder(builder)
@@ -1208,11 +1214,15 @@ func updateQueryLimits(logger *zap.Logger,
 		// Default to the config-based limits if unset in dynamic limits.
 		// Otherwise, use the dynamic limit.
 		docsLimitOpts           = configOpts.DocsLimitOpts()
+		diskSeriesReadLimitOpts = configOpts.DiskSeriesReadLimitOpts()
 		bytesReadLimitOpts      = configOpts.BytesReadLimitOpts()
 	)
 	if dynamicOpts != nil {
 		if dynamicOpts.MaxRecentlyQueriedSeriesBlocks != nil {
 			docsLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesBlocks)
+		}
+		if dynamicOpts.MaxRecentlyQueriedSeriesDiskRead != nil {
+			diskSeriesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskRead)
 		}
 		if dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead != nil {
 			bytesReadLimitOpts = dynamicLimitToLimitOpts(dynamicOpts.MaxRecentlyQueriedSeriesDiskBytesRead)
@@ -1221,6 +1231,10 @@ func updateQueryLimits(logger *zap.Logger,
 
 	if err := updateQueryLimit(queryLimits.DocsLimit(), docsLimitOpts); err != nil {
 		logger.Error("error updating docs limit", zap.Error(err))
+	}
+
+	if err := updateQueryLimit(queryLimits.DiskSeriesReadLimit(), diskSeriesReadLimitOpts); err != nil {
+		logger.Error("error updating series read limit", zap.Error(err))
 	}
 
 	if err := updateQueryLimit(queryLimits.BytesReadLimit(), bytesReadLimitOpts); err != nil {

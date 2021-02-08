@@ -846,6 +846,7 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		fetchStart:      startTime,
 		dataReadMetrics: s.metrics.queryTimingDataRead,
 		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blocksReadLimit: s.queryLimits.DiskSeriesReadLimit(),
 	}), nil
 }
 
@@ -903,6 +904,7 @@ type fetchTaggedResultsIterOpts struct {
 	totalDocsCount  int
 	dataReadMetrics index.QueryMetrics
 	totalMetrics    index.QueryMetrics
+	blocksReadLimit limits.LookbackLimit
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
@@ -930,10 +932,11 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	if i.idx == 0 {
 		for _, entry := range i.queryResult.Results.Map().Iter() { // nolint: gocritic
 			result := idResult{
-				queryResult: entry,
-				docReader:   i.docReader,
-				tagEncoder:  i.tagEncoder,
-				iOpts:       i.iOpts,
+				queryResult:     entry,
+				docReader:       i.docReader,
+				tagEncoder:      i.tagEncoder,
+				iOpts:           i.iOpts,
+				blocksReadLimit: i.blocksReadLimit,
 			}
 			if i.fetchData {
 				// NB(r): Use a bytes ID here so that this ID doesn't need to be
@@ -964,6 +967,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 			for blockIter.Next(ctx) {
 				curr := blockIter.Current()
 				blockReaders = append(blockReaders, curr)
+				if err := i.blocksReadLimit.Inc(len(blockReaders), nil); err != nil {
+					i.err = err
+					return false
+				}
 			}
 			if blockIter.Err() != nil {
 				i.err = blockIter.Err()
@@ -1020,6 +1027,7 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
+	blocksReadLimit  limits.LookbackLimit
 	iOpts            instrument.Options
 }
 
