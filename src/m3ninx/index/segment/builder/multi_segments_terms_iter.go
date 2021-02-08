@@ -161,10 +161,19 @@ func (i *termsIterFromSegments) Next() bool {
 		)
 		for iter.Next() {
 			curr := iter.Current()
+			factor := 2
+			// First do exponential skipping.
+			for len(skip) >= factor && curr > skip[factor-1] {
+				skip = skip[factor:]
+				negativeOffset += postings.ID(factor)
+				factor *= 2
+			}
+			// Then linear.
 			for len(skip) > 0 && curr > skip[0] {
 				skip = skip[1:]
 				negativeOffset++
 			}
+			// Then skip the individual if matches.
 			if len(skip) > 0 && curr == skip[0] {
 				skip = skip[1:]
 				negativeOffset++
