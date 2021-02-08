@@ -35,6 +35,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -63,7 +64,8 @@ func TestFieldsTermsIteratorPropertyTest(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			observed := toSlice(t, iter)
+			observed, err := toSlice(iter)
+			require.NoError(t, err)
 			requireSlicesEqual(t, expected, observed)
 			return true, nil
 		},
@@ -98,7 +100,7 @@ func TestFieldsTermsIteratorPropertyTestNoPanic(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			toSlice(t, iter)
+			_, _ = toSlice(iter)
 			return true, nil
 		},
 		genIterableSegment(ctrl),

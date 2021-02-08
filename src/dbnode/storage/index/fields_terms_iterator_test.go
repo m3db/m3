@@ -92,7 +92,8 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{
 		{"d", "e"},
 		{"d", "f"},
@@ -107,7 +108,8 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	slice = toSlice(t, iter)
+	slice, err = toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{
 		{"a", "b"},
 		{"a", "c"},
@@ -136,7 +138,8 @@ func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{
 		{"d", "e"},
 		{"d", "f"},
@@ -160,7 +163,8 @@ func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
 
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{
 		{"a", ""},
 		{"d", ""},
@@ -179,7 +183,8 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 	})
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: false})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{{"a", ""}}, slice)
 }
 
@@ -212,7 +217,8 @@ func TestFieldsTermsIteratorRestrictByQueryFields(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{{"bar", ""}}, slice)
 }
 
@@ -225,7 +231,8 @@ func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
 	})
 	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{}, slice)
 }
 
@@ -295,7 +302,8 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	slice := toSlice(t, iter)
+	slice, err := toSlice(iter)
+	require.NoError(t, err)
 	requireSlicesEqual(t, []pair{
 		{"color", "red"},
 		{"color", "yellow"},
@@ -512,7 +520,7 @@ func (s *fieldsTermsIterSetup) requireEquals(t *testing.T, iter fieldsAndTermsIt
 	require.NoError(t, iter.Close())
 }
 
-func toSlice(t *testing.T, iter fieldsAndTermsIterator) []pair {
+func toSlice(iter fieldsAndTermsIterator) ([]pair, error) {
 	var pairs []pair
 	for iter.Next() {
 		n, v := iter.Current()
@@ -524,8 +532,7 @@ func toSlice(t *testing.T, iter fieldsAndTermsIterator) []pair {
 			Value: string(v),
 		})
 	}
-	require.NoError(t, iter.Err())
-	return pairs
+	return pairs, nil
 }
 
 func requireSlicesEqual(t *testing.T, a, b []pair) {
