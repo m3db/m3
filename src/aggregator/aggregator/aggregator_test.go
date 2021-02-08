@@ -946,8 +946,9 @@ func TestAggregatorOwnedShards(t *testing.T) {
 
 func TestAggregatorAddMetricMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{})
-	m.ReportSuccess(time.Second)
+	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{StandardSampleRate: 0.001})
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
 	m.ReportError(errInvalidMetricType)
 	m.ReportError(errShardNotOwned)
 	m.ReportError(errAggregatorShardNotWriteable)
@@ -980,9 +981,8 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 	for _, id := range []string{
 		"testScope.success-latency+",
 	} {
-		ti, exists := timers[id]
+		_, exists := timers[id]
 		require.True(t, exists)
-		require.Equal(t, []time.Duration{time.Second}, ti.Values())
 	}
 
 	// Validate we do not have any gauges.
@@ -992,7 +992,8 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 func TestAggregatorAddTimedMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
 	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
-	m.ReportSuccess(time.Second)
+	m.ReportSuccess()
+	m.SuccessLatencyStopwatch().Stop()
 	m.ReportError(errShardNotOwned)
 	m.ReportError(errAggregatorShardNotWriteable)
 	m.ReportError(errWriteNewMetricRateLimitExceeded)
@@ -1027,9 +1028,8 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	for _, id := range []string{
 		"testScope.success-latency+",
 	} {
-		ti, exists := timers[id]
+		_, exists := timers[id]
 		require.True(t, exists)
-		require.Equal(t, []time.Duration{time.Second}, ti.Values())
 	}
 
 	// Validate we do not have any gauges.

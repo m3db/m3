@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,50 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package io
+package series
 
 import (
-	"bufio"
-	"io"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 )
 
-// ResettableWriter is a resettable writer.
-type ResettableWriter interface {
-	io.Writer
-	Flush() error
-	Reset(w io.Writer)
+// FakeBlockReaderIter iterates over the configured BlockReaders for testing.
+type FakeBlockReaderIter struct {
+	Readers [][]xio.BlockReader
+	cur     []xio.BlockReader
+	idx     int
 }
 
-// ResettableWriterOptions are options for a resettable writer.
-type ResettableWriterOptions struct {
-	WriteBufferSize int
-}
-
-// ResettableWriterFn creates a resettable writer.
-type ResettableWriterFn func(r io.Writer, opts ResettableWriterOptions) ResettableWriter
-
-// defaultResettableWriterFn creates a default resettable writer.
-func defaultResettableWriterFn() ResettableWriterFn {
-	return func(w io.Writer, opts ResettableWriterOptions) ResettableWriter {
-		if opts.WriteBufferSize <= 0 {
-			return &passthroughResettableWriter{w: w}
-		}
-		return bufio.NewWriterSize(w, opts.WriteBufferSize)
+// Next gets the next set of block readers.
+func (i *FakeBlockReaderIter) Next(_ context.Context) bool {
+	if i.idx >= len(i.Readers) {
+		return false
 	}
+	i.cur = i.Readers[i.idx]
+	i.idx++
+	return true
 }
 
-type passthroughResettableWriter struct {
-	w io.Writer
+// Current gets the current set of block readers.
+func (i *FakeBlockReaderIter) Current() []xio.BlockReader {
+	return i.cur
 }
 
-func (p passthroughResettableWriter) Write(b []byte) (n int, err error) {
-	return p.w.Write(b)
-}
-
-func (p passthroughResettableWriter) Flush() error {
+// Err is non-nil if an error occurred when calling Next.
+func (i *FakeBlockReaderIter) Err() error {
 	return nil
 }
 
-func (p *passthroughResettableWriter) Reset(w io.Writer) {
-	p.w = w
+// ToSlices returns the configured BlockReaders.
+func (i *FakeBlockReaderIter) ToSlices(_ context.Context) ([][]xio.BlockReader, error) {
+	return i.Readers, nil
 }

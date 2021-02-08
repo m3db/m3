@@ -57,25 +57,45 @@ func (s sortableSeriesList) Swap(i, j int) {
 
 // SortSeries applies a given SeriesReducer to each series in the input
 // list and sorts based on the assigned value
-func SortSeries(in []*Series, sr SeriesReducer, dir Direction) ([]*Series, error) {
+func SortSeries(input SeriesList, sr SeriesReducer, dir Direction) (SeriesList, error) {
 	var (
+		in           = input.Values
 		sortableList = make(sortableSeriesList, 0, len(in))
-		results      = make([]*Series, len(in))
+		results      = make([]*Series, 0, len(in))
 	)
 
 	for _, series := range in {
+		results = append(results, series)
+	}
+
+	if !input.SortApplied {
+		// If no sort was applied to these series then sort by name
+		// before we do the sort.Stable so that if two series are equal
+		// (for instance if comparing by min and they all share same min)
+		// that you get the same minimum series each time for same set of
+		// series.
+		sort.Stable(SeriesByName(results))
+	}
+
+	for _, series := range results {
 		sortableList = append(sortableList, sortableSeries{series: series, value: sr(series)})
 	}
 
+	// Use sort.Stable for deterministic output.
 	if dir == Ascending {
-		sort.Sort(sortableList)
+		sort.Stable(sortableList)
 	} else {
-		sort.Sort(sort.Reverse(sortableList))
+		sort.Stable(sort.Reverse(sortableList))
 	}
 
-	for i, sortable := range sortableList {
-		results[i] = sortable.series
+	// Set results in the sort order of the sortable series list.
+	results = results[:0]
+	for _, sortable := range sortableList {
+		results = append(results, sortable.series)
 	}
 
-	return results, nil
+	// Preserve metadata and ensure that sort applied is set to true.
+	input.Values = results
+	input.SortApplied = true
+	return input, nil
 }
