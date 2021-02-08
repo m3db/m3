@@ -84,7 +84,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 	if len(annotation) > 0 {
 		if cap(g.annotation) < len(annotation) {
 			// Twice as long in case another one comes in
-			//and we could avoid realloc as long as less than this first alloc.
+			// and we could avoid realloc as long as less than this first alloc.
 			g.annotation = make([]byte, 0, 2*len(annotation))
 		}
 		// Reuse any previous allocation while taking a copy.
