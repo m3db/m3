@@ -97,7 +97,7 @@ var (
 	headerToMetricType = map[string]prompb.MetricType{
 		"counter":         prompb.MetricType_COUNTER,
 		"gauge":           prompb.MetricType_GAUGE,
-		"gauge-histogram": prompb.MetricType_GAUGE_HISTOGRAM,
+		"gauge_histogram": prompb.MetricType_GAUGE_HISTOGRAM,
 		"histogram":       prompb.MetricType_HISTOGRAM,
 		"info":            prompb.MetricType_INFO,
 		"stateset":        prompb.MetricType_STATESET,

@@ -177,7 +177,7 @@ function prometheus_remote_write {
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://m3coordinator01:7202/api/v1/prom/remote/write \
-    -h M3-Prom-Type:${metric_type}                        \
+    -h Prometheus-Metric-Type:${metric_type}                        \
     -t __name__:${metric_name}                            \
     -t ${label0_name}:${label0_value}                     \
     -t ${label1_name}:${label1_value}                     \
@@ -330,7 +330,7 @@ function test_metric_type_survives_aggregation {
     id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
     rangeStart=${start} \
     rangeEnd=${end} \
-    jq_path="$jq_path" expected_value="CAEQAQ==" \
+    jq_path="$jq_path" expected_value="CAEQAQ==" \  # we expect to get the protobuf encoded base64 value with the metric type on it
     retry_with_backoff dbnode_fetch
   
   # Additional test to ensure correct value is stored
