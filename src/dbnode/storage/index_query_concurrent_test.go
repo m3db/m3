@@ -209,12 +209,11 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	// If force timeout or block errors are enabled, replace one of the blocks
 	// with a mock block that times out or returns an error respectively.
-	var timeoutWg, timedOutQueriesWg sync.WaitGroup
+	var timedOutQueriesWg sync.WaitGroup
 	if opts.forceTimeouts || opts.blockErrors {
 		// Need to restore now as timeouts are measured by looking at time.Now
 		restoreNow()
 
-		timeoutWg.Add(1)
 		nsIdx.state.Lock()
 		for start, block := range nsIdx.state.blocksByTime {
 			block := block // Capture for lambda
@@ -254,7 +253,14 @@ func testNamespaceIndexHighConcurrentQueries(
 						r index.QueryResults,
 						logFields []opentracinglog.Field,
 					) (bool, error) {
-						timeoutWg.Wait()
+						// block until the query will be canceled due to timeout.
+						for {
+							if !c.TryCheckout() {
+								break
+							}
+							c.ReleaseCheckout()
+							time.Sleep(time.Millisecond)
+						}
 						return block.Query(ctx, c, q, opts, r, logFields)
 					}).
 					AnyTimes()
@@ -393,7 +399,6 @@ func testNamespaceIndexHighConcurrentQueries(
 		go func() {
 			// Start allowing timedout queries to complete.
 			logger.Info("allow block queries to begin returning")
-			timeoutWg.Done()
 
 			// Race closing all contexts at once.
 			for _, ctx := range timeoutContexts {

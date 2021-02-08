@@ -57,13 +57,14 @@ var (
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
 	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
 	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
+	// ErrCancelledQuery is returned when the block processing is canceled before finishing.
+	ErrCancelledQuery = errors.New("query was canceled")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
-	errCancelledQuery               = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -471,7 +472,7 @@ func (b *block) queryWithSpan(
 	// which means it can't be used for finalization any longer.
 	valid := cancellable.TryCheckout()
 	if !valid {
-		return false, errCancelledQuery
+		return false, ErrCancelledQuery
 	}
 	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
@@ -562,7 +563,7 @@ func (b *block) addQueryResults(
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
 		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
+		return batch, 0, 0, ErrCancelledQuery
 	}
 
 	// try to add the docs to the resource.
@@ -884,7 +885,7 @@ func (b *block) addAggregateResults(
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
 		// query not valid any longer, do not add results and return early.
-		return batch, 0, 0, errCancelledQuery
+		return batch, 0, 0, ErrCancelledQuery
 	}
 
 	// try to add the docs to the resource.
