@@ -1565,6 +1565,10 @@ func (i *nsIndex) queryWithSpan(
 	cancellable := xresource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
+	indexMatchingStartTime := time.Now()
+	var totalWaitTime time.Duration
+	var waitTimeLock sync.Mutex
+
 	for _, block := range blocks {
 		// Capture block for async query execution below.
 		block := block
@@ -1590,7 +1594,11 @@ func (i *nsIndex) queryWithSpan(
 		if applyTimeout := timeout > 0; !applyTimeout {
 			// No timeout, just wait blockingly for a worker.
 			wg.Add(1)
+			enqueueTime := time.Now()
 			i.queryWorkersPool.Go(func() {
+				waitTimeLock.Lock()
+				totalWaitTime += time.Since(enqueueTime)
+				waitTimeLock.Unlock()
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			})
@@ -1601,7 +1609,11 @@ func (i *nsIndex) queryWithSpan(
 		var timedOut bool
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
+			enqueueTime := time.Now()
 			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
+				waitTimeLock.Lock()
+				totalWaitTime += time.Since(enqueueTime)
+				waitTimeLock.Unlock()
 				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			}, timeLeft)
@@ -1665,6 +1677,19 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return false, err
 	}
+
+	queryRuntime := time.Since(indexMatchingStartTime)
+	queryRange := opts.EndExclusive.Sub(opts.StartInclusive)
+
+	i.metrics.queryTotalTime.ByRange.Record(queryRange, queryRuntime)
+	i.metrics.queryTotalTime.ByDocs.Record(results.TotalDocsCount(), queryRuntime)
+	i.metrics.queryWaitTime.ByRange.Record(queryRange, totalWaitTime)
+	i.metrics.queryWaitTime.ByDocs.Record(results.TotalDocsCount(), totalWaitTime)
+	i.metrics.queryProcessingTime.ByRange.Record(queryRange, results.TotalDuration().Processing)
+	i.metrics.queryProcessingTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Processing)
+	i.metrics.querySearchTime.ByRange.Record(queryRange, results.TotalDuration().Search)
+	i.metrics.querySearchTime.ByDocs.Record(results.TotalDocsCount(), results.TotalDuration().Search)
+
 	return exhaustive, nil
 }
 
@@ -2211,6 +2236,18 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveLimitError       tally.Counter
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
+
+	// the total time for a query, including waiting for processing resources.
+	queryTotalTime index.QueryMetrics
+	// the time spent waiting for workers to start processing the query. totalTime - waitTime = processing time. this is
+	// not necessary equal to processingTime below since a query can use multiple workers at once.
+	queryWaitTime index.QueryMetrics
+	// the total time a query was consuming processing resources. this can actually be greater than queryTotalTime
+	// if the query uses multiple CPUs.
+	queryProcessingTime index.QueryMetrics
+	// the total time a query was searching for documents. queryProcessingTime - querySearchTime == time processing
+	// search results.
+	querySearchTime index.QueryMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -2306,6 +2343,10 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
+		queryTotalTime:      index.NewQueryMetrics("query_total", scope),
+		queryWaitTime:       index.NewQueryMetrics("query_wait", scope),
+		queryProcessingTime: index.NewQueryMetrics("query_processing", scope),
+		querySearchTime:     index.NewQueryMetrics("query_search", scope),
 	}
 
 	// Initialize gauges that should default to zero before

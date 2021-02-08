@@ -419,10 +419,12 @@ func (b *block) Query(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	start := time.Now()
 	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
+	results.AddBlockProcessingDuration(time.Since(start))
 
 	return exhaustive, err
 }
@@ -528,6 +530,8 @@ func (b *block) queryWithSpan(
 	if err := iterCloser.Close(); err != nil {
 		return false, err
 	}
+
+	results.AddBlockSearchDuration(iter.SearchDuration())
 
 	return opts.exhaustive(size, docsCount), nil
 }
