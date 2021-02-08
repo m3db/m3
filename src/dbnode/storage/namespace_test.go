@@ -589,8 +589,8 @@ func testNamespaceBootstrapUnfulfilledShards(
 	for _, id := range shardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(id)
+		shard.EXPECT().IsBootstrapped().Return(false)
 		if !contains(unfulfilledShardIDs, id) {
-			shard.EXPECT().IsBootstrapped().Return(false)
 			shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		}
 		ns.shards[id] = shard
