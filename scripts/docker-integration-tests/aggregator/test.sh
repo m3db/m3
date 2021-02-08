@@ -325,12 +325,13 @@ function test_metric_type_survives_aggregation {
   echo "Test query metric type"
 
   # Test if metric type is stored in aggregated namespace
+  # "CAEQAQ==" is the protobuf encoded base64 value with the metric type on it
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     namespace="agg" \
     id='{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}' \
     rangeStart=${start} \
     rangeEnd=${end} \
-    jq_path="$jq_path" expected_value="CAEQAQ==" \  # we expect to get the protobuf encoded base64 value with the metric type on it
+    jq_path="$jq_path" expected_value="CAEQAQ==" \
     retry_with_backoff dbnode_fetch
   
   # Additional test to ensure correct value is stored
