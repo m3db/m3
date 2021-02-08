@@ -932,11 +932,10 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 	if i.idx == 0 {
 		for _, entry := range i.queryResult.Results.Map().Iter() { // nolint: gocritic
 			result := idResult{
-				queryResult:     entry,
-				docReader:       i.docReader,
-				tagEncoder:      i.tagEncoder,
-				iOpts:           i.iOpts,
-				blocksReadLimit: i.blocksReadLimit,
+				queryResult: entry,
+				docReader:   i.docReader,
+				tagEncoder:  i.tagEncoder,
+				iOpts:       i.iOpts,
 			}
 			if i.fetchData {
 				// NB(r): Use a bytes ID here so that this ID doesn't need to be
@@ -1027,7 +1026,6 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksReadLimit  limits.LookbackLimit
 	iOpts            instrument.Options
 }
 
