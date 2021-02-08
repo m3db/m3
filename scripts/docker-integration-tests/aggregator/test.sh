@@ -304,12 +304,8 @@ function test_aggregated_rollup_rule {
 }
 
 function test_metric_type_survives_aggregation {
-  now=$(date +"%s")
-
   echo "Test metric type should be kept after aggregation"
-
-  # Emit values for endpoint /foo/bar (to ensure right values aggregated)
-  write_at="$now_truncated"
+  now=$(date +"%s")
   value="42"
 
   metric_type="counter" \
