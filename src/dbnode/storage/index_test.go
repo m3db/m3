@@ -379,7 +379,6 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 }
 
 func TestNamespaceIndexQueryTimeout(t *testing.T) {
-	
 }
 
 func verifyFlushForShards(
@@ -468,11 +467,11 @@ func verifyFlushForShards(
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
 			resultsInShard := []block.FetchBlocksMetadataResult{
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID1,
 					Tags: resultsTags1,
 				},
-				block.FetchBlocksMetadataResult{
+				{
 					ID:   resultsID2,
 					Tags: resultsTags2,
 				},

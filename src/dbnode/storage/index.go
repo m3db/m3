@@ -1564,11 +1564,11 @@ func (i *nsIndex) queryWithSpan(
 		state = asyncQueryExecState{
 			exhaustive: true,
 		}
-		deadline               = start.Add(timeout)
-		wg                     sync.WaitGroup
-		queryDoneCh            = make(chan struct{})
-		monitorCh              = make(chan monitorResult)
-		totalWaitTime          time.Duration
+		deadline      = start.Add(timeout)
+		wg            sync.WaitGroup
+		queryDoneCh   = make(chan struct{})
+		monitorCh     = make(chan monitorResult)
+		totalWaitTime time.Duration
 	)
 
 	// Create a cancellable lifetime and cancel it at end of this method so that
@@ -1676,7 +1676,7 @@ func (i *nsIndex) queryWithSpan(
 	err = state.multiErr.FinalError()
 	state.Unlock()
 
-	if err != nil && err != index.ErrCancelledQuery {
+	if err != nil && !errors.Is(err, index.ErrCancelledQuery) {
 		// an unexpected error occurred processing the query, bail without updating timing metrics.
 		// if the err ir ErrCancelledQuery, the monitor will report a timeout.
 		return false, err

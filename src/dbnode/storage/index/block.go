@@ -57,8 +57,8 @@ var (
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
 	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
 	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
-	// ErrCancelledQuery is returned when the block processing is cancelled before finishing.
-	ErrCancelledQuery               = errors.New("query was cancelled")
+	// ErrCancelledQuery is returned when the block processing is canceled before finishing.
+	ErrCancelledQuery = errors.New("query was canceled")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
