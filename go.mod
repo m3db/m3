@@ -90,7 +90,7 @@ require (
 	github.com/uber-go/tally v3.3.13+incompatible
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
-	github.com/uber/tchannel-go v1.14.0
+	github.com/uber/tchannel-go v1.20.1
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/wjdp/htmltest v0.13.0
@@ -110,6 +110,7 @@ require (
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
 	golang.org/x/tools v0.0.0-20201013201025-64a9e34f3752
 	google.golang.org/grpc v1.29.1
+	google.golang.org/protobuf v1.23.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0

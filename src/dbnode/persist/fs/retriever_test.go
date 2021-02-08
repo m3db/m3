@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -811,36 +810,6 @@ func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
 	mockSeeker.EXPECT().SeekByIndexEntry(gomock.Any(), gomock.Any()).Return(nil, errSeekErr)
 
 	testBlockRetrieverHandlesSeekErrors(t, ctrl, mockSeeker)
-}
-
-func TestLimitSeriesReadFromDisk(t *testing.T) {
-	scope := tally.NewTestScope("test", nil)
-	limitOpts := limits.NewOptions().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetBytesReadLimitOpts(limits.DefaultLookbackLimitOptions()).
-		SetDocsLimitOpts(limits.DefaultLookbackLimitOptions()).
-		SetDiskSeriesReadLimitOpts(limits.LookbackLimitOptions{
-			Limit:    1,
-			Lookback: time.Second * 1,
-		})
-	queryLimits, err := limits.NewQueryLimits(limitOpts)
-	require.NoError(t, err)
-	opts := NewBlockRetrieverOptions().
-		SetBlockLeaseManager(&block.NoopLeaseManager{}).
-		SetQueryLimits(queryLimits)
-	publicRetriever, err := NewBlockRetriever(opts, NewOptions().
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)))
-	require.NoError(t, err)
-	req := &retrieveRequest{}
-	retriever := publicRetriever.(*blockRetriever)
-	_ = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
-	err = retriever.streamRequest(context.NewContext(), req, 0, ident.StringID("id"), time.Now(), namespace.Context{})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "query aborted due to limit")
-
-	snapshot := scope.Snapshot()
-	seriesLimit := snapshot.Counters()["test.query-limit.exceeded+limit=disk-series-read"]
-	require.Equal(t, int64(1), seriesLimit.Value())
 }
 
 var errSeekErr = errors.New("some-error")

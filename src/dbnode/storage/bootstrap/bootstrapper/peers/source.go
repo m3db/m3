@@ -707,11 +707,11 @@ func (s *peersSource) readIndex(
 		BlockSize:       indexBlockSize,
 		// NB(bodu): We only read metadata when performing a peers bootstrap
 		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: true,
-		Logger:                    s.instrumentation.log,
-		Span:                      span,
-		NowFn:                     s.instrumentation.nowFn,
-		Cache:                     cache,
+		ReadMetadataOnly: true,
+		Logger:           s.instrumentation.log,
+		Span:             span,
+		NowFn:            s.instrumentation.nowFn,
+		Cache:            cache,
 	})
 
 	var buildWg sync.WaitGroup
@@ -811,6 +811,7 @@ func (s *peersSource) processReaders(
 		timesWithErrors []time.Time
 		totalEntries    int
 	)
+
 	defer func() {
 		metadataPool.Put(batch)
 		// Return readers to pool.
@@ -899,7 +900,10 @@ func (s *peersSource) processReaders(
 	)
 
 	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+	resultLock.Lock()
 	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	resultLock.Unlock()
+
 	if !ok {
 		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 			blockStart.String(), blockStart.UnixNano())
@@ -931,7 +935,7 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+		if errors.Is(err, fs.ErrIndexOutOfRetention) {
 			// Bail early if the index segment is already out of retention.
 			// This can happen when the edge of requested ranges at time of data bootstrap
 			// is now out of retention.
@@ -957,7 +961,13 @@ func (s *peersSource) processReaders(
 			blockStart,
 			blockEnd,
 		)
-		if err != nil {
+		if errors.Is(err, fs.ErrIndexOutOfRetention) {
+			// Bail early if the index segment is already out of retention.
+			// This can happen when the edge of requested ranges at time of data bootstrap
+			// is now out of retention.
+			s.instrumentation.outOfRetentionIndexSegmentSkipped(buildIndexLogFields)
+			return remainingRanges, timesWithErrors
+		} else if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -989,15 +999,12 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 	builder *result.IndexBuilder,
 ) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	entry, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}

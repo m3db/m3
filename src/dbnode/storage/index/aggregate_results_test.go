@@ -256,15 +256,6 @@ func addMultipleDocuments(t *testing.T, res AggregateResults) (int, int) {
 	return size, docsCount
 }
 
-func expectedTermsOnly(ex map[string][]string) map[string][]string {
-	m := make(map[string][]string, len(ex))
-	for k := range ex {
-		m[k] = []string{}
-	}
-
-	return m
-}
-
 func toFilter(strs ...string) AggregateFieldFilter {
 	b := make([][]byte, len(strs))
 	for i, s := range strs {
@@ -322,7 +313,8 @@ var mergeTests = []struct {
 	{
 		name: "with limit with filter",
 		opts: AggregateResultsOptions{
-			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz")},
+			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz"),
+		},
 		expected: map[string][]string{
 			"fizz": {"bar"},
 			"buzz": {"bar", "bag"},

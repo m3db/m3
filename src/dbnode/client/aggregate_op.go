@@ -45,11 +45,11 @@ func (f *aggregateOp) update(req rpc.AggregateQueryRawRequest, fn completionFn) 
 	f.completionFn = fn
 }
 
-func (f *aggregateOp) requestLimit(defaultValue int) int {
-	if f.request.Limit == nil {
+func (f *aggregateOp) requestSeriesLimit(defaultValue int) int {
+	if f.request.SeriesLimit == nil {
 		return defaultValue
 	}
-	return int(*f.request.Limit)
+	return int(*f.request.SeriesLimit)
 }
 
 func (f *aggregateOp) close() {

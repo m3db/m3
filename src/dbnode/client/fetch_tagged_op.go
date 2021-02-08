@@ -45,11 +45,11 @@ func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, fn completionFn) {
 	f.completionFn = fn
 }
 
-func (f *fetchTaggedOp) requestLimit(defaultValue int) int {
-	if f.request.Limit == nil {
+func (f *fetchTaggedOp) requestSeriesLimit(defaultValue int) int {
+	if f.request.SeriesLimit == nil {
 		return defaultValue
 	}
-	return int(*f.request.Limit)
+	return int(*f.request.SeriesLimit)
 }
 
 func (f *fetchTaggedOp) close() {

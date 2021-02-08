@@ -82,6 +82,17 @@ func (b *builderFromSegments) Reset() {
 }
 
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
+	// Order by largest -> smallest so that the first segment
+	// is the largest when iterating over term postings lists
+	// (which means it can be directly copied into the merged postings
+	// list via a union rather than needing to shift posting list
+	// IDs to take into account for duplicates).
+	// Note: This must be done first so that offset is correctly zero
+	// for the largest segment.
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].Size() > segments[j].Size()
+	})
+
 	// numMaxDocs can sometimes be larger than the actual number of documents
 	// since some are duplicates
 	numMaxDocs := 0
@@ -137,12 +148,6 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		})
 		b.segmentsOffset += postings.ID(added)
 	}
-
-	// Sort segments in descending order in terms of size so the multi segments
-	// terms iter more efficiently builds its postings list.
-	sort.Slice(b.segments, func(i, j int) bool {
-		return b.segments[i].segment.Size() > b.segments[j].segment.Size()
-	})
 
 	// Make sure the terms iter has all the segments to combine data from
 	b.termsIter.reset(b.segments)

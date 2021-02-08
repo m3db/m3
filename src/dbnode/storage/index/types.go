@@ -156,6 +156,15 @@ type BaseResults interface {
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
 
+	// TotalDuration is the total ResultDurations for the query.
+	TotalDuration() ResultDurations
+
+	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
+	AddBlockProcessingDuration(duration time.Duration)
+
+	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
+	AddBlockSearchDuration(duration time.Duration)
+
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
 
@@ -169,6 +178,30 @@ type BaseResults interface {
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
 	Finalize()
+}
+
+// ResultDurations holds various timing information for a query result.
+type ResultDurations struct {
+	// Processing is the total time to a process.
+	Processing time.Duration
+	// Search is the time spent searching the index.
+	Search time.Duration
+}
+
+// AddProcessing adds the provided duration to the Processing duration.
+func (r ResultDurations) AddProcessing(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing + duration,
+		Search:     r.Search,
+	}
+}
+
+// AddSearch adds the provided duration to the Search duration.
+func (r ResultDurations) AddSearch(duration time.Duration) ResultDurations {
+	return ResultDurations{
+		Processing: r.Processing,
+		Search:     r.Search + duration,
+	}
 }
 
 // QueryResults is a collection of results for a query, it is synchronized

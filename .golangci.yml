@@ -223,7 +223,7 @@ linters:
     - godox 
     # New line required before return would require a large fraction of the
     # code base to need updating, it's not worth the perceived benefit.
-    - nlreturn 
+    - nlreturn
     # Opinionated and sometimes wrong.
     - paralleltest
   disable-all: false
@@ -298,4 +298,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: master
+  new-from-rev: origin/master

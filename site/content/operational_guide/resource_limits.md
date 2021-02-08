@@ -94,6 +94,43 @@ limits:
   maxOutstandingReadRequests: 0
 ```
 
+### Dynamic configuration
+
+Query limits can be dynamically driven by etcd to adjust limits without redeploying. By updating the `m3db.query.limits` key in etcd, specific limits can be overriden. M3Coordinator exposes an API for updating etcd key/value pairs and so this API can be used for modifying these dynamic overrides. For example,
+
+```
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+  "key": "m3db.query.limits",
+  "value":{
+    "maxRecentlyQueriedSeriesDiskBytesRead": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    },
+    "maxRecentlyQueriedSeriesBlocks": {
+      "limit":0,
+      "lookbackSeconds":15,
+      "forceExceeded":false
+    },
+  },
+  "commit":true
+}'
+```
+
+To remove all overrides, omit all limits from the `value`
+```
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/kvstore -d '{
+  "key": "m3db.query.limits",
+  "value":{},
+  "commit":true
+}'
+```
+
+Usage notes:
+- Setting the `commit` flag to false allows for dry-run API calls to see the old and new limits that would be applied.
+- Omitting a limit from the `value` results in that limit to be driven by the config-based settings.
+- The `forceExceeded` flag makes the limit behave as though it is permanently exceeded, thus failing all queries. This is useful for dynamically shutting down all queries in cases where load may be exceeding provisioned resources.
+
 ## M3 Query and M3 Coordinator
 
 ### Deployment

@@ -241,6 +241,31 @@ func TestTCPClientWriteUntimedMetricActiveStagedPlacementError(t *testing.T) {
 	}
 }
 
+func TestTCPClientWriteUntimedMetricActiveStagedPlacementNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().
+		Return(nil, func() {}, nil).
+		MinTimes(1)
+	c := mustNewTestTCPClient(t, testOptions())
+	c.placementWatcher = watcher
+
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		var err error
+		switch input.Type {
+		case metric.CounterType:
+			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
+		case metric.TimerType:
+			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
+		case metric.GaugeType:
+			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
+		}
+		require.Equal(t, errNilPlacement, err)
+	}
+}
+
 func TestTCPClientWriteUntimedMetricActivePlacementError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

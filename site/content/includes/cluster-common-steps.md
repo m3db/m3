@@ -1,3 +1,32 @@
+### Ready a Namespace
+<!-- TODO: Why?> -->
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
+
+{{< tabs name="ready_namespaces" >}}
+{{% tab name="Command" %}}
+
+{{< codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" >}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+### Replication factor
+
+We recommend a replication factor of **3**, with each replica spread across failure domains such as a physical server rack, data center or availability zone. Read our [replication factor recommendations](/docs/operational_guide/replication_and_deployment_in_zones) for more details.
+
+### Shards
+
+Read the [placement configuration guide](/docs/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
+
 ## Writing and Querying Metrics
 
 ### Writing Metrics

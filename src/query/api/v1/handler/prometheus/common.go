@@ -176,52 +176,132 @@ func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	return queries, nil
 }
 
+// ParseStartAndEnd parses start and end params from the request.
+func ParseStartAndEnd(
+	r *http.Request,
+	parseOpts xpromql.ParseOptions,
+) (time.Time, time.Time, error) {
+	if err := r.ParseForm(); err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
+		time.Unix(0, 0))
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
+		parseOpts.NowFn()())
+	if err != nil {
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	if start.After(end) {
+		err := fmt.Errorf("start %v must be after end %v", start, end)
+		return time.Time{}, time.Time{}, xerrors.NewInvalidParamsError(err)
+	}
+
+	return start, end, nil
+}
+
 // ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
 	parseOpts xpromql.ParseOptions,
 	tagOptions models.TagOptions,
 ) ([]*storage.FetchQuery, error) {
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	matcherValues := r.Form["match[]"]
 	if len(matcherValues) == 0 {
 		return nil, xerrors.NewInvalidParamsError(errors.ErrInvalidMatchers)
 	}
 
-	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
-		time.Unix(0, 0))
+	start, end, err := ParseStartAndEnd(r, parseOpts)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, err
 	}
 
-	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
-		time.Now())
+	matchers, ok, err := ParseMatch(r, parseOpts, tagOptions)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, err
+	}
+	if !ok {
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("need more than one matcher: expected>=1, actual=%d", len(matchers)))
 	}
 
-	queries := make([]*storage.FetchQuery, len(matcherValues))
-	fn := parseOpts.MetricSelectorFn()
-	for i, s := range matcherValues {
-		promMatchers, err := fn(s)
-		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
-		}
-
-		matchers, err := xpromql.LabelMatchersToModelMatcher(promMatchers, tagOptions)
-		if err != nil {
-			return nil, xerrors.NewInvalidParamsError(err)
-		}
-
-		queries[i] = &storage.FetchQuery{
-			Raw:         fmt.Sprintf("match[]=%s", s),
-			TagMatchers: matchers,
+	queries := make([]*storage.FetchQuery, 0, len(matcherValues))
+	// nolint:gocritic
+	for _, m := range matchers {
+		queries = append(queries, &storage.FetchQuery{
+			Raw:         fmt.Sprintf("match[]=%s", m.Match),
+			TagMatchers: m.Matchers,
 			Start:       start,
 			End:         end,
-		}
+		})
 	}
 
 	return queries, nil
+}
+
+// ParsedMatch is a parsed matched.
+type ParsedMatch struct {
+	Match    string
+	Matchers models.Matchers
+}
+
+// ParseMatch parses all match params from the GET request.
+func ParseMatch(
+	r *http.Request,
+	parseOpts xpromql.ParseOptions,
+	tagOptions models.TagOptions,
+) ([]ParsedMatch, bool, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, false, xerrors.NewInvalidParamsError(err)
+	}
+
+	matcherValues := r.Form["match[]"]
+	if len(matcherValues) == 0 {
+		return nil, false, nil
+	}
+
+	matchers := make([]ParsedMatch, 0, len(matcherValues))
+	for _, str := range matcherValues {
+		m, err := parseMatch(parseOpts, tagOptions, str)
+		if err != nil {
+			return nil, false, err
+		}
+		matchers = append(matchers, ParsedMatch{
+			Match:    str,
+			Matchers: m,
+		})
+	}
+
+	return matchers, true, nil
+}
+
+func parseMatch(
+	parseOpts xpromql.ParseOptions,
+	tagOptions models.TagOptions,
+	matcher string,
+) (models.Matchers, error) {
+	fn := parseOpts.MetricSelectorFn()
+
+	promMatchers, err := fn(matcher)
+	if err != nil {
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
+	matchers, err := xpromql.LabelMatchersToModelMatcher(promMatchers, tagOptions)
+	if err != nil {
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
+	return matchers, nil
 }
 
 func renderNameOnlyTagCompletionResultsJSON(

@@ -44,8 +44,8 @@ import (
 )
 
 type tagValuesMatcher struct {
-	now       time.Time
-	filterTag string
+	start, end time.Time
+	filterTag  string
 }
 
 func (m *tagValuesMatcher) String() string { return "tag values query" }
@@ -55,11 +55,11 @@ func (m *tagValuesMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !q.Start.Equal(time.Time{}) {
+	if !q.Start.Equal(m.start) {
 		return false
 	}
 
-	if !q.End.Equal(m.now) {
+	if !q.End.Equal(m.end) {
 		return false
 	}
 
@@ -111,6 +111,7 @@ func TestTagValues(t *testing.T) {
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetNowFn(nowFn).
+		SetTagOptions(models.NewTagOptions()).
 		SetFetchOptionsBuilder(fb)
 
 	valueHandler := NewTagValuesHandler(opts)
@@ -123,49 +124,84 @@ func TestTagValues(t *testing.T) {
 	url := fmt.Sprintf("/label/{%s}/values", NameReplace)
 
 	for _, tt := range names {
-		path := fmt.Sprintf("/label/%s/values", tt.name)
-		req, err := http.NewRequest("GET", path, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		matcher := &tagValuesMatcher{
-			now:       now,
-			filterTag: tt.name,
-		}
-
-		storeResult := &consolidators.CompleteTagsResult{
-			CompleteNameOnly: false,
-			CompletedTags: []consolidators.CompletedTag{
-				{
-					Name:   b(tt.name),
-					Values: bs("a", "b", "c", tt.name),
-				},
-			},
-			Metadata: block.ResultMetadata{
-				Exhaustive: false,
-				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-			},
-		}
-
-		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
-			Return(storeResult, nil)
-
-		router.HandleFunc(url, valueHandler.ServeHTTP)
-		router.ServeHTTP(rr, req)
-
-		read, err := ioutil.ReadAll(rr.Body)
-		require.NoError(t, err)
-
-		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
-		assert.Equal(t, ex, string(read))
-
-		warning := rr.Header().Get(headers.LimitHeader)
-		exWarn := fmt.Sprintf("%s,foo_bar", headers.LimitHeaderSeriesLimitApplied)
-		assert.Equal(t, exWarn, warning)
+		testTagValuesWithMatch(t, now, store, tt.name, url, valueHandler, false)
+		testTagValuesWithMatch(t, now, store, tt.name, url, valueHandler, true)
 	}
+}
+
+func testTagValuesWithMatch(
+	t *testing.T,
+	now time.Time,
+	store *storage.MockStorage,
+	name string,
+	url string,
+	valueHandler http.Handler,
+	withMatchOverride bool,
+) {
+	path := fmt.Sprintf("/label/%s/values?start=100", name)
+	nameMatcher := models.Matcher{
+		Type: models.MatchField,
+		Name: []byte(name),
+	}
+	matchers := models.Matchers{nameMatcher}
+	if withMatchOverride {
+		path = fmt.Sprintf("/label/%s/values?start=100&match[]=testing", name)
+		matchers = models.Matchers{
+			nameMatcher,
+			{
+				Type:  models.MatchEqual,
+				Name:  []byte("__name__"),
+				Value: []byte("testing"),
+			},
+		}
+	}
+
+	matcher := &storage.CompleteTagsQuery{
+		Start:            time.Unix(100, 0),
+		End:              now,
+		CompleteNameOnly: false,
+		FilterNameTags:   [][]byte{[]byte(name)},
+		TagMatchers:      matchers,
+	}
+
+	// nolint:noctx
+	req, err := http.NewRequest("GET", path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+
+	storeResult := &consolidators.CompleteTagsResult{
+		CompleteNameOnly: false,
+		CompletedTags: []consolidators.CompletedTag{
+			{
+				Name:   b(name),
+				Values: bs("a", "b", "c", name),
+			},
+		},
+		Metadata: block.ResultMetadata{
+			Exhaustive: false,
+			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
+		},
+	}
+
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Eq(matcher), gomock.Any()).
+		Return(storeResult, nil)
+
+	router.HandleFunc(url, valueHandler.ServeHTTP)
+	router.ServeHTTP(rr, req)
+
+	read, err := ioutil.ReadAll(rr.Body)
+	require.NoError(t, err)
+
+	ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, name)
+	assert.Equal(t, ex, string(read))
+
+	warning := rr.Header().Get(headers.LimitHeader)
+	exWarn := fmt.Sprintf("%s,foo_bar", headers.LimitHeaderSeriesLimitApplied)
+	assert.Equal(t, exWarn, warning)
 }
 
 func TestTagValueErrors(t *testing.T) {

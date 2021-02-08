@@ -147,13 +147,6 @@ func (s *fileSystemSource) Read(
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
 
-	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return bootstrap.NamespaceResults{}, err
-	}
-	builder := result.NewIndexBuilder(segBuilder)
-
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
 	// having to re-read migrated info files.
@@ -175,7 +168,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder, span, cache)
+			namespace.DataRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -205,7 +198,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder, span, cache)
+			namespace.IndexRunOptions.RunOptions, span, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -535,17 +528,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
-			overlapsWithInitalIndexRange = false
-			min, max                     = requestedRanges.MinMax()
-			blockStart                   = min.Truncate(indexBlockSize)
-			blockEnd                     = blockStart.Add(indexBlockSize)
-			iopts                        = s.opts.ResultOptions().InstrumentOptions()
-			indexBlock                   result.IndexBlock
-			err                          error
+			overlapsWithInitialIndexRange = false
+			min, max                      = requestedRanges.MinMax()
+			blockStart                    = min.Truncate(indexBlockSize)
+			blockEnd                      = blockStart.Add(indexBlockSize)
+			iopts                         = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                    result.IndexBlock
+			err                           error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
-				overlapsWithInitalIndexRange = true
+				overlapsWithInitialIndexRange = true
 			}
 		}
 
@@ -573,13 +566,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			persistCfg.FileSetType == persist.FileSetFlushType
 
 		// Determine all requested ranges were fulfilled or at edge of retention
-		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		satisfiedFlushRanges := noneRemaining || overlapsWithInitialIndexRange
 
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
@@ -588,10 +581,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 			zap.Bool("shouldFlush", shouldFlush),
-			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+			zap.Bool("satisfiedFlushRanges", satisfiedFlushRanges),
 		}
 
-		if shouldFlush && satisifiedFlushRanges {
+		if shouldFlush && satisfiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -604,7 +597,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if errors.Is(err, fs.ErrOutOfRetentionClaim) {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
 				// Bail early if the index segment is already out of retention.
 				// This can happen when the edge of requested ranges at time of data bootstrap
 				// is now out of retention.
@@ -633,7 +626,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockStart,
 				blockEnd,
 			)
-			if err != nil {
+			if errors.Is(err, fs.ErrIndexOutOfRetention) {
+				// Bail early if the index segment is already out of retention.
+				// This can happen when the edge of requested ranges at time of data bootstrap
+				// is now out of retention.
+				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
+				return
+			} else if err != nil {
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
@@ -725,15 +725,12 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	builder *result.IndexBuilder,
 ) ([]doc.Metadata, error) {
 	// If performing index run, then simply read the metadata and add to segment.
-	id, tagsIter, _, _, err := r.ReadMetadata()
+	entry, err := r.StreamingReadMetadata()
 	if err != nil {
 		return batch, err
 	}
 
-	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
-	// Finalize the ID and tags.
-	id.Finalize()
-	tagsIter.Close()
+	d, err := convert.FromSeriesIDAndEncodedTags(entry.ID, entry.EncodedTags)
 	if err != nil {
 		return batch, err
 	}
@@ -753,7 +750,6 @@ func (s *fileSystemSource) read(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-	builder *result.IndexBuilder,
 	span opentracing.Span,
 	cache bootstrap.Cache,
 ) (*runResult, error) {
@@ -837,11 +833,11 @@ func (s *fileSystemSource) read(
 		BlockSize:       blockSize,
 		// NB(bodu): We only read metadata when bootstrap index
 		// so we do not need to sort the data fileset reader.
-		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
-		Logger:                    s.log,
-		Span:                      span,
-		NowFn:                     s.nowFn,
-		Cache:                     cache,
+		ReadMetadataOnly: run == bootstrapIndexRunType,
+		Logger:           s.log,
+		Span:             span,
+		NowFn:            s.nowFn,
+		Cache:            cache,
 	})
 
 	bootstrapFromReadersRunResult := newRunResult()

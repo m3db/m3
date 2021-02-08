@@ -595,12 +595,8 @@ func (r *blockRetriever) streamRequest(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
-	nsCtx namespace.Context,
 ) error {
 	req.resultWg.Add(1)
-	if err := r.queryLimits.DiskSeriesReadLimit().Inc(1, req.source); err != nil {
-		return err
-	}
 	req.shard = shard
 
 	// NB(r): If the ID is a ident.BytesID then we can just hold
@@ -672,7 +668,7 @@ func (r *blockRetriever) Stream(
 		}
 	}
 
-	err = r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
+	err = r.streamRequest(ctx, req, shard, id, startTime)
 	if err != nil {
 		req.resultWg.Done()
 		return xio.EmptyBlockReader, err
@@ -708,7 +704,7 @@ func (r *blockRetriever) StreamWideEntry(
 	req.streamReqType = streamWideEntryReq
 	req.wideFilter = filter
 
-	err = r.streamRequest(ctx, req, shard, id, startTime, nsCtx)
+	err = r.streamRequest(ctx, req, shard, id, startTime)
 	if err != nil {
 		req.resultWg.Done()
 		return block.EmptyStreamedWideEntry, err

@@ -42,7 +42,7 @@ import (
 )
 
 type listTagsMatcher struct {
-	now time.Time
+	start, end time.Time
 }
 
 func (m *listTagsMatcher) String() string { return "list tags query" }
@@ -52,12 +52,12 @@ func (m *listTagsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !q.Start.Equal(time.Time{}) {
+	if !q.Start.Equal(m.start) {
 		return false
 	}
 
 	// NB: end time for the query should be roughly `Now`
-	if !q.End.Equal(m.now) {
+	if !q.End.Equal(m.end) {
 		return false
 	}
 
@@ -116,32 +116,63 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).
+		SetTagOptions(models.NewTagOptions()).
 		SetNowFn(nowFn)
 	h := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
-		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
-			Return(storeResult, nil)
-
-		req := httptest.NewRequest(method, "/labels", nil)
-		w := httptest.NewRecorder()
-
-		h.ServeHTTP(w, req)
-
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
-
-		body := w.Result().Body
-		defer body.Close()
-
-		r, err := ioutil.ReadAll(body)
-		require.NoError(t, err)
-
-		ex := `{"status":"success","data":["bar","baz","foo"]}`
-		require.Equal(t, ex, string(r))
-
-		actual := w.Header().Get(headers.LimitHeader)
-		assert.Equal(t, header, actual)
+		testListTagsWithMatch(t, now, store, storeResult, method, header, h, false)
+		testListTagsWithMatch(t, now, store, storeResult, method, header, h, true)
 	}
+}
+
+func testListTagsWithMatch(
+	t *testing.T,
+	now time.Time,
+	store *storage.MockStorage,
+	storeResult *consolidators.CompleteTagsResult,
+	method string,
+	header string,
+	h http.Handler,
+	withMatchOverride bool,
+) {
+	tagMatcher := models.Matchers{{Type: models.MatchAll}}
+	target := "/labels"
+	if withMatchOverride {
+		tagMatcher = models.Matchers{{
+			Type:  models.MatchEqual,
+			Name:  []byte("__name__"),
+			Value: []byte("testing"),
+		}}
+		target = "/labels?match[]=testing"
+	}
+
+	matcher := &storage.CompleteTagsQuery{
+		CompleteNameOnly: true,
+		TagMatchers:      tagMatcher,
+		Start:            time.Unix(0, 0),
+		End:              now,
+	}
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Eq(matcher), gomock.Any()).
+		Return(storeResult, nil)
+
+	req := httptest.NewRequest(method, target, nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode) // nolint:bodyclose
+
+	body := w.Result().Body
+	defer body.Close() // nolint:errcheck
+
+	r, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+
+	ex := `{"status":"success","data":["bar","baz","foo"]}`
+	require.Equal(t, ex, string(r))
+
+	actual := w.Header().Get(headers.LimitHeader)
+	assert.Equal(t, header, actual)
 }
 
 func TestListErrorTags(t *testing.T) {
@@ -150,25 +181,19 @@ func TestListErrorTags(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now()
-	nowFn := func() time.Time {
-		return now
-	}
-
 	fb, err := handleroptions.NewFetchOptionsBuilder(
 		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
 	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
-		SetFetchOptionsBuilder(fb).
-		SetNowFn(nowFn)
+		SetFetchOptionsBuilder(fb)
 	handler := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{now: now}
+		matcher := &listTagsMatcher{start: time.Unix(100, 0), end: time.Unix(1000, 0)}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(nil, errors.New("err"))
 
-		req := httptest.NewRequest(method, "/labels", nil)
+		req := httptest.NewRequest(method, "/labels?start=100&end=1000", nil)
 		w := httptest.NewRecorder()
 
 		handler.ServeHTTP(w, req)

@@ -482,6 +482,7 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 		}
 
 		moreElems = hasMore
+		// Would count ever be above limit?
 		return count < limit
 	})
 
